@@ -492,23 +492,29 @@ class Company:
         return language_for(self.country)
 
     def message_status(self, it: Interaction, today: date | None = None,
-                       window_days: int = 14) -> str:
-        """success | unsuccessful | unknown for one outbound message.
+                       window_days: int = 14, outcomes=None) -> str:
+        """The outcome of one outbound message, or "unknown".
 
-        An explicit `result` wins; otherwise a later inbound interaction from the
-        same contact (or a company-level one) counts as success; otherwise a
-        message older than `window_days` is unsuccessful; otherwise unknown."""
+        An explicit outcome (`it.outcome`, legacy `it.result`) wins; otherwise a
+        later inbound interaction from the same contact (or a company-level one)
+        counts as `outcomes[0]`; otherwise a message older than `window_days`
+        counts as `outcomes[-1]`; otherwise "unknown". `outcomes` is the
+        config's `outcomes` list; None keeps the legacy success/unsuccessful."""
+        if it.outcome:
+            return it.outcome
         if it.result:
             return it.result
+        positive = outcomes[0] if outcomes else MessageResult.SUCCESS.value
+        negative = outcomes[-1] if outcomes else MessageResult.UNSUCCESSFUL.value
         if it.date:
             for other in self.interactions:
                 if (other.direction == Direction.IN.value and other.date
                         and other.date > it.date
                         and (other.contact == it.contact or not other.contact)):
-                    return MessageResult.SUCCESS.value
+                    return positive
             age = (today or date.today()) - it.date.date()
             if age.days >= window_days:
-                return MessageResult.UNSUCCESSFUL.value
+                return negative
         return "unknown"
 
     @property
