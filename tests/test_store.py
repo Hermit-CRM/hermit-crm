@@ -359,9 +359,9 @@ def test_update_interaction_keeps_id_when_base_unchanged(store):
     it = store.create_interaction("acme", subject="s", channel="email",
                                   direction="out", date="2026-09-14T10:30")
     same = store.update_interaction("acme", it.id, subject="new subject",
-                                    outcome="replied")
+                                    outcome="successful")
     assert same.id == it.id
-    assert same.subject == "new subject" and same.outcome == "replied"
+    assert same.subject == "new subject" and same.outcome == "successful"
 
 
 def test_update_interaction_keeps_collision_suffix(store):
@@ -370,7 +370,7 @@ def test_update_interaction_keeps_collision_suffix(store):
     store.create_interaction("acme", subject="one", **kw)
     second = store.create_interaction("acme", subject="two", **kw)
     assert second.id.endswith("-2")
-    same = store.update_interaction("acme", second.id, outcome="ok")
+    same = store.update_interaction("acme", second.id, outcome="unsuccessful")
     assert same.id == second.id
 
 
@@ -409,7 +409,7 @@ def make_full_company(store):
                              body="Hallo Anna,\n\nkurz zu uns.\n")
     store.create_interaction("mueller-soehne", subject="Re: Intro", channel="email",
                              direction="in", contact="anna-mueller",
-                             date="2026-09-11T16:40", outcome="interested",
+                             date="2026-09-11T16:40", outcome="successful",
                              body="Danke!\n")
     store.create_interaction("mueller-soehne", subject="Discovery call",
                              channel="call", direction="out",
@@ -864,21 +864,22 @@ def test_requalify_due_sweep_is_idempotent_and_one_commit(store, messages):
     assert messages[-1] == "company: later requalified (parked until 2026-09-20)"
 
 
-def test_interaction_result_field_and_commit_message(store, messages):
+def test_interaction_outcome_field_and_commit_message(store, messages):
     store.create_company("Acme")
     it = store.create_interaction("acme", channel="linkedin", direction="out",
-                                  body="Hi", result="")
-    assert it.result == "" and "result:\n" in read(
-        store.company_dir("acme") / "interactions" / f"{it.id}.md")
+                                  body="Hi", outcome="")
+    path = store.company_dir("acme") / "interactions" / f"{it.id}.md"
+    assert it.outcome == "" and "outcome:\n" in read(path) and "result" not in read(path)
     messages.clear()
-    store.update_interaction("acme", it.id, result="success")
-    assert messages == [f"interaction: acme {it.id} result success"]
-    assert "result: success\n" in read(
-        store.company_dir("acme") / "interactions" / f"{it.id}.md")
-    store.update_interaction("acme", it.id, result="")
-    assert messages[-1] == f"interaction: acme {it.id} result unknown"
+    store.update_interaction("acme", it.id, outcome="successful")
+    assert messages == [f"interaction: acme {it.id} outcome successful"]
+    assert "outcome: successful\n" in read(path)
+    store.update_interaction("acme", it.id, outcome="")
+    assert messages[-1] == f"interaction: acme {it.id} outcome unknown"
     with pytest.raises(ValidationError):
-        store.update_interaction("acme", it.id, result="meh")
+        store.update_interaction("acme", it.id, outcome="meh")
+    with pytest.raises(ValidationError):
+        store.create_interaction("acme", channel="call", direction="out", outcome="meh")
 
 
 def test_country_aliases_on_create_and_edit(store):

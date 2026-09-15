@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from .models import COUNTRY_CODE_ALIASES
+from .models import COUNTRY_CODE_ALIASES, DEFAULT_OUTCOMES
 from .store import build_file, split_file
 
 FORMAT_FILE = ".owncrm-format"
@@ -57,9 +57,41 @@ def m2_country_codes(meta: dict) -> dict:
     return {**meta, "country": code}
 
 
+# Legacy spellings of an outcome (matched case-insensitively) and what they
+# mean now; "" is "not yet known". Anything else is free text and stays as is.
+OUTCOME_ALIASES = {
+    "success": "successful", "succesful": "successful", "successful": "successful",
+    "unsuccessful": "unsuccessful",
+    "pending": "", "unknown": "",
+}
+
+
+def m3_outcome(meta: dict) -> dict:
+    """Fold the old `result` verdict (success | unsuccessful) into `outcome`:
+    it fills an empty outcome; an outcome already holding a list value wins;
+    then `result` goes. Free text in `outcome` is kept verbatim."""
+    if "outcome" not in meta and "result" not in meta:
+        return meta
+    raw = meta.get("outcome")
+    outcome = str(raw or "").strip()
+    outcome = OUTCOME_ALIASES.get(outcome.lower(), outcome)
+    result = str(meta.get("result") or "").strip()
+    if result and not outcome:
+        outcome = OUTCOME_ALIASES.get(result.lower(), result)
+    if outcome == str(raw or "").strip():
+        outcome = raw  # unchanged: keep the parsed value (None for an empty key)
+    if "outcome" in meta:
+        return {k: (outcome if k == "outcome" else v) for k, v in meta.items() if k != "result"}
+    # No outcome key at all (hand-written file): it takes the place of `result`.
+    return {("outcome" if k == "result" else k): (outcome if k == "result" else v)
+            for k, v in meta.items()}
+
+
 MIGRATIONS = [
     Migration(1, "rename gijs_score to my_score", "companies/*/company.md", m1_my_score),
     Migration(2, "country UK→GB, USA→US", "companies/*/company.md", m2_country_codes),
+    Migration(3, "interaction result folded into outcome",
+              "companies/*/interactions/*.md", m3_outcome),
 ]
 LATEST = MIGRATIONS[-1].version
 

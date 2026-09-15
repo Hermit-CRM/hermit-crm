@@ -77,10 +77,12 @@ class TaskStatus(str, Enum):
     DONE = "done"
 
 
-class MessageResult(str, Enum):
-    """Explicit verdict on an outbound message; empty means "not yet known"."""
-    SUCCESS = "success"
-    UNSUCCESSFUL = "unsuccessful"
+# Outcome choices for an interaction when config.toml sets none: the first is
+# what a detected reply counts as, the last what silence past the message
+# window counts as; an empty outcome means "not yet known".
+DEFAULT_OUTCOMES = ("successful", "unsuccessful")
+# What message_status reports for callers that pass no outcomes list.
+LEGACY_OUTCOMES = ("success", "unsuccessful")
 
 
 # Language of outreach by HQ country; anything else is English. Belgium stays
@@ -308,8 +310,7 @@ class Interaction:
     direction: str = ""
     contact: str = ""
     subject: str = ""
-    outcome: str = ""
-    result: str = ""  # success | unsuccessful | "" (not yet known)
+    outcome: str = ""  # one of config outcomes, or "" (not yet known)
     source: str = "manual"
     message_id: str = ""  # dedup key of a BCC (Message-ID) or calendar (ical:…) import
     body: str = ""
@@ -495,17 +496,14 @@ class Company:
                        window_days: int = 14, outcomes=None) -> str:
         """The outcome of one outbound message, or "unknown".
 
-        An explicit outcome (`it.outcome`, legacy `it.result`) wins; otherwise a
-        later inbound interaction from the same contact (or a company-level one)
-        counts as `outcomes[0]`; otherwise a message older than `window_days`
-        counts as `outcomes[-1]`; otherwise "unknown". `outcomes` is the
-        config's `outcomes` list; None keeps the legacy success/unsuccessful."""
+        An explicit `it.outcome` wins; otherwise a later inbound interaction
+        from the same contact (or a company-level one) counts as `outcomes[0]`;
+        otherwise a message older than `window_days` counts as `outcomes[-1]`;
+        otherwise "unknown". `outcomes` is the config's `outcomes` list; a
+        caller that passes none gets the legacy success/unsuccessful names."""
         if it.outcome:
             return it.outcome
-        if it.result:
-            return it.result
-        positive = outcomes[0] if outcomes else MessageResult.SUCCESS.value
-        negative = outcomes[-1] if outcomes else MessageResult.UNSUCCESSFUL.value
+        positive, negative = (outcomes or LEGACY_OUTCOMES)[0], (outcomes or LEGACY_OUTCOMES)[-1]
         if it.date:
             for other in self.interactions:
                 if (other.direction == Direction.IN.value and other.date
@@ -665,7 +663,6 @@ def interaction_to_frontmatter(i: Interaction) -> dict:
         "contact": i.contact,
         "subject": i.subject,
         "outcome": i.outcome,
-        "result": i.result,
         "source": i.source,
     }
     if i.message_id:  # only BCC imports carry one
@@ -685,7 +682,7 @@ CONTACT_KEYS = frozenset({
     "role", "created", "updated",
 })
 INTERACTION_KEYS = frozenset({
-    "date", "channel", "direction", "contact", "subject", "outcome", "result", "source",
+    "date", "channel", "direction", "contact", "subject", "outcome", "source",
     "message_id",
 })
 
@@ -861,7 +858,6 @@ def interaction_from_dict(meta: dict, body: str, id: str) -> Interaction:
         contact=_str(meta, "contact").strip(),
         subject=_str(meta, "subject").strip(),
         outcome=_str(meta, "outcome").strip(),
-        result=_enum(_str(meta, "result"), MessageResult, "result", True, errors, ""),
         source=_enum(_str(meta, "source"), InteractionSource, "source", True, errors,
                      "manual"),
         message_id=_str(meta, "message_id").strip(),

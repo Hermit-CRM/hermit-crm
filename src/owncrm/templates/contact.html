@@ -37,10 +37,8 @@
   <h2>Merge</h2>
   <form method="get" action="/companies/{{ company.slug }}/contacts/{{ contact.slug }}/merge" class="inline-row">
     <label>merge another contact of {{ company.name }} into this one
-      <select name="drop">
-        <option value="">choose a contact</option>
-        {% for slug, o in company.contacts.items() if slug != contact.slug %}<option value="{{ slug }}">{{ o.name }}</option>{% endfor %}
-      </select>
+      <input name="drop" list="merge-candidates" placeholder="type a name or slug" required>
+      <datalist id="merge-candidates">{% for slug, o in company.contacts.items() if slug != contact.slug %}<option value="{{ slug }}">{{ o.name }}</option>{% endfor %}</datalist>
     </label>
     <button type="submit">Compare</button>
   </form>

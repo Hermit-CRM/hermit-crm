@@ -57,8 +57,9 @@ you can set `OWNCRM_DATA=~/crm` or run commands from inside the folder.
   in or out, with bodies kept byte for byte.
 - **Message drafts without AI**: three angles per contact in English, German,
   Dutch or French (by country), with wording you control in `messages.toml`.
-- **Messages tab**: every outbound message with its result (replied,
-  unsuccessful after a window, or set by hand).
+- **Messages tab**: every outbound message with its outcome (successful on a
+  reply, unsuccessful after a window, or set by hand; the choices are
+  `outcomes` in config.toml).
 - **Reports**: activity per week, funnel and conversion, time in stage,
   outcomes, message results by language and channel, data hygiene.
 - **BCC import**: BCC or forward mail to a Gmail address and it is logged on
@@ -88,7 +89,7 @@ Uncomment what you want to change.
 | `enrich_command` | `""` | Custom enrich command; empty means the provider's own binary. |
 | `enrich_model` | `""` | Model for the enrich CLI; empty means its default. |
 | `enrich_timeout` | `180` | Seconds before an enrich call is abandoned. |
-| `message_window_days` | `14` | A message without reply or result counts as unsuccessful after this many days. |
+| `message_window_days` | `14` | A message without reply or outcome counts as the last outcome after this many days. |
 | `fetch_timeout` | `10` | Seconds to wait when Fetch from URL reads a page. |
 | `bcc_address` | `""` | Address you BCC or forward mail to, e.g. you+crm@gmail.com; empty disables BCC import. |
 | `bcc_imap_host` | `"imap.gmail.com"` | IMAP server of that mailbox. |

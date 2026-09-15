@@ -54,9 +54,10 @@ def test_format_detection(tmp_path, old_folder):
 def test_dry_run_lists_files_and_writes_nothing(old_folder):
     before = {p: p.read_bytes() for p in old_folder.rglob("company.md")}
     text = migrations.dry_run(old_folder)
-    assert "Data format 0 → 2" in text
+    assert "Data format 0 → 3" in text
     assert "1. rename gijs_score to my_score: 3 file(s)" in text  # bolt has an empty key
     assert "2. country UK→GB, USA→US: 2 file(s)" in text
+    assert "3. interaction result folded into outcome: 0 file(s)" in text
     assert "companies/acme/company.md" in text and "companies/cygne/company.md" not in \
         text.split("2. country")[1]
     assert {p: p.read_bytes() for p in old_folder.rglob("company.md")} == before
@@ -71,14 +72,15 @@ def test_migrate_before_after_in_one_commit(old_folder):
 
     summary = migrations.ensure_current(old_folder)
 
-    assert summary.startswith("migrate: data format 0 → 2 (rename gijs_score to my_score; "
-                              "country UK→GB, USA→US)")
+    assert summary.startswith("migrate: data format 0 → 3 (rename gijs_score to my_score; "
+                              "country UK→GB, USA→US; interaction result folded into "
+                              "outcome)")
     assert acme.read_text() == expected and acme.read_text().endswith(BODY)
     bolt = (old_folder / "companies/bolt/company.md").read_text()
     assert "country: US\n" in bolt and "my_score:\n" in bolt and "gijs_score" not in bolt.split("---")[1]
-    assert (old_folder / ".owncrm-format").read_text() == "2\n"
+    assert (old_folder / ".owncrm-format").read_text() == "3\n"
     assert int(git(["rev-list", "--count", "HEAD"], old_folder)) == commits_before + 1
-    assert git(["log", "-1", "--format=%s|%an"], old_folder).startswith("migrate: data format 0 → 2")
+    assert git(["log", "-1", "--format=%s|%an"], old_folder).startswith("migrate: data format 0 → 3")
     assert "owncrm" in git(["log", "-1", "--format=%an"], old_folder)
     changed = git(["show", "--name-only", "--format=", "HEAD"], old_folder).split()
     assert sorted(changed) == [".owncrm-format", "companies/acme/company.md",
