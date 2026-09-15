@@ -12,6 +12,7 @@ from urllib.parse import quote_plus, unquote_plus
 import pytest
 from fastapi.testclient import TestClient
 
+from owncrm import cli as crm
 from owncrm import reports
 from owncrm.datafolder import init_folder
 from owncrm.store import Store, load_config
@@ -19,11 +20,9 @@ from owncrm.web import create_app
 from conftest import FIXED_NOW
 
 TODAY = FIXED_NOW.date()  # 2026-09-14
-LEGACY = ["success", "unsuccessful"]  # the outcome values before they were configurable
 
-# `owncrm report --md` for the demo folder (window 14d, today 2026-09-14), captured
-# before the rows registry existed. The demo data still carries legacy `success`
-# values, so the comparison passes the legacy outcome list explicitly.
+# `owncrm report --md` for the demo folder (window 14d, today 2026-09-14, default
+# outcomes): the rows registry must not change a single byte of it.
 BASELINE_30D = """\
 # Report 2026-08-16 to 2026-09-14 (30d; previous 2026-07-17 to 2026-08-15)
 
@@ -97,21 +96,21 @@ win rate: 50% (previous -)
 
 ## Messages
 
-sent: 3 (previous 3, ±0) | success 0 | unsuccessful 0 | unknown 1 | success rate - (window 14d)
+sent: 3 (previous 3, ±0) | successful 0 | unsuccessful 2 | unknown 1 | successful rate 0% (window 14d)
 
-| language | sent | success | unsuccessful | unknown | rate |
+| language | sent | successful | unsuccessful | unknown | rate |
 |---|---|---|---|---|---|
-| de | 1 | 0 | 0 | 0 | - |
+| de | 1 | 0 | 1 | 0 | 0% |
 | fr | 1 | 0 | 0 | 1 | - |
-| nl | 1 | 0 | 0 | 0 | - |
+| nl | 1 | 0 | 1 | 0 | 0% |
 
-| channel | sent | success | unsuccessful | unknown | rate |
+| channel | sent | successful | unsuccessful | unknown | rate |
 |---|---|---|---|---|---|
-| call | 1 | 0 | 0 | 0 | - |
-| email | 1 | 0 | 0 | 0 | - |
+| call | 1 | 0 | 1 | 0 | 0% |
+| email | 1 | 0 | 1 | 0 | 0% |
 | linkedin | 1 | 0 | 0 | 1 | - |
 
-| reused text | uses | success rate |
+| reused text | uses | successful rate |
 |---|---|---|
 | - |  |  |
 
@@ -219,22 +218,22 @@ win rate: 50% (previous -)
 
 ## Messages
 
-sent: 6 (previous 0, +6) | success 2 | unsuccessful 1 | unknown 1 | success rate 67% (window 14d)
+sent: 6 (previous 0, +6) | successful 2 | unsuccessful 3 | unknown 1 | successful rate 40% (window 14d)
 
-| language | sent | success | unsuccessful | unknown | rate |
+| language | sent | successful | unsuccessful | unknown | rate |
 |---|---|---|---|---|---|
-| de | 2 | 1 | 0 | 0 | 100% |
+| de | 2 | 1 | 1 | 0 | 50% |
 | en | 1 | 0 | 1 | 0 | 0% |
 | fr | 1 | 0 | 0 | 1 | - |
-| nl | 2 | 1 | 0 | 0 | 100% |
+| nl | 2 | 1 | 1 | 0 | 50% |
 
-| channel | sent | success | unsuccessful | unknown | rate |
+| channel | sent | successful | unsuccessful | unknown | rate |
 |---|---|---|---|---|---|
-| call | 1 | 0 | 0 | 0 | - |
-| email | 3 | 1 | 1 | 0 | 50% |
+| call | 1 | 0 | 1 | 0 | 0% |
+| email | 3 | 1 | 2 | 0 | 33% |
 | linkedin | 2 | 1 | 0 | 1 | 100% |
 
-| reused text | uses | success rate |
+| reused text | uses | successful rate |
 |---|---|---|
 | - |  |  |
 
@@ -292,19 +291,13 @@ def build(store, name="30d", **kw):
 # ------------------------------------------------------------------ text output
 
 
-def test_markdown_unchanged_with_legacy_outcomes(demo):
-    assert reports.render_text(build(demo, "30d", outcomes=LEGACY), md=True) == BASELINE_30D
-    assert reports.render_text(build(demo, "90d", outcomes=LEGACY), md=True) == BASELINE_90D
-
-
-def test_markdown_default_outcomes_only_rename_the_columns(demo):
-    """With the default outcomes the only difference is the outcome word."""
-    text = reports.render_text(build(demo, "30d"), md=True)
-    expected = (BASELINE_30D.replace("| success |", "| successful |")
-                .replace("success 0", "successful 0")
-                .replace("success rate", "successful rate"))
-    assert text == expected
-    assert "successful" in text and "| success |" not in text
+def test_markdown_unchanged(demo):
+    assert reports.render_text(build(demo, "30d"), md=True) == BASELINE_30D
+    assert reports.render_text(build(demo, "90d"), md=True) == BASELINE_90D
+    # The CLI takes the same path (store without a config: default outcomes).
+    assert crm.cmd_report(demo, days=30, md=True) == BASELINE_30D
+    assert crm.cmd_report(demo, days=90, md=True) == BASELINE_90D
+    assert "| language | sent | successful | unsuccessful | unknown | rate |" in BASELINE_30D
 
 
 # --------------------------------------------------------- counts match rows
@@ -390,8 +383,11 @@ def test_rows_carry_the_right_kind_and_link(demo):
     assert rows.label("activity.interactions.week:2026-W37.channel:linkedin.dir:out") \
         == "Interactions in 2026-W37, linkedin out"
     assert rows.label("nope") == "nope" and rows.get("nope") is None and "nope" not in rows
-    other = rows.get("messages.status.other")
-    assert [r.status for r in other] == ["Sent", "Discovery booked"]  # legacy free text
+    assert rows.get("messages.status.other") == []  # every demo outcome is a configured one
+    successful = build(demo, "90d")["rows"].get("messages.status.successful")
+    assert successful and all(r.status == "successful" and r.kind == "interaction"
+                              for r in successful)
+    assert rows.label("messages.status.other") == "Messages: outcome outside the configured list"
     for r in rows.get("activity.new_contacts.previous"):
         assert r.kind == "contact" and r.url == f"/companies/{r.slug}/contacts/{r.cslug}"
 
@@ -465,8 +461,43 @@ def test_web_uses_the_configured_outcomes(tmp_path):
     assert r.status_code == 200
     assert '<th class="num">hit</th><th class="num">miss</th><th class="num">unknown</th>' in r.text
     assert "hit rate" in r.text and "counts as miss" in r.text
+    assert "count in sent only" not in r.text
     assert c.get("/reports/rows?key=messages.status.hit&period=30d").status_code == 200
     assert c.get("/reports/rows?key=messages.status.successful&period=30d").status_code == 404
+
+
+def test_web_notes_outcomes_outside_the_configured_list(tmp_path):
+    """An outcome value the config does not list (legacy data, a hand edit) is
+    counted in sent only, with a note linking to its own rows page."""
+    subprocess.run(["git", "init", "-b", "main"], cwd=tmp_path, check=True, capture_output=True)
+    (tmp_path / "companies").mkdir()
+    app = create_app(tmp_path, config={"push_enabled": False, "outcomes": ["hit", "miss"]})
+    app.state.setup_redirected = True
+    store = app.state.store
+    store.clock = lambda: FIXED_NOW
+    store.create_company("Acme GmbH")
+    store.create_contact("acme", "Jane", "Doe")
+    store.create_interaction("acme", channel="email", direction="out", contact="jane-doe",
+                             date="2026-09-10T09:30", subject="Intro", body="Hello")
+    odd = store.create_interaction("acme", channel="linkedin", direction="out",
+                                   contact="jane-doe", date="2026-09-11T09:30", body="Ping")
+    odd.outcome = "Sent"  # set on the in-memory record: outside hit / miss
+    c = TestClient(app, follow_redirects=False)
+    r = c.get("/reports?period=30d")
+    assert r.status_code == 200
+    assert (">1</a> message with an outcome outside the configured list (Sent) "
+            "count in sent only.") in r.text
+    assert 'href="/reports/rows?key=messages.status.other&amp;period=30d">1</a>' in r.text
+    assert 'href="/reports/rows?key=messages.status.unknown&amp;period=30d">1</a>' in r.text
+    assert 'href="/reports/rows?key=messages.sent&amp;period=30d">2</a>' in r.text
+    r = c.get("/reports/rows?key=messages.status.other&period=30d")
+    assert r.status_code == 200 and "1 row " in r.text
+    assert f'href="{odd_url(odd.id)}">{odd.id}</a>' in r.text and "<td>Sent</td>" in r.text
+    assert "<td>Intro</td>" not in r.text and "Intro" not in r.text.split("<main", 1)[1]
+
+
+def odd_url(interaction_id: str) -> str:
+    return f"/companies/acme/interactions/{interaction_id}/edit"
 
 
 # ------------------------------------------------------------------------ web
@@ -494,7 +525,7 @@ def test_report_page_links_numbers_to_registered_keys(client, demo):
     assert all(rows.get(k) for k in linked)
     assert re.search(r'<a class="rows" href="[^"]*">0</a>', r.text) is None
     assert re.search(r'<a class="rows" href="[^"]*">4,000</a>', r.text)  # money sums link too
-    assert "count in sent only" in r.text  # the legacy free-text outcomes note
+    assert "count in sent only" not in r.text  # every demo outcome is a configured one
 
 
 @pytest.mark.parametrize("name", ["30d", "90d"])
