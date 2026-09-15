@@ -34,3 +34,4 @@ Roadmap and open items. Personal items live in the private data folder.
 - [ ] Attio / Notion export headers for import.
 - [ ] Show HN, r/selfhosted, Obsidian forum posts.
 - [ ] Validate contact emails (must contain `@`) in the store; the forms accept any string today.
+- [ ] The store commits with `git add -A`; restrict it to the data paths (companies/, inbox/, PIPELINE.md, config.toml, messages.toml) so stray folders in the data repo are never committed.
