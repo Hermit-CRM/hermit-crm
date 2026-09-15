@@ -133,10 +133,8 @@
   <h2>Merge</h2>
   <form method="get" action="/companies/{{ company.slug }}/merge" class="inline-row">
     <label>merge another company into this one
-      <select name="drop">
-        <option value="">choose a company</option>
-        {% for o in others %}<option value="{{ o.slug }}">{{ o.name }} ({{ o.stage }})</option>{% endfor %}
-      </select>
+      <input name="drop" list="merge-candidates" placeholder="type a name or slug" required>
+      <datalist id="merge-candidates">{% for o in others %}<option value="{{ o.slug }}">{{ o.name }} ({{ o.stage }})</option>{% endfor %}</datalist>
     </label>
     <button type="submit">Compare</button>
   </form>
