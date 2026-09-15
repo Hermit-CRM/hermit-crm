@@ -124,6 +124,7 @@ Reading rules, in order of cost:
 6. Never edit PIPELINE.md by hand; it is generated.
 7. For outreach wording, read MESSAGING.md (the playbook) and messages.toml
    (if present) before drafting anything.
+8. For how a feature works: `owncrm help <topic>` (topics: `owncrm help`).
 
 Writing rules:
 - Prefer the web app or a hand edit of front matter over ad-hoc scripts.

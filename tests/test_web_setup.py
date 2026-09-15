@@ -1,4 +1,4 @@
-"""The /setup page, CSRF, the redirect-once and the empty-board cards."""
+"""The /settings page (the former /setup), CSRF, the redirect-once and the empty-board cards."""
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ def make_client(folder: Path, **state):
 
 
 def token(client) -> str:
-    return re.search(r'name="csrf_token" value="([^"]+)"', client.get("/setup").text).group(1)
+    return re.search(r'name="csrf_token" value="([^"]+)"', client.get("/settings").text).group(1)
 
 
 def cfg(folder):
@@ -43,9 +43,9 @@ def cfg(folder):
 def test_redirects_to_setup_once_per_start(folder):
     app, client = make_client(folder)
     r = client.get("/")
-    assert r.status_code == 303 and r.headers["location"] == "/setup"
+    assert r.status_code == 303 and r.headers["location"] == "/settings"
     assert client.get("/").status_code == 200  # "Skip for now"
-    page = client.get("/setup").text
+    page = client.get("/settings").text
     assert 'href="/">Skip for now' in page
     assert page.count("pending") >= 4
 
@@ -62,7 +62,7 @@ def test_empty_board_cards_and_setup_nav(folder):
     for text, href in (("Import a spreadsheet", "/import"), ("Add a company", "/companies/new"),
                        ("Set up BCC capture", "/setup#bcc")):
         assert text in page and f'href="{href}"' in page
-    assert '<a href="/setup">Setup</a>' in page.split("</nav>")[0]
+    assert '<a href="/settings">Settings</a>' in page.split("</nav>")[0]
 
 
 def test_demo_board_has_no_start_cards(tmp_path):
@@ -86,14 +86,14 @@ def test_setup_you_saves_keeps_comments_and_clears_redirect(folder):
     before = (folder / "config.toml").read_text()
     r = client.post("/setup/you", data={"csrf_token": token(client), "name": "Jane Doe",
                                         "addresses": "jane@example.com, jane@gmail.com"})
-    assert r.status_code == 303 and r.headers["location"].startswith("/setup?flash=")
+    assert r.status_code == 303 and r.headers["location"].startswith("/settings?flash=")
     after = (folder / "config.toml").read_text()
     assert "# Your name; its first word signs outreach drafts" in after
     assert len(after.splitlines()) == len(before.splitlines())
     c = cfg(folder)
     assert c["owner_email"] == "jane@example.com" and c["bcc_ignore_domains"] == ["example.com"]
     assert app.state.config["owner_name"] == "Jane Doe"
-    page = client.get("/setup").text
+    page = client.get("/settings").text
     assert 'value="jane+crm@gmail.com"' not in page  # main address is not Gmail
     assert 'value="Jane Doe"' in page
 
@@ -116,7 +116,7 @@ def test_setup_bcc_never_echoes_password_and_test_hint(folder):
                                         "imap_host": "", "password": "hunter2-secret"})
     assert r.status_code == 303 and "hunter2" not in r.headers["location"]
     assert secrets.get("bcc_password", folder, env={}, platform="linux") == "hunter2-secret"
-    page = client.get("/setup").text
+    page = client.get("/settings").text
     assert "hunter2" not in page
     assert "Matches: to:(jane+crm@gmail.com) → Skip the Inbox, Mark as read, Apply label OwnCRM" in page
     assert app.state.bcc_settings.address == "jane+crm@gmail.com"
@@ -141,6 +141,6 @@ def test_setup_backup_and_calendar(folder, tmp_path):
     r = client.post("/setup/calendar", data={"csrf_token": t,
                                              "url": "https://cal.example.com/s3cr3t.ics"})
     assert r.status_code == 303 and "s3cr3t" not in r.headers["location"]
-    page = client.get("/setup").text
+    page = client.get("/settings").text
     assert "s3cr3t" not in page and "PRIVATE" in page
     assert client.post("/setup/calendar", data={"csrf_token": t, "url": "x"}).status_code == 400

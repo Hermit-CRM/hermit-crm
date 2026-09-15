@@ -493,7 +493,7 @@ def test_inbox_routes_end_to_end(client, repo):
     client.app_state.open_mailbox = lambda: FakeBox(
         [raw_mail(to="Jane Doe <jane@acme.de>, Ann Lee <ann@lee.com>")])
 
-    page = client.get("/inbox").text
+    page = client.get("/settings").text
     assert "No import has run yet." in page and "me+bcc@gmail.com" in page
 
     r = client.post("/bcc/import")
@@ -501,8 +501,8 @@ def test_inbox_routes_end_to_end(client, repo):
     assert last_commit(repo) == "bcc: imported 1 mail (1 interactions, 1 contacts, 1 to review)"
     assert (repo / "companies/acme/contacts/jane-doe.md").exists()
 
-    page = client.get("/inbox").text
-    assert "Inbox (1)" in page and "ann@lee.com" in page and 'value="Ann"' in page
+    page = client.get("/settings").text
+    assert "Settings (1)" in page and "ann@lee.com" in page and 'value="Ann"' in page
     assert "Last import 2026" not in page or "1 interactions logged" in page
     item_id = client.app_state.inbox.items()[0].id
 
@@ -513,7 +513,7 @@ def test_inbox_routes_end_to_end(client, repo):
                     data={"company": "acme", "first_name": "Ann", "last_name": "Lee"})
     assert r.status_code == 303
     assert last_commit(repo) == f"bcc: {item_id} assigned to acme/ann-lee"
-    assert "Inbox (1)" not in client.get("/inbox").text
+    assert "Settings (1)" not in client.get("/settings").text
     assert client.post("/inbox/nope/discard").status_code == 404
 
 

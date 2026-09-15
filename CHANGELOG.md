@@ -7,9 +7,15 @@ the data format always comes with an automatic migration.
 
 First public release, by Gijs Bos.
 
+- A Settings page (`/settings`, always in the nav) with You, BCC capture,
+  Calendar, Backup, Enrichment, Outcomes, the review queue (the former Inbox),
+  the daily schedule's status and About; `/setup` and `/inbox` redirect there.
+  Help pages for every screen (`/help/<topic>`, the Help link in the nav) and
+  `owncrm help [topic]` for agents and terminals; the data folder's CLAUDE.md
+  points at it.
 - Guided setup: `owncrm init` asks three questions (you, BCC capture, backup;
-  `--no-setup` skips them), `owncrm setup` reruns them, and the web app has a
-  Setup page (`/setup`, CSRF-protected) that first-run redirects to once. An
+  `--no-setup` skips them), `owncrm setup` reruns them, and the web app's
+  Settings page (CSRF-protected) is where the first run lands once. An
   empty Board offers Import, Add a company and Set up BCC capture.
 - `owncrm schedule install [--at HH:MM] [--serve]`, `remove` and `status`:
   a daily `sync --apply` via launchd (macOS) or systemd user units (Linux);
