@@ -271,3 +271,70 @@ def test_message_cell_shows_preview_or_body_not_both(client, app):
     assert cell.count("<pre>") == 1 and page.count(body.strip()) == 1
     css = Path(create_app.__code__.co_filename).parent / "static" / "style.css"
     assert "details[open] > summary > .preview { display: none; }" in css.read_text()
+
+
+# --------------------------------------------------------- delete (part 3)
+
+
+def test_store_delete_interaction(store, messages):
+    store.create_company("Acme")
+    it = store.create_interaction("acme", channel="email", direction="out", body="Hi")
+    keep = store.create_interaction("acme", channel="call", direction="out",
+                                    date="2026-09-01T09:00")
+    path = store.company_dir("acme") / "interactions" / f"{it.id}.md"
+    messages.clear()
+    assert store.delete_interaction("acme", it.id).id == it.id
+    assert not path.exists()
+    assert [i.id for i in store.get("acme").interactions] == [keep.id]
+    assert messages == [f"interaction: acme deleted {it.id}"]
+    with pytest.raises(ValidationError):
+        store.delete_interaction("acme", it.id)
+    with pytest.raises(ValidationError):
+        store.delete_interaction("ghost", keep.id)
+    store.load()  # the index built from disk agrees
+    assert [i.id for i in store.get("acme").interactions] == [keep.id]
+
+
+def test_delete_interaction_routes(client, app, repo):
+    client.post("/companies", data={"name": "Acme"})
+    client.post("/companies/acme/contacts", data={"first_name": "Jane", "last_name": "Doe"})
+    client.post("/companies/acme/interactions", data=interaction_form(
+        channel="linkedin", contact="jane-doe", body="Hello Jane, unique text",
+        subject="Kept message", date=f"{TODAY - timedelta(days=3)}T09:00"))
+    client.post("/companies/acme/interactions", data=interaction_form(
+        channel="email", contact="jane-doe", body="Goodbye Jane, doomed text",
+        subject="Doomed message", date=f"{TODAY - timedelta(days=2)}T09:00"))
+    doomed, kept = app.state.store.get("acme").interactions[:2]
+    assert doomed.subject == "Doomed message"
+    path = interaction_file(repo, "acme", doomed.id)
+
+    company_page = client.get("/companies/acme").text
+    assert f'action="/companies/acme/interactions/{doomed.id}/delete"' in company_page
+    assert 'onclick="return confirm(' in company_page
+    edit = client.get(f"/companies/acme/interactions/{doomed.id}/edit").text
+    assert f'action="/companies/acme/interactions/{doomed.id}/delete"' in edit
+    assert "Delete interaction" in edit
+    assert "doomed text" in client.get("/messages").text
+
+    r = client.post(f"/companies/acme/interactions/{doomed.id}/delete",
+                    headers={"referer": f"http://testserver/companies/acme/interactions/{doomed.id}/edit"})
+    assert r.status_code == 303
+    assert r.headers["location"] == "/companies/acme?flash=Interaction%20deleted"
+    assert not path.exists()
+    assert last_commit(repo) == f"interaction: acme deleted {doomed.id}"
+    assert subprocess.run(["git", "status", "--porcelain"], cwd=repo, capture_output=True,
+                          text=True).stdout == ""
+    company_page = client.get("/companies/acme").text
+    assert "Doomed message" not in company_page and "Kept message" in company_page
+    assert "Timeline (1)" in company_page
+    messages_page = client.get("/messages").text
+    assert "doomed text" not in messages_page and "unique text" in messages_page
+    assert client.post(f"/companies/acme/interactions/{doomed.id}/delete").status_code == 404
+    assert client.post("/companies/nope/interactions/x/delete").status_code == 404
+    contact_page = client.get("/companies/acme/contacts/jane-doe").text
+    assert "Doomed message" not in contact_page and "Kept message" in contact_page
+    # from a contact page the redirect goes back there
+    r = client.post(f"/companies/acme/interactions/{kept.id}/delete",
+                    headers={"referer": "http://testserver/companies/acme/contacts/jane-doe"})
+    assert r.headers["location"].startswith("/companies/acme/contacts/jane-doe?flash=")
+    assert app.state.store.get("acme").interactions == []

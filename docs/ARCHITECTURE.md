@@ -132,6 +132,7 @@ Lowercase ASCII, words joined by single hyphens, max 60 chars. Transliterate bef
   - `contact: <company-slug>/<contact-slug> created|updated`
   - `interaction: <company-slug> <channel> <direction> <contact-slug|company> <date>`
   - `interaction: <company-slug> <id> updated`
+  - `interaction: <company-slug> deleted <id>`
   - `company: <drop-slug> merged into <keep-slug>`, `contact: <company-slug>/<drop-slug> merged into <keep-slug>`
   - `company: <slug> requalified (parked until <date>)`, or `company: requalified <slug>, <slug> (parked until today)` when several come back at once
   - `interaction: <company-slug> <id> outcome <value>|unknown`
@@ -234,7 +235,8 @@ Server-rendered HTML. One base template with a top nav: Pipeline, Calendar, Comp
 | POST `/companies/{slug}/contacts/{cslug}` | Update contact. |
 | GET `/companies/{slug}/interactions/new?contact=&channel=&body=` | Quick-add form: channel (radio), direction (radio, default out), contact (select, includes "company only"), date (datetime-local, default now), subject, outcome, body (large textarea). `channel` and `body` prefill the form (used by "log as sent" under a draft). |
 | POST `/companies/{slug}/interactions` | Create. Redirect back to the company page with the timeline scrolled to the new entry. |
-| GET/POST `/companies/{slug}/interactions/{id}/edit` | Edit an interaction, including date. |
+| GET/POST `/companies/{slug}/interactions/{id}/edit` | Edit an interaction, including date. The page also carries a Delete button (browser confirm). |
+| POST `/companies/{slug}/interactions/{id}/delete` | Delete an interaction (also from the small "delete" control next to each timeline entry). The file is removed and committed as `interaction: <slug> deleted <id>`; 404 for an unknown id. |
 | GET `/import`, POST `/import/preview`, POST `/import` | Bulk import. Paste a tab-separated table or upload a .tsv/.csv. Preview lists every row with its planned action (create, update of empty fields only, skip) and warnings (unmapped country, non-numeric score) before anything is written; the import itself is one commit. Contact columns are prefixed `founder_` or `contact_`; unknown columns are kept as `column: value` lines in the notes. |
 | POST `/companies/{slug}/enrich`, POST `/companies/{slug}/enrich/apply` | Enrich button on the company page: runs the lookup (can take a minute), shows proposed values for empty fields with a checkbox and an editable input each, plus sources. Apply writes only the ticked fields. Same pair for contacts under `/companies/{slug}/contacts/{cslug}/enrich`. |
 | GET `/inbox` | BCC inbox: the tracking address, the last import (time and summary, or the error), an Import now button, and every mail waiting for a company with its reason (personal address, unknown domain, several matches), the body collapsed, a company field (datalist of slugs), first and last name prefilled from the mail, and Log at company / Discard buttons. The nav shows `Inbox (N)` and a red `!` when the last run failed or is two days old. |

@@ -952,3 +952,18 @@ class Store:
         else:
             self._notify(f"interaction: {company_slug} {new.id} updated")
         return new
+
+    def delete_interaction(self, company_slug: str, id: str) -> Interaction:
+        """Remove one interaction file; the commit (on_write's `git add -A`)
+        records the deletion. The company's list is updated in place, as
+        update_interaction does, so pages see it gone at once."""
+        company = self.companies.get(company_slug)
+        if company is None:
+            raise ValidationError({"company": f"unknown company {company_slug!r}"})
+        it = next((i for i in company.interactions if i.id == id), None)
+        if it is None:
+            raise ValidationError({"id": f"unknown interaction {id!r}"})
+        (self.company_dir(company_slug) / "interactions" / f"{id}.md").unlink(missing_ok=True)
+        company.interactions = [i for i in company.interactions if i.id != id]
+        self._notify(f"interaction: {company_slug} deleted {id}")
+        return it

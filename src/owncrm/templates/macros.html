@@ -201,6 +201,9 @@
       <span class="tag">{{ i.direction }}</span>
       <span class="who">{{ contact_label(company, i.contact) }}</span>
       <a class="edit" href="/companies/{{ company.slug }}/interactions/{{ i.id }}/edit">edit</a>
+      <form method="post" action="/companies/{{ company.slug }}/interactions/{{ i.id }}/delete" class="inline delete">
+        <button type="submit" onclick="return confirm('Delete this interaction?')">delete</button>
+      </form>
     </div>
     <div class="subject{% if not i.subject %} empty{% endif %}">{{ i.subject or '(no subject)' }}</div>
     {% if i.outcome %}<div class="outcome">outcome: {{ i.outcome }}</div>{% endif %}

@@ -1292,6 +1292,19 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         return flashed(f"/companies/{slug}", "Interaction updated",
                        anchor=f"i-{saved.id}")
 
+    @app.post("/companies/{slug}/interactions/{id}/delete")
+    def interaction_delete(request: Request, slug: str, id: str):
+        """Delete one interaction (the browser asked for confirmation). Back to
+        the page it was on, unless that page was the interaction itself."""
+        company = need_company(slug)
+        if not any(i.id == id for i in company.interactions):
+            raise HTTPException(status_code=404, detail=f"unknown interaction {id!r}")
+        store.delete_interaction(slug, id)
+        back = urlparse(request.headers.get("referer", "")).path
+        if not back or back.startswith(f"/companies/{slug}/interactions/"):
+            back = f"/companies/{slug}"
+        return flashed(back, "Interaction deleted")
+
     # ------------------------------------------------------------------ inbox
 
     def inbox_context(**extra) -> dict:

@@ -143,6 +143,11 @@ button:hover { background: #e6e6ec; }
   border-radius: 3px;
   padding: 0 5px;
 }
+.interaction .meta form.delete { display: inline; margin: 0; }
+.interaction .meta form.delete button { padding: 0 6px; font-size: 11px; color: var(--muted); background: none; border-color: transparent; }
+.interaction .meta form.delete button:hover { color: #b00020; border-color: var(--line); }
+form.danger { margin-top: 10px; }
+form.danger button { color: #b00020; }
 .interaction .subject { font-weight: 600; }
 .interaction .subject.empty { font-weight: normal; color: var(--muted); font-style: italic; }
 details.inline-edit { display: inline-block; margin-left: 8px; }
