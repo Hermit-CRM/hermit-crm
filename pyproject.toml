@@ -39,7 +39,8 @@ version = { attr = "owncrm.__version__" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-owncrm = ["templates/*.html", "static/*", "*.toml"]
+owncrm = ["templates/*.html", "static/*", "*.toml", "help/*.md"]
+"owncrm.help" = ["*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

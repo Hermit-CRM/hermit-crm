@@ -741,7 +741,25 @@ def _build_parser() -> argparse.ArgumentParser:
     p_sync = sub.add_parser("sync", help="bcc, then calendar (the daily launchd run)")
     p_sync.add_argument("--apply", action="store_true")
 
+    p_help = sub.add_parser("help", help="how a feature works (the web app's /help pages)")
+    p_help.add_argument("topic", nargs="?", default="",
+                        help="a topic; none prints the index and lists the topics")
+
     return parser
+
+
+def cmd_help(topic: str = "") -> tuple[str, int]:
+    """The help page as Markdown; the index plus the topic list without a topic."""
+    from owncrm import help as helpdocs
+
+    names = ", ".join(helpdocs.topics())
+    if not topic:
+        text = helpdocs.read("index") or ""
+        return (text.rstrip("\n") + f"\n\nTopics: {names}\nUse: owncrm help <topic>\n", 0)
+    text = helpdocs.read(topic)
+    if text is None:
+        return (f"unknown help topic {topic!r}. Topics: {names}\n", 2)
+    return (text, 0)
 
 
 def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) -> int:
@@ -754,6 +772,11 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
         print(text, file=sys.stderr if code else sys.stdout)
         if code == 0 and not args.no_setup and stdin.isatty():
             cmd_setup(Path(args.dir).expanduser().resolve())
+        return code
+
+    if args.command == "help":  # needs no data folder
+        text, code = cmd_help(args.topic)
+        print(text, end="", file=sys.stderr if code else sys.stdout)
         return code
 
     if root is None:
