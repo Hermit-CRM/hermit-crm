@@ -271,7 +271,8 @@ def test_empty_store_every_section(store):
     assert report["outcomes"]["win_rate"] is None
     assert report["messages"]["total"]["sent"] == 0 and report["messages"]["reused"] == []
     assert report["sources"]["rows"] == []
-    assert report["hygiene"] == {"overdue": [], "silent": [], "no_email": [], "silent_days": 14}
+    hy = report["hygiene"]
+    assert (hy["overdue"], hy["silent"], hy["no_email"], hy["silent_days"]) == ([], [], [], 14)
     text = reports.render_text(report, md=True)
     assert "## Hygiene" in text and "| - |" in text
 
@@ -357,9 +358,10 @@ def test_outcomes(seeded):
     assert (rows["won"]["count"], rows["won"]["value"]) == (1, 4000)
     assert (rows["lost"]["count"], rows["lost"]["previous"]) == (1, 1)
     assert o["win_rate"] == 0.5 and o["previous_win_rate"] == 0.0
-    assert o["lost_reasons"] == [{"reason": "no budget", "count": 1}]
+    assert [(r["reason"], r["count"]) for r in o["lost_reasons"]] == [("no budget", 1)]
     wide = reports.outcomes(seeded, reports.period_for("30d", TODAY))
-    assert wide["lost_reasons"] == [{"reason": "no budget", "count": 2}]  # normalised together
+    # Normalised together.
+    assert [(r["reason"], r["count"]) for r in wide["lost_reasons"]] == [("no budget", 2)]
 
 
 def test_outcomes_fall_back_to_stage_changed(store):
@@ -375,20 +377,25 @@ def test_outcomes_fall_back_to_stage_changed(store):
 def test_messages(seeded):
     m = reports.messages(seeded, reports.period_for("7d", TODAY), TODAY, window_days=14)
     assert m["total"]["sent"] == 2 and m["previous_sent"] == 1
-    assert (m["total"]["success"], m["total"]["unknown"], m["total"]["rate"]) == (1, 1, 1.0)
+    # No config on the store: the default outcomes successful / unsuccessful.
+    assert m["statuses"] == ["successful", "unsuccessful", "unknown"]
+    assert m["total"]["counts"] == {"successful": 1, "unsuccessful": 0, "unknown": 1}
+    assert m["total"]["rate"] == 1.0
     assert {r["key"]: r["sent"] for r in m["by_language"]} == {"de": 1, "en": 1}
     assert [r["key"] for r in m["by_channel"]] == ["linkedin"]
-    assert m["reused"] == [{"key": "hi there, quick question", "sent": 2, "success": 1,
-                            "unsuccessful": 0, "unknown": 1, "rate": 1.0, "uses": 2,
-                            "preview": "hi there, quick question"}]
+    assert len(m["reused"]) == 1
+    r = m["reused"][0]
+    assert (r["key"], r["sent"], r["counts"], r["rate"], r["uses"], r["preview"]) == (
+        "hi there, quick question", 2, {"successful": 1, "unsuccessful": 0, "unknown": 1},
+        1.0, 2, "hi there, quick question")
     short = reports.messages(seeded, reports.period_for("7d", TODAY), TODAY, window_days=3)
-    assert short["total"]["unsuccessful"] == 1 and short["total"]["rate"] == 0.5
+    assert short["total"]["counts"]["unsuccessful"] == 1 and short["total"]["rate"] == 0.5
 
 
 def test_sources(seeded):
     s = reports.sources(seeded, reports.period_for("7d", TODAY))
-    assert s["rows"] == [{"source": "linkedin-search", "created": 2, "won": 1},
-                         {"source": "referral", "created": 1, "won": 0}]
+    assert [(r["source"], r["created"], r["won"]) for r in s["rows"]] == [
+        ("linkedin-search", 2, 1), ("referral", 1, 0)]
 
 
 def test_hygiene(seeded):

@@ -911,24 +911,60 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "window": message_window,
         })
 
+    def report_span(period: str, params, today) -> reports.Period:
+        """The period of a /reports query (custom reads from/to); raises
+        ValueError or ValidationError for a bad name or dates."""
+        start = parse_date(params.get("from", "")) if period == "custom" else None
+        end = parse_date(params.get("to", "")) if period == "custom" else None
+        return reports.period_for(period, today, start, end)
+
+    def report_error(exc: Exception) -> str:
+        return "; ".join(exc.errors.values()) if isinstance(exc, ValidationError) else str(exc)
+
+    def build_report(span: reports.Period, today) -> dict:
+        return reports.build(store, span, today, message_window, config.get("outcomes"))
+
     @app.get("/reports", response_class=HTMLResponse)
     def reports_page(request: Request, period: str = "30d"):
         today = store.today()
         params = request.query_params
         error = ""
         try:
-            start = parse_date(params.get("from", "")) if period == "custom" else None
-            end = parse_date(params.get("to", "")) if period == "custom" else None
-            span = reports.period_for(period, today, start, end)
+            span = report_span(period, params, today)
         except (ValueError, ValidationError) as exc:
-            error = "; ".join(exc.errors.values()) if isinstance(exc, ValidationError) else str(exc)
+            error = report_error(exc)
             period, span = "30d", reports.period_for("30d", today)
+        from_value = params.get("from", "") or fmt_date(span.start)
+        to_value = params.get("to", "") or fmt_date(span.end)
         return render(request, "reports.html", {
-            "report": reports.build(store, span, today, message_window),
+            "report": build_report(span, today),
             "period": period, "periods": reports.PERIODS, "error": error,
-            "from_value": params.get("from", "") or fmt_date(span.start),
-            "to_value": params.get("to", "") or fmt_date(span.end),
+            "from_value": from_value, "to_value": to_value,
             "delta": reports.delta,
+            # Query string the number links carry so the rows page shows the same period.
+            "rows_query": reports.period_query(period, from_value, to_value),
+        })
+
+    @app.get("/reports/rows", response_class=HTMLResponse)
+    def report_rows_page(request: Request, key: str = "", period: str = "30d"):
+        """The rows behind one number of the report: `key` as registered by
+        reports.Rows for the same period."""
+        today = store.today()
+        params = request.query_params
+        try:
+            span = report_span(period, params, today)
+        except (ValueError, ValidationError) as exc:
+            raise HTTPException(status_code=400, detail=report_error(exc))
+        report = build_report(span, today)
+        registry = report["rows"]
+        if key not in registry:
+            raise HTTPException(status_code=404, detail=f"unknown report key {key!r}")
+        rows = registry.get(key)
+        return render(request, "report_rows.html", {
+            "key": key, "title": registry.label(key), "rows": rows,
+            "columns": reports.row_columns(rows), "report": report, "period": period,
+            "back": "/reports?" + reports.period_query(period, params.get("from", ""),
+                                                      params.get("to", "")),
         })
 
     @app.post("/companies/{slug}/interactions/{id}/outcome")
