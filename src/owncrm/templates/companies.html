@@ -3,6 +3,7 @@
 {% block title %}Companies{% endblock %}
 {% block content %}
 <h1>Companies ({{ companies | length }}){% if q %} matching &ldquo;{{ q }}&rdquo;{% endif %}</h1>
+<p class="page-actions"><a class="button" href="/companies/new">New company</a> <a class="button" href="/import?mode=companies">Import</a></p>
 {{ m.filter_form('company-filters', '/companies', active, q, sort, dir) }}
 <a class="toggle-parked" href="{{ toggle_url }}">{% if show_parked %}Hide temp disqualified{% else %}Show temp disqualified ({{ hidden_parked }}){% endif %}</a>
 {% if show_parked %}<input type="hidden" name="parked" value="1" form="company-filters">{% endif %}

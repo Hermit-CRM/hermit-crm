@@ -46,7 +46,7 @@ def _writer(store: Store, root: Path, config: dict):
 
 def build_store(root: Path) -> Store:
     config = load_config(root)
-    store = Store(root, silent_days=config["silent_days"])
+    store = Store(root, silent_days=config["silent_days"], outcomes=config["outcomes"])
     store.load()
     return store
 

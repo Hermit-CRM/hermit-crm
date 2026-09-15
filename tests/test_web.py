@@ -1035,21 +1035,21 @@ def test_messages_tab_lists_results_and_marking(client, app, repo):
     assert "Messages" in page.split("</nav>")[0]
     assert page.count("Hi Jane, fractional?") >= 2 and "Hi Henrik" in page
     rows = page.split("<tr class=\"filters\">")[1]
-    # newest first; Jane's messages got a reply -> success; Henrik's is fresh -> unknown
-    assert rows.count('class="result-success"') == 2
-    assert rows.count('class="result-unknown"') == 1
+    # newest first; Jane's messages got a reply -> successful; Henrik's is fresh -> unknown
+    assert rows.count('class="outcome-successful"') == 2
+    assert rows.count('class="outcome-unknown"') == 1
     assert "<td>2</td>" in rows  # the same text was used twice
-    assert "2 success" in page and "1 unknown" in page
+    assert "2 successful" in page and "1 unknown" in page
 
-    ids = re.findall(r'action="/companies/acme/interactions/([^/"]+)/result"', page)
+    ids = re.findall(r'action="/companies/acme/interactions/([^/"]+)/outcome"', page)
     henrik = next(i for i in ids if "company" in i)
-    r = client.post(f"/companies/acme/interactions/{henrik}/result",
-                    data={"result": "unsuccessful"},
+    r = client.post(f"/companies/acme/interactions/{henrik}/outcome",
+                    data={"outcome": "unsuccessful"},
                     headers={"referer": "http://testserver/messages?f_channel=linkedin"})
     assert r.status_code == 303 and r.headers["location"].startswith("/messages?flash=")
-    assert last_commit(repo) == f"interaction: acme {henrik} result unsuccessful"
+    assert last_commit(repo) == f"interaction: acme {henrik} outcome unsuccessful"
     page = client.get("/messages").text
-    assert '<td class="result-unsuccessful">unsuccessful</td>' in page
+    assert '<td class="outcome-unsuccessful">unsuccessful</td>' in page
     assert "Messages (1)" in client.get("/messages?f_status=unsuccessful").text
     assert "Messages (2)" in client.get("/messages?q=jane").text
     assert "Messages (1)" in client.get("/messages?f_contact=company").text
@@ -1058,7 +1058,7 @@ def test_messages_tab_lists_results_and_marking(client, app, repo):
     post_company(client, name="Beta")
     post_interaction(client, "beta", channel="email", date=old, body="Hello Beta")
     beta = client.get("/messages?f_company_name=beta").text
-    assert "result-unsuccessful" in beta and "(auto)" in beta
+    assert "outcome-unsuccessful" in beta and "(auto)" in beta
 
 
 def test_drafts_on_contact_and_company_pages(client, app):

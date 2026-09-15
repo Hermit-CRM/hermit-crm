@@ -39,7 +39,7 @@ def test_store_writes_preserve_extra_keys(tmp_path):
 
     store.update_company("acme", stage="reached-out", next_step="Call")
     store.update_contact("acme", "jane-doe", title="CEO")
-    store.update_interaction("acme", it.id, outcome="replied")
+    store.update_interaction("acme", it.id, outcome="successful")
 
     for kind, path in paths.items():
         meta, body = split_file(path.read_text())

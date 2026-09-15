@@ -281,7 +281,7 @@ def test_interaction_frontmatter_key_order():
     it = Interaction(id="x", date=datetime(2026, 9, 14, 10, 30), channel="call",
                      direction="out", subject="s")
     assert list(interaction_to_frontmatter(it)) == [
-        "date", "channel", "direction", "contact", "subject", "outcome", "result", "source",
+        "date", "channel", "direction", "contact", "subject", "outcome", "source",
     ]
 
 
@@ -458,14 +458,18 @@ def test_message_status_explicit_reply_window_unknown():
     assert c.message_status(msg, date(2026, 9, 30)) == "unsuccessful"  # other contact
     c.interactions.append(Interaction(id="r2", date=datetime(2026, 9, 4), channel="email",
                                       direction="in", contact="jane"))
-    assert c.message_status(msg, date(2026, 9, 30)) == "success"
-    msg.result = "unsuccessful"
-    assert c.message_status(msg, date(2026, 9, 30)) == "unsuccessful"
+    assert c.message_status(msg, date(2026, 9, 30)) == "success"  # legacy name, no list
+    outcomes = ["successful", "no answer"]
+    assert c.message_status(msg, date(2026, 9, 30), outcomes=outcomes) == "successful"
+    c.interactions.pop()
+    assert c.message_status(msg, date(2026, 9, 30), outcomes=outcomes) == "no answer"
+    msg.outcome = "unsuccessful"
+    assert c.message_status(msg, date(2026, 9, 30), outcomes=outcomes) == "unsuccessful"
 
 
-def test_requalify_due_and_result_roundtrip():
+def test_requalify_due_and_outcome_roundtrip():
     from datetime import date
-    from owncrm.models import (Company, Interaction, company_from_dict, company_to_frontmatter,
+    from owncrm.models import (Company, company_from_dict, company_to_frontmatter,
                             interaction_from_dict, interaction_to_frontmatter)
     c = Company(name="A", slug="a", stage="temp-disqualified", requalify_on=date(2026, 9, 14))
     assert c.requalify_due(date(2026, 9, 14)) and not c.requalify_due(date(2026, 9, 13))
@@ -475,13 +479,14 @@ def test_requalify_due_and_result_roundtrip():
     assert meta["requalify_on"] == date(2026, 9, 14)
     back = company_from_dict({"name": "A", "requalify_on": "2026-09-14"}, "", "a")
     assert back.requalify_on == date(2026, 9, 14)
+    # Any text loads (files are never rejected for their outcome); a leftover
+    # `result` key from before migration 3 is an unknown key and round-trips.
     it = interaction_from_dict({"date": "2026-09-01T09:00", "channel": "email",
-                                "direction": "out", "result": "success"}, "", "x")
-    assert it.result == "success"
-    assert interaction_to_frontmatter(it)["result"] == "success"
-    with pytest.raises(ValidationError):
-        interaction_from_dict({"date": "2026-09-01T09:00", "channel": "email",
-                               "direction": "out", "result": "maybe"}, "", "x")
+                                "direction": "out", "outcome": "successful",
+                                "result": "success"}, "", "x")
+    assert it.outcome == "successful" and it.extra == {"result": "success"}
+    assert interaction_to_frontmatter(it)["outcome"] == "successful"
+    assert "result" in interaction_to_frontmatter(it)
 
 
 def test_iso_countries_and_aliases():

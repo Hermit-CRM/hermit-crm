@@ -57,7 +57,7 @@ def test_digest_ordering_and_format(tmp_path):
     store.create_interaction(
         "acme", subject="Intro email", channel="email", direction="out",
         contact="jane-doe", date="2026-09-10T10:30",
-        outcome="replied", body="Hello   Jane,\n\nGreat  to connect.",
+        outcome="successful", body="Hello   Jane,\n\nGreat  to connect.",
     )
     store.create_interaction(
         "acme", subject="LI reply", channel="linkedin", direction="in",
@@ -70,7 +70,7 @@ def test_digest_ordering_and_format(tmp_path):
     # oldest first
     assert lines[0] == (
         "2026-09-10 10:30 | email out | acme / jane-doe | Intro email | "
-        "outcome: replied"
+        "outcome: successful"
     )
     assert lines[1] == "Hello Jane, Great to connect."
     assert lines[2] == ""

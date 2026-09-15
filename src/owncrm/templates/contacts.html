@@ -3,6 +3,7 @@
 {% block title %}Contacts{% endblock %}
 {% block content %}
 <h1>Contacts ({{ rows | length }}){% if q %} matching &ldquo;{{ q }}&rdquo;{% endif %}</h1>
+<p class="page-actions"><a class="button" href="/contacts/new">New contact</a> <a class="button" href="/import?mode=contacts">Import</a></p>
 {{ m.filter_form('contact-filters', '/contacts', active, q, sort, dir) }}
 <table class="filterable">
   <tr>{% for col in filter_columns %}<th>{{ col.label }} {{ m.sort_links(col, sort, dir, sort_url) }}</th>{% endfor %}</tr>

@@ -44,6 +44,7 @@ from .gitops import GitOps
 from .models import (
     Channel,
     Company,
+    DEFAULT_OUTCOMES,
     Direction,
     Role,
     Country,
@@ -53,7 +54,11 @@ from .models import (
     ValidationError,
     fmt_date,
     fmt_datetime,
+    normalise_email,
+    normalise_website,
     parse_date,
+    slugify,
+    split_name,
 )
 from .store import (
     COMPANY_MERGE_FIELDS, CONTACT_MERGE_FIELDS, Store, load_config,
@@ -73,7 +78,11 @@ TASK_STATUSES = [t.value for t in TaskStatus]
 ROLES = [r.value for r in Role]
 CHANNELS = [c.value for c in Channel]
 DIRECTIONS = [d.value for d in Direction]
-MESSAGE_STATUSES = ["success", "unsuccessful", "unknown"]
+
+
+def message_statuses(outcomes: list[str]) -> list[str]:
+    """Every value the Messages tab can show: the config outcomes plus "unknown"."""
+    return [o for o in outcomes if o] + ["unknown"]
 
 
 # --------------------------------------------------------------------- filters
@@ -140,7 +149,7 @@ def contact_columns() -> list[Column]:
 
 
 class MessageRow:
-    """One outbound message on the Messages tab, with its derived result."""
+    """One outbound message on the Messages tab, with its derived outcome."""
 
     def __init__(self, company: Company, it, status: str, uses: int):
         self.company = company
@@ -156,14 +165,14 @@ class MessageRow:
         self.body = it.body
         self.preview = " ".join(it.body.split())
         self.status = status
-        self.explicit = it.result
+        self.explicit = it.outcome  # "" when the status was derived
         self.uses = uses
         self.country = company.country
         self.language = company.language
         self.stage = company.stage
 
 
-def message_columns() -> list[Column]:
+def message_columns(statuses: list[str]) -> list[Column]:
     return [
         Column("date", "sent", "date"),
         Column("company_name", "company"),
@@ -171,7 +180,7 @@ def message_columns() -> list[Column]:
         Column("channel", "channel", "enum", CHANNELS),
         Column("country", "country", "enum", COUNTRIES),
         Column("stage", "stage", "enum", STAGES),
-        Column("status", "result", "enum", MESSAGE_STATUSES),
+        Column("status", "outcome", "enum", statuses),
         Column("uses", "uses", "number"),
         Column("body", "message"),
     ]
@@ -212,6 +221,66 @@ def merge_rows(keep, drop, fields, labels: dict | None = None) -> list[dict]:
 
 
 # --------------------------------------------------------------------- helpers
+
+
+def company_matches(store: Store, name: str, website: str = "") -> list[Company]:
+    """Existing companies a new one with this name or website would double:
+    the same name ignoring case and legal suffixes (GmbH, BV, Ltd...), or the
+    website's host among the company's domains (bcc.company_domains)."""
+    key = slugify(name, strip_legal=True, default="")
+    host = bcc._host(website) if website else ""
+    hits = [c for c in store.companies.values()
+            if (key and slugify(c.name, strip_legal=True, default="") == key)
+            or (host and host in bcc.company_domains(c))]
+    return sorted(hits, key=lambda c: c.name.lower())
+
+
+def contact_matches(store: Store, name: str, email: str, company_slug: str = ""):
+    """(company, contact) pairs a new contact would double: the same email
+    anywhere, or the same name (ignoring case and accents) at `company_slug`."""
+    email = normalise_email(email)
+    key = slugify(name, default="")
+    return [(c, ct) for c in store.companies.values() for ct in c.contacts.values()
+            if (email and ct.email == email)
+            or (key and c.slug == company_slug and slugify(ct.name, default="") == key)]
+
+
+def duplicate_links(store: Store, name: str, email: str, company_slug: str,
+                    company_name: str = "", website: str = "") -> list[dict]:
+    """What the duplicate warning lists: contacts first, then (when a company
+    would be created) the companies it is close to."""
+    links = [{"label": f"{ct.name} at {c.name}" + (f" ({ct.email})" if ct.email else ""),
+              "url": f"/companies/{c.slug}/contacts/{ct.slug}"}
+             for c, ct in contact_matches(store, name, email, company_slug)]
+    if not company_slug:
+        links += [{"label": f"company {c.name}" + (f" ({c.website})" if c.website else ""),
+                   "url": f"/companies/{c.slug}"}
+                  for c in company_matches(store, company_name, website)]
+    return links
+
+
+def resolve_contact_company(store: Store, text: str, email: str) -> tuple[str, str]:
+    """(slug, how) for a contact's company: an existing one by slug or name
+    ("name"), else the one whose domain the email has ("domain", via
+    bcc.match_address), else "" and "new"."""
+    try:
+        return bcc.resolve_company(store, text), "name"
+    except ValidationError:
+        pass
+    email = normalise_email(email)
+    if "@" in email:
+        match = bcc.match_address(store, email)
+        if match.company:
+            return match.company, "domain"
+    return "", "new"
+
+
+def website_for_new_company(website: str, email: str) -> str:
+    """The given website, else https://<email domain> unless that is freemail."""
+    if website.strip():
+        return normalise_website(website)
+    domain = normalise_email(email).rpartition("@")[2]
+    return f"https://{domain}" if domain and domain not in bcc.FREEMAIL else ""
 
 
 def board_sort_key(c: Company):
@@ -320,8 +389,9 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         except Exception:  # GitOps never raises, but a write must never fail here
             logger.exception("git commit/push failed for %r", message)
 
+    outcomes = [str(o) for o in (config.get("outcomes") or DEFAULT_OUTCOMES)]
     store = Store(root, silent_days=int(config.get("silent_days", 14)),
-                  on_write=on_write)
+                  on_write=on_write, outcomes=outcomes)
     store.load()
 
     messages = messaging.load_messages(root)
@@ -426,10 +496,13 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         signals=messaging.SIGNALS,
         signal_labels=messaging.signal_labels(messages),
         language_names=messaging.language_names(messages),
-        message_statuses=MESSAGE_STATUSES,
+        outcomes=outcomes,
+        message_statuses=message_statuses(outcomes),
         owncrm_version=__version__,
         update_notice=app.state.update_notice,
     )
+
+    templates.env.filters["slug"] = slugify  # CSS class names from outcome values
 
     def render(request: Request, name: str, ctx: dict, status_code: int = 200):
         context = {
@@ -608,8 +681,8 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         }, status_code=status_code)
 
     @app.get("/import", response_class=HTMLResponse)
-    def import_form(request: Request):
-        return _import_page(request, "")
+    def import_form(request: Request, mode: str = ""):
+        return _import_page(request, "", mode if mode in MODES else "")
 
     def _import_text(text: str, upload) -> str:
         if upload is not None and getattr(upload, "filename", ""):
@@ -811,7 +884,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
     @app.get("/messages", response_class=HTMLResponse)
     def messages_list(request: Request, q: str = ""):
         today = store.today()
-        cols = message_columns()
+        cols = message_columns(message_statuses(outcomes))
         active = filters.parse(request.query_params, cols)
         sort_key, sort_dir = filters.parse_sort(request.query_params, cols)
         needle = (q or "").strip().lower()
@@ -823,7 +896,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             for it in company.interactions:
                 if not it.is_message:
                     continue
-                status = company.message_status(it, today, message_window)
+                status = company.message_status(it, today, message_window, outcomes)
                 rows.append(MessageRow(company, it, status, uses[normalised_body(it.body)]))
         counts = Counter(r.status for r in rows)
         if needle:
@@ -858,19 +931,20 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "delta": reports.delta,
         })
 
-    @app.post("/companies/{slug}/interactions/{id}/result")
-    def interaction_result(request: Request, slug: str, id: str,
-                           result: str = Form("")):
-        """Mark a sent message successful / unsuccessful / not yet known."""
+    @app.post("/companies/{slug}/interactions/{id}/outcome")
+    def interaction_outcome(request: Request, slug: str, id: str,
+                            outcome: str = Form("")):
+        """Set the outcome of a sent message from the Messages tab buttons
+        (one of the config outcomes, or empty for not yet known)."""
         company = need_company(slug)
         if not any(i.id == id for i in company.interactions):
             raise HTTPException(status_code=404, detail=f"unknown interaction {id!r}")
         try:
-            store.update_interaction(slug, id, result=result)
+            store.update_interaction(slug, id, outcome=outcome)
         except ValidationError as exc:
             return flashed("/messages", "; ".join(exc.errors.values()))
         back = urlparse(request.headers.get("referer", "")).path or "/messages"
-        return flashed(back, f"Message marked {result or 'unknown'}")
+        return flashed(back, f"Message marked {outcome or 'unknown'}")
 
     @app.get("/companies/new", response_class=HTMLResponse)
     def company_new(request: Request):
@@ -1037,6 +1111,12 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
     def company_merge_form(request: Request, slug: str, drop: str = ""):
         keep = need_company(slug, refresh=True)
         other = store.get(drop) if drop else None
+        if drop and other is None:  # the picker also takes a company name
+            try:
+                other = store.get(bcc.resolve_company(store, drop))
+                drop = other.slug
+            except ValidationError:
+                other = None
         if drop and (other is None or drop == slug):
             return flashed(f"/companies/{slug}", f"cannot merge {drop!r} into {slug}")
         if other is None:
@@ -1074,6 +1154,10 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail=f"unknown contact {cslug!r}")
         back = f"/companies/{slug}/contacts/{cslug}"
         other = company.contacts.get(drop) if drop else None
+        if drop and other is None:  # the picker also takes a contact name
+            other = next((c for c in company.contacts.values()
+                          if c.name.lower() == drop.strip().lower()), None)
+            drop = other.slug if other else drop
         if other is None or drop == cslug:
             return flashed(back, "Pick another contact of this company to merge in")
         return render(request, "merge.html", {
@@ -1114,6 +1198,63 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
 
     # --------------------------------------------------------------- contacts
 
+    GLOBAL_CONTACT_BLANK = {"name": "", "email": "", "title": "", "linkedin": "",
+                            "company": "", "website": ""}
+
+    def _global_contact_page(request: Request, values: dict, errors=None,
+                             duplicates=None, status_code: int = 200):
+        return render(request, "contact_new.html", {
+            "company": None, "values": values, "errors": errors or {},
+            "duplicates": duplicates or [], "companies": store.all(),
+        }, status_code=status_code)
+
+    @app.get("/contacts/new", response_class=HTMLResponse)
+    def global_contact_new(request: Request):
+        return _global_contact_page(request, dict(GLOBAL_CONTACT_BLANK))
+
+    @app.post("/contacts")
+    def global_contact_create(
+        request: Request,
+        name: str = Form(""),
+        email: str = Form(""),
+        title: str = Form(""),
+        linkedin: str = Form(""),
+        company: str = Form(""),
+        website: str = Form(""),
+        force: str = Form(""),
+    ):
+        """New contact anywhere: the company is found by name or slug, else by
+        the email's domain, else created (default stage). Possible duplicates
+        stop the write once; "Create anyway" (force=1) goes through."""
+        values = {"name": name, "email": email, "title": title, "linkedin": linkedin,
+                  "company": company, "website": website}
+        errors = {}
+        if not name.strip():
+            errors["name"] = "name is required"
+        if not company.strip():
+            errors["company"] = "company is required"
+        if errors:
+            return _global_contact_page(request, values, errors, status_code=400)
+        slug, how = resolve_contact_company(store, company, email)
+        new_site = website_for_new_company(website, email) if not slug else ""
+        duplicates = duplicate_links(store, name, email, slug, company, new_site)
+        if duplicates and not force:
+            return _global_contact_page(request, values, duplicates=duplicates)
+        first_name, last_name = split_name(name)
+        try:
+            with store.batch("") as ctx:
+                if not slug:
+                    slug = store.create_company(company, website=new_site).slug
+                contact = store.create_contact(slug, first_name, last_name, title=title,
+                                               linkedin=linkedin, email=email)
+                ctx["message"] = f"contact: {slug}/{contact.slug} created" + (
+                    f" with company {slug}" if how == "new" else "")
+        except ValidationError as exc:
+            return _global_contact_page(request, values, exc.errors, status_code=400)
+        note = {"name": "", "domain": " (company matched by email domain)",
+                "new": f" with company {store.get(slug).name}"}[how]
+        return flashed(f"/companies/{slug}/contacts/{contact.slug}", "Contact created" + note)
+
     @app.get("/companies/{slug}/contacts/new", response_class=HTMLResponse)
     def contact_new(request: Request, slug: str):
         company = need_company(slug)
@@ -1134,11 +1275,16 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         phone: str = Form(""),
         role: str = Form(""),
         notes: str = Form(""),
+        force: str = Form(""),
     ):
         company = need_company(slug)
         values = {"first_name": first_name, "last_name": last_name, "title": title,
                   "linkedin": linkedin, "email": email, "phone": phone, "role": role,
                   "notes": notes}
+        duplicates = duplicate_links(store, f"{first_name} {last_name}", email, slug)
+        if duplicates and not force:
+            return render(request, "contact_new.html",
+                          {"company": company, "values": values, "duplicates": duplicates})
         try:
             contact = store.create_contact(slug, **values)
         except ValidationError as exc:
@@ -1280,6 +1426,19 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             }, status_code=400)
         return flashed(f"/companies/{slug}", "Interaction updated",
                        anchor=f"i-{saved.id}")
+
+    @app.post("/companies/{slug}/interactions/{id}/delete")
+    def interaction_delete(request: Request, slug: str, id: str):
+        """Delete one interaction (the browser asked for confirmation). Back to
+        the page it was on, unless that page was the interaction itself."""
+        company = need_company(slug)
+        if not any(i.id == id for i in company.interactions):
+            raise HTTPException(status_code=404, detail=f"unknown interaction {id!r}")
+        store.delete_interaction(slug, id)
+        back = urlparse(request.headers.get("referer", "")).path
+        if not back or back.startswith(f"/companies/{slug}/interactions/"):
+            back = f"/companies/{slug}"
+        return flashed(back, "Interaction deleted")
 
     # ------------------------------------------------------------------ inbox
 

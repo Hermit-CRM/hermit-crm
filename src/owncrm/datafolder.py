@@ -57,7 +57,7 @@ CONFIG_DOCS = {
     "enrich_command": "Custom enrich command; empty means the provider's own binary.",
     "enrich_model": "Model for the enrich CLI; empty means its default.",
     "enrich_timeout": "Seconds before an enrich call is abandoned.",
-    "message_window_days": "A message without reply or result counts as unsuccessful after this many days.",
+    "message_window_days": "A message without reply or outcome counts as the last outcome after this many days.",
     "fetch_timeout": "Seconds to wait when Fetch from URL reads a page.",
     "outcomes": "Outcome choices for an interaction; first = what a reply counts as, last = what silence counts as.",
     "bcc_address": "Address you BCC or forward mail to, e.g. you+crm@gmail.com; empty disables BCC import.",
@@ -294,11 +294,10 @@ def load_demo(path: Path, now: datetime) -> Store:
     erik = person(emberoak, "Erik", "Lund", "CEO", "decision-maker")
 
     def log(slug, days_ago, channel, direction, contact, body, subject="", outcome="",
-            result="", hour=10):
+            hour=10):
         return store.create_interaction(slug, channel=channel, direction=direction,
                                         contact=contact, date=at(days_ago, hour),
-                                        subject=subject, outcome=outcome, body=body,
-                                        result=result)
+                                        subject=subject, outcome=outcome, body=body)
 
     # Northwind: reached out, got a reply, meetings, now an offer.
     log(northwind, 35, "linkedin", "out", lena,
@@ -307,11 +306,11 @@ def load_demo(path: Path, now: datetime) -> Store:
     at(33, 11)
     store.update_company(northwind, stage="reached-out")
     log(northwind, 28, "meeting", "out", lena, "Intro call. Pain: slow onboarding of pickers.",
-        subject="Intro call", outcome="Wants a proposal for two sites")
+        subject="Intro call: wants a proposal for two sites")
     at(28, 12)
     store.update_company(northwind, stage="discovery", value_eur_month=4000)
     log(northwind, 14, "email", "out", jonas, "Hi Jonas,\nattached the proposal for both sites.\n\nAlex\n",
-        subject="Proposal", outcome="Sent")
+        subject="Proposal sent")
     at(14, 11)
     store.update_company(northwind, stage="offer", next_step="Follow up on the proposal",
                          next_step_due=(today + timedelta(days=3)).isoformat())
@@ -319,11 +318,11 @@ def load_demo(path: Path, now: datetime) -> Store:
     # Bluefin: a message, a call, discovery with an overdue next step.
     log(bluefin, 30, "email", "out", joris,
         "Hi Joris,\nyou're at ~18 people now.\nInterested in how similar teams got past 20?\n\nAlex\n",
-        subject="Getting past 20", result="success")
+        subject="Getting past 20", outcome="successful")
     at(30, 11)
     store.update_company(bluefin, stage="reached-out")
     log(bluefin, 20, "call", "out", joris, "Good call; budget decision next quarter.",
-        outcome="Discovery booked")
+        subject="Discovery booked")
     at(20, 12)
     store.update_company(bluefin, stage="discovery", value_eur_month=1500,
                          next_step="Send case study",
@@ -348,7 +347,7 @@ def load_demo(path: Path, now: datetime) -> Store:
     at(25, 11)
     store.update_company(quartzline, stage="discovery", value_eur_month=6000)
     log(quartzline, 18, "meeting", "out", maya, "Scoping session with the ops team.",
-        subject="Scoping", outcome="Agreed on scope")
+        subject="Scoping: agreed on scope")
     at(18, 12)
     store.update_company(quartzline, stage="offer")
     log(quartzline, 8, "email", "in", maya, "Signed contract attached. Looking forward!\n",
@@ -359,7 +358,7 @@ def load_demo(path: Path, now: datetime) -> Store:
     # Emberoak: reached out, then lost.
     log(emberoak, 32, "email", "out", erik,
         "Hi Erik,\nEmberoak Foods has come a long way.\nWorth a short call?\n\nAlex\n",
-        subject="Quick question", result="unsuccessful")
+        subject="Quick question", outcome="unsuccessful")
     at(32, 11)
     store.update_company(emberoak, stage="reached-out")
     at(12)
