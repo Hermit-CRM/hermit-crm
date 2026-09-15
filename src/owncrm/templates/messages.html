@@ -23,7 +23,8 @@
     <td>{{ r.stage }}</td>
     <td class="outcome-{{ r.status | slug }}">{{ r.status }}{% if not r.explicit and r.status != 'unknown' %} <span class="small">(auto)</span>{% endif %}</td>
     <td>{{ r.uses }}</td>
-    <td class="message"><details><summary>{{ r.preview[:110] }}{% if r.preview | length > 110 %}&hellip;{% endif %}</summary><pre>{{ r.body }}</pre></details></td>
+    {# Closed: the one-line preview. Open: the full text only, with a "hide" label in the summary (CSS swaps them). #}
+    <td class="message"><details><summary><span class="preview">{{ r.preview[:110] }}{% if r.preview | length > 110 %}&hellip;{% endif %}</span><span class="hide">hide</span></summary><pre>{{ r.body }}</pre></details></td>
     <td class="actions nowrap">
       {% for value in outcomes + [''] if value != r.explicit %}
       <form method="post" action="/companies/{{ r.company_slug }}/interactions/{{ r.id }}/outcome" class="inline">

@@ -253,3 +253,21 @@ def test_messages_page_follows_configured_outcomes(repo):
     form = client.get("/companies/acme/interactions/new").text
     assert '<option value="replied">replied</option>' in form
     assert "successful" not in form.split('<select name="outcome">')[1].split("</select>")[0]
+
+
+# ------------------------------------------------------- message cell (part 2)
+
+
+def test_message_cell_shows_preview_or_body_not_both(client, app):
+    client.post("/companies", data={"name": "Acme"})
+    body = "Hello there, " + "this sentence is long enough to be cut in the preview. " * 3
+    client.post("/companies/acme/interactions", data=interaction_form(
+        channel="linkedin", body=body, date=f"{TODAY - timedelta(days=1)}T09:00"))
+    page = client.get("/messages").text
+    cell = page.split('<td class="message">')[1].split("</td>")[0]
+    summary = cell.split("<summary>")[1].split("</summary>")[0]
+    assert summary.startswith('<span class="preview">Hello there, ')
+    assert summary.endswith('&hellip;</span><span class="hide">hide</span>')
+    assert cell.count("<pre>") == 1 and page.count(body.strip()) == 1
+    css = Path(create_app.__code__.co_filename).parent / "static" / "style.css"
+    assert "details[open] > summary > .preview { display: none; }" in css.read_text()
