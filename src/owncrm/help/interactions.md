@@ -26,8 +26,8 @@ Messages tab: an explicit outcome wins; otherwise a later inbound interaction
 from the same contact (or a company-level one) counts as the **first**
 configured outcome; otherwise, once the message is older than
 `message_window_days` (default 14), it counts as the **last** one; until then
-it is unknown. Older files may carry a `result` key (`success` or
-`unsuccessful`); it is read the same way.
+it is unknown. Files from before format 3 carried a separate `result` key;
+migration 3 folded it into `outcome`.
 
 ## Where interactions come from
 
