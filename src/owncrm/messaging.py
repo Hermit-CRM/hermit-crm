@@ -28,7 +28,7 @@ from functools import lru_cache
 from importlib import resources
 from pathlib import Path
 
-from .models import Company, Contact, language_for
+from .models import Company, Contact, language_for, normalise_country
 
 SIGNALS = ["", "growing", "stalled", "hiring"]
 HURDLES = [10, 20, 50, 100, 250, 500]
@@ -111,13 +111,27 @@ def owner_first_name(owner_name: str) -> str:
     return parts[0] if parts else "[your name]"
 
 
+def belgian_language(company: Company) -> str:
+    """Draft language for a Belgian company: "nl" (Flanders), "fr" (Wallonia) or "en".
+
+    Belgium has no single business language, so the country code alone is not
+    enough. Signals on the record: company.website (a /nl/ or /fr/ path, or
+    nl./fr. subdomain), company.product_oneliner and company.notes (written in
+    the company's own language when fetched from its site), and contact names.
+    Return "en" whenever the signals disagree or are missing.
+    """
+    # TODO(human): infer Flemish vs Walloon from the record
+    return "en"
+
+
 def drafts(company: Company, contact: Contact | None = None, signal: str = "",
            observation: str = "", messages: dict | None = None,
            owner_name: str = "") -> list[Draft]:
     """Three distinct drafts for one contact (company-level when None)."""
     messages = messages if messages is not None else default_messages()
     languages = messages["languages"]
-    lang = language_for(company.country)
+    lang = (belgian_language(company) if normalise_country(company.country) == "BE"
+            else language_for(company.country))
     if lang not in languages:
         lang = "en"
     t = languages[lang]

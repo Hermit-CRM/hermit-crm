@@ -68,6 +68,10 @@ DEFAULT_CONFIG = {
     # A message with no reply and no explicit result counts as unsuccessful
     # after this many days (Messages tab).
     "message_window_days": 14,
+    # Outcome choices for an interaction (Messages tab and the interaction form).
+    # The first is what a detected reply counts as, the last what silence past
+    # message_window_days counts as; empty outcome means "not yet known".
+    "outcomes": ["successful", "unsuccessful"],
     # Seconds to wait when the free "Fetch from URL" enrichment reads a page.
     "fetch_timeout": 10,
     # BCC import (owncrm/bcc.py): mails BCC'd or forwarded to bcc_address.

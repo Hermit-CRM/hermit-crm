@@ -133,7 +133,7 @@ def test_claude_argv_env_and_structured_output(monkeypatch):
     assert enricher.available and enricher.provider_name == "claude"
     assert enricher.runner("the prompt", {"type": "object"}) == {"website": "https://acme.de"}
     argv = run.seen["argv"]
-    assert argv[:3] == ["claude-cli", "-p", "--output-format"]
+    assert argv[0].endswith("claude-cli") and argv[1:3] == ["-p", "--output-format"]
     assert json.loads(argv[argv.index("--json-schema") + 1]) == {"type": "object"}
     assert argv[argv.index("--model") + 1] == "sonnet"
     assert argv[argv.index("--allowedTools") + 1] == "WebSearch,WebFetch"
@@ -145,7 +145,7 @@ def test_claude_without_model_passes_no_model_flag(monkeypatch):
     run = FakeRun(CLAUDE_STDOUT)
     monkeypatch.setattr(subprocess, "run", run)
     Enricher(provider="claude", which=ALL).runner("p", {})
-    assert run.seen["argv"][0] == "claude" and "--model" not in run.seen["argv"]
+    assert run.seen["argv"][0].endswith("/claude") and "--model" not in run.seen["argv"]
 
 
 def test_codex_argv_schema_file_and_output_file(monkeypatch):
@@ -156,7 +156,7 @@ def test_codex_argv_schema_file_and_output_file(monkeypatch):
     data = Enricher(provider="codex", model="gpt-5", which=ALL).runner("the prompt", schema)
     assert data["linkedin"] == "https://www.linkedin.com/company/acme"
     argv = run.seen["argv"]
-    assert argv[:3] == ["codex", "exec", "--skip-git-repo-check"]
+    assert argv[0].endswith("/codex") and argv[1:3] == ["exec", "--skip-git-repo-check"]
     assert argv[argv.index("-m") + 1] == "gpt-5" and argv[-1] == "-"
     assert run.seen["schema"] == schema and run.seen["input"] == "the prompt"
     # Temp files are gone afterwards.
@@ -178,7 +178,7 @@ def test_gemini_argv_prompt_on_stdin_and_response_field(monkeypatch):
     assert data == {"website": "https://acme.de", "sources": ["https://acme.de/impressum"],
                     "notes": "from {imprint}"}
     argv = run.seen["argv"]
-    assert argv[0] == "gemini" and argv[1] == "-p"
+    assert argv[0].endswith("/gemini") and argv[1] == "-p"
     assert argv[argv.index("--output-format") + 1] == "json"
     assert argv[argv.index("-m") + 1] == "gemini-2.5-pro"
     assert run.seen["input"].startswith("the prompt\nReturn ONLY a JSON object")
@@ -198,7 +198,7 @@ def test_grok_prompt_in_argv_and_message_list(monkeypatch):
     data = Enricher(provider="grok", which=ALL).runner("the prompt", {"type": "object"})
     assert data == {"title": "CTO", "sources": [], "notes": ""}
     argv = run.seen["argv"]
-    assert argv[0] == "grok" and argv[1] == "-p" and argv[2].startswith("the prompt\n")
+    assert argv[0].endswith("/grok") and argv[1] == "-p" and argv[2].startswith("the prompt\n")
     assert "--output-format" in argv and "-m" not in argv
     assert run.seen["input"] is None
 
@@ -217,7 +217,7 @@ def test_custom_command_substitutes_placeholders(monkeypatch):
     assert enricher.provider_name == "custom"
     assert enricher.runner("the prompt", {"type": "object"}) == {"title": "VP Sales"}
     argv = run.seen["argv"]
-    assert argv[0] == "my-llm" and argv[2].endswith("schema.json")
+    assert argv[0].endswith("/my-llm") and argv[2].endswith("schema.json")
     assert argv[3] == "--model=big" and argv[-1] == "two words"
     assert run.seen["input"] == "the prompt"
     assert not Path(argv[2]).exists()

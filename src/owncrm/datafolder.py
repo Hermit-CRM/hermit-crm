@@ -59,6 +59,7 @@ CONFIG_DOCS = {
     "enrich_timeout": "Seconds before an enrich call is abandoned.",
     "message_window_days": "A message without reply or result counts as unsuccessful after this many days.",
     "fetch_timeout": "Seconds to wait when Fetch from URL reads a page.",
+    "outcomes": "Outcome choices for an interaction; first = what a reply counts as, last = what silence counts as.",
     "bcc_address": "Address you BCC or forward mail to, e.g. you+crm@gmail.com; empty disables BCC import.",
     "bcc_imap_host": "IMAP server of that mailbox.",
     "bcc_keychain_service": "macOS Keychain service holding the app password (account = IMAP user).",

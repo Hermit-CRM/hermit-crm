@@ -326,8 +326,37 @@ PROVIDERS = {cls.name: cls for cls in
 AUTO_ORDER = ("claude", "codex", "gemini", "grok")
 
 
+# Where AI CLIs live when the process runs with a bare PATH (launchd, systemd,
+# cron): Homebrew, npm/bun globals, pipx. Searched after PATH itself.
+EXTRA_BIN_DIRS = ("/usr/local/bin", "/opt/homebrew/bin", "~/.local/bin",
+                  "~/.npm-global/bin", "~/.bun/bin", "~/.cargo/bin", "~/bin")
+
+
+def find_executable(name: str) -> str | None:
+    """`shutil.which` that also looks in EXTRA_BIN_DIRS; returns the full path."""
+    found = shutil.which(name)
+    if found or not name or "/" in name:
+        return found
+    for d in EXTRA_BIN_DIRS:
+        candidate = Path(d).expanduser() / name
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return None
+
+
+def _located(candidate: "Provider", which) -> "Provider | None":
+    """The candidate with its binary replaced by the path `which` found, so a
+    CLI found outside PATH is still runnable."""
+    found = which(candidate.executable)
+    if not found:
+        return None
+    if isinstance(found, str) and os.path.isabs(found) and found != candidate.executable:
+        candidate.binary = candidate.binary.replace(candidate.executable, found, 1)
+    return candidate
+
+
 def resolve_provider(provider: str = "auto", command: str = "",
-                     which=shutil.which) -> Provider | None:
+                     which=find_executable) -> Provider | None:
     """Pick the provider for a config. None means no usable CLI was found.
 
     "auto" with an `enrich_command` set uses the provider whose name starts the
@@ -343,11 +372,10 @@ def resolve_provider(provider: str = "auto", command: str = "",
             except (ValueError, IndexError):
                 base = ""
             name = next((n for n in AUTO_ORDER if base.startswith(n)), "custom")
-            candidate = PROVIDERS[name](command)
-            return candidate if which(candidate.executable) else None
+            return _located(PROVIDERS[name](command), which)
         for name in AUTO_ORDER:
-            candidate = PROVIDERS[name]()
-            if which(candidate.executable):
+            candidate = _located(PROVIDERS[name](), which)
+            if candidate:
                 return candidate
         return None
     if provider not in PROVIDERS:
@@ -356,12 +384,12 @@ def resolve_provider(provider: str = "auto", command: str = "",
     candidate = PROVIDERS[provider](command)
     if not candidate.binary:
         return None
-    return candidate if which(candidate.executable) else None
+    return _located(candidate, which)
 
 
 class Enricher:
     def __init__(self, provider: str = "auto", command: str = "", model: str = "",
-                 timeout: float = 180, runner=None, which=shutil.which):
+                 timeout: float = 180, runner=None, which=find_executable):
         self.requested = (provider or "auto").strip().lower()
         self.command = command or ""
         self.model = model or ""
