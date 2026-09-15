@@ -44,6 +44,7 @@ from .gitops import GitOps
 from .models import (
     Channel,
     Company,
+    DEFAULT_OUTCOMES,
     Direction,
     Role,
     Country,
@@ -54,6 +55,7 @@ from .models import (
     fmt_date,
     fmt_datetime,
     parse_date,
+    slugify,
 )
 from .store import (
     COMPANY_MERGE_FIELDS, CONTACT_MERGE_FIELDS, Store, load_config,
@@ -73,7 +75,11 @@ TASK_STATUSES = [t.value for t in TaskStatus]
 ROLES = [r.value for r in Role]
 CHANNELS = [c.value for c in Channel]
 DIRECTIONS = [d.value for d in Direction]
-MESSAGE_STATUSES = ["success", "unsuccessful", "unknown"]
+
+
+def message_statuses(outcomes: list[str]) -> list[str]:
+    """Every value the Messages tab can show: the config outcomes plus "unknown"."""
+    return [o for o in outcomes if o] + ["unknown"]
 
 
 # --------------------------------------------------------------------- filters
@@ -140,7 +146,7 @@ def contact_columns() -> list[Column]:
 
 
 class MessageRow:
-    """One outbound message on the Messages tab, with its derived result."""
+    """One outbound message on the Messages tab, with its derived outcome."""
 
     def __init__(self, company: Company, it, status: str, uses: int):
         self.company = company
@@ -156,14 +162,14 @@ class MessageRow:
         self.body = it.body
         self.preview = " ".join(it.body.split())
         self.status = status
-        self.explicit = it.result
+        self.explicit = it.outcome  # "" when the status was derived
         self.uses = uses
         self.country = company.country
         self.language = company.language
         self.stage = company.stage
 
 
-def message_columns() -> list[Column]:
+def message_columns(statuses: list[str]) -> list[Column]:
     return [
         Column("date", "sent", "date"),
         Column("company_name", "company"),
@@ -171,7 +177,7 @@ def message_columns() -> list[Column]:
         Column("channel", "channel", "enum", CHANNELS),
         Column("country", "country", "enum", COUNTRIES),
         Column("stage", "stage", "enum", STAGES),
-        Column("status", "result", "enum", MESSAGE_STATUSES),
+        Column("status", "outcome", "enum", statuses),
         Column("uses", "uses", "number"),
         Column("body", "message"),
     ]
@@ -320,8 +326,9 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         except Exception:  # GitOps never raises, but a write must never fail here
             logger.exception("git commit/push failed for %r", message)
 
+    outcomes = [str(o) for o in (config.get("outcomes") or DEFAULT_OUTCOMES)]
     store = Store(root, silent_days=int(config.get("silent_days", 14)),
-                  on_write=on_write)
+                  on_write=on_write, outcomes=outcomes)
     store.load()
 
     messages = messaging.load_messages(root)
@@ -426,10 +433,13 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         signals=messaging.SIGNALS,
         signal_labels=messaging.signal_labels(messages),
         language_names=messaging.language_names(messages),
-        message_statuses=MESSAGE_STATUSES,
+        outcomes=outcomes,
+        message_statuses=message_statuses(outcomes),
         owncrm_version=__version__,
         update_notice=app.state.update_notice,
     )
+
+    templates.env.filters["slug"] = slugify  # CSS class names from outcome values
 
     def render(request: Request, name: str, ctx: dict, status_code: int = 200):
         context = {
@@ -811,7 +821,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
     @app.get("/messages", response_class=HTMLResponse)
     def messages_list(request: Request, q: str = ""):
         today = store.today()
-        cols = message_columns()
+        cols = message_columns(message_statuses(outcomes))
         active = filters.parse(request.query_params, cols)
         sort_key, sort_dir = filters.parse_sort(request.query_params, cols)
         needle = (q or "").strip().lower()
@@ -823,7 +833,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             for it in company.interactions:
                 if not it.is_message:
                     continue
-                status = company.message_status(it, today, message_window)
+                status = company.message_status(it, today, message_window, outcomes)
                 rows.append(MessageRow(company, it, status, uses[normalised_body(it.body)]))
         counts = Counter(r.status for r in rows)
         if needle:
@@ -858,19 +868,20 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "delta": reports.delta,
         })
 
-    @app.post("/companies/{slug}/interactions/{id}/result")
-    def interaction_result(request: Request, slug: str, id: str,
-                           result: str = Form("")):
-        """Mark a sent message successful / unsuccessful / not yet known."""
+    @app.post("/companies/{slug}/interactions/{id}/outcome")
+    def interaction_outcome(request: Request, slug: str, id: str,
+                            outcome: str = Form("")):
+        """Set the outcome of a sent message from the Messages tab buttons
+        (one of the config outcomes, or empty for not yet known)."""
         company = need_company(slug)
         if not any(i.id == id for i in company.interactions):
             raise HTTPException(status_code=404, detail=f"unknown interaction {id!r}")
         try:
-            store.update_interaction(slug, id, result=result)
+            store.update_interaction(slug, id, outcome=outcome)
         except ValidationError as exc:
             return flashed("/messages", "; ".join(exc.errors.values()))
         back = urlparse(request.headers.get("referer", "")).path or "/messages"
-        return flashed(back, f"Message marked {result or 'unknown'}")
+        return flashed(back, f"Message marked {outcome or 'unknown'}")
 
     @app.get("/companies/new", response_class=HTMLResponse)
     def company_new(request: Request):

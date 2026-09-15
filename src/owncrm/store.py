@@ -22,10 +22,10 @@ from .models import (
     Company,
     Contact,
     Country,
+    DEFAULT_OUTCOMES,
     Direction,
     Interaction,
     InteractionSource,
-    MessageResult,
     REASON_STAGES,
     Role,
     Source,
@@ -65,13 +65,13 @@ DEFAULT_CONFIG = {
     "enrich_command": "",
     "enrich_model": "",
     "enrich_timeout": 180,
-    # A message with no reply and no explicit result counts as unsuccessful
-    # after this many days (Messages tab).
+    # A message with no reply and no explicit outcome counts as the last
+    # outcome after this many days (Messages tab).
     "message_window_days": 14,
     # Outcome choices for an interaction (Messages tab and the interaction form).
     # The first is what a detected reply counts as, the last what silence past
     # message_window_days counts as; empty outcome means "not yet known".
-    "outcomes": ["successful", "unsuccessful"],
+    "outcomes": list(DEFAULT_OUTCOMES),
     # Seconds to wait when the free "Fetch from URL" enrichment reads a page.
     "fetch_timeout": 10,
     # BCC import (owncrm/bcc.py): mails BCC'd or forwarded to bcc_address.
@@ -173,7 +173,7 @@ CONTACT_MERGE_FIELDS = tuple(
     f for f in CONTACT_COPY_FIELDS if f not in ("slug", "created", "updated"))
 INTERACTION_COPY_FIELDS = (
     "id", "date", "channel", "direction", "contact", "subject", "outcome",
-    "result", "source", "message_id", "body",
+    "source", "message_id", "body",
 )
 
 
@@ -184,12 +184,15 @@ class Store:
         silent_days: int = 14,
         on_write: Callable[[str], None] | None = None,
         clock: Callable[[], datetime] | None = None,
+        outcomes: list[str] | None = None,
     ):
         self.root = Path(root)
         self.companies_dir = self.root / "companies"
         self.companies: dict[str, Company] = {}
         self.problems: list[Problem] = []
         self.silent_days = silent_days
+        # Allowed interaction outcomes (config `outcomes`); "" is always allowed.
+        self.outcomes = [str(o) for o in (outcomes or DEFAULT_OUTCOMES)]
         self.on_write = on_write
         self._batch: list[str] | None = None
         self.clock = clock
@@ -421,6 +424,17 @@ class Store:
             raise ValidationError(
                 {field_name: f"unknown {field_name} {value!r} "
                              f"(allowed: {', '.join(allowed)})"}
+            )
+        return value
+
+    def _coerce_outcome(self, value, current: str = "") -> str:
+        """Empty, one of the configured outcomes, or unchanged (a legacy value
+        already in the file must not block saving the rest of the form)."""
+        value = (value or "").strip()
+        if value and value != current and value not in self.outcomes:
+            raise ValidationError(
+                {"outcome": f"unknown outcome {value!r} "
+                            f"(allowed: {', '.join(self.outcomes)})"}
             )
         return value
 
@@ -847,7 +861,7 @@ class Store:
 
     def create_interaction(self, company_slug: str, channel, direction, subject="",
                            contact="", date=None, outcome="", body="",
-                           result="", source="manual", message_id="") -> Interaction:
+                           source="manual", message_id="") -> Interaction:
         company = self.companies.get(company_slug)
         if company is None:
             raise ValidationError({"company": f"unknown company {company_slug!r}"})
@@ -867,8 +881,7 @@ class Store:
             direction=direction,
             contact=contact,
             subject=subject,
-            outcome=(outcome or "").strip(),
-            result=self._coerce_enum(result, MessageResult, "result", True, ""),
+            outcome=self._coerce_outcome(outcome),
             source=self._coerce_enum(source, InteractionSource, "source", False),
             message_id=(message_id or "").strip(),
             body=normalise_body(body),
@@ -913,10 +926,7 @@ class Store:
         if "subject" in fields:
             new.subject = (fields["subject"] or "").strip()
         if "outcome" in fields:
-            new.outcome = (fields["outcome"] or "").strip()
-        if "result" in fields:
-            new.result = self._coerce_enum(fields["result"], MessageResult, "result",
-                                           True, "")
+            new.outcome = self._coerce_outcome(fields["outcome"], old.outcome)
         if "body" in fields:
             new.body = normalise_body(fields["body"])
 
@@ -936,9 +946,9 @@ class Store:
         company.interactions.append(new)
         company.interactions.sort(key=lambda i: (i.date or datetime.min, i.id),
                                   reverse=True)
-        if set(fields) == {"result"}:
-            self._notify(f"interaction: {company_slug} {new.id} result "
-                         f"{new.result or 'unknown'}")
+        if set(fields) == {"outcome"}:
+            self._notify(f"interaction: {company_slug} {new.id} outcome "
+                         f"{new.outcome or 'unknown'}")
         else:
             self._notify(f"interaction: {company_slug} {new.id} updated")
         return new

@@ -241,9 +241,11 @@ table.messages td.message { max-width: 520px; }
 table.messages td.message details summary { cursor: pointer; }
 table.messages td.message pre { white-space: pre-wrap; word-wrap: break-word; background: #f7f7f9; padding: 6px 8px; border-radius: 3px; font-size: 12px; font-family: inherit; margin: 4px 0 0; }
 td.nowrap { white-space: nowrap; }
-td.result-success { color: #1a7f37; }
-td.result-unsuccessful { color: #b00020; }
-td.result-unknown { color: var(--muted); }
+/* Outcome cells carry class outcome-<slug of the value>; the two default
+   outcomes get a colour, anything else inherits. */
+td.outcome-successful { color: #1a7f37; }
+td.outcome-unsuccessful { color: #b00020; }
+td.outcome-unknown { color: var(--muted); }
 td.actions form.inline button { margin-bottom: 2px; }
 .month-nav h2 { text-transform: none; font-size: 18px; margin: 0; }
 table.messages td.message { min-width: 320px; }

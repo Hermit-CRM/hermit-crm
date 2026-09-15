@@ -3,8 +3,8 @@
 {% block title %}Messages{% endblock %}
 {% block content %}
 <h1>Messages ({{ rows | length }}){% if q %} matching &ldquo;{{ q }}&rdquo;{% endif %}</h1>
-<p class="small">Every outbound interaction with a body. Result: <strong>success</strong> when you marked it so or a reply from the same contact was logged afterwards; <strong>unsuccessful</strong> when you marked it so or nothing came back within {{ window }} days; <strong>unknown</strong> until then.
-  Totals: {{ counts.get('success', 0) }} success &middot; {{ counts.get('unsuccessful', 0) }} unsuccessful &middot; {{ counts.get('unknown', 0) }} unknown.</p>
+<p class="small">Every outbound interaction with a body. Outcome: what you set on the message, else <strong>{{ outcomes[0] }}</strong> when a reply from the same contact was logged afterwards, <strong>{{ outcomes[-1] }}</strong> when nothing came back within {{ window }} days, <strong>unknown</strong> until then.
+  Totals: {% for s in message_statuses %}{{ counts.get(s, 0) }} {{ s }}{% if not loop.last %} &middot; {% endif %}{% endfor %}.</p>
 <form class="inline search" action="/messages" method="get">
   <input name="q" value="{{ q }}" placeholder="Search message text, company, contact">
   <button type="submit">Search</button>
@@ -21,13 +21,13 @@
     <td>{{ r.channel }}</td>
     <td>{{ r.country }}</td>
     <td>{{ r.stage }}</td>
-    <td class="result-{{ r.status }}">{{ r.status }}{% if not r.explicit and r.status != 'unknown' %} <span class="small">(auto)</span>{% endif %}</td>
+    <td class="outcome-{{ r.status | slug }}">{{ r.status }}{% if not r.explicit and r.status != 'unknown' %} <span class="small">(auto)</span>{% endif %}</td>
     <td>{{ r.uses }}</td>
     <td class="message"><details><summary>{{ r.preview[:110] }}{% if r.preview | length > 110 %}&hellip;{% endif %}</summary><pre>{{ r.body }}</pre></details></td>
     <td class="actions nowrap">
-      {% for value, label in [('success', 'Success'), ('unsuccessful', 'Unsuccessful'), ('', 'Unknown')] if value != r.explicit %}
-      <form method="post" action="/companies/{{ r.company_slug }}/interactions/{{ r.id }}/result" class="inline">
-        <input type="hidden" name="result" value="{{ value }}"><button type="submit">{{ label }}</button>
+      {% for value in outcomes + [''] if value != r.explicit %}
+      <form method="post" action="/companies/{{ r.company_slug }}/interactions/{{ r.id }}/outcome" class="inline">
+        <input type="hidden" name="outcome" value="{{ value }}"><button type="submit">{{ value | capitalize if value else 'Unknown' }}</button>
       </form>
       {% endfor %}
       <a href="/companies/{{ r.company_slug }}/interactions/{{ r.id }}/edit">edit</a>

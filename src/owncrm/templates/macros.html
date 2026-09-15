@@ -110,7 +110,14 @@
   </div>
   <div class="row">
     <label class="grow">subject <input name="subject" value="{{ values.subject }}"></label>
-    <label class="grow">outcome <input name="outcome" value="{{ values.outcome }}"></label>
+    <label>outcome
+      <select name="outcome">
+        <option value=""{% if not values.outcome %} selected{% endif %}>not yet known</option>
+        {% for o in outcomes %}<option value="{{ o }}"{% if values.outcome == o %} selected{% endif %}>{{ o }}</option>{% endfor %}
+        {# A value outside the list (older data, or config changed) stays selectable so saving does not lose it. #}
+        {% if values.outcome and values.outcome not in outcomes %}<option value="{{ values.outcome }}" selected>{{ values.outcome }}</option>{% endif %}
+      </select>
+    </label>
   </div>
   <label>body <textarea name="body" rows="6">{{ values.body }}</textarea></label>
   <button type="submit">{{ submit }}</button>
