@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+{% set p = report.period %}
+{% set labels = {'company': 'company', 'contact': 'contact', 'interaction': 'interaction', 'date': 'date', 'channel': 'channel', 'stage': 'stage', 'status': 'status', 'value': 'EUR/month', 'note': 'note'} %}
+<h1>{{ title }}</h1>
+<p class="small"><a href="{{ back }}">&larr; Back to report</a> &middot; {{ fmt_date(p.start) }} to {{ fmt_date(p.end) }} ({{ p.days }}d) &middot; {{ rows | length }} row{{ '' if rows | length == 1 else 's' }} &middot; <code class="report-key">{{ key }}</code></p>
+<table class="report report-rows">
+  <tr>{% for col in columns %}{% if col == 'value' %}<th class="num">{% else %}<th>{% endif %}{{ labels[col] }}</th>{% endfor %}</tr>
+  {% for r in rows %}
+  <tr>
+    {% for col in columns %}
+    {% if col == 'company' %}<td><a href="/companies/{{ r.slug }}">{{ r.company }}</a></td>
+    {% elif col == 'contact' %}<td>{% if r.cslug %}<a href="/companies/{{ r.slug }}/contacts/{{ r.cslug }}">{{ r.contact }}</a>{% else %}{{ r.contact }}{% endif %}</td>
+    {% elif col == 'interaction' %}<td>{% if r.kind == 'interaction' %}<a href="{{ r.url }}">{{ r.label }}</a>{% endif %}</td>
+    {% elif col == 'date' %}<td class="nowrap">{{ r.when }}</td>
+    {% elif col == 'value' %}<td class="num">{{ '{:,}'.format(r.value) if r.value is not none else '' }}</td>
+    {% else %}<td>{{ r[col] }}</td>
+    {% endif %}
+    {% endfor %}
+  </tr>
+  {% else %}
+  <tr><td colspan="{{ columns | length }}" class="empty">none</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

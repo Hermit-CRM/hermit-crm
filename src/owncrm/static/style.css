@@ -285,3 +285,11 @@ footer { margin: 2em 1em 1em; color: #777; }
 .setup-status.done { background: #e6f4ea; color: #1e6b34; }
 .setup-status.pending { background: #fff4e0; color: #8a5300; }
 .warning { color: #8a5300; }
+
+/* --- report rows: numbers on /reports link to /reports/rows (reports.html, report_rows.html) --- */
+table.report a.rows { color: inherit; text-decoration: none; border-bottom: 1px dotted #999; }
+table.report a.rows:hover { color: #1a55b0; border-bottom-color: #1a55b0; }
+table.report-rows td, table.report-rows th { vertical-align: top; }
+table.report-rows td.nowrap { white-space: nowrap; }
+code.report-key { font-size: 11px; color: #777; }
+/* --- end report rows --- */
