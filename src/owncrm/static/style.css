@@ -276,12 +276,45 @@ td.bar-cell { width: 35%; }
 .update-notice { font-size: 0.85em; padding: 0 0.5em; }
 footer { margin: 2em 1em 1em; color: #777; }
 
-/* setup */
+/* settings (the former setup page + the review queue) */
 .start-cards { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
 .start-card { flex: 1 1 200px; color: inherit; text-decoration: none; }
 .start-card:hover { border-color: #9bb5ea; }
-.setup-step { margin-bottom: 24px; }
+.setup-step { margin-bottom: 28px; max-width: 980px; }
+.setup-step h2 { text-transform: none; font-size: 16px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+.setup-step h3 { margin-top: 12px; }
 .setup-status { font-size: 12px; padding: 1px 6px; border-radius: 3px; vertical-align: middle; }
 .setup-status.done { background: #e6f4ea; color: #1e6b34; }
 .setup-status.pending { background: #fff4e0; color: #8a5300; }
+p.setup-status { display: inline-block; margin: 4px 0; }
 .warning { color: #8a5300; }
+.settings-toc a { margin: 0 2px; }
+.setup-step textarea { min-height: 84px; }
+.setup-step .row > label input[size] { width: auto; }
+.schedule-lines { margin: 6px 0; padding-left: 18px; }
+.schedule-lines li { margin: 2px 0; overflow-wrap: anywhere; }
+pre.copy { background: #f7f7f9; border: 1px solid var(--line); border-radius: 3px; padding: 6px 8px; font-size: 13px; overflow-x: auto; user-select: all; }
+table.about { width: auto; }
+table.about th { white-space: nowrap; width: 1%; }
+
+/* help pages (nav link + /help) */
+nav a.help-link { margin-left: 4px; }
+.helpdoc-layout { display: flex; gap: 28px; align-items: flex-start; }
+.helpdoc-topics { flex: 0 0 200px; position: sticky; top: 12px; }
+.helpdoc-topics h2 { margin-top: 0; }
+.helpdoc-topics ul { list-style: none; margin: 0; padding: 0; }
+.helpdoc-topics li { margin: 2px 0; font-size: 13px; }
+.helpdoc-topics li.current a { font-weight: 600; color: inherit; text-decoration: none; }
+.helpdoc { flex: 1 1 0; min-width: 0; max-width: 78ch; }
+.helpdoc h1 { font-size: 20px; margin-top: 0; }
+.helpdoc h2 { text-transform: none; font-size: 16px; margin-top: 22px; }
+.helpdoc h3 { font-size: 14px; margin-top: 16px; }
+.helpdoc p, .helpdoc li { line-height: 1.55; }
+.helpdoc ul, .helpdoc ol { padding-left: 22px; }
+.helpdoc li { margin: 3px 0; }
+.helpdoc code { background: #f2f2f5; padding: 0 4px; border-radius: 3px; font-size: 13px; }
+.helpdoc pre { background: #f7f7f9; border: 1px solid var(--line); border-radius: 3px; padding: 8px 10px; overflow-x: auto; font-size: 13px; }
+.helpdoc pre code { background: none; padding: 0; }
+.helpdoc table { width: auto; margin: 8px 0; }
+.helpdoc td, .helpdoc th { font-size: 13px; }
+@media (max-width: 800px) { .helpdoc-layout { flex-direction: column; } .helpdoc-topics { position: static; flex-basis: auto; } }

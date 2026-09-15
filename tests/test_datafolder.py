@@ -142,8 +142,8 @@ def test_demo_every_web_page_returns_200(tmp_path):
     app.state.calendar_url = lambda refresh=False: ""
     client = TestClient(app, follow_redirects=False)
     store = app.state.store
-    urls = ["/", "/setup", "/calendar", "/import", "/companies", "/contacts", "/messages",
-            "/reports", "/reports?period=90d", "/companies/new", "/inbox", "/health"]
+    urls = ["/", "/settings", "/calendar", "/import", "/companies", "/contacts", "/messages",
+            "/reports", "/reports?period=90d", "/companies/new", "/health"]
     companies = store.all()
     for n, c in enumerate(companies):
         other = companies[(n + 1) % len(companies)].slug  # merge pages need a target

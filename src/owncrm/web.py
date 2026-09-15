@@ -25,7 +25,9 @@ from fastapi.staticfiles import StaticFiles
 from . import __version__, updates
 from fastapi.templating import Jinja2Templates
 
-from . import bcc, calendar_sync, filters, messaging, pipeline, reports, scrape
+from . import bcc, calendar_sync, filters, messaging, migrations, pipeline, reports
+from . import schedule, scrape
+from . import help as helpdocs
 from . import setup as setup_steps
 from .filters import Column
 from .enrich import Enricher, EnrichError
@@ -349,13 +351,14 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
     app.state.open_mailbox = lambda: bcc.open_gmail(app.state.bcc_settings, root)
     cal_settings = calendar_sync.settings_from_config(config)
     app.state.calendar_settings = cal_settings
-    # Setup page: a per-process CSRF token, redirect-once state and test seams.
+    # Settings page: a per-process CSRF token, redirect-once state and test seams.
     app.state.csrf_token = token_urlsafe(32)
     app.state.setup_redirected = False
     app.state.setup_runner = subprocess.run
     app.state.setup_platform = sys.platform
     app.state.setup_push = None
     app.state.setup_state = None
+    app.state.schedule_home = None  # Path.home() unless a test points elsewhere
     cal_url_cache: dict[str, str] = {}
 
     def calendar_url(refresh: bool = False) -> str:
@@ -380,7 +383,8 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         return app.state.setup_state
 
     def refresh_config() -> None:
-        """Re-read config.toml after a setup step and rebuild derived settings."""
+        """Re-read config.toml after a settings save and rebuild derived settings."""
+        nonlocal message_window
         fresh = load_config(root)
         keep = {k: config[k] for k in ("start_update_check",) if k in config}
         config.clear()
@@ -389,6 +393,14 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         app.state.calendar_settings = calendar_sync.settings_from_config(config)
         gitops.push_enabled = bool(config.get("push_enabled", True))
         gitops.remote = str(config.get("remote", "origin"))
+        store.silent_days = int(config.get("silent_days", 14))
+        message_window = int(config.get("message_window_days", 14))
+        app.state.enricher = Enricher(
+            provider=str(config.get("enrich_provider", "auto")),
+            command=str(config.get("enrich_command", "")),
+            model=str(config.get("enrich_model", "")),
+            timeout=float(config.get("enrich_timeout", 180)),
+        )
         cal_url_cache.clear()
         current_setup_state(refresh=True)
 
@@ -444,6 +456,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "enricher": app.state.enricher,
             "setup_pending": setup_steps.pending(current_setup_state()),
             "csrf_token": app.state.csrf_token,
+            "help_topic": helpdocs.topic_for(request.url.path),
         }
         context.update(ctx)
         return templates.TemplateResponse(request, name, context,
@@ -493,7 +506,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
     def board(request: Request):
         if not str(config.get("owner_email") or "").strip() and not app.state.setup_redirected:
             app.state.setup_redirected = True  # once per server start; "Skip for now" works
-            return goto("/setup")
+            return goto("/settings")
         today = store.today()
         cols = board_columns()
         active = filters.parse(request.query_params, cols)
@@ -578,22 +591,24 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
 
     @app.post("/calendar/import")
     def calendar_import(request: Request, back: str = Form("/calendar")):
-        back = back if back in ("/inbox", "/calendar") else "/calendar"
+        # "/inbox" is the old name of the review queue, now on the Settings page.
+        back = "/settings" if back in ("/inbox", "/settings") else "/calendar"
+        anchor = "inbox" if back == "/settings" else ""
         url = app.state.calendar_url(refresh=True)
         if not url:
             return flashed(back, "Calendar import failed: "
-                           + calendar_sync.setup_hint(app.state.calendar_settings))
+                           + calendar_sync.setup_hint(app.state.calendar_settings), anchor)
         fetch = app.state.fetch_calendar
         try:
             result = calendar_sync.run_calendar(store, inbox, app.state.calendar_settings, True,
                                                 lambda: fetch(url))
         except calendar_sync.CalendarError as exc:
             logger.warning("calendar import failed: %s", exc)
-            return flashed(back, f"Calendar import failed: {exc}")
+            return flashed(back, f"Calendar import failed: {exc}", anchor)
         except Exception as exc:
             logger.exception("calendar import crashed")
-            return flashed(back, f"Calendar import failed: {type(exc).__name__}: {exc}")
-        return flashed(back, "Calendar import: " + result.summary())
+            return flashed(back, f"Calendar import failed: {type(exc).__name__}: {exc}", anchor)
+        return flashed(back, "Calendar import: " + result.summary(), anchor)
 
     # ---------------------------------------------------------------- import
 
@@ -1281,7 +1296,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         return flashed(f"/companies/{slug}", "Interaction updated",
                        anchor=f"i-{saved.id}")
 
-    # ------------------------------------------------------------------ inbox
+    # --------------------------------------------------- settings (+ inbox)
 
     def inbox_context(**extra) -> dict:
         ctx = {
@@ -1294,49 +1309,28 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         ctx.update(extra)
         return ctx
 
-    @app.get("/inbox", response_class=HTMLResponse)
-    def inbox_page(request: Request):
-        return render(request, "inbox.html", inbox_context())
-
-    @app.post("/bcc/import")
-    def bcc_import(request: Request):
+    def schedule_status() -> dict:
+        """The daily job's status; never raises (the page must always render)."""
         try:
-            result = bcc.run_bcc(store, inbox, app.state.bcc_settings, True,
-                                 app.state.open_mailbox)
-        except bcc.BccError as exc:
-            logger.warning("BCC import failed: %s", exc)
-            return flashed("/inbox", f"BCC import failed: {exc}")
-        except Exception as exc:
-            logger.exception("BCC import crashed")
-            return flashed("/inbox", f"BCC import failed: {type(exc).__name__}: {exc}")
-        return flashed("/inbox", "BCC import: " + result.summary())
+            ctx = schedule.Context(data_dir=root, home=app.state.schedule_home or Path.home(),
+                                   platform=app.state.setup_platform,
+                                   runner=app.state.setup_runner)
+            state = schedule.status(ctx)
+        except Exception as exc:  # launchctl/systemctl missing, unreadable plist, ...
+            logger.warning("schedule status failed: %s", exc)
+            state = {"installed": False, "lines": [f"could not check: {exc}"]}
+        state["install_command"] = f"owncrm --data {root} schedule install --serve"
+        return state
 
-    @app.post("/inbox/{item_id}/assign")
-    def inbox_assign(request: Request, item_id: str, company: str = Form(""),
-                     first_name: str = Form(""), last_name: str = Form("")):
-        if inbox.get(item_id) is None:
-            raise HTTPException(status_code=404, detail=f"unknown inbox item {item_id!r}")
-        try:
-            slug, it = bcc.assign(store, inbox, item_id, company, first_name, last_name)
-        except ValidationError as exc:
-            return render(request, "inbox.html", inbox_context(errors=exc.errors),
-                          status_code=400)
-        return flashed("/inbox", f"Logged at {slug}/{it.contact}")
-
-    @app.post("/inbox/{item_id}/discard")
-    def inbox_discard(request: Request, item_id: str):
-        try:
-            item = bcc.discard(store, inbox, item_id)
-        except ValidationError:
-            raise HTTPException(status_code=404, detail=f"unknown inbox item {item_id!r}")
-        return flashed("/inbox", f"Discarded {item.address}")
-
-    # ------------------------------------------------------------------ setup
-
-    def setup_context(**extra) -> dict:
+    def settings_context(**extra) -> dict:
         state = current_setup_state()
         owner = str(config.get("owner_email") or "")
         bcc_address = str(config.get("bcc_address") or "")
+        enricher = app.state.enricher
+        try:
+            data_format = migrations.current_format(root)
+        except Exception:
+            data_format = None
         ctx = {
             "state": state,
             "you": {"name": str(config.get("owner_name") or ""),
@@ -1353,30 +1347,66 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
                                                  app.state.setup_runner),
             "remote_warning": "",
             "form_errors": {},
+            "enrich_form": {"provider": str(config.get("enrich_provider") or "auto"),
+                            "command": str(config.get("enrich_command") or ""),
+                            "model": str(config.get("enrich_model") or ""),
+                            "timeout": str(config.get("enrich_timeout") or 180)},
+            "enrich_providers": setup_steps.ENRICH_PROVIDERS,
+            "enrich_status": {"available": enricher.available,
+                              "provider": enricher.provider_name,
+                              "reason": "" if enricher.available
+                              else enricher.unavailable_reason()},
+            "outcomes_form": {"outcomes": "\n".join(
+                                  setup_steps.parse_outcomes(config.get("outcomes") or [])),
+                              "message_window_days": str(config.get("message_window_days")
+                                                         or 14),
+                              "silent_days": str(config.get("silent_days") or 14)},
+            "schedule": schedule_status(),
+            "about": {"version": __version__, "data_dir": str(root),
+                      "data_format": data_format, "latest_format": migrations.LATEST,
+                      "update_check": bool(config.get("update_check", True))},
         }
         if ctx["remote_url"]:
             ctx["remote_warning"] = setup_steps.private_warning(ctx["remote_url"])
+        ctx.update(inbox_context())
         ctx.update(extra)
         return ctx
+
+    def settings_page(request: Request, status_code: int = 200, **extra):
+        return render(request, "settings.html", settings_context(**extra),
+                      status_code=status_code)
 
     def check_csrf(token: str) -> None:
         if not hmac.compare_digest(str(token or ""), app.state.csrf_token):
             raise HTTPException(status_code=403, detail="invalid or missing CSRF token; "
-                                "reload the setup page and try again")
+                                "reload the settings page and try again")
 
     def setup_done(result, anchor: str) -> RedirectResponse:
         refresh_config()
-        return flashed("/setup", result.text() or "Saved", anchor=anchor)
+        return flashed("/settings", result.text() or "Saved", anchor=anchor)
 
     def setup_invalid(request: Request, result, step: str, **extra):
-        return render(request, "setup.html", setup_context(
-            form_errors={step: result.errors}, **extra), status_code=400)
+        return settings_page(request, status_code=400,
+                             form_errors={step: result.errors}, **extra)
 
-    @app.get("/setup", response_class=HTMLResponse)
-    def setup_page(request: Request):
+    @app.get("/settings", response_class=HTMLResponse)
+    def settings_view(request: Request):
         app.state.setup_redirected = True
-        return render(request, "setup.html", setup_context())
+        return settings_page(request)
 
+    @app.get("/setup")
+    def setup_redirect(request: Request):
+        """The old Setup page is the Settings page now."""
+        return RedirectResponse("/settings", status_code=301)
+
+    @app.get("/inbox")
+    def inbox_redirect(request: Request):
+        """The old Inbox page is the review queue on the Settings page now."""
+        return RedirectResponse("/settings#inbox", status_code=301)
+
+    # The POST paths keep their /setup/... names and also answer under /settings/...
+
+    @app.post("/settings/you")
     @app.post("/setup/you")
     def setup_you(request: Request, csrf_token: str = Form(""), name: str = Form(""),
                   addresses: str = Form("")):
@@ -1387,6 +1417,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
                                  you={"name": name, "addresses": addresses})
         return setup_done(result, "you")
 
+    @app.post("/settings/bcc")
     @app.post("/setup/bcc")
     def setup_bcc(request: Request, csrf_token: str = Form(""), address: str = Form(""),
                   imap_host: str = Form(""), password: str = Form(""),
@@ -1401,13 +1432,15 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
                                  bcc_form={"address": address, "imap_host": imap_host})
         return setup_done(result, "bcc")
 
+    @app.post("/settings/bcc/test")
     @app.post("/setup/bcc/test")
     def setup_bcc_test(request: Request, csrf_token: str = Form("")):
         check_csrf(csrf_token)
         result = setup_steps.test_bcc(root, config, open_mailbox=app.state.open_mailbox,
                                       store=store)
-        return flashed("/setup", result.text(), anchor="bcc")
+        return flashed("/settings", result.text(), anchor="bcc")
 
+    @app.post("/settings/backup")
     @app.post("/setup/backup")
     def setup_backup(request: Request, csrf_token: str = Form(""), url: str = Form("")):
         check_csrf(csrf_token)
@@ -1417,6 +1450,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             return setup_invalid(request, result, "backup")
         return setup_done(result, "backup")
 
+    @app.post("/settings/calendar")
     @app.post("/setup/calendar")
     def setup_calendar(request: Request, csrf_token: str = Form(""), url: str = Form("")):
         check_csrf(csrf_token)
@@ -1425,6 +1459,91 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         if result.errors.get("url"):
             return setup_invalid(request, result, "calendar")
         return setup_done(result, "calendar")
+
+    @app.post("/settings/enrichment")
+    def settings_enrichment(request: Request, csrf_token: str = Form(""),
+                            provider: str = Form("auto"), command: str = Form(""),
+                            model: str = Form(""), timeout: str = Form("180")):
+        check_csrf(csrf_token)
+        result = setup_steps.save_enrichment(root, provider, command, model, timeout)
+        if not result.ok:
+            return setup_invalid(request, result, "enrichment",
+                                 enrich_form={"provider": provider, "command": command,
+                                              "model": model, "timeout": timeout})
+        refresh_config()
+        enricher = app.state.enricher
+        note = (f" In use: {enricher.provider_name}." if enricher.available
+                else f" Unavailable: {enricher.unavailable_reason()}")
+        return flashed("/settings", result.text() + note, anchor="enrichment")
+
+    @app.post("/settings/outcomes")
+    def settings_outcomes(request: Request, csrf_token: str = Form(""),
+                          outcomes: str = Form(""), message_window_days: str = Form("14"),
+                          silent_days: str = Form("14")):
+        check_csrf(csrf_token)
+        result = setup_steps.save_outcomes(root, outcomes, message_window_days, silent_days)
+        if not result.ok:
+            return setup_invalid(request, result, "outcomes",
+                                 outcomes_form={"outcomes": outcomes,
+                                                "message_window_days": message_window_days,
+                                                "silent_days": silent_days})
+        return setup_done(result, "outcomes")
+
+    # Review queue (the former /inbox): BCC and calendar items waiting for a company.
+
+    @app.post("/bcc/import")
+    def bcc_import(request: Request):
+        try:
+            result = bcc.run_bcc(store, inbox, app.state.bcc_settings, True,
+                                 app.state.open_mailbox)
+        except bcc.BccError as exc:
+            logger.warning("BCC import failed: %s", exc)
+            return flashed("/settings", f"BCC import failed: {exc}", anchor="inbox")
+        except Exception as exc:
+            logger.exception("BCC import crashed")
+            return flashed("/settings", f"BCC import failed: {type(exc).__name__}: {exc}",
+                           anchor="inbox")
+        return flashed("/settings", "BCC import: " + result.summary(), anchor="inbox")
+
+    @app.post("/inbox/{item_id}/assign")
+    def inbox_assign(request: Request, item_id: str, company: str = Form(""),
+                     first_name: str = Form(""), last_name: str = Form("")):
+        if inbox.get(item_id) is None:
+            raise HTTPException(status_code=404, detail=f"unknown inbox item {item_id!r}")
+        try:
+            slug, it = bcc.assign(store, inbox, item_id, company, first_name, last_name)
+        except ValidationError as exc:
+            return settings_page(request, status_code=400, errors=exc.errors)
+        return flashed("/settings", f"Logged at {slug}/{it.contact}", anchor="inbox")
+
+    @app.post("/inbox/{item_id}/discard")
+    def inbox_discard(request: Request, item_id: str):
+        try:
+            item = bcc.discard(store, inbox, item_id)
+        except ValidationError:
+            raise HTTPException(status_code=404, detail=f"unknown inbox item {item_id!r}")
+        return flashed("/settings", f"Discarded {item.address}", anchor="inbox")
+
+    # ------------------------------------------------------------------- help
+
+    def help_page(request: Request, topic: str):
+        text = helpdocs.read(topic)
+        if text is None:
+            raise HTTPException(status_code=404, detail=f"unknown help topic {topic!r}")
+        return render(request, "help.html", {
+            "topic": topic,
+            "title": helpdocs.title_of(text) or topic,
+            "body": helpdocs.render(text),
+            "topics": helpdocs.titles(),
+        })
+
+    @app.get("/help", response_class=HTMLResponse)
+    def help_index(request: Request):
+        return help_page(request, "index")
+
+    @app.get("/help/{topic}", response_class=HTMLResponse)
+    def help_topic(request: Request, topic: str):
+        return help_page(request, topic)
 
     # ------------------------------------------------------------ housekeeping
 

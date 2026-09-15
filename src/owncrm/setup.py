@@ -1,8 +1,9 @@
-"""First-run setup: the three steps (You, BCC, Backup) plus the optional calendar.
+"""Setup and settings: the three steps (You, BCC, Backup), the optional
+calendar, and the plain config sections (Enrichment, Outcomes).
 
 Pure functions with seams (``runner``, ``platform``, ``open_mailbox``, ``push``,
 ``fetch``) so the CLI wizard (``owncrm init`` / ``owncrm setup``) and the web
-page (``/setup``) share one implementation. Secrets are stored through
+page (``/settings``) share one implementation. Secrets are stored through
 ``owncrm.secrets`` or the macOS Keychain and are never logged or returned.
 """
 
@@ -23,6 +24,7 @@ from .store import DEFAULT_CONFIG, Store, load_config
 
 KEYCHAIN_SERVICE = "owncrm-bcc"
 PRIVATE_HOSTS = ("github.com", "gitlab.com", "bitbucket.org")
+ENRICH_PROVIDERS = ("auto", "claude", "codex", "gemini", "grok", "custom")
 IMAP_HOSTS = {
     "gmail.com": "imap.gmail.com",
     "googlemail.com": "imap.gmail.com",
@@ -352,6 +354,83 @@ def save_calendar(data_dir: Path, url: str, config: dict | None = None,
         result.errors["test"] = f"Saved, but the test fetch failed: {text}"
         return result
     result.messages.append(f"Calendar test OK (dry run): {run.summary()}")
+    return result
+
+
+# ------------------------------------------------------------- Enrichment
+
+
+def _positive_int(raw: str, key: str, label: str, errors: dict) -> int | None:
+    try:
+        value = int(str(raw or "").strip())
+    except ValueError:
+        value = 0
+    if value < 1:
+        errors[key] = f"{label} must be a whole number of at least 1."
+        return None
+    return value
+
+
+def save_enrichment(data_dir: Path, provider: str, command: str = "", model: str = "",
+                    timeout: str = "180") -> StepResult:
+    """Write enrich_provider / enrich_command / enrich_model / enrich_timeout."""
+    provider = (provider or "auto").strip().lower()
+    result = StepResult()
+    if provider not in ENRICH_PROVIDERS:
+        result.errors["provider"] = ("Unknown provider; use one of "
+                                     + ", ".join(ENRICH_PROVIDERS) + ".")
+    if provider == "custom" and not (command or "").strip():
+        result.errors["command"] = "A custom provider needs a command line."
+    seconds = _positive_int(timeout, "timeout", "Timeout (seconds)", result.errors)
+    if result.errors:
+        result.ok = False
+        return result
+    result.values = {"enrich_provider": provider, "enrich_command": (command or "").strip(),
+                     "enrich_model": (model or "").strip(), "enrich_timeout": seconds}
+    set_config_values(Path(data_dir) / "config.toml", result.values)
+    result.messages.append(f"Enrichment saved: provider {provider}.")
+    return result
+
+
+# --------------------------------------------------------------- Outcomes
+
+
+def parse_outcomes(raw: str | list[str]) -> list[str]:
+    """One outcome per line (or list item), stripped, empty lines dropped."""
+    items = raw if isinstance(raw, (list, tuple)) else str(raw or "").splitlines()
+    return [str(item).strip() for item in items if str(item).strip()]
+
+
+def plan_outcomes(raw: str | list[str], message_window_days: str = "14",
+                  silent_days: str = "14") -> StepResult:
+    result = StepResult()
+    outcomes = parse_outcomes(raw)
+    if not outcomes:
+        result.errors["outcomes"] = "Give at least one outcome, one per line."
+    seen: set[str] = set()
+    for item in outcomes:
+        if item.lower() in seen:
+            result.errors["outcomes"] = f"Duplicate outcome: {item}."
+            break
+        seen.add(item.lower())
+    window = _positive_int(message_window_days, "message_window_days",
+                           "Message window (days)", result.errors)
+    silent = _positive_int(silent_days, "silent_days", "Silent after (days)", result.errors)
+    if result.errors:
+        result.ok = False
+        return result
+    result.values = {"outcomes": outcomes, "message_window_days": window,
+                     "silent_days": silent}
+    return result
+
+
+def save_outcomes(data_dir: Path, raw: str | list[str], message_window_days: str = "14",
+                  silent_days: str = "14") -> StepResult:
+    """Write outcomes, message_window_days and silent_days to config.toml."""
+    result = plan_outcomes(raw, message_window_days, silent_days)
+    if result.ok:
+        set_config_values(Path(data_dir) / "config.toml", result.values)
+        result.messages.append("Outcomes saved: " + ", ".join(result.values["outcomes"]) + ".")
     return result
 
 

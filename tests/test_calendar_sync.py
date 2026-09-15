@@ -374,7 +374,7 @@ def test_calendar_import_route_upcoming_and_inbox(client):
     client.post("/companies", data={"name": "Acme GmbH", "website": "acme.de",
                                     "source": "other", "stage": "prospect"})
     r = client.post("/calendar/import", data={"back": "/inbox"})
-    assert r.headers["location"].startswith("/inbox?flash=Calendar%20import%20failed")
+    assert r.headers["location"].startswith("/settings?flash=Calendar%20import%20failed")
 
     now = datetime.now().replace(second=0, microsecond=0)
     past, soon = now - timedelta(days=2), now + timedelta(days=1)
@@ -397,7 +397,7 @@ def test_calendar_import_route_upcoming_and_inbox(client):
     assert "Meetings this week (1)" in page and "Demo with Acme" in page
     assert '<a href="/companies/acme">Acme GmbH</a>' in page
 
-    page = client.get("/inbox").text
+    page = client.get("/settings").text
     assert 'class="tag">meeting</span>' in page and "ann@lee.com" in page
     assert "Import meetings now" in page and "Last meeting import" in page
 
