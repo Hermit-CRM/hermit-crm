@@ -33,3 +33,4 @@ Roadmap and open items. Personal items live in the private data folder.
 - [ ] Docker image, if asked for.
 - [ ] Attio / Notion export headers for import.
 - [ ] Show HN, r/selfhosted, Obsidian forum posts.
+- [ ] Validate contact emails (must contain `@`) in the store; the forms accept any string today.

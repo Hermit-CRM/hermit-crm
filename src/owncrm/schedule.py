@@ -17,6 +17,7 @@ import os
 import plistlib
 import re
 import shutil
+import time
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -153,10 +154,17 @@ def serve_plist(ctx: Context) -> bytes:
 def _launchctl_load(ctx: Context, path: Path, label: str, lines: list[str]) -> None:
     domain = f"gui/{ctx.uid}"
     ctx.run(["launchctl", "bootout", f"{domain}/{label}"], [])  # ignore: may not be loaded
-    if ctx.run(["launchctl", "bootstrap", domain, str(path)], lines) == 0:
-        if not ctx.dry:
-            lines.append(f"loaded {label}")
-        return
+    # bootout returns before the job is gone; a bootstrap right after it fails
+    # with "Input/output error" and the load -w fallback then silently does
+    # nothing. Retry a few times.
+    for attempt in range(4):
+        if ctx.run(["launchctl", "bootstrap", domain, str(path)], lines) == 0:
+            if not ctx.dry:
+                lines.append(f"loaded {label}")
+            return
+        if ctx.dry:
+            break
+        time.sleep(0.5 * (attempt + 1))
     if ctx.run(["launchctl", "load", "-w", str(path)], lines) == 0:
         lines.append(f"loaded {label} (launchctl load -w)")
     else:
