@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}Contacts{% endblock %}
+{% block content %}
+<h1>Contacts ({{ rows | length }}){% if q %} matching &ldquo;{{ q }}&rdquo;{% endif %}</h1>
+{{ m.filter_form('contact-filters', '/contacts', active, q, sort, dir) }}
+<table class="filterable">
+  <tr>{% for col in filter_columns %}<th>{{ col.label }} {{ m.sort_links(col, sort, dir, sort_url) }}</th>{% endfor %}</tr>
+  <tr class="filters">{% for col in filter_columns %}<th>{{ m.filter_control(col, active, 'contact-filters') }}</th>{% endfor %}</tr>
+  {% for r in rows %}
+  <tr>
+    <td><a href="/companies/{{ r.company_slug }}/contacts/{{ r.slug }}">{{ r.name }}</a></td>
+    <td><a href="/companies/{{ r.company_slug }}">{{ r.company_name }}</a></td>
+    <td>{{ r.title }}</td>
+    <td>{% if r.email %}<a href="mailto:{{ r.email }}">{{ r.email }}</a>{% endif %}</td>
+    <td>{% if r.linkedin %}<a href="{{ r.linkedin }}" target="_blank" rel="noopener">{{ r.linkedin | replace('https://www.linkedin.com/in/', '') | replace('https://', '') }}</a>{% endif %}</td>
+    <td>{{ fmt_datetime(r.last_touch).replace('T', ' ') if r.last_touch else 'none' }}</td>
+    <td>{{ r.interaction_count }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" class="empty">No contacts.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

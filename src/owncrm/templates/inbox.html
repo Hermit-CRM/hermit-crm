@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}Inbox{% endblock %}
+{% block content %}
+<h1>BCC inbox</h1>
+<p class="small">
+  BCC <code>{{ bcc_address }}</code> on the mails you send, or forward a reply to it.
+  Every morning at 07:00 the import logs each mail at the contact with that email
+  address. A new person at a company whose domain it knows becomes a new contact.
+  Everything else waits here for you to pick the company.
+</p>
+<div class="bcc-status">
+  {% if last_run %}
+    {% if last_run.ok %}
+      <p>Last import {{ last_run.at | replace('T', ' ') }}: {{ last_run.summary }}</p>
+    {% else %}
+      <p class="error">Last import {{ last_run.at | replace('T', ' ') }} failed: {{ last_run.error }}</p>
+    {% endif %}
+  {% else %}
+    <p class="small">No import has run yet.</p>
+  {% endif %}
+  {% if inbox_alert and last_run and last_run.ok %}<p class="error">{{ inbox_alert }}</p>{% endif %}
+  <form method="post" action="/bcc/import" class="inline"><button type="submit">Import now</button></form>
+</div>
+<div class="bcc-status">
+  {% if calendar_last_run %}
+    {% if calendar_last_run.ok %}
+      <p>Last meeting import {{ calendar_last_run.at | replace('T', ' ') }}: {{ calendar_last_run.summary }}</p>
+    {% else %}
+      <p class="error">Last meeting import {{ calendar_last_run.at | replace('T', ' ') }} failed: {{ calendar_last_run.error }}</p>
+    {% endif %}
+  {% else %}
+    <p class="small">No meeting import has run yet. Past meetings from your calendar feed land here when an attendee matches no company.</p>
+  {% endif %}
+  <form method="post" action="/calendar/import" class="inline"><input type="hidden" name="back" value="/inbox"><button type="submit">Import meetings now</button></form>
+</div>
+{{ m.errors_box(errors) }}
+<h2>To review ({{ items|length }})</h2>
+{% if not items %}<p class="small">Nothing to review.</p>{% endif %}
+<datalist id="company-slugs">
+  {% for c in companies %}<option value="{{ c.slug }}">{{ c.name }}</option>{% endfor %}
+</datalist>
+{% for it in items %}
+<section class="inbox-item" id="{{ it.id }}">
+  <p>
+    <strong>{{ it.date | string | replace('T', ' ') }}</strong>
+    <span class="tag">{{ it.kind }}</span>
+    {% if it.kind == 'meeting' %}meeting {{ it.direction }} with{% else %}email {{ it.direction }} {{ 'to' if it.direction == 'out' else 'from' }}{% endif %}
+    {{ it.name }} &lt;{{ it.address }}&gt;{% if it.subject %}: {{ it.subject }}{% endif %}
+  </p>
+  <p class="small">{{ it.reason }}</p>
+  <details><summary>{{ 'notes' if it.kind == 'meeting' else 'message' }}</summary><pre class="body">{{ it.body }}</pre></details>
+  <form method="post" action="/inbox/{{ it.id }}/assign" class="inbox-assign">
+    <label>company <input name="company" list="company-slugs" placeholder="slug or exact name" required></label>
+    <label>first name <input name="first_name" value="{{ it.first_name }}"></label>
+    <label>last name <input name="last_name" value="{{ it.last_name }}"></label>
+    <button type="submit">Log at company</button>
+  </form>
+  <form method="post" action="/inbox/{{ it.id }}/discard" class="inline">
+    <button type="submit">Discard</button>
+  </form>
+</section>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1>
+<p class="small">Pick which value to keep for each field. Empty fields already default to the filled side. {{ note }}</p>
+<form method="post" action="{{ action }}" class="record-form merge">
+  <input type="hidden" name="drop" value="{{ drop }}">
+  <table>
+    <tr><th>field</th><th>{{ keep_label }}</th><th>{{ drop_label }}</th>{% if rows | selectattr('both') | list %}<th>both</th>{% endif %}</tr>
+    {% for r in rows %}
+    <tr class="{% if r.keep == r.drop %}same{% endif %}">
+      <td>{{ r.label }}</td>
+      <td><label class="choice"><input type="radio" name="choice_{{ r.key }}" value="keep"{% if r.default == 'keep' %} checked{% endif %}> <span class="val">{{ r.keep if r.keep is not none else '' }}</span></label></td>
+      <td><label class="choice"><input type="radio" name="choice_{{ r.key }}" value="drop"{% if r.default == 'drop' %} checked{% endif %}> <span class="val">{{ r.drop if r.drop is not none else '' }}</span></label></td>
+      {% if rows | selectattr('both') | list %}<td>{% if r.both %}<label class="choice"><input type="radio" name="choice_{{ r.key }}" value="both"> combine</label>{% endif %}</td>{% endif %}
+    </tr>
+    {% endfor %}
+  </table>
+  <button type="submit">Merge</button>
+  <a href="{{ back }}" style="margin-left: 10px">Cancel</a>
+</form>
+{% endblock %}

@@ -1,0 +1,206 @@
+{# Shared form fragments. #}
+
+{% macro err(errors, name) %}
+  {%- if errors and name in errors %}<span class="error">{{ errors[name] }}</span>{% endif -%}
+{% endmacro %}
+
+{% macro errors_box(errors) %}
+  {%- if errors %}
+  <div class="errors">
+    <strong>Could not save:</strong>
+    <ul>{% for field, message in errors.items() %}<li>{{ field }}: {{ message }}</li>{% endfor %}</ul>
+  </div>
+  {%- endif %}
+{% endmacro %}
+
+{% macro filter_control(col, active, form_id) %}
+  {%- if col.kind == 'enum' -%}
+  <select name="f_{{ col.key }}" form="{{ form_id }}" multiple size="{{ [col.options | length, 4] | min }}" class="filter" title="select one or more (cmd-click)">
+    {% for o in col.options %}<option value="{{ o }}"{% if o in active.get(col.key, []) %} selected{% endif %}>{{ o }}</option>{% endfor %}
+  </select>
+  {%- else -%}
+  <input name="f_{{ col.key }}" form="{{ form_id }}" value="{{ active.get(col.key, '') }}" class="filter" placeholder="{{ '>2026-09-01, <…, -, *' if col.kind == 'date' else ('>5, <5, =5, -, *' if col.kind == 'number' else 'text, !text, =text, -, *') }}">
+  {%- endif -%}
+{% endmacro %}
+
+{% macro sort_links(col, sort, dir, sort_url) %}
+  <span class="sort">
+    <a href="{{ sort_url(col.key, 'asc') }}" class="{% if sort == col.key and dir == 'asc' %}on{% endif %}" title="sort A to Z (small to large, old to new)">&#9650;</a><a href="{{ sort_url(col.key, 'desc') }}" class="{% if sort == col.key and dir == 'desc' %}on{% endif %}" title="sort Z to A (large to small, new to old)">&#9660;</a>
+  </span>
+{%- endmacro %}
+
+{% macro filter_help() %}
+<span class="help" tabindex="0" role="button" aria-label="how filters and sorting work">?
+  <span class="tip">
+    <strong>Filters</strong> (one box per column, combined with AND)
+    <table>
+      <tr><td><code>text</code></td><td>contains</td></tr>
+      <tr><td><code>!text</code></td><td>does not contain</td></tr>
+      <tr><td><code>=text</code></td><td>equals</td></tr>
+      <tr><td><code>&gt;5</code> <code>&lt;5</code></td><td>larger / smaller (numbers, dates as <code>2026-09-01</code>, otherwise text order)</td></tr>
+      <tr><td><code>-</code></td><td>empty</td></tr>
+      <tr><td><code>*</code></td><td>not empty</td></tr>
+    </table>
+    Lists: cmd-click (ctrl-click) to select several.
+    <strong>Sorting</strong>: &#9650; A to Z, &#9660; Z to A next to each heading; empty values sort last. Filters, sorting and search stay in the URL, so a view can be bookmarked.
+  </span>
+</span>
+{%- endmacro %}
+
+{% macro filter_form(form_id, action, active, q=None, sort='', dir='asc') %}
+<form method="get" action="{{ action }}" id="{{ form_id }}" class="filter-form">
+  {% if q is not none %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+  {% if sort %}<input type="hidden" name="sort" value="{{ sort }}"><input type="hidden" name="dir" value="{{ dir }}">{% endif %}
+  <button type="submit">Filter</button>
+  {{ filter_help() }}
+  {% if active or sort %}<a href="{{ action }}{% if q %}?q={{ q | urlencode }}{% endif %}">clear filters and sorting</a>{% endif %}
+</form>
+{% endmacro %}
+
+{% macro drafts_section(company, draft_contact, drafts, signal, observation, page) %}
+<section id="drafts">
+  <h2>Message drafts{% if draft_contact %} for {{ draft_contact.first_name }}{% endif %} ({{ language_names[drafts[0].language] }})</h2>
+  <form method="get" action="{{ page }}" class="inline-row drafts-form">
+    <label>signal (check <a href="{{ company.linkedin ~ '/insights/' if company.linkedin else 'https://www.linkedin.com/company/' ~ company.slug ~ '/insights/' }}" target="_blank" rel="noopener">LinkedIn insights</a>)
+      <select name="signal">
+        {% for s in signals %}<option value="{{ s }}"{% if s == signal %} selected{% endif %}>{{ signal_labels[s] }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="grow">observation (one sentence from {% if company.website %}<a href="{{ company.website }}" target="_blank" rel="noopener">their site</a>{% else %}their site{% endif %} or team)
+      <input name="observation" value="{{ observation }}" placeholder="e.g. Great to see your growth; I just tried your product-led demo.">
+    </label>
+    <button type="submit">Refresh drafts</button>
+  </form>
+  <p class="small">Three deliberately different angles, no AI. Square brackets are yours to fill. Edit in place, copy, or open it in the log form.</p>
+  <div class="drafts">
+    {% for d in drafts %}
+    <div class="draft">
+      <div class="small">{{ d.label }}</div>
+      <textarea rows="7" spellcheck="false">{{ d.body }}</textarea>
+      <a class="small" href="/companies/{{ company.slug }}/interactions/new?contact={{ draft_contact.slug if draft_contact else '' }}&channel=linkedin&body={{ d.body | urlencode }}">log as sent</a>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endmacro %}
+
+{% macro interaction_form(action, company, values, errors=None, submit='Log interaction') %}
+<form method="post" action="{{ action }}" class="interaction-form">
+  {{ errors_box(errors) }}
+  <div class="row">
+    <span class="radios">
+      {% for ch in channels %}
+      <label><input type="radio" name="channel" value="{{ ch }}"{% if values.channel == ch %} checked{% endif %}> {{ ch }}</label>
+      {% endfor %}
+    </span>
+    <span class="radios">
+      {% for d in directions %}
+      <label><input type="radio" name="direction" value="{{ d }}"{% if values.direction == d %} checked{% endif %}> {{ d }}</label>
+      {% endfor %}
+    </span>
+    <label>contact
+      <select name="contact">
+        <option value=""{% if not values.contact %} selected{% endif %}>company only</option>
+        {% for slug, contact in company.contacts.items() %}
+        <option value="{{ slug }}"{% if values.contact == slug %} selected{% endif %}>{{ contact.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>date <input type="datetime-local" name="date" value="{{ values.date }}"></label>
+  </div>
+  <div class="row">
+    <label class="grow">subject <input name="subject" value="{{ values.subject }}"></label>
+    <label class="grow">outcome <input name="outcome" value="{{ values.outcome }}"></label>
+  </div>
+  <label>body <textarea name="body" rows="6">{{ values.body }}</textarea></label>
+  <button type="submit">{{ submit }}</button>
+</form>
+{% endmacro %}
+
+{% macro company_fields(values, errors) %}
+  <div class="row">
+    <label class="grow">name <input name="name" value="{{ values.name }}" required> {{ err(errors, 'name') }}</label>
+    <label>source
+      <select name="source">
+        {% for s in sources %}<option value="{{ s }}"{% if values.source == s %} selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>stage
+      <select name="stage" id="stage">
+        {% for s in stages %}<option value="{{ s }}"{% if values.stage == s %} selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+    </label>
+  </div>
+  <div class="row">
+    <label class="grow">website <input name="website" value="{{ values.website }}"></label>
+    <label class="grow">linkedin <input name="linkedin" value="{{ values.linkedin }}"></label>
+    <label>country
+      <input name="country" value="{{ values.country }}" list="country-codes" size="4" maxlength="3" placeholder="DE" title="ISO 3166-1 alpha-2 code">
+      <datalist id="country-codes">{% for c in countries %}<option value="{{ c }}">{% endfor %}</datalist>
+    </label>
+  </div>
+  <div class="row">
+    <label class="grow">reason (lost / disqualified) <input name="lost_reason" id="lost_reason" value="{{ values.lost_reason }}"> {{ err(errors, 'lost_reason') }}</label>
+    <label>requalify on (temp disqualified) <input type="date" name="requalify_on" value="{{ values.requalify_on }}"> {{ err(errors, 'requalify_on') }}</label>
+    <label>value EUR/month <input name="value_eur_month" value="{{ values.value_eur_month }}"> {{ err(errors, 'value_eur_month') }}</label>
+  </div>
+  <div class="row">
+    <label>my score <input name="my_score" value="{{ values.my_score }}" size="4"> {{ err(errors, 'my_score') }}</label>
+    <label>fit score <input name="fit_score" value="{{ values.fit_score }}" size="4"> {{ err(errors, 'fit_score') }}</label>
+    <label>FTE estimate <input name="fte_estimate" value="{{ values.fte_estimate }}" size="6"></label>
+    <label>AE count <input name="ae_count" value="{{ values.ae_count }}" size="4"> {{ err(errors, 'ae_count') }}</label>
+    <label class="grow">product oneliner <input name="product_oneliner" value="{{ values.product_oneliner }}"></label>
+  </div>
+  <div class="row">
+    <label class="grow">next step <input name="next_step" value="{{ values.next_step }}"></label>
+    <label>due <input type="date" name="next_step_due" value="{{ values.next_step_due }}"> {{ err(errors, 'next_step_due') }}</label>
+    <label>status
+      <select name="next_step_status">
+        {% for t in task_statuses %}<option value="{{ t }}"{% if values.next_step_status == t %} selected{% endif %}>{{ t }}</option>{% endfor %}
+      </select>
+    </label>
+  </div>
+  <label>tags (comma separated) <input name="tags" value="{{ values.tags }}"></label>
+  <label>notes <textarea name="notes" rows="8">{{ values.notes }}</textarea></label>
+{% endmacro %}
+
+{% macro contact_fields(values, errors) %}
+  <div class="row">
+    <label class="grow">first name <input name="first_name" value="{{ values.first_name }}"> {{ err(errors, 'first_name') }}</label>
+    <label class="grow">last name <input name="last_name" value="{{ values.last_name }}"></label>
+    <label class="grow">title <input name="title" value="{{ values.title }}"></label>
+    <label>role
+      <select name="role">
+        <option value=""{% if not values.role %} selected{% endif %}>-</option>
+        {% for r in roles %}<option value="{{ r }}"{% if values.role == r %} selected{% endif %}>{{ r }}</option>{% endfor %}
+      </select>
+    </label>
+  </div>
+  <div class="row">
+    <label class="grow">email <input name="email" value="{{ values.email }}"></label>
+    <label class="grow">phone <input name="phone" value="{{ values.phone }}"></label>
+    <label class="grow">linkedin <input name="linkedin" value="{{ values.linkedin }}"></label>
+  </div>
+  <label>notes <textarea name="notes" rows="6">{{ values.notes }}</textarea></label>
+{% endmacro %}
+
+{% macro timeline(company, interactions) %}
+<ul class="timeline">
+  {% for i in interactions %}
+  <li class="interaction" id="i-{{ i.id }}">
+    <div class="meta">
+      <span class="when">{{ fmt_datetime(i.date).replace('T', ' ') }}</span>
+      <span class="tag">{{ i.channel }}</span>
+      <span class="tag">{{ i.direction }}</span>
+      <span class="who">{{ contact_label(company, i.contact) }}</span>
+      <a class="edit" href="/companies/{{ company.slug }}/interactions/{{ i.id }}/edit">edit</a>
+    </div>
+    <div class="subject{% if not i.subject %} empty{% endif %}">{{ i.subject or '(no subject)' }}</div>
+    {% if i.outcome %}<div class="outcome">outcome: {{ i.outcome }}</div>{% endif %}
+    {% if i.body %}<details><summary>body</summary><pre>{{ i.body }}</pre></details>{% endif %}
+  </li>
+  {% else %}
+  <li class="empty">No interactions yet.</li>
+  {% endfor %}
+</ul>
+{% endmacro %}

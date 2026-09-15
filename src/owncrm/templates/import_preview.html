@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Import preview{% endblock %}
+{% block content %}
+<h1>Import preview</h1>
+<p>{{ plan.summary }}.</p>
+<form method="post" action="/import">
+  <textarea name="text" hidden>{{ text }}</textarea>
+  <input type="hidden" name="mode" value="{{ plan.mode }}">
+  {% for h in plan.headers %}{% if h %}<input type="hidden" name="map_{{ loop.index0 }}" value="{{ plan.mapping[h] }}">{% endif %}{% endfor %}
+  <button type="submit"{% if not plan.has_changes %} disabled{% endif %}>Import now</button>
+  <a href="/import" style="margin-left: 10px">Back</a>
+</form>
+<details class="import-mapping" open>
+  <summary>Columns: {{ plan.mode }} mode</summary>
+  <form method="post" action="/import/preview">
+    <textarea name="text" hidden>{{ text }}</textarea>
+    <input type="hidden" name="prev_mode" value="{{ plan.mode }}">
+    <label>mode <select name="mode">
+      {% for m_ in modes %}<option value="{{ m_ }}"{% if plan.mode == m_ %} selected{% endif %}>{{ m_ }}</option>{% endfor %}
+    </select></label>
+    <table>
+      <tr><th>column</th><th>row 1</th><th>imports as</th></tr>
+      {% for h in plan.headers %}{% if h %}
+      <tr>
+        <td>{{ h }}</td>
+        <td class="small">{{ plan.samples[h] }}</td>
+        <td><select name="map_{{ loop.index0 }}">
+          {% for value, label in plan.choices %}<option value="{{ value }}"{% if plan.mapping[h] == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select></td>
+      </tr>
+      {% endif %}{% endfor %}
+    </table>
+    <button type="submit">Re-preview</button>
+  </form>
+</details>
+<table>
+  <tr><th>row</th><th>company</th><th>action</th><th>details</th><th>contact</th></tr>
+  {% for r in plan.rows %}
+  <tr class="plan-{{ r.action }}">
+    <td>{{ r.row }}</td>
+    <td>{% if r.slug and r.action != 'create' %}<a href="/companies/{{ r.slug }}">{{ r.name }}</a>{% else %}{{ r.name or '(empty)' }}{% endif %}</td>
+    <td>{{ r.action }}</td>
+    <td>
+      {% if r.action == 'create' %}
+        {% for k, v in r.fields.items() %}{{ k }}={{ v }}{% if not loop.last %}, {% endif %}{% endfor %}
+        {% if r.tags %} &middot; tags: {{ r.tags | join(', ') }}{% endif %}
+      {% else %}{{ r.reason }}{% endif %}
+      {% for w in r.warnings %}<div class="plan-warn">{{ w }}</div>{% endfor %}
+    </td>
+    <td>{% if r.contact %}{{ r.contact.first_name }} {{ r.contact.last_name }}{% if r.contact.title %} ({{ r.contact.title }}){% endif %} &middot; {{ r.contact_action }}{% if r.contact_fields %}: fills {{ r.contact_fields | list | sort | join(', ') }}{% endif %}{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

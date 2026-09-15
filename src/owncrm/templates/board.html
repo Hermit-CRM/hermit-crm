@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}Pipeline{% endblock %}
+{% block content %}
+<h1>Pipeline</h1>
+{{ m.filter_form('board-filters', '/', active, none, sort, dir) }}
+<div class="filter-bar">
+  {% for col in filter_columns %}
+  <label>{{ col.label }}{% if col.key != 'stage' %} {{ m.sort_links(col, sort, dir, sort_url) }}{% endif %} {{ m.filter_control(col, active, 'board-filters') }}</label>
+  {% endfor %}
+</div>
+{% if no_companies %}
+<div class="start-cards">
+  <a class="card start-card" href="/import"><h3>Import a spreadsheet</h3><div class="small">CSV, TSV or Excel paste of companies or contacts.</div></a>
+  <a class="card start-card" href="/companies/new"><h3>Add a company</h3><div class="small">Start with one account by hand.</div></a>
+  <a class="card start-card" href="/setup#bcc"><h3>Set up BCC capture</h3><div class="small">Log the mail you send without typing it.</div></a>
+</div>
+{% endif %}
+<div class="board">
+  {% for column in columns %}
+  <section class="column{% if not column.companies %} unused{% endif %}" id="col-{{ column.stage }}">
+    <h2>{{ column.stage }} ({{ column.companies | length }})</h2>
+    {% for c in column.companies %}
+    <article class="card">
+      <h3><a href="/companies/{{ c.slug }}">{{ c.name }}</a></h3>
+      <div class="small">{{ c.days_in_stage(today) }}d in stage{% if c.country %} &middot; {{ c.country }}{% endif %}</div>
+      <div class="small">{{ c.last_touch_summary }}</div>
+      {% if c.has_next_step %}
+      <div class="small{% if c.next_step_overdue(today) %} overdue{% endif %}{% if c.next_step_done %} done{% endif %}">
+        next: {{ c.next_step or '(no text)' }}{% if c.next_step_due %}, due {{ fmt_date(c.next_step_due) }}{% endif %}{% if c.next_step_done %} (done){% endif %}
+      </div>
+      {% endif %}
+      {% if c.value_eur_month is not none %}<div class="small">{{ c.value_eur_month }} EUR/month</div>{% endif %}
+      <form method="post" action="/companies/{{ c.slug }}/stage" class="stage-form">
+        <select name="stage" onchange="this.form.submit()">
+          {% for s in stages %}<option value="{{ s }}"{% if s == c.stage %} selected{% endif %}>{{ s }}</option>{% endfor %}
+        </select>
+      </form>
+    </article>
+    {% else %}
+    <p class="empty">empty</p>
+    {% endfor %}
+  </section>
+  {% endfor %}
+</div>
+
+{% for stage in ['won', 'lost', 'disqualified', 'temp-disqualified'] %}
+<details class="closed" id="closed-{{ stage }}">
+  <summary>{{ stage }} ({{ closed[stage] | length }})</summary>
+  <ul>
+    {% for c in closed[stage] %}
+    <li><a href="/companies/{{ c.slug }}">{{ c.name }}</a>{% if c.lost_reason %} &mdash; {{ c.lost_reason }}{% endif %}{% if c.requalify_on %} (until {{ fmt_date(c.requalify_on) }}){% endif %}</li>
+    {% else %}
+    <li class="empty">none</li>
+    {% endfor %}
+  </ul>
+</details>
+{% endfor %}
+{% endblock %}

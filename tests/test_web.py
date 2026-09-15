@@ -1,0 +1,1089 @@
+"""Route tests for app/web.py, including the §10 acceptance flow end to end."""
+
+from __future__ import annotations
+
+import html as htmllib
+import re
+import subprocess
+from datetime import date, timedelta
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+import pytest
+from fastapi.testclient import TestClient
+
+from owncrm.web import company_values, create_app
+
+CONFIG = {"port": 8765, "silent_days": 14, "push_enabled": False, "remote": "origin",
+          "owner_email": "me@example.com"}
+
+TODAY = date.today()
+YESTERDAY = TODAY - timedelta(days=1)
+
+
+# ------------------------------------------------------------------- fixtures
+
+
+@pytest.fixture
+def repo(tmp_path: Path) -> Path:
+    subprocess.run(["git", "init", "-b", "main"], cwd=tmp_path, check=True,
+                   capture_output=True)
+    subprocess.run(["git", "config", "user.name", "CRM Test"], cwd=tmp_path,
+                   check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "crm@test.local"], cwd=tmp_path,
+                   check=True, capture_output=True)
+    (tmp_path / "companies").mkdir()
+    return tmp_path
+
+
+@pytest.fixture
+def app(repo: Path):
+    return create_app(repo, config=CONFIG)
+
+
+@pytest.fixture
+def client(app):
+    return TestClient(app, follow_redirects=False)
+
+
+# -------------------------------------------------------------------- helpers
+
+
+COMPANY_BLANK = {
+    "name": "", "website": "", "linkedin": "", "source": "other",
+    "stage": "prospect", "lost_reason": "", "value_eur_month": "",
+    "next_step": "", "next_step_due": "", "next_step_status": "open",
+    "tags": "", "notes": "",
+}
+CONTACT_BLANK = {"first_name": "", "last_name": "", "title": "", "linkedin": "", "email": "",
+                 "phone": "", "role": "", "notes": ""}
+INTERACTION_BLANK = {"channel": "email", "direction": "out", "contact": "",
+                     "date": "", "subject": "", "outcome": "", "body": ""}
+
+
+def post_company(client, **fields):
+    return client.post("/companies", data={**COMPANY_BLANK, **fields})
+
+
+def patch_company(client, app, slug, **fields):
+    """POST the full edit form, changing only the given fields."""
+    values = company_values(app.state.store.companies[slug])
+    values.update(fields)
+    return client.post(f"/companies/{slug}", data=values)
+
+
+def post_contact(client, slug, **fields):
+    return client.post(f"/companies/{slug}/contacts",
+                       data={**CONTACT_BLANK, **fields})
+
+
+def post_interaction(client, slug, **fields):
+    return client.post(f"/companies/{slug}/interactions",
+                       data={**INTERACTION_BLANK, **fields})
+
+
+def last_commit(repo: Path) -> str:
+    out = subprocess.run(["git", "log", "-1", "--format=%s"], cwd=repo,
+                         capture_output=True, text=True)
+    return out.stdout.strip()
+
+
+def company_file(repo: Path, slug: str) -> Path:
+    return repo / "companies" / slug / "company.md"
+
+
+def pipeline_text(repo: Path) -> str:
+    return (repo / "PIPELINE.md").read_text(encoding="utf-8")
+
+
+def calendar_params(page: str) -> dict:
+    match = re.search(r'href="(https://calendar\.google\.com[^"]+)"', page)
+    assert match, "no Google Calendar link on the page"
+    url = htmllib.unescape(match.group(1))
+    return {k: v[0] for k, v in parse_qs(urlparse(url).query).items()}
+
+
+# ------------------------------------------------------------- simple routes
+
+
+def test_health_shape(client, repo):
+    post_company(client, name="Acme GmbH")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe", email="jane@acme.de")
+    post_interaction(client, "acme", channel="email", direction="out",
+                     contact="jane-doe", date="2026-09-01T09:00", subject="Hi")
+
+    payload = client.get("/health").json()
+    assert payload["companies"] == 1
+    assert payload["contacts"] == 1
+    assert payload["interactions"] == 1
+    assert payload["problems"] == []
+    assert payload["last_commit"]  # a sha after the writes above
+    assert payload["last_push"] is None  # push disabled in tests
+
+
+def test_board_lists_open_and_closed(client, app, repo):
+    post_company(client, name="Acme GmbH", stage="prospect")
+    post_company(client, name="Beta AG", stage="discovery",
+                 next_step="Call back", next_step_due=str(YESTERDAY))
+    post_company(client, name="Gamma BV", stage="won")
+
+    page = client.get("/").text
+    assert 'id="col-prospect"' in page and 'id="col-discovery"' in page
+    assert page.index('id="col-prospect"') < page.index('id="col-reached-out"') \
+        < page.index('id="col-discovery"') < page.index('id="col-offer"')
+    assert "Acme GmbH" in page and "Beta AG" in page and "Gamma BV" in page
+    assert "overdue" in page  # Beta AG's next step is in the past
+    assert "won (1)" in page and "lost (0)" in page
+    assert 'onchange="this.form.submit()"' in page
+    assert "d in stage" in page
+
+
+def test_board_card_order_follows_pipeline(client):
+    post_company(client, name="Later", stage="prospect",
+                 next_step="x", next_step_due=str(TODAY + timedelta(days=5)))
+    post_company(client, name="Sooner", stage="prospect",
+                 next_step="x", next_step_due=str(TODAY))
+    post_company(client, name="Undated", stage="prospect")
+
+    page = client.get("/").text
+    assert page.index(">Sooner<") < page.index(">Later<") < page.index(">Undated<")
+
+
+def test_today_sections(client, app, repo):
+    post_company(client, name="Due Now GmbH", stage="discovery",
+                 next_step="Send deck", next_step_due=str(YESTERDAY))
+    post_company(client, name="Future GmbH", stage="discovery",
+                 next_step="Later", next_step_due=str(TODAY + timedelta(days=9)))
+    post_company(client, name="Closed GmbH", stage="lost", lost_reason="no budget",
+                 next_step="Ignore me", next_step_due=str(YESTERDAY))
+
+    # Age one company past the silent threshold by rewriting created by hand.
+    path = company_file(repo, "quiet")
+    post_company(client, name="Quiet GmbH", stage="prospect")
+    old = f"{TODAY - timedelta(days=40)}T09:00"
+    path.write_text(path.read_text(encoding="utf-8").replace(
+        f"created: {app.state.store.companies['quiet'].created:%Y-%m-%dT%H:%M}",
+        f"created: {old}"), encoding="utf-8")
+    client.post("/reload")
+
+    r = client.get("/today")
+    assert r.status_code == 303 and r.headers["location"] == "/calendar#top-priority"
+    page = client.get("/calendar").text
+    priority = page[page.index('id="top-priority"'):page.index('class="month-nav"')]
+    future = page[page.index('id="future-tasks"'):page.index('id="silent"')]
+    silent_part = page[page.index('id="silent"'):]
+    assert "Due Now GmbH" in priority
+    assert "Future GmbH" not in priority and "Future GmbH" in future
+    assert "Closed GmbH" not in priority and "Closed GmbH" not in future
+    assert "Quiet GmbH" in silent_part
+    assert "Due Now GmbH" not in silent_part
+    assert "/companies/due-now/interactions/new" in priority
+    assert "Today" not in page.split("</nav>")[0]
+
+
+def test_companies_table_and_search_by_contact_email(client):
+    post_company(client, name="Acme GmbH", source="referral")
+    post_company(client, name="Zeta AG", source="inbound")
+    post_contact(client, "acme", first_name="Anna", last_name="Müller", email="Anna@Mueller.de")
+
+    page = client.get("/companies").text
+    assert "Acme GmbH" in page and "Zeta AG" in page and "referral" in page
+
+    hit = client.get("/companies", params={"q": "anna@mueller.de"}).text
+    assert "Acme GmbH" in hit
+    assert "Zeta AG" not in hit
+
+
+def test_reload_picks_up_a_hand_edit(client, repo):
+    post_company(client, name="Acme GmbH")
+    path = company_file(repo, "acme")
+    path.write_text(path.read_text(encoding="utf-8")
+                    .replace("stage: prospect", "stage: offer"), encoding="utf-8")
+
+    before = client.get("/").text.split('id="col-offer"')[1].split("</section>")[0]
+    assert "Acme GmbH" not in before
+    resp = client.post("/reload", headers={"referer": "http://testserver/"})
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "http://testserver/"
+
+    offer_column = client.get("/").text.split('id="col-offer"')[1]
+    assert "Acme GmbH" in offer_column.split("</section>")[0]
+
+
+# ---------------------------------------------------------- company create
+
+
+def test_company_create_form_renders(client):
+    page = client.get("/companies/new").text
+    assert 'action="/companies"' in page
+    assert 'name="next_step_due"' in page and 'type="date"' in page
+
+
+def test_company_create_validation_keeps_values(client):
+    resp = post_company(client, name="", next_step="Keep this", tags="a, b",
+                        notes="some notes")
+    assert resp.status_code == 400
+    assert "name is required" in resp.text
+    assert 'value="Keep this"' in resp.text
+    assert 'value="a, b"' in resp.text
+    assert "some notes" in resp.text
+
+
+# ------------------------------------------------------------------ contacts
+
+
+def test_contact_routes(client, repo):
+    post_company(client, name="Acme GmbH")
+    assert 'action="/companies/acme/contacts"' in \
+        client.get("/companies/acme/contacts/new").text
+
+    resp = post_contact(client, "acme", first_name="Jane", last_name="Doe", title="CTO",
+                        email="Jane@Acme.de", role="champion")
+    assert resp.status_code == 303
+    assert resp.headers["location"].startswith("/companies/acme/contacts/jane-doe")
+
+    page = client.get("/companies/acme/contacts/jane-doe").text
+    assert "Jane Doe" in page and "jane@acme.de" in page
+    assert 'action="/companies/acme/interactions"' in page  # quick-add form
+
+    resp = client.post("/companies/acme/contacts/jane-doe",
+                       data={**CONTACT_BLANK, "first_name": "Jane", "last_name": "Doe",
+                             "title": "CEO", "email": "jane@acme.de"})
+    assert resp.status_code == 303
+    assert "title: CEO" in (repo / "companies/acme/contacts/jane-doe.md") \
+        .read_text(encoding="utf-8")
+    assert last_commit(repo) == "contact: acme/jane-doe updated"
+
+    bad = client.post("/companies/acme/contacts/jane-doe",
+                      data={**CONTACT_BLANK, "first_name": "", "last_name": ""})
+    assert bad.status_code == 400
+    assert "name is required" in bad.text
+
+
+# -------------------------------------------------------------- interactions
+
+
+def test_interaction_standalone_form_and_validation(client):
+    post_company(client, name="Acme GmbH")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe")
+
+    page = client.get("/companies/acme/interactions/new",
+                      params={"contact": "jane-doe"}).text
+    assert '<option value="jane-doe" selected>' in page
+    assert 'type="datetime-local"' in page
+
+    # Subject is optional; the timeline shows a placeholder instead.
+    ok = post_interaction(client, "acme", channel="call", direction="in",
+                          subject="", body="kept body")
+    assert ok.status_code == 303
+    assert "(no subject)" in client.get("/companies/acme").text
+
+    bad = post_interaction(client, "acme", channel="", direction="in",
+                           subject="", body="kept body")
+    assert bad.status_code == 400
+    assert "channel is required" in bad.text
+    assert "kept body" in bad.text
+
+
+def test_interaction_edit_renames_file_on_date_change(client, repo):
+    post_company(client, name="Acme GmbH")
+    post_interaction(client, "acme", channel="email", direction="out",
+                     date="2026-09-01T08:00", subject="Intro", body="hello")
+    old_id = "2026-09-01T0800-email-out-company"
+    old_path = repo / "companies/acme/interactions" / f"{old_id}.md"
+    assert old_path.exists()
+
+    form = client.get(f"/companies/acme/interactions/{old_id}/edit").text
+    assert 'value="2026-09-01T08:00"' in form
+
+    resp = client.post(f"/companies/acme/interactions/{old_id}/edit",
+                       data={**INTERACTION_BLANK, "channel": "email",
+                             "direction": "out", "date": "2026-09-02T09:30",
+                             "subject": "Intro", "body": "hello"})
+    new_id = "2026-09-02T0930-email-out-company"
+    assert resp.status_code == 303
+    assert resp.headers["location"].endswith(f"#i-{new_id}")
+    assert (repo / "companies/acme/interactions" / f"{new_id}.md").exists()
+    assert not old_path.exists()
+    assert last_commit(repo) == f"interaction: acme {new_id} updated"
+
+
+def test_company_page_quick_add_preselects_latest_contact(client):
+    post_company(client, name="Acme GmbH")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe")
+    post_contact(client, "acme", first_name="John", last_name="Roe")
+    post_interaction(client, "acme", channel="email", direction="out",
+                     contact="john-roe", date="2026-09-02T09:00", subject="Hi")
+
+    page = client.get("/companies/acme").text
+    assert '<option value="john-roe" selected>' in page
+    assert '<option value="out" checked>' not in page  # direction is a radio
+    assert 'name="direction" value="out" checked' in page
+
+
+def test_stage_dropdown_moves_company_and_redirects_to_board(client, repo):
+    post_company(client, name="Acme GmbH")
+    resp = client.post("/companies/acme/stage", data={"stage": "offer"})
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/"
+    assert last_commit(repo) == "company: acme stage prospect -> offer"
+
+
+def test_unknown_company_is_404(client):
+    assert client.get("/companies/nope").status_code == 404
+    assert client.get("/companies/nope/contacts/new").status_code == 404
+
+
+# ------------------------------------------------------- §10 acceptance flow
+
+
+def test_acceptance_flow(client, app, repo):
+    # 1. create the company
+    resp = post_company(client, name="Müller & Söhne GmbH", source="referral",
+                        stage="prospect")
+    assert resp.status_code == 303
+    assert resp.headers["location"].startswith("/companies/mueller-soehne?flash=")
+    folder = repo / "companies" / "mueller-soehne"
+    assert folder.is_dir()
+    text = company_file(repo, "mueller-soehne").read_text(encoding="utf-8")
+    assert f"stage_changed: {TODAY}" in text
+    assert last_commit(repo) == "company: mueller-soehne created"
+
+    # 2. + 3. contacts
+    post_contact(client, "mueller-soehne", first_name="Anna", last_name="Müller", title="CEO",
+                 email="Anna@Mueller.de")
+    anna = folder / "contacts" / "anna-mueller.md"
+    assert anna.exists()
+    assert "email: anna@mueller.de" in anna.read_text(encoding="utf-8")
+    post_contact(client, "mueller-soehne", first_name="Jonas", last_name="Berg")
+    assert (folder / "contacts" / "jonas-berg.md").exists()
+
+    # 4. three interactions
+    post_interaction(client, "mueller-soehne", channel="linkedin", direction="out",
+                     contact="anna-mueller", date="2026-09-08T09:12",
+                     subject="Connection note")
+    post_interaction(client, "mueller-soehne", channel="email", direction="in",
+                     contact="anna-mueller", date="2026-09-11T16:40",
+                     subject="Re: intro")
+    resp = post_interaction(client, "mueller-soehne", channel="call",
+                            direction="out", contact="", date="2026-09-14T10:30",
+                            subject="Intro call", body="Spoke about DORA scope.")
+    ids = [
+        "2026-09-08T0912-linkedin-out-anna-mueller",
+        "2026-09-11T1640-email-in-anna-mueller",
+        "2026-09-14T1030-call-out-company",
+    ]
+    for iid in ids:
+        assert (folder / "interactions" / f"{iid}.md").exists()
+    assert resp.headers["location"].endswith(f"#i-{ids[2]}")
+
+    page = client.get("/companies/mueller-soehne").text
+    positions = [page.index(f'id="i-{iid}"') for iid in ids]
+    assert positions == sorted(positions, reverse=True)  # newest first
+    assert "Anna Müller" in page and ">company<" in page
+    assert "Spoke about DORA scope." in page
+
+    # 5. stage change from the board dropdown
+    resp = client.post("/companies/mueller-soehne/stage", data={"stage": "discovery"})
+    assert resp.status_code == 303 and resp.headers["location"] == "/"
+    assert last_commit(repo) == "company: mueller-soehne stage prospect -> discovery"
+    text = company_file(repo, "mueller-soehne").read_text(encoding="utf-8")
+    assert "stage: discovery" in text and f"stage_changed: {TODAY}" in text
+
+    # 6. overdue next step + calendar link
+    resp = patch_company(client, app, "mueller-soehne",
+                         next_step="Send proposal outline",
+                         next_step_due=str(YESTERDAY))
+    assert resp.status_code == 303
+    today_page = client.get("/calendar").text
+    overdue_part = today_page[today_page.index('id="top-priority"'):
+                              today_page.index('class="month-nav"')]
+    assert "Müller &amp; Söhne GmbH" in overdue_part or \
+           "Müller & Söhne GmbH" in overdue_part
+    pipeline = pipeline_text(repo)
+    overdue_block = pipeline.split("## Overdue next steps")[1]
+    assert "mueller-soehne" in overdue_block.split("##")[0]
+
+    params = calendar_params(client.get("/companies/mueller-soehne").text)
+    assert params["dates"] == f"{YESTERDAY:%Y%m%d}/{TODAY:%Y%m%d}"
+    assert "Müller & Söhne GmbH" in params["text"]
+    assert "Send proposal outline" in params["text"]
+
+    # 7. lost via the board dropdown does not save
+    before = company_file(repo, "mueller-soehne").read_bytes()
+    resp = client.post("/companies/mueller-soehne/stage", data={"stage": "lost"})
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/companies/mueller-soehne?focus=lost_reason"
+    assert company_file(repo, "mueller-soehne").read_bytes() == before
+
+    focused = client.get("/companies/mueller-soehne",
+                         params={"focus": "lost_reason"}).text
+    assert 'id="lost_reason"' in focused
+    assert "getElementById('lost_reason')" in focused
+
+    # lost without a reason: validation error, still no file change
+    resp = patch_company(client, app, "mueller-soehne", stage="lost")
+    assert resp.status_code == 400
+    assert "lost_reason is required" in resp.text
+    assert company_file(repo, "mueller-soehne").read_bytes() == before
+
+    # lost with a reason
+    resp = patch_company(client, app, "mueller-soehne", stage="lost",
+                         lost_reason="no budget")
+    assert resp.status_code == 303
+    board = client.get("/").text
+    lost_block = board[board.index('id="closed-lost"'):]
+    assert "Müller &amp; Söhne GmbH" in lost_block or \
+           "Müller & Söhne GmbH" in lost_block
+    assert "lost (1)" in board
+    closed_block = pipeline_text(repo).split("## Closed last 90 days")[1]
+    assert "no budget" in closed_block
+
+
+def test_country_field_and_add_country_button(client, app, repo):
+    post_company(client, name="Acme", country="NL")
+    page = client.get("/companies/acme").text
+    assert "country: NL" in page and "Change country" in page
+    assert 'name="country" value="NL" list="country-codes-edit"' in page
+    assert "NL" in client.get("/").text.split('id="col-prospect"')[1].split("</section>")[0]
+    assert "<th>country" in client.get("/companies").text
+
+    post_company(client, name="Beta")
+    page = client.get("/companies/beta").text
+    assert "country: none" in page and "Add country" in page
+    assert 'action="/companies/beta/country"' in page
+
+    r = client.post("/companies/beta/country", data={"country": "DE"})
+    assert r.status_code == 303 and "Country%20saved" in r.headers["location"]
+    assert app.state.store.get("beta").country == "DE"
+    assert last_commit(repo) == "company: beta updated"
+
+    r = client.post("/companies/beta/country", data={"country": "XX"})
+    assert r.status_code == 303 and "unknown%20country" in r.headers["location"]
+    assert app.state.store.get("beta").country == "DE"
+
+    bad = post_company(client, name="Gamma", country="XX")
+    assert bad.status_code == 400 and "unknown country" in bad.text
+
+
+def test_board_stage_dropdown_offers_reached_out(client, app):
+    post_company(client, name="Acme")
+    assert '<option value="reached-out">' in client.get("/").text
+    r = client.post("/companies/acme/stage", data={"stage": "reached-out"})
+    assert r.status_code == 303
+    column = client.get("/").text.split('id="col-reached-out"')[1].split("</section>")[0]
+    assert "Acme" in column
+
+
+def test_next_step_done_button_and_views(client, app, repo):
+    post_company(client, name="Acme", next_step="Call Jane", next_step_due="2026-09-10")
+    post_company(client, name="Beta", next_step="Send deck", next_step_due="2026-09-20")
+    post_company(client, name="Gamma", next_step="Find intro")
+    page = client.get("/companies/acme").text
+    assert "Mark done" in page and 'action="/companies/acme/next-step"' in page
+    assert "Acme" in client.get("/calendar").text.split('class="month-nav"')[0]
+
+    r = client.post("/companies/acme/next-step", data={"status": "done"},
+                    headers={"referer": "http://testserver/calendar?flash=x"})
+    assert r.status_code == 303 and r.headers["location"].startswith("/calendar?flash=")
+    assert app.state.store.get("acme").next_step_done
+    assert last_commit(repo) == "company: acme next step done"
+    assert "Acme" not in client.get("/calendar").text.split('class="month-nav"')[0]
+    page = client.get("/companies/acme").text
+    assert "Reopen" in page and "status-done" in page and "Add to Google Calendar" not in page
+    assert "(done)" in client.get("/").text and "(done)" in client.get("/companies").text
+
+    r = client.post("/companies/acme/next-step", data={"status": "open"})
+    assert r.headers["location"] == "/companies/acme?flash=Next%20step%20reopened"
+    assert last_commit(repo) == "company: acme next step reopened"
+
+
+def test_calendar_view_shows_open_tasks(client, app):
+    post_company(client, name="Acme", next_step="Call Jane", next_step_due="2026-09-10")
+    post_company(client, name="Beta", next_step="Send deck", next_step_due="2026-09-20")
+    post_company(client, name="Gamma", next_step="Find intro")
+    post_company(client, name="Delta", next_step="Old", next_step_due="2026-08-03")
+    post_company(client, name="Done Co", next_step="Finished", next_step_due="2026-09-22",
+                 next_step_status="done")
+    page = client.get("/calendar").text
+    assert "September 2026" in page and 'id="day-2026-09-14"' in page
+    cell = page.split('id="day-2026-09-10"')[1].split("</td>")[0]
+    assert "Acme" in cell and 'class="task overdue"' in cell
+    assert "Beta" in page.split('id="day-2026-09-20"')[1].split("</td>")[0]
+    assert "Done Co" not in page and "Finished" not in page
+    priority = page.split('id="top-priority"')[1].split('class="month-nav"')[0]
+    assert priority.index("Delta") < priority.index("Acme")
+    assert "Beta" not in priority and "Gamma" not in priority
+    tasks = page.split('id="future-tasks"')[1].split('id="silent"')[0]
+    assert tasks.index("Beta") < tasks.index("Gamma")
+    assert "Acme" not in tasks and "Delta" not in tasks
+    assert "no date" in tasks
+    assert "Mark done" in tasks and "Mark done" in priority
+    assert 'href="/calendar?month=2026-08"' in page and 'href="/calendar?month=2026-10"' in page
+
+    august = client.get("/calendar?month=2026-08").text
+    assert "August 2026" in august and "Delta" in august.split('id="day-2026-08-03"')[1].split("</td>")[0]
+    assert client.get("/calendar?month=garbage").status_code == 200
+
+
+def test_board_unused_columns_are_marked(client):
+    post_company(client, name="Acme")
+    page = client.get("/").text
+    assert 'class="column" id="col-prospect"' in page
+    assert 'class="column unused" id="col-offer"' in page
+
+
+SHEET = (
+    "name\thq_country\twebsite\tfounder_name\tfounder_title\tfit_score\n"
+    "Fjellmark\tSweden\t\tAndreas Lindqvist\tFounder / CEO\t82\n"
+    "\t\t\t\t\t\n"
+    "Acme\tGermany\thttps://acme.de\tJane Doe\tCEO\t70\n"
+)
+
+
+def test_import_preview_and_apply(client, app, repo):
+    post_company(client, name="Acme")
+    assert "Import companies" in client.get("/import").text
+
+    preview = client.post("/import/preview", data={"text": SHEET})
+    assert preview.status_code == 200
+    assert "1 companies to create, 1 to update, 0 rows skipped, 2 contacts to create" in preview.text
+    assert "fills country, fit_score, website" in preview.text
+    assert "Andreas Lindqvist (Founder / CEO) &middot; create" in preview.text
+
+    bad = client.post("/import/preview", data={"text": "foo\tbar\n1\t2\n"})
+    assert bad.status_code == 400 and "needs a &#39;name&#39; column" in bad.text
+
+    upload = client.post("/import/preview", files={"file": ("x.tsv", SHEET.encode(), "text/tab-separated-values")})
+    assert upload.status_code == 200 and "Fjellmark" in upload.text
+
+    r = client.post("/import", data={"text": SHEET})
+    assert r.status_code == 303
+    assert "1%20companies%20created%2C%201%20updated%2C%202%20contacts%20created" in r.headers["location"]
+    assert last_commit(repo) == "import: 1 companies created, 1 updated, 2 contacts created"
+    store = app.state.store
+    assert store.get("fjellmark").country == "SE" and store.get("acme").fit_score == 70
+    assert "andreas-lindqvist" in store.get("fjellmark").contacts
+    assert store.get("acme").contacts["jane-doe"].title == "CEO"
+    assert "fjellmark" in (repo / "PIPELINE.md").read_text()
+
+
+def _preview_mapping(page: str) -> dict:
+    """The Re-preview form's selected option per map_<i> select."""
+    form = page.split('action="/import/preview"', 1)[1].split("</form>", 1)[0]
+    chosen = {}
+    for name, body in re.findall(r'<select name="(map_\d+)">(.*?)</select>', form, re.S):
+        chosen[name] = re.search(r'<option value="([^"]+)" selected>', body).group(1)
+    return chosen
+
+
+CONTACT_SHEET = (
+    "First Name,Last Name,Email,Company Name,Lifecycle Stage\n"
+    "Jane,Doe,jane@acme.de,Acme,Lead\n"
+    "Tom,Berg,tom@beta.io,,Customer\n"
+)
+
+
+def test_import_contacts_preview_repreview_and_apply(client, app, repo):
+    post_company(client, name="Acme")
+    page = client.get("/import").text
+    assert "company_linkedin_url" in page and "person_linkedin_url" in page
+
+    preview = client.post("/import/preview", data={"text": CONTACT_SHEET})
+    assert preview.status_code == 200
+    assert "2 contacts to create, 0 to update, 1 companies to create" in preview.text
+    chosen = _preview_mapping(preview.text)
+    assert chosen == {"map_0": "first_name", "map_1": "last_name", "map_2": "email",
+                      "map_3": "company", "map_4": "notes"}
+    assert '<td class="small">jane@acme.de</td>' in preview.text
+
+    # Re-preview with Lifecycle Stage ignored and the company column ignored too.
+    form = {"text": CONTACT_SHEET, "mode": "contacts", "prev_mode": "contacts",
+            **chosen, "map_4": "ignore", "map_3": "ignore"}
+    again = client.post("/import/preview", data=form)
+    assert again.status_code == 200
+    assert _preview_mapping(again.text)["map_4"] == "ignore"
+    # Without the company column Acme comes from the email domain and matches by slug.
+    assert "derived from acme.de" in again.text
+    assert "1 contacts to create" not in again.text and "0 companies to create" not in again.text
+    assert 'name="map_4" value="ignore"' in again.text  # Import now carries it
+
+    # Switching mode drops the old mapping and starts from that mode's defaults.
+    switched = client.post("/import/preview", data={**form, "mode": "companies"})
+    assert switched.status_code == 200 and "Columns: companies mode" in switched.text
+    assert _preview_mapping(switched.text)["map_3"] == "name"
+
+    r = client.post("/import", data={"text": CONTACT_SHEET, "mode": "contacts",
+                                     "map_0": "first_name", "map_1": "last_name",
+                                     "map_2": "email", "map_3": "company", "map_4": "ignore"})
+    assert r.status_code == 303 and "2%20contacts%20created" in r.headers["location"]
+    assert last_commit(repo) == "import: 2 contacts created, 0 updated, 1 companies created"
+    store = app.state.store
+    assert store.get("acme").contacts["jane-doe"].email == "jane@acme.de"
+    assert store.get("acme").contacts["jane-doe"].notes == ""
+    assert "tom-berg" in store.get("beta").contacts
+
+    bad = client.post("/import", data={"text": CONTACT_SHEET, "mode": "contacts",
+                                       "map_0": "my_score"})
+    assert bad.status_code == 400 and "unknown field" in bad.text
+
+
+class StubEnricher:
+    available, provider_name = True, "stub"
+
+    def __init__(self, fields, missing=None, error=None):
+        self.fields, self.missing, self.error = fields, missing, error
+
+    def _proposal(self):
+        from owncrm.enrich import Proposal
+        if self.error:
+            from owncrm.enrich import EnrichError
+            raise EnrichError(self.error)
+        return Proposal(fields=dict(self.fields),
+                        missing=self.missing if self.missing is not None else list(self.fields),
+                        sources=["https://example.com/about"], notes="ok")
+
+    def propose_company(self, company):
+        return self._proposal()
+
+    def propose_contact(self, company, contact):
+        return self._proposal()
+
+
+def test_enrich_company_preview_and_apply(client, app, repo):
+    post_company(client, name="Acme")
+    app.state.enricher = StubEnricher({})
+    page = client.get("/companies/acme").text
+    assert 'action="/companies/acme/enrich"' in page and "via the stub CLI" in page
+
+    app.state.enricher = StubEnricher({"website": "https://acme.de", "country": "DE"},
+                                      missing=["website", "country", "ae_count"])
+    page = client.post("/companies/acme/enrich")
+    assert page.status_code == 200
+    assert 'name="website" value="https://acme.de"' in page.text
+    assert "not found: ae_count" in page.text and "https://example.com/about" in page.text
+
+    r = client.post("/companies/acme/enrich/apply",
+                    data={"apply": ["website"], "website": "https://acme.com", "country": "DE"})
+    assert r.status_code == 303 and "Enriched%3A%20website" in r.headers["location"]
+    company = app.state.store.get("acme")
+    assert company.website == "https://acme.com" and company.country == ""
+    assert last_commit(repo) == "ai: company acme enriched"
+
+    app.state.enricher = StubEnricher({}, missing=["linkedin"])
+    r = client.post("/companies/acme/enrich")
+    assert r.status_code == 303 and "found%20nothing" in r.headers["location"]
+
+    app.state.enricher = StubEnricher({}, error="'claude' not found")
+    r = client.post("/companies/acme/enrich")
+    assert r.status_code == 303 and "not%20found" in r.headers["location"]
+
+    app.state.enricher = StubEnricher({}, missing=[])
+    r = client.post("/companies/acme/enrich")
+    assert "every%20field%20is%20set" in r.headers["location"]
+
+
+def test_enrich_buttons_hidden_when_no_cli_is_available(client, app):
+    from owncrm.enrich import Enricher
+    post_company(client, name="Acme")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe")
+    app.state.enricher = Enricher(which=lambda binary: None)
+    assert not app.state.enricher.available
+    assert "/companies/acme/enrich\"" not in client.get("/companies/acme").text
+    assert "/contacts/jane-doe/enrich\"" not in \
+        client.get("/companies/acme/contacts/jane-doe").text
+    app.state.enricher = Enricher(provider="gemini", which=lambda b: f"/usr/bin/{b}")
+    assert "via the gemini CLI" in client.get("/companies/acme").text
+
+
+def test_enrich_contact_preview_and_apply(client, app, repo):
+    post_company(client, name="Acme")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe")
+    app.state.enricher = StubEnricher({})
+    assert 'action="/companies/acme/contacts/jane-doe/enrich"' in \
+        client.get("/companies/acme/contacts/jane-doe").text
+    app.state.enricher = StubEnricher({"title": "CEO",
+                                       "linkedin": "https://www.linkedin.com/in/jd"})
+    page = client.post("/companies/acme/contacts/jane-doe/enrich")
+    assert page.status_code == 200 and 'value="CEO"' in page.text
+    r = client.post("/companies/acme/contacts/jane-doe/enrich/apply",
+                    data={"apply": ["title", "linkedin"], "title": "CEO",
+                          "linkedin": "https://www.linkedin.com/in/jd"})
+    assert r.status_code == 303
+    contact = app.state.store.get("acme").contacts["jane-doe"]
+    assert contact.title == "CEO" and contact.linkedin == "https://www.linkedin.com/in/jd"
+    assert last_commit(repo) == "ai: contact acme/jane-doe enriched"
+    assert client.post("/companies/acme/contacts/nobody/enrich").status_code == 404
+
+
+def test_contact_split_reads_legacy_name_key(client, app, repo):
+    post_company(client, name="Acme")
+    path = repo / "companies" / "acme" / "contacts" / "old-timer.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("---\nname: Old van Timer\nslug: old-timer\n---\n")
+    client.post("/reload")
+    contact = app.state.store.get("acme").contacts["old-timer"]
+    assert (contact.first_name, contact.last_name) == ("Old", "van Timer")
+    page = client.get("/companies/acme/contacts/old-timer").text
+    assert 'name="first_name" value="Old"' in page and 'name="last_name" value="van Timer"' in page
+    client.post("/companies/acme/contacts/old-timer",
+                data={**CONTACT_BLANK, "first_name": "Old", "last_name": "Timer"})
+    text = path.read_text()
+    assert text.startswith("---\nfirst_name: Old\nlast_name: Timer\nslug: old-timer\n")
+    assert "\nname:" not in text
+
+
+def test_disqualify_buttons_and_routes(client, app, repo):
+    post_company(client, name="Acme")
+    page = client.get("/companies/acme").text
+    assert 'name="stage" value="disqualified"' in page and 'value="temp-disqualified"' in page
+    r = client.post("/companies/acme/disqualify",
+                    data={"stage": "temp-disqualified", "reason": "hiring freeze"})
+    assert r.status_code == 303 and "Temp%20disqualified" in r.headers["location"]
+    c = app.state.store.get("acme")
+    assert c.stage == "temp-disqualified" and c.lost_reason == "hiring freeze"
+    assert last_commit(repo) == "company: acme stage prospect -> temp-disqualified"
+    page = client.get("/companies/acme").text
+    assert "Requalify" in page and "(hiring freeze)" in page
+    board = client.get("/").text
+    assert 'id="closed-temp-disqualified"' in board and "hiring freeze" in board
+    assert "Acme" not in board.split('id="col-prospect"')[1].split("</section>")[0]
+    r = client.post("/companies/acme/disqualify", data={"stage": "prospect"})
+    assert "Requalified" in r.headers["location"]
+    assert app.state.store.get("acme").stage == "prospect"
+    assert app.state.store.get("acme").lost_reason == ""
+    r = client.post("/companies/acme/disqualify", data={"stage": "won"})
+    assert "unknown%20stage" in r.headers["location"]
+
+
+def test_parked_company_keeps_its_revisit_task_but_leaves_silent_list(client, app):
+    post_company(client, name="Acme", stage="temp-disqualified", next_step="Revisit",
+                 next_step_due=YESTERDAY.isoformat())
+    today = client.get("/calendar").text
+    assert "Acme" in today.split('class="month-nav"')[0]
+    assert "Acme" not in today.split('id="silent"')[1]
+
+
+def test_clickable_urls(client):
+    post_company(client, name="Acme", website="https://acme.de", linkedin="https://www.linkedin.com/company/acme")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe", email="jane@acme.de",
+                 linkedin="https://www.linkedin.com/in/jd")
+    page = client.get("/companies/acme").text
+    assert '<a href="https://acme.de" target="_blank" rel="noopener">acme.de</a>' in page
+    assert '<a href="https://www.linkedin.com/company/acme" target="_blank" rel="noopener">linkedin</a>' in page
+    assert '<a href="mailto:jane@acme.de">jane@acme.de</a>' in page
+    assert '<a href="https://www.linkedin.com/in/jd" target="_blank" rel="noopener">profile</a>' in page
+    table = client.get("/companies").text
+    assert '<a href="https://acme.de" target="_blank" rel="noopener">web</a>' in table
+    contact = client.get("/companies/acme/contacts/jane-doe").text
+    assert 'href="mailto:jane@acme.de"' in contact
+
+
+def test_contacts_tab_lists_search_and_filters(client):
+    post_company(client, name="Acme")
+    post_company(client, name="Beta")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe", title="CEO",
+                 role="decision-maker", email="jane@acme.de")
+    post_contact(client, "beta", first_name="Bob", last_name="King", title="CTO")
+    post_interaction(client, "acme", contact="jane-doe", subject="x")
+    page = client.get("/contacts").text
+    assert "Contacts (2)" in page and "Jane Doe" in page and "Bob King" in page
+    assert '<a href="/companies/acme">Acme</a>' in page
+    assert 'href="mailto:jane@acme.de"' in page
+    assert "Contacts (1)" in client.get("/contacts?q=bob").text
+    assert "<th>role" not in page and "decision-maker" not in page  # role left the overview
+    only_touched = client.get("/contacts?f_interaction_count=>0").text
+    assert "Jane Doe" in only_touched and "Bob King" not in only_touched
+    assert "Jane Doe" not in client.get("/contacts?f_title=!ceo").text
+    assert 'name="f_title" form="contact-filters"' in page
+    assert "Contacts" in client.get("/").text.split("</nav>")[0]
+
+
+def test_companies_filters(client):
+    post_company(client, name="Acme", stage="offer", country="DE", my_score="8", tags="x, y")
+    post_company(client, name="Beta", stage="prospect", country="NL", my_score="3")
+    post_company(client, name="Gamma", stage="offer", country="SE")
+    page = client.get("/companies").text
+    assert '<tr class="filters">' in page and 'name="f_stage" form="company-filters"' in page
+    r = client.get("/companies?f_stage=offer&f_stage=prospect").text
+    assert "Companies (3)" in r
+    r = client.get("/companies?f_stage=offer").text
+    assert "Companies (2)" in r and "Beta" not in r
+    r = client.get("/companies?f_stage=offer&f_my_score=>5").text
+    assert "Companies (1)" in r and "Acme" in r
+    r = client.get("/companies?f_my_score=-").text
+    assert "Companies (1)" in r and "Gamma" in r
+    r = client.get("/companies?f_tags=y&f_name=!beta").text
+    assert "Companies (1)" in r and "Acme" in r
+    r = client.get("/companies?q=acme&f_country=NL").text
+    assert "Companies (0)" in r and "clear filters" in r
+    assert 'value="NL" selected' in r
+
+
+def test_board_filters_choose_columns_and_cards(client):
+    post_company(client, name="Acme", stage="offer", country="DE")
+    post_company(client, name="Beta", stage="prospect", country="NL")
+    page = client.get("/?f_stage=offer").text
+    assert 'id="col-offer"' in page and 'id="col-prospect"' not in page
+    page = client.get("/?f_country=NL").text
+    assert "Beta" in page and 'id="col-offer"' in page
+    assert "Acme" not in page.split('id="col-offer"')[1].split("</section>")[0]
+    assert 'name="f_name" form="board-filters"' in page
+
+
+def test_merge_companies_pages(client, app, repo):
+    post_company(client, name="Acme", website="https://acme.de")
+    post_company(client, name="Acme Software", linkedin="https://l/acme", my_score="4")
+    post_contact(client, "acme-software", first_name="Jane", last_name="Doe")
+    page = client.get("/companies/acme").text
+    assert 'action="/companies/acme/merge"' in page and 'value="acme-software"' in page
+    r = client.get("/companies/acme/merge")
+    assert r.status_code == 303 and "Pick%20a%20company" in r.headers["location"]
+    form = client.get("/companies/acme/merge?drop=acme-software").text
+    assert "Merge Acme Software into Acme" in form
+    assert 'name="choice_linkedin" value="drop" checked' in form
+    assert 'name="choice_website" value="keep" checked' in form
+    assert 'name="choice_notes" value="both"' in form
+    assert "1 contacts and 0 interactions" in form
+    r = client.post("/companies/acme/merge",
+                    data={"drop": "acme-software", "choice_my_score": "drop",
+                          "choice_linkedin": "drop", "choice_website": "keep"})
+    assert r.status_code == 303 and "Merged%20acme-software%20into%20acme" in r.headers["location"]
+    c = app.state.store.get("acme")
+    assert c.linkedin == "https://l/acme" and c.my_score == 4 and c.website == "https://acme.de"
+    assert "jane-doe" in c.contacts and app.state.store.get("acme-software") is None
+    assert last_commit(repo) == "company: acme-software merged into acme"
+    assert not (repo / "companies" / "acme-software").exists()
+    assert "acme-software" not in (repo / "PIPELINE.md").read_text()
+    assert client.get("/companies/acme-software").status_code == 404
+    r = client.get("/companies/acme/merge?drop=acme")
+    assert r.status_code == 303 and "cannot%20merge" in r.headers["location"]
+
+
+def test_merge_contacts_pages(client, app, repo):
+    post_company(client, name="Acme")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe", email="jane@acme.de")
+    post_contact(client, "acme", first_name="J.", last_name="Doe", title="CEO")
+    post_interaction(client, "acme", contact="j-doe", subject="Hi")
+    page = client.get("/companies/acme/contacts/jane-doe").text
+    assert 'action="/companies/acme/contacts/jane-doe/merge"' in page and 'value="j-doe"' in page
+    form = client.get("/companies/acme/contacts/jane-doe/merge?drop=j-doe").text
+    assert "Merge J. Doe into Jane Doe" in form
+    assert 'name="choice_title" value="drop" checked' in form
+    r = client.post("/companies/acme/contacts/jane-doe/merge", data={"drop": "j-doe"})
+    assert r.status_code == 303
+    company = app.state.store.get("acme")
+    assert list(company.contacts) == ["jane-doe"] and company.contacts["jane-doe"].title == "CEO"
+    assert all(i.contact == "jane-doe" for i in company.interactions)
+    assert last_commit(repo) == "contact: acme/j-doe merged into jane-doe"
+    assert client.get("/companies/acme/contacts/j-doe").status_code == 404
+    r = client.get("/companies/acme/contacts/jane-doe/merge?drop=ghost")
+    assert r.status_code == 303 and "Pick%20another" in r.headers["location"]
+
+
+# ------------------------------------------------ batch 5: parking, sorting
+
+
+def test_temp_disqualify_until_date_and_automatic_requalify(client, app, repo):
+    post_company(client, name="Acme")
+    r = client.post("/companies/acme/disqualify",
+                    data={"stage": "temp-disqualified", "reason": "freeze",
+                          "requalify_on": str(TODAY + timedelta(days=30))})
+    assert r.status_code == 303 and "until" in r.headers["location"]
+    c = app.state.store.get("acme")
+    assert c.stage == "temp-disqualified" and c.requalify_on == TODAY + timedelta(days=30)
+    page = client.get("/companies/acme").text
+    assert f"requalifies on {TODAY + timedelta(days=30)}" in page
+    assert f"until {TODAY + timedelta(days=30)}" in client.get("/").text
+    assert f"until {TODAY + timedelta(days=30)}" in pipeline_text(repo)
+    # requalify manually: date cleared
+    client.post("/companies/acme/disqualify", data={"stage": "prospect"})
+    assert app.state.store.get("acme").requalify_on is None
+
+    # the date arrives: the next page view puts the company back in prospect
+    client.post("/companies/acme/disqualify",
+                data={"stage": "temp-disqualified", "requalify_on": str(YESTERDAY)})
+    assert app.state.store.get("acme").stage == "temp-disqualified"
+    assert client.get("/health").status_code == 200
+    c = app.state.store.get("acme")
+    assert c.stage == "prospect" and c.requalify_on is None and c.lost_reason == ""
+    assert last_commit(repo) == f"company: acme requalified (parked until {YESTERDAY})"
+
+
+def test_companies_hide_and_show_temp_disqualified(client, app):
+    post_company(client, name="Acme")
+    post_company(client, name="Parked", stage="temp-disqualified")
+    page = client.get("/companies").text
+    assert "Acme" in page and "Parked" not in page
+    assert "Show temp disqualified (1)" in page and 'href="/companies?parked=1"' in page
+    shown = client.get("/companies?parked=1").text
+    assert "Parked" in shown and "Hide temp disqualified" in shown
+    assert 'href="/companies"' in shown
+    # an explicit stage filter shows them without the toggle
+    assert "Parked" in client.get("/companies?f_stage=temp-disqualified").text
+    assert "Parked" in client.get("/companies?parked=1&f_name=park").text
+
+
+def test_sorting_on_companies_contacts_and_board(client):
+    post_company(client, name="Beta", fit_score="70", fte_estimate="~30")
+    post_company(client, name="Alpha", fit_score="90", fte_estimate="12")
+    post_company(client, name="Gamma")
+    post_contact(client, "beta", first_name="Zoe", last_name="Z")
+    post_contact(client, "alpha", first_name="Adam", last_name="A")
+
+    page = client.get("/companies").text
+    assert "<th>FTE" in page and "~30" in page
+    assert 'href="/companies?sort=name&amp;dir=asc"' in page
+    assert 'href="/companies?sort=fte_estimate&amp;dir=desc"' in page
+
+    def order(html, *names):
+        return [html.index(n) for n in names]
+
+    asc = client.get("/companies?sort=name&dir=asc").text.split("<tr class=\"filters\">")[1]
+    assert order(asc, "Alpha", "Beta", "Gamma") == sorted(order(asc, "Alpha", "Beta", "Gamma"))
+    full = client.get("/companies?sort=name&dir=desc").text
+    desc = full.split("<tr class=\"filters\">")[1]
+    assert desc.index("Gamma") < desc.index("Beta") < desc.index("Alpha")
+    assert 'class="on"' in full and "clear filters and sorting" in full
+    by_fit = client.get("/companies?sort=fit_score&dir=desc").text.split("<tr class=\"filters\">")[1]
+    assert by_fit.index("Alpha") < by_fit.index("Beta") < by_fit.index("Gamma")  # empty last
+    by_fte = client.get("/companies?sort=fte_estimate&dir=asc").text.split("<tr class=\"filters\">")[1]
+    assert by_fte.index("Alpha") < by_fte.index("Beta")
+    # sorting survives a filter submit (hidden inputs) and combines with filters
+    combined = client.get("/companies?f_name=a&sort=name&dir=desc").text
+    assert 'name="sort" value="name"' in combined and 'name="dir" value="desc"' in combined
+    rows = combined.split("<tr class=\"filters\">")[1]
+    assert rows.index("Gamma") < rows.index("Beta") < rows.index("Alpha")
+
+    contacts = client.get("/contacts?sort=name&dir=desc").text.split("<tr class=\"filters\">")[1]
+    assert contacts.index("Zoe") < contacts.index("Adam")
+    board = client.get("/?sort=name&dir=desc").text.split('id="col-prospect"')[1]
+    assert board.index("Gamma") < board.index("Beta") < board.index("Alpha")
+    board = client.get("/?sort=name&dir=asc").text.split('id="col-prospect"')[1]
+    assert board.index("Alpha") < board.index("Beta") < board.index("Gamma")
+
+
+def test_filter_help_tooltip_sits_above_each_table(client):
+    for path in ("/", "/companies", "/contacts", "/messages"):
+        page = client.get(path).text
+        head = page.split('<table class="filterable')[0] if path != "/" else page.split('<div class="board">')[0]
+        assert 'class="help"' in head and "does not contain" in head and "Z to A" in head
+        assert 'title="contains: text' not in page  # the long per-input title is gone
+
+
+# ----------------------------------------------- batch 5: fetch, messages
+
+
+def test_fetch_from_url_proposes_and_applies_without_ai(client, app, repo):
+    post_company(client, name="Acme", website="https://acme.de")
+    page = client.get("/companies/acme").text
+    assert 'action="/companies/acme/fetch"' in page and 'value="https://acme.de"' in page
+
+    html = ('<html><head><title>Acme</title><meta name="description" content="Acme sells X.">'
+            '</head><body><a href="https://www.linkedin.com/company/acme">li</a></body></html>')
+    seen = []
+
+    def fetcher(url):
+        seen.append(url)
+        return html
+
+    app.state.fetcher = fetcher
+    r = client.post("/companies/acme/fetch", data={"url": ""})
+    assert r.status_code == 200 and seen == ["https://acme.de"]
+    assert 'name="product_oneliner" value="Acme sells X."' in r.text
+    assert 'name="linkedin" value="https://www.linkedin.com/company/acme"' in r.text
+    assert 'name="country" value="DE"' in r.text
+    assert 'action="/companies/acme/enrich/apply"' in r.text
+    r = client.post("/companies/acme/enrich/apply",
+                    data={"apply": ["product_oneliner", "country"],
+                          "product_oneliner": "Acme sells X.", "country": "DE",
+                          "linkedin": "x"})
+    assert r.status_code == 303
+    c = app.state.store.get("acme")
+    assert c.product_oneliner == "Acme sells X." and c.country == "DE" and c.linkedin == ""
+
+    def refuse(url):
+        from owncrm.scrape import ScrapeError
+        raise ScrapeError("LinkedIn refused the anonymous request (HTTP 999)")
+
+    app.state.fetcher = refuse
+    r = client.post("/companies/acme/fetch", data={"url": "https://www.linkedin.com/company/acme"})
+    assert r.status_code == 303 and "LinkedIn%20refused" in r.headers["location"]
+    post_company(client, name="Blank")
+    r = client.post("/companies/blank/fetch", data={"url": ""})
+    assert "Give%20a%20website" in r.headers["location"]
+
+
+def test_messages_tab_lists_results_and_marking(client, app, repo):
+    post_company(client, name="Acme", country="DE")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe")
+    old = f"{TODAY - timedelta(days=20)}T09:00"
+    fresh = f"{TODAY - timedelta(days=2)}T09:00"
+    post_interaction(client, "acme", contact="jane-doe", channel="linkedin",
+                     date=old, body="Hi Jane, fractional?")
+    post_interaction(client, "acme", contact="", channel="linkedin", date=fresh,
+                     body="Hi Henrik, growing nicely.")
+    post_interaction(client, "acme", contact="jane-doe", channel="linkedin", date=fresh,
+                     body="Hi Jane, fractional?")
+    post_interaction(client, "acme", contact="jane-doe", channel="email", direction="in",
+                     date=f"{TODAY}T10:00", body="Sure, let's talk")
+    post_interaction(client, "acme", channel="call", direction="out", date=fresh,
+                     subject="no body")  # not a message
+
+    page = client.get("/messages").text
+    assert "Messages (3)" in page and "no body" not in page
+    assert "Messages" in page.split("</nav>")[0]
+    assert page.count("Hi Jane, fractional?") >= 2 and "Hi Henrik" in page
+    rows = page.split("<tr class=\"filters\">")[1]
+    # newest first; Jane's messages got a reply -> success; Henrik's is fresh -> unknown
+    assert rows.count('class="result-success"') == 2
+    assert rows.count('class="result-unknown"') == 1
+    assert "<td>2</td>" in rows  # the same text was used twice
+    assert "2 success" in page and "1 unknown" in page
+
+    ids = re.findall(r'action="/companies/acme/interactions/([^/"]+)/result"', page)
+    henrik = next(i for i in ids if "company" in i)
+    r = client.post(f"/companies/acme/interactions/{henrik}/result",
+                    data={"result": "unsuccessful"},
+                    headers={"referer": "http://testserver/messages?f_channel=linkedin"})
+    assert r.status_code == 303 and r.headers["location"].startswith("/messages?flash=")
+    assert last_commit(repo) == f"interaction: acme {henrik} result unsuccessful"
+    page = client.get("/messages").text
+    assert '<td class="result-unsuccessful">unsuccessful</td>' in page
+    assert "Messages (1)" in client.get("/messages?f_status=unsuccessful").text
+    assert "Messages (2)" in client.get("/messages?q=jane").text
+    assert "Messages (1)" in client.get("/messages?f_contact=company").text
+
+    # age: a message with no reply and no verdict flips to unsuccessful after 14 days
+    post_company(client, name="Beta")
+    post_interaction(client, "beta", channel="email", date=old, body="Hello Beta")
+    beta = client.get("/messages?f_company_name=beta").text
+    assert "result-unsuccessful" in beta and "(auto)" in beta
+
+
+def test_drafts_on_contact_and_company_pages(client, app):
+    post_company(client, name="Brightnook", country="DE", fte_estimate="12", ae_count="2",
+                 website="https://brightnook.de")
+    post_contact(client, "brightnook", first_name="Johannes", last_name="W")
+    page = client.get("/companies/brightnook/contacts/johannes-w").text
+    assert 'id="drafts"' in page and "(German)" in page
+    assert page.count("Hallo Johannes,") == 3
+    assert "linkedin.com/company/brightnook/insights/" in page
+    assert "[Was dir auf brightnook.de aufgefallen ist" in page
+    tuned = client.get("/companies/brightnook/contacts/johannes-w?signal=hiring"
+                       "&observation=Tolle+Demo.").text
+    assert "dass Brightnook [die Rolle] sucht" in tuned and "Tolle Demo." in tuned
+    assert '<option value="hiring" selected>' in tuned
+    assert "log as sent" in tuned
+    link = re.search(r'href="(/companies/brightnook/interactions/new\?contact=johannes-w'
+                     r'&channel=linkedin&body=[^"]+)"', tuned).group(1)
+    form = client.get(htmllib.unescape(link)).text
+    assert 'value="linkedin" checked' in form and "Hallo Johannes," in form
+    assert '<option value="johannes-w" selected>' in form
+
+    company_page = client.get("/companies/brightnook").text
+    assert 'id="drafts"' in company_page and "for Johannes" in company_page
+    assert 'href="/companies/brightnook/contacts/johannes-w#drafts"' in company_page
+    post_company(client, name="Lonely", country="SE")
+    lonely = client.get("/companies/lonely").text
+    assert "Hi [first name]," in lonely and "(English)" in lonely

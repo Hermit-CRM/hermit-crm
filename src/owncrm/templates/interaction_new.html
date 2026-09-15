@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}Log interaction{% endblock %}
+{% block content %}
+<h1>Log an interaction for <a href="/companies/{{ company.slug }}">{{ company.name }}</a></h1>
+{{ m.interaction_form('/companies/' ~ company.slug ~ '/interactions', company, interaction, errors) }}
+{% endblock %}

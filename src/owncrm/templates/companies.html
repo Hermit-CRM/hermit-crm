@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}Companies{% endblock %}
+{% block content %}
+<h1>Companies ({{ companies | length }}){% if q %} matching &ldquo;{{ q }}&rdquo;{% endif %}</h1>
+{{ m.filter_form('company-filters', '/companies', active, q, sort, dir) }}
+<a class="toggle-parked" href="{{ toggle_url }}">{% if show_parked %}Hide temp disqualified{% else %}Show temp disqualified ({{ hidden_parked }}){% endif %}</a>
+{% if show_parked %}<input type="hidden" name="parked" value="1" form="company-filters">{% endif %}
+<table class="filterable">
+  <tr>{% for col in filter_columns %}<th>{{ col.label }} {{ m.sort_links(col, sort, dir, sort_url) }}</th>{% endfor %}<th>links</th></tr>
+  <tr class="filters">{% for col in filter_columns %}<th>{{ m.filter_control(col, active, 'company-filters') }}</th>{% endfor %}<th></th></tr>
+  {% for c in companies %}
+  <tr>
+    <td><a href="/companies/{{ c.slug }}">{{ c.name }}</a></td>
+    <td>{{ c.country }}</td>
+    <td>{{ c.stage }}{% if c.requalify_on %} <span class="small">until {{ fmt_date(c.requalify_on) }}</span>{% endif %}</td>
+    <td>{{ c.source }}</td>
+    <td>{{ '' if c.my_score is none else c.my_score }}</td>
+    <td>{{ '' if c.fit_score is none else c.fit_score }}</td>
+    <td>{{ c.fte_estimate }}</td>
+    <td>{{ c.tags | join(', ') }}</td>
+    <td>{{ c.last_touch_summary }}</td>
+    <td{% if c.next_step_done %} class="done"{% endif %}>{{ c.next_step }}{% if c.next_step_done %} (done){% endif %}</td>
+    <td class="{% if c.next_step_overdue(today) %}overdue{% endif %}">{{ fmt_date(c.next_step_due) }}</td>
+    <td class="links">
+      {% if c.website %}<a href="{{ c.website }}" target="_blank" rel="noopener">web</a>{% endif %}
+      {% if c.linkedin %}<a href="{{ c.linkedin }}" target="_blank" rel="noopener">li</a>{% endif %}
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="12" class="empty">No companies.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

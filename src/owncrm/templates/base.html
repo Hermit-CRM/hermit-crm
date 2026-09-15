@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}OwnCRM{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<nav>
+  <a href="/">Pipeline</a>
+  <a href="/calendar">Calendar</a>
+  <a href="/companies">Companies</a>
+  <a href="/contacts">Contacts</a>
+  <a href="/messages">Messages</a>
+  <a href="/reports">Reports</a>
+  <a href="/inbox">Inbox{% if inbox_count %} ({{ inbox_count }}){% endif %}{% if inbox_alert %} <span class="alert" title="{{ inbox_alert }}">!</span>{% endif %}</a>
+  <a href="/companies/new">New company</a>
+  <a href="/import">Import</a>
+  {% if setup_pending %}<a href="/setup">Setup</a>{% endif %}
+  <form class="inline" method="post" action="/reload"><button type="submit">Reload</button></form>
+  {% if update_notice and update_notice.available %}<span class="update-notice" title="A newer OwnCRM is on PyPI">v{{ update_notice.available }} available: <code>{{ update_notice.hint }}</code></span>{% endif %}
+  <form class="inline search" action="/companies">
+    <input name="q" value="{{ q }}" placeholder="Search companies, tags, contacts">
+    <button type="submit">Search</button>
+  </form>
+</nav>
+<main>
+  {% if flash %}<p class="flash">{{ flash }}</p>{% endif %}
+  {% block content %}{% endblock %}
+</main>
+<footer class="small">OwnCRM v{{ owncrm_version }}</footer>
+</body>
+</html>

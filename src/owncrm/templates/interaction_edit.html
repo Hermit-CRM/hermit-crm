@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}Edit interaction{% endblock %}
+{% block content %}
+<h1>Edit interaction</h1>
+<p class="small"><a href="/companies/{{ company.slug }}">{{ company.name }}</a> &middot; {{ id }}</p>
+{{ m.interaction_form('/companies/' ~ company.slug ~ '/interactions/' ~ id ~ '/edit', company, interaction, errors, 'Save interaction') }}
+{% endblock %}

@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}New company{% endblock %}
+{% block content %}
+<h1>New company</h1>
+{{ m.errors_box(errors) }}
+<form method="post" action="/companies" class="record-form">
+  {{ m.company_fields(values, errors) }}
+  <button type="submit">Create company</button>
+</form>
+{% endblock %}

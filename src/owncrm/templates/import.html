@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}Import{% endblock %}
+{% block content %}
+<h1>Import companies and contacts</h1>
+<p class="small">
+  Paste a table copied from a spreadsheet (tab separated) or upload a .tsv, .csv or
+  .xlsx file (first worksheet; Excel dates arrive as serial numbers). The first row
+  must be a header. Two modes: <b>companies</b> (one company per row, with an
+  optional contact) and <b>contacts</b> (one person per row, as exported from
+  HubSpot, Apollo, LinkedIn, Pipedrive or Attio). Auto-detect picks contacts when
+  there is a person name or email column plus a company column. On the preview you
+  can change the mode and what every column imports as. Unmapped columns are kept
+  as lines in the notes. Only empty fields are filled; nothing is overwritten. You
+  get a preview before anything is written.
+</p>
+{{ m.errors_box(errors) }}
+<form method="post" action="/import/preview" enctype="multipart/form-data" class="record-form">
+  <label>mode <select name="mode">
+    <option value=""{% if not mode %} selected{% endif %}>auto-detect</option>
+    {% for m_ in modes %}<option value="{{ m_ }}"{% if mode == m_ %} selected{% endif %}>{{ m_ }}</option>{% endfor %}
+  </select></label>
+  <label>table <textarea name="text" rows="14" class="import" placeholder="name&#9;website&#9;hq_country&#9;founder_name&#9;founder_title">{{ text }}</textarea></label>
+  <label>or file <input type="file" name="file" accept=".tsv,.csv,.txt,.xlsx,text/plain,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>
+  <button type="submit">Preview import</button>
+</form>
+<details class="import-help">
+  <summary>Recognised column names</summary>
+  <p class="small">Headers match ignoring case, spaces and punctuation
+    (<code>Company Linkedin Url</code> = <code>company_linkedin_url</code>).</p>
+  <h3>Companies mode</h3>
+  <ul class="small">
+    {% for label, names in company_aliases %}<li><b>{{ label }}</b>: {{ names | join(', ') }}</li>{% endfor %}
+  </ul>
+  <p class="small">Columns starting with {% for p in prefixes %}<code>{{ p }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
+    followed by {{ prefixed_columns | join(', ') }} create a contact; other prefixed columns become contact notes.</p>
+  <h3>Contacts mode</h3>
+  <ul class="small">
+    {% for label, names in contact_aliases %}<li><b>{{ label }}</b>: {{ names | join(', ') }}</li>{% endfor %}
+  </ul>
+  <p class="small">Without a company column the company comes from the email domain
+    (freemail addresses excepted); rows with neither are skipped. Companies match by
+    name or website domain, contacts by email, else by name.</p>
+</details>
+{% endblock %}

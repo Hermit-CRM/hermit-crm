@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1>
+<p class="small">Proposed values for empty fields. Untick or edit anything before applying. Nothing has been saved yet.</p>
+<form method="post" action="{{ action }}" class="record-form proposal">
+  <table>
+    <tr><th></th><th>field</th><th>proposed value</th></tr>
+    {% for key, value in proposal.fields.items() %}
+    <tr>
+      <td><input type="checkbox" name="apply" value="{{ key }}" checked></td>
+      <td>{{ key }}</td>
+      <td class="value"><input name="{{ key }}" value="{{ value }}"></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% if proposal.notes %}<p class="small">{{ proposal.notes }}</p>{% endif %}
+  {% if proposal.sources %}
+  <p class="small">sources:
+    {% for s in proposal.sources %}<a href="{{ s }}" target="_blank" rel="noopener">{{ s }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+  </p>
+  {% endif %}
+  {% set unfound = proposal.missing | reject('in', proposal.fields) | list %}
+  {% if unfound %}<p class="small">not found: {{ unfound | join(', ') }}</p>{% endif %}
+  <button type="submit">Apply selected</button>
+  <a href="{{ back }}" style="margin-left: 10px">Cancel</a>
+</form>
+{% endblock %}

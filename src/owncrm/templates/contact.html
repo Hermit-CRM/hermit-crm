@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}{{ contact.name }}{% endblock %}
+{% block content %}
+<h1>{{ contact.name }}</h1>
+<div class="small">
+  <a href="/companies/{{ company.slug }}">{{ company.name }}</a> &middot;
+  {{ contact.title or 'no title' }} &middot; {{ contact.role or 'no role' }} &middot;
+  {% if contact.email %}<a href="mailto:{{ contact.email }}">{{ contact.email }}</a>{% else %}no email{% endif %} &middot; {{ contact.phone or 'no phone' }}
+  {% if contact.linkedin %} &middot; <a href="{{ contact.linkedin }}" target="_blank" rel="noopener">linkedin</a>{% endif %}
+  {% if enricher and enricher.available %}
+  <form method="post" action="/companies/{{ company.slug }}/contacts/{{ contact.slug }}/enrich" class="inline enrich">
+    <button type="submit" title="Look up missing fields with web search via the {{ enricher.provider_name }} CLI (uses credits); you confirm before anything is saved">Enrich</button>
+  </form>
+  {% endif %}
+</div>
+
+<section id="quick-add">
+  <h2>Log an interaction</h2>
+  {{ m.interaction_form('/companies/' ~ company.slug ~ '/interactions', company, interaction) }}
+</section>
+
+<section id="details">
+  <h2>Contact</h2>
+  {{ m.errors_box(errors) }}
+  <form method="post" action="/companies/{{ company.slug }}/contacts/{{ contact.slug }}" class="record-form">
+    {{ m.contact_fields(values, errors) }}
+    <button type="submit">Save contact</button>
+  </form>
+  <p class="small">slug {{ contact.slug }} &middot; created {{ fmt_datetime(contact.created) }} &middot; updated {{ fmt_datetime(contact.updated) }}</p>
+</section>
+
+{{ m.drafts_section(company, contact, drafts, signal, observation, '/companies/' ~ company.slug ~ '/contacts/' ~ contact.slug) }}
+
+{% if company.contacts | length > 1 %}
+<section id="merge">
+  <h2>Merge</h2>
+  <form method="get" action="/companies/{{ company.slug }}/contacts/{{ contact.slug }}/merge" class="inline-row">
+    <label>merge another contact of {{ company.name }} into this one
+      <select name="drop">
+        <option value="">choose a contact</option>
+        {% for slug, o in company.contacts.items() if slug != contact.slug %}<option value="{{ slug }}">{{ o.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <button type="submit">Compare</button>
+  </form>
+</section>
+{% endif %}
+
+<section id="timeline">
+  <h2>Interactions ({{ interactions | length }})</h2>
+  {{ m.timeline(company, interactions) }}
+</section>
+{% endblock %}

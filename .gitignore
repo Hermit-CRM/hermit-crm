@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.log
+.DS_Store
+.pytest_cache/
+inbox/.last-run.json
+inbox/.last-calendar-run.json
+inbox/upcoming.json
+.secrets.toml
+*.egg-info/
+build/
+dist/

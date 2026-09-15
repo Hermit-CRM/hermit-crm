@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Calendar{% endblock %}
+{% block content %}
+<h1>Calendar</h1>
+
+<h2 id="top-priority">Top priority tasks: due today or earlier ({{ priority | length }})</h2>
+<table>
+  <tr><th>due</th><th>company</th><th>stage</th><th>next step</th><th></th></tr>
+  {% for c in priority %}
+  <tr>
+    <td class="{% if c.next_step_overdue(today) %}overdue{% endif %}">{{ fmt_date(c.next_step_due) }}</td>
+    <td><a href="/companies/{{ c.slug }}">{{ c.name }}</a></td>
+    <td>{{ c.stage }}</td>
+    <td>{{ c.next_step or '(no text)' }}</td>
+    <td class="actions">
+      <a href="/companies/{{ c.slug }}/interactions/new">log interaction</a>
+      <form method="post" action="/companies/{{ c.slug }}/next-step" class="inline">
+        <input type="hidden" name="status" value="done"><button type="submit">Mark done</button>
+      </form>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="empty">Nothing due.</td></tr>
+  {% endfor %}
+</table>
+
+<h2 id="meetings">Meetings this week ({{ upcoming | length }})</h2>
+<table>
+  <tr><th>when</th><th>meeting</th><th>company</th><th>with</th></tr>
+  {% for e in upcoming %}
+  <tr>
+    <td>{{ e.start.strftime('%a %d %b') }}{% if not e.all_day %} {{ e.start.strftime('%H:%M') }}&ndash;{{ e.end.strftime('%H:%M') }}{% endif %}</td>
+    <td>{{ e.title or '(no title)' }}{% if e.location %} <span class="small">{{ e.location }}</span>{% endif %}</td>
+    <td>{% for c in e.companies %}<a href="/companies/{{ c.slug }}">{{ c.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</td>
+    <td>{{ e.attendees | join(', ') }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="4" class="empty">No meetings with known companies in the next 7 days{% if not calendar_last_run %} (no meeting import has run yet){% endif %}.</td></tr>
+  {% endfor %}
+</table>
+<form method="post" action="/calendar/import" class="inline"><input type="hidden" name="back" value="/calendar"><button type="submit">Import meetings now</button></form>
+
+<div class="month-nav">
+  <a href="/calendar?month={{ prev_month.strftime('%Y-%m') }}">&larr; {{ prev_month.strftime('%b %Y') }}</a>
+  <h2>{{ first.strftime('%B %Y') }}</h2>
+  <a href="/calendar?month={{ next_month.strftime('%Y-%m') }}">{{ next_month.strftime('%b %Y') }} &rarr;</a>
+  {% if first != today.replace(day=1) %}<a href="/calendar">this month</a>{% endif %}
+</div>
+<table class="month">
+  <tr>{% for name in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}<th>{{ name }}</th>{% endfor %}</tr>
+  {% for week in weeks %}
+  <tr>
+    {% for cell in week %}
+    <td class="{% if cell.date.month != first.month %}other-month{% endif %}{% if cell.date == today %} today{% endif %}" id="day-{{ cell.date.isoformat() }}">
+      <div class="day">{{ cell.date.day }}</div>
+      {% for c in cell.tasks %}
+      <div class="task{% if cell.date < today %} overdue{% endif %}">
+        <a href="/companies/{{ c.slug }}">{{ c.name }}</a>: {{ c.next_step or '(no text)' }}
+      </div>
+      {% endfor %}
+    </td>
+    {% endfor %}
+  </tr>
+  {% endfor %}
+</table>
+
+<h2 id="future-tasks">Future tasks ({{ future | length }})</h2>
+<table>
+  <tr><th>due</th><th>company</th><th>stage</th><th>next step</th><th></th></tr>
+  {% for c in future %}
+  <tr>
+    <td>{{ fmt_date(c.next_step_due) or 'no date' }}</td>
+    <td><a href="/companies/{{ c.slug }}">{{ c.name }}</a></td>
+    <td>{{ c.stage }}</td>
+    <td>{{ c.next_step or '(no text)' }}</td>
+    <td class="actions">
+      <form method="post" action="/companies/{{ c.slug }}/next-step" class="inline">
+        <input type="hidden" name="status" value="done"><button type="submit">Mark done</button>
+      </form>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="empty">No future tasks.</td></tr>
+  {% endfor %}
+</table>
+
+<h2 id="silent">Silent for {{ silent_threshold }}+ days, not closed ({{ silent | length }})</h2>
+<table>
+  <tr><th>company</th><th>stage</th><th>last touch</th><th>silent</th><th></th></tr>
+  {% for c in silent %}
+  <tr>
+    <td><a href="/companies/{{ c.slug }}">{{ c.name }}</a></td>
+    <td>{{ c.stage }}</td>
+    <td>{{ c.last_touch_summary }}</td>
+    <td>{{ c.silent_days(today) }}d</td>
+    <td><a href="/companies/{{ c.slug }}/interactions/new">log interaction</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="empty">Nobody is going quiet.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}{{ company.name }}{% endblock %}
+{% block content %}
+<h1>{{ company.name }}</h1>
+{% if company.product_oneliner %}<p class="oneliner">{{ company.product_oneliner }}</p>{% endif %}
+<p class="small links">
+  {% if company.website %}<a href="{{ company.website }}" target="_blank" rel="noopener">{{ company.website | replace('https://', '') | replace('http://', '') }}</a>{% endif %}
+  {% if company.linkedin %} &middot; <a href="{{ company.linkedin }}" target="_blank" rel="noopener">linkedin</a>{% endif %}
+</p>
+<div class="small stage-line">
+  {{ company.stage }}{% if company.lost_reason %} ({{ company.lost_reason }}){% endif %}{% if company.requalify_on %} &middot; requalifies on {{ fmt_date(company.requalify_on) }}{% endif %} &middot; {{ company.days_in_stage(today) }}d in stage
+  {% if company.stage in ['disqualified', 'temp-disqualified'] %}
+  <form method="post" action="/companies/{{ company.slug }}/disqualify" class="inline">
+    <input type="hidden" name="stage" value="prospect"><button type="submit">Requalify</button>
+  </form>
+  {% else %}
+  <details class="inline-edit">
+    <summary class="button">Disqualify</summary>
+    <form method="post" action="/companies/{{ company.slug }}/disqualify" class="inline-form">
+      <input type="hidden" name="stage" value="disqualified">
+      <input name="reason" placeholder="reason" value="{{ company.lost_reason }}">
+      <button type="submit">Disqualify</button>
+    </form>
+  </details>
+  <details class="inline-edit">
+    <summary class="button">Temp disqualify</summary>
+    <form method="post" action="/companies/{{ company.slug }}/disqualify" class="inline-form">
+      <input type="hidden" name="stage" value="temp-disqualified">
+      <input name="reason" placeholder="reason" value="{{ company.lost_reason }}">
+      <label class="inline">until <input type="date" name="requalify_on" value="{{ fmt_date(company.requalify_on) }}" title="the company goes back to prospect on this date"></label>
+      <button type="submit">Temp disqualify</button>
+    </form>
+  </details>
+  {% endif %}
+</div>
+<p class="small">
+  last touch: {{ company.last_touch_summary }}
+  {% if company.my_score is not none %} &middot; my score {{ company.my_score }}{% endif %}
+  {% if company.fit_score is not none %} &middot; fit {{ company.fit_score }}{% endif %}
+  {% if company.fte_estimate %} &middot; ~{{ company.fte_estimate.lstrip('~') }} FTE{% endif %}
+  {% if company.ae_count is not none %} &middot; {{ company.ae_count }} AEs{% endif %}
+</p>
+<div class="small country-line">
+  country: {{ company.country or 'none' }}
+  <details class="inline-edit">
+    <summary class="button">{{ 'Change country' if company.country else 'Add country' }}</summary>
+    <form method="post" action="/companies/{{ company.slug }}/country" class="inline-form">
+      <input name="country" value="{{ company.country }}" list="country-codes-edit" size="4" maxlength="3" placeholder="DE" title="ISO 3166-1 alpha-2 code">
+      <datalist id="country-codes-edit">{% for c in countries %}<option value="{{ c }}">{% endfor %}</datalist>
+      <button type="submit">Save</button>
+    </form>
+  </details>
+  {% if enricher and enricher.available %}
+  <form method="post" action="/companies/{{ company.slug }}/enrich" class="inline enrich">
+    <button type="submit" title="Look up missing fields with web search via the {{ enricher.provider_name }} CLI (uses credits); you confirm before anything is saved">Enrich</button>
+  </form>
+  {% endif %}
+  <details class="inline-edit">
+    <summary class="button" title="Read the website or LinkedIn company page itself (title, description, links, structured data). No AI, no credits; you confirm before anything is saved">Fetch from URL</summary>
+    <form method="post" action="/companies/{{ company.slug }}/fetch" class="inline-form">
+      <input name="url" class="url" placeholder="website or LinkedIn company URL" value="{{ company.website or company.linkedin }}">
+      <button type="submit">Fetch</button>
+    </form>
+  </details>
+</div>
+<div class="small next-step-line{% if company.next_step_overdue(today) %} overdue{% endif %}{% if company.next_step_done %} done{% endif %}">
+  next step: <span class="next-step-text">{{ company.next_step or 'none' }}{% if company.next_step_due %}, due {{ fmt_date(company.next_step_due) }}{% endif %}</span>
+  {% if company.has_next_step %}
+  <span class="tag status-{{ company.next_step_status }}">{{ company.next_step_status }}</span>
+  <form method="post" action="/companies/{{ company.slug }}/next-step" class="inline">
+    {% if company.next_step_done %}
+    <input type="hidden" name="status" value="open"><button type="submit">Reopen</button>
+    {% else %}
+    <input type="hidden" name="status" value="done"><button type="submit">Mark done</button>
+    {% endif %}
+  </form>
+  {% endif %}
+  {% if company.next_step_due and not company.next_step_done %}
+  <a class="calendar" target="_blank" rel="noopener" href="{{ calendar_link(company) }}">Add to Google Calendar</a>
+  {% endif %}
+</div>
+
+<section id="quick-add">
+  <h2>Log an interaction</h2>
+  {{ m.interaction_form('/companies/' ~ company.slug ~ '/interactions', company, interaction, errors if 'subject' in errors or 'channel' in errors or 'direction' in errors else None) }}
+</section>
+
+<section id="details">
+  <h2>Company</h2>
+  {{ m.errors_box(errors) }}
+  <form method="post" action="/companies/{{ company.slug }}" class="record-form">
+    {{ m.company_fields(values, errors) }}
+    <button type="submit">Save company</button>
+  </form>
+  <p class="small">slug {{ company.slug }} &middot; created {{ fmt_datetime(company.created) }} &middot; updated {{ fmt_datetime(company.updated) }} &middot; stage changed {{ fmt_date(company.stage_changed) }}</p>
+  {% if company.stage_history %}
+  <details class="stage-history">
+    <summary class="small">Stage history ({{ company.stage_history | length }})</summary>
+    <table>
+      <tr><th>date</th><th>from</th><th>to</th><th>reason</th></tr>
+      {% for e in company.stage_history | reverse %}
+      <tr><td>{{ fmt_date(e.date) }}</td><td>{{ e.from_stage or '-' }}</td><td>{{ e.to_stage }}</td><td>{{ e.reason }}</td></tr>
+      {% endfor %}
+    </table>
+  </details>
+  {% endif %}
+</section>
+
+<section id="contacts">
+  <h2>Contacts ({{ company.contacts | length }})</h2>
+  <table>
+    <tr><th>name</th><th>title</th><th>role</th><th>email</th><th>linkedin</th><th></th></tr>
+    {% for slug, c in company.contacts.items() %}
+    <tr>
+      <td><a href="/companies/{{ company.slug }}/contacts/{{ slug }}">{{ c.name }}</a></td>
+      <td>{{ c.title }}</td>
+      <td>{{ c.role }}</td>
+      <td>{% if c.email %}<a href="mailto:{{ c.email }}">{{ c.email }}</a>{% endif %}</td>
+      <td>{% if c.linkedin %}<a href="{{ c.linkedin }}" target="_blank" rel="noopener">profile</a>{% endif %}</td>
+      <td><a href="/companies/{{ company.slug }}/contacts/{{ slug }}#drafts">drafts</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="empty">No contacts yet.</td></tr>
+    {% endfor %}
+  </table>
+  <p><a href="/companies/{{ company.slug }}/contacts/new">New contact</a></p>
+</section>
+
+{{ m.drafts_section(company, draft_contact, drafts, signal, observation, '/companies/' ~ company.slug) }}
+
+<section id="merge">
+  <h2>Merge</h2>
+  <form method="get" action="/companies/{{ company.slug }}/merge" class="inline-row">
+    <label>merge another company into this one
+      <select name="drop">
+        <option value="">choose a company</option>
+        {% for o in others %}<option value="{{ o.slug }}">{{ o.name }} ({{ o.stage }})</option>{% endfor %}
+      </select>
+    </label>
+    <button type="submit">Compare</button>
+  </form>
+</section>
+
+<section id="timeline">
+  <h2>Timeline ({{ company.interactions | length }})</h2>
+  {{ m.timeline(company, company.interactions) }}
+</section>
+
+{% if focus == 'lost_reason' %}
+<script>
+(function () {
+  var stage = document.getElementById('stage');
+  if (stage) { stage.value = 'lost'; }
+  var reason = document.getElementById('lost_reason');
+  if (reason) { reason.focus(); }
+})();
+</script>
+{% endif %}
+{% endblock %}

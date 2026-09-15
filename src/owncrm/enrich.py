@@ -1,0 +1,473 @@
+"""Look up missing company and contact fields with an AI command-line tool.
+
+Any of the supported CLIs (Claude Code, OpenAI Codex, Gemini CLI, Grok CLI) or
+a custom command runs non-interactively and returns JSON. The app only
+proposes values; a person confirms them before anything is written. Configure
+with `enrich_provider` ("auto" picks the first CLI on PATH), `enrich_command`
+(binary override, or the full command line for "custom"), `enrich_model` and
+`enrich_timeout` in config.toml. Nothing here imports the store: callers pass
+records in and apply the returned fields themselves.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import shlex
+import shutil
+import subprocess
+import tempfile
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from .models import Company, Contact, Country, normalise_country
+
+COMPANY_FIELDS = {
+    "website": ("string", "official website URL"),
+    "linkedin": ("string", "LinkedIn company page URL"),
+    "country": ("string", "HQ country as an ISO 3166-1 alpha-2 code "
+                          "(DE, GB, US, ...); null if unknown"),
+    "fte_estimate": ("string", "approximate headcount as a short string like '~25'"),
+    "ae_count": ("integer", "number of account executives or sales reps you can "
+                            "see on LinkedIn; null if you cannot tell"),
+    "product_oneliner": ("string", "one sentence saying what the product does and "
+                                   "for whom"),
+}
+CONTACT_FIELDS = {
+    "title": ("string", "current job title at the company"),
+    "linkedin": ("string", "personal LinkedIn profile URL"),
+}
+
+
+class EnrichError(Exception):
+    """The CLI could not be run or returned nothing usable."""
+
+
+@dataclass
+class Proposal:
+    fields: dict = field(default_factory=dict)   # field -> proposed value
+    missing: list[str] = field(default_factory=list)
+    sources: list[str] = field(default_factory=list)
+    notes: str = ""
+
+
+def _schema(fields: dict[str, tuple[str, str]]) -> dict:
+    props = {
+        key: {"type": [kind, "null"], "description": desc}
+        for key, (kind, desc) in fields.items()
+    }
+    props["sources"] = {"type": "array", "items": {"type": "string"},
+                        "description": "URLs you relied on"}
+    props["notes"] = {"type": "string",
+                      "description": "one short line on confidence or caveats"}
+    return {"type": "object", "properties": props,
+            "required": list(fields) + ["sources", "notes"],
+            "additionalProperties": False}
+
+
+def _known(pairs: list[tuple[str, object]]) -> str:
+    return "\n".join(f"- {k}: {v}" for k, v in pairs if v not in ("", None, []))
+
+
+def company_prompt(company: Company, missing: list[str]) -> str:
+    known = _known([
+        ("name", company.name), ("website", company.website),
+        ("linkedin", company.linkedin), ("country", company.country),
+        ("product", company.product_oneliner), ("tags", ", ".join(company.tags)),
+    ])
+    wanted = "\n".join(f"- {k}: {COMPANY_FIELDS[k][1]}" for k in missing)
+    return (
+        "You are filling gaps in a B2B sales CRM record. Use web search to find "
+        "the missing facts about this company; prefer the company's own site and "
+        "LinkedIn page. Return null for anything you cannot verify. Do not guess.\n\n"
+        f"Known:\n{known}\n\nFind:\n{wanted}\n"
+    )
+
+
+def contact_prompt(company: Company, contact: Contact, missing: list[str]) -> str:
+    known = _known([
+        ("name", contact.name), ("company", company.name),
+        ("company website", company.website), ("title", contact.title),
+        ("linkedin", contact.linkedin),
+    ])
+    wanted = "\n".join(f"- {k}: {CONTACT_FIELDS[k][1]}" for k in missing)
+    return (
+        "You are filling gaps in a B2B sales CRM record for one person. Use web "
+        "search; prefer LinkedIn and the company's own site. Only return facts "
+        "about this exact person at this company. Return null for anything you "
+        "cannot verify. Do not guess.\n\n"
+        f"Known:\n{known}\n\nFind:\n{wanted}\n"
+    )
+
+
+def extract_json(text: str) -> dict:
+    """Return the first balanced top-level {...} object in text.
+
+    Tolerates code fences and chatter before or after the object; braces inside
+    JSON strings are skipped. Raises EnrichError when there is no object.
+    """
+    text = text or ""
+    start = text.find("{")
+    while start != -1:
+        depth, in_string, escaped = 0, False, False
+        for i in range(start, len(text)):
+            ch = text[i]
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif ch == "\\":
+                    escaped = True
+                elif ch == '"':
+                    in_string = False
+            elif ch == '"':
+                in_string = True
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        value = json.loads(text[start:i + 1])
+                    except json.JSONDecodeError:
+                        break
+                    if isinstance(value, dict):
+                        return value
+                    break
+        start = text.find("{", start + 1)
+    snippet = " ".join(text.split())[:120]
+    raise EnrichError("enrichment returned no JSON object"
+                      + (f" (output began: {snippet!r})" if snippet else " (empty output)"))
+
+
+def _schema_instruction(prompt: str, schema: dict) -> str:
+    return (f"{prompt}\nReturn ONLY a JSON object matching this JSON schema, with no "
+            f"other text:\n{json.dumps(schema)}\n")
+
+
+class Provider:
+    """One CLI: how to call it, what environment it gets, how to read its output."""
+
+    name = ""
+    default_binary = ""
+    prompt_on_stdin = True
+
+    def __init__(self, binary: str = ""):
+        self.binary = binary or self.default_binary
+
+    def build_argv(self, schema_path: str, model: str, out_path: str = "",
+                   prompt: str = "", schema: dict | None = None) -> list[str]:
+        raise NotImplementedError
+
+    def stdin(self, prompt: str, schema: dict) -> str | None:
+        return prompt
+
+    def parse(self, stdout: str, out_file_text: str = "") -> dict:
+        return extract_json(stdout)
+
+    def env(self, environ) -> dict:
+        return dict(environ)
+
+    @property
+    def executable(self) -> str:
+        return self.binary
+
+
+class ClaudeProvider(Provider):
+    """Claude Code: `claude -p` with web search and a JSON schema (verified 2.1.211)."""
+
+    name, default_binary = "claude", "claude"
+
+    def build_argv(self, schema_path, model, out_path="", prompt="", schema=None):
+        argv = [self.binary, "-p", "--output-format", "json",
+                "--json-schema", json.dumps(schema or {}),
+                "--allowedTools", "WebSearch,WebFetch"]
+        if model:
+            argv += ["--model", model]
+        return argv
+
+    def env(self, environ):
+        # A nested session inherits CLAUDECODE; an API key would bypass the login.
+        return {k: v for k, v in environ.items()
+                if k not in ("CLAUDECODE", "ANTHROPIC_API_KEY")}
+
+    def parse(self, stdout, out_file_text=""):
+        try:
+            payload = json.loads(stdout)
+        except json.JSONDecodeError:
+            raise EnrichError("enrichment returned no JSON")
+        if not isinstance(payload, dict):
+            raise EnrichError("enrichment returned no structured output")
+        if payload.get("is_error"):
+            raise EnrichError(f"enrichment failed: {payload.get('result', '')}")
+        data = payload.get("structured_output")
+        if data is None:
+            try:
+                data = json.loads(payload.get("result", ""))
+            except (TypeError, json.JSONDecodeError):
+                raise EnrichError("enrichment returned no structured output")
+        return data
+
+
+class CodexProvider(Provider):
+    """OpenAI Codex: `codex exec` with --output-schema; the answer lands in a file.
+
+    Not installed when this was written: flags follow the Codex CLI docs. Web
+    search is not switched on here (see README).
+    """
+
+    name, default_binary = "codex", "codex"
+
+    def build_argv(self, schema_path, model, out_path="", prompt="", schema=None):
+        argv = [self.binary, "exec", "--skip-git-repo-check",
+                "--output-schema", schema_path, "--output-last-message", out_path]
+        if model:
+            argv += ["-m", model]
+        return argv + ["-"]
+
+    def parse(self, stdout, out_file_text=""):
+        text = out_file_text.strip() or stdout
+        try:
+            data = json.loads(text)
+            if isinstance(data, dict):
+                return data
+        except json.JSONDecodeError:
+            pass
+        return extract_json(text)
+
+
+class GeminiProvider(Provider):
+    """Gemini CLI: prompt on stdin, `-p` appends the instruction, JSON envelope."""
+
+    name, default_binary = "gemini", "gemini"
+    instruction = "Answer the request above. Output only the JSON object."
+
+    def build_argv(self, schema_path, model, out_path="", prompt="", schema=None):
+        argv = [self.binary, "-p", self.instruction, "--output-format", "json"]
+        if model:
+            argv += ["-m", model]
+        return argv
+
+    def stdin(self, prompt, schema):
+        return _schema_instruction(prompt, schema)
+
+    def parse(self, stdout, out_file_text=""):
+        try:
+            payload = json.loads(stdout)
+        except json.JSONDecodeError:
+            return extract_json(stdout)
+        if isinstance(payload, dict):
+            if payload.get("error"):
+                error = payload["error"]
+                message = error.get("message") if isinstance(error, dict) else error
+                raise EnrichError(f"enrichment failed: {message}")
+            if isinstance(payload.get("response"), str):
+                return extract_json(payload["response"])
+            return payload
+        raise EnrichError("enrichment returned no JSON object")
+
+
+class GrokProvider(Provider):
+    """Grok CLI: headless `grok -p <prompt>`; the whole prompt goes in argv.
+
+    Not installed when this was written: the output may be a JSON envelope or
+    plain text, so both are read.
+    """
+
+    name, default_binary = "grok", "grok"
+    prompt_on_stdin = False
+
+    def build_argv(self, schema_path, model, out_path="", prompt="", schema=None):
+        argv = [self.binary, "-p", _schema_instruction(prompt, schema or {}),
+                "--output-format", "json"]
+        if model:
+            argv += ["-m", model]
+        return argv
+
+    def stdin(self, prompt, schema):
+        return None
+
+    def parse(self, stdout, out_file_text=""):
+        try:
+            payload = json.loads(stdout)
+        except json.JSONDecodeError:
+            return extract_json(stdout)
+        if isinstance(payload, list):  # a message list: the last one is the answer
+            texts = [m.get("content") for m in payload
+                     if isinstance(m, dict) and isinstance(m.get("content"), str)]
+            return extract_json(texts[-1] if texts else "")
+        if isinstance(payload, dict):
+            for key in ("response", "result", "content", "text", "output"):
+                if isinstance(payload.get(key), str):
+                    return extract_json(payload[key])
+            return payload
+        raise EnrichError("enrichment returned no JSON object")
+
+
+class CustomProvider(Provider):
+    """Any command line: `{schema_file}` and `{model}` are substituted; prompt on stdin."""
+
+    name = "custom"
+
+    def build_argv(self, schema_path, model, out_path="", prompt="", schema=None):
+        return [part.replace("{schema_file}", schema_path).replace("{model}", model or "")
+                for part in shlex.split(self.binary)]
+
+    @property
+    def executable(self) -> str:
+        try:
+            parts = shlex.split(self.binary)
+        except ValueError:
+            return ""
+        return parts[0] if parts else ""
+
+
+PROVIDERS = {cls.name: cls for cls in
+             (ClaudeProvider, CodexProvider, GeminiProvider, GrokProvider, CustomProvider)}
+AUTO_ORDER = ("claude", "codex", "gemini", "grok")
+
+
+def resolve_provider(provider: str = "auto", command: str = "",
+                     which=shutil.which) -> Provider | None:
+    """Pick the provider for a config. None means no usable CLI was found.
+
+    "auto" with an `enrich_command` set uses the provider whose name starts the
+    command's file name (so `claude` or `/opt/bin/codex` keep working), and
+    treats anything else as a custom command line.
+    """
+    provider = (provider or "auto").strip().lower()
+    command = (command or "").strip()
+    if provider == "auto":
+        if command:
+            try:
+                base = Path(shlex.split(command)[0]).name.lower()
+            except (ValueError, IndexError):
+                base = ""
+            name = next((n for n in AUTO_ORDER if base.startswith(n)), "custom")
+            candidate = PROVIDERS[name](command)
+            return candidate if which(candidate.executable) else None
+        for name in AUTO_ORDER:
+            candidate = PROVIDERS[name]()
+            if which(candidate.executable):
+                return candidate
+        return None
+    if provider not in PROVIDERS:
+        raise EnrichError(f"unknown enrich_provider {provider!r}; use auto, "
+                          + ", ".join(PROVIDERS))
+    candidate = PROVIDERS[provider](command)
+    if not candidate.binary:
+        return None
+    return candidate if which(candidate.executable) else None
+
+
+class Enricher:
+    def __init__(self, provider: str = "auto", command: str = "", model: str = "",
+                 timeout: float = 180, runner=None, which=shutil.which):
+        self.requested = (provider or "auto").strip().lower()
+        self.command = command or ""
+        self.model = model or ""
+        self.timeout = float(timeout)
+        self.error = ""
+        try:
+            self.provider = resolve_provider(self.requested, self.command, which=which)
+        except EnrichError as exc:  # a bad config must not stop the web app
+            self.provider, self.error = None, str(exc)
+        self.runner = runner or self._run_cli
+
+    @property
+    def available(self) -> bool:
+        return self.provider is not None
+
+    @property
+    def provider_name(self) -> str:
+        return self.provider.name if self.provider else ""
+
+    def unavailable_reason(self) -> str:
+        if self.error:
+            return self.error
+        wanted = self.command or (self.requested if self.requested not in ("auto", "custom")
+                                  else "")
+        if wanted:
+            return (f"{wanted!r} not found; install it or set enrich_provider / "
+                    "enrich_command in config.toml")
+        if self.requested == "custom":
+            return "enrich_provider is custom but enrich_command is empty"
+        return ("no AI CLI found (looked for " + ", ".join(AUTO_ORDER) + "); install "
+                "one or set enrich_provider / enrich_command in config.toml")
+
+    # --- transport
+
+    def _run_cli(self, prompt: str, schema: dict) -> dict:
+        provider = self.provider
+        if provider is None:
+            raise EnrichError(self.unavailable_reason())
+        with tempfile.TemporaryDirectory(prefix="crm-enrich-") as tmp:
+            schema_path = str(Path(tmp) / "schema.json")
+            out_path = str(Path(tmp) / "output.txt")
+            Path(schema_path).write_text(json.dumps(schema), encoding="utf-8")
+            argv = provider.build_argv(schema_path, self.model, out_path=out_path,
+                                       prompt=prompt, schema=schema)
+            try:
+                proc = subprocess.run(argv, input=provider.stdin(prompt, schema),
+                                      capture_output=True, text=True,
+                                      timeout=self.timeout, env=provider.env(os.environ))
+            except FileNotFoundError:
+                raise EnrichError(f"{argv[0]!r} not found; set enrich_provider / "
+                                  "enrich_command in config.toml")
+            except subprocess.TimeoutExpired:
+                raise EnrichError(f"enrichment timed out after {int(self.timeout)} s")
+            if proc.returncode != 0:
+                tail = ((proc.stderr or "").strip() or (proc.stdout or "").strip())
+                tail = tail.splitlines()[-3:]
+                raise EnrichError(f"enrichment failed ({provider.name}): " + " | ".join(tail))
+            out = Path(out_path)
+            out_text = out.read_text(encoding="utf-8") if out.exists() else ""
+            data = provider.parse(proc.stdout or "", out_text)
+        if not isinstance(data, dict):
+            raise EnrichError("enrichment returned no JSON object")
+        return data
+
+    # --- proposals
+
+    @staticmethod
+    def _clean(data: dict, fields: dict[str, tuple[str, str]]) -> Proposal:
+        proposal = Proposal()
+        for key, (kind, _) in fields.items():
+            value = data.get(key)
+            if value in (None, "", []):
+                continue
+            if kind == "integer":
+                try:
+                    value = int(value)
+                except (TypeError, ValueError):
+                    continue
+            else:
+                value = " ".join(str(value).split())
+                if key == "country":
+                    value = normalise_country(value)
+                    if value not in {c.value for c in Country}:
+                        continue
+            proposal.fields[key] = value
+        sources = data.get("sources") or []
+        proposal.sources = [str(s) for s in sources if s]
+        proposal.notes = " ".join(str(data.get("notes") or "").split())
+        return proposal
+
+    def propose_company(self, company: Company) -> Proposal:
+        missing = [k for k in COMPANY_FIELDS if getattr(company, k) in ("", None)]
+        if not missing:
+            return Proposal(missing=[])
+        data = self.runner(company_prompt(company, missing), _schema(
+            {k: COMPANY_FIELDS[k] for k in missing}))
+        proposal = self._clean(data, {k: COMPANY_FIELDS[k] for k in missing})
+        proposal.missing = missing
+        return proposal
+
+    def propose_contact(self, company: Company, contact: Contact) -> Proposal:
+        missing = [k for k in CONTACT_FIELDS if getattr(contact, k) in ("", None)]
+        if not missing:
+            return Proposal(missing=[])
+        data = self.runner(contact_prompt(company, contact, missing), _schema(
+            {k: CONTACT_FIELDS[k] for k in missing}))
+        proposal = self._clean(data, {k: CONTACT_FIELDS[k] for k in missing})
+        proposal.missing = missing
+        return proposal
