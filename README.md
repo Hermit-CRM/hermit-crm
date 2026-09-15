@@ -40,11 +40,12 @@ owncrm --data ~/crm schedule install --serve     # daily sync, web app always on
 `owncrm init` asks three questions: **you** (your name and sending addresses),
 **BCC capture** (the tracking address and its app password) and **backup** (a
 private git remote). Skip any of them; rerun with `owncrm setup` or open the
-Setup page (`/setup`) in the web app. Add `--demo` for six fictional companies,
+Settings page (`/settings`) in the web app. Add `--demo` for six fictional companies,
 `--no-setup` to skip the questions. Python 3.11 or newer. Instead of `--data`
 you can set `OWNCRM_DATA=~/crm` or run commands from inside the folder.
 
-`owncrm doctor` checks the whole installation in one go.
+`owncrm doctor` checks the whole installation in one go. Every page of the
+web app has a Help link; `owncrm help [topic]` prints the same pages.
 
 ## Features
 
@@ -62,7 +63,8 @@ you can set `OWNCRM_DATA=~/crm` or run commands from inside the folder.
 - **Reports**: activity per week, funnel and conversion, time in stage,
   outcomes, message results by language and channel, data hygiene.
 - **BCC import**: BCC or forward mail to a Gmail address and it is logged on
-  the right contact; unmatched mail waits in an Inbox.
+  the right contact; unmatched mail waits in the review queue on the Settings
+  page.
 - **Calendar import**: past meetings from a secret ICS feed (no OAuth).
 - **Import** companies or contacts from CSV, TSV or `.xlsx`.
 - **Enrichment**: free "fetch from URL" (website or LinkedIn page), or any AI
@@ -127,6 +129,7 @@ owncrm --version
 owncrm init DIR [--demo] [--no-setup]
                                    create a data folder (git repo, config, agent rules)
 owncrm setup                       the setup questions again (you, BCC, backup, calendar)
+owncrm help [TOPIC]                how a feature works (the web app's /help pages)
 owncrm doctor [--online]           check Python, git, config, secrets, schedule, backup, updates
 owncrm schedule install [--at HH:MM] [--serve]
                                    daily sync --apply (launchd, systemd; schtasks is printed)
@@ -167,7 +170,7 @@ Two secrets exist: `bcc_password` (a Gmail app password) and
 
 ## BCC import setup
 
-The easy way: **Setup → BCC capture** in the web app (`/setup#bcc`) or
+The easy way: **Settings → BCC capture** in the web app (`/settings#bcc`) or
 `owncrm setup`. It suggests `you+crm@gmail.com` for Gmail, picks the IMAP server
 for Gmail, Outlook/Hotmail/Live and iCloud, stores the app password in
 `.secrets.toml` or the macOS Keychain, tests the connection with a dry run and
@@ -184,7 +187,8 @@ By hand: set `bcc_address`, `my_addresses` and optionally `bcc_ignore_domains`
 in `config.toml` and store `bcc_password` as a secret (see [Secrets](#secrets)).
 Then BCC that address on mail you send, or forward a thread to it, and run
 `owncrm bcc` (dry run) and `owncrm bcc --apply`. Mail that matches no contact or
-company waits on the Inbox page. `owncrm schedule install` runs it daily.
+company waits in the review queue on the Settings page (`/settings#inbox`).
+`owncrm schedule install` runs it daily.
 
 ## Calendar import setup
 
@@ -194,12 +198,12 @@ company waits on the Inbox page. `owncrm schedule install` runs it daily.
    - **Outlook / Microsoft 365**: Settings → Calendar → Shared calendars →
      Publish a calendar → copy the ICS link.
    - **iCloud**: share the calendar as a public calendar (`webcal://` works).
-2. Paste it in **Setup → Calendar** (`/setup#calendar`) or answer yes to the
+2. Paste it in **Settings → Calendar** (`/settings#calendar`) or answer yes to the
    calendar question of `owncrm setup`; it is stored as `calendar_ics_url` in
    `.secrets.toml` and tested with a dry run. By hand, see [Secrets](#secrets).
 3. `owncrm calendar`, then `owncrm calendar --apply` (or let `owncrm schedule
    install` run `sync` daily). Meetings with a known contact are logged as
-   `meeting` interactions; the rest wait in the Inbox.
+   `meeting` interactions; the rest wait in the review queue on the Settings page.
 
 ## Updating
 
@@ -256,8 +260,9 @@ simply does nothing until you add one with `git remote add origin <url>`.
 `owncrm init` writes `CLAUDE.md` and `AGENTS.md` (the same text) into the data
 folder: read `PIPELINE.md` first, use `owncrm show` / `digest` / `report`
 instead of opening many files, run `owncrm check` and `owncrm rebuild` after
-hand edits, never rewrite interaction bodies. Open the folder in Claude Code,
-Codex or any agent and ask for a pipeline review or a follow-up draft.
+hand edits, never rewrite interaction bodies, and `owncrm help <topic>` for
+how a feature works. Open the folder in Claude Code, Codex or any agent and
+ask for a pipeline review or a follow-up draft.
 
 ## Roadmap
 

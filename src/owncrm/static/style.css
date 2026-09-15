@@ -301,7 +301,7 @@ table.about th { white-space: nowrap; width: 1%; }
 nav a.help-link { margin-left: 4px; }
 .helpdoc-layout { display: flex; gap: 28px; align-items: flex-start; }
 .helpdoc-topics { flex: 0 0 200px; position: sticky; top: 12px; }
-.helpdoc-topics h2 { margin-top: 0; }
+.helpdoc-topics h2 { margin-top: 0; text-transform: none; }
 .helpdoc-topics ul { list-style: none; margin: 0; padding: 0; }
 .helpdoc-topics li { margin: 2px 0; font-size: 13px; }
 .helpdoc-topics li.current a { font-weight: 600; color: inherit; text-decoration: none; }

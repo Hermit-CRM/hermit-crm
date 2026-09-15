@@ -2,13 +2,13 @@
 {% block title %}Help: {{ title }}{% endblock %}
 {% block content %}
 <div class="helpdoc-layout">
-  <nav class="helpdoc-topics">
+  <div class="helpdoc-topics">
     <h2>Help</h2>
     <ul>
       {% for slug, name in topics %}<li{% if slug == topic %} class="current"{% endif %}><a href="/help/{{ slug }}">{{ name }}</a></li>{% endfor %}
     </ul>
     <p class="small">Same text: <code>owncrm help {{ '' if topic == 'index' else topic }}</code></p>
-  </nav>
+  </div>
   <article class="helpdoc">
 {{ body | safe }}
   </article>

@@ -24,7 +24,10 @@ Code (this repository):
 ```text
 src/owncrm/
 ├── cli.py                 # `owncrm` entry point (§6)
-├── datafolder.py          # --data resolution, `owncrm init [--demo]`, config docs
+├── datafolder.py          # --data resolution, `owncrm init [--demo]`, config docs, agent rules
+├── setup.py               # setup steps and settings sections shared by the CLI and /settings
+├── schedule.py            # `owncrm schedule`: launchd / systemd units for the daily sync
+├── doctor.py              # `owncrm doctor`: one ok/warn/fail line per check
 ├── models.py              # dataclasses, enums, validation, (de)serialisation
 ├── store.py               # file store and in-memory index (§3), DEFAULT_CONFIG
 ├── gitops.py              # commit and push (§4)
@@ -34,6 +37,7 @@ src/owncrm/
 ├── updates.py             # daily PyPI update check
 ├── messaging.py           # outreach drafts (§8.3) + default_messages.toml
 ├── bcc.py, calendar_sync.py, importer.py, enrich.py, scrape.py, filters.py, reports.py
+├── help/                  # help pages (§7): __init__.py renders <topic>.md, topic_for(path)
 ├── web.py                 # FastAPI app factory and routes (§8)
 ├── templates/*.html
 └── static/style.css
@@ -199,16 +203,32 @@ Rules: after the silent section comes `## Temp disqualified (N)` with one line p
 
 `owncrm enrich <slug> [--contact <cslug>] [--apply]` asks an AI CLI (`enrich_provider` = auto | claude | codex | gemini | grok | custom, plus `enrich_command`, `enrich_model`, `enrich_timeout` in config.toml; auto takes the first CLI on PATH; each provider in `owncrm/enrich.py` builds its argv, environment and output parser, and all output goes through `extract_json`) for the empty fields of a company (website, linkedin, country, fte_estimate, ae_count, product_oneliner) or a contact (title, linkedin) and prints the proposal with sources. Only `--apply` writes, with an `ai:` commit. Nothing is ever guessed silently: unverifiable fields come back as "not found".
 
+`owncrm help [topic]` prints a help page as Markdown (§7); without a topic, the index and the topic list. It needs no data folder.
+
 Output of `digest` and `show` is plain text meant to be pasted or piped into an AI session, so no ANSI colour, no tables wider than 120 characters.
 
-## 7. Agent rules
+## 7. Agent rules and help
 
 `owncrm init` writes `CLAUDE.md` and `AGENTS.md` into the data folder; the text is
-`AGENT_RULES` in `owncrm/datafolder.py`.
+`AGENT_RULES` in `owncrm/datafolder.py`. Its last reading rule points at `owncrm help`.
+
+Help lives in `owncrm/help/<topic>.md` (package data): one short page per topic
+(`index`, `pipeline`, `calendar`, `companies`, `contacts`, `interactions`, `messages`,
+`reports`, `settings`, `import`, `enrich`, `merge`, `cli`, `data-format`, `ai-agents`),
+each with a one-line summary under the title and a `Related:` line at the end, written
+from the code so every statement is true. `owncrm/help/__init__.py` lists the topics
+(`TOPICS`, in that order), reads them, renders Markdown to HTML with a small
+dependency-free converter (headings, paragraphs, unordered and ordered lists, fenced
+code, tables, inline code, bold, links; everything escaped, only http(s), site-relative
+and fragment hrefs) and maps a request path to a topic (`topic_for`: `/` → pipeline,
+`/companies/<slug>/contacts/…` → contacts, `…/interactions…` → interactions,
+`…/merge` → merge, `…/enrich` and `…/fetch` → enrich, `/settings`, `/setup`, `/inbox` →
+settings, `/help…` → index, and so on). The same pages are served at `/help` and
+`/help/<topic>` and printed by `owncrm help`.
 
 ## 8. Web app (`web.py` + templates)
 
-Server-rendered HTML. One base template with a top nav: Pipeline, Calendar, Companies, Contacts, Messages, Reports, New company, Import, Reload. Vanilla JS only for: submitting the stage dropdown on change, and prefilling the quick-add interaction form. Plain, fast, readable on a 13-inch laptop; no dark mode needed.
+Server-rendered HTML. One base template with a top nav: Pipeline, Calendar, Companies, Contacts, Messages, Reports, Settings (with the review-queue count and a red `!` when the last import failed or is two days old), Reload, the search box, and a right-aligned Help link to `/help/<topic>` for the current page (§7). Vanilla JS only for: submitting the stage dropdown on change, and prefilling the quick-add interaction form. Plain, fast, readable on a 13-inch laptop; no dark mode needed.
 
 | Method and route | Behaviour |
 |---|---|
@@ -237,10 +257,14 @@ Server-rendered HTML. One base template with a top nav: Pipeline, Calendar, Comp
 | GET/POST `/companies/{slug}/interactions/{id}/edit` | Edit an interaction, including date. |
 | GET `/import`, POST `/import/preview`, POST `/import` | Bulk import. Paste a tab-separated table or upload a .tsv/.csv. Preview lists every row with its planned action (create, update of empty fields only, skip) and warnings (unmapped country, non-numeric score) before anything is written; the import itself is one commit. Contact columns are prefixed `founder_` or `contact_`; unknown columns are kept as `column: value` lines in the notes. |
 | POST `/companies/{slug}/enrich`, POST `/companies/{slug}/enrich/apply` | Enrich button on the company page: runs the lookup (can take a minute), shows proposed values for empty fields with a checkbox and an editable input each, plus sources. Apply writes only the ticked fields. Same pair for contacts under `/companies/{slug}/contacts/{cslug}/enrich`. |
-| GET `/inbox` | BCC inbox: the tracking address, the last import (time and summary, or the error), an Import now button, and every mail waiting for a company with its reason (personal address, unknown domain, several matches), the body collapsed, a company field (datalist of slugs), first and last name prefilled from the mail, and Log at company / Discard buttons. The nav shows `Inbox (N)` and a red `!` when the last run failed or is two days old. |
-| POST `/bcc/import` | Import now: the same run as `owncrm bcc --apply`; flashes the summary or the error. |
-| POST `/calendar/import` | "Import meetings now" (on `/inbox` and `/calendar`, form field `back`): the same run as `owncrm calendar --apply`; flashes the summary or the error. `/calendar` shows **Meetings this week** from `inbox/upcoming.json`, each row linked to its companies. |
-| POST `/inbox/{id}/assign`, POST `/inbox/{id}/discard` | Log an inbox item at a company (uses the contact with that email, else fills the email of a same-named contact without one, else creates the contact) in one commit; or discard it (remembered in `inbox/discarded.tsv`). |
+| GET `/settings` | The Settings page, always in the nav; the first request to `/` without an `owner_email` redirects here once per server start ("Skip for now" goes back). Sections, each an `id` anchor: **You**, **BCC capture**, **Calendar**, **Backup** (the setup steps of `owncrm/setup.py`, with done/pending badges), **Enrichment** (`enrich_provider`, `enrich_command`, `enrich_model`, `enrich_timeout`; shows the resolved provider or `unavailable_reason()` with the bare-PATH hint), **Outcomes** (`outcomes` as a one-per-line textarea, `message_window_days`, `silent_days`), the **Review queue** (below), **Schedule** (read-only `schedule.status()` plus the install command) and **About** (version, update check, data folder, data format, `owncrm doctor`). Plain settings are written to `config.toml` through `setup.set_config_values` (comments kept); every save re-reads the config and refreshes the store's silent threshold, the message window, the enricher, BCC and calendar settings without a restart. GET `/setup` and `/inbox` redirect here with 301 (`/settings`, `/settings#inbox`). |
+| POST `/settings/you`, `/settings/bcc`, `/settings/bcc/test`, `/settings/backup`, `/settings/calendar` | The setup steps; the same handlers also answer under `/setup/...`. CSRF: a per-process token in every form, checked with `hmac.compare_digest` (403 otherwise). Success redirects to `/settings?flash=...#<section>`; a validation error re-renders the whole page with status 400 and the values kept. |
+| POST `/settings/enrichment`, POST `/settings/outcomes` | Same pattern. Enrichment refuses an unknown provider, `custom` without a command, and a timeout below 1. Outcomes refuses an empty list, a duplicate (case-insensitive) and day counts below 1. |
+| Review queue (`/settings#inbox`) | The former BCC inbox: the tracking address, the last import (time and summary, or the error), an Import now button, the last meeting import with its button, and every mail or meeting waiting for a company with its reason (personal address, unknown domain, several matches), the body collapsed, a company field (datalist of slugs), first and last name prefilled, and Log at company / Discard buttons. The nav shows `Settings (N)` and a red `!` when the last run failed or is two days old. |
+| POST `/bcc/import` | Import now: the same run as `owncrm bcc --apply`; flashes the summary or the error at `/settings#inbox`. |
+| POST `/calendar/import` | "Import meetings now" (on `/settings` and `/calendar`, form field `back`; `/inbox` is still accepted as the old name and lands on `/settings#inbox`): the same run as `owncrm calendar --apply`; flashes the summary or the error. `/calendar` shows **Meetings this week** from `inbox/upcoming.json`, each row linked to its companies. |
+| POST `/inbox/{id}/assign`, POST `/inbox/{id}/discard` | Log a queued item at a company (uses the contact with that email, else fills the email of a same-named contact without one, else creates the contact) in one commit; or discard it (remembered in `inbox/discarded.tsv`). Both redirect to `/settings#inbox`; an unknown company re-renders the Settings page with status 400. |
+| GET `/help`, GET `/help/{topic}` | The help pages (§7) rendered inside the base template with a topic list on the left; unknown topic → 404. |
 | POST `/reload` | Rebuild index, redirect back. |
 | GET `/health` | JSON: counts, last commit sha, last push status and time, validation problems. |
 
