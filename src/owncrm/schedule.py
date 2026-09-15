@@ -114,11 +114,21 @@ def logs_dir(ctx: Context) -> Path:
     return ctx.home / "Library" / "Logs"
 
 
+# launchd and systemd start jobs with a bare PATH; the enrich CLIs (claude,
+# codex, ...) usually live in one of these. owncrm/enrich.py searches them too.
+JOB_PATH = "/usr/local/bin:/opt/homebrew/bin:~/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+
+def job_path(ctx: Context) -> str:
+    return JOB_PATH.replace("~", str(ctx.home))
+
+
 def sync_plist(ctx: Context, hour: int, minute: int) -> bytes:
     log = str(logs_dir(ctx) / "owncrm-sync.log")
     return plistlib.dumps({
         "Label": SYNC_LABEL,
         "ProgramArguments": ctx.sync_args(),
+        "EnvironmentVariables": {"PATH": job_path(ctx)},
         "StartCalendarInterval": {"Hour": hour, "Minute": minute},
         "StandardOutPath": log,
         "StandardErrorPath": log,
@@ -131,6 +141,7 @@ def serve_plist(ctx: Context) -> bytes:
     return plistlib.dumps({
         "Label": SERVE_LABEL,
         "ProgramArguments": ctx.serve_args(),
+        "EnvironmentVariables": {"PATH": job_path(ctx)},
         "RunAtLoad": True,
         "KeepAlive": True,
         "StandardOutPath": log,
@@ -184,6 +195,7 @@ def sync_service(ctx: Context) -> str:
     return ("[Unit]\nDescription=OwnCRM daily sync (BCC and calendar import)\n\n"
             "[Service]\nType=oneshot\n"
             f"WorkingDirectory={ctx.data_dir}\n"
+            f"Environment=PATH={job_path(ctx)}\n"
             f"ExecStart={_exec_line(ctx.sync_args())}\n")
 
 
@@ -196,6 +208,7 @@ def sync_timer(hour: int, minute: int) -> str:
 def serve_service(ctx: Context) -> str:
     return ("[Unit]\nDescription=OwnCRM web app on 127.0.0.1\n\n"
             f"[Service]\nWorkingDirectory={ctx.data_dir}\n"
+            f"Environment=PATH={job_path(ctx)}\n"
             f"ExecStart={_exec_line(ctx.serve_args())}\nRestart=always\nRestartSec=5\n\n"
             "[Install]\nWantedBy=default.target\n")
 
