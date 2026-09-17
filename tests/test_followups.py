@@ -34,7 +34,7 @@ def test_inbound_last_means_you_owe_a_reply(seeded):
 
     assert [(r.slug, r.kind, r.days) for r in rows] == [("acme", REPLY, 3)]
     assert rows[0].who == "Jane Roe"
-    assert "no reply from you" in rows[0].reason
+    assert rows[0].reason == "Jane Roe wrote, no reply from you"
 
 
 def test_your_own_reply_clears_the_row(seeded):

@@ -59,9 +59,11 @@ class Followup:
 
     @property
     def reason(self) -> str:
+        """Why this is on the list. The day count is a column of its own, so it
+        is deliberately not repeated here."""
         if self.kind == REPLY:
-            return f"{self.who or 'they'} wrote {self.days}d ago, no reply from you"
-        return f"you wrote {self.who or 'them'} {self.days}d ago, nothing back"
+            return f"{self.who or 'they'} wrote, no reply from you"
+        return f"you wrote {self.who or 'them'}, nothing back"
 
 
 def _is_greeting(line: str) -> bool:

@@ -33,6 +33,10 @@ and `stage_history`), migrated automatically in one commit.
   three interactions for each company you are about to talk to. It reads the
   `upcoming.json` the calendar import already writes, so it is instant and works
   offline.
+- **The pipeline board works on a phone**: the filter block folds behind a
+  "Filters" toggle and the four stage columns stack, so the first screen is the
+  follow-up radar and your companies rather than controls. Unchanged above
+  760px.
 - **`hermitcrm serve --host`** (config key `host`). `--host 0.0.0.0` puts the
   web app on your phone over the local network, and prints the address to type
   rather than `0.0.0.0`. Hermit CRM has no password, so it also prints a warning
