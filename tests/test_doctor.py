@@ -121,3 +121,25 @@ def test_cli_doctor(folder, monkeypatch, capsys):
     assert cli.main(["doctor", "--online"], root=folder) == 1
     assert seen["online"] is True and seen["root"] == folder
     assert "fail  git: missing" in capsys.readouterr().out
+
+
+def test_doctor_schedule_names_the_folder_the_job_actually_serves(tmp_path):
+    """A schedule installed for another folder is not this folder's schedule."""
+    from hermitcrm import schedule
+
+    mine = init_folder(tmp_path / "mine")
+    theirs = tmp_path / "theirs"
+    theirs.mkdir()
+    home = tmp_path / "home"
+    runner = lambda argv, **kw: subprocess.CompletedProcess(argv, 1, "", "")  # noqa: E731
+    schedule.install(schedule.Context(data_dir=theirs, home=home, platform="darwin",
+                                      runner=runner, env={}, exe=["/bin/hermitcrm"],
+                                      uid=501))
+
+    checks = {c.name: c for c in doctor.run_checks(mine, env={}, which=lambda n: "/bin/" + n,
+                                                   runner=runner, platform="darwin",
+                                                   home=home, update_fetcher=lambda *a: None)}
+
+    assert checks["schedule"].status == "warn"
+    assert str(theirs.resolve()) in checks["schedule"].detail
+

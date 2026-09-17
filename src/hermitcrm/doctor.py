@@ -124,9 +124,14 @@ def run_checks(root: Path, *, online: bool = False, env: dict | None = None,
         ctx = schedule.Context(data_dir=root, home=home or Path.home(), platform=platform,
                                runner=runner, env=env)
         state = schedule.status(ctx)
-        add("schedule", OK if state["installed"] else WARN,
-            "; ".join(state["lines"][:1]) if state["installed"]
-            else "daily sync not scheduled; run hermitcrm schedule install")
+        if state["installed"]:
+            add("schedule", OK, "; ".join(state["lines"][:1]))
+        elif state.get("elsewhere"):
+            add("schedule", WARN,
+                f"the daily sync is scheduled for {state['elsewhere']}, not this folder; "
+                "a machine has one schedule, and hermitcrm schedule install takes it over")
+        else:
+            add("schedule", WARN, "daily sync not scheduled; run hermitcrm schedule install")
     except Exception as exc:
         add("schedule", WARN, f"could not check: {exc}")
 

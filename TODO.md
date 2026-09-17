@@ -45,4 +45,11 @@ Roadmap and open items. Personal items live in the private data folder.
 - [ ] Attio / Notion export headers for import.
 - [ ] Show HN, r/selfhosted, Obsidian forum posts.
 - [ ] Validate contact emails (must contain `@`) in the store; the forms accept any string today.
-- [ ] The store commits with `git add -A`; restrict it to the data paths (companies/, inbox/, PIPELINE.md, config.toml, messages.toml) so stray folders in the data repo are never committed.
+- [x] The store commits with `git add -A`; restrict it to the data paths. Done
+      2026-09-17 by recording the files each write touches (`Store.take_touched`)
+      and scoping `commit(message, paths)` to them, so a write commits its own
+      record and leaves the rest of the folder alone.
+- [ ] WhatsApp: log WhatsApp conversations as interactions. Two routes worth
+      comparing first: importing an exported chat `.txt` (no account, no
+      approval, but manual and one-shot) and the WhatsApp Business Cloud API
+      (live, but needs a Meta business account and number verification).

@@ -172,6 +172,22 @@ def _launchctl_load(ctx: Context, path: Path, label: str, lines: list[str]) -> N
         lines.append(f"could not load {label}; try: launchctl bootstrap {domain} {path}")
 
 
+def job_data_dir(args) -> Path | None:
+    """The data folder an installed job serves, read from its own `--data DIR`.
+
+    One machine has one `io.hermitcrm.sync`, so a job installed for another
+    folder is the reason `status` can find a plist that has nothing to do with
+    the folder being asked about.
+    """
+    args = [str(a) for a in (args or [])]
+    for i, arg in enumerate(args):
+        if arg == "--data" and i + 1 < len(args):
+            return Path(args[i + 1]).expanduser().resolve()
+        if arg.startswith("--data="):
+            return Path(arg.split("=", 1)[1]).expanduser().resolve()
+    return None
+
+
 def plist_value(ctx: Context, path: Path, key: str):
     """Read one plist key without modifying the file (note the ``-o -``)."""
     try:
@@ -198,6 +214,16 @@ def units_dir(ctx: Context) -> Path:
 def _exec_line(args: list[str]) -> str:
     return " ".join(f'"{a}"' if re.search(r'[\s"\\]', a) else a
                     for a in (x.replace("\\", "\\\\").replace('"', '\\"') for x in args))
+
+
+def unit_data_dir(path: Path) -> Path | None:
+    """The data folder a systemd unit serves, from its WorkingDirectory."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    m = re.search(r"^WorkingDirectory=(.*)$", text, re.M)
+    return Path(m.group(1).strip()).expanduser().resolve() if m else None
 
 
 def sync_service(ctx: Context) -> str:
@@ -319,19 +345,30 @@ def remove(ctx: Context) -> list[str]:
 
 
 def status(ctx: Context) -> dict:
-    """{'installed': bool, 'lines': [...]} describing the schedule."""
+    """{'installed': bool, 'elsewhere': Path|None, 'lines': [...]}.
+
+    `installed` means a daily sync is scheduled *for this data folder*. A job
+    installed for a different folder leaves `installed` False and names that
+    folder in `elsewhere`: the machine has one sync slot, so the two facts are
+    not the same question, and answering the first with the second is how
+    `doctor` used to call a folder scheduled that was not.
+    """
     kind = _platform_kind(ctx.platform)
     lines: list[str] = []
     installed = False
+    elsewhere: Path | None = None
     if kind == "mac":
         for label in (SYNC_LABEL, SERVE_LABEL):
             path = agents_dir(ctx) / f"{label}.plist"
             if not path.exists():
                 lines.append(f"{label}: not installed")
                 continue
-            if label == SYNC_LABEL:
-                installed = True
             args = plist_value(ctx, path, "ProgramArguments") or []
+            folder = job_data_dir(args)
+            other = folder if folder is not None and folder != ctx.data_dir else None
+            if label == SYNC_LABEL:
+                installed = other is None
+                elsewhere = other
             when = plist_value(ctx, path, "StartCalendarInterval") or {}
             at = (f" daily at {int(when.get('Hour', 0)):02d}:{int(when.get('Minute', 0)):02d}"
                   if when else "")
@@ -339,17 +376,21 @@ def status(ctx: Context) -> dict:
             if not ctx.dry:
                 code = ctx.run(["launchctl", "print", f"gui/{ctx.uid}/{label}"], [])
                 loaded = ", loaded" if code == 0 else ", not loaded"
-            lines.append(f"{label}: installed{at}{loaded}: {' '.join(map(str, args))}")
+            whose = f", for {other}" if other else ""
+            lines.append(f"{label}: installed{at}{loaded}{whose}: {' '.join(map(str, args))}")
     elif kind == "linux":
         timer = units_dir(ctx) / f"{SYNC_UNIT}.timer"
-        installed = timer.exists()
-        if installed:
+        if timer.exists():
+            folder = unit_data_dir(units_dir(ctx) / f"{SYNC_UNIT}.service")
+            elsewhere = folder if folder is not None and folder != ctx.data_dir else None
+            installed = elsewhere is None
             m = re.search(r"^OnCalendar=(.*)$", timer.read_text(encoding="utf-8"), re.M)
-            lines.append(f"{SYNC_UNIT}.timer: installed ({m.group(1) if m else '?'})")
+            whose = f", for {elsewhere}" if elsewhere else ""
+            lines.append(f"{SYNC_UNIT}.timer: installed ({m.group(1) if m else '?'}){whose}")
         else:
             lines.append(f"{SYNC_UNIT}.timer: not installed")
         serve = units_dir(ctx) / f"{SERVE_UNIT}.service"
         lines.append(f"{SERVE_UNIT}.service: {'installed' if serve.exists() else 'not installed'}")
     else:
         lines.append(f'Windows: check with: schtasks /Query /TN "{WIN_SYNC_TASK}"')
-    return {"installed": installed, "lines": lines}
+    return {"installed": installed, "elsewhere": elsewhere, "lines": lines}

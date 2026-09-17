@@ -54,6 +54,48 @@ Settings page (`/settings`) in the web app. Add `--demo` for six fictional compa
 `hermitcrm doctor` checks the whole installation in one go. Every page of the
 web app has a Help link; `hermitcrm help [topic]` prints the same pages.
 
+## Your first company
+
+With the app running at http://127.0.0.1:8765, click **New company**, type a
+name and a country, and save. Or do the same from the terminal:
+
+```bash
+hermitcrm --data ~/crm add company "Acme BV" --country NL --website acme.example.com
+# company acme created: companies/acme/company.md
+```
+
+Either way one file now exists, and it is the whole record:
+
+```text
+~/crm/companies/acme/company.md
+---
+name: Acme BV
+slug: acme
+website: https://acme.example.com
+country: NL
+source: other
+stage: prospect
+stage_changed: 2026-09-17
+...
+```
+
+and one commit records it, `company: acme created`. Open the company page and
+add a contact, then log the first email:
+
+```bash
+hermitcrm --data ~/crm add contact acme "Jane Roe" --title CTO --email jane@example.com
+hermitcrm --data ~/crm add interaction acme --channel email --direction out \
+    --contact jane-roe --subject "Intro" --body "Hi Jane, ..."
+```
+
+The contact becomes `companies/acme/contacts/jane-roe.md`, the mail becomes a
+file under `companies/acme/interactions/`, and Acme moves from prospect to
+engaged because you have now spoken to them. Three files, three commits,
+`git log` for the history. `hermitcrm show acme` prints the lot.
+
+That is the entire data model: a folder per company, a file per contact and a
+file per conversation. Everything below is convenience on top of it.
+
 ## Features
 
 - **Pipeline board** with stages prospect, reached out, discovery, offer, won,
@@ -157,6 +199,10 @@ hermitcrm digest [--days 7]           recent interactions, oldest first
 hermitcrm report [--days N | --from D --to D] [--md]
 hermitcrm check                       validate every file (exit 1 on problems)
 hermitcrm rebuild                     regenerate PIPELINE.md and commit
+hermitcrm add company NAME [--country NL] [--website URL] [--stage S] [--next-step TEXT] [--set FIELD=VALUE ...]
+hermitcrm add contact SLUG NAME [--title T] [--email E] [--phone P] [--role R]
+hermitcrm add interaction SLUG --channel email|linkedin|call|meeting --direction in|out
+                                   [--contact CSLUG] [--subject S] [--date D] [--body TEXT|-]
 hermitcrm import FILE [--mode companies|contacts] [--map HEADER=FIELD] [--apply]
 hermitcrm fetch <slug> [--url URL] [--apply]
 hermitcrm enrich <slug> [--contact SLUG] [--apply]
@@ -278,13 +324,15 @@ simply does nothing until you add one with `git remote add origin <url>`.
 folder: read `PIPELINE.md` first, use `hermitcrm show` / `digest` / `report`
 instead of opening many files, run `hermitcrm check` and `hermitcrm rebuild` after
 hand edits, never rewrite interaction bodies, and `hermitcrm help <topic>` for
-how a feature works. Open the folder in Claude Code, Codex or any agent and
-ask for a pipeline review or a follow-up draft.
+how a feature works. To write, an agent uses `hermitcrm add company|contact|
+interaction`, which validates the fields and commits, rather than composing
+YAML by hand. Open the folder in Claude Code, Codex or any agent and ask for a
+pipeline review or a follow-up draft.
 
 ## Roadmap
 
-- TODO: scheduling. Run `hermitcrm sync --apply` daily without setting up
-  launchd, systemd or cron by hand.
+- WhatsApp: log WhatsApp conversations as interactions, from an exported chat
+  or the Business Cloud API.
 - Per-record history and restore in the web app.
 - More draft languages out of the box.
 
