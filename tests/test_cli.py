@@ -6,11 +6,11 @@ from datetime import datetime
 from pathlib import Path
 
 
-from owncrm.gitops import GitOps
-from owncrm.store import Store
+from hermitcrm.gitops import GitOps
+from hermitcrm.store import Store
 from conftest import FIXED_NOW
 
-from owncrm import cli as crm
+from hermitcrm import cli as crm
 
 
 def run(args, cwd):
@@ -356,7 +356,7 @@ def test_cli_import_mode_and_map_flags(tmp_path, capsys):
 
 
 def test_cli_enrich_dry_run_and_apply(tmp_path, capsys, monkeypatch):
-    from owncrm.enrich import Enricher, Proposal
+    from hermitcrm.enrich import Enricher, Proposal
     store = fixed_store(tmp_path)
     store.create_company("Acme")
 

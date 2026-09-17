@@ -3,7 +3,7 @@
 import json
 import threading
 
-from owncrm import updates
+from hermitcrm import updates
 
 DAY = 24 * 60 * 60
 
@@ -55,12 +55,12 @@ def test_opt_outs(tmp_path):
     assert updates.check({"update_check": False}, fetcher=fake("9.0", calls),
                          cache=tmp_path / "x.json", env={}) == ""
     assert updates.check({}, fetcher=fake("9.0", calls), cache=tmp_path / "x.json",
-                         env={"OWNCRM_NO_UPDATE_CHECK": "1"}) == ""
+                         env={"HERMITCRM_NO_UPDATE_CHECK": "1"}) == ""
     assert calls == [] and not (tmp_path / "x.json").exists()
 
 
 def test_background_notice_never_blocks(tmp_path, monkeypatch):
-    monkeypatch.delenv("OWNCRM_NO_UPDATE_CHECK", raising=False)
+    monkeypatch.delenv("HERMITCRM_NO_UPDATE_CHECK", raising=False)
     gate = threading.Event()
 
     def slow():
@@ -78,14 +78,14 @@ def test_background_notice_never_blocks(tmp_path, monkeypatch):
 
 def test_footer_version_and_nav_notice(tmp_path):
     from fastapi.testclient import TestClient
-    from owncrm import __version__
-    from owncrm.web import create_app
+    from hermitcrm import __version__
+    from hermitcrm.web import create_app
 
     (tmp_path / "companies").mkdir()
     app = create_app(tmp_path, config={"push_enabled": False, "update_check": True})
     client = TestClient(app)
     page = client.get("/companies").text
-    assert f"OwnCRM v{__version__}" in page and "available:" not in page
+    assert f"Hermit CRM v{__version__}" in page and "available:" not in page
     app.state.update_notice.available = "9.9.9"
     page = client.get("/companies").text
-    assert "v9.9.9 available: <code>pipx upgrade owncrm</code>" in page
+    assert "v9.9.9 available: <code>pipx upgrade hermitcrm</code>" in page

@@ -1,5 +1,5 @@
-"""owncrm/help: the Markdown pages, the converter, the topic mapping, the /help
-routes and `owncrm help`."""
+"""hermitcrm/help: the Markdown pages, the converter, the topic mapping, the /help
+routes and `hermitcrm help`."""
 
 from __future__ import annotations
 
@@ -9,11 +9,11 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from owncrm import cli
-from owncrm import help as helpdocs
-from owncrm.datafolder import AGENT_RULES, init_folder
-from owncrm.store import load_config
-from owncrm.web import create_app
+from hermitcrm import cli
+from hermitcrm import help as helpdocs
+from hermitcrm.datafolder import AGENT_RULES, init_folder
+from hermitcrm.store import load_config
+from hermitcrm.web import create_app
 
 
 # ------------------------------------------------------------------ the pages
@@ -41,7 +41,7 @@ def test_folder_and_topic_list_agree_and_index_links_every_topic():
 
 
 def test_agent_rules_point_at_help():
-    assert "`owncrm help <topic>` (topics: `owncrm help`)" in AGENT_RULES
+    assert "`hermitcrm help <topic>` (topics: `hermitcrm help`)" in AGENT_RULES
 
 
 # --------------------------------------------------------------- the converter
@@ -111,13 +111,13 @@ def client(tmp_path: Path):
 
 def test_help_routes(client):
     r = client.get("/help")
-    assert r.status_code == 200 and "<h1>OwnCRM help</h1>" in r.text
+    assert r.status_code == 200 and "<h1>Hermit CRM help</h1>" in r.text
     assert 'href="/help/pipeline"' in r.text
     r = client.get("/help/data-format")
     assert r.status_code == 200 and "<h1>Data format</h1>" in r.text
     assert "<table>" in r.text and "<td>stage_history</td>" in r.text
     assert 'class="current"><a href="/help/data-format">' in r.text
-    assert "owncrm help data-format" in r.text
+    assert "hermitcrm help data-format" in r.text
     assert client.get("/help/nope").status_code == 404
     assert client.get("/help/..%2Fstore").status_code == 404
 
@@ -140,7 +140,7 @@ def test_every_page_links_to_its_help_topic(client):
 def test_cli_help_prints_index_topic_and_errors(capsys):
     assert cli.main(["help"]) == 0
     out = capsys.readouterr().out
-    assert out.startswith("# OwnCRM help") and "Topics: index, pipeline," in out
+    assert out.startswith("# Hermit CRM help") and "Topics: index, pipeline," in out
     assert cli.main(["help", "cli"]) == 0
     out = capsys.readouterr().out
     assert out == helpdocs.read("cli")
@@ -151,5 +151,5 @@ def test_cli_help_prints_index_topic_and_errors(capsys):
 
 def test_cli_help_needs_no_data_folder(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("OWNCRM_DATA", raising=False)
+    monkeypatch.delenv("HERMITCRM_DATA", raising=False)
     assert cli.main(["help", "ai-agents"]) == 0

@@ -1,5 +1,5 @@
 """Report rows: the Rows registry behind every number, the /reports/rows page,
-configurable message outcomes, and `owncrm report --md` staying byte-identical."""
+configurable message outcomes, and `hermitcrm report --md` staying byte-identical."""
 
 from __future__ import annotations
 
@@ -12,16 +12,16 @@ from urllib.parse import quote_plus, unquote_plus
 import pytest
 from fastapi.testclient import TestClient
 
-from owncrm import cli as crm
-from owncrm import reports
-from owncrm.datafolder import init_folder
-from owncrm.store import Store, load_config
-from owncrm.web import create_app
+from hermitcrm import cli as crm
+from hermitcrm import reports
+from hermitcrm.datafolder import init_folder
+from hermitcrm.store import Store, load_config
+from hermitcrm.web import create_app
 from conftest import FIXED_NOW
 
 TODAY = FIXED_NOW.date()  # 2026-09-14
 
-# `owncrm report --md` for the demo folder (window 14d, today 2026-09-14, default
+# `hermitcrm report --md` for the demo folder (window 14d, today 2026-09-14, default
 # outcomes): the rows registry must not change a single byte of it.
 BASELINE_30D = """\
 # Report 2026-08-16 to 2026-09-14 (30d; previous 2026-07-17 to 2026-08-15)

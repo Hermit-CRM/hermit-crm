@@ -1,4 +1,4 @@
-"""--data resolution, `owncrm init` (plain and --demo), config docs, --version."""
+"""--data resolution, `hermitcrm init` (plain and --demo), config docs, --version."""
 
 import re
 import subprocess
@@ -9,12 +9,12 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from owncrm import __version__, migrations
-from owncrm import cli
-from owncrm.datafolder import (CONFIG_DOCS, INIT_COMMIT, NotDataFolder, init_folder,
+from hermitcrm import __version__, migrations
+from hermitcrm import cli
+from hermitcrm.datafolder import (CONFIG_DOCS, INIT_COMMIT, NotDataFolder, init_folder,
                                render_config, resolve_data_dir)
-from owncrm.store import DEFAULT_CONFIG, Store, load_config
-from owncrm.web import create_app
+from hermitcrm.store import DEFAULT_CONFIG, Store, load_config
+from hermitcrm.web import create_app
 
 NOW = datetime(2026, 9, 14, 10, 30)
 
@@ -33,28 +33,28 @@ def test_resolution_order(tmp_path):
         (p / "companies").mkdir(parents=True)
     (c).mkdir()
     (c / "config.toml").write_text("")
-    assert resolve_data_dir(a, env={"OWNCRM_DATA": str(b)}, cwd=c) == a.resolve()
-    assert resolve_data_dir(None, env={"OWNCRM_DATA": str(b)}, cwd=c) == b.resolve()
+    assert resolve_data_dir(a, env={"HERMITCRM_DATA": str(b)}, cwd=c) == a.resolve()
+    assert resolve_data_dir(None, env={"HERMITCRM_DATA": str(b)}, cwd=c) == b.resolve()
     assert resolve_data_dir(None, env={}, cwd=c) == c.resolve()  # config.toml alone counts
-    with pytest.raises(NotDataFolder, match=r"Not an OwnCRM data folder: .*empty\. Run `owncrm init .*empty`\."):
+    with pytest.raises(NotDataFolder, match=r"Not an Hermit CRM data folder: .*empty\. Run `hermitcrm init .*empty`\."):
         resolve_data_dir(tmp_path / "empty", env={})
 
 
 def test_cli_exits_2_outside_a_data_folder(tmp_path, monkeypatch, capsys):
-    monkeypatch.delenv("OWNCRM_DATA", raising=False)
+    monkeypatch.delenv("HERMITCRM_DATA", raising=False)
     monkeypatch.chdir(tmp_path)
     assert cli.main(["check"]) == 2
-    assert "Not an OwnCRM data folder" in capsys.readouterr().err
+    assert "Not an Hermit CRM data folder" in capsys.readouterr().err
     assert cli.main(["--data", str(tmp_path / "nope"), "digest"]) == 2
 
 
 def test_cli_uses_env_and_data_option(tmp_path, monkeypatch, capsys):
     folder = init_folder(tmp_path / "crm", demo=True, now=NOW)
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("OWNCRM_DATA", str(folder))
+    monkeypatch.setenv("HERMITCRM_DATA", str(folder))
     assert cli.main(["show", "northwind-robotics"]) == 0
     assert "Northwind Robotics" in capsys.readouterr().out
-    monkeypatch.delenv("OWNCRM_DATA")
+    monkeypatch.delenv("HERMITCRM_DATA")
     assert cli.main(["--data", str(folder), "check"]) == 0
     assert "0 problems" in capsys.readouterr().out or True
 
@@ -62,7 +62,7 @@ def test_cli_uses_env_and_data_option(tmp_path, monkeypatch, capsys):
 def test_version(capsys):
     with pytest.raises(SystemExit) as exc:
         cli.main(["--version"])
-    assert exc.value.code == 0 and capsys.readouterr().out.strip() == f"owncrm {__version__}"
+    assert exc.value.code == 0 and capsys.readouterr().out.strip() == f"hermitcrm {__version__}"
 
 
 # ------------------------------------------------------------------ init
@@ -71,13 +71,13 @@ def test_version(capsys):
 def test_init_creates_folder_repo_and_one_commit(tmp_path):
     folder = init_folder(tmp_path / "crm", now=NOW)
     for name in ("config.toml", ".gitignore", "CLAUDE.md", "AGENTS.md", "MESSAGING.md",
-                 "PIPELINE.md", ".owncrm-format", "companies/.gitkeep", "inbox/.gitkeep"):
+                 "PIPELINE.md", ".hermitcrm-format", "companies/.gitkeep", "inbox/.gitkeep"):
         assert (folder / name).exists(), name
     assert (folder / "CLAUDE.md").read_text() == (folder / "AGENTS.md").read_text()
-    assert "owncrm show <slug>" in (folder / "CLAUDE.md").read_text()
+    assert "hermitcrm show <slug>" in (folder / "CLAUDE.md").read_text()
     assert ".secrets.toml" in (folder / ".gitignore").read_text().split()
-    assert (folder / ".owncrm-format").read_text() == f"{migrations.LATEST}\n"
-    assert git(["log", "--format=%s|%an"], folder).splitlines() == [f"{INIT_COMMIT}|owncrm"]
+    assert (folder / ".hermitcrm-format").read_text() == f"{migrations.LATEST}\n"
+    assert git(["log", "--format=%s|%an"], folder).splitlines() == [f"{INIT_COMMIT}|hermitcrm"]
     assert git(["status", "--porcelain"], folder) == ""
     assert load_config(folder) == DEFAULT_CONFIG  # everything commented out
     assert migrations.ensure_current(folder) == ""

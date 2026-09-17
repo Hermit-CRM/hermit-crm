@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from owncrm import migrations
-from owncrm.models import Company, company_to_frontmatter
-from owncrm.store import Store, build_file
+from hermitcrm import migrations
+from hermitcrm.models import Company, company_to_frontmatter
+from hermitcrm.store import Store, build_file
 
 BODY = "Notes stay byte for byte.  \n\ngijs_score: 3 in a body is not front matter\n"
 
@@ -61,7 +61,7 @@ def test_dry_run_lists_files_and_writes_nothing(old_folder):
     assert "companies/acme/company.md" in text and "companies/cygne/company.md" not in \
         text.split("2. country")[1]
     assert {p: p.read_bytes() for p in old_folder.rglob("company.md")} == before
-    assert not (old_folder / ".owncrm-format").exists()
+    assert not (old_folder / ".hermitcrm-format").exists()
 
 
 def test_migrate_before_after_in_one_commit(old_folder):
@@ -78,12 +78,12 @@ def test_migrate_before_after_in_one_commit(old_folder):
     assert acme.read_text() == expected and acme.read_text().endswith(BODY)
     bolt = (old_folder / "companies/bolt/company.md").read_text()
     assert "country: US\n" in bolt and "my_score:\n" in bolt and "gijs_score" not in bolt.split("---")[1]
-    assert (old_folder / ".owncrm-format").read_text() == "3\n"
+    assert (old_folder / ".hermitcrm-format").read_text() == "3\n"
     assert int(git(["rev-list", "--count", "HEAD"], old_folder)) == commits_before + 1
     assert git(["log", "-1", "--format=%s|%an"], old_folder).startswith("migrate: data format 0 → 3")
-    assert "owncrm" in git(["log", "-1", "--format=%an"], old_folder)
+    assert "hermitcrm" in git(["log", "-1", "--format=%an"], old_folder)
     changed = git(["show", "--name-only", "--format=", "HEAD"], old_folder).split()
-    assert sorted(changed) == [".owncrm-format", "companies/acme/company.md",
+    assert sorted(changed) == [".hermitcrm-format", "companies/acme/company.md",
                                "companies/bolt/company.md", "companies/cygne/company.md"]
     assert git(["status", "--porcelain"], old_folder) == ""
     store = Store(old_folder)
@@ -98,7 +98,7 @@ def test_migrations_are_idempotent(old_folder):
     assert migrations.ensure_current(old_folder) == ""
     assert git(["rev-parse", "HEAD"], old_folder) == head
     # Re-running the functions themselves on migrated data changes nothing either.
-    (old_folder / ".owncrm-format").write_text("0\n")
+    (old_folder / ".hermitcrm-format").write_text("0\n")
     assert migrations.ensure_current(old_folder).endswith(": 0 file(s) changed")
     assert {p: p.read_bytes() for p in old_folder.rglob("*.md")} == snapshot
     assert migrations.m1_my_score({"gijs_score": 1, "my_score": 5}) == {"my_score": 5}
@@ -106,7 +106,7 @@ def test_migrations_are_idempotent(old_folder):
 
 def test_refuses_data_newer_than_code(old_folder):
     migrations.write_format(old_folder, migrations.LATEST + 1)
-    with pytest.raises(migrations.FormatTooNew, match="pipx upgrade owncrm"):
+    with pytest.raises(migrations.FormatTooNew, match="pipx upgrade hermitcrm"):
         migrations.ensure_current(old_folder)
     with pytest.raises(migrations.FormatTooNew):
         migrations.dry_run(old_folder)

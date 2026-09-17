@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}Settings{% endblock %}
+{% macro status(done) %}<span class="setup-status {{ 'done' if done else 'pending' }}">{{ 'done' if done else 'pending' }}</span>{% endmacro %}
+{% macro step_errors(step) %}{% set errs = form_errors.get(step, {}) %}{% if errs %}<div class="errors"><ul>{% for msg in errs.values() %}<li>{{ msg }}</li>{% endfor %}</ul></div>{% endif %}{% endmacro %}
+{% block content %}
+<h1>Settings</h1>
+<p class="small settings-toc">
+  <a href="#you">You</a> &middot; <a href="#bcc">BCC capture</a> &middot; <a href="#calendar">Calendar</a> &middot;
+  <a href="#backup">Backup</a> &middot; <a href="#enrichment">Enrichment</a> &middot; <a href="#outcomes">Outcomes</a> &middot;
+  <a href="#inbox">Review queue{% if items %} ({{ items|length }}){% endif %}</a> &middot; <a href="#schedule">Schedule</a> &middot; <a href="#about">About</a>
+  &middot; <a href="/help/settings">Help</a>
+</p>
+<p class="small">Secrets are stored in <code>.secrets.toml</code> (mode 600) or the macOS Keychain, never in <code>config.toml</code>. Everything else is written to <code>config.toml</code>, comments kept.{% if setup_pending %} <a href="/">Skip for now</a>{% endif %}</p>
+
+<section class="setup-step" id="you">
+  <h2>You {{ status(state.you) }}</h2>
+  {{ step_errors('you') }}
+  <form method="post" action="/settings/you" class="record-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Your name <input name="name" value="{{ you.name }}" required></label>
+    <label>Addresses you send mail from (comma-separated; the first is your main address)
+      <input name="addresses" value="{{ you.addresses }}" required></label>
+    <button type="submit">Save</button>
+  </form>
+</section>
+
+<section class="setup-step" id="bcc">
+  <h2>BCC capture {{ status(state.bcc) }}</h2>
+  <p class="small">BCC or forward mail to a tracking address; Hermit CRM reads it over IMAP and logs it. For Gmail, turn on 2-step verification and create an <a href="https://myaccount.google.com/apppasswords">app password</a>.</p>
+  {{ step_errors('bcc') }}
+  <form method="post" action="/settings/bcc" class="record-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>BCC address <input name="address" value="{{ bcc_form.address }}" placeholder="you+crm@gmail.com"></label>
+    <label>IMAP server <input name="imap_host" value="{{ bcc_form.imap_host }}" placeholder="imap.gmail.com"></label>
+    <label>App password <input type="password" name="password" value="" autocomplete="new-password" placeholder="{{ 'stored; leave empty to keep it' if state.bcc else '' }}"></label>
+    {% if is_mac %}<label class="inline"><input type="checkbox" name="keychain" value="1" checked style="display:inline;width:auto"> Store the password in the macOS Keychain</label>{% endif %}
+    <button type="submit">Save</button>
+  </form>
+  {% if gmail_filter %}
+  <p>Gmail filter (Settings → Filters → Create new filter): <code>{{ gmail_filter }}</code></p>
+  <form method="post" action="/settings/bcc/test" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">Test connection (dry run)</button>
+  </form>
+  {% endif %}
+</section>
+
+<section class="setup-step" id="calendar">
+  <h2>Calendar {{ status(state.calendar) }}</h2>
+  <p class="small">Optional. The secret ICS address of your calendar (Google: Settings → your calendar → Integrate calendar → Secret address in iCal format). Treat it like a password.</p>
+  {{ step_errors('calendar') }}
+  <form method="post" action="/settings/calendar" class="record-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Secret ICS address <input type="password" name="url" value="" autocomplete="off"></label>
+    <button type="submit">Save and test (dry run)</button>
+  </form>
+</section>
+
+<section class="setup-step" id="backup">
+  <h2>Backup {{ status(state.backup) }}</h2>
+  <p class="small">Push the data folder to a git remote after every change.</p>
+  <p class="warning"><strong>The repository must be PRIVATE</strong> on GitHub, GitLab or Bitbucket: it holds your contacts and mail.</p>
+  {% if remote_warning %}<p class="warning">{{ remote_warning }}</p>{% endif %}
+  {{ step_errors('backup') }}
+  <form method="post" action="/settings/backup" class="record-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Git remote URL <input name="url" value="{{ remote_url }}" placeholder="git@github.com:you/crm.git"></label>
+    <button type="submit">Save and test push</button>
+  </form>
+</section>
+
+<section class="setup-step" id="enrichment">
+  <h2>Enrichment</h2>
+  <p class="small">The Enrich button asks an AI CLI you already have for a company's or contact's empty fields. Provider <code>auto</code> takes the first of claude, codex, gemini, grok it finds; <code>custom</code> runs the command line below. "Fetch from URL" needs none of this.</p>
+  {% if enrich_status.available %}
+  <p class="setup-status done">In use: {{ enrich_status.provider }}</p>
+  {% else %}
+  <p class="setup-status pending">Unavailable: {{ enrich_status.reason }}</p>
+  <p class="small">When Hermit CRM runs under launchd or systemd (<code>hermitcrm schedule install --serve</code>) it starts with a bare PATH: the CLI must be in <code>/usr/local/bin</code>, <code>/opt/homebrew/bin</code> or <code>~/.local/bin</code>, or give its full path as the command.</p>
+  {% endif %}
+  {{ step_errors('enrichment') }}
+  <form method="post" action="/settings/enrichment" class="record-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="row">
+      <label>Provider
+        <select name="provider">
+          {% for p in enrich_providers %}<option value="{{ p }}"{% if p == enrich_form.provider %} selected{% endif %}>{{ p }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="grow">Command (empty: the provider's own binary) <input name="command" value="{{ enrich_form.command }}" placeholder="/opt/homebrew/bin/claude"></label>
+      <label>Model (empty: its default) <input name="model" value="{{ enrich_form.model }}"></label>
+      <label>Timeout (seconds) <input name="timeout" value="{{ enrich_form.timeout }}" inputmode="numeric" size="6"></label>
+    </div>
+    <button type="submit">Save</button>
+  </form>
+</section>
+
+<section class="setup-step" id="outcomes">
+  <h2>Outcomes</h2>
+  <p class="small">The outcome choices for an interaction, one per line, in order. The <strong>first</strong> is what a detected reply counts as; the <strong>last</strong> is what silence past the message window counts as. A sent message with no outcome and no reply is <em>unknown</em> until the window passes.</p>
+  {{ step_errors('outcomes') }}
+  <form method="post" action="/settings/outcomes" class="record-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="row">
+      <label class="grow">Outcomes (one per line) <textarea name="outcomes" rows="4">{{ outcomes_form.outcomes }}</textarea></label>
+      <label>Message window (days) <input name="message_window_days" value="{{ outcomes_form.message_window_days }}" inputmode="numeric" size="6"></label>
+      <label>Silent after (days) <input name="silent_days" value="{{ outcomes_form.silent_days }}" inputmode="numeric" size="6"></label>
+    </div>
+    <button type="submit">Save</button>
+  </form>
+</section>
+
+<section class="setup-step" id="inbox">
+  <h2>Review queue{% if items %} ({{ items|length }}){% endif %}</h2>
+  <p class="small">
+    {% if bcc_address %}BCC <code>{{ bcc_address }}</code> on the mails you send, or forward a reply to it.{% else %}No BCC address yet: set one under <a href="#bcc">BCC capture</a>.{% endif %}
+    The daily import logs each mail at the contact with that email address; a new person at a company whose domain it knows becomes a new contact.
+    Everything else waits here for you to pick the company.
+  </p>
+  <div class="bcc-status">
+    {% if last_run %}
+      {% if last_run.ok %}
+        <p>Last import {{ last_run.at | replace('T', ' ') }}: {{ last_run.summary }}</p>
+      {% else %}
+        <p class="error">Last import {{ last_run.at | replace('T', ' ') }} failed: {{ last_run.error }}</p>
+      {% endif %}
+    {% else %}
+      <p class="small">No import has run yet.</p>
+    {% endif %}
+    {% if inbox_alert and last_run and last_run.ok %}<p class="error">{{ inbox_alert }}</p>{% endif %}
+    <form method="post" action="/bcc/import" class="inline"><button type="submit">Import now</button></form>
+  </div>
+  <div class="bcc-status">
+    {% if calendar_last_run %}
+      {% if calendar_last_run.ok %}
+        <p>Last meeting import {{ calendar_last_run.at | replace('T', ' ') }}: {{ calendar_last_run.summary }}</p>
+      {% else %}
+        <p class="error">Last meeting import {{ calendar_last_run.at | replace('T', ' ') }} failed: {{ calendar_last_run.error }}</p>
+      {% endif %}
+    {% else %}
+      <p class="small">No meeting import has run yet. Past meetings from your calendar feed land here when an attendee matches no company.</p>
+    {% endif %}
+    <form method="post" action="/calendar/import" class="inline"><input type="hidden" name="back" value="/settings"><button type="submit">Import meetings now</button></form>
+  </div>
+  {{ m.errors_box(errors) }}
+  <h3>To review ({{ items|length }})</h3>
+  {% if not items %}<p class="small">Nothing to review.</p>{% endif %}
+  <datalist id="company-slugs">
+    {% for c in companies %}<option value="{{ c.slug }}">{{ c.name }}</option>{% endfor %}
+  </datalist>
+  {% for it in items %}
+  <section class="inbox-item" id="{{ it.id }}">
+    <p>
+      <strong>{{ it.date | string | replace('T', ' ') }}</strong>
+      <span class="tag">{{ it.kind }}</span>
+      {% if it.kind == 'meeting' %}meeting {{ it.direction }} with{% else %}email {{ it.direction }} {{ 'to' if it.direction == 'out' else 'from' }}{% endif %}
+      {{ it.name }} &lt;{{ it.address }}&gt;{% if it.subject %}: {{ it.subject }}{% endif %}
+    </p>
+    <p class="small">{{ it.reason }}</p>
+    <details><summary>{{ 'notes' if it.kind == 'meeting' else 'message' }}</summary><pre class="body">{{ it.body }}</pre></details>
+    <form method="post" action="/inbox/{{ it.id }}/assign" class="inbox-assign">
+      <label>company <input name="company" list="company-slugs" placeholder="slug or exact name" required></label>
+      <label>first name <input name="first_name" value="{{ it.first_name }}"></label>
+      <label>last name <input name="last_name" value="{{ it.last_name }}"></label>
+      <button type="submit">Log at company</button>
+    </form>
+    <form method="post" action="/inbox/{{ it.id }}/discard" class="inline">
+      <button type="submit">Discard</button>
+    </form>
+  </section>
+  {% endfor %}
+</section>
+
+<section class="setup-step" id="schedule">
+  <h2>Schedule {{ status(schedule.installed) }}</h2>
+  <p class="small">The daily job runs <code>hermitcrm sync --apply</code> (BCC, then calendar import). Read-only here; install or remove it from a terminal.</p>
+  <ul class="schedule-lines">
+    {% for line in schedule.lines %}<li><code>{{ line }}</code></li>{% endfor %}
+  </ul>
+  <p>Install (daily at 07:00; <code>--at HH:MM</code> changes the time, drop <code>--serve</code> to leave the web app to you):</p>
+  <pre class="copy"><code>{{ schedule.install_command }}</code></pre>
+</section>
+
+<section class="setup-step" id="about">
+  <h2>About</h2>
+  <table class="about">
+    <tr><th>Version</th><td>Hermit CRM v{{ about.version }}{% if update_notice and update_notice.available %} &mdash; <span class="update-notice">v{{ update_notice.available }} available: <code>{{ update_notice.hint }}</code></span>{% elif about.update_check %} (update check runs at most once a day){% else %} (update check is off){% endif %}</td></tr>
+    <tr><th>Data folder</th><td><code>{{ about.data_dir }}</code></td></tr>
+    <tr><th>Data format</th><td>{% if about.data_format is none %}unknown{% else %}{{ about.data_format }}{% if about.data_format != about.latest_format %} (this Hermit CRM writes {{ about.latest_format }}; run <code>hermitcrm migrate</code>){% endif %}{% endif %}</td></tr>
+    <tr><th>Check the installation</th><td><code>hermitcrm --data {{ about.data_dir }} doctor</code> (add <code>--online</code> to try the IMAP login)</td></tr>
+    <tr><th>Help</th><td><a href="/help">All help topics</a>, or <code>hermitcrm help</code></td></tr>
+  </table>
+</section>
+{% endblock %}

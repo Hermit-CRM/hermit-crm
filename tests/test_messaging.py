@@ -1,8 +1,8 @@
 """Deterministic outreach drafts: three angles, right language, no AI, TOML-driven."""
 
-from owncrm import messaging
-from owncrm.messaging import deep_merge, drafts, load_messages, next_hurdle
-from owncrm.models import Company, Contact, language_for
+from hermitcrm import messaging
+from hermitcrm.messaging import deep_merge, drafts, load_messages, next_hurdle
+from hermitcrm.models import Company, Contact, language_for
 
 
 def company(**kw):

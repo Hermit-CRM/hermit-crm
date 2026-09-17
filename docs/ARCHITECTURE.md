@@ -1,6 +1,6 @@
-# OwnCRM architecture
+# Hermit CRM architecture
 
-The specification OwnCRM was built against: a single-user, local, file-based
+The specification Hermit CRM was built against: a single-user, local, file-based
 CRM. The Markdown files under `companies/` are the only source of truth; the
 web app and the CLI are thin layers that read and write them, and anything
 they do can also be done by editing a file by hand and committing.
@@ -12,9 +12,9 @@ Invariants:
   no seconds) for datetimes, empty keys written as `key:`, bodies preserved
   byte for byte. Two writes of the same data produce identical files.
 - The web app binds to `127.0.0.1` only and has no authentication.
-- Code (the `owncrm` package) and data (a data folder) are separate; the data
-  folder carries its format version in `.owncrm-format` and is migrated by
-  `owncrm/migrations.py` in one commit.
+- Code (the `hermitcrm` package) and data (a data folder) are separate; the data
+  folder carries its format version in `.hermitcrm-format` and is migrated by
+  `hermitcrm/migrations.py` in one commit.
 - No database, no ORM, no JS framework, no build step, no CSS framework.
 
 ## 1. Layout
@@ -22,12 +22,12 @@ Invariants:
 Code (this repository):
 
 ```text
-src/owncrm/
-├── cli.py                 # `owncrm` entry point (§6)
-├── datafolder.py          # --data resolution, `owncrm init [--demo]`, config docs, agent rules
+src/hermitcrm/
+├── cli.py                 # `hermitcrm` entry point (§6)
+├── datafolder.py          # --data resolution, `hermitcrm init [--demo]`, config docs, agent rules
 ├── setup.py               # setup steps and settings sections shared by the CLI and /settings
-├── schedule.py            # `owncrm schedule`: launchd / systemd units for the daily sync
-├── doctor.py              # `owncrm doctor`: one ok/warn/fail line per check
+├── schedule.py            # `hermitcrm schedule`: launchd / systemd units for the daily sync
+├── doctor.py              # `hermitcrm doctor`: one ok/warn/fail line per check
 ├── models.py              # dataclasses, enums, validation, (de)serialisation
 ├── store.py               # file store and in-memory index (§3), DEFAULT_CONFIG
 ├── gitops.py              # commit and push (§4)
@@ -45,14 +45,14 @@ tests/
 docs/ARCHITECTURE.md
 ```
 
-Data (a folder created by `owncrm init`):
+Data (a folder created by `hermitcrm init`):
 
 ```text
 <data>/
 ├── config.toml                   # every key optional, commented defaults
 ├── messages.toml                 # optional, deep-merged over default_messages.toml
 ├── .secrets.toml                 # optional, gitignored, mode 600
-├── .owncrm-format                # data format version (integer)
+├── .hermitcrm-format                # data format version (integer)
 ├── PIPELINE.md                   # generated, never edited by hand
 ├── CLAUDE.md, AGENTS.md          # rules for AI agents
 ├── MESSAGING.md                  # your outreach playbook (§8.3)
@@ -93,7 +93,7 @@ Front matter keys, in this exact order:
 | next_step_due | date or empty | optional |
 | next_step_status | enum | `open` or `done`; default `open`. A task is the pair next_step + next_step_due. Marking it done keeps the text but removes it from Today, Calendar and the overdue list. Rewriting next_step, or clearing the task, resets the status to `open`. |
 | tags | list of str | may be empty `[]` |
-| stage_history | list of maps | append-only, one `{date: YYYY-MM-DD, from: x, to: y, reason: z}` per stage change made through the store (update, disqualify, requalify, merge, creation in a stage other than prospect with `from: ''`); `reason` omitted when empty; the key is omitted while the list is empty. Merging combines both lists sorted by date. Derived: `closed_on`, `entered_stage_on(stage)`, `stage_durations(today)`. `owncrm backfill-history` fills it from git once. |
+| stage_history | list of maps | append-only, one `{date: YYYY-MM-DD, from: x, to: y, reason: z}` per stage change made through the store (update, disqualify, requalify, merge, creation in a stage other than prospect with `from: ''`); `reason` omitted when empty; the key is omitted while the list is empty. Merging combines both lists sorted by date. Derived: `closed_on`, `entered_stage_on(stage)`, `stage_durations(today)`. `hermitcrm backfill-history` fills it from git once. |
 | created | datetime | set on creation |
 | updated | datetime | set on every write of this file |
 
@@ -118,10 +118,10 @@ Lowercase ASCII, words joined by single hyphens, max 60 chars. Transliterate bef
 ## 3. Store and index (`store.py`)
 
 - On startup, walk `companies/`, parse every file with `python-frontmatter`, validate against the enums, and build an in-memory index: `companies: dict[slug, Company]`, each with `contacts: dict[slug, Contact]` and `interactions: list[Interaction]` sorted by date descending.
-- Validation failures (unknown enum, missing required key, contact slug referenced by an interaction that does not exist) do not crash the app. Log them, load what is loadable, and surface them on `/health` and in `owncrm check`.
+- Validation failures (unknown enum, missing required key, contact slug referenced by an interaction that does not exist) do not crash the app. Log them, load what is loadable, and surface them on `/health` and in `hermitcrm check`.
 - Derived per company (computed, never written to the file): `last_touch` (max interaction date), `last_touch_summary` (`email out 2026-09-14 (jane-doe)`), `interaction_count`, `days_in_stage`, `next_step_overdue` (bool), `silent_days` (days since last touch, or since `created` if none), `requalify_due` (parked with a `requalify_on` that has arrived), `language` (outreach language from `country`), and `message_status(interaction)` (an outcome or unknown, see §2).
 - `Store.requalify_due()` moves every temp-disqualified company whose `requalify_on` has arrived back to `prospect`, in one commit. It is idempotent; the web app calls it on every GET request, so no scheduler is needed.
-- Company page requests re-parse that company's folder before rendering, so edits made outside the app (by hand or by Claude Code) show up without a restart. `POST /reload` and `owncrm rebuild` rebuild the whole index.
+- Company page requests re-parse that company's folder before rendering, so edits made outside the app (by hand or by Claude Code) show up without a restart. `POST /reload` and `hermitcrm rebuild` rebuild the whole index.
 - Write path for every mutation, in this order: write file(s) to disk; update index; regenerate `PIPELINE.md`; `gitops.commit(message)`; `gitops.push_async()`. If the commit fails, the write still stands; log loudly.
 
 ## 4. Git operations (`gitops.py`)
@@ -140,7 +140,7 @@ Lowercase ASCII, words joined by single hyphens, max 60 chars. Transliterate bef
   - `company: <drop-slug> merged into <keep-slug>`, `contact: <company-slug>/<drop-slug> merged into <keep-slug>`
   - `company: <slug> requalified (parked until <date>)`, or `company: requalified <slug>, <slug> (parked until today)` when several come back at once
   - `interaction: <company-slug> <id> outcome <value>|unknown`
-  - `company: <slug> fetched from <url>` (only from `owncrm fetch --apply`; the web Fetch button applies through the enrich page and commits `ai: company <slug> enriched`)
+  - `company: <slug> fetched from <url>` (only from `hermitcrm fetch --apply`; the web Fetch button applies through the enrich page and commits `ai: company <slug> enriched`)
   - `import: <n> companies created, <m> updated, <k> contacts created` (companies mode) or `import: <n> contacts created, <m> updated, <k> companies created` (contacts mode); one commit per import
   - `bcc: imported <n> mails (<i> interactions, <c> contacts, <r> to review)` (one commit per BCC run, none when nothing new), `bcc: <item> assigned to <slug>/<contact>`, `bcc: <item> discarded`
   - `calendar: imported <n> events (<i> interactions, <c> contacts, <r> to review)` (one commit per calendar run, none when nothing new); meeting inbox items use `calendar: <item> assigned to …` / `calendar: <item> discarded`
@@ -150,7 +150,7 @@ Lowercase ASCII, words joined by single hyphens, max 60 chars. Transliterate bef
 
 ## 5. PIPELINE.md (`pipeline.py`)
 
-Regenerated on every write and by `owncrm rebuild`. Exact format:
+Regenerated on every write and by `hermitcrm rebuild`. Exact format:
 
 ```markdown
 # Pipeline  (generated 2026-09-14 10:31, do not edit)
@@ -178,46 +178,46 @@ Regenerated on every write and by `owncrm rebuild`. Exact format:
 
 Rules: after the silent section comes `## Temp disqualified (N)` with one line per parked company (`- slug | since date | reason | next: ...`, or `since date until date` when `requalify_on` is set), and the closed section adds `- disqualified: slug (date, reason)`. Open stages in the order offer, discovery, reached-out, prospect; within a stage, sort by `next_step_due` ascending with empty dates last, then by `last_touch` descending. Monthly value in the stage header is the sum of `value_eur_month`, omitted for reached-out and prospect. A done next step is shown as `next: <text>, due <date> (done)` and never counts as overdue. `last:` shows `none` when there are no interactions. `next:` shows `none` when empty. Silent threshold comes from `config.toml` (`silent_days = 14`). Every line is one company; never include interaction bodies or notes. Target: roughly 30 tokens per company.
 
-## 6. CLI (`owncrm/cli.py`)
+## 6. CLI (`hermitcrm/cli.py`)
 
-`owncrm serve` starts uvicorn on the configured port.
+`hermitcrm serve` starts uvicorn on the configured port.
 
-`owncrm digest --days N` prints, oldest first, one block per interaction in the window: `2026-09-14 10:30 | email out | acme-gmbh / jane-doe | Notes from our call | outcome: -` followed by the first 150 characters of the body on the next line, whitespace collapsed. Ends with one summary line: counts by channel and direction, number of companies touched.
+`hermitcrm digest --days N` prints, oldest first, one block per interaction in the window: `2026-09-14 10:30 | email out | acme-gmbh / jane-doe | Notes from our call | outcome: -` followed by the first 150 characters of the body on the next line, whitespace collapsed. Ends with one summary line: counts by channel and direction, number of companies touched.
 
-`owncrm show <company-slug>` prints: the company front matter as `key: value` lines and the notes body; then each contact as one line (`jane-doe | Co-founder & CEO | jane@acme.de | decision-maker`); then every interaction as one line (`2026-09-14 10:30 | email out | jane-doe | subject | outcome`); then the full bodies of the three most recent interactions, each preceded by its one-line header. `--bodies N` overrides three; `--all` prints every body.
+`hermitcrm show <company-slug>` prints: the company front matter as `key: value` lines and the notes body; then each contact as one line (`jane-doe | Co-founder & CEO | jane@acme.de | decision-maker`); then every interaction as one line (`2026-09-14 10:30 | email out | jane-doe | subject | outcome`); then the full bodies of the three most recent interactions, each preceded by its one-line header. `--bodies N` overrides three; `--all` prints every body.
 
-`owncrm rebuild` rebuilds the index and PIPELINE.md and commits `pipeline: rebuild` if it changed.
+`hermitcrm rebuild` rebuilds the index and PIPELINE.md and commits `pipeline: rebuild` if it changed.
 
-`owncrm check` validates every file and prints problems with file paths; exit code 1 if any.
+`hermitcrm check` validates every file and prints problems with file paths; exit code 1 if any.
 
-`owncrm import <file> [--mode companies|contacts] [--map "Header=field" ...] [--apply]` plans a bulk import from a TSV, CSV or .xlsx file (stdlib zip + XML: first worksheet, dates stay serial numbers) and prints the mode, the column mapping and one line per row with the action: create, update (fills empty fields only), keep (contacts mode: company unchanged) or skip. Companies mode needs a `name` column; contacts mode needs a person name column and takes the company from a company column or a non-freemail email domain, matching companies by slug or website domain and contacts by email, else by name. `detect_mode` picks contacts when there is a person-name or email column plus a company column and no company-only column. Header aliases (including HubSpot, Apollo, LinkedIn, Pipedrive and Attio export names) live in `owncrm/importer.py` and are listed on the Import page; the preview can remap every column (a field, `notes` or `ignore`). Without `--apply` nothing is written.
+`hermitcrm import <file> [--mode companies|contacts] [--map "Header=field" ...] [--apply]` plans a bulk import from a TSV, CSV or .xlsx file (stdlib zip + XML: first worksheet, dates stay serial numbers) and prints the mode, the column mapping and one line per row with the action: create, update (fills empty fields only), keep (contacts mode: company unchanged) or skip. Companies mode needs a `name` column; contacts mode needs a person name column and takes the company from a company column or a non-freemail email domain, matching companies by slug or website domain and contacts by email, else by name. `detect_mode` picks contacts when there is a person-name or email column plus a company column and no company-only column. Header aliases (including HubSpot, Apollo, LinkedIn, Pipedrive and Attio export names) live in `hermitcrm/importer.py` and are listed on the Import page; the preview can remap every column (a field, `notes` or `ignore`). Without `--apply` nothing is written.
 
-`owncrm fetch <slug> [--url <website or LinkedIn company URL>] [--apply]` reads that one page with the standard library (no AI, no credits): title, meta description, links, JSON-LD and the domain's country TLD become proposals for the empty fields among website, linkedin, country, fte_estimate and product_oneliner. LinkedIn serves its public company page to some anonymous requests and refuses others (HTTP 999); the error says so. The web version is the "Fetch from URL" button next to Enrich.
+`hermitcrm fetch <slug> [--url <website or LinkedIn company URL>] [--apply]` reads that one page with the standard library (no AI, no credits): title, meta description, links, JSON-LD and the domain's country TLD become proposals for the empty fields among website, linkedin, country, fte_estimate and product_oneliner. LinkedIn serves its public company page to some anonymous requests and refuses others (HTTP 999); the error says so. The web version is the "Fetch from URL" button next to Enrich.
 
-`owncrm bcc [--apply] [--eml FILE ...]` imports mail BCC'd or forwarded to `bcc_address` (`owncrm/bcc.py`, standard library only). It logs in to Gmail over IMAP with an app password (see `owncrm/secrets.py`: `OWNCRM_BCC_PASSWORD`, `.secrets.toml`, or the macOS Keychain), opens the folder flagged `\All`, searches `X-GM-RAW "deliveredto:<bcc_address> newer_than:<bcc_lookback_days>d"`, and with `--apply` marks every fetched mail `\Seen`. Per mail: from one of `my_addresses` means outbound to every To/Cc address; a forward (Gmail marker, or an Outlook header block under a Fwd/FW/WG/TR subject) is inbound from the original sender, or outbound when the original was yours. Addresses that are yours, the BCC address, or at `bcc_ignore_domains` are dropped. Per remaining address: an exact contact email match logs there; otherwise exactly one company whose website host (or a contact's email domain, freemail excluded) matches logs at the contact there with the same name and no email yet (filling in the email), or else creates the contact first; otherwise the mail goes to `inbox/`. Dedup by Message-ID against interactions (same contact), inbox items and `inbox/discarded.tsv`. The whole run is one commit, and every `--apply` run writes `inbox/.last-run.json` (ok, summary or error). Afterwards it POSTs `/reload` to a running web app.
+`hermitcrm bcc [--apply] [--eml FILE ...]` imports mail BCC'd or forwarded to `bcc_address` (`hermitcrm/bcc.py`, standard library only). It logs in to Gmail over IMAP with an app password (see `hermitcrm/secrets.py`: `HERMITCRM_BCC_PASSWORD`, `.secrets.toml`, or the macOS Keychain), opens the folder flagged `\All`, searches `X-GM-RAW "deliveredto:<bcc_address> newer_than:<bcc_lookback_days>d"`, and with `--apply` marks every fetched mail `\Seen`. Per mail: from one of `my_addresses` means outbound to every To/Cc address; a forward (Gmail marker, or an Outlook header block under a Fwd/FW/WG/TR subject) is inbound from the original sender, or outbound when the original was yours. Addresses that are yours, the BCC address, or at `bcc_ignore_domains` are dropped. Per remaining address: an exact contact email match logs there; otherwise exactly one company whose website host (or a contact's email domain, freemail excluded) matches logs at the contact there with the same name and no email yet (filling in the email), or else creates the contact first; otherwise the mail goes to `inbox/`. Dedup by Message-ID against interactions (same contact), inbox items and `inbox/discarded.tsv`. The whole run is one commit, and every `--apply` run writes `inbox/.last-run.json` (ok, summary or error). Afterwards it POSTs `/reload` to a running web app.
 
-`owncrm report [--days N | --from D --to D] [--md]` prints the Reports page as aligned text tables, or Markdown with `--md`; default the last 30 days.
+`hermitcrm report [--days N | --from D --to D] [--md]` prints the Reports page as aligned text tables, or Markdown with `--md`; default the last 30 days.
 
-`owncrm backfill-history [--apply]` rebuilds `stage_history` for companies without one from `git log --follow` of their `company.md` and `git show <sha>:<path>` of each version (stage per commit, first entry from `''` dated `created`). Prints the plan; `--apply` writes one commit `ai: backfill stage history for N companies`.
+`hermitcrm backfill-history [--apply]` rebuilds `stage_history` for companies without one from `git log --follow` of their `company.md` and `git show <sha>:<path>` of each version (stage per commit, first entry from `''` dated `created`). Prints the plan; `--apply` writes one commit `ai: backfill stage history for N companies`.
 
-`owncrm calendar [--apply] [--ics FILE ...]` imports past meetings from a secret ICS feed (`owncrm/calendar_sync.py`, standard library only, no OAuth). URL order: `$CRM_CALENDAR_URL`, Keychain (`security find-generic-password -s crm-calendar -a ics -w`), `.secrets.toml` key `calendar_ics_url`; `webcal://` becomes https; 10 MB cap. The parser unfolds lines, unescapes text, and reads DTSTART/DTEND as UTC, TZID (zoneinfo, converted to naive local time), floating or all-day. Skipped: cancelled events, RRULE masters (a RECURRENCE-ID override is a single event), titles containing a `calendar_ignore_titles` entry, fewer than `calendar_min_attendees` participants (rooms excluded). Past events (end <= now, within `calendar_lookback_days`): each external attendee (attendees plus organizer, minus `my_addresses`, `bcc_ignore_domains`, declined attendees and Google resource/group calendars) goes through the BCC matching (`bcc.handle_entry`) as a `meeting` interaction, `out` when you organised it, subject = SUMMARY, body = DESCRIPTION (500 chars), date = DTSTART; unmatched ones become `kind: meeting` inbox items. Events in the next 7 days with a matched company go to `inbox/upcoming.json`. `--apply` runs write `inbox/.last-calendar-run.json`; its failure or staleness flags the nav only while a URL is configured. `owncrm sync [--apply]` runs bcc then calendar (calendar skipped quietly without a URL).
+`hermitcrm calendar [--apply] [--ics FILE ...]` imports past meetings from a secret ICS feed (`hermitcrm/calendar_sync.py`, standard library only, no OAuth). URL order: `$CRM_CALENDAR_URL`, Keychain (`security find-generic-password -s crm-calendar -a ics -w`), `.secrets.toml` key `calendar_ics_url`; `webcal://` becomes https; 10 MB cap. The parser unfolds lines, unescapes text, and reads DTSTART/DTEND as UTC, TZID (zoneinfo, converted to naive local time), floating or all-day. Skipped: cancelled events, RRULE masters (a RECURRENCE-ID override is a single event), titles containing a `calendar_ignore_titles` entry, fewer than `calendar_min_attendees` participants (rooms excluded). Past events (end <= now, within `calendar_lookback_days`): each external attendee (attendees plus organizer, minus `my_addresses`, `bcc_ignore_domains`, declined attendees and Google resource/group calendars) goes through the BCC matching (`bcc.handle_entry`) as a `meeting` interaction, `out` when you organised it, subject = SUMMARY, body = DESCRIPTION (500 chars), date = DTSTART; unmatched ones become `kind: meeting` inbox items. Events in the next 7 days with a matched company go to `inbox/upcoming.json`. `--apply` runs write `inbox/.last-calendar-run.json`; its failure or staleness flags the nav only while a URL is configured. `hermitcrm sync [--apply]` runs bcc then calendar (calendar skipped quietly without a URL).
 
-`owncrm enrich <slug> [--contact <cslug>] [--apply]` asks an AI CLI (`enrich_provider` = auto | claude | codex | gemini | grok | custom, plus `enrich_command`, `enrich_model`, `enrich_timeout` in config.toml; auto takes the first CLI on PATH; each provider in `owncrm/enrich.py` builds its argv, environment and output parser, and all output goes through `extract_json`) for the empty fields of a company (website, linkedin, country, fte_estimate, ae_count, product_oneliner) or a contact (title, linkedin) and prints the proposal with sources. Only `--apply` writes, with an `ai:` commit. Nothing is ever guessed silently: unverifiable fields come back as "not found".
+`hermitcrm enrich <slug> [--contact <cslug>] [--apply]` asks an AI CLI (`enrich_provider` = auto | claude | codex | gemini | grok | custom, plus `enrich_command`, `enrich_model`, `enrich_timeout` in config.toml; auto takes the first CLI on PATH; each provider in `hermitcrm/enrich.py` builds its argv, environment and output parser, and all output goes through `extract_json`) for the empty fields of a company (website, linkedin, country, fte_estimate, ae_count, product_oneliner) or a contact (title, linkedin) and prints the proposal with sources. Only `--apply` writes, with an `ai:` commit. Nothing is ever guessed silently: unverifiable fields come back as "not found".
 
-`owncrm help [topic]` prints a help page as Markdown (§7); without a topic, the index and the topic list. It needs no data folder.
+`hermitcrm help [topic]` prints a help page as Markdown (§7); without a topic, the index and the topic list. It needs no data folder.
 
 Output of `digest` and `show` is plain text meant to be pasted or piped into an AI session, so no ANSI colour, no tables wider than 120 characters.
 
 ## 7. Agent rules and help
 
-`owncrm init` writes `CLAUDE.md` and `AGENTS.md` into the data folder; the text is
-`AGENT_RULES` in `owncrm/datafolder.py`. Its last reading rule points at `owncrm help`.
+`hermitcrm init` writes `CLAUDE.md` and `AGENTS.md` into the data folder; the text is
+`AGENT_RULES` in `hermitcrm/datafolder.py`. Its last reading rule points at `hermitcrm help`.
 
-Help lives in `owncrm/help/<topic>.md` (package data): one short page per topic
+Help lives in `hermitcrm/help/<topic>.md` (package data): one short page per topic
 (`index`, `pipeline`, `calendar`, `companies`, `contacts`, `interactions`, `messages`,
 `reports`, `settings`, `import`, `enrich`, `merge`, `cli`, `data-format`, `ai-agents`),
 each with a one-line summary under the title and a `Related:` line at the end, written
-from the code so every statement is true. `owncrm/help/__init__.py` lists the topics
+from the code so every statement is true. `hermitcrm/help/__init__.py` lists the topics
 (`TOPICS`, in that order), reads them, renders Markdown to HTML with a small
 dependency-free converter (headings, paragraphs, unordered and ordered lists, fenced
 code, tables, inline code, bold, links; everything escaped, only http(s), site-relative
@@ -225,7 +225,7 @@ and fragment hrefs) and maps a request path to a topic (`topic_for`: `/` → pip
 `/companies/<slug>/contacts/…` → contacts, `…/interactions…` → interactions,
 `…/merge` → merge, `…/enrich` and `…/fetch` → enrich, `/settings`, `/setup`, `/inbox` →
 settings, `/help…` → index, and so on). The same pages are served at `/help` and
-`/help/<topic>` and printed by `owncrm help`.
+`/help/<topic>` and printed by `hermitcrm help`.
 
 ## 8. Web app (`web.py` + templates)
 
@@ -246,7 +246,7 @@ Server-rendered HTML. One base template with a top nav: Pipeline, Calendar, Comp
 | GET `/companies/{slug}/contacts/new`, POST `/companies/{slug}/contacts` | Create contact (first name, last name, title, role, email, phone, linkedin, notes). A contact anywhere with the same email, or one at this company with the same normalised name, re-renders the form with the matches linked and a "Create anyway" checkbox (`force=1`). |
 | GET `/contacts/new`, POST `/contacts` | New contact without picking a company first: name (required), email, title, linkedin, company (required; a datalist of every company name) and website (used only for a new company). The company is resolved by slug or name (case-insensitive), else by the email's domain (`bcc.match_address`), else created in the default stage with the given website or `https://<email domain>` (not for freemail). Same duplicate check as above, plus: when a company would be created, an existing one with the same name ignoring legal suffixes or the same website domain. One commit: `contact: <slug>/<contact-slug> created [with company <slug>]`. |
 | GET `/contacts?q=` | Contacts tab: every contact across companies (name, company, title, email as mailto, LinkedIn link, last touch, interaction count) with search and a filter row (§8.2). Role stays on the contact page only. |
-| GET `/reports?period=7d\|30d\|90d\|quarter\|ytd\|custom&from=&to=` | Reports (`owncrm/reports.py`, default 30d) with deltas against the previous period of equal length: activity (interactions per ISO week, channel and direction; companies touched; new companies and contacts), funnel (entries per stage from `stage_history`, conversion between prospect, reached-out, discovery, offer and won, median days in stage, current pipeline with value), outcomes (won, lost, disqualified by `closed_on` else `stage_changed`, win rate, top 10 lost reasons), messages (sent, success / unsuccessful / unknown by language, channel and top 5 reused texts), sources (created and won), hygiene (overdue, silent, contacts without email). Tables and CSS bars. The company page shows the stage history collapsed. |
+| GET `/reports?period=7d\|30d\|90d\|quarter\|ytd\|custom&from=&to=` | Reports (`hermitcrm/reports.py`, default 30d) with deltas against the previous period of equal length: activity (interactions per ISO week, channel and direction; companies touched; new companies and contacts), funnel (entries per stage from `stage_history`, conversion between prospect, reached-out, discovery, offer and won, median days in stage, current pipeline with value), outcomes (won, lost, disqualified by `closed_on` else `stage_changed`, win rate, top 10 lost reasons), messages (sent, success / unsuccessful / unknown by language, channel and top 5 reused texts), sources (created and won), hygiene (overdue, silent, contacts without email). Tables and CSS bars. The company page shows the stage history collapsed. |
 | GET `/messages?q=` | Messages tab: every outbound interaction with a body, newest first: sent, company, contact, channel, country, stage, outcome (see §2), how many times that exact text was used, the message (collapsed), and one button per configured outcome plus Unknown. Filters, sorting and search (§8.2). |
 | POST `/companies/{slug}/interactions/{id}/outcome` | Sets `outcome` on a sent message from those buttons (form field `outcome`); redirects back to the referring page. Commit `interaction: <slug> <id> outcome <value>`. The interaction edit form writes the same key, so both views always agree. |
 | POST `/companies/{slug}/disqualify` | Disqualify / Temp disqualify buttons (with an optional reason; Temp disqualify also takes an "until" date that becomes `requalify_on`) and Requalify (back to prospect) on the company page. |
@@ -260,12 +260,12 @@ Server-rendered HTML. One base template with a top nav: Pipeline, Calendar, Comp
 | POST `/companies/{slug}/interactions/{id}/delete` | Delete an interaction (also from the small "delete" control next to each timeline entry). The file is removed and committed as `interaction: <slug> deleted <id>`; 404 for an unknown id. |
 | GET `/import`, POST `/import/preview`, POST `/import` | Bulk import. Paste a tab-separated table or upload a .tsv/.csv. Preview lists every row with its planned action (create, update of empty fields only, skip) and warnings (unmapped country, non-numeric score) before anything is written; the import itself is one commit. Contact columns are prefixed `founder_` or `contact_`; unknown columns are kept as `column: value` lines in the notes. |
 | POST `/companies/{slug}/enrich`, POST `/companies/{slug}/enrich/apply` | Enrich button on the company page: runs the lookup (can take a minute), shows proposed values for empty fields with a checkbox and an editable input each, plus sources. Apply writes only the ticked fields. Same pair for contacts under `/companies/{slug}/contacts/{cslug}/enrich`. |
-| GET `/settings` | The Settings page, always in the nav; the first request to `/` without an `owner_email` redirects here once per server start ("Skip for now" goes back). Sections, each an `id` anchor: **You**, **BCC capture**, **Calendar**, **Backup** (the setup steps of `owncrm/setup.py`, with done/pending badges), **Enrichment** (`enrich_provider`, `enrich_command`, `enrich_model`, `enrich_timeout`; shows the resolved provider or `unavailable_reason()` with the bare-PATH hint), **Outcomes** (`outcomes` as a one-per-line textarea, `message_window_days`, `silent_days`), the **Review queue** (below), **Schedule** (read-only `schedule.status()` plus the install command) and **About** (version, update check, data folder, data format, `owncrm doctor`). Plain settings are written to `config.toml` through `setup.set_config_values` (comments kept); every save re-reads the config and refreshes the store's silent threshold, the message window, the enricher, BCC and calendar settings without a restart. GET `/setup` and `/inbox` redirect here with 301 (`/settings`, `/settings#inbox`). |
+| GET `/settings` | The Settings page, always in the nav; the first request to `/` without an `owner_email` redirects here once per server start ("Skip for now" goes back). Sections, each an `id` anchor: **You**, **BCC capture**, **Calendar**, **Backup** (the setup steps of `hermitcrm/setup.py`, with done/pending badges), **Enrichment** (`enrich_provider`, `enrich_command`, `enrich_model`, `enrich_timeout`; shows the resolved provider or `unavailable_reason()` with the bare-PATH hint), **Outcomes** (`outcomes` as a one-per-line textarea, `message_window_days`, `silent_days`), the **Review queue** (below), **Schedule** (read-only `schedule.status()` plus the install command) and **About** (version, update check, data folder, data format, `hermitcrm doctor`). Plain settings are written to `config.toml` through `setup.set_config_values` (comments kept); every save re-reads the config and refreshes the store's silent threshold, the message window, the enricher, BCC and calendar settings without a restart. GET `/setup` and `/inbox` redirect here with 301 (`/settings`, `/settings#inbox`). |
 | POST `/settings/you`, `/settings/bcc`, `/settings/bcc/test`, `/settings/backup`, `/settings/calendar` | The setup steps; the same handlers also answer under `/setup/...`. CSRF: a per-process token in every form, checked with `hmac.compare_digest` (403 otherwise). Success redirects to `/settings?flash=...#<section>`; a validation error re-renders the whole page with status 400 and the values kept. |
 | POST `/settings/enrichment`, POST `/settings/outcomes` | Same pattern. Enrichment refuses an unknown provider, `custom` without a command, and a timeout below 1. Outcomes refuses an empty list, a duplicate (case-insensitive) and day counts below 1. |
 | Review queue (`/settings#inbox`) | The former BCC inbox: the tracking address, the last import (time and summary, or the error), an Import now button, the last meeting import with its button, and every mail or meeting waiting for a company with its reason (personal address, unknown domain, several matches), the body collapsed, a company field (datalist of slugs), first and last name prefilled, and Log at company / Discard buttons. The nav shows `Settings (N)` and a red `!` when the last run failed or is two days old. |
-| POST `/bcc/import` | Import now: the same run as `owncrm bcc --apply`; flashes the summary or the error at `/settings#inbox`. |
-| POST `/calendar/import` | "Import meetings now" (on `/settings` and `/calendar`, form field `back`; `/inbox` is still accepted as the old name and lands on `/settings#inbox`): the same run as `owncrm calendar --apply`; flashes the summary or the error. `/calendar` shows **Meetings this week** from `inbox/upcoming.json`, each row linked to its companies. |
+| POST `/bcc/import` | Import now: the same run as `hermitcrm bcc --apply`; flashes the summary or the error at `/settings#inbox`. |
+| POST `/calendar/import` | "Import meetings now" (on `/settings` and `/calendar`, form field `back`; `/inbox` is still accepted as the old name and lands on `/settings#inbox`): the same run as `hermitcrm calendar --apply`; flashes the summary or the error. `/calendar` shows **Meetings this week** from `inbox/upcoming.json`, each row linked to its companies. |
 | POST `/inbox/{id}/assign`, POST `/inbox/{id}/discard` | Log a queued item at a company (uses the contact with that email, else fills the email of a same-named contact without one, else creates the contact) in one commit; or discard it (remembered in `inbox/discarded.tsv`). Both redirect to `/settings#inbox`; an unknown company re-renders the Settings page with status 400. |
 | GET `/help`, GET `/help/{topic}` | The help pages (§7) rendered inside the base template with a topic list on the left; unknown topic → 404. |
 | POST `/reload` | Rebuild index, redirect back. |
@@ -275,11 +275,11 @@ Global: a search box in the nav that submits to `/companies?q=`. Flash messages 
 
 ### 8.2 Column filters and sorting
 
-Board, Companies, Contacts and Messages carry one control per column, submitted as `f_<column>` query params (GET, bookmarkable). Enum columns (stage, country, source, channel, outcome) are multi-selects. Every other column is a text box with a tiny syntax: `text` contains, `!text` does not contain, `=text` equals, `>x` larger, `<x` smaller (numbers, `YYYY-MM-DD` dates, otherwise text order), `-` empty, `*` not empty. Filters combine with AND and with the `q` search. Every heading has ▲ (A to Z, small to large, old to new) and ▼ (Z to A) links that set `sort=<column>&dir=asc|desc`; empty values sort last; the sort survives filter submits. The syntax explainer sits above each table behind a "?" that opens on hover or keyboard focus (pure CSS, no JavaScript). Implemented in `owncrm/filters.py`.
+Board, Companies, Contacts and Messages carry one control per column, submitted as `f_<column>` query params (GET, bookmarkable). Enum columns (stage, country, source, channel, outcome) are multi-selects. Every other column is a text box with a tiny syntax: `text` contains, `!text` does not contain, `=text` equals, `>x` larger, `<x` smaller (numbers, `YYYY-MM-DD` dates, otherwise text order), `-` empty, `*` not empty. Filters combine with AND and with the `q` search. Every heading has ▲ (A to Z, small to large, old to new) and ▼ (Z to A) links that set `sort=<column>&dir=asc|desc`; empty values sort last; the sort survives filter submits. The syntax explainer sits above each table behind a "?" that opens on hover or keyboard focus (pure CSS, no JavaScript). Implemented in `hermitcrm/filters.py`.
 
 ### 8.3 Message drafts (no AI)
 
-`owncrm/messaging.py` renders three deliberately different drafts per contact from CRM data alone, in the language of the company's country (German for DE/AT/CH/LI, Dutch for NL, French for FR/LU/MC, otherwise English): (1) *scale* (they are growing; offer help to keep the pace) or, when the signal is "hiring", *bridge* (help while the role is open); (2) *unblock* (past the next headcount hurdle: 10, 20, 50, 100, 250, 500 derived from `fte_estimate`); (3) *hook* (one observation, then an open question). Two inputs are yours: a `signal` (growing / stalled / hiring, read off LinkedIn company insights, linked from the section) and one `observation` sentence from their website or team. Anything the CRM cannot know is left in square brackets. The wording lives in `owncrm/default_messages.toml`; `<data>/messages.toml` is deep-merged over it, and the sign-off uses `owner_name`. "Log as sent" opens the quick-add form with the draft as body and channel linkedin. `MESSAGING.md` in the data folder is the playbook.
+`hermitcrm/messaging.py` renders three deliberately different drafts per contact from CRM data alone, in the language of the company's country (German for DE/AT/CH/LI, Dutch for NL, French for FR/LU/MC, otherwise English): (1) *scale* (they are growing; offer help to keep the pace) or, when the signal is "hiring", *bridge* (help while the role is open); (2) *unblock* (past the next headcount hurdle: 10, 20, 50, 100, 250, 500 derived from `fte_estimate`); (3) *hook* (one observation, then an open question). Two inputs are yours: a `signal` (growing / stalled / hiring, read off LinkedIn company insights, linked from the section) and one `observation` sentence from their website or team. Anything the CRM cannot know is left in square brackets. The wording lives in `hermitcrm/default_messages.toml`; `<data>/messages.toml` is deep-merged over it, and the sign-off uses `owner_name`. "Log as sent" opens the quick-add form with the draft as body and channel linkedin. `MESSAGING.md` in the data folder is the playbook.
 
 ### 8.1 Google Calendar link
 
@@ -294,7 +294,7 @@ Build `https://calendar.google.com/calendar/render?action=TEMPLATE&text=<company
 5. Change stage to discovery from the board dropdown. Expect `stage_changed` today and commit `company: mueller-soehne stage prospect -> discovery`.
 6. Set next step "Send proposal outline" due yesterday. Expect the company under "Top priority tasks" on `/calendar` and under "Overdue next steps" in `PIPELINE.md`, and the calendar link present with the correct dates parameter.
 7. Set stage to lost without a reason: expect a validation error and no file change. Set it with reason "no budget": expect the company listed under closed with the reason.
-8. Run `owncrm show mueller-soehne` and `owncrm digest --days 30`; expect the formats of §6.
-9. Roll back: `git checkout HEAD~1 -- companies/mueller-soehne/company.md`, `owncrm rebuild`; expect the company back in discovery on the board.
-10. `owncrm check` exits 0. Break a file's enum by hand; `check` exits 1 and names the file; the app still serves.
+8. Run `hermitcrm show mueller-soehne` and `hermitcrm digest --days 30`; expect the formats of §6.
+9. Roll back: `git checkout HEAD~1 -- companies/mueller-soehne/company.md`, `hermitcrm rebuild`; expect the company back in discovery on the board.
+10. `hermitcrm check` exits 0. Break a file's enum by hand; `check` exits 1 and names the file; the app still serves.
 

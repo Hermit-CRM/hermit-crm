@@ -6,7 +6,7 @@ import subprocess
 
 import pytest
 
-from owncrm import bcc, calendar_sync as cal, secrets
+from hermitcrm import bcc, calendar_sync as cal, secrets
 
 
 def keychain(value, calls=None):
@@ -23,7 +23,7 @@ CONFIG = {"bcc_keychain_service": "crm-bcc"}
 def test_env_beats_file_beats_keychain(tmp_path):
     secrets.set("bcc_password", "from-file", tmp_path)
     kc = keychain("from-keychain")
-    env = {"OWNCRM_BCC_PASSWORD": "from-env", "CRM_BCC_PASSWORD": "legacy"}
+    env = {"HERMITCRM_BCC_PASSWORD": "from-env", "CRM_BCC_PASSWORD": "legacy"}
     get = lambda env: secrets.get("bcc_password", tmp_path, CONFIG, account="me@example.com",
                                   env=env, runner=kc, platform="darwin")
     assert get(env) == "from-env"
@@ -78,7 +78,7 @@ def test_set_writes_mode_600_and_keeps_other_keys(tmp_path):
 def test_broad_file_mode_warns(tmp_path, caplog):
     path = secrets.set("bcc_password", "pw", tmp_path)
     path.chmod(0o644)
-    with caplog.at_level(logging.WARNING, logger="owncrm.secrets"):
+    with caplog.at_level(logging.WARNING, logger="hermitcrm.secrets"):
         assert secrets.get("bcc_password", tmp_path, env={}, platform="linux") == "pw"
     assert "chmod 600" in caplog.text
 

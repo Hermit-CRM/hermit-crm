@@ -1,6 +1,6 @@
 # Learnings
 
-What building OwnCRM taught us, kept so the next change does not relearn it.
+What building Hermit CRM taught us, kept so the next change does not relearn it.
 Newest first within each section.
 
 ## Product
@@ -21,9 +21,9 @@ Newest first within each section.
   "Settings" once it held things you come back to (review queue, calendar,
   enrichment, outcomes).
 - **Help that an AI can read is the same help a person reads.** Plain Markdown
-  in the package, served at `/help/<topic>` and printed by `owncrm help
+  in the package, served at `/help/<topic>` and printed by `hermitcrm help
   <topic>`; the data folder's `CLAUDE.md` points agents at it.
-- **Check the name before you print it.** "OwnCRM" collides with two existing
+- **Check the name before you print it.** "OwnCRM" collided with two existing
   businesses. Check PyPI, GitHub, DNS and a web search before choosing.
 
 ## Engineering
@@ -44,7 +44,7 @@ Newest first within each section.
 - **`plutil -extract … FILE` rewrites the file unless you pass `-o -`.** Every
   plist read in `schedule.py` uses `-o -`.
 - **Migrations touch front matter only.** Interaction bodies are the record
-  and are never rewritten; `.owncrm-format` records the level, unknown keys
+  and are never rewritten; `.hermitcrm-format` records the level, unknown keys
   round-trip through `extra`, and one migration run is one commit.
 - **Derive lists from the enum.** Reports hard-coded the channels and missed
   meetings the day `Channel.MEETING` appeared. Iterate the enum.
@@ -57,6 +57,6 @@ Newest first within each section.
   each agent owns named files and route regions, and new tests go in new files.
 - **Editable installs and worktrees.** `pip install -e` points at the main
   tree; in a worktree run tests with `PYTHONPATH=src` and check
-  `owncrm.__file__` first.
+  `hermitcrm.__file__` first.
 - **Never put a liveness-critical step on an LLM run.** Scheduled agent runs
   get torn down mid-task; heartbeats and syncs are deterministic code.

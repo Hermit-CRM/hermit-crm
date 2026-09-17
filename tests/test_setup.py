@@ -1,4 +1,4 @@
-"""owncrm/setup.py: config writing, the setup steps and setup_state (no network)."""
+"""hermitcrm/setup.py: config writing, the setup steps and setup_state (no network)."""
 
 from __future__ import annotations
 
@@ -8,10 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from owncrm import secrets
-from owncrm import setup as st
-from owncrm.bcc import BccError
-from owncrm.datafolder import init_folder
+from hermitcrm import secrets
+from hermitcrm import setup as st
+from hermitcrm.bcc import BccError
+from hermitcrm.datafolder import init_folder
 
 
 @pytest.fixture
@@ -99,7 +99,7 @@ def test_bcc_suggestions():
     assert st.imap_host_for("a@icloud.com") == "imap.mail.me.com"
     assert st.imap_host_for("a@example.com") == ""
     assert st.gmail_filter_text("jane+crm@gmail.com") == (
-        "Matches: to:(jane+crm@gmail.com) → Skip the Inbox, Mark as read, Apply label OwnCRM")
+        "Matches: to:(jane+crm@gmail.com) → Skip the Inbox, Mark as read, Apply label Hermit CRM")
 
 
 def test_save_bcc_to_secrets_file(folder):
@@ -121,9 +121,9 @@ def test_save_bcc_keychain_through_runner(folder):
     r = st.save_bcc(folder, "jane+crm@gmail.com", "imap.gmail.com", "s3cret",
                     use_keychain=True, runner=runner, platform="darwin")
     assert r.ok and "s3cret" not in r.text()
-    assert calls == [["security", "add-generic-password", "-U", "-s", "owncrm-bcc",
+    assert calls == [["security", "add-generic-password", "-U", "-s", "hermitcrm-bcc",
                       "-a", "jane@gmail.com", "-w", "s3cret"]]
-    assert cfg(folder)["bcc_keychain_service"] == "owncrm-bcc"
+    assert cfg(folder)["bcc_keychain_service"] == "hermitcrm-bcc"
     assert not (folder / ".secrets.toml").exists()
 
 
