@@ -495,3 +495,26 @@ nav a.help-link { margin-left: 4px; }
 
 /* anchor jumps (#appearance, #inbox) land below the sticky top bar */
 [id] { scroll-margin-top: 64px; }
+
+/* follow-up radar (home page, above the board) */
+.radar { margin: 0 0 18px; }
+.radar h2 { margin: 0 0 6px; }
+.radar-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 3px; }
+.radar-row { display: grid; grid-template-columns: minmax(8em, 14em) 3.5em minmax(10em, 18em) 1fr auto;
+             gap: 10px; align-items: baseline; padding: 7px 10px; border-top: 1px solid var(--line); }
+.radar-row:first-child { border-top: none; }
+.radar-reply { border-left: 3px solid var(--danger); }
+.radar-nudge { border-left: 3px solid var(--line); }
+.radar-company { font-weight: 600; }
+.radar-days { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
+.radar-reason { color: var(--muted); font-size: 13px; }
+.radar-summary { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radar-act { font-size: 13px; white-space: nowrap; }
+@media (max-width: 800px) {
+  .radar-row { grid-template-columns: 1fr auto; row-gap: 2px; }
+  .radar-company { grid-column: 1; }
+  .radar-days { grid-column: 2; text-align: right; }
+  .radar-reason { grid-column: 1 / -1; }
+  .radar-summary { grid-column: 1 / -1; white-space: normal; }
+  .radar-act { grid-column: 1 / -1; }
+}

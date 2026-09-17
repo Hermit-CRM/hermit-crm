@@ -10,6 +10,16 @@ and `stage_history`), migrated automatically in one commit.
 
 - Logging an interaction on a **prospect** moves it to **engaged** in the same
   commit (manual, BCC and calendar imports alike).
+- **Follow-up radar on the home page** and `hermitcrm followups`: the threads
+  where somebody wrote to you and you have not answered, and the ones where you
+  wrote and nothing came back. Replies owed come first. A company with an open
+  next step due in the future is left off the nudge list -- you have already
+  decided what happens next, and the calendar owns that.
+- **`hermitcrm serve --host`** (config key `host`). `--host 0.0.0.0` puts the
+  web app on your phone over the local network, and prints the address to type
+  rather than `0.0.0.0`. Hermit CRM has no password, so it also prints a warning
+  and the advice to prefer a private network (Tailscale, WireGuard) over open
+  Wi-Fi.
 - **`hermitcrm add company|contact|interaction`**: create a record from the
   command line. Same validation and same commit as the web form, so an agent
   no longer has to compose YAML by hand. `--set field=value` reaches any field
