@@ -2,7 +2,7 @@
 {% block title %}Ask Hermit{% endblock %}
 {% block content %}
 <h1>Ask Hermit</h1>
-<p class="small">About <a href="{{ ask_page }}"><code>{{ ask_page }}</code></a>{% if ai.available %} &middot; {{ ai.provider }}, {{ model_label(answer.model if answer else ai[ai.tier]) }}{% endif %}</p>
+<p class="small">About <a href="{{ ask_page }}"><code>{{ ask_page }}</code></a>{% if ai.available %} &middot; {{ ai.provider }}, {{ model_label(answer.model if answer else (tried or ai[ai.tier])) }}{% endif %}</p>
 
 {% if not ai.available %}
 <p class="errors">No AI CLI available: {{ ai.reason }}. See <a href="/settings#enrichment">Settings → AI</a>.</p>
