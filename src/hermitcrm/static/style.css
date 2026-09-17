@@ -98,6 +98,7 @@ nav.sidebar {
   border-right: 1px solid var(--line);
 }
 nav.sidebar .brand {
+  display: flex; align-items: center; gap: 8px;
   font-weight: 700; font-size: 15px; color: var(--text);
   padding: 4px 10px 14px; text-decoration: none;
 }
