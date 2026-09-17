@@ -6,6 +6,10 @@ The data folder is plain files in git, so an agent works in it like a person
 would: read what is needed, edit front matter, commit. Run `hermitcrm` commands
 from the folder, or add `--data <folder>`.
 
+An agent with a shell in the folder should use the commands below. An AI client
+with no shell -- Claude Desktop, ChatGPT, Cursor -- connects over MCP instead;
+see **Connecting over MCP** at the end.
+
 ## Reading, cheapest first
 
 1. Read `PIPELINE.md` first. For a pipeline review it is usually enough: one
@@ -68,3 +72,53 @@ stage, a missing name) never crash the app: `hermitcrm check` and `/health` list
 them with file paths.
 
 Related: [Data format](/help/data-format), [CLI](/help/cli), [Pipeline](/help/pipeline)
+
+## Connecting over MCP
+
+`hermitcrm mcp` serves one data folder to any MCP client, over stdio. It adds no
+dependency: MCP's stdio transport is newline-delimited JSON-RPC, which is all
+this speaks.
+
+For Claude Desktop, add this to `claude_desktop_config.json` (Settings →
+Developer → Edit Config):
+
+```json
+{
+  "mcpServers": {
+    "hermitcrm": {
+      "command": "hermitcrm",
+      "args": ["--data", "/Users/you/crm", "mcp"]
+    }
+  }
+}
+```
+
+Use the full path to the `hermitcrm` binary if it is not on the launcher's PATH
+(`which hermitcrm` prints it). Other clients take the same command and arguments.
+
+The tools, reads first:
+
+| Tool | What it gives |
+| --- | --- |
+| `list_pipeline` | The whole pipeline as one page. Start here. |
+| `search_companies` | Turn a name into a slug. |
+| `show_company` | One account: fields, contacts, timeline, recent bodies. |
+| `digest` | Interactions in the last N days. |
+| `report` | Activity, funnel, time in stage, outcomes, hygiene. |
+| `followups` | Threads you owe a reply, then ones you are waiting on. |
+| `brief` | Each upcoming meeting with the record behind it. |
+| `add_company` | Create a company; returns the slug. |
+| `add_contact` | Create a contact under a company. |
+| `add_interaction` | Log an email, message, call or meeting. |
+
+The three `add_` tools are the same `store.create_*` calls the web form and
+`hermitcrm add` make, so validation, slugging, the prospect-to-engaged move and
+the git commit are shared rather than copied. Each one writes a file and makes a
+commit, so call them only when a record has actually been asked for.
+
+Every tool re-reads the folder before answering, so a long-lived MCP session
+does not serve a snapshot from whenever the client connected.
+
+A rejected value comes back as a tool error the model can read and retry
+(`could not write: country: unknown country 'ZZZZ'`), not as a protocol error,
+and nothing is written.

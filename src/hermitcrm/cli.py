@@ -214,6 +214,20 @@ def cmd_schedule(root: Path, action: str, at: str = "07:00", serve: bool = False
     return 0
 
 
+# ---------------------------------------------------------------------- mcp
+
+
+def cmd_mcp(root: Path, store: Store, stdin=None, stdout=None) -> int:
+    """Speak MCP on stdin/stdout until the client hangs up.
+
+    Nothing may be printed to stdout but protocol messages, so this returns
+    rather than prints, and anything worth saying goes to stderr.
+    """
+    from hermitcrm import mcp
+
+    return mcp.serve(root, store, stdin=stdin, stdout=stdout)
+
+
 # -------------------------------------------------------------------- brief
 
 
@@ -838,6 +852,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_migrate.add_argument("--dry-run", action="store_true",
                            help="list the files that would change")
 
+    sub.add_parser("mcp", help="serve this folder to AI clients over MCP (stdio)")
+
     p_brief = sub.add_parser("brief", help="what you need before each upcoming meeting")
     p_brief.add_argument("--days", type=int, default=7,
                          help="how far ahead to look (default 7)")
@@ -1021,6 +1037,9 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
         return cmd_schedule(root, args.action, at=args.at, serve=args.serve)
 
     store = build_store(root)
+
+    if args.command == "mcp":
+        return cmd_mcp(root, store, stdin=stdin)
 
     if args.command == "brief":
         print(cmd_brief(root, store, args.days))
