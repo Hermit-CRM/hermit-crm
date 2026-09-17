@@ -62,7 +62,7 @@ def test_empty_board_cards_and_setup_nav(folder):
     for text, href in (("Import a spreadsheet", "/import"), ("Add a company", "/companies/new"),
                        ("Set up BCC capture", "/setup#bcc")):
         assert text in page and f'href="{href}"' in page
-    assert '<a href="/settings">Settings</a>' in page.split("</nav>")[0]
+    assert 'href="/settings"' in page.split("</nav>")[0]
 
 
 def test_demo_board_has_no_start_cards(tmp_path):

@@ -64,7 +64,14 @@ DEFAULT_CONFIG = {
     "enrich_provider": "auto",
     "enrich_command": "",
     "enrich_model": "",
+    "enrich_model_strong": "",
     "enrich_timeout": 180,
+    # Enrich and Ask Hermit run on the "medium" model (Claude: Opus) unless this
+    # says "strong" (Claude: Fable); "Retry with ..." always uses strong.
+    "ai_tier": "medium",
+    "ask_timeout": 300,
+    # Look of the web app: light, dark or system (follow the OS setting).
+    "theme": "light",
     # A message with no reply and no explicit outcome counts as the last
     # outcome after this many days (Messages tab).
     "message_window_days": 14,

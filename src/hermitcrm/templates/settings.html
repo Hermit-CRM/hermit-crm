@@ -70,9 +70,24 @@
   </form>
 </section>
 
+<section class="setup-step" id="appearance">
+  <h2>Appearance</h2>
+  {{ step_errors('appearance') }}
+  <form method="post" action="/settings/appearance" class="record-form theme-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <fieldset class="switch">
+      <legend>Night mode</legend>
+      {% for t, label in [('light', 'Off'), ('dark', 'On'), ('system', 'Follow the system')] %}
+      <label><input type="radio" name="theme" value="{{ t }}"{% if t == theme %} checked{% endif %}> {{ label }}</label>
+      {% endfor %}
+    </fieldset>
+    <button type="submit">Save</button>
+  </form>
+</section>
+
 <section class="setup-step" id="enrichment">
-  <h2>Enrichment</h2>
-  <p class="small">The Enrich button asks an AI CLI you already have for a company's or contact's empty fields. Provider <code>auto</code> takes the first of claude, codex, gemini, grok it finds; <code>custom</code> runs the command line below. "Fetch from URL" needs none of this.</p>
+  <h2>AI: Enrich and Ask Hermit</h2>
+  <p class="small">Enrich and Ask Hermit use an AI CLI you already have. The Enrich button asks it for a company's or contact's empty fields; Ask Hermit answers questions about the page you are on, then about the whole CRM. Provider <code>auto</code> takes the first of claude, codex, gemini, grok it finds; <code>custom</code> runs the command line below. "Fetch from URL" needs none of this.</p>
   {% if enrich_status.available %}
   <p class="setup-status done">In use: {{ enrich_status.provider }}</p>
   {% else %}
@@ -89,8 +104,17 @@
         </select>
       </label>
       <label class="grow">Command (empty: the provider's own binary) <input name="command" value="{{ enrich_form.command }}" placeholder="/opt/homebrew/bin/claude"></label>
-      <label>Model (empty: its default) <input name="model" value="{{ enrich_form.model }}"></label>
       <label>Timeout (seconds) <input name="timeout" value="{{ enrich_form.timeout }}" inputmode="numeric" size="6"></label>
+    </div>
+    <fieldset class="switch">
+      <legend>Model</legend>
+      <label><input type="radio" name="tier" value="medium"{% if enrich_form.tier != 'strong' %} checked{% endif %}> Medium: {{ model_label(tier_models.medium) }}{% if tier_models.medium %} <code>{{ tier_models.medium }}</code>{% endif %} (default)</label>
+      <label><input type="radio" name="tier" value="strong"{% if enrich_form.tier == 'strong' %} checked{% endif %}> Strong: {{ model_label(tier_models.strong) }}{% if tier_models.strong %} <code>{{ tier_models.strong }}</code>{% endif %}</label>
+    </fieldset>
+    <p class="small">Answers and enrich proposals made on the medium model offer "Retry with {{ model_label(tier_models.strong) }}". Override a model id when your CLI names it differently.</p>
+    <div class="row">
+      <label>Medium model (empty: provider default) <input name="model" value="{{ enrich_form.model }}" placeholder="{{ tier_models.medium if not enrich_form.model else '' }}"></label>
+      <label>Strong model (empty: provider default) <input name="model_strong" value="{{ enrich_form.model_strong }}" placeholder="{{ tier_models.strong if not enrich_form.model_strong else '' }}"></label>
     </div>
     <button type="submit">Save</button>
   </form>

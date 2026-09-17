@@ -131,7 +131,7 @@ def test_every_page_links_to_its_help_topic(client):
                         ("/import", "import"), (f"/companies/{slug}/interactions/new",
                                                 "interactions")]:
         nav = client.get(path).text.split("</nav>")[0]
-        assert f'<a class="help-link" href="/help/{topic}"' in nav, path
+        assert f'href="/help/{topic}"' in nav, path
 
 
 # --------------------------------------------------------------------- CLI
