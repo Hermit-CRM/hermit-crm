@@ -4,7 +4,7 @@ The board at `/`: one column per open stage, cards you can move with a dropdown,
 
 ## Columns and cards
 
-The four open stages are columns: **prospect**, **reached-out**, **discovery**,
+The four open stages are columns: **prospect**, **engaged**, **discovery**,
 **offer**. A column with no companies is drawn narrow so all four fit on one
 screen. A card shows the company name (a link), days in the current stage,
 the country, the last touch (`email out 2026-09-14 (jane-doe)`), the next step

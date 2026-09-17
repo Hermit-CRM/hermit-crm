@@ -73,7 +73,7 @@ logger = logging.getLogger("crm.web")
 HERE = Path(__file__).resolve().parent
 BASE_URL = "http://127.0.0.1:8765"
 
-BOARD_STAGES = ["prospect", "reached-out", "discovery", "offer"]
+BOARD_STAGES = ["prospect", "engaged", "discovery", "offer"]
 BOARD_CLOSED = ["won", "lost", "disqualified", "temp-disqualified"]
 STAGES = [s.value for s in Stage]
 SOURCES = [s.value for s in Source]
@@ -569,7 +569,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         if contact and contact not in company.contacts:
             contact = ""
         return {
-            "channel": channel if channel in CHANNELS else "email",
+            "channel": channel if channel in CHANNELS else "linkedin",
             "direction": "out",
             "contact": contact or "",
             "date": fmt_datetime(store.now()),
@@ -849,9 +849,11 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             return flashed(back, str(exc))
         if not proposal.missing:
             return flashed(back, "Nothing to enrich: every field is set")
-        if not proposal.fields:
+        if not proposal.fields and not proposal.sources:
             return flashed(back, "Enrichment found nothing it could verify" +
                            (f": {proposal.notes}" if proposal.notes else ""))
+        # Nothing verified but sources found (say, a profile at another
+        # company): show the page, so the notes and links can be checked by hand.
         return _proposal_page(request, company, proposal, f"{back}/enrich/apply",
                               f"Enrich {contact.name}", back, retry=f"{back}/enrich",
                               enricher=enricher)
@@ -1422,6 +1424,19 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
                 **draft_context(request, company, contact),
             }, status_code=400)
         return flashed(f"/companies/{slug}/contacts/{cslug}", "Saved")
+
+    @app.post("/companies/{slug}/contacts/{cslug}/delete")
+    def contact_delete(request: Request, slug: str, cslug: str):
+        """Delete one contact (the browser asked for confirmation); its
+        interactions stay on the company without a contact."""
+        company = need_company(slug)
+        contact = company.contacts.get(cslug)
+        if contact is None:
+            raise HTTPException(status_code=404, detail=f"unknown contact {cslug!r}")
+        kept = sum(1 for i in company.interactions if i.contact == cslug)
+        store.delete_contact(slug, cslug)
+        note = f"; {kept} interaction(s) kept on {company.name}" if kept else ""
+        return flashed(f"/companies/{slug}", f"Contact {contact.name} deleted{note}")
 
     # ----------------------------------------------------------- interactions
 

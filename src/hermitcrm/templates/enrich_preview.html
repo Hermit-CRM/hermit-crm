@@ -4,6 +4,7 @@
 <h1>{{ title }}</h1>
 <p class="small">Proposed values for empty fields. Untick or edit anything before applying. Nothing has been saved yet.</p>
 <form method="post" action="{{ action }}" class="record-form proposal">
+  {% if proposal.fields %}
   <table>
     <tr><th></th><th>field</th><th>proposed value</th></tr>
     {% for key, value in proposal.fields.items() %}
@@ -14,6 +15,9 @@
     </tr>
     {% endfor %}
   </table>
+  {% else %}
+  <p><strong>Nothing verified to apply.</strong> Check the notes and sources below by hand.</p>
+  {% endif %}
   {% if proposal.notes %}<p class="small">{{ proposal.notes }}</p>{% endif %}
   {% if proposal.sources %}
   <p class="small">sources:
@@ -22,7 +26,7 @@
   {% endif %}
   {% set unfound = proposal.missing | reject('in', proposal.fields) | list %}
   {% if unfound %}<p class="small">not found: {{ unfound | join(', ') }}</p>{% endif %}
-  <button type="submit">Apply selected</button>
+  {% if proposal.fields %}<button type="submit">Apply selected</button>{% endif %}
   <a href="{{ back }}" style="margin-left: 10px">Cancel</a>
 </form>
 {% if retry and ran and ran.tier != 'strong' and ran.strong_model and ran.strong_model != ran.model %}

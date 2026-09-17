@@ -37,7 +37,7 @@ def test_store_writes_preserve_extra_keys(tmp_path):
         path.write_text(text.replace("---\n", "---\nzz_tool: 1\naa_owner: me\n", 1))
     store.load()
 
-    store.update_company("acme", stage="reached-out", next_step="Call")
+    store.update_company("acme", stage="engaged", next_step="Call")
     store.update_contact("acme", "jane-doe", title="CEO")
     store.update_interaction("acme", it.id, outcome="successful")
 
@@ -49,4 +49,4 @@ def test_store_writes_preserve_extra_keys(tmp_path):
     store.load()
     store.update_company("acme", next_step="Call")  # no-op write is deterministic
     assert paths["company"].read_text().split("updated:")[0] == first.split("updated:")[0]
-    assert store.get("acme").stage == "reached-out"
+    assert store.get("acme").stage == "engaged"

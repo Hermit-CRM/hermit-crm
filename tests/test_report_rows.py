@@ -49,7 +49,7 @@ BASELINE_30D = """\
 | stage | entered | previous | delta |
 |---|---|---|---|
 | prospect | 0 | 6 | −6 |
-| reached-out | 1 | 3 | −2 |
+| engaged | 2 | 3 | −1 |
 | discovery | 3 | 0 | +3 |
 | offer | 2 | 0 | +2 |
 | won | 1 | 0 | +1 |
@@ -59,15 +59,15 @@ BASELINE_30D = """\
 
 | from | to | reached from | reached to | conversion |
 |---|---|---|---|---|
-| prospect | reached-out | 6 | 5 | 83% |
-| reached-out | discovery | 5 | 3 | 60% |
+| prospect | engaged | 6 | 5 | 83% |
+| engaged | discovery | 5 | 3 | 60% |
 | discovery | offer | 3 | 2 | 67% |
 | offer | won | 2 | 1 | 50% |
 
 | stage | companies | median days |
 |---|---|---|
 | prospect | 6 | 12 |
-| reached-out | 4 | 7.5 |
+| engaged | 5 | 7 |
 | discovery | 3 | 14 |
 | offer | 2 | 12 |
 | won | 1 | 8 |
@@ -76,7 +76,7 @@ BASELINE_30D = """\
 | pipeline stage | companies | EUR/month |
 |---|---|---|
 | prospect | 1 | 0 |
-| reached-out | 1 | 0 |
+| engaged | 1 | 0 |
 | discovery | 1 | 1,500 |
 | offer | 1 | 4,000 |
 
@@ -171,7 +171,7 @@ BASELINE_90D = """\
 | stage | entered | previous | delta |
 |---|---|---|---|
 | prospect | 6 | 0 | +6 |
-| reached-out | 4 | 0 | +4 |
+| engaged | 5 | 0 | +5 |
 | discovery | 3 | 0 | +3 |
 | offer | 2 | 0 | +2 |
 | won | 1 | 0 | +1 |
@@ -181,15 +181,15 @@ BASELINE_90D = """\
 
 | from | to | reached from | reached to | conversion |
 |---|---|---|---|---|
-| prospect | reached-out | 6 | 5 | 83% |
-| reached-out | discovery | 5 | 3 | 60% |
+| prospect | engaged | 6 | 5 | 83% |
+| engaged | discovery | 5 | 3 | 60% |
 | discovery | offer | 3 | 2 | 67% |
 | offer | won | 2 | 1 | 50% |
 
 | stage | companies | median days |
 |---|---|---|
 | prospect | 6 | 12 |
-| reached-out | 4 | 7.5 |
+| engaged | 5 | 7 |
 | discovery | 3 | 14 |
 | offer | 2 | 12 |
 | won | 1 | 8 |
@@ -198,7 +198,7 @@ BASELINE_90D = """\
 | pipeline stage | companies | EUR/month |
 |---|---|---|
 | prospect | 1 | 0 |
-| reached-out | 1 | 0 |
+| engaged | 1 | 0 |
 | discovery | 1 | 1,500 |
 | offer | 1 | 4,000 |
 

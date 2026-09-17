@@ -43,7 +43,7 @@ def test_enum_values_are_hyphenated_strings():
         "linkedin-search", "referral", "inbound", "event", "list", "network", "other",
     ]
     assert [e.value for e in Stage] == [
-        "prospect", "reached-out", "discovery", "offer", "won", "lost",
+        "prospect", "engaged", "discovery", "offer", "won", "lost",
         "disqualified", "temp-disqualified",
     ]
     assert len(Country) == 249 and "GB" in [e.value for e in Country] and "UK" not in [e.value for e in Country]
@@ -53,7 +53,7 @@ def test_enum_values_are_hyphenated_strings():
     assert [e.value for e in Channel] == ["email", "linkedin", "call", "meeting"]
     assert [e.value for e in Direction] == ["out", "in"]
     assert [e.value for e in InteractionSource] == ["manual", "bcc-import", "calendar-import"]
-    assert OPEN_STAGES == ["offer", "discovery", "reached-out", "prospect"]
+    assert OPEN_STAGES == ["offer", "discovery", "engaged", "prospect"]
     assert CLOSED_STAGES == ["won", "lost", "disqualified"]
 
 

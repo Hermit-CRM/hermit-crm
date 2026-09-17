@@ -30,7 +30,7 @@ class Source(str, Enum):
 
 class Stage(str, Enum):
     PROSPECT = "prospect"
-    REACHED_OUT = "reached-out"
+    ENGAGED = "engaged"
     DISCOVERY = "discovery"
     OFFER = "offer"
     WON = "won"
@@ -123,9 +123,11 @@ class InteractionSource(str, Enum):
     CALENDAR_IMPORT = "calendar-import"
 
 
-OPEN_STAGES = ["offer", "discovery", "reached-out", "prospect"]
+OPEN_STAGES = ["offer", "discovery", "engaged", "prospect"]
+# Old stage names still accepted as input (imports, CLI); files are migrated.
+STAGE_ALIASES = {"reached-out": "engaged"}
 # Early stages carry no monthly value in PIPELINE.md headings.
-UNVALUED_STAGES = ["reached-out", "prospect"]
+UNVALUED_STAGES = ["engaged", "prospect"]
 CLOSED_STAGES = ["won", "lost", "disqualified"]
 # Parked: out of the pipeline for now, but a next step (revisit) still shows up.
 PARKED_STAGES = ["temp-disqualified"]

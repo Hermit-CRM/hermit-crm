@@ -119,7 +119,7 @@ def test_demo_loads_clean_with_every_stage_and_reports(tmp_path):
     assert store.load() == []
     companies = store.all()
     assert len(companies) == 6
-    assert {c.stage for c in companies} >= {"prospect", "reached-out", "discovery", "offer",
+    assert {c.stage for c in companies} >= {"prospect", "engaged", "discovery", "offer",
                                             "won", "lost"}
     domains = {ct.email.split("@")[1] for c in companies for ct in c.contacts.values()}
     assert all(d.endswith((".example.com", ".example.org")) for d in domains)

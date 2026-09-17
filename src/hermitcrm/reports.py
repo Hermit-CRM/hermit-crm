@@ -23,7 +23,7 @@ from .store import DEFAULT_CONFIG, Store
 
 PERIODS = ["7d", "30d", "90d", "quarter", "ytd", "custom"]
 # Board order, left to right; the funnel adds won at the end.
-PIPELINE_STAGES = ["prospect", "reached-out", "discovery", "offer"]
+PIPELINE_STAGES = ["prospect", "engaged", "discovery", "offer"]
 FUNNEL_STAGES = PIPELINE_STAGES + ["won"]
 STAGE_ORDER = [s.value for s in Stage]
 CHANNELS = [c.value for c in Channel]  # every channel, including calendar "meeting"
@@ -323,7 +323,7 @@ def funnel(store: Store, period: Period, rows: Rows | None = None) -> dict:
 
     - entered: per stage, how many transitions into it fall in the period
       (and in the previous period, for the delta).
-    - conversion: for consecutive funnel stages X -> Y (prospect, reached-out,
+    - conversion: for consecutive funnel stages X -> Y (prospect, engaged,
       discovery, offer, won): of the companies that reached X or any later
       funnel stage on or before the period end, the share that reached Y or
       later. Reaching a later stage counts, so skipping a stage is no leak.

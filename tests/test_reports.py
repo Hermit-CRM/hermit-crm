@@ -35,17 +35,17 @@ def test_empty_history_writes_nothing(store):
 
 def test_history_round_trip_and_format(store):
     store.create_company("Acme GmbH")
-    store.update_company("acme", stage="reached-out")
+    store.update_company("acme", stage="engaged")
     store.update_company("acme", stage="lost", lost_reason="no budget, later")
     path = store.company_dir("acme") / "company.md"
     text = read(path)
     assert ("tags: []\nstage_history:\n"
-            "  - {date: 2026-09-14, from: prospect, to: reached-out}\n"
-            "  - {date: 2026-09-14, from: reached-out, to: lost, reason: 'no budget, later'}\n"
+            "  - {date: 2026-09-14, from: prospect, to: engaged}\n"
+            "  - {date: 2026-09-14, from: engaged, to: lost, reason: 'no budget, later'}\n"
             "created: ") in text
     meta, body = split_file(text)
     c = company_from_dict(meta, body, "acme")
-    assert c.stage_history[1] == StageChange(TODAY, "reached-out", "lost", "no budget, later")
+    assert c.stage_history[1] == StageChange(TODAY, "engaged", "lost", "no budget, later")
     assert build_file(company_to_frontmatter(c), c.notes) == text
 
 
@@ -96,12 +96,12 @@ def test_create_in_non_prospect_stage_records_start(store):
 
 def test_update_appends_and_never_rewrites(store):
     store.create_company("Acme GmbH")
-    first = store.update_company("acme", stage="reached-out").stage_history
+    first = store.update_company("acme", stage="engaged").stage_history
     clocked(store, "2026-09-20T09:00")
     store.update_company("acme", next_step="Call")  # no stage change: no entry
     c = store.update_company("acme", stage="discovery")
-    assert first == [StageChange(TODAY, "prospect", "reached-out")]  # old list untouched
-    assert c.stage_history == first + [StageChange(date(2026, 9, 20), "reached-out", "discovery")]
+    assert first == [StageChange(TODAY, "prospect", "engaged")]  # old list untouched
+    assert c.stage_history == first + [StageChange(date(2026, 9, 20), "engaged", "discovery")]
 
 
 def test_disqualify_and_requalify_due_append(store):
@@ -119,13 +119,13 @@ def test_disqualify_and_requalify_due_append(store):
 def test_merge_combines_histories_sorted(store):
     store.create_company("Acme GmbH")
     clocked(store, "2026-09-16T09:00")
-    store.update_company("acme", stage="reached-out")
+    store.update_company("acme", stage="engaged")
     clocked(store, "2026-09-14T09:00")
     store.create_company("Acme Two", stage="discovery")
     clocked(store, "2026-09-18T09:00")
     merged = store.merge_companies("acme", "acme-two", {"stage": "keep"})
     assert [(e.date.day, e.to_stage) for e in merged.stage_history] == [
-        (14, "discovery"), (16, "reached-out")]
+        (14, "discovery"), (16, "engaged")]
     assert "stage_history" in read(store.company_dir("acme") / "company.md")
 
 
@@ -133,7 +133,7 @@ def test_merge_taking_other_stage_appends(store):
     store.create_company("Acme GmbH")
     store.create_company("Acme Two")
     store.update_company("acme-two", stage="offer")
-    store.update_company("acme", stage="reached-out")
+    store.update_company("acme", stage="engaged")
     merged = store.merge_companies("acme", "acme-two", {"stage": "drop"})
     assert merged.stage == "offer"
     # The combined history already ends in offer (acme-two's entry): nothing added.
@@ -288,7 +288,7 @@ def seeded(store):
     store.create_company("Acme GmbH", source="linkedin-search", country="DE",
                          value_eur_month=4000)
     store.create_contact("acme", "Jane", "Doe")  # no email
-    store.create_company("Beta AG", source="linkedin-search", stage="reached-out")
+    store.create_company("Beta AG", source="linkedin-search", stage="engaged")
     store.create_contact("beta", "Bob", "Beta", email="bob@beta.com")
     store.create_company("Gamma", source="referral", next_step="Call", next_step_due="2026-09-10")
     body = "Hi there,\nquick question"
@@ -301,7 +301,7 @@ def seeded(store):
     store.create_interaction("old", channel="email", direction="out", contact="otto-old",
                              date="2026-09-07T23:59", body=body)  # previous period, boundary
     clocked(store, "2026-09-10T09:00")
-    store.update_company("acme", stage="reached-out")
+    store.update_company("acme", stage="engaged")
     store.update_company("acme", stage="discovery")
     store.update_company("beta", stage="lost", lost_reason="no budget")
     clocked(store, "2026-09-14T10:00")
@@ -338,13 +338,13 @@ def test_activity_counts_meetings(store):
 def test_funnel(seeded):
     f = reports.funnel(seeded, reports.period_for("7d", TODAY))
     entered = {r["stage"]: (r["count"], r["previous"]) for r in f["entered"]}
-    assert entered["prospect"] == (2, 1)  # acme and gamma implicit; beta started in reached-out
-    assert entered["reached-out"] == (2, 0)
+    assert entered["prospect"] == (2, 1)  # acme and gamma implicit; beta started in engaged
+    assert entered["engaged"] == (2, 0)
     assert entered["won"] == (1, 0) and entered["lost"] == (1, 1)
     conv = {(r["from"], r["to"]): (r["base"], r["reached"]) for r in f["conversion"]}
     # beta skipped prospect but still counts as having reached it; old never left prospect.
-    assert conv[("prospect", "reached-out")] == (4, 2)
-    assert conv[("reached-out", "discovery")] == (2, 1)
+    assert conv[("prospect", "engaged")] == (4, 2)
+    assert conv[("engaged", "discovery")] == (2, 1)
     assert conv[("offer", "won")] == (1, 1)  # acme skipped offer
     medians = {r["stage"]: r["median"] for r in f["median_days"]}
     assert medians["won"] == 0 and medians["lost"] == 8  # old 12d, beta 4d

@@ -7,10 +7,14 @@ An interaction is one touch with a company: an email, LinkedIn message, call or 
 The **Log an interaction** form sits on every company and contact page, and
 on its own at `/companies/<slug>/interactions/new` (the "log interaction"
 links on the Calendar open it). Fields: channel (`email`, `linkedin`, `call`,
-`meeting`), direction (`out` or `in`, default out), contact (or "company
+`meeting`, default linkedin), direction (`out` or `in`, default out), contact (or "company
 only"), date and time (default now, editable), subject, outcome and the body.
 The body is the pasted message or the call notes; it is stored byte for byte
 and never rewritten.
+
+Logging an interaction (by hand or from the BCC and calendar imports) on a
+company in **prospect** moves it to **engaged**, in the same commit. Other
+stages are left alone.
 
 Saving redirects to the company page with the timeline scrolled to the new
 entry. Each entry has an edit link (`/companies/<slug>/interactions/<id>/edit`)

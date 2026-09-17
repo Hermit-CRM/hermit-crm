@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 import pytest
 
-from hermitcrm.models import ValidationError
+from hermitcrm.models import StageChange, ValidationError
 from hermitcrm.store import Store, build_file, load_config, normalise_body, split_file
 from conftest import FIXED_NOW
 
@@ -287,8 +287,10 @@ def test_create_interaction_id_and_message(store, messages):
     assert it.source == "manual"
     assert (store.root / "companies" / "mueller-soehne" / "interactions"
             / f"{it.id}.md").exists()
+    # One commit: the prospect became engaged with the first interaction.
     assert messages == [
-        "interaction: mueller-soehne linkedin out anna-mueller 2026-09-08T09:12"
+        "interaction: mueller-soehne linkedin out anna-mueller 2026-09-08T09:12; "
+        "stage prospect -> engaged"
     ]
 
 
@@ -434,7 +436,7 @@ def test_round_trip_preserves_every_field(store):
     assert c.slug == "mueller-soehne"
     assert c.website == "https://mueller.de"
     assert c.source == "referral"
-    assert c.stage == "prospect"
+    assert c.stage == "engaged"  # it has interactions
     assert c.stage_changed == date(2026, 9, 14)
     assert c.value_eur_month == 3000
     assert c.next_step == "Send proposal: outline"
@@ -708,12 +710,12 @@ def test_company_country_is_optional_enum(store, messages):
     assert messages == ["company: acme created", "company: acme updated"]
 
 
-def test_reached_out_is_an_open_stage(store, messages):
+def test_engaged_is_an_open_stage(store, messages):
     store.create_company("Acme")
-    c = store.update_company("acme", stage="reached-out")
-    assert c.stage == "reached-out" and not c.is_closed
+    c = store.update_company("acme", stage="engaged")
+    assert c.stage == "engaged" and not c.is_closed
     assert c.stage_changed == FIXED_NOW.date()
-    assert messages[-1] == "company: acme stage prospect -> reached-out"
+    assert messages[-1] == "company: acme stage prospect -> engaged"
 
 
 def test_next_step_status_lifecycle(store, messages):
@@ -895,3 +897,49 @@ def test_country_aliases_on_create_and_edit(store):
     assert store.get("acme").country == "JP"
     with pytest.raises(ValidationError):
         store.update_company("acme", country="Narnia")
+
+
+def test_interaction_moves_only_a_prospect_to_engaged(store, messages):
+    store.create_company("Acme")
+    store.create_company("Beta", stage="discovery")
+    store.create_interaction("acme", channel="email", direction="in", date="2026-09-10T09:00")
+    acme = store.get("acme")
+    assert acme.stage == "engaged" and acme.stage_changed == FIXED_NOW.date()
+    assert [(e.from_stage, e.to_stage) for e in acme.stage_history] == [("prospect", "engaged")]
+    assert len(acme.interactions) == 1
+    messages.clear()
+    store.create_interaction("acme", channel="call", direction="out")
+    assert messages == ["interaction: acme call out company 2026-09-14T10:30"]
+    store.create_interaction("beta", channel="linkedin", direction="out")
+    assert store.get("beta").stage == "discovery" and store.get("beta").stage_history == [
+        StageChange(FIXED_NOW.date(), "", "discovery")]
+
+
+def test_old_stage_name_is_accepted_as_input(store):
+    store.create_company("Acme", stage="reached-out")
+    assert store.get("acme").stage == "engaged"
+    assert store.update_company("acme", stage="reached-out").stage == "engaged"
+
+
+def test_delete_contact_keeps_interactions_without_contact(store, messages):
+    store.create_company("Acme")
+    store.create_contact("acme", "Jane", "Doe")
+    store.create_contact("acme", "Tom", "Typo")
+    it = store.create_interaction("acme", channel="linkedin", direction="out",
+                                  contact="jane-doe", date="2026-09-10T09:00", body="Hi Jane\n")
+    messages.clear()
+    store.delete_contact("acme", "tom-typo")
+    assert messages == ["contact: acme/tom-typo deleted"]
+    store.delete_contact("acme", "jane-doe")
+    assert messages[-1] == "contact: acme/jane-doe deleted (1 interaction(s) kept without a contact)"
+    assert len(messages) == 2
+    folder = store.root / "companies" / "acme"
+    assert not (folder / "contacts" / "jane-doe.md").exists()
+    assert not (folder / "interactions" / f"{it.id}.md").exists()
+    c = fresh(store).get("acme")
+    assert c.contacts == {} and len(c.interactions) == 1
+    kept = c.interactions[0]
+    assert kept.contact == "" and kept.body == "Hi Jane\n"
+    assert kept.id == "2026-09-10T0900-linkedin-out-company"
+    with pytest.raises(ValidationError):
+        store.delete_contact("acme", "jane-doe")

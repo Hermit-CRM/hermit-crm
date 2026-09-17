@@ -54,7 +54,7 @@ def test_format_detection(tmp_path, old_folder):
 def test_dry_run_lists_files_and_writes_nothing(old_folder):
     before = {p: p.read_bytes() for p in old_folder.rglob("company.md")}
     text = migrations.dry_run(old_folder)
-    assert "Data format 0 → 3" in text
+    assert "Data format 0 → 4" in text
     assert "1. rename gijs_score to my_score: 3 file(s)" in text  # bolt has an empty key
     assert "2. country UK→GB, USA→US: 2 file(s)" in text
     assert "3. interaction result folded into outcome: 0 file(s)" in text
@@ -72,15 +72,15 @@ def test_migrate_before_after_in_one_commit(old_folder):
 
     summary = migrations.ensure_current(old_folder)
 
-    assert summary.startswith("migrate: data format 0 → 3 (rename gijs_score to my_score; "
+    assert summary.startswith("migrate: data format 0 → 4 (rename gijs_score to my_score; "
                               "country UK→GB, USA→US; interaction result folded into "
-                              "outcome)")
+                              "outcome; stage reached-out renamed to engaged)")
     assert acme.read_text() == expected and acme.read_text().endswith(BODY)
     bolt = (old_folder / "companies/bolt/company.md").read_text()
     assert "country: US\n" in bolt and "my_score:\n" in bolt and "gijs_score" not in bolt.split("---")[1]
-    assert (old_folder / ".hermitcrm-format").read_text() == "3\n"
+    assert (old_folder / ".hermitcrm-format").read_text() == "4\n"
     assert int(git(["rev-list", "--count", "HEAD"], old_folder)) == commits_before + 1
-    assert git(["log", "-1", "--format=%s|%an"], old_folder).startswith("migrate: data format 0 → 3")
+    assert git(["log", "-1", "--format=%s|%an"], old_folder).startswith("migrate: data format 0 → 4")
     assert "hermitcrm" in git(["log", "-1", "--format=%an"], old_folder)
     changed = git(["show", "--name-only", "--format=", "HEAD"], old_folder).split()
     assert sorted(changed) == [".hermitcrm-format", "companies/acme/company.md",
@@ -118,3 +118,25 @@ def test_works_without_git(tmp_path):
     path.write_text(old_company_file("Acme", "acme", "UK", 1))
     assert "1 file(s) changed" in migrations.ensure_current(tmp_path)
     assert "country: GB" in path.read_text()
+
+
+def test_m4_renames_reached_out_in_stage_and_history(tmp_path):
+    path = tmp_path / "companies/acme/company.md"
+    path.parent.mkdir(parents=True)
+    text = old_company_file("Acme", "acme", "GB", 1).replace("stage: prospect", "stage: reached-out")
+    text = text.replace("created:", "stage_history:\n"
+                        "  - {date: 2026-09-10, from: prospect, to: reached-out}\n"
+                        "  - {date: 2026-09-12, from: reached-out, to: lost, reason: later}\n"
+                        "created:", 1)
+    path.write_text(text)
+    migrations.write_format(tmp_path, 3)
+    assert "1 file(s) changed" in migrations.ensure_current(tmp_path)
+    store = Store(tmp_path)
+    assert store.load() == []
+    c = store.get("acme")
+    assert c.stage == "engaged"
+    assert [(e.from_stage, e.to_stage) for e in c.stage_history] == [
+        ("prospect", "engaged"), ("engaged", "lost")]
+    assert path.read_text().endswith(BODY) and "reached-out" not in path.read_text()
+    meta = {"stage": "offer"}
+    assert migrations.m4_stage_engaged(meta) is meta

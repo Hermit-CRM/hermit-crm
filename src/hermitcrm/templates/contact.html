@@ -49,4 +49,13 @@
   <h2>Interactions ({{ interactions | length }})</h2>
   {{ m.timeline(company, interactions) }}
 </section>
+
+<section id="delete">
+  <h2>Delete</h2>
+  {% set confirm_text = 'Delete ' ~ contact.name ~ '?' ~ ((' Their ' ~ interactions | length ~ ' interaction(s) stay on ' ~ company.name ~ ' without a contact.') if interactions else '') %}
+  <form method="post" action="/companies/{{ company.slug }}/contacts/{{ contact.slug }}/delete" class="danger">
+    <button type="submit" onclick="return confirm({{ confirm_text | tojson | forceescape }})">Delete contact</button>
+    <span class="small">{% if interactions %}{{ interactions | length }} interaction(s) stay on {{ company.name }}, without a contact.{% else %}No interactions are linked to this contact.{% endif %}</span>
+  </form>
+</section>
 {% endblock %}

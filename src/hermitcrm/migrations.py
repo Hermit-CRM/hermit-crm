@@ -88,11 +88,37 @@ def m3_outcome(meta: dict) -> dict:
             for k, v in meta.items()}
 
 
+# Stage values renamed since earlier formats (old -> new).
+STAGE_RENAMES = {"reached-out": "engaged"}
+
+
+def m4_stage_engaged(meta: dict) -> dict:
+    """Rename the `reached-out` stage to `engaged`, in `stage` and in every
+    `stage_history` entry (`from` and `to`)."""
+    new = dict(meta)
+    stage = str(meta.get("stage") or "").strip()
+    if stage in STAGE_RENAMES:
+        new["stage"] = STAGE_RENAMES[stage]
+    history = meta.get("stage_history")
+    if isinstance(history, list):
+        entries = []
+        for item in history:
+            if isinstance(item, dict):
+                item = {k: (STAGE_RENAMES.get(v, v) if k in ("from", "to") and isinstance(v, str)
+                            else v) for k, v in item.items()}
+            entries.append(item)
+        if entries != history:
+            new["stage_history"] = entries
+    return new if new != meta else meta
+
+
 MIGRATIONS = [
     Migration(1, "rename gijs_score to my_score", "companies/*/company.md", m1_my_score),
     Migration(2, "country UK→GB, USA→US", "companies/*/company.md", m2_country_codes),
     Migration(3, "interaction result folded into outcome",
               "companies/*/interactions/*.md", m3_outcome),
+    Migration(4, "stage reached-out renamed to engaged", "companies/*/company.md",
+              m4_stage_engaged),
 ]
 LATEST = MIGRATIONS[-1].version
 
