@@ -32,6 +32,9 @@ page.
   form: slug, created, updated, stage changed, and the stage history collapsed.
 - **Contacts** with title, role, email and LinkedIn, and a New contact link.
 - **Message drafts** for the preselected contact (see [Contacts](/help/contacts)).
+- **Tasks**: the next step with its due date and status, **Mark done** /
+  **Reopen**, the Google Calendar link, and a form to write a new next step.
+  A rewritten next step starts open again.
 - **Merge**: pick another company to compare and merge into this one.
 - **Timeline**: every interaction across all contacts, newest first, bodies
   collapsed.

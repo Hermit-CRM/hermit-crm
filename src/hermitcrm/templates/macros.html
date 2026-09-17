@@ -214,3 +214,42 @@
   {% endfor %}
 </ul>
 {% endmacro %}
+
+
+{% macro task_section(company, today, note='') -%}
+<section id="tasks">
+  <h2>Tasks</h2>
+  {% if note %}<p class="small">{{ note }}</p>{% endif %}
+  <table>
+    <tr><th>next step</th><th>due</th><th>status</th><th></th></tr>
+    {% if company.has_next_step %}
+    <tr class="{% if company.next_step_overdue(today) %}overdue{% endif %}{% if company.next_step_done %} done{% endif %}">
+      <td>{{ company.next_step or '(no text)' }}</td>
+      <td class="{% if company.next_step_overdue(today) %}overdue{% endif %}">{{ fmt_date(company.next_step_due) if company.next_step_due else 'no date' }}</td>
+      <td><span class="tag status-{{ company.next_step_status }}">{{ company.next_step_status }}</span></td>
+      <td class="actions">
+        <form method="post" action="/companies/{{ company.slug }}/next-step" class="inline">
+          {% if company.next_step_done %}
+          <input type="hidden" name="status" value="open"><button type="submit">Reopen</button>
+          {% else %}
+          <input type="hidden" name="status" value="done"><button type="submit">Mark done</button>
+          {% endif %}
+        </form>
+        {% if company.next_step_due and not company.next_step_done %}
+        <a class="calendar" target="_blank" rel="noopener" href="{{ calendar_link(company) }}">Add to Google Calendar</a>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4" class="empty">No open task.</td></tr>
+    {% endif %}
+  </table>
+  <form method="post" action="/companies/{{ company.slug }}/task" class="inline-row">
+    <label class="grow">{{ 'new or changed next step' if company.has_next_step else 'next step' }}
+      <input name="next_step" value="{{ '' if company.next_step_done else company.next_step }}" placeholder="e.g. follow up on LinkedIn" required>
+    </label>
+    <label>due <input type="date" name="next_step_due" value="{{ '' if company.next_step_done else fmt_date(company.next_step_due) }}"></label>
+    <button type="submit">Save task</button>
+  </form>
+</section>
+{%- endmacro %}

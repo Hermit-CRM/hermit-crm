@@ -129,6 +129,8 @@
 
 {{ m.drafts_section(company, draft_contact, drafts, signal, observation, '/companies/' ~ company.slug) }}
 
+{{ m.task_section(company, today) }}
+
 <section id="merge">
   <h2>Merge</h2>
   <form method="get" action="/companies/{{ company.slug }}/merge" class="inline-row">

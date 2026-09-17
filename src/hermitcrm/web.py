@@ -1157,7 +1157,21 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             return flashed(f"/companies/{slug}", "; ".join(exc.errors.values()))
         back = urlparse(request.headers.get("referer", "")).path or f"/companies/{slug}"
         word = "done" if status == TaskStatus.DONE.value else "reopened"
-        return flashed(back, f"Next step {word}")
+        return flashed(back, f"Next step {word}", "tasks" if back.startswith("/companies/") else "")
+
+    @app.post("/companies/{slug}/task")
+    def company_task(request: Request, slug: str, next_step: str = Form(""),
+                     next_step_due: str = Form("")):
+        """Set the next step and its due date from the Tasks section; it starts open."""
+        need_company(slug)
+        back = urlparse(request.headers.get("referer", "")).path or f"/companies/{slug}"
+        try:
+            store.update_company(slug, next_step=next_step, next_step_due=next_step_due,
+                                 next_step_status="open",
+                                 message=f"company: {slug} next step set")
+        except ValidationError as exc:
+            return flashed(back, "; ".join(exc.errors.values()), "tasks")
+        return flashed(back, "Task saved", "tasks")
 
     @app.post("/companies/{slug}/country")
     def company_country(request: Request, slug: str, country: str = Form("")):

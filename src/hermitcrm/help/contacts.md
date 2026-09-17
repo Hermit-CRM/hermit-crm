@@ -30,6 +30,13 @@ New contacts come from the company page's New contact link
 (`/companies/<slug>/contacts/new`), from Import in contacts mode, and from the
 BCC and calendar imports (a new person at a company whose domain is known).
 
+## Tasks
+
+The contact page shows the company's **Tasks** section (above Delete): the next
+step, its due date and status, **Mark done** / **Reopen**, and a form to write a
+new one. A next step belongs to the company, so it is the same task you see on
+the company page and in the calendar.
+
 ## Message drafts
 
 Three deliberately different drafts, written from CRM data alone, no AI, in
