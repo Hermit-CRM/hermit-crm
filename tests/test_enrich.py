@@ -327,3 +327,12 @@ def test_cli_enrich_reports_unavailable(tmp_path, capsys, monkeypatch):
                         lambda p, c, which=None: None)
     assert crm.main(["enrich", "acme"], root=tmp_path) == 1
     assert "enrichment unavailable: no AI CLI found" in capsys.readouterr().out
+
+
+def test_failed_claude_run_reports_the_envelope_message(monkeypatch):
+    stdout = json.dumps({"type": "result", "is_error": True,
+                         "result": "API Error: 400 this model needs a newer CLI"})
+    monkeypatch.setattr(subprocess, "run", FakeRun(stdout, returncode=1))
+    with pytest.raises(EnrichError) as exc:
+        Enricher(provider="claude", which=ALL).runner("p", {})
+    assert str(exc.value).endswith("API Error: 400 this model needs a newer CLI")

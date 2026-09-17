@@ -1743,7 +1743,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
 
     def ask_page_view(request: Request, page: str, status_code: int = 200, **extra):
         enricher = app.state.enricher
-        ctx = {"ask_page": page, "question": "", "answer": None, "error": "",
+        ctx = {"ask_page": page, "question": "", "answer": None, "error": "", "tried": "",
                "ai": {"available": enricher.available, "provider": enricher.provider_name,
                       "reason": "" if enricher.available else enricher.unavailable_reason(),
                       "medium": enricher.model_for("medium"),
@@ -1771,6 +1771,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
                 float(config.get("ask_timeout") or 300))
         except EnrichError as exc:
             return ask_page_view(request, page, question=question, error=str(exc),
+                                 tried=enricher.model,
                                  status_code=400 if not question.strip() else 502)
         return ask_page_view(request, page, question=question, answer=answer)
 

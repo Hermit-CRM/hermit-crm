@@ -507,6 +507,12 @@ class Enricher:
                 raise EnrichError(f"enrichment timed out after {int(self.timeout)} s")
             if proc.returncode != 0:
                 tail = ((proc.stderr or "").strip() or (proc.stdout or "").strip())
+                try:  # a JSON envelope (claude -p) carries the readable message
+                    envelope = json.loads(proc.stdout or "")
+                    if isinstance(envelope, dict) and isinstance(envelope.get("result"), str):
+                        tail = envelope["result"].strip() or tail
+                except json.JSONDecodeError:
+                    pass
                 tail = tail.splitlines()[-3:]
                 raise EnrichError(f"enrichment failed ({provider.name}): " + " | ".join(tail))
             out = Path(out_path)
