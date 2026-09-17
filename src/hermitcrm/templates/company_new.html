@@ -3,6 +3,12 @@
 {% block title %}New company{% endblock %}
 {% block content %}
 <h1>New company</h1>
+{% if capture %}
+<div class="flash capture-note">
+  Read from <a href="{{ capture.url }}" rel="noreferrer noopener">{{ capture.url }}</a>.
+  Check the fields before saving.{% if capture.notes %} <span class="small">{{ capture.notes }}</span>{% endif %}
+</div>
+{% endif %}
 {{ m.errors_box(errors) }}
 <form method="post" action="/companies" class="record-form">
   {{ m.company_fields(values, errors) }}

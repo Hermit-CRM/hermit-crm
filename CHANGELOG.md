@@ -15,6 +15,12 @@ and `stage_history`), migrated automatically in one commit.
   wrote and nothing came back. Replies owed come first. A company with an open
   next step due in the future is left off the nudge list -- you have already
   decided what happens next, and the calendar owns that.
+- **Capture from the page you are on**: a bookmarklet on the new **Capture**
+  page reads the company website or LinkedIn page in front of you and opens a
+  filled-in new-company form. `fetch` ran backwards for this -- it needed the
+  record to exist first -- so capture inverts it. No extension to install. A
+  page belonging to a company you already have takes you to that record instead
+  of quietly making a second one.
 - **Pre-meeting brief**: `hermitcrm brief`, and a folded "Brief" under every
   meeting on the Calendar page. Stage, open next step, contacts and the last
   three interactions for each company you are about to talk to. It reads the

@@ -101,8 +101,15 @@ file per conversation. Everything below is convenience on top of it.
 - **Pipeline board** with stages prospect, reached out, discovery, offer, won,
   lost, disqualified and temporarily disqualified (with a requalify date).
 - **Companies and contacts tables** with column filters and sorting.
+- **Follow-up radar** on the home page: the threads where somebody wrote to you
+  and you have not answered, and the ones where you wrote and nothing came back.
+  Also `hermitcrm followups`.
 - **Calendar** of next steps: overdue and due-today lists, a month grid and
   Google Calendar links.
+- **Pre-meeting brief** under every upcoming meeting: stage, open next step,
+  contacts and the last three interactions. Also `hermitcrm brief`.
+- **Capture**: a bookmarklet that turns the company page you are looking at
+  into a filled-in new-company form. No browser extension.
 - **Timeline per company**: email, LinkedIn, call and meeting interactions,
   in or out, with bodies kept byte for byte.
 - **Message drafts without AI**: three angles per contact in English, German,
@@ -122,6 +129,9 @@ file per conversation. Everything below is convenience on top of it.
   you are on, or reads the whole data folder (read only) when the page is not
   enough; retry on the strong model with one click.
 - **Night mode** (on, off or follow the system) and a sidebar with icons.
+- **On your phone**: `hermitcrm serve --host 0.0.0.0` puts the app on your local
+  network. It has no password, so use a network you trust or a private one
+  (Tailscale, WireGuard).
 - **Enrichment**: free "fetch from URL" (website or LinkedIn page), or any AI
   CLI you already use (claude, codex, gemini, grok or a custom command).
 - **Stage history** per company, reconstructable from git.

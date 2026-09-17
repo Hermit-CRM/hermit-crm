@@ -528,3 +528,12 @@ details.brief[open] > summary { margin-bottom: 6px; }
 .brief-head a { font-weight: 600; }
 .brief-timeline { list-style: none; margin: 4px 0 0; padding: 0; }
 .brief-timeline li { margin: 2px 0; font-size: 13px; }
+
+/* capture page: the bookmarklet is a link you drag, not one you click */
+a.bookmarklet { display: inline-block; padding: 6px 12px; border: 1px solid var(--line-strong);
+                border-radius: 4px; background: var(--surface-2); font-weight: 600;
+                text-decoration: none; cursor: grab; }
+pre.bookmarklet-code { background: var(--surface-2); border: 1px solid var(--line);
+                       border-radius: 3px; padding: 8px 10px; overflow-x: auto;
+                       font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+.capture-note { margin-bottom: 12px; }

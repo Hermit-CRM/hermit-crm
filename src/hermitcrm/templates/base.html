@@ -23,6 +23,7 @@
   {{ navlink('/companies', 'Companies', 'companies', not on_contact and (path.startswith('/companies') or path.startswith('/import') and request.query_params.get('mode') != 'contacts')) }}
   {{ navlink('/contacts', 'Contacts', 'contacts', on_contact or request.query_params.get('mode') == 'contacts') }}
   {{ navlink('/messages', 'Messages', 'messages', path.startswith('/messages')) }}
+  {{ navlink('/capture', 'Capture', 'capture', path.startswith('/capture')) }}
   {{ navlink('/reports', 'Reports', 'reports', path.startswith('/reports')) }}
   {% call navlink('/settings#inbox' if (inbox_count or inbox_alert) else '/settings', 'Settings', 'settings', path.startswith('/settings')) %}{% if inbox_count %} <span class="badge">{{ inbox_count }}</span>{% endif %}{% if inbox_alert %} <span class="alert" title="{{ inbox_alert }}">!</span>{% endif %}{% endcall %}
   {{ navlink('/help/' ~ help_topic, 'Help', 'help', path.startswith('/help')) }}
