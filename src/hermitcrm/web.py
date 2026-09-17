@@ -26,7 +26,7 @@ from starlette.concurrency import run_in_threadpool
 from . import __version__, updates
 from fastapi.templating import Jinja2Templates
 
-from . import bcc, calendar_sync, filters, messaging, migrations, pipeline, reports
+from . import bcc, calendar_sync, filters, followups, messaging, migrations, pipeline, reports
 from . import schedule, scrape
 from . import help as helpdocs
 from . import setup as setup_steps
@@ -65,7 +65,7 @@ from .models import (
     split_name,
 )
 from .store import (
-    COMPANY_MERGE_FIELDS, CONTACT_MERGE_FIELDS, Store, load_config,
+    COMPANY_MERGE_FIELDS, CONTACT_MERGE_FIELDS, DEFAULT_CONFIG, Store, load_config,
 )
 
 logger = logging.getLogger("crm.web")
@@ -415,6 +415,13 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         except Exception:  # GitOps never raises, but a write must never fail here
             logger.exception("git commit/push failed for %r", message)
 
+    # Thresholds for the follow-up radar on the home page, as radar() names them.
+    followup_days = {
+        "reply_after": int(config.get("followup_reply_days",
+                                      DEFAULT_CONFIG["followup_reply_days"])),
+        "nudge_after": int(config.get("followup_nudge_days",
+                                      DEFAULT_CONFIG["followup_nudge_days"])),
+    }
     outcomes = [str(o) for o in (config.get("outcomes") or DEFAULT_OUTCOMES)]
     store = Store(root, silent_days=int(config.get("silent_days", 14)),
                   on_write=on_write, outcomes=outcomes)
@@ -626,6 +633,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         }
         return render(request, "board.html", {
             "columns": columns, "closed": closed, "today": today,
+            "followups": followups.radar(store, today, **followup_days),
             "filter_columns": cols, "active": active,
             "sort": sort_key, "dir": sort_dir,
             "no_companies": not store.companies,

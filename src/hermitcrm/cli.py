@@ -54,17 +54,50 @@ def build_store(root: Path) -> Store:
     return store
 
 
-def cmd_serve(root: Path, port: int | None = None) -> None:
+LOOPBACK = ("127.0.0.1", "localhost", "::1")
+
+
+def reachable_address(host: str) -> str:
+    """The address to print for a bound host.
+
+    Binding to 0.0.0.0 means "every interface", which is not something you can
+    type into a phone. Printing this machine's LAN address instead is the whole
+    point of the flag, so the URL on screen is one you can actually open.
+    """
+    if host not in ("0.0.0.0", "::"):
+        return host
+    import socket
+
+    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        probe.connect(("192.0.2.1", 9))  # TEST-NET-1: routed nowhere, sends nothing
+        return probe.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+    finally:
+        probe.close()
+
+
+def cmd_serve(root: Path, port: int | None = None, host: str | None = None) -> None:
     from hermitcrm.web import create_app
     import uvicorn
 
     config = load_config(root)
     if port:
         config["port"] = port
+    if host:
+        config["host"] = host
+    host = str(config.get("host") or "127.0.0.1")
     config["start_update_check"] = True  # background thread, never blocks
     app = create_app(root, config)
-    print(f"Hermit CRM {__version__}: {root} on http://127.0.0.1:{config['port']}")
-    uvicorn.run(app, host="127.0.0.1", port=int(config["port"]))
+    shown = reachable_address(host)
+    print(f"Hermit CRM {__version__}: {root} on http://{shown}:{config['port']}")
+    if host not in LOOPBACK:
+        print("  Reachable from the network. Hermit CRM has no password: anyone who "
+              "can\n  reach this port can read and write your CRM. Use it on a "
+              "network you trust,\n  or put it on a private one (Tailscale, "
+              "WireGuard) rather than a public Wi-Fi.", file=sys.stderr)
+    uvicorn.run(app, host=host, port=int(config["port"]))
 
 
 def cmd_init(target: Path, demo: bool = False) -> tuple[str, int]:
@@ -179,6 +212,22 @@ def cmd_schedule(root: Path, action: str, at: str = "07:00", serve: bool = False
         return 2
     print("\n".join(lines))
     return 0
+
+
+# ---------------------------------------------------------------- followups
+
+
+def cmd_followups(store: Store, config: dict, reply_after: int | None = None,
+                  nudge_after: int | None = None) -> str:
+    """The follow-up radar as text; the same rows the home page shows."""
+    from hermitcrm import followups
+
+    rows = followups.radar(
+        store,
+        reply_after=(config["followup_reply_days"] if reply_after is None else reply_after),
+        nudge_after=(config["followup_nudge_days"] if nudge_after is None else nudge_after),
+    )
+    return followups.render(rows)
 
 
 # ------------------------------------------------------------------- digest
@@ -752,6 +801,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_serve = sub.add_parser("serve", help="start the web app on 127.0.0.1")
     p_serve.add_argument("--port", type=int, default=None)
+    p_serve.add_argument("--host", default=None,
+                         help="address to bind (default 127.0.0.1); 0.0.0.0 reaches "
+                              "your phone over the network, with no password on it")
 
     p_init = sub.add_parser("init", help="create a new data folder (a git repo)")
     p_init.add_argument("dir", type=Path)
@@ -774,6 +826,13 @@ def _build_parser() -> argparse.ArgumentParser:
     p_migrate = sub.add_parser("migrate", help="upgrade the data format (runs automatically)")
     p_migrate.add_argument("--dry-run", action="store_true",
                            help="list the files that would change")
+
+    p_followups = sub.add_parser("followups",
+                                 help="threads you owe a reply, and ones you are waiting on")
+    p_followups.add_argument("--reply-after", type=int, default=None,
+                             help="days before an unanswered inbound message counts")
+    p_followups.add_argument("--nudge-after", type=int, default=None,
+                             help="days before an unanswered outbound message counts")
 
     p_digest = sub.add_parser("digest", help="recent interactions, oldest first")
     p_digest.add_argument("--days", type=int, default=7)
@@ -937,7 +996,7 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
         print(note, file=sys.stderr)
 
     if args.command == "serve":
-        cmd_serve(root, port=args.port)
+        cmd_serve(root, port=args.port, host=args.host)
         return 0
 
     if args.command == "setup":
@@ -947,6 +1006,10 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
         return cmd_schedule(root, args.action, at=args.at, serve=args.serve)
 
     store = build_store(root)
+
+    if args.command == "followups":
+        print(cmd_followups(store, load_config(root), args.reply_after, args.nudge_after))
+        return 0
 
     if args.command == "digest":
         text = cmd_digest(store, args.days)

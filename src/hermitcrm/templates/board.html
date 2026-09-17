@@ -3,6 +3,22 @@
 {% block title %}Pipeline{% endblock %}
 {% block content %}
 <h1>Pipeline</h1>
+{% if followups %}
+<section class="radar" id="followups">
+  <h2>Follow up ({{ followups | length }})</h2>
+  <ul class="radar-list">
+    {% for r in followups %}
+    <li class="radar-row radar-{{ r.kind }}">
+      <a class="radar-company" href="/companies/{{ r.slug }}">{{ r.name }}</a>
+      <span class="radar-days">{{ r.days }}d</span>
+      <span class="radar-reason">{{ r.reason }}</span>
+      <span class="radar-summary">{{ r.summary }}</span>
+      <a class="radar-act" href="/companies/{{ r.slug }}/interactions/new{% if r.contact %}?contact={{ r.contact.slug }}{% endif %}">Log a reply</a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
 {{ m.filter_form('board-filters', '/', active, none, sort, dir) }}
 <div class="filter-bar">
   {% for col in filter_columns %}

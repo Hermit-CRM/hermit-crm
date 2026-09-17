@@ -193,9 +193,11 @@ hermitcrm doctor [--online]           check Python, git, config, secrets, schedu
 hermitcrm schedule install [--at HH:MM] [--serve]
                                    daily sync --apply (launchd, systemd; schtasks is printed)
 hermitcrm schedule remove|status
-hermitcrm serve [--port N]            the web app on 127.0.0.1
+hermitcrm serve [--port N] [--host A] the web app (default 127.0.0.1; --host 0.0.0.0 reaches your phone)
 hermitcrm show <slug> [--bodies N | --all]
 hermitcrm digest [--days 7]           recent interactions, oldest first
+hermitcrm followups [--reply-after N] [--nudge-after N]
+                                   threads you owe a reply, and ones you are waiting on
 hermitcrm report [--days N | --from D --to D] [--md]
 hermitcrm check                       validate every file (exit 1 on problems)
 hermitcrm rebuild                     regenerate PIPELINE.md and commit

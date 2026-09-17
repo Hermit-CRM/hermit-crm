@@ -182,6 +182,28 @@ def test_delete_is_recorded_without_sweeping_the_folder(client, repo):
     assert git("ls-files", "scratch.md") == ""                           # stray untouched
 
 
+def test_board_shows_the_follow_up_radar(client, app):
+    """An unanswered inbound message is the first thing the home page says."""
+    post_company(client, name="Acme GmbH", stage="engaged")
+    post_contact(client, "acme", first_name="Jane", last_name="Roe")
+    post_interaction(client, "acme", channel="email", direction="in",
+                     contact="jane-roe",
+                     date=str(TODAY - timedelta(days=4)) + "T09:00",
+                     body="Hi there,\n\nCan you send pricing?")
+
+    page = client.get("/").text
+    assert 'id="followups"' in page and "Follow up (1)" in page
+    assert "radar-reply" in page and "no reply from you" in page
+    assert "Can you send pricing?" in page
+    assert page.index('id="followups"') < page.index('class="board"')
+
+
+def test_board_radar_is_absent_when_nothing_is_waiting(client):
+    post_company(client, name="Acme GmbH", stage="prospect")
+    page = client.get("/").text
+    assert 'id="followups"' not in page
+
+
 def test_board_card_order_follows_pipeline(client):
     post_company(client, name="Later", stage="prospect",
                  next_step="x", next_step_due=str(TODAY + timedelta(days=5)))

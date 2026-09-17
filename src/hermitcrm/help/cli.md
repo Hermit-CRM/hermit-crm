@@ -25,6 +25,8 @@ hermitcrm help [TOPIC]                     these pages; no topic prints the inde
 ```text
 hermitcrm show SLUG [--bodies N | --all]   one company: fields, notes, contacts, interactions, the last 3 bodies
 hermitcrm digest [--days 7]                recent interactions oldest first, 150 characters of body each
+hermitcrm followups [--reply-after N] [--nudge-after N]
+                                        threads you owe a reply, then ones you are waiting on
 hermitcrm report [--days N | --from D --to D] [--md]
                                         the Reports page as text tables (Markdown with --md)
 hermitcrm check                            validate every file; exit 1 and the file paths on problems
