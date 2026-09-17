@@ -135,6 +135,26 @@ def test_linux_units(tmp_path):
     assert schedule.status(c)["installed"] is False
 
 
+def other_ctx(tmp_path, platform, runner):
+    """A second data folder on the same machine, which has one schedule slot."""
+    data = tmp_path / "another crm"
+    data.mkdir(exist_ok=True)
+    return schedule.Context(data_dir=data, home=tmp_path / "home", platform=platform,
+                            runner=runner, env={}, exe=EXE, uid=501)
+
+
+@pytest.mark.parametrize("platform", ["darwin", "linux"])
+def test_status_does_not_claim_another_folders_schedule(tmp_path, platform):
+    rec = Recorder()
+    schedule.install(ctx(tmp_path, platform, rec), at="07:00")
+
+    st = schedule.status(other_ctx(tmp_path, platform, rec))
+
+    assert st["installed"] is False
+    assert st["elsewhere"] == (tmp_path / "my crm").resolve()
+    assert "for " + str((tmp_path / "my crm").resolve()) in st["lines"][0]
+
+
 def test_windows_prints_and_runs_nothing(tmp_path):
     rec = Recorder()
     c = ctx(tmp_path, "win32", rec)

@@ -320,6 +320,75 @@ def test_main_digest_default_days(tmp_path, capsys):
     assert captured.out.strip() == "Summary: 0 interactions | companies touched: 0"
 
 
+def test_cli_add_company_contact_and_interaction(tmp_path, capsys):
+    fixed_store(tmp_path)
+
+    assert crm.main(["add", "company", "Acme BV", "--country", "NL",
+                     "--website", "acme.example.com"], root=tmp_path) == 0
+    assert "company acme created" in capsys.readouterr().out
+    text = (tmp_path / "companies" / "acme" / "company.md").read_text()
+    assert "country: NL" in text and "website: https://acme.example.com" in text
+
+    assert crm.main(["add", "contact", "acme", "Jane van Roe",
+                     "--title", "CTO", "--email", "Jane@Example.com"], root=tmp_path) == 0
+    assert "contact jane-van-roe created" in capsys.readouterr().out
+    text = (tmp_path / "companies" / "acme" / "contacts" / "jane-van-roe.md").read_text()
+    # the single name argument is split, and the store normalises the address
+    assert "first_name: Jane" in text and "last_name: van Roe" in text
+    assert "email: jane@example.com" in text
+
+    assert crm.main(["add", "interaction", "acme", "--channel", "email",
+                     "--direction", "out", "--contact", "jane-van-roe",
+                     "--subject", "Intro", "--body", "Hi Jane"], root=tmp_path) == 0
+    assert "interaction" in capsys.readouterr().out
+    # logging an interaction advances the company out of prospect
+    assert "stage: engaged" in (tmp_path / "companies" / "acme" / "company.md").read_text()
+
+
+def test_cli_add_body_from_stdin_keeps_newlines(tmp_path, capsys):
+    import io
+
+    fixed_store(tmp_path)
+    crm.main(["add", "company", "Acme BV"], root=tmp_path)
+    capsys.readouterr()
+
+    code = crm.main(["add", "interaction", "acme", "--channel", "email",
+                     "--direction", "out", "--body", "-"], root=tmp_path,
+                    stdin=io.StringIO("Line one\n\nLine two\n"))
+
+    assert code == 0
+    written = next((tmp_path / "companies" / "acme" / "interactions").glob("*.md"))
+    assert written.read_text().endswith("Line one\n\nLine two\n")
+
+
+def test_cli_add_set_reaches_a_field_without_a_flag(tmp_path, capsys):
+    fixed_store(tmp_path)
+
+    code = crm.main(["add", "company", "Acme BV", "--set", "my_score=4",
+                     "--set", "fte-estimate=10-50"], root=tmp_path)
+
+    assert code == 0
+    text = (tmp_path / "companies" / "acme" / "company.md").read_text()
+    assert "my_score: 4" in text and "fte_estimate: 10-50" in text
+
+
+def test_cli_add_rejects_bad_input_without_writing(tmp_path, capsys):
+    fixed_store(tmp_path)
+
+    assert crm.main(["add", "company", "Nowhere Ltd", "--stage", "lost"],
+                    root=tmp_path) == 2
+    assert "lost_reason" in capsys.readouterr().err
+
+    assert crm.main(["add", "company", "Typo Ltd", "--set", "nope=1"],
+                    root=tmp_path) == 2
+    err = capsys.readouterr().err
+    assert "unknown field 'nope'" in err and "product_oneliner" in err
+
+    assert crm.main(["add", "contact", "ghost", "Jane Roe"], root=tmp_path) == 2
+    assert "unknown company" in capsys.readouterr().err
+    assert not list((tmp_path / "companies").glob("*/company.md"))
+
+
 def test_cli_import_dry_run_and_apply(tmp_path, capsys):
     root = git_root(tmp_path) if "git_root" in globals() else tmp_path
     sheet = tmp_path / "sheet.tsv"

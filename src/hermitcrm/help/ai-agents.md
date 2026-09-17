@@ -22,9 +22,37 @@ from the folder, or add `--data <folder>`.
 8. For how a feature works, run `hermitcrm help <topic>` (`hermitcrm help` lists
    the topics).
 
+## Creating a record
+
+Three commands cover every kind of record, so an agent never has to write YAML
+by hand:
+
+```bash
+hermitcrm add company "Acme BV" --country NL --website acme.example.com
+hermitcrm add contact acme "Jane Roe" --title CTO --email jane@example.com
+hermitcrm add interaction acme --channel email --direction out \
+    --contact jane-roe --subject "Intro" --body -
+```
+
+- `add` writes the file, regenerates `PIPELINE.md` and commits, in that order.
+  It has no `--apply` and no dry run: it always writes, exactly as clicking
+  Save in the web app does.
+- Each command prints the slug it assigned, on one line, with the path it
+  wrote. Use that slug in the next command; never guess one.
+- `--body -` reads the message from stdin, so a multi-line body survives
+  intact.
+- For any field the flags do not cover, `--set field=value` (repeatable). A
+  wrong field name lists the ones that exist.
+- Logging an interaction advances a prospect to engaged, in the same commit.
+  That is intended.
+
+A value the store rejects prints `could not create: field: why` and exits 2;
+nothing is written and nothing is committed.
+
 ## Writing
 
-- Prefer the web app or a hand edit of front matter over ad-hoc scripts.
+- Prefer `hermitcrm add` over hand-written YAML, and the web app or a hand edit
+  of front matter over ad-hoc scripts.
 - Keep front-matter keys you do not recognise; Hermit CRM preserves them.
 - After editing files by hand, run `hermitcrm check`, then `hermitcrm rebuild`.
 - Commit messages for agent-made changes start with `ai:`.

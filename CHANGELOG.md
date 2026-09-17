@@ -10,6 +10,16 @@ and `stage_history`), migrated automatically in one commit.
 
 - Logging an interaction on a **prospect** moves it to **engaged** in the same
   commit (manual, BCC and calendar imports alike).
+- **`hermitcrm add company|contact|interaction`**: create a record from the
+  command line. Same validation and same commit as the web form, so an agent
+  no longer has to compose YAML by hand. `--set field=value` reaches any field
+  without a flag, and `--body -` reads an interaction body from stdin. The
+  README now walks through a first company, and `AGENTS.md`/`CLAUDE.md` in a new
+  data folder carry the procedure.
+- **`doctor` no longer calls a folder scheduled when the schedule belongs to a
+  different one.** A machine has a single `io.hermitcrm.sync` job, and the check
+  only tested that its file existed; it now compares the folder that job serves
+  and names it when it is not this one.
 - **Install docs** describe the clone-and-`pip install` route that works today;
   `pipx install hermitcrm` is marked as not yet published.
 - `/favicon.ico` redirects to the app icon instead of answering 404.

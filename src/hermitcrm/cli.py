@@ -20,6 +20,7 @@ from hermitcrm import __version__, migrations
 from hermitcrm.datafolder import InitError, NotDataFolder, init_folder, resolve_data_dir
 from hermitcrm.enrich import EnrichError, Enricher
 from hermitcrm.gitops import GitOps
+from hermitcrm.models import Channel, Direction
 from hermitcrm.store import Store, load_config
 
 COMPANY_FIELD_ORDER = [
@@ -341,6 +342,94 @@ def parse_map_args(pairs: list[str] | None) -> dict[str, str]:
             raise ValueError(f"--map expects \"Header=field\", got {pair!r}")
         mapping[header.strip()] = target.strip()
     return mapping
+
+
+# ---------------------------------------------------------------------- add
+
+# The optional `hermitcrm add` flags, as one set: each subcommand defines only
+# its own, so filtering argparse's namespace by this leaves out what was not
+# asked for (every one of them defaults to None).
+NAMED_FIELDS = {
+    "website", "linkedin", "country", "source", "stage", "lost_reason",
+    "requalify_on", "value_eur_month", "product_oneliner", "next_step",
+    "next_step_due", "tags", "notes",
+    "title", "email", "phone", "role",
+    "contact", "subject", "date", "outcome",
+}
+
+
+def create_fields(method) -> set[str]:
+    """The field names one of the store's create_* methods accepts.
+
+    Read from the signature rather than listed here, so `--set` keeps working
+    when the store gains a field and the CLI is not touched.
+    """
+    import inspect
+
+    return {name for name in inspect.signature(method).parameters
+            if name not in ("self", "company_slug")}
+
+
+def parse_set_args(pairs: list[str], allowed: set[str]) -> dict:
+    """`--set field=value` pairs, checked against the fields the store takes."""
+    values: dict[str, str] = {}
+    for pair in pairs:
+        key, sep, value = pair.partition("=")
+        key = key.strip().replace("-", "_")
+        if not sep or not key:
+            raise ValueError(f"--set wants field=value, got {pair!r}")
+        if key not in allowed:
+            raise ValueError(f"unknown field {key!r}; fields: " + ", ".join(sorted(allowed)))
+        values[key] = value
+    return values
+
+
+def read_body(text: str, stdin=None) -> str:
+    """`--body -` reads the body from stdin, for text with newlines in it."""
+    if text == "-":
+        return (stdin or sys.stdin).read()
+    return text
+
+
+def cmd_add(store: Store, args, stdin=None) -> tuple[str, int]:
+    """Create one company, contact or interaction: the write the web app does.
+
+    Every value arrives as a string and the store coerces and validates it,
+    exactly as it does for a submitted form, so the CLI stays a thin binding
+    and the two front doors cannot drift apart.
+    """
+    from hermitcrm.models import ValidationError, split_name
+
+    named = {k: v for k, v in vars(args).items() if k in NAMED_FIELDS and v is not None}
+    try:
+        if args.what == "company":
+            fields = create_fields(store.create_company)
+            values = {**named, **parse_set_args(args.set, fields), "name": args.name}
+            company = store.create_company(**values)
+            return (f"company {company.slug} created: "
+                    f"companies/{company.slug}/company.md", 0)
+
+        if args.what == "contact":
+            fields = create_fields(store.create_contact)
+            first, last = split_name(args.name)
+            values = {"first_name": first, "last_name": last, **named,
+                      **parse_set_args(args.set, fields)}
+            contact = store.create_contact(args.company, **values)
+            return (f"contact {contact.slug} created: "
+                    f"companies/{args.company}/contacts/{contact.slug}.md", 0)
+
+        fields = create_fields(store.create_interaction)
+        values = {**named, **parse_set_args(args.set, fields),
+                  "channel": args.channel, "direction": args.direction,
+                  "body": read_body(args.body, stdin)}
+        it = store.create_interaction(args.company, **values)
+        return (f"interaction {it.id} created: "
+                f"companies/{args.company}/interactions/{it.id}.md", 0)
+    except ValidationError as exc:
+        return ("could not create: " +
+                "; ".join(f"{k}: {v}" for k, v in exc.errors.items()), 2)
+    except ValueError as exc:  # a bad --set pair
+        return (str(exc), 2)
 
 
 def cmd_import(store: Store, path: Path, apply: bool = False, mode: str | None = None,
@@ -697,6 +786,39 @@ def _build_parser() -> argparse.ArgumentParser:
     sub.add_parser("rebuild", help="rebuild the index and PIPELINE.md")
     sub.add_parser("check", help="validate every file")
 
+    p_add = sub.add_parser("add", help="create one company, contact or interaction")
+    add_sub = p_add.add_subparsers(dest="what", required=True)
+
+    p_add_co = add_sub.add_parser("company", help="create a company (prints its slug)")
+    p_add_co.add_argument("name", help='the company name, e.g. "Acme BV"')
+    for flag in ("--website", "--linkedin", "--country", "--source", "--stage",
+                 "--lost-reason", "--requalify-on", "--value-eur-month",
+                 "--product-oneliner", "--next-step", "--next-step-due", "--tags",
+                 "--notes"):
+        p_add_co.add_argument(flag, default=None)
+
+    p_add_ct = add_sub.add_parser("contact", help="create a contact under a company")
+    p_add_ct.add_argument("company", help="the company slug")
+    p_add_ct.add_argument("name", help='the full name, e.g. "Jane van Doe"')
+    for flag in ("--title", "--email", "--phone", "--linkedin", "--role", "--notes"):
+        p_add_ct.add_argument(flag, default=None)
+
+    p_add_in = add_sub.add_parser("interaction", help="log an interaction (advances a "
+                                                     "prospect to engaged)")
+    p_add_in.add_argument("company", help="the company slug")
+    p_add_in.add_argument("--channel", required=True,
+                          choices=[c.value for c in Channel])
+    p_add_in.add_argument("--direction", required=True,
+                          choices=[d.value for d in Direction])
+    p_add_in.add_argument("--body", default="",
+                          help="the message itself; - reads it from stdin")
+    for flag in ("--contact", "--subject", "--date", "--outcome"):
+        p_add_in.add_argument(flag, default=None)
+
+    for parser_ in (p_add_co, p_add_ct, p_add_in):
+        parser_.add_argument("--set", action="append", default=[], metavar="FIELD=VALUE",
+                             help="any other front-matter field (repeatable)")
+
     p_import = sub.add_parser("import", help="import companies/contacts from a TSV, CSV "
                                              "or .xlsx file")
     p_import.add_argument("file", type=Path)
@@ -890,6 +1012,12 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
         print(text)
         if code == 0 and args.apply:
             _reload_server(config)
+        return code
+
+    if args.command == "add":
+        store.on_write = _writer(store, root, load_config(root))
+        text, code = cmd_add(store, args, stdin=stdin)
+        print(text, file=sys.stderr if code else sys.stdout)
         return code
 
     if args.command in ("import", "enrich", "fetch"):

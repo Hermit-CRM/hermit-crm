@@ -130,8 +130,26 @@ Reading rules, in order of cost:
    (if present) before drafting anything.
 8. For how a feature works: `hermitcrm help <topic>` (topics: `hermitcrm help`).
 
+Creating a record (company, contact, interaction):
+
+    hermitcrm add company "Acme BV" --country NL --website acme.example.com
+    hermitcrm add contact acme "Jane Roe" --title CTO --email jane@example.com
+    hermitcrm add interaction acme --channel email --direction out \
+        --contact jane-roe --subject "Intro" --body -
+
+- `add` writes the file, regenerates PIPELINE.md and commits, in that order.
+  It has no --apply and no dry run: it always writes.
+- Each command prints the slug it assigned. Use that slug in the next command;
+  never guess one, and never invent a file path of your own.
+- `--body -` reads the message from stdin, so newlines survive intact.
+- Any field the flags do not cover: `--set field=value`, repeatable. The known
+  fields are listed in the error when a name is wrong.
+- Logging an interaction moves a company from prospect to engaged in the same
+  commit. That is intended; do not undo it.
+
 Writing rules:
-- Prefer the web app or a hand edit of front matter over ad-hoc scripts.
+- Prefer `hermitcrm add` over hand-written YAML, and the web app or a hand edit
+  of front matter over ad-hoc scripts.
 - Keep front-matter keys you do not recognise; Hermit CRM preserves them.
 - After editing files by hand, run `hermitcrm check`, then `hermitcrm rebuild`.
 - Commit messages for AI-made changes start with "ai:".
