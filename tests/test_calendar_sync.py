@@ -396,6 +396,11 @@ def test_calendar_import_route_upcoming_and_inbox(client):
     page = client.get("/calendar").text
     assert "Meetings this week (1)" in page and "Demo with Acme" in page
     assert '<a href="/companies/acme">Acme GmbH</a>' in page
+    # the brief for that meeting rides along, folded shut
+    assert "<summary>Brief</summary>" in page
+    # the past Discovery shows up as history for the upcoming Demo
+    assert "brief-timeline" in page and "meeting out (jane-doe)" in page
+    assert "engaged &middot; 0d in stage" in page
 
     page = client.get("/settings").text
     assert 'class="tag">meeting</span>' in page and "ann@lee.com" in page

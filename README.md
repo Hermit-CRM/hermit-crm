@@ -198,6 +198,7 @@ hermitcrm show <slug> [--bodies N | --all]
 hermitcrm digest [--days 7]           recent interactions, oldest first
 hermitcrm followups [--reply-after N] [--nudge-after N]
                                    threads you owe a reply, and ones you are waiting on
+hermitcrm brief [--days 7]            each upcoming meeting with the record behind it
 hermitcrm report [--days N | --from D --to D] [--md]
 hermitcrm check                       validate every file (exit 1 on problems)
 hermitcrm rebuild                     regenerate PIPELINE.md and commit
