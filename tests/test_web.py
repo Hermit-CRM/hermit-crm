@@ -138,6 +138,16 @@ def test_board_lists_open_and_closed(client, app, repo):
     assert "d in stage" in page
 
 
+def test_logo_and_favicon(client):
+    page = client.get("/").text
+    assert 'class="brand-mark"' in page
+    assert 'rel="icon" type="image/svg+xml"' in page
+    svg = client.get("/static/favicon.svg")
+    assert svg.status_code == 200 and "prefers-color-scheme: dark" in svg.text
+    png = client.get("/static/favicon.png")
+    assert png.status_code == 200 and png.content.startswith(b"\x89PNG")
+
+
 def test_board_card_order_follows_pipeline(client):
     post_company(client, name="Later", stage="prospect",
                  next_step="x", next_step_due=str(TODAY + timedelta(days=5)))
