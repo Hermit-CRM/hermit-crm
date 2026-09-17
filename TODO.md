@@ -28,8 +28,8 @@ Roadmap and open items. Personal items live in the private data folder.
       `enrich.py`); only the claude IDs were run.
 - [ ] Ask Hermit's whole-CRM step on codex, gemini and grok: tool access in
       the data folder is only verified with Claude Code.
-- [ ] "Retry with Fable" end to end: needs Claude Code >= 2.1.251 (2.1.211
-      installed on 2026-09-17 refuses the model).
+- [x] "Retry with Fable" end to end (Claude Code 2.1.274, 2026-09-17; needs
+      >= 2.1.251).
 
 ## Later
 
