@@ -10,6 +10,8 @@ and `stage_history`), migrated automatically in one commit.
 
 - Logging an interaction on a **prospect** moves it to **engaged** in the same
   commit (manual, BCC and calendar imports alike).
+- **Install docs** describe the clone-and-`pip install` route that works today;
+  `pipx install hermitcrm` is marked as not yet published.
 - **Delete contact** on the contact page; its interactions stay on the company
   without a contact.
 - The interaction form defaults to **LinkedIn**, out.

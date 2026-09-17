@@ -20,7 +20,7 @@ A modest, factual comparison (checked September 2026; corrections welcome):
 | Web app | Yes, local | Yes, hosted | Yes | No (inside Obsidian) |
 | Email capture | BCC/forward via Gmail IMAP | Yes (BCC, inbox sync) | Yes (Gmail/Outlook sync) | Depends on the plugin |
 | AI-agent friendly | Plain files, CLI, AGENTS.md | Via API | Via API | Plain files |
-| Self-hosted without Docker | Yes (`pipx install`) | No (SaaS only) | No (Docker Compose) | n/a (desktop app) |
+| Self-hosted without Docker | Yes (`git clone` + `pip`) | No (SaaS only) | No (Docker Compose) | n/a (desktop app) |
 | Multi-user teams | No | Yes | Yes | No |
 
 If you need a team CRM, use one of the others. If you want your pipeline in
@@ -28,21 +28,28 @@ files you own, Hermit CRM is for you.
 
 ## Install
 
-Quick start:
+Quick start. You need Python 3.11 or newer and git:
 
 ```bash
-pipx install hermitcrm                              # or: uv tool install hermitcrm
+git clone https://github.com/Hermit-CRM/hermit-crm.git && cd hermit-crm
+python3 -m venv .venv && source .venv/bin/activate
+pip install .
 hermitcrm init ~/crm                                # a new data folder; asks 3 questions
 hermitcrm --data ~/crm serve                        # http://127.0.0.1:8765
 hermitcrm --data ~/crm schedule install --serve     # daily sync, web app always on
 ```
 
+Hermit CRM is not on PyPI yet, so install it from a clone. When it is published,
+`pipx install hermitcrm` (or `uv tool install hermitcrm`) will replace the first
+three lines and give you a `hermitcrm` command that works without activating the
+virtualenv.
+
 `hermitcrm init` asks three questions: **you** (your name and sending addresses),
 **BCC capture** (the tracking address and its app password) and **backup** (a
 private git remote). Skip any of them; rerun with `hermitcrm setup` or open the
 Settings page (`/settings`) in the web app. Add `--demo` for six fictional companies,
-`--no-setup` to skip the questions. Python 3.11 or newer. Instead of `--data`
-you can set `HERMITCRM_DATA=~/crm` or run commands from inside the folder.
+`--no-setup` to skip the questions. Instead of `--data` you can set
+`HERMITCRM_DATA=~/crm` or run commands from inside the folder.
 
 `hermitcrm doctor` checks the whole installation in one go. Every page of the
 web app has a Help link; `hermitcrm help [topic]` prints the same pages.
