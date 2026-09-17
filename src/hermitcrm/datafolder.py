@@ -155,7 +155,7 @@ of a company or contact page). The wording is not in code but in TOML:
 2. **unblock**: "you are at N people"; get past the next headcount hurdle.
 3. **hook**: one concrete observation about their product, then an open question.
 
-The signal (growing / stalled / hiring) and the observation are the two things
+The signal (growing / stalled / headcount decline / hiring) and the observation are the two things
 you check by hand on LinkedIn and the website. Square brackets mark what only
 you can fill in.
 
@@ -163,7 +163,7 @@ you can fill in.
 
 `{first} {company} {growth} {size} {hurdle} {team} {observation} {fte} {ae}
 {site} {owner_first_name}`. `size` and `team` have `known` / `unknown`
-variants; `growth` has `growing`, `stalled` and `""` (not checked).
+variants; `growth` has `growing`, `stalled`, `declining` and `""` (not checked).
 
 ## Languages
 

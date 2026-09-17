@@ -29,7 +29,7 @@ def test_default_languages_and_labels_come_from_toml():
     assert set(messaging.signal_labels()) == set(messaging.SIGNALS)
     for lang in load_messages()["languages"].values():
         assert set(lang["size"]) == {"known", "unknown"} == set(lang["team"])
-        assert set(lang["growth"]) == {"growing", "stalled", ""}
+        assert set(lang["growth"]) == {"growing", "stalled", "declining", ""}
 
 
 def test_three_distinct_drafts_in_german_with_signal():
@@ -136,3 +136,19 @@ def test_belgian_drafts_use_the_inferred_language():
     fr = drafts(c, messages=load_messages())
     en = drafts(company(country="BE"), messages=load_messages())
     assert fr[0].body != en[0].body
+
+
+def test_declining_signal_has_its_own_growth_sentence():
+    out = drafts(company(country="NL"), None, signal="declining")
+    assert "het team is de laatste tijd kleiner geworden" in out[0].body
+    assert [d.key for d in out] == ["scale", "unblock", "hook"]
+    assert messaging.signal_labels()["declining"] == "headcount decline"
+
+
+def test_messages_without_a_declining_sentence_fall_back_to_unchecked():
+    messages = messaging.default_messages()
+    for t in messages["languages"].values():
+        del t["growth"]["declining"]
+    out = drafts(company(country="NL"), None, signal="declining", messages=messages)
+    assert out[0].body.splitlines()[1] == messages["languages"]["nl"]["growth"][""].format(
+        company=company().name)

@@ -16,8 +16,9 @@
   <a class="brand" href="/">Hermit CRM</a>
   {{ navlink('/', 'Pipeline', 'pipeline', path == '/') }}
   {{ navlink('/calendar', 'Calendar', 'calendar', path.startswith('/calendar')) }}
-  {{ navlink('/companies', 'Companies', 'companies', path.startswith('/companies') or path.startswith('/import') and request.query_params.get('mode') != 'contacts') }}
-  {{ navlink('/contacts', 'Contacts', 'contacts', path.startswith('/contacts') or request.query_params.get('mode') == 'contacts') }}
+  {% set on_contact = path.startswith('/contacts') or (path.startswith('/companies/') and '/contacts/' in path) %}
+  {{ navlink('/companies', 'Companies', 'companies', not on_contact and (path.startswith('/companies') or path.startswith('/import') and request.query_params.get('mode') != 'contacts')) }}
+  {{ navlink('/contacts', 'Contacts', 'contacts', on_contact or request.query_params.get('mode') == 'contacts') }}
   {{ navlink('/messages', 'Messages', 'messages', path.startswith('/messages')) }}
   {{ navlink('/reports', 'Reports', 'reports', path.startswith('/reports')) }}
   {% call navlink('/settings#inbox' if (inbox_count or inbox_alert) else '/settings', 'Settings', 'settings', path.startswith('/settings')) %}{% if inbox_count %} <span class="badge">{{ inbox_count }}</span>{% endif %}{% if inbox_alert %} <span class="alert" title="{{ inbox_alert }}">!</span>{% endif %}{% endcall %}

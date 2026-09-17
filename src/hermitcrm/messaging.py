@@ -31,7 +31,9 @@ from pathlib import Path
 
 from .models import Company, Contact, language_for, normalise_country
 
-SIGNALS = ["", "growing", "stalled", "hiring"]
+SIGNALS = ["", "growing", "stalled", "declining", "hiring"]
+# Signals with their own `growth` sentence; the others use the "" one.
+GROWTH_SIGNALS = ("growing", "stalled", "declining")
 HURDLES = [10, 20, 50, 100, 250, 500]
 MESSAGES_FILE = "messages.toml"
 DRAFT_KEYS = ("scale", "bridge", "unblock", "hook")
@@ -239,7 +241,8 @@ def drafts(company: Company, contact: Contact | None = None, signal: str = "",
         "site": site,
         "owner_first_name": owner_first_name(owner_name),
     }
-    slots["growth"] = t["growth"][signal if signal in ("growing", "stalled") else ""].format_map(slots)
+    growth = t["growth"]  # a messages.toml from before a signal existed falls back to ""
+    slots["growth"] = growth.get(signal if signal in GROWTH_SIGNALS else "", growth[""]).format_map(slots)
     slots["size"] = t["size"]["known" if fte is not None else "unknown"].format_map(slots)
     slots["team"] = t["team"]["known" if company.ae_count else "unknown"].format_map(slots)
     slots["observation"] = observation or t["observation"].format_map(slots)

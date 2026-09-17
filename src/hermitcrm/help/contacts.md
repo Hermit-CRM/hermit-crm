@@ -41,7 +41,7 @@ the language of the company's country:
    from `fte_estimate`);
 3. **hook**: one observation, then an open question.
 
-Two inputs are yours: the **signal** (growing, stalled, hiring, read off
+Two inputs are yours: the **signal** (growing, stalled, headcount decline, hiring, read off
 LinkedIn company insights; the link is right there) and one **observation**
 sentence from their website or team. Whatever the CRM cannot know is left in
 square brackets. Edit in place, copy, or **log as sent**, which opens the
