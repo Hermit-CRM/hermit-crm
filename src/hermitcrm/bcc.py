@@ -718,7 +718,7 @@ def handle_entry(store: Store, inbox: Inbox, entry: Entry, seen: set, planned: d
     result.review += 1
     if apply:
         item = inbox.add(entry, match.reason)
-        store.notify(f"{kind_prefix(item.kind)}: {item.id} to review")
+        store.notify(f"{kind_prefix(item.kind)}: {item.id} to review", ["inbox"])
     return f"to review: {match.reason}"
 
 
@@ -751,7 +751,7 @@ def discard(store: Store, inbox: Inbox, item_id: str) -> InboxItem:
     if item is None:
         raise ValidationError({"item": f"unknown inbox item {item_id!r}"})
     inbox.discard(item)
-    store.notify(f"{kind_prefix(item.kind)}: {item.id} discarded")
+    store.notify(f"{kind_prefix(item.kind)}: {item.id} discarded", ["inbox"])
     return item
 
 

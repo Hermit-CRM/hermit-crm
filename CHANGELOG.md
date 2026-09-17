@@ -13,6 +13,11 @@ and `stage_history`), migrated automatically in one commit.
 - **Install docs** describe the clone-and-`pip install` route that works today;
   `pipx install hermitcrm` is marked as not yet published.
 - `/favicon.ico` redirects to the app icon instead of answering 404.
+- **A write commits its own files only.** Every commit used to stage the whole
+  data folder, so an unrelated edit you had not committed yet (a half-written
+  `MESSAGING.md`, a hand-added company) was swept into the next write's commit
+  under that write's message. Each commit now holds exactly the files that write
+  touched.
 - **Delete contact** on the contact page; its interactions stay on the company
   without a contact.
 - The interaction form defaults to **LinkedIn**, out.

@@ -126,7 +126,11 @@ Lowercase ASCII, words joined by single hyphens, max 60 chars. Transliterate bef
 
 ## 4. Git operations (`gitops.py`)
 
-- `commit(message)`: `git add -A && git commit -m <message>` from the repo root. No-op when nothing changed.
+- `commit(message, paths)`: `git add -A -- <paths> && git commit -m <message> -- <paths>`
+  from the repo root. No-op when nothing changed. The store records every file a
+  write touches (`Store.take_touched()`), so a commit holds that write's own files
+  and nothing else: anything else in the folder stays the user's to commit. `paths`
+  of None means the whole tree, which is only right when the whole folder is ours.
 - `push_async()`: if `push_enabled` in config, run `git push origin main` in a background thread with a 20 s timeout. Failures (offline, placeholder remote, auth) are logged at WARNING once per minute at most and never raised. On the next successful push everything catches up, because git.
 - Commit message conventions:
   - `company: <slug> created`

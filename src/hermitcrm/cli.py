@@ -38,8 +38,9 @@ def _writer(store: Store, root: Path, config: dict):
                     remote=config.get("remote", "origin"))
 
     def on_write(message: str) -> None:
+        paths = store.take_touched()
         pipeline.write(store)
-        gitops.commit(message)
+        gitops.commit(message, [*paths, "PIPELINE.md"])
         gitops.push_async()
 
     return on_write
@@ -303,7 +304,7 @@ def cmd_rebuild(store: Store, gitops: GitOps) -> str:
     store.load()
     changed = pipeline.write(store)
     if changed:
-        gitops.commit("pipeline: rebuild")
+        gitops.commit("pipeline: rebuild", ["PIPELINE.md"])
     n = len(store.companies)
     problems = len(store.problems)
     status = "rebuilt and committed" if changed else "already up to date"
