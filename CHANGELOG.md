@@ -13,6 +13,8 @@ and `stage_history`), migrated automatically in one commit.
 - **Delete contact** on the contact page; its interactions stay on the company
   without a contact.
 - The interaction form defaults to **LinkedIn**, out.
+- Contact pages: Contact, Interactions, Drafts, Log an interaction, Merge, Delete; the sidebar marks Contacts.
+- New draft signal **headcount decline** (`declining`) with its own growth sentence.
 - Contact Enrich opens the proposal page with notes and sources even when
   nothing could be verified, instead of a one-line message.
 

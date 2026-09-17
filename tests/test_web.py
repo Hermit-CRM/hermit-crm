@@ -1135,3 +1135,16 @@ def test_delete_contact_route(client, app, repo):
     assert subprocess.run(["git", "status", "--porcelain"], cwd=repo, capture_output=True,
                           text=True).stdout.strip() == ""
     assert client.post("/companies/acme/contacts/jane-doe/delete").status_code == 404
+
+
+def test_contact_page_sections_in_order_and_nav_marks_contacts(client, app):
+    post_company(client, name="Acme")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe")
+    page = client.get("/companies/acme/contacts/jane-doe").text
+    ids = ['id="details"', 'id="timeline"', 'id="drafts"', 'id="quick-add"', 'id="delete"']
+    positions = [page.index(i) for i in ids]
+    assert positions == sorted(positions)
+    active = re.findall(r'<a href="([^"]+)" class="active"', page)
+    assert active == ["/contacts"]
+    assert re.findall(r'<a href="([^"]+)" class="active"', client.get("/companies/acme").text) == ["/companies"]
+    assert '<option value="declining">headcount decline</option>' in page

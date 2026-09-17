@@ -15,11 +15,6 @@
   {% endif %}
 </div>
 
-<section id="quick-add">
-  <h2>Log an interaction</h2>
-  {{ m.interaction_form('/companies/' ~ company.slug ~ '/interactions', company, interaction) }}
-</section>
-
 <section id="details">
   <h2>Contact</h2>
   {{ m.errors_box(errors) }}
@@ -30,7 +25,17 @@
   <p class="small">slug {{ contact.slug }} &middot; created {{ fmt_datetime(contact.created) }} &middot; updated {{ fmt_datetime(contact.updated) }}</p>
 </section>
 
+<section id="timeline">
+  <h2>Interactions ({{ interactions | length }})</h2>
+  {{ m.timeline(company, interactions) }}
+</section>
+
 {{ m.drafts_section(company, contact, drafts, signal, observation, '/companies/' ~ company.slug ~ '/contacts/' ~ contact.slug) }}
+
+<section id="quick-add">
+  <h2>Log an interaction</h2>
+  {{ m.interaction_form('/companies/' ~ company.slug ~ '/interactions', company, interaction) }}
+</section>
 
 {% if company.contacts | length > 1 %}
 <section id="merge">
@@ -44,11 +49,6 @@
   </form>
 </section>
 {% endif %}
-
-<section id="timeline">
-  <h2>Interactions ({{ interactions | length }})</h2>
-  {{ m.timeline(company, interactions) }}
-</section>
 
 <section id="delete">
   <h2>Delete</h2>

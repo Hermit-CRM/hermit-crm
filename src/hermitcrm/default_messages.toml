@@ -17,6 +17,7 @@
 "" = "not checked yet"
 growing = "growing fast (LinkedIn insights)"
 stalled = "growth levelling off"
+declining = "headcount decline"
 hiring = "hiring for a role you can help with"
 
 [labels]
@@ -39,6 +40,7 @@ observation = "[One thing that struck you on {site}, in one sentence.]"
 [languages.en.growth]
 growing = "{company} is growing fast."
 stalled = "{company} has come a long way, but growth seems to be levelling off a bit."
+declining = "{company} has come a long way, but the team has been getting smaller lately."
 "" = "{company} [is growing fast / has come a long way]."
 
 [languages.en.size]
@@ -63,6 +65,7 @@ observation = "[Was dir auf {site} aufgefallen ist, in einem Satz.]"
 [languages.de.growth]
 growing = "{company} wächst schnell."
 stalled = "{company} ist weit gekommen, aber das Wachstum scheint etwas zu stocken."
+declining = "{company} ist weit gekommen, aber das Team ist zuletzt kleiner geworden."
 "" = "{company} [wächst schnell / ist weit gekommen]."
 
 [languages.de.size]
@@ -87,6 +90,7 @@ observation = "[Wat je opviel op {site}, in één zin.]"
 [languages.nl.growth]
 growing = "{company} groeit hard."
 stalled = "{company} is ver gekomen, maar de groei lijkt wat af te vlakken."
+declining = "{company} is ver gekomen, maar het team is de laatste tijd kleiner geworden."
 "" = "{company} [groeit hard / is ver gekomen]."
 
 [languages.nl.size]
@@ -111,6 +115,7 @@ observation = "[Ce qui vous a frappé sur {site}, en une phrase.]"
 [languages.fr.growth]
 growing = "{company} se développe vite."
 stalled = "{company} a fait beaucoup de chemin, mais la croissance semble marquer le pas."
+declining = "{company} a fait beaucoup de chemin, mais l'équipe s'est réduite ces derniers temps."
 "" = "{company} [se développe vite / a fait beaucoup de chemin]."
 
 [languages.fr.size]
