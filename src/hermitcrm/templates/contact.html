@@ -50,6 +50,8 @@
 </section>
 {% endif %}
 
+{{ m.task_section(company, today, 'The next step is kept on ' ~ company.name ~ ', so it shows on the company page and in the calendar too.') }}
+
 <section id="delete">
   <h2>Delete</h2>
   {% set confirm_text = 'Delete ' ~ contact.name ~ '?' ~ ((' Their ' ~ interactions | length ~ ' interaction(s) stay on ' ~ company.name ~ ' without a contact.') if interactions else '') %}

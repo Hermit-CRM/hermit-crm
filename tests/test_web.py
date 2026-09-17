@@ -504,8 +504,29 @@ def test_next_step_done_button_and_views(client, app, repo):
     assert "(done)" in client.get("/").text and "(done)" in client.get("/companies").text
 
     r = client.post("/companies/acme/next-step", data={"status": "open"})
-    assert r.headers["location"] == "/companies/acme?flash=Next%20step%20reopened"
+    assert r.headers["location"] == "/companies/acme?flash=Next%20step%20reopened#tasks"
     assert last_commit(repo) == "company: acme next step reopened"
+
+
+def test_tasks_section_on_company_and_contact_pages(client, app, repo):
+    post_company(client, name="Acme")
+    post_contact(client, "acme", first_name="Jane", last_name="Roe")
+    for page in (client.get("/companies/acme").text,
+                 client.get("/companies/acme/contacts/jane-roe").text):
+        assert 'id="tasks"' in page and "No open task." in page
+        assert 'action="/companies/acme/task"' in page
+
+    r = client.post("/companies/acme/task",
+                    data={"next_step": "Call Jane", "next_step_due": "2026-09-20"},
+                    headers={"referer": "http://testserver/companies/acme/contacts/jane-roe"})
+    assert r.status_code == 303
+    assert r.headers["location"].endswith("#tasks")
+    assert r.headers["location"].startswith("/companies/acme/contacts/jane-roe?flash=")
+    assert last_commit(repo) == "company: acme next step set"
+    company = app.state.store.get("acme")
+    assert company.next_step == "Call Jane" and company.next_step_open
+    page = client.get("/companies/acme/contacts/jane-roe").text
+    assert "Call Jane" in page and "Mark done" in page
 
 
 def test_calendar_view_shows_open_tasks(client, app):
