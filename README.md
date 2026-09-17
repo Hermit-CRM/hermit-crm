@@ -57,7 +57,8 @@ web app has a Help link; `hermitcrm help [topic]` prints the same pages.
 - **Timeline per company**: email, LinkedIn, call and meeting interactions,
   in or out, with bodies kept byte for byte.
 - **Message drafts without AI**: three angles per contact in English, German,
-  Dutch or French (by country), with wording you control in `messages.toml`.
+  Dutch or French (by country; for Belgium from mails, website, postcode
+  and titles), with wording you control in `messages.toml`.
 - **Messages tab**: every outbound message with its outcome (successful on a
   reply, unsuccessful after a window, or set by hand; the choices are
   `outcomes` in config.toml).

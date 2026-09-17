@@ -87,3 +87,52 @@ def test_messages_toml_in_data_folder_is_merged_over_defaults(tmp_path):
     assert out[0].body.endswith("Cheers,\nRobin\n")
     assert load_messages(tmp_path / "missing")["languages"]["en"]["signoff"] == \
         "{owner_first_name}"
+
+
+# ---------------------------------------------------------------- Belgium
+
+
+def _it(body, direction="in", day=1):
+    from datetime import datetime
+    from hermitcrm.models import Interaction
+    return Interaction(id=f"i{day}", date=datetime(2026, 9, day, 10), channel="email",
+                       direction=direction, body=body)
+
+
+def test_text_language_and_postcodes():
+    assert messaging.text_language("Bedankt voor uw bericht, wij hebben graag een gesprek") == "nl"
+    assert messaging.text_language("Merci pour votre message, nous sommes intéressés par une démo") == "fr"
+    assert messaging.text_language("Thanks for the note, happy to talk next week") == ""
+    assert messaging.belgian_postcode_language("Kerkstraat 1, 9000 Gent") == "nl"
+    assert messaging.belgian_postcode_language("Rue de Namur 5, B-5000 Namur") == "fr"
+    assert messaging.belgian_postcode_language("Avenue Louise 54, 1050 Bruxelles") == ""
+    assert messaging.belgian_postcode_language("founded 2019, 25 staff") == ""
+
+
+def test_belgian_language_signals():
+    be = lambda **kw: company(country="BE", website="https://acme.be", **kw)  # noqa: E731
+    assert messaging.belgian_language(be()) == "en"
+    assert messaging.belgian_language(company(country="BE", website="https://acme.be/nl/")) == "nl"
+    assert messaging.belgian_language(company(country="BE", website="https://fr.acme.be")) == "fr"
+    assert messaging.belgian_language(be(notes="HQ: 4000 Liège")) == "fr"
+    # their own reply outweighs a Dutch website path
+    c = company(country="BE", website="https://acme.be/nl/")
+    c.interactions.append(_it("Bonjour, merci pour votre message. Nous sommes intéressés, pouvons-nous parler la semaine prochaine?"))
+    assert messaging.belgian_language(c) == "fr"
+    # equal evidence on both sides stays English
+    c = company(country="BE", website="https://acme.be/nl/", notes="bureau: 7000 Mons")
+    assert messaging.belgian_language(c) == "en"
+    # a contact title is weak but enough on its own
+    c = be()
+    c.contacts["jan"] = Contact(first_name="Jan", last_name="Peeters", slug="jan",
+                                title="Zaakvoerder en oprichter van het bedrijf")
+    assert messaging.belgian_language(c) == "nl"
+    evidence = messaging.belgian_language_scores(c)
+    assert evidence["nl"] and not evidence["fr"]
+
+
+def test_belgian_drafts_use_the_inferred_language():
+    c = company(country="BE", website="https://acme.be/fr/")
+    fr = drafts(c, messages=load_messages())
+    en = drafts(company(country="BE"), messages=load_messages())
+    assert fr[0].body != en[0].body

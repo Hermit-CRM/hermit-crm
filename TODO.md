@@ -7,15 +7,18 @@ Roadmap and open items. Personal items live in the private data folder.
 - [ ] Use it daily for a while first; fix what annoys.
 - [x] Rename OwnCRM (taken by two businesses) to Hermit CRM: package, CLI,
       env vars (`HERMITCRM_*`, old `OWNCRM_*` still read), launchd/systemd labels,
-      format file. Create the GitHub repo under the new name.
+      format file. GitHub organisation `Hermit-CRM` reserved (2026-09-17);
+      create the repo there, private until launch.
 - [ ] Small website: a static landing page (GitHub Pages from the README, a
       demo GIF of BCC → import → Messages → `git log`, install command).
 - [ ] GitHub organisation + first push (leak scan again right before).
 - [ ] PyPI: trusted publishing from the release workflow; verify the update
       check against the real index.
 - [ ] Run the GitHub Actions workflows once (never executed yet).
-- [ ] Belgian companies: implement `belgian_language` in `messaging.py`
-      (Flemish vs Walloon from website path, notes language, names).
+- [x] Belgian companies: draft language from correspondence, website path,
+      postcode and the language of titles/notes (`belgian_language`).
+- [ ] Belgian companies: read a contact's LinkedIn profile language (needs a
+      fetch; LinkedIn blocks plain requests).
 
 ## Unverified
 

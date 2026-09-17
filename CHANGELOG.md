@@ -22,6 +22,9 @@ removes the old `io.owncrm.*` jobs.
 - Navigation moved to a light-grey left sidebar with icons; search and Ask
   Hermit sit in a sticky top bar.
 - A failed AI CLI run shows the CLI's own message instead of its JSON envelope.
+- Belgian companies get Dutch or French drafts when the record says which:
+  previous mails (theirs weigh most), a `/nl/` or `/fr/` website, a postcode
+  outside Brussels, or the language of titles and notes. English otherwise.
 
 ## 0.2.0 (unreleased)
 
