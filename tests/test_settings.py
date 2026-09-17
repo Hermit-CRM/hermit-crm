@@ -10,10 +10,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from owncrm import setup as st
-from owncrm.datafolder import init_folder
-from owncrm.store import load_config
-from owncrm.web import create_app
+from hermitcrm import setup as st
+from hermitcrm.datafolder import init_folder
+from hermitcrm.store import load_config
+from hermitcrm.web import create_app
 
 SECTIONS = ("you", "bcc", "calendar", "backup", "enrichment", "outcomes", "inbox",
             "schedule", "about")
@@ -71,9 +71,9 @@ def test_settings_page_renders_every_section(demo, tmp_path):
     assert 'name="silent_days" value="14"' in page
     # Review queue, schedule and about.
     assert "Nothing to review." in page and "Import meetings now" in page
-    assert "owncrm-sync.timer: not installed" in page
-    assert f"owncrm --data {demo} schedule install --serve" in page
-    assert f"<code>{demo}</code>" in page and "owncrm --data" in page
+    assert "hermitcrm-sync.timer: not installed" in page
+    assert f"hermitcrm --data {demo} schedule install --serve" in page
+    assert f"<code>{demo}</code>" in page and "hermitcrm --data" in page
     assert "Skip for now" in page  # BCC and backup are still pending in a demo folder
     assert '<span class="setup-status done">done</span>' in page.split('id="bcc"')[0]
 
@@ -224,7 +224,7 @@ def test_plan_outcomes_function():
 
 
 def test_review_queue_actions_redirect_to_settings_inbox(demo, tmp_path, monkeypatch):
-    from owncrm import bcc
+    from hermitcrm import bcc
 
     class Box:
         def __enter__(self):

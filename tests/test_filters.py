@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 from starlette.datastructures import QueryParams
 
-from owncrm.filters import Column, apply, matches, parse
+from hermitcrm.filters import Column, apply, matches, parse
 
 COLS = [
     Column("name", "name"),
@@ -63,7 +63,7 @@ def test_apply_combines_all_active_filters():
 # ------------------------------------------------------------------- sorting
 
 
-from owncrm.filters import parse_sort, sort_rows  # noqa: E402
+from hermitcrm.filters import parse_sort, sort_rows  # noqa: E402
 
 
 def test_parse_sort_only_accepts_known_columns():

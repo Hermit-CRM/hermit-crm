@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 
-from owncrm.store import Store  # noqa: E402
+from hermitcrm.store import Store  # noqa: E402
 
 FIXED_NOW = datetime(2026, 9, 14, 10, 30)
 

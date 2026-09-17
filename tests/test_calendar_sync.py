@@ -13,9 +13,9 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from owncrm import cli as crm
-from owncrm import bcc, calendar_sync as cal
-from owncrm.web import create_app
+from hermitcrm import cli as crm
+from hermitcrm import bcc, calendar_sync as cal
+from hermitcrm.web import create_app
 from test_bcc import FakeBox, raw_mail
 
 ME = "me@work.example.com"
@@ -286,7 +286,7 @@ def test_resolve_url_order(tmp_path):
         return subprocess.CompletedProcess(cmd, 0, stdout="https://kc.example/a.ics\n")
 
     settings = cal.settings_from_config({"calendar_keychain_account": "me"})
-    env = {"OWNCRM_CALENDAR_ICS_URL": "https://env.example/a.ics"}
+    env = {"HERMITCRM_CALENDAR_ICS_URL": "https://env.example/a.ics"}
     get = lambda env: cal.resolve_url(settings, tmp_path, env=env, runner=keychain,
                                       platform="darwin")
     assert get(env) == "https://env.example/a.ics" and calls == []

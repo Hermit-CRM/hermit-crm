@@ -10,11 +10,11 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from owncrm import secrets
-from owncrm.bcc import BccError
-from owncrm.datafolder import init_folder
-from owncrm.store import load_config
-from owncrm.web import create_app
+from hermitcrm import secrets
+from hermitcrm.bcc import BccError
+from hermitcrm.datafolder import init_folder
+from hermitcrm.store import load_config
+from hermitcrm.web import create_app
 
 
 @pytest.fixture
@@ -118,7 +118,7 @@ def test_setup_bcc_never_echoes_password_and_test_hint(folder):
     assert secrets.get("bcc_password", folder, env={}, platform="linux") == "hunter2-secret"
     page = client.get("/settings").text
     assert "hunter2" not in page
-    assert "Matches: to:(jane+crm@gmail.com) → Skip the Inbox, Mark as read, Apply label OwnCRM" in page
+    assert "Matches: to:(jane+crm@gmail.com) → Skip the Inbox, Mark as read, Apply label Hermit CRM" in page
     assert app.state.bcc_settings.address == "jane+crm@gmail.com"
     r = client.post("/setup/bcc/test", data={"csrf_token": t})
     assert r.status_code == 303

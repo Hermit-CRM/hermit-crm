@@ -1,7 +1,7 @@
 from datetime import date, datetime, timedelta
 
-from owncrm import pipeline
-from owncrm.store import Store
+from hermitcrm import pipeline
+from hermitcrm.store import Store
 from conftest import FIXED_NOW
 
 

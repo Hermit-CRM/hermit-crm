@@ -2,8 +2,8 @@
 
 import pytest
 
-from owncrm.models import Company
-from owncrm.scrape import ScrapeError, fetch, parse_page, propose_from_url
+from hermitcrm.models import Company
+from hermitcrm.scrape import ScrapeError, fetch, parse_page, propose_from_url
 
 SITE = """<html lang="de"><head><title>Acme – Procurement AI</title>
 <meta name="description" content="Acme automates   tail spend for buyers.">

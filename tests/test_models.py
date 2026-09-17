@@ -3,7 +3,7 @@ from datetime import date, datetime
 import pytest
 import yaml
 
-from owncrm.models import (
+from hermitcrm.models import (
     CLOSED_STAGES,
     OPEN_STAGES,
     Channel,
@@ -439,7 +439,7 @@ def test_next_step_overdue_ignores_stage():
 
 def test_message_status_explicit_reply_window_unknown():
     from datetime import date, datetime
-    from owncrm.models import Company, Interaction
+    from hermitcrm.models import Company, Interaction
     sent = datetime(2026, 9, 1, 9, 0)
     c = Company(name="A", slug="a")
     msg = Interaction(id="m", date=sent, channel="linkedin", direction="out",
@@ -469,7 +469,7 @@ def test_message_status_explicit_reply_window_unknown():
 
 def test_requalify_due_and_outcome_roundtrip():
     from datetime import date
-    from owncrm.models import (Company, company_from_dict, company_to_frontmatter,
+    from hermitcrm.models import (Company, company_from_dict, company_to_frontmatter,
                             interaction_from_dict, interaction_to_frontmatter)
     c = Company(name="A", slug="a", stage="temp-disqualified", requalify_on=date(2026, 9, 14))
     assert c.requalify_due(date(2026, 9, 14)) and not c.requalify_due(date(2026, 9, 13))
@@ -490,7 +490,7 @@ def test_requalify_due_and_outcome_roundtrip():
 
 
 def test_iso_countries_and_aliases():
-    from owncrm.models import ISO_3166_ALPHA2, normalise_country
+    from hermitcrm.models import ISO_3166_ALPHA2, normalise_country
     assert len(ISO_3166_ALPHA2) == 249 == len(set(ISO_3166_ALPHA2))
     assert normalise_country("uk") == "GB" and normalise_country(" USA ") == "US"
     assert normalise_country("pt") == "PT" and normalise_country(None) == ""

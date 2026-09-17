@@ -5,9 +5,9 @@ Roadmap and open items. Personal items live in the private data folder.
 ## Before going public
 
 - [ ] Use it daily for a while first; fix what annoys.
-- [ ] Pick a unique name (OwnCRM is taken by two businesses) and rename the
-      package, CLI, env vars (`OWNCRM_*`), launchd/systemd labels, Keychain
-      services and this repo.
+- [x] Rename OwnCRM (taken by two businesses) to Hermit CRM: package, CLI,
+      env vars (`HERMITCRM_*`, old `OWNCRM_*` still read), launchd/systemd labels,
+      format file. Create the GitHub repo under the new name.
 - [ ] Small website: a static landing page (GitHub Pages from the README, a
       demo GIF of BCC → import → Messages → `git log`, install command).
 - [ ] GitHub organisation + first push (leak scan again right before).

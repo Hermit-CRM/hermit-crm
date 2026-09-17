@@ -12,7 +12,7 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 from fastapi.testclient import TestClient
 
-from owncrm.web import company_values, create_app
+from hermitcrm.web import company_values, create_app
 
 CONFIG = {"port": 8765, "silent_days": 14, "push_enabled": False, "remote": "origin",
           "owner_email": "me@example.com"}
@@ -635,9 +635,9 @@ class StubEnricher:
         self.fields, self.missing, self.error = fields, missing, error
 
     def _proposal(self):
-        from owncrm.enrich import Proposal
+        from hermitcrm.enrich import Proposal
         if self.error:
-            from owncrm.enrich import EnrichError
+            from hermitcrm.enrich import EnrichError
             raise EnrichError(self.error)
         return Proposal(fields=dict(self.fields),
                         missing=self.missing if self.missing is not None else list(self.fields),
@@ -684,7 +684,7 @@ def test_enrich_company_preview_and_apply(client, app, repo):
 
 
 def test_enrich_buttons_hidden_when_no_cli_is_available(client, app):
-    from owncrm.enrich import Enricher
+    from hermitcrm.enrich import Enricher
     post_company(client, name="Acme")
     post_contact(client, "acme", first_name="Jane", last_name="Doe")
     app.state.enricher = Enricher(which=lambda binary: None)
@@ -1003,7 +1003,7 @@ def test_fetch_from_url_proposes_and_applies_without_ai(client, app, repo):
     assert c.product_oneliner == "Acme sells X." and c.country == "DE" and c.linkedin == ""
 
     def refuse(url):
-        from owncrm.scrape import ScrapeError
+        from hermitcrm.scrape import ScrapeError
         raise ScrapeError("LinkedIn refused the anonymous request (HTTP 999)")
 
     app.state.fetcher = refuse

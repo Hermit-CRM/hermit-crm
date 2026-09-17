@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 
 
-from owncrm.gitops import GitOps
+from hermitcrm.gitops import GitOps
 
 
 def run(args, cwd):

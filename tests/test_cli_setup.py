@@ -1,4 +1,4 @@
-"""`owncrm init` / `owncrm setup`: the interactive questions with scripted input."""
+"""`hermitcrm init` / `hermitcrm setup`: the interactive questions with scripted input."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from owncrm import cli, secrets
-from owncrm.datafolder import init_folder
+from hermitcrm import cli, secrets
+from hermitcrm.datafolder import init_folder
 
 
 def scripted(answers):
@@ -100,7 +100,7 @@ def test_setup_keychain_on_macos_and_github_warning(folder):
                          runner=runner, platform="darwin", push=lambda: (False, "no access"))
     text = "\n".join(out)
     assert code == 0
-    assert ["security", "add-generic-password", "-U", "-s", "owncrm-bcc", "-a",
+    assert ["security", "add-generic-password", "-U", "-s", "hermitcrm-bcc", "-a",
             "jane@example.com", "-w", "pw"] in calls
     assert "WARNING:" in text and "PRIVATE" in text and "no access" in text
     assert "pw" not in [line for line in out if "Keychain" in line][0].split()

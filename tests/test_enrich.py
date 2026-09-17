@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from owncrm import cli as crm
-from owncrm.enrich import (
+from hermitcrm import cli as crm
+from hermitcrm.enrich import (
     COMPANY_FIELDS, EnrichError, Enricher, Proposal, extract_json, resolve_provider,
 )
 
@@ -293,7 +293,7 @@ def test_cli_runner_error_paths(monkeypatch):
 
 
 def test_cli_enrich_reports_unavailable(tmp_path, capsys, monkeypatch):
-    import owncrm.enrich as enrich
+    import hermitcrm.enrich as enrich
     (tmp_path / "companies").mkdir()
     monkeypatch.setattr(enrich.shutil, "which", lambda binary: None)
     monkeypatch.setattr(enrich, "resolve_provider",

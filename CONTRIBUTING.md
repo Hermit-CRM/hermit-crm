@@ -1,17 +1,17 @@
-# Contributing to OwnCRM
+# Contributing to Hermit CRM
 
-Thanks for helping. OwnCRM is deliberately small: plain files, a thin web app,
+Thanks for helping. Hermit CRM is deliberately small: plain files, a thin web app,
 no database and no JavaScript framework. Changes that keep it that way are the
 easiest to accept.
 
 ## Dev setup
 
 ```bash
-git clone <your fork> owncrm && cd owncrm
+git clone <your fork> hermitcrm && cd hermitcrm
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev]'
-.venv/bin/owncrm init /tmp/owncrm-dev --demo
-.venv/bin/owncrm --data /tmp/owncrm-dev serve
+.venv/bin/hermitcrm init /tmp/hermitcrm-dev --demo
+.venv/bin/hermitcrm --data /tmp/hermitcrm-dev serve
 ```
 
 Python 3.11 is the oldest supported version; avoid syntax newer than that.
@@ -25,7 +25,7 @@ Python 3.11 is the oldest supported version; avoid syntax newer than that.
 The suite must pass before every commit. Tests run in `tmp_path` folders and
 never touch the network or your own data. Add a test with every change; for a
 change to the data format, add a numbered migration in
-`src/owncrm/migrations.py` with before/after fixtures.
+`src/hermitcrm/migrations.py` with before/after fixtures.
 
 ## Commit style
 

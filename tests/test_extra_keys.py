@@ -1,8 +1,8 @@
 """Unknown front-matter keys survive every write, after the known keys, sorted."""
 
-from owncrm.models import (Contact, company_from_dict, company_to_frontmatter,
+from hermitcrm.models import (Contact, company_from_dict, company_to_frontmatter,
                            contact_from_dict, contact_to_frontmatter, dump_frontmatter)
-from owncrm.store import Store, split_file
+from hermitcrm.store import Store, split_file
 from conftest import FIXED_NOW
 
 

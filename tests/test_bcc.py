@@ -11,11 +11,11 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from owncrm import cli as crm
-from owncrm import bcc
-from owncrm.models import interaction_to_frontmatter, Interaction
-from owncrm.store import split_file
-from owncrm.web import create_app
+from hermitcrm import cli as crm
+from hermitcrm import bcc
+from hermitcrm.models import interaction_to_frontmatter, Interaction
+from hermitcrm.store import split_file
+from hermitcrm.web import create_app
 from conftest import FIXED_NOW
 
 SETTINGS = bcc.Settings(address="me+bcc@gmail.com",

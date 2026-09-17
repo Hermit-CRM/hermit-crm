@@ -9,8 +9,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from owncrm.store import COMPANY_MERGE_FIELDS, CONTACT_MERGE_FIELDS
-from owncrm.web import (
+from hermitcrm.store import COMPANY_MERGE_FIELDS, CONTACT_MERGE_FIELDS
+from hermitcrm.web import (
     company_matches, contact_matches, create_app, merge_rows, resolve_contact_company,
     website_for_new_company,
 )

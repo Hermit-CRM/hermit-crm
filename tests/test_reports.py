@@ -8,11 +8,11 @@ from datetime import date, datetime
 import pytest
 from fastapi.testclient import TestClient
 
-from owncrm import cli as crm
-from owncrm import reports
-from owncrm.models import Company, StageChange, company_from_dict, company_to_frontmatter
-from owncrm.store import Store, build_file, split_file
-from owncrm.web import create_app
+from hermitcrm import cli as crm
+from hermitcrm import reports
+from hermitcrm.models import Company, StageChange, company_from_dict, company_to_frontmatter
+from hermitcrm.store import Store, build_file, split_file
+from hermitcrm.web import create_app
 from conftest import FIXED_NOW, read
 
 TODAY = FIXED_NOW.date()  # 2026-09-14

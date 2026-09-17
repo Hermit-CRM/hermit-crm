@@ -11,10 +11,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from owncrm import migrations
-from owncrm.models import ValidationError
-from owncrm.store import Store, build_file, split_file
-from owncrm.web import create_app
+from hermitcrm import migrations
+from hermitcrm.models import ValidationError
+from hermitcrm.store import Store, build_file, split_file
+from hermitcrm.web import create_app
 
 CONFIG = {"port": 8765, "silent_days": 14, "push_enabled": False, "remote": "origin",
           "owner_email": "me@example.com"}
@@ -121,7 +121,7 @@ def test_m3_before_after(old_folder):
     meta, _ = split_file((folder / "no-outcome-key.md").read_text())
     assert meta["outcome"] == "successful" and "result" not in meta
     assert list(meta).index("outcome") == list(meta).index("subject") + 1
-    assert (old_folder / ".owncrm-format").read_text() == "3\n"
+    assert (old_folder / ".hermitcrm-format").read_text() == "3\n"
     store = Store(old_folder)
     assert store.load() == []
     assert {i.id: i.outcome for i in store.get("acme").interactions}["f"] == "Wants a proposal"
@@ -130,7 +130,7 @@ def test_m3_before_after(old_folder):
 def test_m3_is_idempotent_and_leaves_other_files_alone(old_folder):
     migrations.ensure_current(old_folder)
     snapshot = {p: p.read_bytes() for p in old_folder.rglob("*.md")}
-    (old_folder / ".owncrm-format").write_text("2\n")
+    (old_folder / ".hermitcrm-format").write_text("2\n")
     assert migrations.ensure_current(old_folder).endswith(": 0 file(s) changed")
     assert {p: p.read_bytes() for p in old_folder.rglob("*.md")} == snapshot
     assert migrations.m3_outcome({"name": "Acme"}) == {"name": "Acme"}

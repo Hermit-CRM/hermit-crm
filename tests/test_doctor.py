@@ -1,4 +1,4 @@
-"""owncrm/doctor.py with every outside dependency faked."""
+"""hermitcrm/doctor.py with every outside dependency faked."""
 
 from __future__ import annotations
 
@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from owncrm import cli, doctor
-from owncrm import setup as st
-from owncrm.bcc import BccError
-from owncrm.datafolder import init_folder
+from hermitcrm import cli, doctor
+from hermitcrm import setup as st
+from hermitcrm.bcc import BccError
+from hermitcrm.datafolder import init_folder
 
 
 class FakeEnricher:
@@ -81,7 +81,7 @@ def test_configured_folder_all_ok_and_secret_not_printed(folder, tmp_path):
     assert st.save_backup(folder, str(bare)).ok
     home = tmp_path / "home"
     (home / ".config/systemd/user").mkdir(parents=True)
-    (home / ".config/systemd/user/owncrm-sync.timer").write_text("OnCalendar=*-*-* 07:00:00\n")
+    (home / ".config/systemd/user/hermitcrm-sync.timer").write_text("OnCalendar=*-*-* 07:00:00\n")
     res = checks(folder, tmp_path, online=True, open_mailbox=Box)
     text, code = doctor.report(list(res.values()))
     assert code == 0, text
@@ -106,7 +106,7 @@ def test_update_and_enrich_warnings(folder, tmp_path):
                  enricher=FakeEnricher(False))
     assert res["update"].status == "warn" and "v99.0.0 available" in res["update"].detail
     assert res["enrich cli"].status == "warn"
-    res = checks(folder, tmp_path, env={"OWNCRM_NO_UPDATE_CHECK": "1"})
+    res = checks(folder, tmp_path, env={"HERMITCRM_NO_UPDATE_CHECK": "1"})
     assert res["update"].detail.endswith("update check is off")
 
 

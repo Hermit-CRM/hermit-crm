@@ -1,6 +1,6 @@
-# OwnCRM: rules for AI sessions working on this repo (the code, not a data folder)
+# Hermit CRM: rules for AI sessions working on this repo (the code, not a data folder)
 
-Layout: the package is `src/owncrm/` (`cli.py` entry point, `store.py` file
+Layout: the package is `src/hermitcrm/` (`cli.py` entry point, `store.py` file
 store, `models.py`, `web.py` + `templates/` + `static/`, `migrations.py`,
 `secrets.py`, `updates.py`, `datafolder.py` for `init`). Tests are in `tests/`.
 The spec is `docs/ARCHITECTURE.md`.
@@ -14,4 +14,4 @@ The spec is `docs/ARCHITECTURE.md`.
 - Changing front-matter keys or values means a new numbered migration in
   `migrations.py` (idempotent, front matter only) plus tests.
 - Keep writes deterministic and interaction bodies byte for byte.
-- Try changes against a demo folder: `.venv/bin/owncrm init /tmp/x --demo`.
+- Try changes against a demo folder: `.venv/bin/hermitcrm init /tmp/x --demo`.

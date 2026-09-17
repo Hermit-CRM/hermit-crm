@@ -3,11 +3,11 @@
 import io
 import zipfile
 
-from owncrm.importer import (
+from hermitcrm.importer import (
     apply_import, decode_upload, detect_mode, map_country, name_from_domain,
     normalise_linkedin, parse_table, plan_import, xlsx_to_text,
 )
-from owncrm.models import ValidationError
+from hermitcrm.models import ValidationError
 import pytest
 
 SAMPLE = (

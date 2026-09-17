@@ -2,8 +2,8 @@ from datetime import date, datetime
 
 import pytest
 
-from owncrm.models import ValidationError
-from owncrm.store import Store, build_file, load_config, normalise_body, split_file
+from hermitcrm.models import ValidationError
+from hermitcrm.store import Store, build_file, load_config, normalise_body, split_file
 from conftest import FIXED_NOW
 
 
