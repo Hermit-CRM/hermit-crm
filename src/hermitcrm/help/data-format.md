@@ -33,7 +33,7 @@ show only real changes.
 | linkedin | text | |
 | country | code or empty | ISO 3166-1 alpha-2; also picks the draft language |
 | source | enum | linkedin-search, referral, inbound, event, list, network, other |
-| stage | enum | prospect, reached-out, discovery, offer, won, lost, disqualified, temp-disqualified |
+| stage | enum | prospect, engaged, discovery, offer, won, lost, disqualified, temp-disqualified |
 | stage_changed | date | set whenever the stage changes |
 | lost_reason | text | required for lost; optional for disqualified and temp-disqualified; cleared otherwise |
 | requalify_on | date or empty | only while temp-disqualified: the day it goes back to prospect |

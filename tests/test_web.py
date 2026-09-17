@@ -129,7 +129,7 @@ def test_board_lists_open_and_closed(client, app, repo):
 
     page = client.get("/").text
     assert 'id="col-prospect"' in page and 'id="col-discovery"' in page
-    assert page.index('id="col-prospect"') < page.index('id="col-reached-out"') \
+    assert page.index('id="col-prospect"') < page.index('id="col-engaged"') \
         < page.index('id="col-discovery"') < page.index('id="col-offer"')
     assert "Acme GmbH" in page and "Beta AG" in page and "Gamma BV" in page
     assert "overdue" in page  # Beta AG's next step is in the past
@@ -386,7 +386,7 @@ def test_acceptance_flow(client, app, repo):
     # 5. stage change from the board dropdown
     resp = client.post("/companies/mueller-soehne/stage", data={"stage": "discovery"})
     assert resp.status_code == 303 and resp.headers["location"] == "/"
-    assert last_commit(repo) == "company: mueller-soehne stage prospect -> discovery"
+    assert last_commit(repo) == "company: mueller-soehne stage engaged -> discovery"
     text = company_file(repo, "mueller-soehne").read_text(encoding="utf-8")
     assert "stage: discovery" in text and f"stage_changed: {TODAY}" in text
 
@@ -466,12 +466,12 @@ def test_country_field_and_add_country_button(client, app, repo):
     assert bad.status_code == 400 and "unknown country" in bad.text
 
 
-def test_board_stage_dropdown_offers_reached_out(client, app):
+def test_board_stage_dropdown_offers_engaged(client, app):
     post_company(client, name="Acme")
-    assert '<option value="reached-out">' in client.get("/").text
-    r = client.post("/companies/acme/stage", data={"stage": "reached-out"})
+    assert '<option value="engaged">' in client.get("/").text
+    r = client.post("/companies/acme/stage", data={"stage": "engaged"})
     assert r.status_code == 303
-    column = client.get("/").text.split('id="col-reached-out"')[1].split("</section>")[0]
+    column = client.get("/").text.split('id="col-engaged"')[1].split("</section>")[0]
     assert "Acme" in column
 
 
@@ -1087,3 +1087,51 @@ def test_drafts_on_contact_and_company_pages(client, app):
     post_company(client, name="Lonely", country="SE")
     lonely = client.get("/companies/lonely").text
     assert "Hi [first name]," in lonely and "(English)" in lonely
+
+
+def test_contact_enrich_shows_sources_when_nothing_verified(client, app):
+    post_company(client, name="Acme")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe")
+    app.state.enricher = StubEnricher({}, missing=["title", "linkedin"])
+    page = client.post("/companies/acme/contacts/jane-doe/enrich")
+    assert page.status_code == 200
+    assert "Nothing verified to apply" in page.text
+    assert 'href="https://example.com/about"' in page.text
+    assert "Apply selected" not in page.text
+
+
+def test_log_interaction_defaults_to_linkedin_out(client, app):
+    post_company(client, name="Acme")
+    page = client.get("/companies/acme/interactions/new").text
+    assert 'name="channel" value="linkedin" checked' in page
+    assert 'name="channel" value="email" checked' not in page
+    assert 'name="direction" value="out" checked' in page
+    assert 'value="email" checked' in client.get(
+        "/companies/acme/interactions/new?channel=email").text
+
+
+def test_logging_an_interaction_makes_a_prospect_engaged(client, app, repo):
+    post_company(client, name="Acme")
+    post_interaction(client, "acme", channel="linkedin", direction="out",
+                     date="2026-09-10T09:00")
+    assert app.state.store.get("acme").stage == "engaged"
+    assert last_commit(repo) == ("interaction: acme linkedin out company 2026-09-10T09:00; "
+                                 "stage prospect -> engaged")
+    assert "stage: engaged" in company_file(repo, "acme").read_text(encoding="utf-8")
+
+
+def test_delete_contact_route(client, app, repo):
+    post_company(client, name="Acme")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe")
+    post_interaction(client, "acme", channel="linkedin", direction="out",
+                     contact="jane-doe", date="2026-09-10T09:00")
+    page = client.get("/companies/acme/contacts/jane-doe").text
+    assert 'action="/companies/acme/contacts/jane-doe/delete"' in page
+    assert "1 interaction(s) stay on Acme" in page
+    r = client.post("/companies/acme/contacts/jane-doe/delete")
+    assert r.status_code == 303 and r.headers["location"].startswith("/companies/acme?flash=")
+    assert "jane-doe" not in app.state.store.get("acme").contacts
+    assert last_commit(repo) == "contact: acme/jane-doe deleted (1 interaction(s) kept without a contact)"
+    assert subprocess.run(["git", "status", "--porcelain"], cwd=repo, capture_output=True,
+                          text=True).stdout.strip() == ""
+    assert client.post("/companies/acme/contacts/jane-doe/delete").status_code == 404

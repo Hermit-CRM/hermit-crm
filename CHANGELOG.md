@@ -5,6 +5,17 @@ the data format always comes with an automatic migration.
 
 ## 0.3.0 (unreleased)
 
+Data format 4: the stage `reached-out` is renamed to **engaged** (in `stage`
+and `stage_history`), migrated automatically in one commit.
+
+- Logging an interaction on a **prospect** moves it to **engaged** in the same
+  commit (manual, BCC and calendar imports alike).
+- **Delete contact** on the contact page; its interactions stay on the company
+  without a contact.
+- The interaction form defaults to **LinkedIn**, out.
+- Contact Enrich opens the proposal page with notes and sources even when
+  nothing could be verified, instead of a one-line message.
+
 Renamed from OwnCRM to **Hermit CRM** (OwnCRM was taken). Package and command
 `hermitcrm`, environment variables `HERMITCRM_*`, launchd labels
 `io.hermitcrm.*`. Old names keep working: `OWNCRM_*` variables are still read,

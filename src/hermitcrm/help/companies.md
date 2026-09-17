@@ -41,10 +41,13 @@ view: the company's folder is re-read for every request.
 
 ## Stages
 
-`prospect`, `reached-out`, `discovery`, `offer` are open; `won`, `lost` and
+`prospect`, `engaged`, `discovery`, `offer` are open; `won`, `lost` and
 `disqualified` are closed; `temp-disqualified` is parked: off the board and
 the table, back to prospect by itself on `requalify_on`. Every stage change
-appends to `stage_history` and sets `stage_changed` to today.
+appends to `stage_history` and sets `stage_changed` to today. The first
+interaction logged on a prospect moves it to engaged. Before format 4 the
+engaged stage was called `reached-out`; migration 4 renamed it, and
+`reached-out` is still accepted as input (imports, CLI).
 
 ## Country and language
 

@@ -21,7 +21,10 @@ error says so. CLI: `hermitcrm fetch <slug> [--url URL] [--apply]`.
 On company and contact pages when a CLI is available. Company fields: website,
 LinkedIn, country, FTE estimate, AE count, one-liner. Contact fields: title,
 LinkedIn. The CLI is asked for a JSON answer with sources; anything it cannot
-verify comes back as "not found", never guessed. A call can take a minute and
+verify comes back as "not found", never guessed. When nothing could be
+verified but the CLI found sources (say, a LinkedIn profile at another
+company, which often means the contact sits under the wrong company), the
+proposal page still opens with its notes and sources to check by hand. A call can take a minute and
 uses that CLI's credits. CLI: `hermitcrm enrich <slug> [--contact <cslug>] [--apply]`.
 
 ## Which CLI

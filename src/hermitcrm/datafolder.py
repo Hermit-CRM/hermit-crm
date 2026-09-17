@@ -304,12 +304,11 @@ def load_demo(path: Path, now: datetime) -> Store:
                                         contact=contact, date=at(days_ago, hour),
                                         subject=subject, outcome=outcome, body=body)
 
-    # Northwind: reached out, got a reply, meetings, now an offer.
+    # Northwind: reached out (logging it makes the company engaged), got a
+    # reply, meetings, now an offer.
     log(northwind, 35, "linkedin", "out", lena,
         "Hi Lena,\nNorthwind Robotics is growing fast.\nWorth a short call?\n\nAlex\n")
     log(northwind, 33, "linkedin", "in", lena, "Hi Alex, sure. Thursday works.\n")
-    at(33, 11)
-    store.update_company(northwind, stage="reached-out")
     log(northwind, 28, "meeting", "out", lena, "Intro call. Pain: slow onboarding of pickers.",
         subject="Intro call: wants a proposal for two sites")
     at(28, 12)
@@ -324,8 +323,6 @@ def load_demo(path: Path, now: datetime) -> Store:
     log(bluefin, 30, "email", "out", joris,
         "Hi Joris,\nyou're at ~18 people now.\nInterested in how similar teams got past 20?\n\nAlex\n",
         subject="Getting past 20", outcome="successful")
-    at(30, 11)
-    store.update_company(bluefin, stage="reached-out")
     log(bluefin, 20, "call", "out", joris, "Good call; budget decision next quarter.",
         subject="Discovery booked")
     at(20, 12)
@@ -337,7 +334,7 @@ def load_demo(path: Path, now: datetime) -> Store:
     log(copperleaf, 5, "linkedin", "out", camille,
         "Bonjour Camille,\nCopperleaf Studio se développe vite.\nUn court échange ?\n\nAlex\n")
     at(5, 11)
-    store.update_company(copperleaf, stage="reached-out", next_step="Follow up if no reply",
+    store.update_company(copperleaf, next_step="Follow up if no reply",
                          next_step_due=(today + timedelta(days=5)).isoformat())
 
     # Tallpine: still a prospect, research first.
@@ -364,8 +361,6 @@ def load_demo(path: Path, now: datetime) -> Store:
     log(emberoak, 32, "email", "out", erik,
         "Hi Erik,\nEmberoak Foods has come a long way.\nWorth a short call?\n\nAlex\n",
         subject="Quick question", outcome="unsuccessful")
-    at(32, 11)
-    store.update_company(emberoak, stage="reached-out")
     at(12)
     store.update_company(emberoak, stage="lost", lost_reason="No budget this year")
 

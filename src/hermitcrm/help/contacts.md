@@ -22,6 +22,9 @@ box matches name, email, title and company.
 - **Merge** another contact of the same company into this one (only shown when
   the company has more than one contact).
 - **Interactions** of this contact, newest first.
+- **Delete contact** (asks first). Their interactions stay on the company
+  with the contact cleared, so the record survives; git keeps the file's
+  history.
 
 New contacts come from the company page's New contact link
 (`/companies/<slug>/contacts/new`), from Import in contacts mode, and from the

@@ -66,10 +66,10 @@ GOLDEN = """# Pipeline  (generated 2026-09-14 10:30, do not edit)
 ## discovery (1, 0 EUR/month)
 - gamma-analytics | Gamma Analytics | in stage 13d | last: none | next: Follow up on LinkedIn reply, due 2026-09-09
 
-## reached-out (0)
-
-## prospect (2)
+## engaged (1)
 - epsilon-systems | Epsilon Systems | in stage 0d | last: call in 2026-09-11 (bob-king) | next: none
+
+## prospect (1)
 - zeta-devices | Zeta Devices | in stage 0d | last: none | next: none
 
 ## Overdue next steps (1)
@@ -103,7 +103,7 @@ EMPTY_GOLDEN = """# Pipeline  (generated 2026-09-14 10:30, do not edit)
 
 ## discovery (0, 0 EUR/month)
 
-## reached-out (0)
+## engaged (0)
 
 ## prospect (0)
 
@@ -143,11 +143,11 @@ def test_next_step_due_without_text_is_edge_cased(tmp_path):
 def test_stage_ordering_due_tie_then_last_touch_desc_then_empty_due_last(tmp_path):
     s = Store(tmp_path, clock=lambda: FIXED_NOW)
     s.load()
-    a = s.create_company(name="Alpha One", stage="prospect",
+    a = s.create_company(name="Alpha One", stage="engaged",
                          next_step="Follow up", next_step_due="2026-09-20")
-    b = s.create_company(name="Beta Two", stage="prospect",
+    b = s.create_company(name="Beta Two", stage="engaged",
                          next_step="Follow up", next_step_due="2026-09-20")
-    c = s.create_company(name="Gamma Three", stage="prospect")
+    c = s.create_company(name="Gamma Three", stage="engaged")
 
     ca = s.create_contact(a.slug, first_name="Contact", last_name="A")
     s.create_interaction(a.slug, subject="Touch A", channel="email",
@@ -159,7 +159,7 @@ def test_stage_ordering_due_tie_then_last_touch_desc_then_empty_due_last(tmp_pat
                          date=datetime(2026, 9, 12, 9, 0))
 
     text = pipeline.render(s, now=FIXED_NOW)
-    section = text.split("## prospect")[1].split("\n\n")[0]
+    section = text.split("## engaged")[1].split("\n\n")[0]
     slugs = [line.split(" | ")[0][2:] for line in section.splitlines()
              if line.startswith("- ")]
     # b's last touch (09-12) is more recent than a's (09-10) -> b before a

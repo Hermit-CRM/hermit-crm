@@ -29,6 +29,7 @@ from .models import (
     REASON_STAGES,
     Role,
     Source,
+    STAGE_ALIASES,
     Stage,
     StageChange,
     TaskStatus,
@@ -426,6 +427,8 @@ class Store:
             if allow_empty:
                 return default
             raise ValidationError({field_name: f"{field_name} is required"})
+        if enum is Stage:
+            value = STAGE_ALIASES.get(value, value)
         allowed = [e.value for e in enum]
         if value not in allowed:
             raise ValidationError(
@@ -853,6 +856,28 @@ class Store:
         self._notify(message or f"contact: {company_slug}/{new.slug} updated")
         return new
 
+    def delete_contact(self, company_slug: str, cslug: str) -> Contact:
+        """Remove one contact file. Its interactions stay on the company with
+        the contact cleared (front matter only; bodies are untouched), so the
+        record of what happened survives. One commit for all of it."""
+        company = self.companies.get(company_slug)
+        if company is None:
+            raise ValidationError({"company": f"unknown company {company_slug!r}"})
+        contact = company.contacts.get(cslug)
+        if contact is None:
+            raise ValidationError({"contact": f"unknown contact {cslug!r}"})
+        linked = [i.id for i in company.interactions if i.contact == cslug]
+        message = f"contact: {company_slug}/{cslug} deleted"
+        if linked:
+            message += f" ({len(linked)} interaction(s) kept without a contact)"
+        with self.batch(message):
+            for id in linked:
+                self.update_interaction(company_slug, id, contact="")
+            (self.company_dir(company_slug) / "contacts" / f"{cslug}.md").unlink(missing_ok=True)
+            company.contacts.pop(cslug, None)
+            self._notify(message)
+        return contact
+
     # --- mutations: interaction
 
     def _interaction_id(self, company_slug: str, it: Interaction,
@@ -894,14 +919,21 @@ class Store:
             body=normalise_body(body),
         )
         it.id = self._interaction_id(company_slug, it)
-        self.write_interaction(company_slug, it)
-        company.interactions.append(it)
-        company.interactions.sort(key=lambda i: (i.date or datetime.min, i.id),
-                                  reverse=True)
-        self._notify(
-            f"interaction: {company_slug} {channel} {direction} "
-            f"{it.contact_label} {when:%Y-%m-%dT%H:%M}"
-        )
+        message = (f"interaction: {company_slug} {channel} {direction} "
+                   f"{it.contact_label} {when:%Y-%m-%dT%H:%M}")
+        # A logged interaction means contact was made: a prospect becomes
+        # engaged, in the same commit as the interaction.
+        advance = company.stage == Stage.PROSPECT.value
+        if advance:
+            message += f"; stage {Stage.PROSPECT.value} -> {Stage.ENGAGED.value}"
+        with self.batch(message):
+            self.write_interaction(company_slug, it)
+            company.interactions.append(it)
+            company.interactions.sort(key=lambda i: (i.date or datetime.min, i.id),
+                                      reverse=True)
+            self._notify(message)
+            if advance:
+                self.update_company(company_slug, stage=Stage.ENGAGED.value)
         return it
 
     def update_interaction(self, company_slug: str, id: str, **fields) -> Interaction:
