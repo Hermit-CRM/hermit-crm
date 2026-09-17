@@ -1,4 +1,4 @@
-"""Data format versions and migrations for an Hermit CRM data folder.
+"""Data format versions and migrations for a Hermit CRM data folder.
 
 The folder carries a committed ``.hermitcrm-format`` file holding one integer.
 A folder without it counts as format 0 when it has ``companies/`` (data from

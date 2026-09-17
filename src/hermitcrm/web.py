@@ -505,6 +505,11 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         return await call_next(request)
 
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    def favicon_ico() -> RedirectResponse:
+        """Browsers ask for /favicon.ico regardless of the <link> tags; point them at ours."""
+        return RedirectResponse("/static/favicon.svg", status_code=301)
     templates = Jinja2Templates(directory=str(HERE / "templates"))
     templates.env.globals.update(
         fmt_date=fmt_date,

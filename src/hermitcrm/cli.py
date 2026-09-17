@@ -70,7 +70,7 @@ def cmd_init(target: Path, demo: bool = False) -> tuple[str, int]:
         path = init_folder(target, demo=demo)
     except InitError as exc:
         return (str(exc), 2)
-    lines = [f"Created an Hermit CRM data folder in {path}" + (" with demo data." if demo else "."),
+    lines = [f"Created a Hermit CRM data folder in {path}" + (" with demo data." if demo else "."),
              f"Start the web app: hermitcrm --data {path} serve"]
     return ("\n".join(lines), 0)
 

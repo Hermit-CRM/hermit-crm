@@ -147,6 +147,9 @@ def test_logo_and_favicon(client):
     png = client.get("/static/favicon.png")
     assert png.status_code == 200 and png.content.startswith(b"\x89PNG")
 
+    ico = client.get("/favicon.ico", follow_redirects=False)
+    assert ico.status_code == 301 and ico.headers["location"] == "/static/favicon.svg"
+
 
 def test_board_card_order_follows_pipeline(client):
     post_company(client, name="Later", stage="prospect",

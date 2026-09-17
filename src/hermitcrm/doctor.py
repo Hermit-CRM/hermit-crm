@@ -61,7 +61,7 @@ def run_checks(root: Path, *, online: bool = False, env: dict | None = None,
     add("git", OK if git else FAIL, git or "git is not on PATH")
 
     if not is_data_folder(root):
-        add("data folder", FAIL, f"{root} is not an Hermit CRM data folder (hermitcrm init DIR)")
+        add("data folder", FAIL, f"{root} is not a Hermit CRM data folder (hermitcrm init DIR)")
         return checks
     add("data folder", OK, str(root))
 

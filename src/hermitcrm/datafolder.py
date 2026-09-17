@@ -38,7 +38,7 @@ def resolve_data_dir(option: str | Path | None = None, env: dict | None = None,
     raw = option or env.get(ENV_DATA) or (cwd or Path.cwd())
     path = Path(raw).expanduser().resolve()
     if not is_data_folder(path):
-        raise NotDataFolder(f"Not an Hermit CRM data folder: {path}. Run `hermitcrm init {path}`.")
+        raise NotDataFolder(f"Not a Hermit CRM data folder: {path}. Run `hermitcrm init {path}`.")
     return path
 
 

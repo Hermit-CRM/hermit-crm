@@ -36,7 +36,7 @@ def test_resolution_order(tmp_path):
     assert resolve_data_dir(a, env={"HERMITCRM_DATA": str(b)}, cwd=c) == a.resolve()
     assert resolve_data_dir(None, env={"HERMITCRM_DATA": str(b)}, cwd=c) == b.resolve()
     assert resolve_data_dir(None, env={}, cwd=c) == c.resolve()  # config.toml alone counts
-    with pytest.raises(NotDataFolder, match=r"Not an Hermit CRM data folder: .*empty\. Run `hermitcrm init .*empty`\."):
+    with pytest.raises(NotDataFolder, match=r"Not a Hermit CRM data folder: .*empty\. Run `hermitcrm init .*empty`\."):
         resolve_data_dir(tmp_path / "empty", env={})
 
 
@@ -44,7 +44,7 @@ def test_cli_exits_2_outside_a_data_folder(tmp_path, monkeypatch, capsys):
     monkeypatch.delenv("HERMITCRM_DATA", raising=False)
     monkeypatch.chdir(tmp_path)
     assert cli.main(["check"]) == 2
-    assert "Not an Hermit CRM data folder" in capsys.readouterr().err
+    assert "Not a Hermit CRM data folder" in capsys.readouterr().err
     assert cli.main(["--data", str(tmp_path / "nope"), "digest"]) == 2
 
 
