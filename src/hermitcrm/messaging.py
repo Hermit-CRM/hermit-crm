@@ -22,6 +22,7 @@ The ``size`` and ``team`` tables have ``known`` / ``unknown`` variants.
 from __future__ import annotations
 
 import copy
+import re
 import tomllib
 from dataclasses import dataclass
 from functools import lru_cache
@@ -111,17 +112,103 @@ def owner_first_name(owner_name: str) -> str:
     return parts[0] if parts else "[your name]"
 
 
+# Belgium has no single business language, so the country code alone is not
+# enough: the draft language comes from what the record says.
+_NL_WORDS = frozenset("""het een van voor met niet zijn wij onze jullie bij ook maar dat
+    dit naar uw graag bedankt dank groeten hallo beste vriendelijke hebben wordt
+    kunnen zaakvoerder zaakvoerster bestuurder oprichter medeoprichter verkoop
+    klanten oplossingen bedrijf""".split())
+_FR_WORDS = frozenset("""le la les des une et pour avec pas sont nous notre vous votre
+    chez aussi mais que ce cette merci bonjour cordialement salutations avoir est
+    pouvons gérant gérante administrateur fondateur cofondateur directeur commercial
+    ventes clients solutions entreprise""".split())
+# Weights: what they wrote to you beats what you wrote beats their website and
+# address beats the language of free text (titles, notes, product line).
+_W_INBOUND, _W_OUTBOUND, _W_SITE, _W_POSTCODE, _W_TEXT = 4, 3, 2, 2, 1
+_LOCATION_KEYS = ("postcode", "postal_code", "zip", "city", "address", "location", "hq")
+
+
+def text_language(text: str) -> str:
+    """"nl", "fr" or "" from function words; "" when neither clearly dominates."""
+    words = [w.strip(".,;:!?()\"'«»“”") for w in (text or "").lower().split()]
+    nl = sum(w in _NL_WORDS for w in words)
+    fr = sum(w in _FR_WORDS for w in words)
+    if max(nl, fr) < 3 or nl == fr or min(nl, fr) * 2 > max(nl, fr):
+        return ""
+    return "nl" if nl > fr else "fr"
+
+
+def belgian_postcode_language(text: str) -> str:
+    """Language region of the first Belgian postcode in text; Brussels (1000-1299)
+    is bilingual and gives ""."""
+    for match in re.finditer(r"(?<![\d-])(?:B-?\s?)?([1-9]\d{3})\s+[A-ZÀ-Ý]", text or ""):
+        code = int(match.group(1))
+        if 1000 <= code <= 1299:
+            continue
+        if 1300 <= code <= 1499 or 4000 <= code <= 7999:
+            return "fr"   # Walloon Brabant, Liège, Namur, Hainaut, Luxembourg
+        return "nl"       # Flemish Brabant, Antwerp, Limburg, West and East Flanders
+    return ""
+
+
+def _site_language(url: str) -> str:
+    url = (url or "").lower()
+    host_path = url.split("://", 1)[-1]
+    host, _, path = host_path.partition("/")
+    first = path.split("/", 1)[0].split("?", 1)[0]
+    for lang in ("nl", "fr"):
+        if host.startswith(f"{lang}.") or first in (lang, f"{lang}-be", f"be-{lang}",
+                                                    f"{lang}_be"):
+            return lang
+    return ""
+
+
+def belgian_language_scores(company: Company) -> dict[str, list[str]]:
+    """The evidence per language: {"nl": [reasons], "fr": [reasons]}, weighted by
+    repetition (a reason appears once per weight point)."""
+    evidence: dict[str, list[str]] = {"nl": [], "fr": []}
+
+    def add(lang: str, weight: int, reason: str) -> None:
+        if lang in evidence:
+            evidence[lang] += [reason] * weight
+
+    for it in company.interactions:
+        lang = text_language(f"{it.subject}\n{it.body}")
+        if lang:
+            inbound = it.direction == "in"
+            add(lang, _W_INBOUND if inbound else _W_OUTBOUND,
+                f"{'their' if inbound else 'your'} {it.channel or 'message'} of "
+                f"{it.date:%Y-%m-%d}" if it.date else "a message")
+    for url in [company.website] + [c.linkedin for c in company.contacts.values()]:
+        lang = _site_language(url)
+        if lang:
+            add(lang, _W_SITE, f"{url}")
+    places = [str(company.extra.get(k) or "") for k in _LOCATION_KEYS] + [company.notes]
+    lang = belgian_postcode_language(" ".join(places))
+    if lang:
+        add(lang, _W_POSTCODE, "postcode")
+    free_text = " ".join([company.product_oneliner, company.notes]
+                         + [f"{c.title} {c.notes}" for c in company.contacts.values()])
+    lang = text_language(free_text)
+    if lang:
+        add(lang, _W_TEXT, "language of the record's text")
+    return evidence
+
+
 def belgian_language(company: Company) -> str:
     """Draft language for a Belgian company: "nl" (Flanders), "fr" (Wallonia) or "en".
 
-    Belgium has no single business language, so the country code alone is not
-    enough. Signals on the record: company.website (a /nl/ or /fr/ path, or
-    nl./fr. subdomain), company.product_oneliner and company.notes (written in
-    the company's own language when fetched from its site), and contact names.
-    Return "en" whenever the signals disagree or are missing.
+    Evidence, strongest first: previous correspondence (their messages, then
+    yours), a /nl/ or /fr/ website, a postcode outside Brussels, then the
+    language of titles and notes. The heavier side wins when it has at least
+    twice the weight of the other (so one reply from them beats a website path); otherwise, or with no evidence, "en". A
+    LinkedIn profile's language is not read: that needs fetching the profile.
     """
-    # TODO(human): infer Flemish vs Walloon from the record
-    return "en"
+    evidence = belgian_language_scores(company)
+    nl, fr = len(evidence["nl"]), len(evidence["fr"])
+    if max(nl, fr) == 0 or min(nl, fr) * 2 > max(nl, fr):
+        return "en"
+    return "nl" if nl > fr else "fr"
 
 
 def drafts(company: Company, contact: Contact | None = None, signal: str = "",

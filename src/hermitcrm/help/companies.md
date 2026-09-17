@@ -52,4 +52,13 @@ appends to `stage_history` and sets `stage_changed` to today.
 stored as `GB` and `US`). It also picks the draft language: German for DE, AT,
 CH and LI, Dutch for NL, French for FR, LU and MC, English otherwise.
 
+For **BE** the record decides between Dutch and French. Evidence, strongest
+first: previous mails and messages (their replies weigh most, then yours), a
+`/nl/` or `/fr/` website (or `nl.`/`fr.` subdomain), a postcode outside
+Brussels (Flanders: Dutch; Wallonia: French; Brussels 1000-1299 counts for
+neither), then the language of contact titles, notes and the product line.
+One side needs at least twice the weight of the other; otherwise the drafts
+are English. To force a language, add a `/nl/` or `/fr/` website or a note
+with the address.
+
 Related: [Pipeline](/help/pipeline), [Contacts](/help/contacts), [Interactions](/help/interactions), [Merge](/help/merge), [Enrich](/help/enrich), [Data format](/help/data-format)
