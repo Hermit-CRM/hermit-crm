@@ -25,6 +25,8 @@ from .store import DEFAULT_CONFIG, Store, load_config
 KEYCHAIN_SERVICE = "hermitcrm-bcc"
 PRIVATE_HOSTS = ("github.com", "gitlab.com", "bitbucket.org")
 ENRICH_PROVIDERS = ("auto", "claude", "codex", "gemini", "grok", "custom")
+AI_TIERS = ("medium", "strong")
+THEMES = ("light", "dark", "system")
 IMAP_HOSTS = {
     "gmail.com": "imap.gmail.com",
     "googlemail.com": "imap.gmail.com",
@@ -372,8 +374,9 @@ def _positive_int(raw: str, key: str, label: str, errors: dict) -> int | None:
 
 
 def save_enrichment(data_dir: Path, provider: str, command: str = "", model: str = "",
-                    timeout: str = "180") -> StepResult:
-    """Write enrich_provider / enrich_command / enrich_model / enrich_timeout."""
+                    timeout: str = "180", model_strong: str = "",
+                    tier: str = "medium") -> StepResult:
+    """Write enrich_provider / _command / _model / _model_strong / _timeout and ai_tier."""
     provider = (provider or "auto").strip().lower()
     result = StepResult()
     if provider not in ENRICH_PROVIDERS:
@@ -381,12 +384,17 @@ def save_enrichment(data_dir: Path, provider: str, command: str = "", model: str
                                      + ", ".join(ENRICH_PROVIDERS) + ".")
     if provider == "custom" and not (command or "").strip():
         result.errors["command"] = "A custom provider needs a command line."
+    tier = (tier or "medium").strip().lower()
+    if tier not in AI_TIERS:
+        result.errors["tier"] = "Model tier must be medium or strong."
     seconds = _positive_int(timeout, "timeout", "Timeout (seconds)", result.errors)
     if result.errors:
         result.ok = False
         return result
     result.values = {"enrich_provider": provider, "enrich_command": (command or "").strip(),
-                     "enrich_model": (model or "").strip(), "enrich_timeout": seconds}
+                     "enrich_model": (model or "").strip(),
+                     "enrich_model_strong": (model_strong or "").strip(),
+                     "ai_tier": tier, "enrich_timeout": seconds}
     set_config_values(Path(data_dir) / "config.toml", result.values)
     result.messages.append(f"Enrichment saved: provider {provider}.")
     return result
@@ -431,6 +439,20 @@ def save_outcomes(data_dir: Path, raw: str | list[str], message_window_days: str
     if result.ok:
         set_config_values(Path(data_dir) / "config.toml", result.values)
         result.messages.append("Outcomes saved: " + ", ".join(result.values["outcomes"]) + ".")
+    return result
+
+
+def save_theme(data_dir: Path, theme: str) -> StepResult:
+    """Write theme (light, dark or system) to config.toml."""
+    theme = (theme or "").strip().lower()
+    result = StepResult()
+    if theme not in THEMES:
+        result.ok = False
+        result.errors["theme"] = "Theme must be light, dark or system."
+        return result
+    result.values = {"theme": theme}
+    set_config_values(Path(data_dir) / "config.toml", result.values)
+    result.messages.append(f"Appearance saved: {theme}.")
     return result
 
 

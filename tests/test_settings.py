@@ -15,7 +15,7 @@ from hermitcrm.datafolder import init_folder
 from hermitcrm.store import load_config
 from hermitcrm.web import create_app
 
-SECTIONS = ("you", "bcc", "calendar", "backup", "enrichment", "outcomes", "inbox",
+SECTIONS = ("you", "bcc", "calendar", "backup", "appearance", "enrichment", "outcomes", "inbox",
             "schedule", "about")
 
 
@@ -56,7 +56,7 @@ def test_settings_page_renders_every_section(demo, tmp_path):
     for section in SECTIONS:
         assert f'id="{section}"' in page, section
     nav = page.split("</nav>")[0]
-    assert '<a href="/settings">Settings</a>' in nav
+    assert 'href="/settings"' in nav and "<span>Settings</span>" in nav
     for gone in ("/inbox", "/setup", "/companies/new", "/import"):
         assert f'href="{gone}"' not in nav
     assert 'href="/help/settings"' in nav
@@ -163,7 +163,8 @@ def test_save_enrichment_function(tmp_path):
     assert st.ENRICH_PROVIDERS == ("auto", "claude", "codex", "gemini", "grok", "custom")
     r = st.save_enrichment(folder, " Codex ", "", " gpt-x ", " 90 ")
     assert r.ok and r.values == {"enrich_provider": "codex", "enrich_command": "",
-                                 "enrich_model": "gpt-x", "enrich_timeout": 90}
+                                 "enrich_model": "gpt-x", "enrich_model_strong": "",
+                                 "ai_tier": "medium", "enrich_timeout": 90}
     assert cfg(folder)["enrich_provider"] == "codex" and cfg(folder)["enrich_timeout"] == 90
     bad = st.save_enrichment(folder, "custom", "", "", "0")
     assert not bad.ok and set(bad.errors) == {"command", "timeout"}
@@ -249,7 +250,7 @@ def test_review_queue_actions_redirect_to_settings_inbox(demo, tmp_path, monkeyp
     items = app.state.inbox.items()
     assert len(items) == 1
     page = client.get("/settings").text
-    assert "Settings (1)" in page.split("</nav>")[0]
+    assert '<span class="badge">1</span>' in page.split("</nav>")[0]
     assert 'href="/settings#inbox"' in page.split("</nav>")[0]
     assert "Review queue (1)" in page and "someone@nowhere.example" in page
     r = client.post(f"/inbox/{items[0].id}/assign", data={"company": "no-such-company"})

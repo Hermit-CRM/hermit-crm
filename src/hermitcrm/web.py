@@ -21,6 +21,7 @@ from urllib.parse import quote, urlencode, urlparse
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 
 from . import __version__, updates
 from fastapi.templating import Jinja2Templates
@@ -30,7 +31,8 @@ from . import schedule, scrape
 from . import help as helpdocs
 from . import setup as setup_steps
 from .filters import Column
-from .enrich import Enricher, EnrichError
+from .enrich import Enricher, EnrichError, model_label
+from . import ask as asking
 from .scrape import ScrapeError
 from .importer import (
     CONTACT_COLUMNS,
@@ -370,6 +372,27 @@ def flashed(path: str, message: str, anchor: str = "") -> RedirectResponse:
 # ----------------------------------------------------------------- app factory
 
 
+def build_enricher(config: dict) -> Enricher:
+    """The AI CLI wrapper used by Enrich and Ask Hermit, from config.toml."""
+    return Enricher(
+        provider=str(config.get("enrich_provider", "auto")),
+        command=str(config.get("enrich_command", "")),
+        model=str(config.get("enrich_model", "")),
+        model_strong=str(config.get("enrich_model_strong", "")),
+        tier=str(config.get("ai_tier") or "medium"),
+        timeout=float(config.get("enrich_timeout", 180)),
+    )
+
+
+def safe_page(page: str) -> str:
+    """A local path to answer questions about; anything else becomes /."""
+    page = (page or "").strip()
+    if not page.startswith("/") or page.startswith("//") or "\\" in page \
+            or page.startswith("/ask") or page.startswith("/static"):
+        return "/"
+    return page
+
+
 def create_app(root: Path, config: dict | None = None) -> FastAPI:
     root = Path(root)
     config = dict(config) if config is not None else load_config(root)
@@ -405,12 +428,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
     app.state.store = store
     app.state.gitops = gitops
     app.state.config = config
-    app.state.enricher = Enricher(
-        provider=str(config.get("enrich_provider", "auto")),
-        command=str(config.get("enrich_command", "")),
-        model=str(config.get("enrich_model", "")),
-        timeout=float(config.get("enrich_timeout", 180)),
-    )
+    app.state.enricher = build_enricher(config)
     fetch_timeout = float(config.get("fetch_timeout", 10))
     app.state.fetcher = lambda url: scrape.fetch(url, timeout=fetch_timeout)
     message_window = int(config.get("message_window_days", 14))
@@ -465,12 +483,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         gitops.remote = str(config.get("remote", "origin"))
         store.silent_days = int(config.get("silent_days", 14))
         message_window = int(config.get("message_window_days", 14))
-        app.state.enricher = Enricher(
-            provider=str(config.get("enrich_provider", "auto")),
-            command=str(config.get("enrich_command", "")),
-            model=str(config.get("enrich_model", "")),
-            timeout=float(config.get("enrich_timeout", 180)),
-        )
+        app.state.enricher = build_enricher(config)
         cal_url_cache.clear()
         current_setup_state(refresh=True)
 
@@ -512,6 +525,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         message_statuses=message_statuses(outcomes),
         hermitcrm_version=__version__,
         update_notice=app.state.update_notice,
+        render_markdown=helpdocs.render,
     )
 
     templates.env.filters["slug"] = slugify  # CSS class names from outcome values
@@ -530,6 +544,10 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "setup_pending": setup_steps.pending(current_setup_state()),
             "csrf_token": app.state.csrf_token,
             "help_topic": helpdocs.topic_for(request.url.path),
+            "theme": str(config.get("theme") or "light"),
+            "ask_page": safe_page(request.url.path + (f"?{request.url.query}"
+                                                      if request.url.query else "")),
+            "model_label": model_label,
         }
         context.update(ctx)
         return templates.TemplateResponse(request, name, context,
@@ -754,17 +772,23 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
     # ---------------------------------------------------------------- enrich
 
     def _proposal_page(request: Request, company: Company, proposal, action: str,
-                       title: str, back: str):
+                       title: str, back: str, retry: str = "", enricher=None):
         return render(request, "enrich_preview.html", {
             "company": company, "proposal": proposal, "action": action,
-            "title": title, "back": back,
+            "title": title, "back": back, "retry": retry, "ran": enricher,
         })
+
+    def tiered(request: Request) -> Enricher:
+        tier = request.query_params.get("tier", "")
+        enricher = app.state.enricher
+        return enricher.with_tier(tier) if tier else enricher
 
     @app.post("/companies/{slug}/enrich", response_class=HTMLResponse)
     def company_enrich(request: Request, slug: str):
         company = need_company(slug, refresh=True)
         try:
-            proposal = app.state.enricher.propose_company(company)
+            enricher = tiered(request)
+            proposal = enricher.propose_company(company)
         except EnrichError as exc:
             return flashed(f"/companies/{slug}", str(exc))
         if not proposal.missing:
@@ -775,7 +799,8 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
                            (f": {proposal.notes}" if proposal.notes else ""))
         return _proposal_page(request, company, proposal,
                               f"/companies/{slug}/enrich/apply",
-                              f"Enrich {company.name}", f"/companies/{slug}")
+                              f"Enrich {company.name}", f"/companies/{slug}",
+                              retry=f"/companies/{slug}/enrich", enricher=enricher)
 
     @app.post("/companies/{slug}/enrich/apply")
     async def company_enrich_apply(request: Request, slug: str):
@@ -818,7 +843,8 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail=f"unknown contact {cslug!r}")
         back = f"/companies/{slug}/contacts/{cslug}"
         try:
-            proposal = app.state.enricher.propose_contact(company, contact)
+            enricher = tiered(request)
+            proposal = enricher.propose_contact(company, contact)
         except EnrichError as exc:
             return flashed(back, str(exc))
         if not proposal.missing:
@@ -827,7 +853,8 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             return flashed(back, "Enrichment found nothing it could verify" +
                            (f": {proposal.notes}" if proposal.notes else ""))
         return _proposal_page(request, company, proposal, f"{back}/enrich/apply",
-                              f"Enrich {contact.name}", back)
+                              f"Enrich {contact.name}", back, retry=f"{back}/enrich",
+                              enricher=enricher)
 
     @app.post("/companies/{slug}/contacts/{cslug}/enrich/apply")
     async def contact_enrich_apply(request: Request, slug: str, cslug: str):
@@ -1545,7 +1572,11 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "enrich_form": {"provider": str(config.get("enrich_provider") or "auto"),
                             "command": str(config.get("enrich_command") or ""),
                             "model": str(config.get("enrich_model") or ""),
+                            "model_strong": str(config.get("enrich_model_strong") or ""),
+                            "tier": str(config.get("ai_tier") or "medium"),
                             "timeout": str(config.get("enrich_timeout") or 180)},
+            "tier_models": {t: enricher.model_for(t) for t in setup_steps.AI_TIERS},
+            "themes": setup_steps.THEMES,
             "enrich_providers": setup_steps.ENRICH_PROVIDERS,
             "enrich_status": {"available": enricher.available,
                               "provider": enricher.provider_name,
@@ -1658,18 +1689,90 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
     @app.post("/settings/enrichment")
     def settings_enrichment(request: Request, csrf_token: str = Form(""),
                             provider: str = Form("auto"), command: str = Form(""),
-                            model: str = Form(""), timeout: str = Form("180")):
+                            model: str = Form(""), timeout: str = Form("180"),
+                            model_strong: str = Form(""), tier: str = Form("medium")):
         check_csrf(csrf_token)
-        result = setup_steps.save_enrichment(root, provider, command, model, timeout)
+        result = setup_steps.save_enrichment(root, provider, command, model, timeout,
+                                             model_strong=model_strong, tier=tier)
         if not result.ok:
             return setup_invalid(request, result, "enrichment",
                                  enrich_form={"provider": provider, "command": command,
-                                              "model": model, "timeout": timeout})
+                                              "model": model, "timeout": timeout,
+                                              "model_strong": model_strong, "tier": tier})
         refresh_config()
         enricher = app.state.enricher
         note = (f" In use: {enricher.provider_name}." if enricher.available
                 else f" Unavailable: {enricher.unavailable_reason()}")
         return flashed("/settings", result.text() + note, anchor="enrichment")
+
+    @app.post("/settings/appearance")
+    def settings_appearance(request: Request, csrf_token: str = Form(""),
+                            theme: str = Form("")):
+        check_csrf(csrf_token)
+        result = setup_steps.save_theme(root, theme)
+        if not result.ok:
+            return setup_invalid(request, result, "appearance")
+        return setup_done(result, "appearance")
+
+    # ------------------------------------------------------------ ask hermit
+
+    async def page_html(page: str) -> str:
+        """Render a local GET page in-process, exactly as the browser saw it."""
+        path, _, query = page.partition("?")
+        scope = {"type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1",
+                 "method": "GET", "scheme": "http", "path": path, "raw_path": path.encode(),
+                 "query_string": query.encode(), "root_path": "",
+                 "headers": [(b"host", b"127.0.0.1")], "client": ("127.0.0.1", 0),
+                 "server": ("127.0.0.1", 80)}
+        chunks: list[bytes] = []
+        status = {"code": 500}
+
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        async def send(message):
+            if message["type"] == "http.response.start":
+                status["code"] = message["status"]
+            elif message["type"] == "http.response.body":
+                chunks.append(message.get("body", b""))
+
+        await app(scope, receive, send)
+        if status["code"] >= 400:
+            return ""
+        return b"".join(chunks).decode("utf-8", "replace")
+
+    def ask_page_view(request: Request, page: str, status_code: int = 200, **extra):
+        enricher = app.state.enricher
+        ctx = {"ask_page": page, "question": "", "answer": None, "error": "",
+               "ai": {"available": enricher.available, "provider": enricher.provider_name,
+                      "reason": "" if enricher.available else enricher.unavailable_reason(),
+                      "medium": enricher.model_for("medium"),
+                      "strong": enricher.model_for("strong"), "tier": enricher.tier}}
+        ctx.update(extra)
+        return render(request, "ask.html", ctx, status_code=status_code)
+
+    @app.get("/ask", response_class=HTMLResponse)
+    def ask_form(request: Request, page: str = "/"):
+        return ask_page_view(request, safe_page(page))
+
+    @app.post("/ask", response_class=HTMLResponse)
+    async def ask_post(request: Request, csrf_token: str = Form(""), question: str = Form(""),
+                       page: str = Form("/"), scope: str = Form("auto"),
+                       tier: str = Form("")):
+        check_csrf(csrf_token)
+        page = safe_page(page)
+        enricher = app.state.enricher.with_tier(tier) if tier else app.state.enricher
+        enricher = enricher.with_tier(enricher.tier)  # a copy: the timeout changes below
+        html = await page_html(page)
+        try:
+            answer = await run_in_threadpool(
+                asking.ask, enricher, question, page, html, root,
+                "crm" if scope == "crm" else "auto",
+                float(config.get("ask_timeout") or 300))
+        except EnrichError as exc:
+            return ask_page_view(request, page, question=question, error=str(exc),
+                                 status_code=400 if not question.strip() else 502)
+        return ask_page_view(request, page, question=question, answer=answer)
 
     @app.post("/settings/outcomes")
     def settings_outcomes(request: Request, csrf_token: str = Form(""),

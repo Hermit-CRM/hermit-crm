@@ -11,6 +11,7 @@ records in and apply the returned fields themselves.
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import shlex
@@ -144,6 +145,27 @@ def _schema_instruction(prompt: str, schema: dict) -> str:
             f"other text:\n{json.dumps(schema)}\n")
 
 
+# Two model tiers per provider: "medium" is the default for Enrich and Ask
+# Hermit, "strong" is what "Retry with ..." uses. Overridable in config.toml
+# (enrich_model, enrich_model_strong). Only the claude IDs are verified against
+# the installed CLI; the others follow each vendor's naming and may need a
+# Settings override.
+TIERS = ("medium", "strong")
+DEFAULT_MODELS = {
+    "claude": {"medium": "claude-opus-5", "strong": "claude-fable-5-1"},
+    "codex": {"medium": "gpt-5-mini", "strong": "gpt-5"},
+    "gemini": {"medium": "gemini-2.5-flash", "strong": "gemini-2.5-pro"},
+    "grok": {"medium": "grok-4-fast", "strong": "grok-4"},
+}
+MODEL_LABELS = {"claude-opus-5": "Opus", "claude-fable-5-1": "Fable",
+                "claude-sonnet-5": "Sonnet", "claude-haiku-4-5": "Haiku"}
+
+
+def model_label(model: str) -> str:
+    """A short display name: Opus, Fable, or the model id itself."""
+    return MODEL_LABELS.get(model, model) if model else "the default model"
+
+
 class Provider:
     """One CLI: how to call it, what environment it gets, how to read its output."""
 
@@ -153,6 +175,10 @@ class Provider:
 
     def __init__(self, binary: str = ""):
         self.binary = binary or self.default_binary
+
+    # Tools for a run: None = the enrich default (web search); a string is
+    # provider-specific (Claude: an --allowedTools value). Set per call.
+    tools: str | None = None
 
     def build_argv(self, schema_path: str, model: str, out_path: str = "",
                    prompt: str = "", schema: dict | None = None) -> list[str]:
@@ -180,7 +206,8 @@ class ClaudeProvider(Provider):
     def build_argv(self, schema_path, model, out_path="", prompt="", schema=None):
         argv = [self.binary, "-p", "--output-format", "json",
                 "--json-schema", json.dumps(schema or {}),
-                "--allowedTools", "WebSearch,WebFetch"]
+                "--allowedTools", self.tools if self.tools is not None
+                else "WebSearch,WebFetch"]
         if model:
             argv += ["--model", model]
         return argv
@@ -387,12 +414,20 @@ def resolve_provider(provider: str = "auto", command: str = "",
     return _located(candidate, which)
 
 
+def _with_path(env: dict, extra_path: str) -> dict:
+    if extra_path:
+        env["PATH"] = os.pathsep.join(p for p in (extra_path, env.get("PATH", "")) if p)
+    return env
+
+
 class Enricher:
     def __init__(self, provider: str = "auto", command: str = "", model: str = "",
-                 timeout: float = 180, runner=None, which=find_executable):
+                 timeout: float = 180, runner=None, which=find_executable,
+                 model_strong: str = "", tier: str = "medium"):
         self.requested = (provider or "auto").strip().lower()
         self.command = command or ""
-        self.model = model or ""
+        self.overrides = {"medium": model or "", "strong": model_strong or ""}
+        self.tier = tier if tier in TIERS else "medium"
         self.timeout = float(timeout)
         self.error = ""
         try:
@@ -400,6 +435,29 @@ class Enricher:
         except EnrichError as exc:  # a bad config must not stop the web app
             self.provider, self.error = None, str(exc)
         self.runner = runner or self._run_cli
+
+    def model_for(self, tier: str) -> str:
+        """The config override for the tier, else the provider's default ('' = CLI default)."""
+        tier = tier if tier in TIERS else "medium"
+        if self.overrides.get(tier):
+            return self.overrides[tier]
+        return DEFAULT_MODELS.get(self.provider_name, {}).get(tier, "")
+
+    @property
+    def model(self) -> str:
+        return self.model_for(self.tier)
+
+    @property
+    def strong_model(self) -> str:
+        return self.model_for("strong")
+
+    def with_tier(self, tier: str) -> "Enricher":
+        """A copy that runs on the given tier (for "Retry with ...")."""
+        clone = copy.copy(self)
+        clone.tier = tier if tier in TIERS else "medium"
+        if self.runner == self._run_cli:  # rebind: the bound method points at self
+            clone.runner = clone._run_cli
+        return clone
 
     @property
     def available(self) -> bool:
@@ -424,10 +482,13 @@ class Enricher:
 
     # --- transport
 
-    def _run_cli(self, prompt: str, schema: dict) -> dict:
+    def _run_cli(self, prompt: str, schema: dict, tools: str | None = None,
+                 cwd: str | None = None, extra_path: str = "") -> dict:
         provider = self.provider
         if provider is None:
             raise EnrichError(self.unavailable_reason())
+        provider = copy.copy(provider)
+        provider.tools = tools
         with tempfile.TemporaryDirectory(prefix="crm-enrich-") as tmp:
             schema_path = str(Path(tmp) / "schema.json")
             out_path = str(Path(tmp) / "output.txt")
@@ -437,7 +498,8 @@ class Enricher:
             try:
                 proc = subprocess.run(argv, input=provider.stdin(prompt, schema),
                                       capture_output=True, text=True,
-                                      timeout=self.timeout, env=provider.env(os.environ))
+                                      timeout=self.timeout, cwd=cwd,
+                                      env=_with_path(provider.env(os.environ), extra_path))
             except FileNotFoundError:
                 raise EnrichError(f"{argv[0]!r} not found; set enrich_provider / "
                                   "enrich_command in config.toml")

@@ -8,7 +8,8 @@ import pytest
 
 from hermitcrm import cli as crm
 from hermitcrm.enrich import (
-    COMPANY_FIELDS, EnrichError, Enricher, Proposal, extract_json, resolve_provider,
+    COMPANY_FIELDS, EnrichError, Enricher, Proposal, extract_json, model_label,
+    resolve_provider,
 )
 
 
@@ -141,11 +142,37 @@ def test_claude_argv_env_and_structured_output(monkeypatch):
     assert "CLAUDECODE" not in run.seen["env"] and "ANTHROPIC_API_KEY" not in run.seen["env"]
 
 
-def test_claude_without_model_passes_no_model_flag(monkeypatch):
+def test_claude_without_model_uses_the_medium_default(monkeypatch):
     run = FakeRun(CLAUDE_STDOUT)
     monkeypatch.setattr(subprocess, "run", run)
     Enricher(provider="claude", which=ALL).runner("p", {})
-    assert run.seen["argv"][0].endswith("/claude") and "--model" not in run.seen["argv"]
+    argv = run.seen["argv"]
+    assert argv[0].endswith("/claude") and argv[argv.index("--model") + 1] == "claude-opus-5"
+
+
+def test_tiers_overrides_and_with_tier(monkeypatch):
+    run = FakeRun(CLAUDE_STDOUT)
+    monkeypatch.setattr(subprocess, "run", run)
+    e = Enricher(provider="claude", which=ALL)
+    assert (e.model, e.strong_model) == ("claude-opus-5", "claude-fable-5-1")
+    strong = e.with_tier("strong")
+    assert strong.model == "claude-fable-5-1" and e.model == "claude-opus-5"
+    strong.runner("p", {})
+    assert run.seen["argv"][run.seen["argv"].index("--model") + 1] == "claude-fable-5-1"
+    assert Enricher(provider="claude", model="x", model_strong="y", tier="strong",
+                    which=ALL).model == "y"
+    assert Enricher(provider="custom", command="llm", which=ALL).model == ""
+    assert model_label("claude-fable-5-1") == "Fable" and model_label("gpt-5") == "gpt-5"
+
+
+def test_tools_and_cwd_per_call(monkeypatch):
+    run = FakeRun(CLAUDE_STDOUT)
+    monkeypatch.setattr(subprocess, "run", run)
+    Enricher(provider="claude", which=ALL).runner("p", {}, tools="Read,Grep", cwd="/tmp",
+                                                   extra_path="/venv/bin")
+    argv = run.seen["argv"]
+    assert argv[argv.index("--allowedTools") + 1] == "Read,Grep"
+    assert run.seen["env"]["PATH"].startswith("/venv/bin")
 
 
 def test_codex_argv_schema_file_and_output_file(monkeypatch):
@@ -199,7 +226,7 @@ def test_grok_prompt_in_argv_and_message_list(monkeypatch):
     assert data == {"title": "CTO", "sources": [], "notes": ""}
     argv = run.seen["argv"]
     assert argv[0].endswith("/grok") and argv[1] == "-p" and argv[2].startswith("the prompt\n")
-    assert "--output-format" in argv and "-m" not in argv
+    assert "--output-format" in argv and argv[argv.index("-m") + 1] == "grok-4-fast"
     assert run.seen["input"] is None
 
 

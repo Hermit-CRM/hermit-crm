@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Ask Hermit{% endblock %}
+{% block content %}
+<h1>Ask Hermit</h1>
+<p class="small">About <a href="{{ ask_page }}"><code>{{ ask_page }}</code></a>{% if ai.available %} &middot; {{ ai.provider }}, {{ model_label(answer.model if answer else ai[ai.tier]) }}{% endif %}</p>
+
+{% if not ai.available %}
+<p class="errors">No AI CLI available: {{ ai.reason }}. See <a href="/settings#enrichment">Settings → AI</a>.</p>
+{% endif %}
+{% if error %}<p class="errors">{{ error }}</p>{% endif %}
+
+{% if answer %}
+<section class="ask-answer">
+  <p class="question"><strong>{{ answer.question }}</strong></p>
+  <p class="small ask-scope">{% if answer.scope == 'page' %}Answered from this page{% else %}Searched the whole CRM{% endif %} &middot; {{ answer.model_label }}</p>
+  <div class="helpdoc">{{ render_markdown(answer.text) | safe }}</div>
+  {% if answer.sources %}<p class="small">Sources: {% for s in answer.sources %}<code>{{ s }}</code>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+  <div class="ask-retry">
+    {% if answer.tier != 'strong' and ai.strong and ai.strong != answer.model %}
+    <form method="post" action="/ask" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="page" value="{{ ask_page }}">
+      <input type="hidden" name="question" value="{{ answer.question }}">
+      <input type="hidden" name="scope" value="{{ 'crm' if answer.scope == 'crm' else 'auto' }}">
+      <input type="hidden" name="tier" value="strong">
+      <button type="submit">Retry with {{ model_label(ai.strong) }}</button>
+    </form>
+    {% endif %}
+    {% if answer.scope == 'page' %}
+    <form method="post" action="/ask" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="page" value="{{ ask_page }}">
+      <input type="hidden" name="question" value="{{ answer.question }}">
+      <input type="hidden" name="scope" value="crm">
+      <input type="hidden" name="tier" value="{{ answer.tier }}">
+      <button type="submit">Search the whole CRM instead</button>
+    </form>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+<form method="post" action="/ask" class="record-form ask-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="page" value="{{ ask_page }}">
+  <label class="grow">{% if answer %}Ask another question{% else %}Question{% endif %}
+    <textarea name="question" rows="3" required>{% if error %}{{ question }}{% endif %}</textarea>
+  </label>
+  <label><input type="checkbox" name="scope" value="crm"> Skip the page, search the whole CRM</label>
+  <button type="submit">Ask</button>
+  {% if error and question and ai.strong %}
+  <button type="submit" name="tier" value="strong">Ask with {{ model_label(ai.strong) }}</button>
+  {% endif %}
+</form>
+{% endblock %}

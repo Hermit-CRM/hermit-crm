@@ -25,6 +25,8 @@ def test_load_config_defaults(tmp_path):
     cfg = load_config(tmp_path)
     assert cfg == {"port": 8765, "silent_days": 14, "push_enabled": True,
                    "remote": "origin", "enrich_provider": "auto", "enrich_command": "", "enrich_model": "", "enrich_timeout": 180,
+                   "enrich_model_strong": "", "ai_tier": "medium", "ask_timeout": 300,
+                   "theme": "light",
                    "message_window_days": 14, "fetch_timeout": 10,
                    "outcomes": ["successful", "unsuccessful"],
                    "owner_name": "", "owner_email": "",
@@ -45,6 +47,8 @@ def test_load_config_reads_toml(tmp_path):
     assert load_config(tmp_path) == {"port": 9000, "silent_days": 7,
                                      "push_enabled": False, "remote": "upstream",
                                      "enrich_provider": "auto", "enrich_command": "", "enrich_model": "", "enrich_timeout": 180,
+                   "enrich_model_strong": "", "ai_tier": "medium", "ask_timeout": 300,
+                   "theme": "light",
                    "message_window_days": 14, "fetch_timeout": 10,
                    "outcomes": ["successful", "unsuccessful"],
                    "owner_name": "", "owner_email": "",

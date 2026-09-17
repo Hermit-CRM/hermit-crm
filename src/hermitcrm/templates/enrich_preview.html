@@ -25,4 +25,9 @@
   <button type="submit">Apply selected</button>
   <a href="{{ back }}" style="margin-left: 10px">Cancel</a>
 </form>
+{% if retry and ran and ran.tier != 'strong' and ran.strong_model and ran.strong_model != ran.model %}
+<form method="post" action="{{ retry }}?tier=strong" class="inline retry">
+  <p class="small">Proposed by {{ model_label(ran.model) }}. <button type="submit">Retry with {{ model_label(ran.strong_model) }}</button></p>
+</form>
+{% endif %}
 {% endblock %}

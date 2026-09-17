@@ -1,5 +1,6 @@
+{% from "icons.html" import icon %}
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="{{ theme or 'light' }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,22 +8,44 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<nav>
-  <a href="/">Pipeline</a>
-  <a href="/calendar">Calendar</a>
-  <a href="/companies">Companies</a>
-  <a href="/contacts">Contacts</a>
-  <a href="/messages">Messages</a>
-  <a href="/reports">Reports</a>
-  <a href="{{ '/settings#inbox' if (inbox_count or inbox_alert) else '/settings' }}">Settings{% if inbox_count %} ({{ inbox_count }}){% endif %}{% if inbox_alert %} <span class="alert" title="{{ inbox_alert }}">!</span>{% endif %}</a>
-  <form class="inline" method="post" action="/reload"><button type="submit">Reload</button></form>
-  {% if update_notice and update_notice.available %}<span class="update-notice" title="A newer Hermit CRM is on PyPI">v{{ update_notice.available }} available: <code>{{ update_notice.hint }}</code></span>{% endif %}
-  <form class="inline search" action="/companies">
-    <input name="q" value="{{ q }}" placeholder="Search companies, tags, contacts">
-    <button type="submit">Search</button>
-  </form>
-  <a class="help-link" href="/help/{{ help_topic }}" title="Help for this page">Help</a>
+{% set path = request.url.path %}
+{% macro navlink(href, label, name, active) -%}
+<a href="{{ href }}"{% if active %} class="active" aria-current="page"{% endif %}>{{ icon(name) }}<span>{{ label }}{{ caller() if caller }}</span></a>
+{%- endmacro %}
+<nav class="sidebar" aria-label="Main">
+  <a class="brand" href="/">Hermit CRM</a>
+  {{ navlink('/', 'Pipeline', 'pipeline', path == '/') }}
+  {{ navlink('/calendar', 'Calendar', 'calendar', path.startswith('/calendar')) }}
+  {{ navlink('/companies', 'Companies', 'companies', path.startswith('/companies') or path.startswith('/import') and request.query_params.get('mode') != 'contacts') }}
+  {{ navlink('/contacts', 'Contacts', 'contacts', path.startswith('/contacts') or request.query_params.get('mode') == 'contacts') }}
+  {{ navlink('/messages', 'Messages', 'messages', path.startswith('/messages')) }}
+  {{ navlink('/reports', 'Reports', 'reports', path.startswith('/reports')) }}
+  {% call navlink('/settings#inbox' if (inbox_count or inbox_alert) else '/settings', 'Settings', 'settings', path.startswith('/settings')) %}{% if inbox_count %} <span class="badge">{{ inbox_count }}</span>{% endif %}{% if inbox_alert %} <span class="alert" title="{{ inbox_alert }}">!</span>{% endif %}{% endcall %}
+  {{ navlink('/help/' ~ help_topic, 'Help', 'help', path.startswith('/help')) }}
+  <div class="sidebar-foot">
+    <form method="post" action="/reload"><button type="submit" class="nav-button" title="Re-read the data folder">{{ icon('reload') }}<span>Reload</span></button></form>
+    {% if update_notice and update_notice.available %}<p class="update-notice" title="A newer Hermit CRM is on PyPI">v{{ update_notice.available }} available: <code>{{ update_notice.hint }}</code></p>{% endif %}
+  </div>
 </nav>
+<header class="topbar">
+  <form class="search" action="/companies" role="search">
+    {{ icon('search') }}<input name="q" value="{{ q }}" placeholder="Search companies, tags, contacts" aria-label="Search">
+  </form>
+  <details class="ask">
+    <summary class="ask-button">{{ icon('ask') }} Ask Hermit</summary>
+    <form class="ask-panel" method="post" action="/ask">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="page" value="{{ ask_page }}">
+      <label>Ask about this page (Hermit searches the whole CRM if the page is not enough)
+        <textarea name="question" rows="3" required placeholder="Which of these companies should I follow up this week?"></textarea>
+      </label>
+      <div class="ask-actions">
+        <button type="submit">Ask</button>
+        <span class="small">Takes up to a few minutes; the page waits for the answer.</span>
+      </div>
+    </form>
+  </details>
+</header>
 <main>
   {% if flash %}<p class="flash">{{ flash }}</p>{% endif %}
   {% block content %}{% endblock %}
