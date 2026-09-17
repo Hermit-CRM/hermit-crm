@@ -135,6 +135,9 @@ file per conversation. Everything below is convenience on top of it.
 - **Enrichment**: free "fetch from URL" (website or LinkedIn page), or any AI
   CLI you already use (claude, codex, gemini, grok or a custom command).
 - **Stage history** per company, reconstructable from git.
+- **MCP server** (`hermitcrm mcp`): read and write the CRM from Claude Desktop,
+  ChatGPT, Cursor or anything else that speaks MCP, with no terminal. Seven read
+  tools and three write tools, over stdio, with no extra dependency.
 - **PIPELINE.md**: a generated one-page summary for you and your agents.
 - **Unknown front-matter keys are preserved**, so other tools can add fields.
 
@@ -209,6 +212,7 @@ hermitcrm digest [--days 7]           recent interactions, oldest first
 hermitcrm followups [--reply-after N] [--nudge-after N]
                                    threads you owe a reply, and ones you are waiting on
 hermitcrm brief [--days 7]            each upcoming meeting with the record behind it
+hermitcrm mcp                         serve this folder to AI clients over MCP (stdio)
 hermitcrm report [--days N | --from D --to D] [--md]
 hermitcrm check                       validate every file (exit 1 on problems)
 hermitcrm rebuild                     regenerate PIPELINE.md and commit
@@ -341,6 +345,25 @@ how a feature works. To write, an agent uses `hermitcrm add company|contact|
 interaction`, which validates the fields and commits, rather than composing
 YAML by hand. Open the folder in Claude Code, Codex or any agent and ask for a
 pipeline review or a follow-up draft.
+
+For a client with no shell, `hermitcrm mcp` serves the folder over MCP. In
+Claude Desktop, Settings → Developer → Edit Config:
+
+```json
+{
+  "mcpServers": {
+    "hermitcrm": {
+      "command": "hermitcrm",
+      "args": ["--data", "/Users/you/crm", "mcp"]
+    }
+  }
+}
+```
+
+It exposes seven read tools (`list_pipeline`, `search_companies`,
+`show_company`, `digest`, `report`, `followups`, `brief`) and three writes
+(`add_company`, `add_contact`, `add_interaction`). The writes commit, exactly as
+the web form does. `hermitcrm help ai-agents` has the details.
 
 ## Roadmap
 

@@ -15,6 +15,13 @@ and `stage_history`), migrated automatically in one commit.
   wrote and nothing came back. Replies owed come first. A company with an open
   next step due in the future is left off the nudge list -- you have already
   decided what happens next, and the calendar owns that.
+- **`hermitcrm mcp`: an MCP server for the data folder.** Ten tools over stdio
+  (`list_pipeline`, `search_companies`, `show_company`, `digest`, `report`,
+  `followups`, `brief`, and the three `add_*` writes), so Claude Desktop,
+  ChatGPT, Cursor and anything else that speaks MCP can use the CRM without a
+  terminal. No new dependency: MCP's stdio transport is newline-delimited
+  JSON-RPC. The writes are the same `store.create_*` calls the web form and
+  `hermitcrm add` make. See `hermitcrm help ai-agents` for a client config.
 - **Capture from the page you are on**: a bookmarklet on the new **Capture**
   page reads the company website or LinkedIn page in front of you and opens a
   filled-in new-company form. `fetch` ran backwards for this -- it needed the
