@@ -404,12 +404,13 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
     )
 
     def on_write(message: str) -> None:
+        paths = store.take_touched()
         try:
             pipeline.write(store)
         except Exception:
             logger.exception("could not regenerate PIPELINE.md for %r", message)
         try:
-            gitops.commit(message)
+            gitops.commit(message, [*paths, "PIPELINE.md"])
             gitops.push_async()
         except Exception:  # GitOps never raises, but a write must never fail here
             logger.exception("git commit/push failed for %r", message)

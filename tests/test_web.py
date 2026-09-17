@@ -151,6 +151,37 @@ def test_logo_and_favicon(client):
     assert ico.status_code == 301 and ico.headers["location"] == "/static/favicon.svg"
 
 
+def test_a_write_leaves_unrelated_files_alone(client, repo):
+    """One commit per write means the write's own files, not the whole folder."""
+    (repo / "MESSAGING.md").write_text("notes I am still editing\n", encoding="utf-8")
+
+    post_company(client, name="Acme")
+
+    def git(*args):
+        return subprocess.run(["git", *args], cwd=repo, capture_output=True,
+                              text=True).stdout
+
+    committed = git("show", "--name-only", "--pretty=", "HEAD").split()
+    assert "companies/acme/company.md" in committed
+    assert "MESSAGING.md" not in committed
+    assert git("ls-files", "MESSAGING.md") == ""  # still the user's to commit
+
+
+def test_delete_is_recorded_without_sweeping_the_folder(client, repo):
+    post_company(client, name="Acme")
+    post_contact(client, "acme", first_name="Jane", last_name="Roe")
+    (repo / "scratch.md").write_text("mine\n", encoding="utf-8")
+
+    client.post("/companies/acme/contacts/jane-roe/delete")
+
+    def git(*args):
+        return subprocess.run(["git", *args], cwd=repo, capture_output=True,
+                              text=True).stdout
+
+    assert git("ls-files", "companies/acme/contacts/jane-roe.md") == ""  # deletion recorded
+    assert git("ls-files", "scratch.md") == ""                           # stray untouched
+
+
 def test_board_card_order_follows_pipeline(client):
     post_company(client, name="Later", stage="prospect",
                  next_step="x", next_step_due=str(TODAY + timedelta(days=5)))

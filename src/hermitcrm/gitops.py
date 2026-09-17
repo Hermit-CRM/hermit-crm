@@ -12,7 +12,7 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Optional, Sequence
 
 logger = logging.getLogger("crm.gitops")
 
@@ -39,10 +39,22 @@ class GitOps:
         self._last_warning_time: Optional[float] = None
         self._lock = threading.Lock()
 
-    def commit(self, message: str) -> Optional[str]:
+    def commit(self, message: str, paths: Optional[Sequence[str]] = None) -> Optional[str]:
+        """Commit `paths` under one message; returns the sha, or None if nothing changed.
+
+        `paths` scopes the commit: only those files are staged and committed, so a
+        write records its own record and leaves anything else in the folder alone
+        (a half-finished MESSAGING.md stays the user's to commit). `paths` of None
+        means the whole tree, which is only right when the whole folder is ours,
+        as at `init`.
+        """
         try:
+            scope = ["--", *paths] if paths is not None else []
+            if paths is not None and not paths:
+                return None  # nothing was touched
+
             status = subprocess.run(
-                ["git", "status", "--porcelain"],
+                ["git", "status", "--porcelain", *scope],
                 cwd=self.root,
                 capture_output=True,
                 text=True,
@@ -56,7 +68,7 @@ class GitOps:
                 return None  # nothing to commit
 
             add = subprocess.run(
-                ["git", "add", "-A"],
+                ["git", "add", "-A", *scope],
                 cwd=self.root,
                 capture_output=True,
                 text=True,
@@ -75,6 +87,7 @@ class GitOps:
                     "commit",
                     "-m",
                     message,
+                    *scope,
                 ],
                 cwd=self.root,
                 capture_output=True,

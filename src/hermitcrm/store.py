@@ -12,7 +12,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Sequence
 
 import frontmatter
 import yaml
@@ -202,6 +202,7 @@ class Store:
         # Allowed interaction outcomes (config `outcomes`); "" is always allowed.
         self.outcomes = [str(o) for o in (outcomes or DEFAULT_OUTCOMES)]
         self.on_write = on_write
+        self._touched: list[str] = []
         self._batch: list[str] | None = None
         self.clock = clock
 
@@ -215,6 +216,17 @@ class Store:
         return self.now().date()
 
     # --- helpers
+
+    def _touch(self, path: Path) -> None:
+        """Record a file this write created, changed or removed, for the commit."""
+        rel = self._rel(path)
+        if rel not in self._touched:
+            self._touched.append(rel)
+
+    def take_touched(self) -> list[str]:
+        """The paths written since the last call; the caller commits exactly these."""
+        touched, self._touched = self._touched, []
+        return touched
 
     def _rel(self, path: Path) -> str:
         try:
@@ -251,8 +263,10 @@ class Store:
         if written and self.on_write:
             self.on_write(ctx["message"])
 
-    def notify(self, message: str) -> None:
+    def notify(self, message: str, paths: Sequence[str] = ()) -> None:
         """Commit a write made outside companies/ (the BCC inbox)."""
+        for path in paths:
+            self._touch(self.root / path)
         self._notify(message)
 
     # --- loading
@@ -370,6 +384,7 @@ class Store:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(build_file(company_to_frontmatter(c), c.notes),
                         encoding="utf-8")
+        self._touch(path)
         return path
 
     def write_contact(self, company_slug: str, contact: Contact) -> Path:
@@ -377,6 +392,7 @@ class Store:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(build_file(contact_to_frontmatter(contact), contact.notes),
                         encoding="utf-8")
+        self._touch(path)
         return path
 
     def write_interaction(self, company_slug: str, it: Interaction) -> Path:
@@ -384,6 +400,7 @@ class Store:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(build_file(interaction_to_frontmatter(it), it.body),
                         encoding="utf-8")
+        self._touch(path)
         return path
 
     # --- coercion for form input
@@ -736,6 +753,7 @@ class Store:
             moved.id = self._interaction_id(keep, moved)
             self.write_interaction(keep, moved)
         self.write_company(merged)
+        self._touch(self.company_dir(drop))
         shutil.rmtree(self.company_dir(drop))
         self.companies.pop(drop, None)
         self.reload_company(keep)
@@ -779,8 +797,11 @@ class Store:
             moved.id = self._interaction_id(company_slug, moved, exclude=it.id)
             self.write_interaction(company_slug, moved)
             if moved.id != it.id and old_path.exists():
+                self._touch(old_path)
                 old_path.unlink()
-        (self.company_dir(company_slug) / "contacts" / f"{drop}.md").unlink(missing_ok=True)
+        dropped = self.company_dir(company_slug) / "contacts" / f"{drop}.md"
+        self._touch(dropped)
+        dropped.unlink(missing_ok=True)
         self.reload_company(company_slug)
         self._notify(f"contact: {company_slug}/{drop} merged into {keep}")
         return self.companies[company_slug].contacts[keep]
@@ -873,7 +894,9 @@ class Store:
         with self.batch(message):
             for id in linked:
                 self.update_interaction(company_slug, id, contact="")
-            (self.company_dir(company_slug) / "contacts" / f"{cslug}.md").unlink(missing_ok=True)
+            gone = self.company_dir(company_slug) / "contacts" / f"{cslug}.md"
+            self._touch(gone)
+            gone.unlink(missing_ok=True)
             company.contacts.pop(cslug, None)
             self._notify(message)
         return contact
@@ -980,6 +1003,7 @@ class Store:
             new.id = self._interaction_id(company_slug, new, exclude=old.id)
         self.write_interaction(company_slug, new)
         if new.id != old.id and old_path.exists():
+            self._touch(old_path)
             old_path.unlink()
         company.interactions = [i for i in company.interactions if i.id != old.id]
         company.interactions.append(new)
@@ -993,7 +1017,7 @@ class Store:
         return new
 
     def delete_interaction(self, company_slug: str, id: str) -> Interaction:
-        """Remove one interaction file; the commit (on_write's `git add -A`)
+        """Remove one interaction file; the commit (the path is recorded for it)
         records the deletion. The company's list is updated in place, as
         update_interaction does, so pages see it gone at once."""
         company = self.companies.get(company_slug)
@@ -1002,7 +1026,9 @@ class Store:
         it = next((i for i in company.interactions if i.id == id), None)
         if it is None:
             raise ValidationError({"id": f"unknown interaction {id!r}"})
-        (self.company_dir(company_slug) / "interactions" / f"{id}.md").unlink(missing_ok=True)
+        gone = self.company_dir(company_slug) / "interactions" / f"{id}.md"
+        self._touch(gone)
+        gone.unlink(missing_ok=True)
         company.interactions = [i for i in company.interactions if i.id != id]
         self._notify(f"interaction: {company_slug} deleted {id}")
         return it

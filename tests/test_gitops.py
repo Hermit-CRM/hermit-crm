@@ -169,3 +169,36 @@ def test_status_shape(tmp_path):
     assert status["last_commit"] is not None
     assert status["last_push"] is None
     assert status["push_enabled"] is True
+
+
+def test_commit_stages_only_the_given_paths(tmp_path):
+    """A write commits its own record, not whatever else is in the folder."""
+    repo = init_repo(tmp_path / "repo")
+    (repo / "wanted.txt").write_text("x\n")
+    (repo / "stray.txt").write_text("not mine to commit\n")
+
+    sha = GitOps(root=repo).commit("company: acme created", ["wanted.txt"])
+
+    assert sha is not None
+    assert run(["show", "--name-only", "--pretty="], cwd=repo).split() == ["wanted.txt"]
+    assert run(["ls-files", "stray.txt"], cwd=repo) == ""  # still untracked
+
+
+def test_commit_records_a_deletion_in_the_given_paths(tmp_path):
+    repo = init_repo(tmp_path / "repo")
+    (repo / "gone.txt").write_text("x\n")
+    GitOps(root=repo).commit("company: acme created", ["gone.txt"])
+    (repo / "gone.txt").unlink()
+
+    sha = GitOps(root=repo).commit("company: acme deleted", ["gone.txt"])
+
+    assert sha is not None
+    assert run(["ls-files", "gone.txt"], cwd=repo) == ""
+
+
+def test_commit_with_paths_and_nothing_staged_returns_none(tmp_path):
+    repo = init_repo(tmp_path / "repo")
+    (repo / "stray.txt").write_text("not mine\n")
+
+    assert GitOps(root=repo).commit("company: acme created", ["absent.txt"]) is None
+    assert run(["ls-files", "stray.txt"], cwd=repo) == ""
