@@ -193,7 +193,7 @@ def test_board_shows_the_follow_up_radar(client, app):
 
     page = client.get("/").text
     assert 'id="followups"' in page and "Follow up (1)" in page
-    assert "radar-reply" in page and "no reply from you" in page
+    assert "radar-reply" in page and "wrote, no reply from you" in page
     assert "Can you send pricing?" in page
     assert page.index('id="followups"') < page.index('class="board"')
 

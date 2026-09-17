@@ -19,12 +19,15 @@
   </ul>
 </section>
 {% endif %}
-{{ m.filter_form('board-filters', '/', active, none, sort, dir) }}
-<div class="filter-bar">
-  {% for col in filter_columns %}
-  <label>{{ col.label }}{% if col.key != 'stage' %} {{ m.sort_links(col, sort, dir, sort_url) }}{% endif %} {{ m.filter_control(col, active, 'board-filters') }}</label>
-  {% endfor %}
-</div>
+<details class="filters-fold"{% if active or sort %} open{% endif %}>
+  <summary>Filters{% if active %} ({{ active | length }} on){% endif %}</summary>
+  {{ m.filter_form('board-filters', '/', active, none, sort, dir) }}
+  <div class="filter-bar">
+    {% for col in filter_columns %}
+    <label>{{ col.label }}{% if col.key != 'stage' %} {{ m.sort_links(col, sort, dir, sort_url) }}{% endif %} {{ m.filter_control(col, active, 'board-filters') }}</label>
+    {% endfor %}
+  </div>
+</details>
 {% if no_companies %}
 <div class="start-cards">
   <a class="card start-card" href="/import"><h3>Import a spreadsheet</h3><div class="small">CSV, TSV or Excel paste of companies or contacts.</div></a>

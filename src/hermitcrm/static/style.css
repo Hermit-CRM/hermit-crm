@@ -537,3 +537,28 @@ pre.bookmarklet-code { background: var(--surface-2); border: 1px solid var(--lin
                        border-radius: 3px; padding: 8px 10px; overflow-x: auto;
                        font-size: 12px; white-space: pre-wrap; word-break: break-all; }
 .capture-note { margin-bottom: 12px; }
+
+/* On a phone the filter block and four board columns fill the screen before any
+   company does. Fold the filters away and stack the stages; on a wide screen
+   neither rule applies and the board is unchanged. */
+.filters-fold > summary { display: none; }
+@media (min-width: 761px) {
+  /* Above 760px the fold does not exist: the filters are always shown, whether
+     or not the <details> happens to be open. Two rules because browsers hide a
+     closed <details> two different ways. Newer engines hide the content slot
+     (::details-content), and only content-visibility reaches it -- overriding
+     `display` on the children does nothing there. Older engines hide the
+     children themselves, where `display` is the only thing that works. */
+  .filters-fold::details-content { content-visibility: visible; }
+  .filters-fold > .filter-bar { display: flex; }
+  .filters-fold > .filter-form { display: inline-flex; }
+}
+@media (max-width: 760px) {
+  .filters-fold > summary { display: list-item; cursor: pointer; font-size: 13px;
+                            color: var(--muted); margin-bottom: 6px; }
+  .board { flex-direction: column; }
+  .column, .column.unused { flex: 1 1 auto; width: 100%; }
+  .column.unused h2 { font-size: 13px; }
+  .topbar .search { flex: 1 1 auto; }
+  .topbar .search input { width: 100%; }
+}
