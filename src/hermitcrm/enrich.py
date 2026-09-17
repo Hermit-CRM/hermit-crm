@@ -514,7 +514,7 @@ class Enricher:
                 except json.JSONDecodeError:
                     pass
                 tail = tail.splitlines()[-3:]
-                raise EnrichError(f"enrichment failed ({provider.name}): " + " | ".join(tail))
+                raise EnrichError(f"{provider.name} ({self.model or 'default model'}) failed: " + " | ".join(tail))
             out = Path(out_path)
             out_text = out.read_text(encoding="utf-8") if out.exists() else ""
             data = provider.parse(proc.stdout or "", out_text)

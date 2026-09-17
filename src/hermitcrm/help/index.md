@@ -19,6 +19,7 @@ page for the screen you are on; `hermitcrm help <topic>` prints the same text.
 - [Settings](/help/settings): you, BCC capture, calendar, backup, enrichment, outcomes, the review queue, schedule, about.
 - [Import](/help/import): bulk import from CSV, TSV, .xlsx or a pasted table.
 - [Enrich](/help/enrich): "Fetch from URL" (no AI) and Enrich (an AI CLI).
+- [Ask Hermit](/help/ask): ask a question about the page you are on or the whole CRM.
 - [Merge](/help/merge): merging two companies or two contacts.
 - [CLI](/help/cli): every `hermitcrm` command.
 - [Data format](/help/data-format): the files, their front-matter keys, stage history, migrations.

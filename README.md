@@ -68,6 +68,10 @@ web app has a Help link; `hermitcrm help [topic]` prints the same pages.
   page.
 - **Calendar import**: past meetings from a secret ICS feed (no OAuth).
 - **Import** companies or contacts from CSV, TSV or `.xlsx`.
+- **Ask Hermit**: a question box on every page. The AI answers from the page
+  you are on, or reads the whole data folder (read only) when the page is not
+  enough; retry on the strong model with one click.
+- **Night mode** (on, off or follow the system) and a sidebar with icons.
 - **Enrichment**: free "fetch from URL" (website or LinkedIn page), or any AI
   CLI you already use (claude, codex, gemini, grok or a custom command).
 - **Stage history** per company, reconstructable from git.
@@ -104,6 +108,10 @@ Uncomment what you want to change.
 | `calendar_lookback_days` | `30` | How far back the calendar import looks. |
 | `calendar_ignore_titles` | `[]` | Events whose title contains one of these are skipped. |
 | `calendar_min_attendees` | `2` | Events with fewer participants (you included) are skipped. |
+| `ai_tier` | `"medium"` | Model tier for Enrich and Ask Hermit: `medium` (Claude: Opus) or `strong` (Claude: Fable). |
+| `enrich_model_strong` | `""` | Strong-tier model override; empty means the provider default. |
+| `ask_timeout` | `300` | Seconds before one Ask Hermit call is abandoned. |
+| `theme` | `"light"` | Look of the web app: `light`, `dark` or `system`. |
 | `update_check` | `true` | Check PyPI for a newer Hermit CRM at most once a day (no identifiers sent). |
 
 Secrets never go in `config.toml`; see [Secrets](#secrets).

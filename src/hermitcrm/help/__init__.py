@@ -18,7 +18,7 @@ HERE = Path(__file__).resolve().parent
 # Fixed order: the index first, then the nav order, then the reference pages.
 TOPICS = [
     "index", "pipeline", "calendar", "companies", "contacts", "interactions",
-    "messages", "reports", "settings", "import", "enrich", "merge", "cli",
+    "messages", "reports", "settings", "import", "enrich", "ask", "merge", "cli",
     "data-format", "ai-agents",
 ]
 
@@ -83,6 +83,8 @@ def topic_for(path: str) -> str:
     head = parts[0]
     if head == "help":
         return "index"
+    if head == "ask":
+        return "ask"
     if head in ("settings", "setup", "inbox", "bcc"):
         return "settings"
     if head in ("calendar", "messages", "reports", "import", "contacts"):
