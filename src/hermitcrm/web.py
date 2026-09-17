@@ -26,7 +26,7 @@ from starlette.concurrency import run_in_threadpool
 from . import __version__, updates
 from fastapi.templating import Jinja2Templates
 
-from . import bcc, brief, calendar_sync, filters, followups, messaging, migrations, pipeline, reports
+from . import bcc, brief, calendar_sync, capture, filters, followups, messaging, migrations, pipeline, reports
 from . import schedule, scrape
 from . import help as helpdocs
 from . import setup as setup_steps
@@ -1040,6 +1040,44 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             return flashed("/messages", "; ".join(exc.errors.values()))
         back = urlparse(request.headers.get("referer", "")).path or "/messages"
         return flashed(back, f"Message marked {outcome or 'unknown'}")
+
+    # ----------------------------------------------------------------- capture
+
+    def bookmarklet_for(request: Request) -> str:
+        """The bookmarklet, pointed at whatever address this app is answering on.
+
+        Built from the request rather than from config, so a `serve --host`
+        session hands out a bookmarklet that works from the phone that asked.
+        """
+        base = str(request.base_url).rstrip("/")
+        return ("javascript:(function(){window.open('" + base +
+                "/capture/new?url='+encodeURIComponent(location.href),'_blank');})();")
+
+    @app.get("/capture", response_class=HTMLResponse)
+    def capture_page(request: Request):
+        return render(request, "capture.html", {
+            "bookmarklet": bookmarklet_for(request),
+            "base": str(request.base_url).rstrip("/"),
+        })
+
+    @app.get("/capture/new", response_class=HTMLResponse)
+    def capture_new(request: Request, url: str = ""):
+        """Read a page and open the new-company form with it filled in.
+
+        A GET, because that is what a bookmarklet can open in a tab; it only
+        reads the page and renders a form, and writes nothing.
+        """
+        if not (url or "").strip():
+            return goto("/capture")
+        try:
+            found = capture.from_url(store, url, fetcher=app.state.fetcher)
+        except ScrapeError as exc:
+            return flashed("/capture", f"Could not read that page: {exc}")
+        if found.existing is not None:
+            return flashed(f"/companies/{found.existing.slug}",
+                           f"{found.existing.name} is already in the CRM")
+        return render(request, "company_new.html",
+                      {"values": found.values, "capture": found})
 
     @app.get("/companies/new", response_class=HTMLResponse)
     def company_new(request: Request):
