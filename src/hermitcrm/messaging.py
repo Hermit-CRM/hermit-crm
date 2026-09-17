@@ -11,7 +11,8 @@ want to change. The three angles:
 2. unblock "you are at N people": get past the next headcount hurdle
 3. hook    one concrete observation about their product, then an open question
 
-A ``hiring`` signal swaps angle 1 for ``bridge`` (help while the role is open).
+A ``hiring`` signal swaps angle 1 for ``bridge`` (help while the role is open),
+a ``declining`` signal for ``decline`` (a tough stretch, then an open question).
 Square brackets mark what only you can fill in.
 
 Slots: {first} {company} {growth} {size} {hurdle} {team} {observation} {fte}
@@ -36,12 +37,12 @@ SIGNALS = ["", "growing", "stalled", "declining", "hiring"]
 GROWTH_SIGNALS = ("growing", "stalled", "declining")
 HURDLES = [10, 20, 50, 100, 250, 500]
 MESSAGES_FILE = "messages.toml"
-DRAFT_KEYS = ("scale", "bridge", "unblock", "hook")
+DRAFT_KEYS = ("scale", "bridge", "decline", "unblock", "hook")
 
 
 @dataclass
 class Draft:
-    key: str      # scale | bridge | unblock | hook
+    key: str      # scale | bridge | decline | unblock | hook
     label: str
     language: str
     body: str
@@ -247,7 +248,10 @@ def drafts(company: Company, contact: Contact | None = None, signal: str = "",
     slots["team"] = t["team"]["known" if company.ae_count else "unknown"].format_map(slots)
     slots["observation"] = observation or t["observation"].format_map(slots)
 
-    keys = ["bridge" if signal == "hiring" else "scale", "unblock", "hook"]
+    first_key = {"hiring": "bridge", "declining": "decline"}.get(signal, "scale")
+    if first_key not in t:  # a messages.toml from before this angle existed
+        first_key = "scale"
+    keys = [first_key, "unblock", "hook"]
     out = []
     for key in keys:
         body = "\n".join([

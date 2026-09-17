@@ -36,7 +36,8 @@ Three deliberately different drafts, written from CRM data alone, no AI, in
 the language of the company's country:
 
 1. **scale** (they are growing; offer help to keep the pace), or **bridge**
-   when the signal is hiring (help while the role is open);
+   when the signal is hiring (help while the role is open), or **decline** when
+   the signal is headcount decline (a tough stretch, then an open question);
 2. **unblock**: past the next headcount hurdle (10, 20, 50, 100, 250, 500,
    from `fte_estimate`);
 3. **hook**: one observation, then an open question.

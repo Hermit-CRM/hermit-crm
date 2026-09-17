@@ -55,6 +55,14 @@ def test_hiring_signal_swaps_scale_for_bridge_and_observation_is_used():
     assert out[0].body.endswith("[your name]\n")
 
 
+def test_messages_without_decline_fall_back_to_scale():
+    messages = messaging.default_messages()
+    for t in messages["languages"].values():
+        del t["decline"]
+    out = drafts(company(country="NL"), None, signal="declining", messages=messages)
+    assert [d.key for d in out] == ["scale", "unblock", "hook"]
+
+
 def test_unknown_signal_and_missing_data_leave_brackets():
     out = drafts(company(country="NL", fte_estimate="", ae_count=None), None, signal="nope")
     assert out[0].body.startswith("Hoi [first name],")
@@ -141,7 +149,8 @@ def test_belgian_drafts_use_the_inferred_language():
 def test_declining_signal_has_its_own_growth_sentence():
     out = drafts(company(country="NL"), None, signal="declining")
     assert "het team is de laatste tijd kleiner geworden" in out[0].body
-    assert [d.key for d in out] == ["scale", "unblock", "hook"]
+    assert [d.key for d in out] == ["decline", "unblock", "hook"]
+    assert "[jouw aanbod]" in out[0].body
     assert messaging.signal_labels()["declining"] == "headcount decline"
 
 
