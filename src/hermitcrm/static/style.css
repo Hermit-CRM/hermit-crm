@@ -159,7 +159,8 @@ details.ask[open] .ask-button { filter: brightness(.92); }
 .ask-retry { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
 .ask-form textarea { width: 100%; max-width: 110ch; }
 fieldset.switch { border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px 10px; margin: 8px 0; }
-fieldset.switch label { display: block; margin: 4px 0; }
+fieldset.switch label { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 13px; color: var(--text); }
+fieldset.switch input { width: auto; margin: 0; }
 main, footer { grid-column: 2; }
 
 input, select, textarea, button { color: inherit; }
@@ -490,3 +491,6 @@ nav a.help-link { margin-left: 4px; }
 .helpdoc table { width: auto; margin: 8px 0; }
 .helpdoc td, .helpdoc th { font-size: 13px; }
 @media (max-width: 800px) { .helpdoc-layout { flex-direction: column; } .helpdoc-topics { position: static; flex-basis: auto; } }
+
+/* anchor jumps (#appearance, #inbox) land below the sticky top bar */
+[id] { scroll-margin-top: 64px; }
