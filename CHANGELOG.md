@@ -12,6 +12,7 @@ and `stage_history`), migrated automatically in one commit.
   commit (manual, BCC and calendar imports alike).
 - **Install docs** describe the clone-and-`pip install` route that works today;
   `pipx install hermitcrm` is marked as not yet published.
+- `/favicon.ico` redirects to the app icon instead of answering 404.
 - **Delete contact** on the contact page; its interactions stay on the company
   without a contact.
 - The interaction form defaults to **LinkedIn**, out.

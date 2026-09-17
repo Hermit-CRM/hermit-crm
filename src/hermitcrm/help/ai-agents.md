@@ -1,6 +1,6 @@
 # AI agents
 
-How an AI session (Claude Code, Codex or any agent) should read and write an Hermit CRM data folder; the same rules are in the folder's `CLAUDE.md` and `AGENTS.md`.
+How an AI session (Claude Code, Codex or any agent) should read and write a Hermit CRM data folder; the same rules are in the folder's `CLAUDE.md` and `AGENTS.md`.
 
 The data folder is plain files in git, so an agent works in it like a person
 would: read what is needed, edit front matter, commit. Run `hermitcrm` commands
