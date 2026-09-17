@@ -38,13 +38,13 @@ def test_page_text_keeps_content_and_drops_chrome():
     html = """<html><head><style>x{}</style></head><body>
       <nav><a href="/">Pipeline</a></nav><header class="topbar">Ask Hermit</header>
       <main><h1>Acme GmbH</h1><table><tr><th>stage</th><td>qualified</td></tr></table>
-      <form><select><option>lost</option></select><input name="title" value="CTO">
+      <form><select name="outcome"><option>lost</option><option selected>unsuccessful</option></select><input name="title" value="CTO">
       <input type="hidden" name="csrf_token" value="secret"><button>Save</button></form>
       <script>alert(1)</script><p>Next step: call &amp; demo</p></main>
       <footer>v1</footer></body></html>"""
     text = asking.page_text(html)
     assert "Acme GmbH" in text and "qualified" in text and "call & demo" in text
-    assert "[title: CTO]" in text
+    assert "[title: CTO]" in text and "[outcome: unsuccessful]" in text
     for gone in ("Pipeline", "Ask Hermit", "lost", "secret", "Save", "alert", "v1"):
         assert gone not in text, gone
     assert asking.page_text("<p>" + "x" * 50 + "</p>", limit=10).endswith("cut off here]")

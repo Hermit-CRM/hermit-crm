@@ -20,8 +20,8 @@ from .enrich import EnrichError, Enricher, model_label
 PAGE_LIMIT = 40_000  # characters of page text sent with the first step
 
 # Tags whose content is chrome or form plumbing, not what the page says.
-SKIP_TAGS = {"script", "style", "nav", "header", "footer", "select", "option",
-             "button", "svg", "template", "noscript"}
+SKIP_TAGS = {"script", "style", "nav", "header", "footer", "button", "svg", "template",
+             "noscript"}
 BLOCK_TAGS = {"p", "div", "section", "article", "main", "table", "tr", "li", "ul",
               "ol", "h1", "h2", "h3", "h4", "h5", "h6", "pre", "details", "summary",
               "br", "form", "label", "dl", "dt", "dd", "blockquote"}
@@ -59,9 +59,15 @@ class _TextExtractor(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.parts: list[str] = []
         self.skip = 0
+        self.select = ""        # name of the <select> we are in, if any
+        self.selected = False   # inside its selected <option>: that value is page data
 
     def handle_starttag(self, tag, attrs):
-        if tag in SKIP_TAGS and tag not in VOID_TAGS:
+        if tag == "select":
+            self.select = dict(attrs).get("name") or "choice"
+        elif tag == "option":
+            self.selected = self.select != "" and "selected" in dict(attrs)
+        elif tag in SKIP_TAGS and tag not in VOID_TAGS:
             self.skip += 1
         elif tag in BLOCK_TAGS:
             self.parts.append("\n")
@@ -74,14 +80,23 @@ class _TextExtractor(HTMLParser):
                 self.parts.append(f" [{values.get('name', 'field')}: {values['value']}] ")
 
     def handle_endtag(self, tag):
-        if tag in SKIP_TAGS and tag not in VOID_TAGS:
+        if tag == "select":
+            self.select, self.selected = "", False
+        elif tag == "option":
+            self.selected = False
+        elif tag in SKIP_TAGS and tag not in VOID_TAGS:
             self.skip = max(0, self.skip - 1)
         elif tag in BLOCK_TAGS:
             self.parts.append("\n")
 
     def handle_data(self, data):
-        if not self.skip:
-            self.parts.append(data)
+        if self.skip:
+            return
+        if self.select:  # of a dropdown only the chosen value is content
+            if self.selected and data.strip():
+                self.parts.append(f" [{self.select}: {data.strip()}] ")
+            return
+        self.parts.append(data)
 
 
 def page_text(html: str, limit: int = PAGE_LIMIT) -> str:
