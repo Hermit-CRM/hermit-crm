@@ -151,7 +151,8 @@ of a company or contact page). The wording is not in code but in TOML:
 ## The three angles
 
 1. **scale**: they are growing (or growth is levelling off); offer help to keep
-   the pace. A `hiring` signal swaps this for **bridge**: help while the role is open.
+   the pace. A `hiring` signal swaps this for **bridge**: help while the role is open;
+   a `declining` signal for **decline**: a tough stretch, then an open question.
 2. **unblock**: "you are at N people"; get past the next headcount hurdle.
 3. **hook**: one concrete observation about their product, then an open question.
 

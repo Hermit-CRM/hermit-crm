@@ -14,7 +14,8 @@ and `stage_history`), migrated automatically in one commit.
   without a contact.
 - The interaction form defaults to **LinkedIn**, out.
 - Contact pages: Contact, Interactions, Drafts, Log an interaction, Merge, Delete; the sidebar marks Contacts.
-- New draft signal **headcount decline** (`declining`) with its own growth sentence.
+- New draft signal **headcount decline** (`declining`): its own growth sentence, and
+  a **decline** draft replaces scale as angle 1 (like bridge for hiring).
 - Contact Enrich opens the proposal page with notes and sources even when
   nothing could be verified, instead of a one-line message.
 
