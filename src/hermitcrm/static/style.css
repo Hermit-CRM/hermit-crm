@@ -518,3 +518,13 @@ nav a.help-link { margin-left: 4px; }
   .radar-summary { grid-column: 1 / -1; white-space: normal; }
   .radar-act { grid-column: 1 / -1; }
 }
+
+/* pre-meeting brief (calendar page, one per upcoming meeting) */
+.brief-row td { padding-top: 0; border-top: none; }
+details.brief > summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+details.brief[open] > summary { margin-bottom: 6px; }
+.brief-company { border-left: 2px solid var(--line); padding: 0 0 6px 10px; margin: 0 0 6px; }
+.brief-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.brief-head a { font-weight: 600; }
+.brief-timeline { list-style: none; margin: 4px 0 0; padding: 0; }
+.brief-timeline li { margin: 2px 0; font-size: 13px; }

@@ -214,6 +214,17 @@ def cmd_schedule(root: Path, action: str, at: str = "07:00", serve: bool = False
     return 0
 
 
+# -------------------------------------------------------------------- brief
+
+
+def cmd_brief(root: Path, store: Store, days: int = 7) -> str:
+    """Briefs for the meetings the last calendar import found."""
+    from hermitcrm import bcc, brief
+
+    inbox = bcc.Inbox(root)
+    return brief.render(brief.briefs(store, inbox, days=days), store.today(), days)
+
+
 # ---------------------------------------------------------------- followups
 
 
@@ -827,6 +838,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p_migrate.add_argument("--dry-run", action="store_true",
                            help="list the files that would change")
 
+    p_brief = sub.add_parser("brief", help="what you need before each upcoming meeting")
+    p_brief.add_argument("--days", type=int, default=7,
+                         help="how far ahead to look (default 7)")
+
     p_followups = sub.add_parser("followups",
                                  help="threads you owe a reply, and ones you are waiting on")
     p_followups.add_argument("--reply-after", type=int, default=None,
@@ -1006,6 +1021,10 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
         return cmd_schedule(root, args.action, at=args.at, serve=args.serve)
 
     store = build_store(root)
+
+    if args.command == "brief":
+        print(cmd_brief(root, store, args.days))
+        return 0
 
     if args.command == "followups":
         print(cmd_followups(store, load_config(root), args.reply_after, args.nudge_after))

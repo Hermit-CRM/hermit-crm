@@ -26,7 +26,7 @@ from starlette.concurrency import run_in_threadpool
 from . import __version__, updates
 from fastapi.templating import Jinja2Templates
 
-from . import bcc, calendar_sync, filters, followups, messaging, migrations, pipeline, reports
+from . import bcc, brief, calendar_sync, filters, followups, messaging, migrations, pipeline, reports
 from . import schedule, scrape
 from . import help as helpdocs
 from . import setup as setup_steps
@@ -522,6 +522,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
     templates.env.globals.update(
         fmt_date=fmt_date,
         fmt_datetime=fmt_datetime,
+        preview=followups.first_line,
         stages=STAGES,
         sources=SOURCES,
         countries=COUNTRIES,
@@ -690,7 +691,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "future": future,
             "silent": silent,
             "silent_threshold": store.silent_days,
-            "upcoming": calendar_sync.read_upcoming(inbox, store.now()),
+            "upcoming": brief.briefs(store, inbox, store.now()),
             "calendar_last_run": inbox.last_run(calendar_sync.LAST_RUN_FILE),
         })
 

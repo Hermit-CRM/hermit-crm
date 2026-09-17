@@ -15,6 +15,11 @@ and `stage_history`), migrated automatically in one commit.
   wrote and nothing came back. Replies owed come first. A company with an open
   next step due in the future is left off the nudge list -- you have already
   decided what happens next, and the calendar owns that.
+- **Pre-meeting brief**: `hermitcrm brief`, and a folded "Brief" under every
+  meeting on the Calendar page. Stage, open next step, contacts and the last
+  three interactions for each company you are about to talk to. It reads the
+  `upcoming.json` the calendar import already writes, so it is instant and works
+  offline.
 - **`hermitcrm serve --host`** (config key `host`). `--host 0.0.0.0` puts the
   web app on your phone over the local network, and prints the address to type
   rather than `0.0.0.0`. Hermit CRM has no password, so it also prints a warning
