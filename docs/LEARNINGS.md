@@ -60,3 +60,16 @@ Newest first within each section.
   `hermitcrm.__file__` first.
 - **Never put a liveness-critical step on an LLM run.** Scheduled agent runs
   get torn down mid-task; heartbeats and syncs are deterministic code.
+- **Rename with fallbacks, not a flag day.** The rename kept every old name
+  readable (env vars, format file, launchd labels) and cleaned up on first
+  run, so the live install moved over with one `schedule install`.
+- **A new model can need a newer CLI.** `claude -p --model claude-fable-5-1`
+  fails on Claude Code 2.1.211 with a 400. Surface the CLI's own message;
+  a JSON envelope dump hides the fix.
+- **Page text for an AI must include chosen dropdown values.** Skipping
+  `<select>` as form plumbing dropped the interaction outcome, and the model
+  answered "no outcome recorded". Keep the selected option, drop the rest.
+- **An old override silently beats a new default.** `enrich_model = "sonnet"`
+  from an earlier session outranked the Opus default; check config for
+  overrides when a default "does not apply".
+

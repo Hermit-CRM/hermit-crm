@@ -3,6 +3,26 @@
 All notable changes to Hermit CRM. Versions follow semantic versioning; a change to
 the data format always comes with an automatic migration.
 
+## 0.3.0 (unreleased)
+
+Renamed from OwnCRM to **Hermit CRM** (OwnCRM was taken). Package and command
+`hermitcrm`, environment variables `HERMITCRM_*`, launchd labels
+`io.hermitcrm.*`. Old names keep working: `OWNCRM_*` variables are still read,
+`.owncrm-format` is renamed in a commit on first start, and `schedule install`
+removes the old `io.owncrm.*` jobs.
+
+- **Ask Hermit**: an always-visible button top right. Answers from the current
+  page first (no tools), then from the whole data folder with read-only tools;
+  "Retry with Fable" and "Search the whole CRM instead" on the answer.
+- **Model tiers**: medium (default; Claude: Opus) and strong (Claude: Fable)
+  per provider, a switch and overrides under Settings → AI (`ai_tier`,
+  `enrich_model`, `enrich_model_strong`). Enrich proposals offer "Retry with".
+- **Night mode** under Settings → Appearance (`theme`: light, dark, system).
+  Every colour is a CSS token.
+- Navigation moved to a light-grey left sidebar with icons; search and Ask
+  Hermit sit in a sticky top bar.
+- A failed AI CLI run shows the CLI's own message instead of its JSON envelope.
+
 ## 0.2.0 (unreleased)
 
 Data format 3: `result` on interactions is folded into `outcome` by an

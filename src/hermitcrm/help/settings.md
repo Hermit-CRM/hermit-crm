@@ -1,6 +1,6 @@
 # Settings
 
-`/settings`: who you are, mail and calendar capture, backup, enrichment, outcomes, the review queue, the daily schedule and About.
+`/settings`: who you are, mail and calendar capture, backup, appearance, AI (Enrich and Ask Hermit), outcomes, the review queue, the daily schedule and About.
 
 Every section writes `config.toml` in the data folder, keeping its comments;
 secrets (the mail app password, the calendar URL) go to `.secrets.toml`
@@ -40,10 +40,19 @@ Saving sets or updates the remote, tries a push, and turns `push_enabled` on
 when it worked. Pushes then run in the background after every commit and
 never block.
 
-## Enrichment
+## Appearance
+
+Night mode: off (`theme = "light"`), on (`"dark"`) or follow the operating
+system (`"system"`).
+
+## AI: Enrich and Ask Hermit
 
 `enrich_provider` (`auto`, `claude`, `codex`, `gemini`, `grok` or `custom`),
-`enrich_command`, `enrich_model` and `enrich_timeout`. The section shows which
+`enrich_command` and `enrich_timeout`. **Model** switches between the medium
+tier (default; Claude: Opus) and the strong tier (Claude: Fable) for Enrich
+and [Ask Hermit](/help/ask); `ai_tier` in `config.toml`. Answers and proposals
+made on the medium tier offer "Retry with" the strong model. The two model
+fields (`enrich_model`, `enrich_model_strong`) override the provider defaults. The section shows which
 CLI is in use, or why none is. Under launchd or systemd the process starts
 with a bare PATH, so the CLI must be in `/usr/local/bin`, `/opt/homebrew/bin`
 or `~/.local/bin`, or the command must be a full path. See [Enrich](/help/enrich).

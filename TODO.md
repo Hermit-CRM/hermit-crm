@@ -24,9 +24,17 @@ Roadmap and open items. Personal items live in the private data folder.
 - [ ] A real calendar feed end to end (parser and matching are tested on
       fixtures only).
 - [ ] IMAP login from the Settings page against a non-Gmail host.
+- [ ] Default model IDs for codex, gemini and grok (`DEFAULT_MODELS` in
+      `enrich.py`); only the claude IDs were run.
+- [ ] Ask Hermit's whole-CRM step on codex, gemini and grok: tool access in
+      the data folder is only verified with Claude Code.
+- [ ] "Retry with Fable" end to end: needs Claude Code >= 2.1.251 (2.1.211
+      installed on 2026-09-17 refuses the model).
 
 ## Later
 
+- [ ] Ask Hermit without waiting on a blank page: stream progress or run in
+      the background (needs a little JavaScript or a polling page).
 - [ ] `GET /tasks.ics`: subscribe to next steps from Apple/Google Calendar.
 - [ ] Deals entity, only if several parallel opportunities per account become
       common (see docs/LEARNINGS.md).

@@ -1,6 +1,6 @@
 # Enrich
 
-Two ways to fill a company's or contact's empty fields: **Fetch from URL** reads a web page (no AI); **Enrich** asks an AI CLI you already have.
+Two ways to fill a company's or contact's empty fields: **Fetch from URL** reads a web page (no AI); **Enrich** asks an AI CLI you already have, on the medium model by default; the proposal page offers **Retry with** the strong model (Claude: Fable).
 
 Both show a proposal page first: each proposed value with a checkbox and an
 editable input, plus the sources. Only ticked fields are written, in one
