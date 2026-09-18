@@ -8,6 +8,16 @@
 <h1>New contact</h1>
 <p class="small">The company is matched by name, else by the email's domain, else created.</p>
 {% endif %}
+{% if capture %}
+<div class="flash capture-note">
+  Read from <a href="{{ capture.url }}" rel="noreferrer noopener">{{ capture.url }}</a>: a profile, so this makes a contact and the company it names.
+  {% if capture.company %}<strong>{{ capture.company.name }}</strong> is already in the CRM and the contact will go there.
+  {% elif capture.person and capture.person.employer %}No company called <strong>{{ capture.person.employer }}</strong> yet; saving creates it.
+  {% else %}The page did not name an employer, so type the company yourself.{% endif %}
+  {% if capture.person and capture.person.location %}<span class="small">Location on the page: {{ capture.person.location }}.</span>{% endif %}
+  Check the fields before saving.
+</div>
+{% endif %}
 {{ m.errors_box(errors) }}
 <form method="post" action="{{ '/companies/' ~ company.slug ~ '/contacts' if company else '/contacts' }}" class="record-form">
   {% if duplicates %}

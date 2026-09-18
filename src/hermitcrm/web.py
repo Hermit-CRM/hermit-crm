@@ -1165,6 +1165,14 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
                 custom_keys={d.key for d in custom_defs('company')})
         except ScrapeError as exc:
             return flashed("/extension", f"Could not read that page: {exc}")
+        if found.kind == "person":
+            if found.existing is not None:
+                cslug = capture.contact_slug_in(found.existing, found.url)
+                where = (f"/companies/{found.existing.slug}/contacts/{cslug}" if cslug
+                         else f"/companies/{found.existing.slug}")
+                return flashed(where, f"{found.name or 'That profile'} is already "
+                                      "in the CRM")
+            return _global_contact_page(request, found.contact_values, capture=found)
         if found.existing is not None:
             return flashed(f"/companies/{found.existing.slug}",
                            f"{found.existing.name} is already in the CRM")
@@ -1431,10 +1439,11 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
                             "company": "", "website": ""}
 
     def _global_contact_page(request: Request, values: dict, errors=None,
-                             duplicates=None, status_code: int = 200):
+                             duplicates=None, status_code: int = 200, capture=None):
         return render(request, "contact_new.html", {
             "company": None, "values": values, "errors": errors or {},
             "duplicates": duplicates or [], "companies": store.all(),
+            "capture": capture,
         }, status_code=status_code)
 
     @app.get("/contacts/new", response_class=HTMLResponse)

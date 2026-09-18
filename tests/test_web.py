@@ -1254,6 +1254,57 @@ def test_contact_page_sections_in_order_and_nav_marks_contacts(client, app):
     assert '<option value="declining">headcount decline</option>' in page
 
 
+PROFILE_PAGE = (
+    "<html><head><title>Ines Vega - Harbour Light Labs | LinkedIn</title>"
+    '<meta property="og:description" content="Execution, not leads &middot; '
+    'Experience: Harbour Light Labs &middot; Location: Rotterdam &middot; '
+    '500+ connections on LinkedIn.">'
+    "</head><body></body></html>")
+
+
+def test_capturing_a_profile_opens_the_contact_form(client, app):
+    """Reported: a LinkedIn profile URL opened a form to create a company."""
+    app.state.fetcher = lambda url: PROFILE_PAGE
+    page = client.get("/extension/new",
+                      params={"url": "https://www.linkedin.com/in/ines-vega/"}).text
+    assert "<h1>New contact</h1>" in page
+    assert 'name="name" value="Ines Vega"' in page
+    assert 'name="company" value="Harbour Light Labs"' in page
+    assert 'value="Execution, not leads"' in page          # the headline, as the title
+    assert "connections on LinkedIn" not in page
+    assert "No company called <strong>Harbour Light Labs</strong> yet" in page
+    # and it creates both when submitted
+    r = client.post("/contacts", data={"name": "Ines Vega", "email": "", "title": "X",
+                                       "linkedin": "https://www.linkedin.com/in/ines-vega/",
+                                       "company": "Harbour Light Labs", "website": ""})
+    assert r.status_code == 303
+    company = app.state.store.get("harbour-light-labs")
+    assert "ines-vega" in company.contacts
+
+
+def test_capturing_a_profile_whose_company_you_have_says_so(client, app):
+    app.state.fetcher = lambda url: PROFILE_PAGE
+    post_company(client, name="Harbour Light Labs")
+    page = client.get("/extension/new",
+                      params={"url": "https://www.linkedin.com/in/ines-vega/"}).text
+    assert "is already in the CRM and the contact will go there" in page
+
+
+def test_capturing_a_profile_you_already_saved_goes_to_the_contact(client, app):
+    app.state.fetcher = lambda url: PROFILE_PAGE
+    post_company(client, name="Harbour Light Labs")
+    client.post("/companies/harbour-light-labs/contacts",
+                data={"first_name": "Ines", "last_name": "Vega", "title": "",
+                      "linkedin": "https://www.linkedin.com/in/ines-vega/",
+                      "email": "", "phone": "", "role": "", "notes": ""})
+    r = client.get("/extension/new",
+                   params={"url": "https://www.linkedin.com/in/ines-vega/"},
+                   follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"].startswith(
+        "/companies/harbour-light-labs/contacts/ines-vega")
+
+
 def test_the_old_capture_paths_still_work(client, app):
     """A bookmarklet already sitting in someone's bookmarks bar points here."""
     r = client.get("/capture", follow_redirects=False)

@@ -81,3 +81,61 @@ def test_host_ignores_www_and_scheme():
     assert capture.host("https://www.acme.example.com/pricing") == "acme.example.com"
     assert capture.host("acme.example.com") == "acme.example.com"
     assert capture.host("") == ""
+
+
+# ------------------------------------------------------------------- people
+
+PROFILE = """<html><head>
+<title>Ines Vega - Harbour Light Labs | LinkedIn</title>
+<meta property="og:description" content="Most teams do not have a lead problem.
+ They have an execution one\u2026 &middot; Experience: Harbour Light Labs
+ &middot; Education: Someplace &middot; Location: Rotterdam &middot; 500+
+ connections on LinkedIn. View Ines Vega&#39;s profile on LinkedIn.">
+</head><body></body></html>"""
+
+
+def person(store, url="https://www.linkedin.com/in/ines-vega/"):
+    return capture.from_url(store, url, fetcher=lambda u: PROFILE)
+
+
+def test_a_profile_makes_a_contact_not_a_company(store):
+    """The reported bug: a LinkedIn profile opened a company form."""
+    found = person(store)
+    assert found.kind == "person" and found.name == "Ines Vega"
+    values = found.contact_values
+    assert values["name"] == "Ines Vega"
+    assert values["company"] == "Harbour Light Labs"
+    assert values["linkedin"] == "https://www.linkedin.com/in/ines-vega/"
+
+
+def test_the_headline_is_the_title_and_never_the_product_oneliner(store):
+    """The other half of the report: the one-liner it proposed was a profile blurb."""
+    found = person(store)
+    title = found.contact_values["title"]
+    assert title.startswith("Most teams do not have a lead problem")
+    assert "Experience:" not in title and "connections on LinkedIn" not in title
+    assert "Education" not in title
+    assert "product_oneliner" not in found.fields
+
+
+def test_an_employer_already_in_the_crm_is_recognised(store):
+    store.create_company("Harbour Light Labs")
+    found = person(store)
+    assert found.company is not None and found.company.slug == "harbour-light-labs"
+    assert found.contact_values["company"] == "Harbour Light Labs"
+
+
+def test_capturing_someone_you_already_have_finds_them(store):
+    company = store.create_company("Harbour Light Labs")
+    store.create_contact(company.slug, "Ines", "Vega",
+                         linkedin="https://www.linkedin.com/in/ines-vega")
+    found = person(store)
+    assert found.existing is not None and found.existing.slug == "harbour-light-labs"
+    assert capture.contact_slug_in(found.existing, found.url) == "ines-vega"
+
+
+def test_a_company_page_is_still_a_company(store):
+    found = capture.from_url(store, "acme.example.com",
+                             fetcher=lambda u: "<html><head><title>Acme | Robots"
+                                               "</title></head></html>")
+    assert found.kind == "company" and found.name == "Acme"
