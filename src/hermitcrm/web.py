@@ -375,9 +375,10 @@ def flashed(path: str, message: str, anchor: str = "") -> RedirectResponse:
 
 
 def build_enricher(config: dict) -> Enricher:
-    """The AI CLI wrapper used by Enrich and Ask Hermit, from config.toml."""
+    """The AI CLI wrapper used by Enrich and Ask the Hermit, from config.toml."""
     return Enricher(
         provider=str(config.get("enrich_provider", "auto")),
+        account=str(config.get("enrich_account", "subscription")),
         command=str(config.get("enrich_command", "")),
         model=str(config.get("enrich_model", "")),
         model_strong=str(config.get("enrich_model_strong", "")),
@@ -1043,7 +1044,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         back = urlparse(request.headers.get("referer", "")).path or "/messages"
         return flashed(back, f"Message marked {outcome or 'unknown'}")
 
-    # ----------------------------------------------------------------- capture
+    # --------------------------------------------------------------- extension
 
     def bookmarklet_for(request: Request) -> str:
         """The bookmarklet, pointed at whatever address this app is answering on.
@@ -1053,28 +1054,37 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         """
         base = str(request.base_url).rstrip("/")
         return ("javascript:(function(){window.open('" + base +
-                "/capture/new?url='+encodeURIComponent(location.href),'_blank');})();")
+                "/extension/new?url='+encodeURIComponent(location.href),'_blank');})();")
 
-    @app.get("/capture", response_class=HTMLResponse)
-    def capture_page(request: Request):
-        return render(request, "capture.html", {
+    @app.get("/extension", response_class=HTMLResponse)
+    def extension_page(request: Request):
+        return render(request, "extension.html", {
             "bookmarklet": bookmarklet_for(request),
             "base": str(request.base_url).rstrip("/"),
         })
 
-    @app.get("/capture/new", response_class=HTMLResponse)
-    def capture_new(request: Request, url: str = ""):
+    @app.get("/capture", include_in_schema=False)
+    def capture_moved():
+        """Bookmarklets already sitting in someone's bar point here."""
+        return goto("/extension")
+
+    @app.get("/capture/new", include_in_schema=False)
+    def capture_new_moved(url: str = ""):
+        return goto(("/extension/new?url=" + quote(url, safe="")) if url else "/extension")
+
+    @app.get("/extension/new", response_class=HTMLResponse)
+    def extension_new(request: Request, url: str = ""):
         """Read a page and open the new-company form with it filled in.
 
         A GET, because that is what a bookmarklet can open in a tab; it only
         reads the page and renders a form, and writes nothing.
         """
         if not (url or "").strip():
-            return goto("/capture")
+            return goto("/extension")
         try:
             found = capture.from_url(store, url, fetcher=app.state.fetcher)
         except ScrapeError as exc:
-            return flashed("/capture", f"Could not read that page: {exc}")
+            return flashed("/extension", f"Could not read that page: {exc}")
         if found.existing is not None:
             return flashed(f"/companies/{found.existing.slug}",
                            f"{found.existing.name} is already in the CRM")
@@ -1227,16 +1237,6 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         except ValidationError as exc:
             return flashed(back, "; ".join(exc.errors.values()), "tasks")
         return flashed(back, "Task saved", "tasks")
-
-    @app.post("/companies/{slug}/country")
-    def company_country(request: Request, slug: str, country: str = Form("")):
-        """Set or change the country from the "Add country" control."""
-        need_company(slug)
-        try:
-            store.update_company(slug, country=country)
-        except ValidationError as exc:
-            return flashed(f"/companies/{slug}", "; ".join(exc.errors.values()))
-        return flashed(f"/companies/{slug}", "Country saved" if country else "Country cleared")
 
     @app.post("/companies/{slug}/disqualify")
     def company_disqualify(request: Request, slug: str, stage: str = Form(""),
@@ -1680,6 +1680,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "remote_warning": "",
             "form_errors": {},
             "enrich_form": {"provider": str(config.get("enrich_provider") or "auto"),
+                            "account": str(config.get("enrich_account") or "subscription"),
                             "command": str(config.get("enrich_command") or ""),
                             "model": str(config.get("enrich_model") or ""),
                             "model_strong": str(config.get("enrich_model_strong") or ""),
@@ -1688,6 +1689,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "tier_models": {t: enricher.model_for(t) for t in setup_steps.AI_TIERS},
             "themes": setup_steps.THEMES,
             "enrich_providers": setup_steps.ENRICH_PROVIDERS,
+            "enrich_accounts": setup_steps.ENRICH_ACCOUNTS,
             "enrich_status": {"available": enricher.available,
                               "provider": enricher.provider_name,
                               "reason": "" if enricher.available
@@ -1802,15 +1804,18 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
     def settings_enrichment(request: Request, csrf_token: str = Form(""),
                             provider: str = Form("auto"), command: str = Form(""),
                             model: str = Form(""), timeout: str = Form("180"),
-                            model_strong: str = Form(""), tier: str = Form("medium")):
+                            model_strong: str = Form(""), tier: str = Form("medium"),
+                            account: str = Form("subscription")):
         check_csrf(csrf_token)
         result = setup_steps.save_enrichment(root, provider, command, model, timeout,
-                                             model_strong=model_strong, tier=tier)
+                                             model_strong=model_strong, tier=tier,
+                                             account=account)
         if not result.ok:
             return setup_invalid(request, result, "enrichment",
                                  enrich_form={"provider": provider, "command": command,
                                               "model": model, "timeout": timeout,
-                                              "model_strong": model_strong, "tier": tier})
+                                              "model_strong": model_strong, "tier": tier,
+                                              "account": account})
         refresh_config()
         enricher = app.state.enricher
         note = (f" In use: {enricher.provider_name}." if enricher.available

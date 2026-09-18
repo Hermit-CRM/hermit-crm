@@ -25,6 +25,7 @@ from .store import DEFAULT_CONFIG, Store, load_config
 KEYCHAIN_SERVICE = "hermitcrm-bcc"
 PRIVATE_HOSTS = ("github.com", "gitlab.com", "bitbucket.org")
 ENRICH_PROVIDERS = ("auto", "claude", "codex", "gemini", "grok", "custom")
+ENRICH_ACCOUNTS = ("subscription", "api")
 AI_TIERS = ("medium", "strong")
 THEMES = ("light", "dark", "system")
 IMAP_HOSTS = {
@@ -375,10 +376,15 @@ def _positive_int(raw: str, key: str, label: str, errors: dict) -> int | None:
 
 def save_enrichment(data_dir: Path, provider: str, command: str = "", model: str = "",
                     timeout: str = "180", model_strong: str = "",
-                    tier: str = "medium") -> StepResult:
-    """Write enrich_provider / _command / _model / _model_strong / _timeout and ai_tier."""
+                    tier: str = "medium", account: str = "subscription") -> StepResult:
+    """Write enrich_provider / _account / _command / _model / _model_strong / _timeout
+    and ai_tier."""
     provider = (provider or "auto").strip().lower()
+    account = (account or "subscription").strip().lower()
     result = StepResult()
+    if account not in ENRICH_ACCOUNTS:
+        result.errors["account"] = ("Account must be one of "
+                                    + ", ".join(ENRICH_ACCOUNTS) + ".")
     if provider not in ENRICH_PROVIDERS:
         result.errors["provider"] = ("Unknown provider; use one of "
                                      + ", ".join(ENRICH_PROVIDERS) + ".")
@@ -391,7 +397,8 @@ def save_enrichment(data_dir: Path, provider: str, command: str = "", model: str
     if result.errors:
         result.ok = False
         return result
-    result.values = {"enrich_provider": provider, "enrich_command": (command or "").strip(),
+    result.values = {"enrich_provider": provider, "enrich_account": account,
+                     "enrich_command": (command or "").strip(),
                      "enrich_model": (model or "").strip(),
                      "enrich_model_strong": (model_strong or "").strip(),
                      "ai_tier": tier, "enrich_timeout": seconds}

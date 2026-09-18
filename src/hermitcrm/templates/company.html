@@ -4,53 +4,39 @@
 {% block content %}
 <h1>{{ company.name }}</h1>
 {% if company.product_oneliner %}<p class="oneliner">{{ company.product_oneliner }}</p>{% endif %}
-<p class="small links">
+<div class="small record-meta">
   {% if company.website %}<a href="{{ company.website }}" target="_blank" rel="noopener">{{ company.website | replace('https://', '') | replace('http://', '') }}</a>{% endif %}
-  {% if company.linkedin %} &middot; <a href="{{ company.linkedin }}" target="_blank" rel="noopener">linkedin</a>{% endif %}
-</p>
-<div class="small stage-line">
-  {{ company.stage }}{% if company.lost_reason %} ({{ company.lost_reason }}){% endif %}{% if company.requalify_on %} &middot; requalifies on {{ fmt_date(company.requalify_on) }}{% endif %} &middot; {{ company.days_in_stage(today) }}d in stage
+  {% if company.linkedin %}<a href="{{ company.linkedin }}" target="_blank" rel="noopener">linkedin</a>{% endif %}
+  <span>{{ company.stage }}{% if company.lost_reason %} ({{ company.lost_reason }}){% endif %}{% if company.requalify_on %}, requalifies on {{ fmt_date(company.requalify_on) }}{% endif %} &middot; {{ company.days_in_stage(today) }}d in stage</span>
+  <span>last touch: {{ company.last_touch_summary }}</span>
+  {% if company.my_score is not none %}<span>my score {{ company.my_score }}</span>{% endif %}
+  {% if company.fit_score is not none %}<span>fit {{ company.fit_score }}</span>{% endif %}
+  {% if company.fte_estimate %}<span>~{{ company.fte_estimate.lstrip('~') }} FTE</span>{% endif %}
+  {% if company.ae_count is not none %}<span>{{ company.ae_count }} AEs</span>{% endif %}
   {% if company.stage in ['disqualified', 'temp-disqualified'] %}
   <form method="post" action="/companies/{{ company.slug }}/disqualify" class="inline">
     <input type="hidden" name="stage" value="prospect"><button type="submit">Requalify</button>
   </form>
   {% else %}
-  <details class="inline-edit">
+  <details class="inline-edit stage-menu">
     <summary class="button">Disqualify</summary>
-    <form method="post" action="/companies/{{ company.slug }}/disqualify" class="inline-form">
-      <input type="hidden" name="stage" value="disqualified">
-      <input name="reason" placeholder="reason" value="{{ company.lost_reason }}">
-      <button type="submit">Disqualify</button>
-    </form>
-  </details>
-  <details class="inline-edit">
-    <summary class="button">Temp disqualify</summary>
-    <form method="post" action="/companies/{{ company.slug }}/disqualify" class="inline-form">
-      <input type="hidden" name="stage" value="temp-disqualified">
-      <input name="reason" placeholder="reason" value="{{ company.lost_reason }}">
-      <label class="inline">until <input type="date" name="requalify_on" value="{{ fmt_date(company.requalify_on) }}" title="the company goes back to prospect on this date"></label>
-      <button type="submit">Temp disqualify</button>
-    </form>
+    <div class="menu-panel">
+      <form method="post" action="/companies/{{ company.slug }}/disqualify" class="inline-form">
+        <input type="hidden" name="stage" value="disqualified">
+        <input name="reason" placeholder="reason" value="{{ company.lost_reason }}">
+        <button type="submit">Disqualify</button>
+      </form>
+      <form method="post" action="/companies/{{ company.slug }}/disqualify" class="inline-form">
+        <input type="hidden" name="stage" value="temp-disqualified">
+        <input name="reason" placeholder="reason" value="{{ company.lost_reason }}">
+        <label class="inline">until <input type="date" name="requalify_on" value="{{ fmt_date(company.requalify_on) }}" title="the company goes back to prospect on this date"></label>
+        <button type="submit">Temp disqualify</button>
+      </form>
+    </div>
   </details>
   {% endif %}
 </div>
-<p class="small">
-  last touch: {{ company.last_touch_summary }}
-  {% if company.my_score is not none %} &middot; my score {{ company.my_score }}{% endif %}
-  {% if company.fit_score is not none %} &middot; fit {{ company.fit_score }}{% endif %}
-  {% if company.fte_estimate %} &middot; ~{{ company.fte_estimate.lstrip('~') }} FTE{% endif %}
-  {% if company.ae_count is not none %} &middot; {{ company.ae_count }} AEs{% endif %}
-</p>
-<div class="small country-line">
-  country: {{ company.country or 'none' }}
-  <details class="inline-edit">
-    <summary class="button">{{ 'Change country' if company.country else 'Add country' }}</summary>
-    <form method="post" action="/companies/{{ company.slug }}/country" class="inline-form">
-      <input name="country" value="{{ company.country }}" list="country-codes-edit" size="4" maxlength="3" placeholder="DE" title="ISO 3166-1 alpha-2 code">
-      <datalist id="country-codes-edit">{% for c in countries %}<option value="{{ c }}">{% endfor %}</datalist>
-      <button type="submit">Save</button>
-    </form>
-  </details>
+<div class="small record-actions">
   {% if enricher and enricher.available %}
   <form method="post" action="/companies/{{ company.slug }}/enrich" class="inline enrich">
     <button type="submit" title="Look up missing fields with web search via the {{ enricher.provider_name }} CLI (uses credits); you confirm before anything is saved">Enrich</button>

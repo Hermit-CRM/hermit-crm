@@ -8,6 +8,23 @@ the data format always comes with an automatic migration.
 Data format 4: the stage `reached-out` is renamed to **engaged** (in `stage`
 and `stage_history`), migrated automatically in one commit.
 
+- **The AI CLI is asked how it is signed in.** A Codex CLI on a ChatGPT account
+  refuses `gpt-5-mini`, the model Hermit CRM pinned for it, and both Enrich and
+  Ask the Hermit died with the same 400 printed three times. Settings now has an
+  **Account** choice -- subscription or API key -- for every provider; on a
+  subscription Hermit CRM asks for no particular model where that is known to
+  matter, so the CLI answers on whatever the plan gets. A provider that refuses a
+  model now says so in one sentence naming the model and the setting, and a CLI
+  that repeats itself no longer has its complaint printed three times.
+- **"Ask Hermit" is now "Ask the Hermit"**, and the search box sits in the middle
+  of the top bar with the Ask button in its corner, instead of both crowding the
+  right-hand edge.
+- **"Capture" is now "Extension"** (`/extension`; `/capture` still redirects, so a
+  bookmarklet already in your bookmarks bar keeps working).
+- **The company page header is two rows instead of six.** The country line is gone
+  -- country is still on the record and in the edit form, where it goes on deciding
+  which language a draft is written in -- and the two always-open disqualify panels
+  became one menu.
 - **Feedback form** (`/help/feedback`, in the Help sidebar). A tester writes what
   broke or confused them; Hermit CRM saves it as `feedback/<date>-<slug>.md`,
   commits it, and shows the text to copy or a prefilled mail link when
