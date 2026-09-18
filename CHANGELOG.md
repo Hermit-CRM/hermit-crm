@@ -22,6 +22,19 @@ define. Both migrate automatically in one commit.
   keeps them**: the migration writes a `fields.toml` describing them and does
   not touch a single company file, because those keys were always ordinary
   front matter. A folder that never used them gets no file at all.
+- **Tasks: more than one per company, and one per person.** A company had
+  exactly one thing you could write down -- its next step -- so a second thing
+  you owed an account overwrote the first. Companies and contacts now each keep
+  a `tasks` list in their front matter, with a due date and a done flag. The
+  **next step is unchanged and still separate**: it is the one task that decides
+  where the deal stands, and it is what the board, PIPELINE.md and the calendar
+  read. Tasks are everything else. The calendar gained a **Create task** form
+  and shows every open task on its due date; a contact's tasks show on their own
+  page and, grouped under their name, on the company's. Deleting a contact takes
+  their tasks with them and says how many are open first, and merging two
+  records keeps both lists rather than choosing a side. Ticking off or deleting
+  a task checks its text first, so a page left open in another tab cannot hit
+  whatever moved into that position.
 - **The extension captures a person.** A LinkedIn profile URL opened a form to
   create a *company* from it, because nothing in Hermit CRM recognised a profile
   page: the code only ever matched `linkedin.com/company/`. A profile now opens

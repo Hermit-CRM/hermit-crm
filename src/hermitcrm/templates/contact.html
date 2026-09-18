@@ -50,11 +50,16 @@
 </section>
 {% endif %}
 
-{{ m.task_section(company, today, 'The next step is kept on ' ~ company.name ~ ', so it shows on the company page and in the calendar too.') }}
+<section id="tasks">
+  <h2>Tasks for {{ contact.name }}</h2>
+  <p class="small">Things you owe this person. The deal's <a href="/companies/{{ company.slug }}#tasks">next step</a> is kept on {{ company.name }}, because that is what moves the pipeline.</p>
+  {{ m.task_list(company, contact.tasks, today, contact=contact.slug) }}
+</section>
 
 <section id="delete">
   <h2>Delete</h2>
-  {% set confirm_text = 'Delete ' ~ contact.name ~ '?' ~ ((' Their ' ~ interactions | length ~ ' interaction(s) stay on ' ~ company.name ~ ' without a contact.') if interactions else '') %}
+  {% set open_tasks = contact.tasks | rejectattr('done') | list %}
+  {% set confirm_text = 'Delete ' ~ contact.name ~ '?' ~ ((' Their ' ~ interactions | length ~ ' interaction(s) stay on ' ~ company.name ~ ' without a contact.') if interactions else '') ~ ((' Their ' ~ open_tasks | length ~ ' open task(s) go with them.') if open_tasks else '') %}
   <form method="post" action="/companies/{{ company.slug }}/contacts/{{ contact.slug }}/delete" class="danger">
     <button type="submit" onclick="return confirm({{ confirm_text | tojson | forceescape }})">Delete contact</button>
     <span class="small">{% if interactions %}{{ interactions | length }} interaction(s) stay on {{ company.name }}, without a contact.{% else %}No interactions are linked to this contact.{% endif %}</span>

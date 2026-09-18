@@ -87,9 +87,49 @@
         <a href="/companies/{{ c.slug }}">{{ c.name }}</a>: {{ c.next_step or '(no text)' }}
       </div>
       {% endfor %}
+      {% for r in cell.listed %}
+      <div class="task listed{% if cell.date < today %} overdue{% endif %}">
+        <a href="/companies/{{ r.company.slug }}{% if r.contact %}/contacts/{{ r.contact.slug }}{% endif %}">{{ r.contact.name if r.contact else r.company.name }}</a>: {{ r.task.text }}
+      </div>
+      {% endfor %}
     </td>
     {% endfor %}
   </tr>
+  {% endfor %}
+</table>
+
+<h2 id="task-list">Your task list ({{ (listed_overdue + listed_future + listed_undated) | length }})</h2>
+<p class="small">Everything you owe an account or a person that is not the deal's next step. A company's next step is above; these sit beside it.</p>
+<form method="post" action="/calendar/task" class="record-form">
+  <div class="row">
+    <label class="grow">task <input name="text" placeholder="e.g. send the pricing page" required></label>
+    <label class="grow">company
+      <input name="company" list="task-companies" required placeholder="an existing company">
+      <datalist id="task-companies">{% for c in companies %}<option value="{{ c.name }}">{% endfor %}</datalist>
+    </label>
+    <label class="grow">contact (optional) <input name="contact" placeholder="their slug, e.g. jane-roe"></label>
+    <label>due <input type="date" name="due"></label>
+  </div>
+  <button type="submit">Create task</button>
+</form>
+<table>
+  <tr><th>due</th><th>for</th><th>task</th><th></th></tr>
+  {% for r in listed_overdue + listed_future + listed_undated %}
+  <tr class="{% if r.task.overdue(today) %}overdue{% endif %}">
+    <td class="{% if r.task.overdue(today) %}overdue{% endif %}">{{ fmt_date(r.task.due) if r.task.due else 'no date' }}</td>
+    <td><a href="/companies/{{ r.company.slug }}{% if r.contact %}/contacts/{{ r.contact.slug }}{% endif %}">{{ r.contact.name if r.contact else r.company.name }}</a>{% if r.contact %} <span class="small">({{ r.company.name }})</span>{% endif %}</td>
+    <td>{{ r.task.text }}</td>
+    <td class="actions">
+      <form method="post" action="/companies/{{ r.company.slug }}/tasks/{{ r.index }}/done" class="inline">
+        <input type="hidden" name="contact" value="{{ r.contact.slug if r.contact else '' }}">
+        <input type="hidden" name="text" value="{{ r.task.text }}">
+        <input type="hidden" name="done" value="1">
+        <button type="submit">Done</button>
+      </form>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="4" class="empty">Nothing on the list.</td></tr>
   {% endfor %}
 </table>
 

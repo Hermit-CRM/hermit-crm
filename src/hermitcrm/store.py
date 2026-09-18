@@ -31,6 +31,7 @@ from .models import (
     Role,
     Source,
     STAGE_ALIASES,
+    Task,
     Stage,
     StageChange,
     TaskStatus,
@@ -184,20 +185,21 @@ COMPANY_COPY_FIELDS = (
     "name", "slug", "website", "linkedin", "country", "source", "stage",
     "stage_changed", "lost_reason", "requalify_on", "value_eur_month",
     "product_oneliner", "next_step",
-    "next_step_due", "next_step_status", "tags", "stage_history", "created", "updated",
+    "next_step_due", "next_step_status", "tags", "stage_history", "tasks",
+    "created", "updated",
     "notes",
 )
 # Fields a merge lets you choose per side (everything but slug, timestamps and
 # the stage history, which is always combined).
 COMPANY_MERGE_FIELDS = tuple(
     f for f in COMPANY_COPY_FIELDS
-    if f not in ("slug", "created", "updated", "stage_history"))
+    if f not in ("slug", "created", "updated", "stage_history", "tasks"))
 CONTACT_COPY_FIELDS = (
     "first_name", "last_name", "slug", "title", "linkedin", "email", "phone",
-    "role", "created", "updated", "notes",
+    "role", "tasks", "created", "updated", "notes",
 )
 CONTACT_MERGE_FIELDS = tuple(
-    f for f in CONTACT_COPY_FIELDS if f not in ("slug", "created", "updated"))
+    f for f in CONTACT_COPY_FIELDS if f not in ("slug", "created", "updated", "tasks"))
 INTERACTION_COPY_FIELDS = (
     "id", "date", "channel", "direction", "contact", "subject", "outcome",
     "source", "message_id", "body",
@@ -720,6 +722,95 @@ class Store:
                 out[key] = value
         return out
 
+    # ----------------------------------------------------------------- tasks
+
+    def _task_owner(self, slug: str, contact: str = ""):
+        """(company, record) -- the record is the company or one of its contacts."""
+        company = self.companies.get(slug)
+        if company is None:
+            raise ValidationError({"slug": f"unknown company {slug!r}"})
+        if not contact:
+            return company, company
+        person = company.contacts.get(contact)
+        if person is None:
+            raise ValidationError({"contact": f"unknown contact {contact!r} "
+                                              f"for {slug!r}"})
+        return company, person
+
+    def _write_owner(self, company: Company, record) -> None:
+        if record is company:
+            self.write_company(company)
+        else:
+            self.write_contact(company.slug, record)
+
+    def _task_at(self, record, index: int, text: str = "") -> Task:
+        """The task at `index`, checked against `text` when the caller passes it.
+
+        A page loaded before another change moved the list would otherwise tick
+        off or delete the wrong line without saying anything.
+        """
+        if not 0 <= index < len(record.tasks):
+            raise ValidationError({"task": "that task is no longer there; reload the page"})
+        task = record.tasks[index]
+        if text and " ".join(text.split()) != task.text:
+            raise ValidationError({"task": "that task has changed since the page was "
+                                           "loaded; reload and try again"})
+        return task
+
+    def add_task(self, slug: str, text: str, due=None, contact: str = "",
+                 message: str | None = None) -> Task:
+        company, record = self._task_owner(slug, contact)
+        text = " ".join((text or "").split())
+        if not text:
+            raise ValidationError({"text": "a task needs a line of text"})
+        task = Task(text=text, due=self._coerce_date(due, "due"))
+        record.tasks = [*record.tasks, task]
+        record.updated = self.now()
+        where = f"{slug}/{contact}" if contact else slug
+        self._write_owner(company, record)
+        self._notify(message or f"task: {where} added")
+        return task
+
+    def set_task_done(self, slug: str, index: int, done: bool = True,
+                      contact: str = "", text: str = "") -> Task:
+        company, record = self._task_owner(slug, contact)
+        task = self._task_at(record, index, text)
+        task.done = bool(done)
+        record.updated = self.now()
+        where = f"{slug}/{contact}" if contact else slug
+        verb = "done" if task.done else "reopened"
+        self._write_owner(company, record)
+        self._notify(f"task: {where} {verb}")
+        return task
+
+    def delete_task(self, slug: str, index: int, contact: str = "",
+                    text: str = "") -> Task:
+        company, record = self._task_owner(slug, contact)
+        task = self._task_at(record, index, text)
+        record.tasks = [t for i, t in enumerate(record.tasks) if i != index]
+        record.updated = self.now()
+        where = f"{slug}/{contact}" if contact else slug
+        self._write_owner(company, record)
+        self._notify(f"task: {where} deleted")
+        return task
+
+    def open_tasks(self, today=None) -> list[tuple[Company, object, int, Task]]:
+        """Every open task in the folder as (company, record, index, task).
+
+        The store already holds every company with its contacts in memory, so
+        this is a walk, not a query.
+        """
+        out = []
+        for company in self.companies.values():
+            for index, task in enumerate(company.tasks):
+                if not task.done:
+                    out.append((company, company, index, task))
+            for person in company.contacts.values():
+                for index, task in enumerate(person.tasks):
+                    if not task.done:
+                        out.append((company, person, index, task))
+        return out
+
     def merge_companies(self, keep: str, drop: str,
                         choices: dict[str, str] | None = None) -> Company:
         """Fold company `drop` into `keep`: fields per `choices` (keep | drop |
@@ -740,6 +831,9 @@ class Store:
                 field_name, getattr(a, field_name), getattr(b, field_name),
                 choices.get(field_name)))
         merged.extra = self._merge_extra(a.extra, b.extra, choices)
+        # Tasks are not a field you pick a winner for: dropping one side's list
+        # would lose work silently, so both survive.
+        merged.tasks = [*a.tasks, *b.tasks]
         if merged.stage == Stage.LOST.value and not merged.lost_reason:
             raise ValidationError(
                 {"lost_reason": "lost_reason is required when stage is lost"})
@@ -802,6 +896,7 @@ class Store:
             raise ValidationError({"drop": "a contact cannot be merged into itself"})
         merged = Contact(**{k: getattr(a, k) for k in CONTACT_COPY_FIELDS})
         merged.extra = self._merge_extra(a.extra, b.extra, choices)
+        merged.tasks = [*a.tasks, *b.tasks]   # never chosen between; see above
         for field_name in CONTACT_MERGE_FIELDS:
             setattr(merged, field_name, self._merge_value(
                 field_name, getattr(a, field_name), getattr(b, field_name),
