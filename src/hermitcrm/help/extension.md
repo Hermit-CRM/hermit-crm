@@ -8,6 +8,23 @@ written. The extension is the short path: you are on a company's website or its
 LinkedIn company page, you click one bookmark, and a new-company form opens
 with the fields already filled in.
 
+## A profile makes a contact
+
+A LinkedIn or Xing profile is a person, not a company, so it opens the
+new-contact form rather than the new-company one: name, title and the profile
+URL filled in, with the employer the page names typed into the company box.
+That box matches what you have already, so capturing three people from the
+same company puts all three on one record instead of making three companies.
+If the page names no employer, type the company yourself.
+
+Logged out, a profile gives away very little: a name, a headline and usually
+the current employer. Hermit CRM takes those and leaves the rest empty rather
+than guessing, because a wrong employer creates a wrong company. A person's
+headline becomes the contact's **title**, never the company's one-liner --
+reading it as one produced sentences like "Most companies don't have a lead
+problem... - Experience: ... - 500+ connections on LinkedIn", which is how this
+was found.
+
 ## The bookmarklet
 
 The `/extension` page has a link to drag to your bookmarks bar. It points at the

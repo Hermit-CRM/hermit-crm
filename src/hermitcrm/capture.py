@@ -35,10 +35,33 @@ class Capture:
     """What a URL gave us, before anything is written."""
 
     url: str
+    kind: str = "company"            # company | person
     name: str = ""
     fields: dict = field(default_factory=dict)
     notes: str = ""
     existing: Company | None = None  # already in the CRM, so do not make a second
+    person: scrape.PersonFacts | None = None
+    company: Company | None = None   # the employer, when we already have it
+
+    @property
+    def contact_values(self) -> dict:
+        """The new-contact form's values, prefilled from a profile page.
+
+        The company is a name rather than a slug: that form already matches a
+        typed name against the companies you have, falls back to the email
+        domain and otherwise creates one, and it is the same journey whether
+        you typed the name or a page suggested it.
+        """
+        p = self.person or scrape.PersonFacts()
+        company = self.company.name if self.company is not None else p.employer
+        return {
+            "name": p.name,
+            "email": "",
+            "title": p.headline,
+            "linkedin": self.url,
+            "company": company,
+            "website": self.company.website if self.company is not None else "",
+        }
 
     @property
     def values(self) -> dict:
@@ -97,23 +120,64 @@ def find_existing(store: Store, url: str, fields: dict) -> Company | None:
     return None
 
 
+def company_by_name(store: Store, name: str) -> Company | None:
+    """An existing company with this name, case- and suffix-insensitively."""
+    name = (name or "").strip()
+    if not name:
+        return None
+    wanted = slugify(name, strip_legal=True)
+    for company in store.companies.values():
+        if company.slug == wanted or company.name.strip().lower() == name.lower():
+            return company
+    return None
+
+
 def from_url(store: Store, url: str, fetcher=scrape.fetch,
              custom_keys=()) -> Capture:
-    """Read a page and come back with a company ready to create.
+    """Read a page and come back with a record ready to create.
 
-    Raises ScrapeError when the page cannot be read; the caller shows the reason
-    and lets the URL be typed by hand. Nothing is written here.
+    A profile page makes a *contact*, with the company it names beside it; any
+    other page makes a company. Raises ScrapeError when the page cannot be
+    read; the caller shows the reason and lets the URL be typed by hand.
+    Nothing is written here.
     """
     url = normalise_website((url or "").strip())
     if not url:
         raise scrape.ScrapeError("no URL given")
     facts = scrape.parse_page(url, fetcher(url))
+    if scrape.is_person_page(facts):
+        person = scrape.person_from(facts)
+        return Capture(url=url, kind="person", name=person.name, person=person,
+                       company=company_by_name(store, person.employer),
+                       existing=contact_holding(store, url))
     # A blank company has every field empty, so nothing is skipped as "already set".
     proposal = scrape.propose_from_facts(Company(name="", slug=""), facts,
                                          custom_keys=custom_keys)
     fields = dict(proposal.fields)
     return Capture(url=url, name=company_name(facts, url), fields=fields,
                    notes=proposal.notes, existing=find_existing(store, url, fields))
+
+
+def contact_holding(store: Store, url: str) -> Company | None:
+    """The company of a contact who already has this profile URL.
+
+    Capturing someone you have already saved should take you to them, the same
+    way capturing a company you have takes you to the company.
+    """
+    wanted = (url or "").rstrip("/").lower()
+    for company in store.companies.values():
+        for contact in company.contacts.values():
+            if contact.linkedin and contact.linkedin.rstrip("/").lower() == wanted:
+                return company
+    return None
+
+
+def contact_slug_in(company: Company, url: str) -> str:
+    wanted = (url or "").rstrip("/").lower()
+    for contact in company.contacts.values():
+        if contact.linkedin and contact.linkedin.rstrip("/").lower() == wanted:
+            return contact.slug
+    return ""
 
 
 def suggested_slug(name: str) -> str:
