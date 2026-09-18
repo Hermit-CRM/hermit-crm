@@ -66,6 +66,7 @@ from .models import (
     fmt_datetime,
     normalise_email,
     normalise_website,
+    safe_href,
     parse_date,
     slugify,
     split_name,
@@ -737,6 +738,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
     )
 
     templates.env.filters["slug"] = slugify  # CSS class names from outcome values
+    templates.env.filters["href"] = safe_href  # stored URLs: http(s) or nothing
 
     def render(request: Request, name: str, ctx: dict, status_code: int = 200):
         context = {

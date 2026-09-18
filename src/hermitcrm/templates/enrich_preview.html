@@ -21,7 +21,7 @@
   {% if proposal.notes %}<p class="small">{{ proposal.notes }}</p>{% endif %}
   {% if proposal.sources %}
   <p class="small">sources:
-    {% for s in proposal.sources %}<a href="{{ s }}" target="_blank" rel="noopener">{{ s }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+    {% for s in proposal.sources %}<a href="{{ s | href }}" target="_blank" rel="noopener">{{ s }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
   </p>
   {% endif %}
   {% set unfound = proposal.missing | reject('in', proposal.fields) | list %}

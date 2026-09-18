@@ -202,13 +202,47 @@ def parse_datetime(s) -> datetime | None:
 # ------------------------------------------------------------------ normalisers
 
 
+_WEB_URL = re.compile(r"^https?://", re.IGNORECASE)
+_OTHER_SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*://", re.IGNORECASE)
+
+
 def normalise_website(s: str | None) -> str:
+    """An http(s) URL, whatever was typed: `example.com` gets https://.
+
+    Any other scheme is dropped (`ftp://x` becomes `https://x`), so a stored
+    link can never be `javascript:` or `data:`. A bare `javascript:alert(1)`
+    becomes `https://javascript:alert(1)`: nonsense, but inert.
+    """
     s = (s or "").strip()
     if not s:
         return ""
-    if "://" not in s:
-        s = "https://" + s
+    if not _WEB_URL.match(s):
+        s = "https://" + _OTHER_SCHEME.sub("", s)
     return s
+
+
+def normalise_linkedin(value: str | None) -> str:
+    """A LinkedIn URL as https://www.linkedin.com/..., without a trailing slash."""
+    value = (value or "").strip()
+    if not value:
+        return ""
+    if not _WEB_URL.match(value):
+        value = "https://" + _OTHER_SCHEME.sub("", value).removeprefix("www.")
+    value = re.sub(r"^https?://(www\.)?linkedin\.com", "https://www.linkedin.com", value,
+                   flags=re.IGNORECASE)
+    return value.rstrip("/")
+
+
+def safe_href(url) -> str:
+    """The URL if it is http(s), else "": the last check before a value becomes a link.
+
+    Files are edited by hand and by other tools, so a stored website or LinkedIn
+    field is not trusted to have gone through the normalisers above.
+    """
+    url = str(url or "").strip()
+    if _WEB_URL.match(url) and not any(ord(ch) < 32 for ch in url):
+        return url
+    return ""
 
 
 def normalise_email(s: str | None) -> str:
@@ -571,10 +605,36 @@ def _scalar(value: str) -> str:
     return dumped.rstrip("\n")
 
 
+_PLAIN_KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*$")
+# Words YAML 1.1 reads as a boolean or null, not as the key they spell.
+_YAML_WORDS = {"y", "n", "yes", "no", "on", "off", "true", "false", "null"}
+
+
+def _flow(value) -> str:
+    """Any YAML-safe value (nested lists, maps, numbers) as one flow-style line."""
+    dumped = yaml.safe_dump(value, default_flow_style=True, sort_keys=False,
+                            allow_unicode=True, width=10**9)
+    if dumped.endswith("\n...\n"):
+        dumped = dumped[:-5]
+    return dumped.strip()
+
+
 def dump_frontmatter(meta: dict) -> str:
+    """Front matter lines, in the order of `meta`.
+
+    The fields Hermit CRM knows keep their hand-editable layout. Anything else
+    (a key another tool or the user added) must read back as the same value, so
+    what does not fit the simple forms is written as YAML flow style. The one
+    exception is "": it is written as an empty value, as for every known field,
+    and reads back as null.
+    """
     lines = []
     for key, value in meta.items():
-        if isinstance(value, list) and value and isinstance(value[0], dict):
+        if (not isinstance(key, str) or not _PLAIN_KEY.match(key)
+                or key.lower() in _YAML_WORDS):
+            # `weird key: yes` unquoted would make the whole file unreadable.
+            key = _flow(key) if not isinstance(key, str) else _scalar(key)
+        if isinstance(value, list) and value and all(isinstance(v, dict) for v in value):
             # A list of maps (stage_history): one flow mapping per line.
             lines.append(f"{key}:")
             for item in value:
@@ -590,16 +650,20 @@ def dump_frontmatter(meta: dict) -> str:
         if isinstance(value, list):
             if not value:
                 lines.append(f"{key}: []")
-            else:
-                lines.append(f"{key}: [{', '.join(_scalar(str(v)) for v in value)}]")
+            elif all(isinstance(v, str) for v in value):
+                lines.append(f"{key}: [{', '.join(_scalar(v) for v in value)}]")
+            else:  # numbers, booleans, nested lists: str() would lose them
+                lines.append(f"{key}: {_flow(value)}")
             continue
         if value is None or value == "":
             lines.append(f"{key}:")
             continue
         if isinstance(value, bool):
             lines.append(f"{key}: {'true' if value else 'false'}")
-        elif isinstance(value, (int, float)):
+        elif isinstance(value, int):
             lines.append(f"{key}: {value}")
+        elif isinstance(value, float):
+            lines.append(f"{key}: {_flow(value)}")  # 1e+20 and inf need YAML's spelling
         elif isinstance(value, datetime):
             lines.append(f"{key}: {fmt_datetime(value)}")
         elif isinstance(value, date):

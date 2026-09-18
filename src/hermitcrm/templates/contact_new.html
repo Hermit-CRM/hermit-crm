@@ -10,7 +10,7 @@
 {% endif %}
 {% if capture %}
 <div class="flash capture-note">
-  Read from <a href="{{ capture.url }}" rel="noreferrer noopener">{{ capture.url }}</a>: a profile, so this makes a contact and the company it names.
+  Read from <a href="{{ capture.url | href }}" rel="noreferrer noopener">{{ capture.url }}</a>: a profile, so this makes a contact and the company it names.
   {% if capture.company %}<strong>{{ capture.company.name }}</strong> is already in the CRM and the contact will go there.
   {% elif capture.person and capture.person.employer %}No company called <strong>{{ capture.person.employer }}</strong> yet; saving creates it.
   {% else %}The page did not name an employer, so type the company yourself.{% endif %}

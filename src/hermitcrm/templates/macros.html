@@ -61,12 +61,12 @@
 <section id="drafts">
   <h2>Message drafts{% if draft_contact %} for {{ draft_contact.first_name }}{% endif %} ({{ language_names[drafts[0].language] }})</h2>
   <form method="get" action="{{ page }}" class="inline-row drafts-form">
-    <label>signal (check <a href="{{ company.linkedin ~ '/insights/' if company.linkedin else 'https://www.linkedin.com/company/' ~ company.slug ~ '/insights/' }}" target="_blank" rel="noopener">LinkedIn insights</a>)
+    <label>signal (check <a href="{{ (company.linkedin | href) ~ '/insights/' if company.linkedin | href else 'https://www.linkedin.com/company/' ~ company.slug ~ '/insights/' }}" target="_blank" rel="noopener">LinkedIn insights</a>)
       <select name="signal">
         {% for s in signals %}<option value="{{ s }}"{% if s == signal %} selected{% endif %}>{{ signal_labels[s] }}</option>{% endfor %}
       </select>
     </label>
-    <label class="grow">observation (one sentence from {% if company.website %}<a href="{{ company.website }}" target="_blank" rel="noopener">their site</a>{% else %}their site{% endif %} or team)
+    <label class="grow">observation (one sentence from {% if company.website %}<a href="{{ company.website | href }}" target="_blank" rel="noopener">their site</a>{% else %}their site{% endif %} or team)
       <input name="observation" value="{{ observation }}" placeholder="e.g. Great to see your growth; I just tried your product-led demo.">
     </label>
     <button type="submit">Refresh drafts</button>

@@ -5,7 +5,7 @@
 <h1>New company</h1>
 {% if capture %}
 <div class="flash capture-note">
-  Read from <a href="{{ capture.url }}" rel="noreferrer noopener">{{ capture.url }}</a>.
+  Read from <a href="{{ capture.url | href }}" rel="noreferrer noopener">{{ capture.url }}</a>.
   Check the fields before saving.{% if capture.notes %} <span class="small">{{ capture.notes }}</span>{% endif %}
 </div>
 {% endif %}

@@ -5,8 +5,8 @@
 <h1>{{ company.name }}</h1>
 {% if company.product_oneliner %}<p class="oneliner">{{ company.product_oneliner }}</p>{% endif %}
 <div class="small record-meta">
-  {% if company.website %}<a href="{{ company.website }}" target="_blank" rel="noopener">{{ company.website | replace('https://', '') | replace('http://', '') }}</a>{% endif %}
-  {% if company.linkedin %}<a href="{{ company.linkedin }}" target="_blank" rel="noopener">linkedin</a>{% endif %}
+  {% if company.website %}<a href="{{ company.website | href }}" target="_blank" rel="noopener">{{ company.website | replace('https://', '') | replace('http://', '') }}</a>{% endif %}
+  {% if company.linkedin %}<a href="{{ company.linkedin | href }}" target="_blank" rel="noopener">linkedin</a>{% endif %}
   <span>{{ company.stage }}{% if company.lost_reason %} ({{ company.lost_reason }}){% endif %}{% if company.requalify_on %}, requalifies on {{ fmt_date(company.requalify_on) }}{% endif %} &middot; {{ company.days_in_stage(today) }}d in stage</span>
   <span>last touch: {{ company.last_touch_summary }}</span>
   {% for f in custom_fields_for('company') if f.shows_in('detail') and company.extra.get(f.key) not in (none, '') %}
@@ -103,7 +103,7 @@
       <td>{{ c.title }}</td>
       <td>{{ c.role }}</td>
       <td>{% if c.email %}<a href="mailto:{{ c.email }}">{{ c.email }}</a>{% endif %}</td>
-      <td>{% if c.linkedin %}<a href="{{ c.linkedin }}" target="_blank" rel="noopener">profile</a>{% endif %}</td>
+      <td>{% if c.linkedin %}<a href="{{ c.linkedin | href }}" target="_blank" rel="noopener">profile</a>{% endif %}</td>
       <td><a href="/companies/{{ company.slug }}/contacts/{{ slug }}#drafts">drafts</a></td>
     </tr>
     {% else %}
