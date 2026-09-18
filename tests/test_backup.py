@@ -256,6 +256,14 @@ def test_a_missing_backup_is_recreated_loudly(folder, home):
     assert refs(dest_of(folder, home))["refs/heads/main"] == git(folder, "rev-parse", "HEAD")
 
 
+def test_changing_backup_dir_is_not_reported_as_missing(folder, home, tmp_path):
+    run(folder, home)
+    out = run(folder, home, minutes=5, config={"backup_dir": str(tmp_path / "new.git")})
+    assert out.code == 0 and not out.warnings
+    assert any("backup_dir changed" in l for l in out.lines)
+    assert dest_of(folder, home).exists()  # the old one is left alone
+
+
 def test_backup_dir_inside_the_folder_is_refused(folder, home):
     out = run(folder, home, config={"backup_dir": str(folder / "bk.git")})
     assert out.code == 2 and "inside the data folder" in out.lines[0]

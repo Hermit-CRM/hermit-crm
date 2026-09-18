@@ -236,7 +236,11 @@ def run(root: Path, config: dict | None = None, home: Path | None = None,
         out.lines.append(str(exc))
         out.code = 2
         return out
-    if created and state.get("last_ok"):
+    moved = bool(state.get("dest")) and state["dest"] != str(dest)
+    if created and moved:
+        out.lines.append(f"backup_dir changed: starting a new backup at {dest}; the "
+                         f"old one stays at {state['dest']}")
+    elif created and state.get("last_ok"):
         out.warnings.append(
             f"the backup at {dest} was missing and has been started again; the "
             f"backups up to {state['last_ok']} are gone. If you did not remove it, "
