@@ -16,9 +16,9 @@
     <td>{{ c.country }}</td>
     <td>{{ c.stage }}{% if c.requalify_on %} <span class="small">until {{ fmt_date(c.requalify_on) }}</span>{% endif %}</td>
     <td>{{ c.source }}</td>
-    <td>{{ '' if c.my_score is none else c.my_score }}</td>
-    <td>{{ '' if c.fit_score is none else c.fit_score }}</td>
-    <td>{{ c.fte_estimate }}</td>
+    {% for f in custom_fields_for('company') if f.shows_in('companies') %}
+    <td>{{ f.display(c.extra.get(f.key)) }}</td>
+    {% endfor %}
     <td>{{ c.tags | join(', ') }}</td>
     <td>{{ c.last_touch_summary }}</td>
     <td{% if c.next_step_done %} class="done"{% endif %}>{{ c.next_step }}{% if c.next_step_done %} (done){% endif %}</td>

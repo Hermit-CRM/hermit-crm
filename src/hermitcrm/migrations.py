@@ -34,7 +34,16 @@ class Migration:
     version: int
     title: str
     glob: str                      # files it may touch, relative to the data folder
-    apply: Callable[[dict], dict]  # front matter in, (possibly) new front matter out
+    apply: Callable[[dict], dict] | None = None   # front matter in, front matter out
+    # Some changes are not about front matter at all. A folder step runs after
+    # every file pass, is handed the front matter as the run will leave it (not
+    # as the disk still has it), and returns the paths it wrote so a dry run can
+    # list them like any other change.
+    folder: Callable[..., list[str]] | None = None
+
+
+def _noop(meta: dict) -> dict:
+    return meta
 
 
 def _rename_key(meta: dict, old: str, new: str) -> dict:
@@ -112,6 +121,47 @@ def m4_stage_engaged(meta: dict) -> dict:
     return new if new != meta else meta
 
 
+# The four fields a Hermit CRM used to have built in, with the shape they had.
+# A folder that used any of them keeps working because they become definitions:
+# the values never move, only the description of them is new.
+LEGACY_FIELDS = [
+    ("my_score", "my score", "number", ["detail", "board", "companies"],
+     "your own 0 to 10"),
+    ("fit_score", "fit", "number", ["detail", "board", "companies"], "0 to 100"),
+    ("fte_estimate", "FTE estimate", "text", ["detail", "companies"],
+     "as written, e.g. ~13"),
+    ("ae_count", "AE count", "number", ["detail"], ""),
+]
+
+
+def m5_custom_fields(data_dir: Path, meta_by_path: dict, write: bool) -> list[str]:
+    """Describe the four built-in fields this version removed.
+
+    Not one company file is touched: the keys were ordinary YAML before and are
+    ordinary YAML now. What changes is that Hermit CRM no longer knows them by
+    name, so the folder has to say what they are. A folder that never used them
+    gets no fields.toml at all.
+    """
+    from . import fields as fields_mod
+
+    target = data_dir / fields_mod.FILENAME
+    if target.exists():
+        return []
+    used = set()
+    for rel, meta in meta_by_path.items():
+        if not rel.endswith("/company.md"):
+            continue
+        used |= {key for key, _, _, _, _ in LEGACY_FIELDS if key in meta}
+    if not used:
+        return []
+    defs = [fields_mod.FieldDef(key=key, label=label, type=kind, show_in=show_in,
+                                help=help_text)
+            for key, label, kind, show_in, help_text in LEGACY_FIELDS if key in used]
+    if write:
+        fields_mod.write(data_dir, defs)
+    return [fields_mod.FILENAME]
+
+
 MIGRATIONS = [
     Migration(1, "rename gijs_score to my_score", "companies/*/company.md", m1_my_score),
     Migration(2, "country UK→GB, USA→US", "companies/*/company.md", m2_country_codes),
@@ -119,6 +169,8 @@ MIGRATIONS = [
               "companies/*/interactions/*.md", m3_outcome),
     Migration(4, "stage reached-out renamed to engaged", "companies/*/company.md",
               m4_stage_engaged),
+    Migration(5, "scores and team size become fields you define",
+              "companies/*/company.md", folder=m5_custom_fields),
 ]
 LATEST = MIGRATIONS[-1].version
 
@@ -157,6 +209,8 @@ def _run(migrations: list[Migration], data_dir: Path, write: bool) -> dict[int, 
     changed: dict[int, list[str]] = {m.version: [] for m in migrations}
     staged: dict[Path, tuple[dict, str]] = {}
     for m in migrations:
+        if m.apply is None:
+            continue
         for path in sorted(data_dir.glob(m.glob)):
             if path in staged:
                 meta, body = staged[path]
@@ -174,6 +228,22 @@ def _run(migrations: list[Migration], data_dir: Path, write: bool) -> dict[int, 
         for path, (meta, body) in staged.items():
             if path.relative_to(data_dir).as_posix() in touched:
                 path.write_text(build_file(meta, body), encoding="utf-8")
+    # Folder steps run last and see the front matter as this run leaves it. A
+    # step that read the disk instead would see the state before the file
+    # passes, which is a different folder in a dry run and in a real one.
+    after = {path.relative_to(data_dir).as_posix(): meta for path, (meta, _) in staged.items()}
+    for m in migrations:
+        if m.folder is None:
+            continue
+        # Its glob may name files no other migration in this batch read.
+        for path in sorted(data_dir.glob(m.glob)):
+            rel = path.relative_to(data_dir).as_posix()
+            if rel not in after:
+                try:
+                    after[rel], _ = split_file(path.read_text(encoding="utf-8"))
+                except Exception:
+                    continue
+        changed[m.version] += m.folder(data_dir, after, write)
     return changed
 
 

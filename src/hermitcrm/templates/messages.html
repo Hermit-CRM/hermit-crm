@@ -23,6 +23,9 @@
     <td>{{ r.stage }}</td>
     <td class="outcome-{{ r.status | slug }}">{{ r.status }}{% if not r.explicit and r.status != 'unknown' %} <span class="small">(auto)</span>{% endif %}</td>
     <td>{{ r.uses }}</td>
+    {% for f in custom_fields_for('interaction') if f.shows_in('messages') %}
+    <td>{{ f.display(r.extra.get(f.key)) }}</td>
+    {% endfor %}
     {# Closed: the one-line preview. Open: the full text only, with a "hide" label in the summary (CSS swaps them). #}
     <td class="message"><details><summary><span class="preview">{{ r.preview[:110] }}{% if r.preview | length > 110 %}&hellip;{% endif %}</span><span class="hide">hide</span></summary><pre>{{ r.body }}</pre></details></td>
     <td class="actions nowrap">
@@ -35,7 +38,7 @@
     </td>
   </tr>
   {% else %}
-  <tr><td colspan="10" class="empty">No messages logged yet. Log an outbound interaction with a body and it shows up here.</td></tr>
+  <tr><td colspan="{{ filter_columns | length }}" class="empty">No messages logged yet. Log an outbound interaction with a body and it shows up here.</td></tr>
   {% endfor %}
 </table>
 {% endblock %}

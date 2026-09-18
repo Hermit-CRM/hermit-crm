@@ -38,10 +38,6 @@ show only real changes.
 | lost_reason | text | required for lost; optional for disqualified and temp-disqualified; cleared otherwise |
 | requalify_on | date or empty | only while temp-disqualified: the day it goes back to prospect |
 | value_eur_month | int or empty | |
-| my_score | int or empty | your 0 to 10 |
-| fit_score | int or empty | 0 to 100 |
-| fte_estimate | text | as written, e.g. `~13` |
-| ae_count | int or empty | |
 | product_oneliner | text | |
 | next_step | text | one line |
 | next_step_due | date or empty | |
@@ -49,6 +45,41 @@ show only real changes.
 | tags | list | may be `[]` |
 | stage_history | list of maps | see below; omitted while empty |
 | created, updated | datetime | |
+
+Plus any field you defined yourself (see below), and any key Hermit CRM does
+not recognise, which is kept and written back untouched.
+
+## Fields of your own
+
+`fields.toml`, beside your data, describes fields Hermit CRM does not have:
+
+```toml
+[[field]]
+key = "fit_score"          # the front-matter key, and the filter key
+label = "fit"              # what the interface calls it
+type = "number"            # text, number, date or select
+applies_to = "company"     # company, contact or interaction
+help = "0 to 100"          # optional, shown under the input
+show_in = ["detail", "companies"]   # where it appears
+```
+
+`show_in` takes `detail` (the record's own page) plus the tables the record
+appears in: `board` and `companies` for a company field, `contacts` for a
+contact, `messages` for an interaction. Wherever a field is a column it can be
+filtered and sorted like any built-in one. A `select` field needs `options`,
+and a field with `enrich = true` and a `description` is offered to the AI when
+you press Enrich.
+
+The values are ordinary front matter, so a field you stop describing does not
+lose anything: the key stays in the file and comes back the moment you
+describe it again. A key that a built-in field already uses is refused, since
+a custom field with that name would shadow it.
+
+Hermit CRM had four such fields built in until 0.3.0 -- `my_score`,
+`fit_score`, `fte_estimate` and `ae_count` -- which were one person's way of
+working rather than a CRM's. An existing folder that used them gets a
+`fields.toml` describing them, written automatically, without a single
+company file being touched.
 
 The body is free Markdown notes.
 

@@ -358,10 +358,6 @@ class Company:
     lost_reason: str = ""
     requalify_on: date | None = None  # temp-disqualified until this date
     value_eur_month: int | None = None
-    my_score: int | None = None
-    fit_score: int | None = None
-    fte_estimate: str = ""
-    ae_count: int | None = None
     product_oneliner: str = ""
     next_step: str = ""
     next_step_due: date | None = None
@@ -613,10 +609,6 @@ def company_to_frontmatter(c: Company) -> dict:
         "lost_reason": c.lost_reason,
         "requalify_on": c.requalify_on,
         "value_eur_month": c.value_eur_month,
-        "my_score": c.my_score,
-        "fit_score": c.fit_score,
-        "fte_estimate": c.fte_estimate,
-        "ae_count": c.ae_count,
         "product_oneliner": c.product_oneliner,
         "next_step": c.next_step,
         "next_step_due": c.next_step_due,
@@ -675,8 +667,8 @@ def interaction_to_frontmatter(i: Interaction) -> dict:
 # Every key the app reads or writes; anything else is kept in `extra`.
 COMPANY_KEYS = frozenset({
     "name", "slug", "website", "linkedin", "country", "source", "stage", "stage_changed",
-    "lost_reason", "requalify_on", "value_eur_month", "my_score", "fit_score",
-    "fte_estimate", "ae_count", "product_oneliner", "next_step", "next_step_due",
+    "lost_reason", "requalify_on", "value_eur_month", "product_oneliner",
+    "next_step", "next_step_due",
     "next_step_status", "tags", "stage_history", "created", "updated",
 })
 CONTACT_KEYS = frozenset({
@@ -794,10 +786,6 @@ def company_from_dict(meta: dict, body: str, slug: str) -> Company:
         lost_reason=lost_reason,
         requalify_on=_date_or_none(meta.get("requalify_on"), "requalify_on", errors),
         value_eur_month=_int_or_none(meta.get("value_eur_month"), "value_eur_month", errors),
-        my_score=_int_or_none(meta.get("my_score"), "my_score", errors),
-        fit_score=_int_or_none(meta.get("fit_score"), "fit_score", errors),
-        fte_estimate=_str(meta, "fte_estimate").strip(),
-        ae_count=_int_or_none(meta.get("ae_count"), "ae_count", errors),
         product_oneliner=_str(meta, "product_oneliner").strip(),
         next_step=_str(meta, "next_step").strip(),
         next_step_due=_date_or_none(meta.get("next_step_due"), "next_step_due", errors),
