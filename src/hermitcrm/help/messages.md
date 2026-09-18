@@ -2,6 +2,21 @@
 
 `/messages`: every message you sent, newest first, with what came of it.
 
+## Fields of your own in a draft
+
+Every [field you defined](/help/settings) is a slot the templates can use by
+its key: a field `segment` is `{segment}`. A field with no value yet renders as
+its label in square brackets, like the other things only you can fill in, so a
+draft never goes quietly blank. A field can be kept out of the templates
+entirely with `messaging = false` in `fields.toml`, and a field whose key is
+already a slot name (`company`, `site`, `first`, ...) is ignored rather than
+shadowing it.
+
+Two fields can also play the roles the shipped wording knows about: a
+headcount, for the sentences about team size, and a count of sales people.
+Pick them under Settings -> Drafts. With neither set, those sentences use their
+"unknown" wording, which is a line you write yourself; nothing is invented.
+
 ## What counts as a message
 
 An outbound interaction with a body, on any channel except `meeting`. Calls
