@@ -7,7 +7,9 @@ message:
 > Read INSTALL.md and set up Hermit CRM for me.
 
 It will do the rest and ask you what it needs to know. You need Python 3.11 or
-newer and git; the assistant checks both.
+newer and git; the assistant checks both. **On a Mac that has never been used
+for programming, neither is really there** and one dialog has to be clicked by
+you: the assistant will say so and wait.
 
 Prefer to do it by hand? [README.md](README.md) has the same steps as commands.
 
@@ -26,10 +28,62 @@ the error and what it means.
 
 ### 1. Check the machine
 
-`python3 --version` must report 3.11 or newer, and `git --version` must work.
-If Python is older or missing, stop: tell them to install Python 3.11+ from
-python.org (or `brew install python` on a Mac) and say you will continue after
-that. Do not try to install Python for them.
+```bash
+git --version
+python3 --version
+```
+
+`git` must print a version, and Python must be **3.11 or newer**. If both are
+fine, go to step 2.
+
+**On a Mac, expect both to fail, and not in the way they look like they fail.**
+`/usr/bin/python3` and `/usr/bin/git` always exist, so `which` finds them, but
+they are stubs. Until Apple's Command Line Tools are installed they do nothing
+except ask for those tools:
+
+```
+xcode-select: note: No developer tools were found, requesting install.
+```
+
+That is not "git is missing". It is "git is a placeholder for git". Check it
+directly rather than guessing:
+
+```bash
+xcode-select -p          # prints a path when the tools are installed; errors when not
+```
+
+There are two separate problems on such a Mac, and fixing the first does not fix
+the second:
+
+**Git.** This is the one thing you cannot do for them. Run it yourself:
+
+```bash
+xcode-select --install
+```
+
+It returns immediately and opens a dialog **they** have to click Install in;
+nothing you can type dismisses it. Tell them plainly: a window has opened, press
+Install, it takes a few minutes, tell me when it finishes. Then re-run
+`git --version`. (If it says the tools are already installed but git still fails,
+their install is broken: `sudo rm -rf /Library/Developer/CommandLineTools` and
+`xcode-select --install` again. Say so; do not run it yourself.)
+
+**Python.** Command Line Tools ship **Python 3.9.6**, which is too old for Hermit
+CRM, so `xcode-select --install` will not fix this and neither will waiting. Do
+not send them to python.org and do not use Homebrew, which needs the same
+Command Line Tools and takes far longer. Install `uv`, which brings its own
+Python and needs no compiler:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Then use `uv` for step 2. It downloads a suitable Python by itself when the
+system one is too old, so there is nothing else to install. If you would rather
+be explicit, `uv python install 3.12` first.
+
+Stop only if `xcode-select --install` is refused or the `uv` install fails; say
+what happened and what you tried.
 
 ### 2. Install the `hermitcrm` command
 
@@ -39,6 +93,10 @@ From this folder, try these in order and stop at the first that works:
 uv tool install .
 pipx install .
 ```
+
+`uv tool install .` is the one to want: it fetches a Python matching Hermit CRM's
+requirement when the system Python is too old, so it works on a machine where
+`python3 --version` still says 3.9.6.
 
 If neither tool exists, fall back to a virtualenv and put the command on their
 PATH:
@@ -86,7 +144,7 @@ If the line below has an address on it, set `feedback_email` to it in the same
 file. It is where the Feedback form offers to send a report, and it is the only
 way whoever packaged this hears whether it worked.
 
-    feedback_email:
+    feedback_email: gcjbos@gmail.com
 
 ### 5. Start the app and show them
 
