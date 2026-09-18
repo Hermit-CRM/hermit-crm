@@ -89,15 +89,21 @@ those commands before they run (deny rules apply in every permission mode):
       "Bash(git push --force-with-lease:*)", "Bash(git commit --amend:*)",
       "Bash(git rebase:*)", "Bash(git filter-branch:*)", "Bash(git filter-repo:*)",
       "Bash(git update-ref -d:*)", "Bash(git reflog expire:*)", "Bash(git gc --prune:*)",
-      "Bash(rm -rf .git:*)", "Bash(rm -rf companies:*)",
+      "Bash(git clean -f:*)", "Bash(git clean -fd:*)", "Bash(git clean -fdx:*)",
+      "Bash(git -C * reset --hard*)", "Bash(git -C * push --force*)",
+      "Bash(git -C * push -f*)", "Bash(git -C * commit --amend*)",
+      "Bash(git -C * rebase*)", "Bash(git -C * filter-branch*)",
+      "Bash(rm -rf .git:*)", "Bash(rm -rf companies:*)", "Bash(rm -rf ~/.hermitcrm:*)",
       "Edit(~/.hermitcrm/**)", "Write(~/.hermitcrm/**)"
     ]
   }
 }
 ```
 
-A deny list matches command prefixes, so it is a seat belt, not a lock: a
-determined `bash -c "..."` gets past it. The backup is what makes that safe.
+A deny list matches command patterns, so it is a seat belt, not a lock: the
+`git -C * ...` lines are there because `git -C <dir> commit --amend` does not
+start with `git commit`, and a `bash -c "..."` or a script still gets past
+all of them. The backup is what makes that safe.
 
 ## What the web app does with hand edits
 

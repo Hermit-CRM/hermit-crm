@@ -249,6 +249,9 @@ def cmd_backup(root: Path, args, home: Path | None = None) -> int:
                                 remote=config.get("remote", "origin"))
                 print(cmd_rebuild(store, gitops))
                 _reload_server(config)
+                after = backup.run(root, config, home=home, push_remote=False)
+                if after.code != 2:  # so the restore itself is in the backup at once
+                    print("backed up the restored state")
             except migrations.FormatTooNew as exc:
                 print(exc, file=sys.stderr)
         return outcome.code

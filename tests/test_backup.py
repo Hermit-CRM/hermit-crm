@@ -485,6 +485,9 @@ def test_cli_backup_run_list_status_restore(folder, cli_home, capsys):
     printed = capsys.readouterr().out
     assert "restored companies/" in printed
     assert (victim / "company.md").read_bytes() == original
+    assert "backed up the restored state" in printed
+    assert refs(backup.default_path(folder, cli_home))["refs/heads/main"] == \
+        git(folder, "rev-parse", "HEAD")  # the restore and its rebuild are in the backup
     assert cli.main(["--data", str(folder), "backup", "status"]) == 0
     assert "last good run" in capsys.readouterr().out
 
