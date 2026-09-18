@@ -398,6 +398,13 @@ form.drafts-form select, form.drafts-form input { width: 100%; }
 .draft textarea { width: 100%; font-family: inherit; font-size: 13px; margin: 4px 0; }
 .record-actions input.url { display: inline-block; width: 320px; }
 
+/* Home: the numbers and the grid of what each part is for. */
+.start-cards.numbers .card h3 { font-size: 26px; margin: 0 0 2px; }
+.start-cards.areas { margin-top: 8px; }
+.start-cards.areas .card h3 { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.start-cards.areas .card .icon { color: var(--muted); }
+.delta { color: var(--muted); }
+
 /* The company header used to be six stacked lines. Two flex rows -- facts,
    then actions -- fit the same information in a third of the height and wrap
    on a phone instead of overflowing. */

@@ -29,11 +29,7 @@
   </div>
 </details>
 {% if no_companies %}
-<div class="start-cards">
-  <a class="card start-card" href="/import"><h3>Import a spreadsheet</h3><div class="small">CSV, TSV or Excel paste of companies or contacts.</div></a>
-  <a class="card start-card" href="/companies/new"><h3>Add a company</h3><div class="small">Start with one account by hand.</div></a>
-  <a class="card start-card" href="/setup#bcc"><h3>Set up BCC capture</h3><div class="small">Log the mail you send without typing it.</div></a>
-</div>
+<p class="small">No companies yet. <a href="/">The home page</a> has the ways to start.</p>
 {% endif %}
 <div class="board">
   {% for column in columns %}

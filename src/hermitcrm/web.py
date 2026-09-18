@@ -689,13 +689,71 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "draft_contact": contact,
         }
 
-    # ------------------------------------------------------------------ board
+    # ------------------------------------------------------------------- home
+
+    # What each part of the app is for, in one line, for someone who has just
+    # opened it. Kept here rather than in the template because the home page
+    # and the help index should not drift apart.
+    AREAS = [
+        ("/pipeline", "Pipeline", "pipeline",
+         "Every open deal as a card, in the stage it has reached."),
+        ("/calendar", "Calendar", "calendar",
+         "What is due when, and your task list."),
+        ("/companies", "Companies", "companies",
+         "Every account as a table you can filter and sort."),
+        ("/contacts", "Contacts", "contacts",
+         "Every person, with the company they belong to."),
+        ("/messages", "Messages", "messages",
+         "What you sent, and whether it was answered."),
+        ("/extension", "Extension", "capture",
+         "Save the page you are looking at as a company or a contact."),
+        ("/reports", "Reports", "reports",
+         "Activity, funnel and outcomes over a period you choose."),
+        ("/ask", "Ask the Hermit", "ask",
+         "A question about the page you are on, or the whole CRM."),
+    ]
 
     @app.get("/", response_class=HTMLResponse)
-    def board(request: Request):
+    def home(request: Request):
         if not str(config.get("owner_email") or "").strip() and not app.state.setup_redirected:
             app.state.setup_redirected = True  # once per server start; "Skip for now" works
             return goto("/settings")
+        today = store.today()
+        week = today + timedelta(days=7)
+        due_soon = sorted(
+            (c for c in store.companies.values()
+             if not c.is_closed and c.next_step_open and c.next_step_due
+             and c.next_step_due <= week),
+            key=lambda c: (c.next_step_due, c.name.lower()))
+        tasks = sorted(
+            ({"company": company, "contact": None if record is company else record,
+              "index": index, "task": task}
+             for company, record, index, task in store.open_tasks(today)
+             if task.due and task.due <= week),
+            key=lambda r: (r["task"].due, r["company"].name.lower()))
+        report = build_report(reports.period_for("30d", today), today)
+        return render(request, "home.html", {
+            "today": today,
+            "due_soon": due_soon,
+            "tasks": tasks,
+            "followups": followups.radar(store, today, **followup_days),
+            "totals": report["activity"]["totals"],
+            "previous": report["activity"]["previous"],
+            "funnel": report["funnel"],
+            "delta": reports.delta,
+            "areas": AREAS,
+            "counts": {
+                "companies": len(store.companies),
+                "contacts": sum(len(c.contacts) for c in store.companies.values()),
+                "interactions": sum(len(c.interactions) for c in store.companies.values()),
+            },
+            "no_companies": not store.companies,
+        })
+
+    # ------------------------------------------------------------------ board
+
+    @app.get("/pipeline", response_class=HTMLResponse)
+    def board(request: Request):
         today = store.today()
         cols = board_columns(app.state.custom_fields)
         active = filters.parse(request.query_params, cols)

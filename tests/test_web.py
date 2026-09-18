@@ -141,7 +141,7 @@ def test_board_lists_open_and_closed(client, app, repo):
                  next_step="Call back", next_step_due=str(YESTERDAY))
     post_company(client, name="Gamma BV", stage="won")
 
-    page = client.get("/").text
+    page = client.get("/pipeline").text
     assert 'id="col-prospect"' in page and 'id="col-discovery"' in page
     assert page.index('id="col-prospect"') < page.index('id="col-engaged"') \
         < page.index('id="col-discovery"') < page.index('id="col-offer"')
@@ -150,6 +150,37 @@ def test_board_lists_open_and_closed(client, app, repo):
     assert "won (1)" in page and "lost (0)" in page
     assert 'onchange="this.form.submit()"' in page
     assert "d in stage" in page
+
+
+def test_the_home_page_is_not_the_board(client, app, repo):
+    """Reported: the logo and the Pipeline tab went to the same place."""
+    post_company(client, name="Acme", next_step="Call Jane", next_step_due=str(TODAY))
+    client.post("/companies/acme/tasks", data={"text": "send the deck",
+                                               "due": str(TODAY)})
+
+    page = client.get("/").text
+    assert 'class="board"' not in page                  # the board is elsewhere now
+    assert "What needs doing" in page and "How it is going" in page
+    assert "What this thing does" in page
+    assert "Call Jane" in page and "send the deck" in page   # both kinds of work
+    assert 'href="/pipeline"' in page and "Every open deal as a card" in page
+
+    nav = page.split("</nav>")[0]
+    assert 'href="/"' in nav and 'href="/pipeline"' in nav   # two entries, two places
+    assert 'class="brand" href="/"' in nav
+
+    board = client.get("/pipeline").text
+    assert 'class="board"' in board and 'id="col-prospect"' in board
+
+
+def test_the_home_page_only_shows_the_next_seven_days(client, app):
+    post_company(client, name="Soon", next_step="this week", next_step_due=str(TODAY))
+    post_company(client, name="Later", next_step="next month",
+                 next_step_due=str(TODAY + timedelta(days=40)))
+    page = client.get("/").text
+    doing = page.split('id="doing"')[1].split("</table>")[0]
+    assert "this week" in doing and "next month" not in doing
+    assert 'href="/calendar"' in page          # the rest is one click away
 
 
 def test_logo_and_favicon(client):
@@ -205,7 +236,7 @@ def test_board_shows_the_follow_up_radar(client, app):
                      date=str(TODAY - timedelta(days=4)) + "T09:00",
                      body="Hi there,\n\nCan you send pricing?")
 
-    page = client.get("/").text
+    page = client.get("/pipeline").text
     assert 'id="followups"' in page and "Follow up (1)" in page
     assert "radar-reply" in page and "wrote, no reply from you" in page
     assert "Can you send pricing?" in page
@@ -214,7 +245,7 @@ def test_board_shows_the_follow_up_radar(client, app):
 
 def test_board_radar_is_absent_when_nothing_is_waiting(client):
     post_company(client, name="Acme GmbH", stage="prospect")
-    page = client.get("/").text
+    page = client.get("/pipeline").text
     assert 'id="followups"' not in page
 
 
@@ -225,7 +256,7 @@ def test_board_card_order_follows_pipeline(client):
                  next_step="x", next_step_due=str(TODAY))
     post_company(client, name="Undated", stage="prospect")
 
-    page = client.get("/").text
+    page = client.get("/pipeline").text
     assert page.index(">Sooner<") < page.index(">Later<") < page.index(">Undated<")
 
 
@@ -280,13 +311,13 @@ def test_reload_picks_up_a_hand_edit(client, repo):
     path.write_text(path.read_text(encoding="utf-8")
                     .replace("stage: prospect", "stage: offer"), encoding="utf-8")
 
-    before = client.get("/").text.split('id="col-offer"')[1].split("</section>")[0]
+    before = client.get("/pipeline").text.split('id="col-offer"')[1].split("</section>")[0]
     assert "Acme GmbH" not in before
     resp = client.post("/reload", headers={"referer": "http://testserver/"})
     assert resp.status_code == 303
     assert resp.headers["location"] == "http://testserver/"
 
-    offer_column = client.get("/").text.split('id="col-offer"')[1]
+    offer_column = client.get("/pipeline").text.split('id="col-offer"')[1]
     assert "Acme GmbH" in offer_column.split("</section>")[0]
 
 
@@ -511,7 +542,7 @@ def test_acceptance_flow(client, app, repo):
     resp = patch_company(client, app, "mueller-soehne", stage="lost",
                          lost_reason="no budget")
     assert resp.status_code == 303
-    board = client.get("/").text
+    board = client.get("/pipeline").text
     lost_block = board[board.index('id="closed-lost"'):]
     assert "Müller &amp; Söhne GmbH" in lost_block or \
            "Müller & Söhne GmbH" in lost_block
@@ -533,16 +564,16 @@ def test_country_stays_on_the_record_but_leaves_the_company_header(client, app, 
 
     assert 'name="country" value="NL" list="country-codes"' in page  # the edit form
     assert app.state.store.get("acme").country == "NL"
-    assert "NL" in client.get("/").text.split('id="col-prospect"')[1].split("</section>")[0]
+    assert "NL" in client.get("/pipeline").text.split('id="col-prospect"')[1].split("</section>")[0]
     assert "<th>country" in client.get("/companies").text
 
 
 def test_board_stage_dropdown_offers_engaged(client, app):
     post_company(client, name="Acme")
-    assert '<option value="engaged">' in client.get("/").text
+    assert '<option value="engaged">' in client.get("/pipeline").text
     r = client.post("/companies/acme/stage", data={"stage": "engaged"})
     assert r.status_code == 303
-    column = client.get("/").text.split('id="col-engaged"')[1].split("</section>")[0]
+    column = client.get("/pipeline").text.split('id="col-engaged"')[1].split("</section>")[0]
     assert "Acme" in column
 
 
@@ -562,7 +593,7 @@ def test_next_step_done_button_and_views(client, app, repo):
     assert "Acme" not in client.get("/calendar").text.split('class="month-nav"')[0]
     page = client.get("/companies/acme").text
     assert "Reopen" in page and "status-done" in page and "Add to Google Calendar" not in page
-    assert "(done)" in client.get("/").text and "(done)" in client.get("/companies").text
+    assert "(done)" in client.get("/pipeline").text and "(done)" in client.get("/companies").text
 
     r = client.post("/companies/acme/next-step", data={"status": "open"})
     assert r.headers["location"] == "/companies/acme?flash=Next%20step%20reopened#tasks"
@@ -727,7 +758,7 @@ def test_calendar_view_shows_open_tasks(client, app):
 
 def test_board_unused_columns_are_marked(client):
     post_company(client, name="Acme")
-    page = client.get("/").text
+    page = client.get("/pipeline").text
     assert 'class="column" id="col-prospect"' in page
     assert 'class="column unused" id="col-offer"' in page
 
@@ -949,7 +980,7 @@ def test_disqualify_buttons_and_routes(client, app, repo):
     assert last_commit(repo) == "company: acme stage prospect -> temp-disqualified"
     page = client.get("/companies/acme").text
     assert "Requalify" in page and "(hiring freeze)" in page
-    board = client.get("/").text
+    board = client.get("/pipeline").text
     assert 'id="closed-temp-disqualified"' in board and "hiring freeze" in board
     assert "Acme" not in board.split('id="col-prospect"')[1].split("</section>")[0]
     r = client.post("/companies/acme/disqualify", data={"stage": "prospect"})
@@ -1030,9 +1061,9 @@ def test_companies_filters(client, repo):
 def test_board_filters_choose_columns_and_cards(client):
     post_company(client, name="Acme", stage="offer", country="DE")
     post_company(client, name="Beta", stage="prospect", country="NL")
-    page = client.get("/?f_stage=offer").text
+    page = client.get("/pipeline?f_stage=offer").text
     assert 'id="col-offer"' in page and 'id="col-prospect"' not in page
-    page = client.get("/?f_country=NL").text
+    page = client.get("/pipeline?f_country=NL").text
     assert "Beta" in page and 'id="col-offer"' in page
     assert "Acme" not in page.split('id="col-offer"')[1].split("</section>")[0]
     assert 'name="f_name" form="board-filters"' in page
@@ -1104,7 +1135,7 @@ def test_temp_disqualify_until_date_and_automatic_requalify(client, app, repo):
     assert c.stage == "temp-disqualified" and c.requalify_on == TODAY + timedelta(days=30)
     page = client.get("/companies/acme").text
     assert f"requalifies on {TODAY + timedelta(days=30)}" in page
-    assert f"until {TODAY + timedelta(days=30)}" in client.get("/").text
+    assert f"until {TODAY + timedelta(days=30)}" in client.get("/pipeline").text
     assert f"until {TODAY + timedelta(days=30)}" in pipeline_text(repo)
     # requalify manually: date cleared
     client.post("/companies/acme/disqualify", data={"stage": "prospect"})
@@ -1168,16 +1199,17 @@ def test_sorting_on_companies_contacts_and_board(client, repo):
 
     contacts = client.get("/contacts?sort=name&dir=desc").text.split("<tr class=\"filters\">")[1]
     assert contacts.index("Zoe") < contacts.index("Adam")
-    board = client.get("/?sort=name&dir=desc").text.split('id="col-prospect"')[1]
+    board = client.get("/pipeline?sort=name&dir=desc").text.split('id="col-prospect"')[1]
     assert board.index("Gamma") < board.index("Beta") < board.index("Alpha")
-    board = client.get("/?sort=name&dir=asc").text.split('id="col-prospect"')[1]
+    board = client.get("/pipeline?sort=name&dir=asc").text.split('id="col-prospect"')[1]
     assert board.index("Alpha") < board.index("Beta") < board.index("Gamma")
 
 
 def test_filter_help_tooltip_sits_above_each_table(client):
-    for path in ("/", "/companies", "/contacts", "/messages"):
+    for path in ("/pipeline", "/companies", "/contacts", "/messages"):
         page = client.get(path).text
-        head = page.split('<table class="filterable')[0] if path != "/" else page.split('<div class="board">')[0]
+        head = (page.split('<div class="board">')[0] if path == "/pipeline"
+                else page.split('<table class="filterable')[0])
         assert 'class="help"' in head and "does not contain" in head and "Z to A" in head
         assert 'title="contains: text' not in page  # the long per-input title is gone
 

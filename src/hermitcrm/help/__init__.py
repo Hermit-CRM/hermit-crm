@@ -78,7 +78,9 @@ def topic_for(path: str) -> str:
     """The help topic for a request path (the nav's Help link)."""
     path = (path or "/").split("?", 1)[0].rstrip("/") or "/"
     parts = path.strip("/").split("/")
-    if path == "/" or path == "/today":
+    if path == "/":
+        return "index"
+    if path in ("/pipeline", "/today"):
         return "pipeline"
     head = parts[0]
     if head == "help":

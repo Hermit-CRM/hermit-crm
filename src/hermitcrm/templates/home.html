@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Hermit CRM{% endblock %}
+{% block content %}
+<h1>Hermit CRM</h1>
+
+{% if no_companies %}
+<p class="small">Nothing in the folder yet. Start with one of these, or take the <a href="/help">tour of what each part does</a> below.</p>
+<div class="start-cards">
+  <a class="card start-card" href="/companies/new"><h3>Add a company</h3><div class="small">One account by hand, to see the shape of things.</div></a>
+  <a class="card start-card" href="/import"><h3>Import a spreadsheet</h3><div class="small">CSV, TSV or an Excel paste of companies or contacts.</div></a>
+  <a class="card start-card" href="/settings#bcc"><h3>Set up BCC capture</h3><div class="small">Log the mail you send without typing it twice.</div></a>
+</div>
+{% else %}
+
+<h2 id="doing">What needs doing</h2>
+<table>
+  <tr><th>due</th><th>for</th><th>what</th><th></th></tr>
+  {% for c in due_soon %}
+  <tr class="{% if c.next_step_overdue(today) %}overdue{% endif %}">
+    <td class="{% if c.next_step_overdue(today) %}overdue{% endif %}">{{ fmt_date(c.next_step_due) }}</td>
+    <td><a href="/companies/{{ c.slug }}">{{ c.name }}</a></td>
+    <td>{{ c.next_step or '(no text)' }} <span class="small">next step</span></td>
+    <td class="actions">
+      <form method="post" action="/companies/{{ c.slug }}/next-step" class="inline">
+        <input type="hidden" name="status" value="done"><button type="submit">Done</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+  {% for r in tasks %}
+  <tr class="{% if r.task.overdue(today) %}overdue{% endif %}">
+    <td class="{% if r.task.overdue(today) %}overdue{% endif %}">{{ fmt_date(r.task.due) }}</td>
+    <td><a href="/companies/{{ r.company.slug }}{% if r.contact %}/contacts/{{ r.contact.slug }}{% endif %}">{{ r.contact.name if r.contact else r.company.name }}</a></td>
+    <td>{{ r.task.text }}</td>
+    <td class="actions">
+      <form method="post" action="/companies/{{ r.company.slug }}/tasks/{{ r.index }}/done" class="inline">
+        <input type="hidden" name="contact" value="{{ r.contact.slug if r.contact else '' }}">
+        <input type="hidden" name="text" value="{{ r.task.text }}">
+        <input type="hidden" name="done" value="1">
+        <button type="submit">Done</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+  {% if not due_soon and not tasks %}
+  <tr><td colspan="4" class="empty">Nothing due in the next seven days.</td></tr>
+  {% endif %}
+</table>
+<p class="small"><a href="/calendar">The whole calendar and task list</a>.</p>
+
+{% if followups %}
+<h2 id="owed">Replies you owe ({{ followups | length }})</h2>
+<table>
+  <tr><th>company</th><th>who</th><th>waiting</th><th>last message</th></tr>
+  {% for f in followups[:8] %}
+  <tr>
+    <td><a href="/companies/{{ f.company.slug }}">{{ f.company.name }}</a></td>
+    <td>{{ f.who }}</td>
+    <td>{{ f.days }}d</td>
+    <td class="small">{{ preview(f.interaction.body) }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+<h2 id="going">How it is going <span class="small">last 30 days</span></h2>
+<div class="start-cards numbers">
+  <a class="card start-card" href="/reports"><h3>{{ totals.interactions }}</h3><div class="small">interactions <span class="delta">{{ delta(totals.interactions, previous.interactions) }}</span></div></a>
+  <a class="card start-card" href="/reports"><h3>{{ totals.companies_touched }}</h3><div class="small">companies touched <span class="delta">{{ delta(totals.companies_touched, previous.companies_touched) }}</span></div></a>
+  <a class="card start-card" href="/reports"><h3>{{ totals.new_companies }}</h3><div class="small">new companies <span class="delta">{{ delta(totals.new_companies, previous.new_companies) }}</span></div></a>
+  <a class="card start-card" href="/pipeline"><h3>{{ counts.companies }}</h3><div class="small">companies in the folder</div></a>
+</div>
+{% endif %}
+
+<h2 id="areas">What this thing does</h2>
+<div class="start-cards areas">
+  {% for href, label, icon_name, line in areas %}
+  <a class="card start-card" href="{{ href }}"><h3>{{ icon(icon_name) }} {{ label }}</h3><div class="small">{{ line }}</div></a>
+  {% endfor %}
+</div>
+<p class="small">Everything lives in plain files in your data folder, and every change is a git commit. <a href="/help">Help</a> explains each part in more detail.</p>
+{% endblock %}
