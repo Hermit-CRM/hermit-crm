@@ -96,11 +96,13 @@ password, so anyone who can reach the port can read and write the CRM: use a
 network you trust, or a private one (Tailscale, WireGuard), not public Wi-Fi.
 
 **From an AI client (MCP).** `hermitcrm mcp` speaks the Model Context Protocol
-on stdin and stdout, so Claude Desktop, ChatGPT desktop, Cursor or a phone AI
-app can read and write the CRM with no terminal. You do not run it yourself;
-the page shows the JSON to paste into the client's MCP config, which starts it.
-Seven read tools and three writes, the writes committing exactly as the web
-form does. [AI agents](/help/ai-agents) has the tool list.
+on stdin and stdout, so a desktop AI client -- Claude Desktop, ChatGPT desktop,
+Cursor -- can read and write the CRM with no terminal. You do not run it
+yourself; the page shows the JSON to paste into the client's MCP config, which
+starts it. Because it is a local process talking over a pipe, the client has to
+run on this machine: a phone app cannot reach it, and the phone route is the
+web app above. Seven read tools and three writes, the writes committing exactly
+as the web form does. [AI agents](/help/ai-agents) has the tool list.
 
 ## About
 

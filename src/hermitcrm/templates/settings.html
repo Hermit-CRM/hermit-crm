@@ -217,9 +217,9 @@
   <p class="warning">Hermit CRM has no password. Anyone who can reach that port can read and write your CRM, so use it on a network you trust, or a private one (Tailscale, WireGuard) rather than public Wi-Fi.</p>
 
   <h3>From an AI client (MCP)</h3>
-  <p>Lets Claude Desktop, ChatGPT desktop, Cursor or a phone AI app read and write this CRM with no terminal: ask for your pipeline, what you owe a reply to, a brief before a meeting, and log the call afterwards. Seven read tools and three writes; the writes commit exactly as the web form does.</p>
+  <p>Lets a desktop AI client on this machine &mdash; Claude Desktop, ChatGPT desktop, Cursor &mdash; read and write this CRM with no terminal: ask for your pipeline, what you owe a reply to, a brief before a meeting, and log the call afterwards. Seven read tools and three writes; the writes commit exactly as the web form does.</p>
   <pre class="copy"><code>{{ access.mcp_command }}</code></pre>
-  <p>It speaks on stdin and stdout, so you do not run it yourself: paste this into your client's MCP config and it starts it for you.</p>
+  <p>It speaks on stdin and stdout, so you do not run it yourself: paste this into your client's MCP config and it starts it for you. That also means the client must run on this machine &mdash; a phone app cannot reach it. For the phone, use the section above.</p>
   <pre class="copy"><code>{{ access.mcp_config }}</code></pre>
   <p class="small">Details and the full tool list: <a href="/help/ai-agents">AI agents</a>.</p>
 </section>
