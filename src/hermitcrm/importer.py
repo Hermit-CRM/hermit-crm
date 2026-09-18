@@ -53,11 +53,7 @@ COMPANY_COLUMNS = {
     "country": "country", "hq_country": "country", "country_region": "country",
     "company_country": "country",
     "source": "source", "stage": "stage",
-    "my_score": "my_score", "score": "my_score", "priority_score": "my_score",
-    "fit_score": "fit_score",
-    "fte_estimate": "fte_estimate", "fte": "fte_estimate", "employees": "fte_estimate",
-    "number_of_employees": "fte_estimate", "company_size": "fte_estimate",
-    "ae_count": "ae_count", "product_oneliner": "product_oneliner",
+    "product_oneliner": "product_oneliner",
     "oneliner": "product_oneliner", "description": "product_oneliner",
     "value_eur_month": "value_eur_month",
     "next_step": "next_step", "next_step_due": "next_step_due",
@@ -97,17 +93,13 @@ PERSON_COLUMNS = {
     "organization_website": "website",
     "company_linkedin_url": "company_linkedin", "company_linkedin": "company_linkedin",
     "country": "country", "country_region": "country", "company_country": "country",
-    "employees": "fte_estimate", "number_of_employees": "fte_estimate",
-    "company_size": "fte_estimate",
     "tags": "tags",
 }
 MODES = ("companies", "contacts")
 COMPANY_TARGETS = {
     "name": "company name", "website": "website", "linkedin": "company LinkedIn",
     "country": "country", "source": "source", "stage": "stage",
-    "my_score": "my_score", "score": "my_score", "priority_score": "my_score",
-    "fit_score": "fit_score", "fte_estimate": "FTE estimate",
-    "ae_count": "AE count", "product_oneliner": "product oneliner",
+    "product_oneliner": "product oneliner",
     "value_eur_month": "value EUR/month", "next_step": "next step",
     "next_step_due": "next step due", "tags": "tags", "notes_text": "notes (as text)",
     "contact_name": "contact: full name", "contact_first_name": "contact: first name",
@@ -121,10 +113,10 @@ CONTACT_TARGETS = {
     "email": "email", "title": "title", "linkedin": "LinkedIn", "phone": "phone",
     "role": "role", "company": "company name", "website": "company website",
     "company_linkedin": "company LinkedIn", "country": "company country",
-    "fte_estimate": "company FTE estimate", "tags": "company tags",
+    "tags": "company tags",
 }
 SPECIAL_TARGETS = {"notes": "keep as notes line", "ignore": "ignore"}
-COMPANY_ONLY = {"source", "stage", "my_score", "fit_score", "ae_count",
+COMPANY_ONLY = {"source", "stage",
                 "product_oneliner", "value_eur_month", "next_step", "next_step_due",
                 "notes_text"}
 COUNTRY_ALIASES = {
@@ -147,7 +139,7 @@ DECISION_MAKER_TITLES = re.compile(
     r"\b(founder|ceo|cto|coo|cfo|cro|managing director|geschäftsführer|owner)\b",
     re.IGNORECASE,
 )
-INT_FIELDS = ("my_score", "fit_score", "ae_count", "value_eur_month")
+INT_FIELDS = ("value_eur_month",)
 
 
 def normalise_header(header: str) -> str:
@@ -328,14 +320,31 @@ def decode_upload(raw: bytes) -> str:
 # ------------------------------------------------------------------ mapping
 
 
-def targets(mode: str) -> dict[str, str]:
+# A mapping target for a field the folder defined itself, using the same
+# prefix convention the contact columns already use.
+CUSTOM_PREFIX = "custom_"
+
+
+def custom_targets(defs: list | None, mode: str) -> dict[str, str]:
+    """Mapping targets for the user's own fields, for this mode's main record."""
+    scope = "company" if mode == "companies" else "contact"
+    return {f"{CUSTOM_PREFIX}{d.key}": d.label
+            for d in (defs or []) if d.applies_to == scope}
+
+
+def targets(mode: str, defs: list | None = None) -> dict[str, str]:
     """Field value -> label for the mapping dropdown of a mode."""
     base = COMPANY_TARGETS if mode == "companies" else CONTACT_TARGETS
-    return {**base, **SPECIAL_TARGETS}
+    return {**base, **custom_targets(defs, mode), **SPECIAL_TARGETS}
 
 
-def default_target(header: str, mode: str) -> str:
+def default_target(header: str, mode: str, defs: list | None = None) -> str:
     key = normalise_header(header)
+    custom = {d.key: d for d in (defs or [])
+              if d.applies_to == ("company" if mode == "companies" else "contact")}
+    # A column named exactly like one of your fields maps to it without being told.
+    if key in custom:
+        return f"{CUSTOM_PREFIX}{key}"
     if mode == "contacts":
         return PERSON_COLUMNS.get(key, "notes")
     prefix = next((p for p in CONTACT_PREFIXES if key.startswith(p)), None)
@@ -345,25 +354,29 @@ def default_target(header: str, mode: str) -> str:
     return COMPANY_COLUMNS.get(key, "notes")
 
 
-def default_mapping(headers: list[str], mode: str) -> dict[str, str]:
-    return {h: default_target(h, mode) for h in headers if h}
+def default_mapping(headers: list[str], mode: str, defs: list | None = None) -> dict[str, str]:
+    return {h: default_target(h, mode, defs) for h in headers if h}
 
 
-def detect_mode(headers: list[str]) -> str:
+def detect_mode(headers: list[str], defs: list | None = None) -> str:
     """contacts when a person-name or email column and a company column are
-    present and nothing company-only (scores, stage, founder_ columns...)."""
+    present and nothing company-only (stage, founder_ columns, a field you
+    defined on companies...)."""
     keys = [normalise_header(h) for h in headers]
+    own = {d.key for d in (defs or []) if d.applies_to == "company"}
     person = any(PERSON_COLUMNS.get(k) in ("first_name", "last_name", "email")
                  or (PERSON_COLUMNS.get(k) == "name" and k != "name") for k in keys)
     company = any(PERSON_COLUMNS.get(k) == "company" for k in keys)
     company_only = any(COMPANY_COLUMNS.get(k) in COMPANY_ONLY or k.startswith("founder_")
+                       or k in own
                        for k in keys)
     return "contacts" if person and company and not company_only else "companies"
 
 
-def resolve_mapping(headers: list[str], mode: str, mapping: dict | None = None) -> dict:
-    allowed = targets(mode)
-    result = default_mapping(headers, mode)
+def resolve_mapping(headers: list[str], mode: str, mapping: dict | None = None,
+                    defs: list | None = None) -> dict:
+    allowed = targets(mode, defs)
+    result = default_mapping(headers, mode, defs)
     errors = []
     for header, target in (mapping or {}).items():
         if header not in result:
@@ -406,6 +419,7 @@ class RowPlan:
     warnings: list[str] = field(default_factory=list)
     contact_slug: str = ""  # the matched contact (contacts mode)
     contact_fields: dict = field(default_factory=dict)  # empty contact fields to fill
+    custom: dict = field(default_factory=dict)  # user-defined fields, stored in `extra`
 
 
 @dataclass
@@ -415,6 +429,7 @@ class ImportPlan:
     mode: str = "companies"
     mapping: dict = field(default_factory=dict)
     samples: dict = field(default_factory=dict)
+    defs: list = field(default_factory=list)  # the folder's own field definitions
 
     def count(self, action: str) -> int:
         return sum(1 for r in self.rows if r.action == action)
@@ -434,7 +449,7 @@ class ImportPlan:
 
     @property
     def choices(self) -> list[tuple[str, str]]:
-        return list(targets(self.mode).items())
+        return list(targets(self.mode, self.defs).items())
 
     @property
     def summary(self) -> str:
@@ -468,9 +483,12 @@ def _contact_role(contact: dict) -> None:
             contact["role"] = Role.DECISION_MAKER.value
 
 
-def _plan_row(store, index: int, row: dict[str, str], today, mapping=None) -> RowPlan:
+def _plan_row(store, index: int, row: dict[str, str], today, mapping=None,
+              defs: list | None = None) -> RowPlan:
     if mapping is None:
-        mapping = default_mapping(list(row), "companies")
+        mapping = default_mapping(list(row), "companies", defs)
+    by_key = {d.key: d for d in (defs or []) if d.applies_to == "company"}
+    custom: dict = {}
     fields: dict = {}
     tags: list[str] = []
     notes_text = ""
@@ -482,6 +500,17 @@ def _plan_row(store, index: int, row: dict[str, str], today, mapping=None) -> Ro
     for header, value in row.items():
         target = mapping.get(header, "notes")
         if not value or target == "ignore":
+            continue
+        if target.startswith(CUSTOM_PREFIX):
+            defn = by_key.get(target[len(CUSTOM_PREFIX):])
+            if defn is None:
+                extras.append(f"{header}: {value}")
+                continue
+            try:
+                custom[defn.key] = defn.coerce(value)
+            except ValueError as exc:
+                warnings.append(f"{exc}; kept in notes")
+                extras.append(f"{header}: {value}")
             continue
         if target.startswith("contact_"):
             ckey = target[len("contact_"):]
@@ -561,7 +590,7 @@ def _plan_row(store, index: int, row: dict[str, str], today, mapping=None) -> Ro
                 "\n".join(f"- {line}" for line in extras)
         plan = RowPlan(row=index, name=name, slug=slug, action="create",
                        fields=fields, tags=sorted(set(tags)), notes=notes + "\n" if notes else "",
-                       warnings=warnings)
+                       custom=custom, warnings=warnings)
         if contact:
             plan.contact, plan.contact_action = contact, "create"
         return plan
@@ -574,6 +603,9 @@ def _plan_row(store, index: int, row: dict[str, str], today, mapping=None) -> Ro
         current = getattr(existing, key)
         if current in ("", None):
             fill[key] = value
+    # Custom fields obey the same rule: fill an empty one, never overwrite.
+    fill_custom = {k: v for k, v in custom.items()
+                   if (existing.extra or {}).get(k) in ("", None)}
     new_tags = sorted(set(existing.tags) | set(tags))
     if new_tags != sorted(existing.tags):
         fill["tags"] = new_tags
@@ -584,13 +616,14 @@ def _plan_row(store, index: int, row: dict[str, str], today, mapping=None) -> Ro
     contact_action = "none"
     if contact:
         contact_action = "exists" if contact["slug"] in existing.contacts else "create"
-    if not fill and contact_action != "create":
+    if not fill and not fill_custom and contact_action != "create":
         return RowPlan(row=index, name=name, slug=slug, action="skip",
                        reason="already up to date", contact=contact or None,
                        contact_action=contact_action, warnings=warnings)
-    reason = "fills " + ", ".join(sorted(fill)) if fill else "adds contact only"
+    filled = sorted(set(fill) | set(fill_custom))
+    reason = "fills " + ", ".join(filled) if filled else "adds contact only"
     return RowPlan(row=index, name=name, slug=slug, action="update", reason=reason,
-                   fields=fill, contact=contact or None,
+                   fields=fill, custom=fill_custom, contact=contact or None,
                    contact_action=contact_action, warnings=warnings)
 
 
@@ -716,8 +749,7 @@ class _ContactPlanner:
             else:
                 warnings.append(f"country {get('country')!r} is not in the list; kept in notes")
                 extras.append(f"{values['country'][0]}: {get('country')}")
-        if get("fte_estimate"):
-            company_fields["fte_estimate"] = " ".join(get("fte_estimate").split())
+
 
         existing = store.companies.get(slug)
         if existing is not None:
@@ -795,20 +827,21 @@ class _ContactPlanner:
 
 
 def plan_import(store, text: str, mode: str | None = None,
-                mapping: dict | None = None) -> ImportPlan:
+                mapping: dict | None = None, defs: list | None = None) -> ImportPlan:
     headers, rows = parse_table(text)
     if not headers:
         raise ValidationError({"text": "nothing to import: paste a table with a header row"})
-    mode = (mode or "").strip().lower() or detect_mode(headers)
+    mode = (mode or "").strip().lower() or detect_mode(headers, defs)
     if mode not in MODES:
         raise ValidationError({"mode": f"unknown mode {mode!r}; use companies or contacts"})
-    resolved = resolve_mapping(headers, mode, mapping)
+    resolved = resolve_mapping(headers, mode, mapping, defs)
     used = set(resolved.values())
     today = store.today()
     if mode == "companies":
         if "name" not in used:
             raise ValidationError({"text": "the header row needs a 'name' column"})
-        plans = [_plan_row(store, i + 2, row, today, resolved) for i, row in enumerate(rows)]
+        plans = [_plan_row(store, i + 2, row, today, resolved, defs)
+                 for i, row in enumerate(rows)]
     else:
         if not used & {"name", "first_name", "last_name"}:
             raise ValidationError({"text": "contacts mode needs a name, first name or "
@@ -817,7 +850,7 @@ def plan_import(store, text: str, mode: str | None = None,
         plans = [planner.plan(i + 2, row, resolved) for i, row in enumerate(rows)]
     samples = {h: (rows[0].get(h, "") if rows else "") for h in headers if h}
     return ImportPlan(headers=headers, rows=plans, mode=mode, mapping=resolved,
-                      samples=samples)
+                      samples=samples, defs=list(defs or []))
 
 
 # ------------------------------------------------------------------ applying
@@ -840,12 +873,13 @@ def apply_import(store, plan: ImportPlan) -> dict[str, int]:
             try:
                 if row.action == "create":
                     company = store.create_company(
-                        name=row.name, tags=row.tags, notes=row.notes, **row.fields)
+                        name=row.name, tags=row.tags, notes=row.notes,
+                        custom=row.custom, **row.fields)
                     created_slugs[row.slug] = company.slug
                     counts["created"] += 1
                 elif row.action == "update":
-                    if row.fields:
-                        store.update_company(row.slug, **row.fields)
+                    if row.fields or row.custom:
+                        store.update_company(row.slug, custom=row.custom, **row.fields)
                     counts["updated"] += 1
                 elif row.action != "keep":
                     counts["skipped"] += 1

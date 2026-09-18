@@ -266,14 +266,17 @@ def _oneliner_from(facts: PageFacts) -> str:
     return " ".join(text.split())[:300]
 
 
-def propose_from_url(company: Company, url: str, fetcher=fetch) -> Proposal:
+def propose_from_url(company: Company, url: str, fetcher=fetch,
+                     custom_keys=()) -> Proposal:
     """Fetch `url` (a website or LinkedIn company page) and propose values for
     the company's empty fields. Never overwrites anything."""
     url = normalise_website(url)
-    return propose_from_facts(company, parse_page(url, fetcher(url)))
+    return propose_from_facts(company, parse_page(url, fetcher(url)),
+                              custom_keys=custom_keys)
 
 
-def propose_from_facts(company: Company, facts: PageFacts) -> Proposal:
+def propose_from_facts(company: Company, facts: PageFacts,
+                       custom_keys=()) -> Proposal:
     """The proposing half of propose_from_url, for a page already fetched.
 
     Capture needs the parsed page for the company's *name* as well as its
@@ -293,13 +296,19 @@ def propose_from_facts(company: Company, facts: PageFacts) -> Proposal:
                 if isinstance(candidate, str) and "linkedin.com/company/" in candidate:
                     found["linkedin"] = candidate.split("?")[0].rstrip("/")
     found["country"] = _country_from(facts)
-    found["fte_estimate"] = _employees_from(facts)
     found["product_oneliner"] = _oneliner_from(facts)
 
+    wanted = ["website", "linkedin", "country", "product_oneliner"]
+    # A headcount is only worth reading off the page when the folder has a
+    # field to put it in; `custom_keys` is whatever the user defined.
+    if "fte_estimate" in (custom_keys or ()):
+        found["fte_estimate"] = _employees_from(facts)
+        wanted.insert(3, "fte_estimate")
+
     proposal = Proposal(sources=[url])
-    proposal.missing = [k for k in ("website", "linkedin", "country", "fte_estimate",
-                                    "product_oneliner")
-                        if getattr(company, k) in ("", None)]
+    proposal.missing = [k for k in wanted
+                        if (getattr(company, k, None) if k not in (custom_keys or ())
+                            else company.extra.get(k)) in ("", None)]
     for key in proposal.missing:
         value = found.get(key) or ""
         if value:

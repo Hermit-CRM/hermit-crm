@@ -7,8 +7,18 @@ from hermitcrm.importer import (
     apply_import, decode_upload, detect_mode, map_country, name_from_domain,
     normalise_linkedin, parse_table, plan_import, xlsx_to_text,
 )
+from hermitcrm.fields import FieldDef
 from hermitcrm.models import ValidationError
 import pytest
+
+# The spreadsheet this suite imports carries one seller's own scoring columns.
+# They are user-defined fields now, so the import has to be told they exist.
+DEFS = [
+    FieldDef(key="my_score", type="number"),
+    FieldDef(key="fit_score", type="number"),
+    FieldDef(key="fte_estimate", type="text"),
+    FieldDef(key="ae_count", type="number"),
+]
 
 SAMPLE = (
     "name\tLI invite\tComments\tmy score\topportunity_type\tfit_score\thq_country\t"
@@ -57,18 +67,17 @@ def test_country_and_linkedin_helpers():
 
 
 def test_plan_maps_columns_and_keeps_extras(store):
-    plan = plan_import(store, SAMPLE)
+    plan = plan_import(store, SAMPLE, defs=DEFS)
     assert plan.count("create") == 4 and plan.count("skip") == 1
     fjellmark = plan.rows[0]
     assert fjellmark.action == "create" and fjellmark.slug == "fjellmark"
     assert fjellmark.fields == {
-        "my_score": None, "fit_score": 82, "country": "SE", "fte_estimate": "21",
-        "ae_count": 3, "product_oneliner": "Agentic AI platform for sales teams.",
+        "country": "SE",
+        "product_oneliner": "Agentic AI platform for sales teams.",
         "source": "list",
-    } or fjellmark.fields == {
-        "fit_score": 82, "country": "SE", "fte_estimate": "21", "ae_count": 3,
-        "product_oneliner": "Agentic AI platform for sales teams.", "source": "list",
     }
+    # a column named like one of your own fields maps to it without being told
+    assert fjellmark.custom == {"fit_score": 82, "fte_estimate": "21", "ae_count": 3}
     assert fjellmark.tags == ["core"]
     assert "Imported fields (2026-09-14):" in fjellmark.notes
     assert "- hq_city: Stockholm" in fjellmark.notes
@@ -80,7 +89,7 @@ def test_plan_maps_columns_and_keeps_extras(store):
         "slug": "andreas-lindqvist",
     }
     nimbus = plan.rows[1]
-    assert nimbus.slug == "nimbus-ai-yc-s23" and nimbus.fields["fte_estimate"] == "~13"
+    assert nimbus.slug == "nimbus-ai-yc-s23" and nimbus.custom["fte_estimate"] == "~13"
     assert "- LI invite: no personalization" in nimbus.notes
     alvero = plan.rows[2]
     assert alvero.fields["country"] == "FR"  # any ISO country maps now
@@ -91,14 +100,16 @@ def test_plan_maps_columns_and_keeps_extras(store):
 
 
 def test_plan_fills_only_empty_fields_of_existing_company(store):
-    store.create_company("Quill", website="https://quillhq.io", my_score=7,
+    store.create_company("Quill", website="https://quillhq.io", custom={"my_score": 7},
                          tags=["priority"], notes="Old notes.\n")
     store.create_contact("quill", "Adam", "Jensen")
-    plan = plan_import(store, SAMPLE)
+    plan = plan_import(store, SAMPLE, defs=DEFS)
     quill = plan.rows[4]
     assert quill.action == "update" and quill.slug == "quill"
-    assert quill.fields["fit_score"] == 72 and quill.fields["country"] == "SE"
-    assert "my_score" not in quill.fields and "website" not in quill.fields
+    assert quill.custom["fit_score"] == 72 and quill.fields["country"] == "SE"
+    # a custom field that already holds a value is not overwritten either
+    assert "my_score" not in quill.custom and "website" not in quill.fields
+    assert "fit_score" in quill.reason
     assert quill.fields["tags"] == ["core", "priority"]
     assert quill.fields["notes"].startswith("Old notes.\n\nImported fields")
     assert "- Interesting!" in quill.fields["notes"]
@@ -113,11 +124,12 @@ def test_plan_rejects_tables_without_a_name_column(store):
 
 
 def test_apply_writes_everything_in_one_commit(store, messages):
-    counts = apply_import(store, plan_import(store, SAMPLE))
+    counts = apply_import(store, plan_import(store, SAMPLE, defs=DEFS))
     assert counts == {"created": 4, "updated": 0, "contacts": 4, "skipped": 1, "failed": 0}
     assert messages == ["import: 4 companies created, 0 updated, 4 contacts created"]
     fjellmark = store.get("fjellmark")
-    assert fjellmark.country == "SE" and fjellmark.fit_score == 82 and fjellmark.tags == ["core"]
+    assert fjellmark.country == "SE" and fjellmark.tags == ["core"]
+    assert fjellmark.extra["fit_score"] == 82  # a custom field, written as YAML
     contact = fjellmark.contacts["andreas-lindqvist"]
     assert contact.name == "Andreas Lindqvist" and contact.role == "decision-maker"
     text = (store.company_dir("fjellmark") / "contacts" / "andreas-lindqvist.md").read_text()
@@ -125,7 +137,7 @@ def test_apply_writes_everything_in_one_commit(store, messages):
     assert "founder_sales_nav_url:" in text
 
     # Importing the same sheet again changes nothing and commits nothing.
-    plan = plan_import(store, SAMPLE)
+    plan = plan_import(store, SAMPLE, defs=DEFS)
     assert plan.count("skip") == 5
     assert apply_import(store, plan)["skipped"] == 5
     assert len(messages) == 1
@@ -163,7 +175,9 @@ def test_detect_mode():
     assert detect_mode(["name", "website", "contact_email"]) == "companies"
     # Person columns without a company column, or with company-only columns.
     assert detect_mode(["First Name", "Email"]) == "companies"
-    assert detect_mode(["Email", "Company", "fit_score"]) == "companies"
+    assert detect_mode(["Email", "Company", "fit_score"], DEFS) == "companies"
+    # ...and without that definition it is just an unrecognised column
+    assert detect_mode(["Email", "Company", "fit_score"]) == "contacts"
 
 
 def test_contacts_mode_hubspot_creates_company_once_and_skips_freemail(store, messages):
@@ -238,15 +252,20 @@ def test_contacts_mode_derives_company_from_email_domain(store):
 
 
 def test_contacts_mode_existing_company_by_slug_fills_empty_fields_only(store):
+    """A headcount column in a contacts import has nowhere to go by default.
+
+    It used to fill a built-in `fte_estimate`; there is no such field now, so
+    it is kept as a note rather than silently dropped.
+    """
     store.create_company("Quill", country="SE")
     plan = plan_import(store, APOLLO)
     lucas, mia = plan.rows
     assert lucas.action == "create" and lucas.slug == "nimbus-ai"
     assert lucas.fields["linkedin"] == "https://www.linkedin.com/company/nimbus-ai"
-    assert lucas.fields["fte_estimate"] == "13"
+    assert "fte_estimate" not in lucas.fields
     assert lucas.contact["title"] == "Co-Founder" and lucas.contact["role"] == "decision-maker"
     assert mia.action == "update" and mia.slug == "quill"
-    assert mia.fields == {"website": "http://www.quillhq.io", "fte_estimate": "5"}
+    assert mia.fields == {"website": "http://www.quillhq.io"}
     assert "- Seniority: VP" in mia.contact["notes"]
     assert plan.mapping["Company Name for Emails"] == "notes"
 

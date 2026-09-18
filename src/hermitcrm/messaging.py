@@ -227,8 +227,13 @@ def drafts(company: Company, contact: Contact | None = None, signal: str = "",
     t = languages[lang]
     labels = messages.get("labels", {})
     signal = signal if signal in SIGNALS else ""
-    fte = fte_number(company.fte_estimate)
-    hurdle = next_hurdle(company.fte_estimate)
+    # These two were company attributes until custom fields arrived. They are
+    # ordinary user-defined fields now, read by name; the next change lets a
+    # playbook name whichever fields it wants instead of these two.
+    fte_estimate = str(company.extra.get("fte_estimate") or "")
+    ae_count = company.extra.get("ae_count") or 0
+    fte = fte_number(fte_estimate)
+    hurdle = next_hurdle(fte_estimate)
     site = (company.website or company.linkedin or "their site").replace(
         "https://", "").replace("http://", "").rstrip("/")
     first = (contact.first_name if contact else "") or "[first name]"
@@ -238,14 +243,14 @@ def drafts(company: Company, contact: Contact | None = None, signal: str = "",
         "company": company.name,
         "fte": fte if fte is not None else "N",
         "hurdle": hurdle if hurdle is not None else "[N]",
-        "ae": company.ae_count or 0,
+        "ae": ae_count,
         "site": site,
         "owner_first_name": owner_first_name(owner_name),
     }
     growth = t["growth"]  # a messages.toml from before a signal existed falls back to ""
     slots["growth"] = growth.get(signal if signal in GROWTH_SIGNALS else "", growth[""]).format_map(slots)
     slots["size"] = t["size"]["known" if fte is not None else "unknown"].format_map(slots)
-    slots["team"] = t["team"]["known" if company.ae_count else "unknown"].format_map(slots)
+    slots["team"] = t["team"]["known" if ae_count else "unknown"].format_map(slots)
     slots["observation"] = observation or t["observation"].format_map(slots)
 
     first_key = {"hiring": "bridge", "declining": "decline"}.get(signal, "scale")

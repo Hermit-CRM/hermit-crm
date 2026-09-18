@@ -6,10 +6,23 @@ from hermitcrm.models import Company, Contact, language_for
 
 
 def company(**kw):
-    base = dict(name="Acme", slug="acme", country="DE", fte_estimate="~12", ae_count=2,
+    """A company whose team-size fields are user-defined fields, as they now are.
+
+    `fte_estimate` and `ae_count` were attributes until custom fields arrived.
+    The playbook still reads them by name, out of `extra`.
+    """
+    extra = {"fte_estimate": "~12", "ae_count": 2}
+    for key in ("fte_estimate", "ae_count"):
+        if key in kw:
+            value = kw.pop(key)
+            if value in (None, ""):
+                extra.pop(key, None)
+            else:
+                extra[key] = value
+    base = dict(name="Acme", slug="acme", country="DE",
                 website="https://acme.example.com")
     base.update(kw)
-    return Company(**base)
+    return Company(extra=extra, **base)
 
 
 def test_language_follows_country():

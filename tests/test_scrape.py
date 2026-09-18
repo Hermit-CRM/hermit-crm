@@ -30,7 +30,8 @@ def test_parse_page_collects_title_description_links_and_jsonld():
 
 def test_propose_from_website_fills_only_empty_fields():
     company = Company(name="Acme", slug="acme", country="CH")
-    proposal = propose_from_url(company, "acme.de", fetcher=lambda url: SITE)
+    proposal = propose_from_url(company, "acme.de", fetcher=lambda url: SITE,
+                                custom_keys={"fte_estimate"})
     assert proposal.fields == {
         "website": "https://acme.de",
         "linkedin": "https://www.linkedin.com/company/acme-gmbh",
@@ -45,6 +46,7 @@ def test_propose_from_website_fills_only_empty_fields():
 def test_propose_from_linkedin_page():
     company = Company(name="Quill", slug="quill")
     proposal = propose_from_url(company, "https://www.linkedin.com/company/quill/?trk=x",
+                                custom_keys={"fte_estimate"},
                                 fetcher=lambda url: LINKEDIN)
     assert proposal.fields == {
         "website": "https://quillhq.io",
@@ -57,7 +59,8 @@ def test_propose_from_linkedin_page():
 
 def test_bare_page_uses_title_tld_and_employee_hint():
     company = Company(name="Foo", slug="foo")
-    proposal = propose_from_url(company, "https://foo.co.uk", fetcher=lambda url: BARE)
+    proposal = propose_from_url(company, "https://foo.co.uk", fetcher=lambda url: BARE,
+                                custom_keys={"fte_estimate"})
     assert proposal.fields["country"] == "GB"
     assert proposal.fields["product_oneliner"] == "Foo Ltd"
     assert proposal.fields["fte_estimate"] == "11-50"

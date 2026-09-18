@@ -119,9 +119,36 @@
       </select>
     </label>
   </div>
+  {{ custom_fields(custom_fields_for('interaction'), values, errors) }}
+  {# The body is the record. Custom fields sit beside it and never touch it. #}
   <label>body <textarea name="body" rows="6">{{ values.body }}</textarea></label>
   <button type="submit">{{ submit }}</button>
 </form>
+{% endmacro %}
+
+{% macro custom_fields(defs, values, errors) %}
+{%- if defs %}
+  <div class="row custom-fields">
+    {% for f in defs %}
+    <label{% if f.type != 'select' %} class="grow"{% endif %}>{{ f.label }}
+      {%- if f.type == 'select' %}
+      <select name="custom_{{ f.key }}">
+        <option value=""></option>
+        {% for o in f.options %}<option value="{{ o }}"{% if values.get('custom_' ~ f.key)|string == o %} selected{% endif %}>{{ o }}</option>{% endfor %}
+      </select>
+      {%- elif f.type == 'date' %}
+      <input type="date" name="custom_{{ f.key }}" value="{{ values.get('custom_' ~ f.key, '') }}">
+      {%- elif f.type == 'number' %}
+      <input name="custom_{{ f.key }}" value="{{ values.get('custom_' ~ f.key, '') }}" inputmode="decimal" size="6">
+      {%- else %}
+      <input name="custom_{{ f.key }}" value="{{ values.get('custom_' ~ f.key, '') }}">
+      {%- endif %}
+      {{ err(errors, 'custom_' ~ f.key) }}
+      {%- if f.help %} <span class="small faint">{{ f.help }}</span>{% endif %}
+    </label>
+    {% endfor %}
+  </div>
+{%- endif %}
 {% endmacro %}
 
 {% macro company_fields(values, errors) %}
@@ -152,12 +179,9 @@
     <label>value EUR/month <input name="value_eur_month" value="{{ values.value_eur_month }}"> {{ err(errors, 'value_eur_month') }}</label>
   </div>
   <div class="row">
-    <label>my score <input name="my_score" value="{{ values.my_score }}" size="4"> {{ err(errors, 'my_score') }}</label>
-    <label>fit score <input name="fit_score" value="{{ values.fit_score }}" size="4"> {{ err(errors, 'fit_score') }}</label>
-    <label>FTE estimate <input name="fte_estimate" value="{{ values.fte_estimate }}" size="6"></label>
-    <label>AE count <input name="ae_count" value="{{ values.ae_count }}" size="4"> {{ err(errors, 'ae_count') }}</label>
     <label class="grow">product oneliner <input name="product_oneliner" value="{{ values.product_oneliner }}"></label>
   </div>
+  {{ custom_fields(custom_fields_for('company'), values, errors) }}
   <div class="row">
     <label class="grow">next step <input name="next_step" value="{{ values.next_step }}"></label>
     <label>due <input type="date" name="next_step_due" value="{{ values.next_step_due }}"> {{ err(errors, 'next_step_due') }}</label>
@@ -188,6 +212,7 @@
     <label class="grow">phone <input name="phone" value="{{ values.phone }}"></label>
     <label class="grow">linkedin <input name="linkedin" value="{{ values.linkedin }}"></label>
   </div>
+  {{ custom_fields(custom_fields_for('contact'), values, errors) }}
   <label>notes <textarea name="notes" rows="6">{{ values.notes }}</textarea></label>
 {% endmacro %}
 

@@ -17,6 +17,7 @@ from typing import Callable, Sequence
 import frontmatter
 import yaml
 
+from . import fields as fields_mod
 from .models import (
     Channel,
     Company,
@@ -179,8 +180,8 @@ def normalise_body(body: str | None) -> str:
 
 COMPANY_COPY_FIELDS = (
     "name", "slug", "website", "linkedin", "country", "source", "stage",
-    "stage_changed", "lost_reason", "requalify_on", "value_eur_month", "my_score",
-    "fit_score", "fte_estimate", "ae_count", "product_oneliner", "next_step",
+    "stage_changed", "lost_reason", "requalify_on", "value_eur_month",
+    "product_oneliner", "next_step",
     "next_step_due", "next_step_status", "tags", "stage_history", "created", "updated",
     "notes",
 )
@@ -494,16 +495,13 @@ class Store:
         lost_reason="",
         requalify_on=None,
         value_eur_month=None,
-        my_score=None,
-        fit_score=None,
-        fte_estimate="",
-        ae_count=None,
         product_oneliner="",
         next_step="",
         next_step_due=None,
         next_step_status="open",
         tags=None,
         notes="",
+        custom=None,
     ) -> Company:
         name = (name or "").strip()
         if not name:
@@ -538,10 +536,6 @@ class Store:
             lost_reason=lost_reason,
             requalify_on=requalify_on,
             value_eur_month=self._coerce_int(value_eur_month, "value_eur_month"),
-            my_score=self._coerce_int(my_score, "my_score"),
-            fit_score=self._coerce_int(fit_score, "fit_score"),
-            fte_estimate=(fte_estimate or "").strip(),
-            ae_count=self._coerce_int(ae_count, "ae_count"),
             product_oneliner=" ".join((product_oneliner or "").split()),
             next_step=(next_step or "").strip(),
             next_step_due=self._coerce_date(next_step_due, "next_step_due"),
@@ -552,6 +546,7 @@ class Store:
             updated=now,
             notes=normalise_body(notes),
         )
+        company.extra = fields_mod.apply({}, custom or {})
         if not company.has_next_step:
             company.next_step_status = TaskStatus.OPEN.value
         if stage != Stage.PROSPECT.value:
@@ -570,6 +565,8 @@ class Store:
         old_stage = company.stage
         new = Company(**{k: getattr(company, k) for k in COMPANY_COPY_FIELDS})
         new.extra = dict(company.extra)
+        if "custom" in fields:
+            new.extra = fields_mod.apply(new.extra, fields.pop("custom") or {})
         new.contacts = company.contacts
         new.interactions = company.interactions
 
@@ -598,14 +595,6 @@ class Store:
         if "value_eur_month" in fields:
             new.value_eur_month = self._coerce_int(fields["value_eur_month"],
                                                    "value_eur_month")
-        if "my_score" in fields:
-            new.my_score = self._coerce_int(fields["my_score"], "my_score")
-        if "fit_score" in fields:
-            new.fit_score = self._coerce_int(fields["fit_score"], "fit_score")
-        if "fte_estimate" in fields:
-            new.fte_estimate = (fields["fte_estimate"] or "").strip()
-        if "ae_count" in fields:
-            new.ae_count = self._coerce_int(fields["ae_count"], "ae_count")
         if "product_oneliner" in fields:
             new.product_oneliner = " ".join((fields["product_oneliner"] or "").split())
         if "next_step" in fields:
@@ -713,6 +702,22 @@ class Store:
             return keep_value
         return drop_value if keep_value in ("", None, []) else keep_value
 
+    def _merge_extra(self, a_extra: dict, b_extra: dict, choices: dict) -> dict:
+        """Unknown front-matter keys, which is where custom fields live.
+
+        Without this a merge kept only the fields the app knows by name and
+        silently dropped everything else -- including every field the user
+        defined themselves.
+        """
+        out = {}
+        a_extra, b_extra = a_extra or {}, b_extra or {}
+        for key in sorted(set(a_extra) | set(b_extra)):
+            value = self._merge_value(key, a_extra.get(key), b_extra.get(key),
+                                      choices.get(key))
+            if value not in (None, "", []):
+                out[key] = value
+        return out
+
     def merge_companies(self, keep: str, drop: str,
                         choices: dict[str, str] | None = None) -> Company:
         """Fold company `drop` into `keep`: fields per `choices` (keep | drop |
@@ -732,6 +737,7 @@ class Store:
             setattr(merged, field_name, self._merge_value(
                 field_name, getattr(a, field_name), getattr(b, field_name),
                 choices.get(field_name)))
+        merged.extra = self._merge_extra(a.extra, b.extra, choices)
         if merged.stage == Stage.LOST.value and not merged.lost_reason:
             raise ValidationError(
                 {"lost_reason": "lost_reason is required when stage is lost"})
@@ -793,6 +799,7 @@ class Store:
         if keep == drop:
             raise ValidationError({"drop": "a contact cannot be merged into itself"})
         merged = Contact(**{k: getattr(a, k) for k in CONTACT_COPY_FIELDS})
+        merged.extra = self._merge_extra(a.extra, b.extra, choices)
         for field_name in CONTACT_MERGE_FIELDS:
             setattr(merged, field_name, self._merge_value(
                 field_name, getattr(a, field_name), getattr(b, field_name),
@@ -825,7 +832,8 @@ class Store:
     # --- mutations: contact
 
     def create_contact(self, company_slug: str, first_name, last_name="", title="",
-                       linkedin="", email="", phone="", role="", notes="") -> Contact:
+                       linkedin="", email="", phone="", role="", notes="",
+                       custom=None) -> Contact:
         company = self.companies.get(company_slug)
         if company is None:
             raise ValidationError({"company": f"unknown company {company_slug!r}"})
@@ -852,6 +860,7 @@ class Store:
             updated=now,
             notes=normalise_body(notes),
         )
+        contact.extra = fields_mod.apply({}, custom or {})
         self.write_contact(company_slug, contact)
         company.contacts[contact.slug] = contact
         self._notify(f"contact: {company_slug}/{contact.slug} created")
@@ -869,6 +878,8 @@ class Store:
             "first_name", "last_name", "slug", "title", "linkedin", "email", "phone",
             "role", "created", "updated", "notes")})
         new.extra = dict(contact.extra)
+        if "custom" in fields:
+            new.extra = fields_mod.apply(new.extra, fields.pop("custom") or {})
         if "first_name" in fields:
             new.first_name = " ".join((fields["first_name"] or "").split())
         if "last_name" in fields:
@@ -932,7 +943,7 @@ class Store:
 
     def create_interaction(self, company_slug: str, channel, direction, subject="",
                            contact="", date=None, outcome="", body="",
-                           source="manual", message_id="") -> Interaction:
+                           source="manual", message_id="", custom=None) -> Interaction:
         company = self.companies.get(company_slug)
         if company is None:
             raise ValidationError({"company": f"unknown company {company_slug!r}"})
@@ -957,6 +968,7 @@ class Store:
             message_id=(message_id or "").strip(),
             body=normalise_body(body),
         )
+        it.extra = fields_mod.apply({}, custom or {})
         it.id = self._interaction_id(company_slug, it)
         message = (f"interaction: {company_slug} {channel} {direction} "
                    f"{it.contact_label} {when:%Y-%m-%dT%H:%M}")
@@ -984,6 +996,8 @@ class Store:
             raise ValidationError({"id": f"unknown interaction {id!r}"})
         new = Interaction(**{k: getattr(old, k) for k in INTERACTION_COPY_FIELDS})
         new.extra = dict(old.extra)
+        if "custom" in fields:
+            new.extra = fields_mod.apply(new.extra, fields.pop("custom") or {})
         if "date" in fields:
             when = self._coerce_datetime(fields["date"], "date")
             if when is None:

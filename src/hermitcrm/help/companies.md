@@ -4,8 +4,8 @@
 
 ## The table
 
-Columns: name, country, stage, source, my score, fit score, FTE, tags, last
-touch, next step, due, plus website and LinkedIn links. The search box in the
+Columns: name, country, stage, source, any field of your own that asked for
+this table, tags, last touch, next step, due, plus website and LinkedIn links. The search box in the
 nav matches company name, tags, contact names and contact emails. Each column
 has a filter control (see the `?` next to Filter for the syntax) and sort
 arrows. Temp-disqualified companies are hidden until you click "Show temp
@@ -18,9 +18,10 @@ page.
 
 ## The company page
 
-- The header: one-liner, website and LinkedIn links, stage with days in stage,
-  last touch, scores, FTE and AE count, country with an Add/Change control,
-  **Enrich** (when an AI CLI is available) and **Fetch from URL**.
+- The header, two lines: one-liner, website and LinkedIn links, stage with days
+  in stage, last touch, and any field of your own; then **Enrich** (when an AI
+  CLI is available) and **Fetch from URL**. Country is in the edit form below,
+  not the header.
 - **Disqualify** and **Temp disqualify** (with a reason and, for temp, an
   "until" date); **Requalify** brings a disqualified company back to prospect.
 - The next step with its status tag, **Mark done** / **Reopen** and the Google

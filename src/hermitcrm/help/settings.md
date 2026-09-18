@@ -1,6 +1,6 @@
 # Settings
 
-`/settings`: who you are, mail and calendar capture, backup, appearance, AI (Enrich and Ask the Hermit), outcomes, the review queue, the daily schedule, access from a phone or an AI client, and About.
+`/settings`: who you are, mail and calendar capture, backup, appearance, fields of your own, AI (Enrich and Ask the Hermit), outcomes, the review queue, the daily schedule, access from a phone or an AI client, and About.
 
 Every section writes `config.toml` in the data folder, keeping its comments;
 secrets (the mail app password, the calendar URL) go to `.secrets.toml`
@@ -44,6 +44,17 @@ never block.
 
 Night mode: off (`theme = "light"`), on (`"dark"`) or follow the operating
 system (`"system"`).
+
+## Fields
+
+Fields of your own, on top of the ones Hermit CRM has: a key, a label, a type
+(text, number, date or select) and where they show up. Add them one at a time,
+or edit `fields.toml` whole in the box below the form -- that box is the file
+itself, so what you save is what you are reading. Their values live in the
+front matter of the record they belong to, like every other field.
+
+Removing a field stops Hermit CRM showing it and leaves every value where it
+is; describing it again brings them back. See [the data format](/help/data-format).
 
 ## AI: Enrich and Ask the Hermit
 

@@ -65,6 +65,20 @@ def post_company(client, **fields):
     return client.post("/companies", data={**COMPANY_BLANK, **fields})
 
 
+def define_fields(client, repo, toml: str):
+    """Write fields.toml and make the running app pick it up."""
+    (repo / "fields.toml").write_text(toml, encoding="utf-8")
+    client.post("/reload")
+
+
+MY_SCORE = ('[[field]]\nkey = "my_score"\nlabel = "my score"\ntype = "number"\n'
+            'show_in = ["detail", "board", "companies"]\n')
+FIT_AND_FTE = ('[[field]]\nkey = "fit_score"\nlabel = "fit"\ntype = "number"\n'
+               'show_in = ["detail", "companies"]\n\n'
+               '[[field]]\nkey = "fte_estimate"\nlabel = "FTE"\ntype = "text"\n'
+               'show_in = ["detail", "companies"]\n')
+
+
 def patch_company(client, app, slug, **fields):
     """POST the full edit form, changing only the given fields."""
     values = company_values(app.state.store.companies[slug])
@@ -620,6 +634,10 @@ SHEET = (
 
 
 def test_import_preview_and_apply(client, app, repo):
+    # fit_score is one of the sheet's columns and one of this folder's own fields
+    define_fields(client, repo,
+                  '[[field]]\nkey = "fit_score"\nlabel = "fit"\ntype = "number"\n'
+                  'show_in = ["detail", "companies"]\n')
     post_company(client, name="Acme")
     assert "Import companies" in client.get("/import").text
 
@@ -640,7 +658,8 @@ def test_import_preview_and_apply(client, app, repo):
     assert "1%20companies%20created%2C%201%20updated%2C%202%20contacts%20created" in r.headers["location"]
     assert last_commit(repo) == "import: 1 companies created, 1 updated, 2 contacts created"
     store = app.state.store
-    assert store.get("fjellmark").country == "SE" and store.get("acme").fit_score == 70
+    assert store.get("fjellmark").country == "SE"
+    assert store.get("acme").extra["fit_score"] == 70  # mapped to a custom field
     assert "andreas-lindqvist" in store.get("fjellmark").contacts
     assert store.get("acme").contacts["jane-doe"].title == "CEO"
     assert "fjellmark" in (repo / "PIPELINE.md").read_text()
@@ -721,10 +740,10 @@ class StubEnricher:
                         missing=self.missing if self.missing is not None else list(self.fields),
                         sources=["https://example.com/about"], notes="ok")
 
-    def propose_company(self, company):
+    def propose_company(self, company, defs=None):
         return self._proposal()
 
-    def propose_contact(self, company, contact):
+    def propose_contact(self, company, contact, defs=None):
         return self._proposal()
 
 
@@ -877,9 +896,12 @@ def test_contacts_tab_lists_search_and_filters(client):
     assert "Contacts" in client.get("/").text.split("</nav>")[0]
 
 
-def test_companies_filters(client):
-    post_company(client, name="Acme", stage="offer", country="DE", my_score="8", tags="x, y")
-    post_company(client, name="Beta", stage="prospect", country="NL", my_score="3")
+def test_companies_filters(client, repo):
+    """The filter operators work on a user-defined field with no change to them."""
+    define_fields(client, repo, MY_SCORE)
+    post_company(client, name="Acme", stage="offer", country="DE", custom_my_score="8",
+                 tags="x, y")
+    post_company(client, name="Beta", stage="prospect", country="NL", custom_my_score="3")
     post_company(client, name="Gamma", stage="offer", country="SE")
     page = client.get("/companies").text
     assert '<tr class="filters">' in page and 'name="f_stage" form="company-filters"' in page
@@ -910,8 +932,10 @@ def test_board_filters_choose_columns_and_cards(client):
 
 
 def test_merge_companies_pages(client, app, repo):
+    define_fields(client, repo, MY_SCORE)
     post_company(client, name="Acme", website="https://acme.de")
-    post_company(client, name="Acme Software", linkedin="https://l/acme", my_score="4")
+    post_company(client, name="Acme Software", linkedin="https://l/acme",
+                 custom_my_score="4")
     post_contact(client, "acme-software", first_name="Jane", last_name="Doe")
     page = client.get("/companies/acme").text
     assert 'action="/companies/acme/merge"' in page and 'value="acme-software"' in page
@@ -928,7 +952,8 @@ def test_merge_companies_pages(client, app, repo):
                           "choice_linkedin": "drop", "choice_website": "keep"})
     assert r.status_code == 303 and "Merged%20acme-software%20into%20acme" in r.headers["location"]
     c = app.state.store.get("acme")
-    assert c.linkedin == "https://l/acme" and c.my_score == 4 and c.website == "https://acme.de"
+    assert c.linkedin == "https://l/acme" and c.website == "https://acme.de"
+    assert c.extra["my_score"] == 4  # a custom field is choosable like any other
     assert "jane-doe" in c.contacts and app.state.store.get("acme-software") is None
     assert last_commit(repo) == "company: acme-software merged into acme"
     assert not (repo / "companies" / "acme-software").exists()
@@ -1002,9 +1027,10 @@ def test_companies_hide_and_show_temp_disqualified(client, app):
     assert "Parked" in client.get("/companies?parked=1&f_name=park").text
 
 
-def test_sorting_on_companies_contacts_and_board(client):
-    post_company(client, name="Beta", fit_score="70", fte_estimate="~30")
-    post_company(client, name="Alpha", fit_score="90", fte_estimate="12")
+def test_sorting_on_companies_contacts_and_board(client, repo):
+    define_fields(client, repo, FIT_AND_FTE)
+    post_company(client, name="Beta", custom_fit_score="70", custom_fte_estimate="~30")
+    post_company(client, name="Alpha", custom_fit_score="90", custom_fte_estimate="12")
     post_company(client, name="Gamma")
     post_contact(client, "beta", first_name="Zoe", last_name="Z")
     post_contact(client, "alpha", first_name="Adam", last_name="A")
@@ -1256,6 +1282,64 @@ def test_the_company_header_lost_four_of_its_six_rows(client, app):
     assert page.count('summary class="button">Disqualify') == 1
     assert "Temp disqualify" in page  # still there, inside the menu
     assert 'action="/companies/acme/fetch"' in page  # the actions survived the move
+
+
+def test_a_custom_field_goes_all_the_way_through_the_app(client, app, repo):
+    """Define it, fill it in the form, read it back off the page and the file."""
+    define_fields(client, repo,
+                  '[[field]]\nkey = "segment"\nlabel = "segment"\ntype = "select"\n'
+                  'options = ["smb", "enterprise"]\nshow_in = ["detail", "companies"]\n')
+    page = client.get("/companies/new").text
+    assert 'name="custom_segment"' in page and '<option value="enterprise"' in page
+
+    post_company(client, name="Acme", custom_segment="enterprise")
+    company = app.state.store.get("acme")
+    assert company.extra["segment"] == "enterprise"
+    assert "segment: enterprise" in (repo / "companies/acme/company.md").read_text()
+
+    detail = client.get("/companies/acme").text
+    assert "segment enterprise" in detail                       # the header line
+    assert 'value="enterprise" selected' in detail              # the edit form
+    assert "<th>segment" in client.get("/companies").text
+
+    # a value outside the options is refused, and nothing is written
+    values = company_values(app.state.store.companies["acme"])
+    values["custom_segment"] = "galactic"
+    r = client.post("/companies/acme", data=values)
+    assert r.status_code == 400 and "must be one of smb, enterprise" in r.text
+    assert app.state.store.get("acme").extra["segment"] == "enterprise"
+
+    # clearing it removes the key rather than storing an empty one
+    values["custom_segment"] = ""
+    assert client.post("/companies/acme", data=values).status_code == 303
+    assert "segment" not in app.state.store.get("acme").extra
+    assert "segment:" not in (repo / "companies/acme/company.md").read_text()
+
+
+def test_a_field_on_a_contact_and_on_an_interaction(client, app, repo):
+    define_fields(client, repo,
+                  '[[field]]\nkey = "seniority"\ntype = "text"\napplies_to = "contact"\n'
+                  'show_in = ["detail", "contacts"]\n\n'
+                  '[[field]]\nkey = "sentiment"\ntype = "text"\n'
+                  'applies_to = "interaction"\nshow_in = ["detail", "messages"]\n')
+    post_company(client, name="Acme")
+    r = client.post("/companies/acme/contacts",
+                    data={"first_name": "Ines", "last_name": "Vega", "title": "",
+                          "linkedin": "", "email": "", "phone": "", "role": "",
+                          "notes": "", "custom_seniority": "VP"})
+    assert r.status_code == 303
+    assert app.state.store.get("acme").contacts["ines-vega"].extra["seniority"] == "VP"
+    assert "<th>seniority" in client.get("/contacts").text
+
+    r = client.post("/companies/acme/interactions",
+                    data={"channel": "email", "direction": "out", "contact": "ines-vega",
+                          "date": "2026-09-18T10:00", "subject": "Hello",
+                          "outcome": "", "body": "The body is the record.",
+                          "custom_sentiment": "warm"})
+    assert r.status_code == 303
+    it = app.state.store.get("acme").interactions[0]
+    assert it.extra["sentiment"] == "warm"
+    assert it.body == "The body is the record.\n"   # untouched by the custom field
 
 
 # ----------------------------------------------------------------- extension

@@ -25,8 +25,8 @@ from hermitcrm.store import Store, load_config
 
 COMPANY_FIELD_ORDER = [
     "name", "slug", "website", "linkedin", "country", "source", "stage",
-    "stage_changed", "lost_reason", "requalify_on", "value_eur_month", "my_score", "fit_score",
-    "fte_estimate", "ae_count", "product_oneliner", "next_step", "next_step_due",
+    "stage_changed", "lost_reason", "requalify_on", "value_eur_month",
+    "product_oneliner", "next_step", "next_step_due",
     "next_step_status", "tags", "created", "updated",
 ]
 
@@ -444,17 +444,42 @@ def create_fields(method) -> set[str]:
             if name not in ("self", "company_slug")}
 
 
-def parse_set_args(pairs: list[str], allowed: set[str]) -> dict:
-    """`--set field=value` pairs, checked against the fields the store takes."""
+def _custom_defs(root: Path) -> list:
+    """The folder's own field definitions; none when the file is unreadable."""
+    from hermitcrm import fields as custom_fields
+    try:
+        return custom_fields.load(root)
+    except custom_fields.FieldError:
+        return []
+
+
+def parse_set_args(pairs: list[str], allowed: set[str], defs: list | None = None) -> dict:
+    """`--set field=value` pairs, checked against the fields the store takes.
+
+    A key the store does not have may still be one the folder defined itself;
+    those are coerced by their own definition and handed over as `custom`.
+    """
+    allowed = set(allowed) - {"custom"}  # transport, not something to type
+    by_key = {d.key: d for d in (defs or [])}
     values: dict[str, str] = {}
+    custom: dict = {}
     for pair in pairs:
         key, sep, value = pair.partition("=")
         key = key.strip().replace("-", "_")
         if not sep or not key:
             raise ValueError(f"--set wants field=value, got {pair!r}")
-        if key not in allowed:
-            raise ValueError(f"unknown field {key!r}; fields: " + ", ".join(sorted(allowed)))
-        values[key] = value
+        if key in by_key:
+            try:
+                custom[key] = by_key[key].coerce(value)
+            except ValueError as exc:
+                raise ValueError(str(exc)) from None
+        elif key in allowed:
+            values[key] = value
+        else:
+            known = sorted(set(allowed) | set(by_key))
+            raise ValueError(f"unknown field {key!r}; fields: " + ", ".join(known))
+    if custom:
+        values["custom"] = custom
     return values
 
 
@@ -474,11 +499,15 @@ def cmd_add(store: Store, args, stdin=None) -> tuple[str, int]:
     """
     from hermitcrm.models import ValidationError, split_name
 
+    def defs(scope: str) -> list:
+        return [d for d in _custom_defs(store.root) if d.applies_to == scope]
+
     named = {k: v for k, v in vars(args).items() if k in NAMED_FIELDS and v is not None}
     try:
         if args.what == "company":
             fields = create_fields(store.create_company)
-            values = {**named, **parse_set_args(args.set, fields), "name": args.name}
+            values = {**named, **parse_set_args(args.set, fields, defs("company")),
+                      "name": args.name}
             company = store.create_company(**values)
             return (f"company {company.slug} created: "
                     f"companies/{company.slug}/company.md", 0)
@@ -487,13 +516,13 @@ def cmd_add(store: Store, args, stdin=None) -> tuple[str, int]:
             fields = create_fields(store.create_contact)
             first, last = split_name(args.name)
             values = {"first_name": first, "last_name": last, **named,
-                      **parse_set_args(args.set, fields)}
+                      **parse_set_args(args.set, fields, defs("contact"))}
             contact = store.create_contact(args.company, **values)
             return (f"contact {contact.slug} created: "
                     f"companies/{args.company}/contacts/{contact.slug}.md", 0)
 
         fields = create_fields(store.create_interaction)
-        values = {**named, **parse_set_args(args.set, fields),
+        values = {**named, **parse_set_args(args.set, fields, defs("interaction")),
                   "channel": args.channel, "direction": args.direction,
                   "body": read_body(args.body, stdin)}
         it = store.create_interaction(args.company, **values)
@@ -510,7 +539,8 @@ def cmd_import(store: Store, path: Path, apply: bool = False, mode: str | None =
                mapping: dict | None = None) -> str:
     from hermitcrm.importer import apply_import, decode_upload, plan_import
 
-    plan = plan_import(store, decode_upload(path.read_bytes()), mode=mode, mapping=mapping)
+    plan = plan_import(store, decode_upload(path.read_bytes()), mode=mode,
+                       mapping=mapping, defs=_custom_defs(store.root))
     lines = [f"Mode: {plan.mode} | columns: " +
              ", ".join(f"{h} -> {t}" for h, t in plan.mapping.items()),
              plan.summary]
@@ -551,8 +581,12 @@ def cmd_enrich(store: Store, enricher: Enricher, slug: str, contact: str = "",
         if target is None:
             return (f"unknown contact {contact!r} for {slug!r}", 1)
     try:
-        proposal = (enricher.propose_contact(company, target) if target
-                    else enricher.propose_company(company))
+        defs = _custom_defs(store.root)
+        proposal = (enricher.propose_contact(company, target,
+                                             [d for d in defs if d.applies_to == "contact"])
+                    if target else
+                    enricher.propose_company(company,
+                                             [d for d in defs if d.applies_to == "company"]))
     except EnrichError as exc:
         return (str(exc), 1)
     if not proposal.missing:

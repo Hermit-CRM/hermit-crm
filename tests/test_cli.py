@@ -140,36 +140,36 @@ def test_show_format_default_three_bodies(tmp_path):
     text = crm.cmd_show(store, "acme")
     lines = text.split("\n")
 
-    assert lines[:25] == [
+    assert lines[:21] == [
         "name: Acme GmbH", "slug: acme", "website:", "linkedin:", "country:",
         "source: referral", "stage: discovery", "stage_changed: 2026-09-14",
-        "lost_reason:", "requalify_on:", "value_eur_month: 1500", "my_score:", "fit_score:",
-        "fte_estimate:", "ae_count:", "product_oneliner:", "next_step: Send proposal",
+        "lost_reason:", "requalify_on:", "value_eur_month: 1500",
+        "product_oneliner:", "next_step: Send proposal",
         "next_step_due: 2026-09-20", "next_step_status: open", "tags: priority, eu",
         "created: 2026-09-14T10:30", "updated: 2026-09-14T10:30", "",
         "Some notes about Acme.", "",
     ]
-    assert lines[25] == "Contacts:"
-    assert lines[26] == "jane-doe | CEO | jane@acme.de | decision-maker"
-    assert lines[27] == "jonas-berg | CTO | - | -"
-    assert lines[28] == ""
-    assert lines[29] == "Interactions:"
-    assert lines[30] == "2026-09-13 09:00 | email out | jane-doe | Touch 3 | -"
-    assert lines[31] == "2026-09-12 09:00 | email out | jane-doe | Touch 2 | -"
-    assert lines[32] == "2026-09-11 09:00 | email out | jane-doe | Touch 1 | -"
-    assert lines[33] == "2026-09-10 09:00 | email out | jane-doe | Touch 0 | -"
+    assert lines[21] == "Contacts:"
+    assert lines[22] == "jane-doe | CEO | jane@acme.de | decision-maker"
+    assert lines[23] == "jonas-berg | CTO | - | -"
+    assert lines[24] == ""
+    assert lines[25] == "Interactions:"
+    assert lines[26] == "2026-09-13 09:00 | email out | jane-doe | Touch 3 | -"
+    assert lines[27] == "2026-09-12 09:00 | email out | jane-doe | Touch 2 | -"
+    assert lines[28] == "2026-09-11 09:00 | email out | jane-doe | Touch 1 | -"
+    assert lines[29] == "2026-09-10 09:00 | email out | jane-doe | Touch 0 | -"
 
     # default: three most recent bodies
-    assert lines[34] == ""
-    assert lines[35] == "--- 2026-09-13 09:00 | email out | jane-doe | Touch 3 | -"
-    assert lines[36] == "Body number 3"
-    assert lines[37] == ""
-    assert lines[38] == "--- 2026-09-12 09:00 | email out | jane-doe | Touch 2 | -"
-    assert lines[39] == "Body number 2"
-    assert lines[40] == ""
-    assert lines[41] == "--- 2026-09-11 09:00 | email out | jane-doe | Touch 1 | -"
-    assert lines[42] == "Body number 1"
-    assert len(lines) == 43
+    assert lines[30] == ""
+    assert lines[31] == "--- 2026-09-13 09:00 | email out | jane-doe | Touch 3 | -"
+    assert lines[32] == "Body number 3"
+    assert lines[33] == ""
+    assert lines[34] == "--- 2026-09-12 09:00 | email out | jane-doe | Touch 2 | -"
+    assert lines[35] == "Body number 2"
+    assert lines[36] == ""
+    assert lines[37] == "--- 2026-09-11 09:00 | email out | jane-doe | Touch 1 | -"
+    assert lines[38] == "Body number 1"
+    assert len(lines) == 39
     # Touch 0's body is not printed by default.
     assert "Body number 0" not in text
 
@@ -364,12 +364,26 @@ def test_cli_add_body_from_stdin_keeps_newlines(tmp_path, capsys):
 def test_cli_add_set_reaches_a_field_without_a_flag(tmp_path, capsys):
     fixed_store(tmp_path)
 
+    (tmp_path / "fields.toml").write_text(
+        '[[field]]\nkey = "my_score"\ntype = "number"\n\n'
+        '[[field]]\nkey = "fte_estimate"\ntype = "text"\n', encoding="utf-8")
+
     code = crm.main(["add", "company", "Acme BV", "--set", "my_score=4",
                      "--set", "fte-estimate=10-50"], root=tmp_path)
 
     assert code == 0
     text = (tmp_path / "companies" / "acme" / "company.md").read_text()
     assert "my_score: 4" in text and "fte_estimate: 10-50" in text
+
+
+def test_cli_add_set_refuses_a_field_nobody_defined(tmp_path, capsys):
+    """An undefined key is a typo, not a new field: --set will not invent one."""
+    fixed_store(tmp_path)
+    code = crm.main(["add", "company", "Acme BV", "--set", "mystery=4"], root=tmp_path)
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "unknown field 'mystery'" in err
+    assert not (tmp_path / "companies" / "acme").exists()
 
 
 def test_cli_add_rejects_bad_input_without_writing(tmp_path, capsys):
@@ -430,11 +444,11 @@ def test_cli_enrich_dry_run_and_apply(tmp_path, capsys, monkeypatch):
     store.create_company("Acme")
 
     class Stub:
-        def propose_company(self, company):
+        def propose_company(self, company, defs=None):
             return Proposal(fields={"website": "https://acme.de"},
                             missing=["website", "linkedin"], sources=["https://acme.de"])
 
-        def propose_contact(self, company, contact):
+        def propose_contact(self, company, contact, defs=None):
             return Proposal(fields={}, missing=["title"], notes="nothing public")
 
     text, code = crm.cmd_enrich(store, Stub(), "acme")

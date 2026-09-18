@@ -137,10 +137,6 @@ def test_create_company_file_bytes(store):
         "lost_reason:\n"
         "requalify_on:\n"
         "value_eur_month:\n"
-        "my_score:\n"
-        "fit_score:\n"
-        "fte_estimate:\n"
-        "ae_count:\n"
         "product_oneliner:\n"
         "next_step:\n"
         "next_step_due:\n"
@@ -753,10 +749,11 @@ def test_disqualify_stages_keep_reason_and_park(store, messages):
 
 
 def _two_companies(store):
-    store.create_company("Acme", website="https://acme.de", my_score=7,
+    store.create_company("Acme", website="https://acme.de", custom={"my_score": 7},
                          tags=["a"], notes="Acme notes.\n", next_step="Call")
     store.create_company("Acme Software", linkedin="https://l/acme", country="DE",
-                         my_score=3, fit_score=80, tags=["b"], notes="Other notes.\n")
+                         custom={"my_score": 3, "fit_score": 80}, tags=["b"],
+                         notes="Other notes.\n")
     store.create_contact("acme", "Jane", "Doe", email="jane@acme.de")
     store.create_contact("acme-software", "Jane", "Doe", title="CEO")
     store.create_contact("acme-software", "Bob", "King")
@@ -782,8 +779,8 @@ def test_merge_companies_defaults_choices_and_moves_everything(store, messages):
     assert merged.slug == "acme" and merged.name == "Acme"
     assert merged.website == "https://acme.de"           # kept (non-empty)
     assert merged.linkedin == "https://l/acme"           # filled from drop
-    assert merged.country == "DE" and merged.fit_score == 80
-    assert merged.my_score == 3                        # explicit drop
+    assert merged.country == "DE" and merged.extra["fit_score"] == 80
+    assert merged.extra["my_score"] == 3               # explicit drop
     assert merged.tags == ["a", "b"]
     assert merged.notes == "Acme notes.\n\n---\n\nOther notes.\n"
     assert merged.next_step == "Call"

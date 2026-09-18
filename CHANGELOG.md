@@ -5,9 +5,28 @@ the data format always comes with an automatic migration.
 
 ## 0.3.0 (unreleased)
 
-Data format 4: the stage `reached-out` is renamed to **engaged** (in `stage`
-and `stage_history`), migrated automatically in one commit.
+Data format 5: the stage `reached-out` is renamed to **engaged** (in `stage`
+and `stage_history`), and the four built-in scoring fields become fields you
+define. Both migrate automatically in one commit.
 
+- **Fields of your own, and four fewer of somebody else's.** `my_score`,
+  `fit_score`, `fte_estimate` and `ae_count` were built into every Hermit CRM.
+  They were one person's way of working, and a new install met all four before
+  it met a feature it asked for. They are gone, replaced by fields you define:
+  a key, a label, a type (text, number, date or select) and where they show up,
+  written in `fields.toml` beside your data and edited under Settings → Fields,
+  one at a time or all at once. They work on companies, contacts and
+  interactions; wherever one appears as a column it filters and sorts like any
+  built-in field, the importer can map a spreadsheet column to it, and one that
+  says `enrich = true` is offered to the AI. **A folder that used the old four
+  keeps them**: the migration writes a `fields.toml` describing them and does
+  not touch a single company file, because those keys were always ordinary
+  front matter. A folder that never used them gets no file at all.
+- **Merging two records no longer drops what Hermit CRM does not recognise.**
+  A merge rebuilt the kept record from the fields it knows by name, so every
+  other front-matter key on both sides was silently lost. They are merged
+  side by side now, choosable like any other field on the merge page. This
+  affected merges before custom fields existed.
 - **The AI CLI is asked how it is signed in.** A Codex CLI on a ChatGPT account
   refuses `gpt-5-mini`, the model Hermit CRM pinned for it, and both Enrich and
   Ask the Hermit died with the same 400 printed three times. Settings now has an

@@ -9,10 +9,9 @@
   {% if company.linkedin %}<a href="{{ company.linkedin }}" target="_blank" rel="noopener">linkedin</a>{% endif %}
   <span>{{ company.stage }}{% if company.lost_reason %} ({{ company.lost_reason }}){% endif %}{% if company.requalify_on %}, requalifies on {{ fmt_date(company.requalify_on) }}{% endif %} &middot; {{ company.days_in_stage(today) }}d in stage</span>
   <span>last touch: {{ company.last_touch_summary }}</span>
-  {% if company.my_score is not none %}<span>my score {{ company.my_score }}</span>{% endif %}
-  {% if company.fit_score is not none %}<span>fit {{ company.fit_score }}</span>{% endif %}
-  {% if company.fte_estimate %}<span>~{{ company.fte_estimate.lstrip('~') }} FTE</span>{% endif %}
-  {% if company.ae_count is not none %}<span>{{ company.ae_count }} AEs</span>{% endif %}
+  {% for f in custom_fields_for('company') if f.shows_in('detail') and company.extra.get(f.key) not in (none, '') %}
+  <span>{{ f.label }} {{ f.display(company.extra.get(f.key)) }}</span>
+  {% endfor %}
   {% if company.stage in ['disqualified', 'temp-disqualified'] %}
   <form method="post" action="/companies/{{ company.slug }}/disqualify" class="inline">
     <input type="hidden" name="stage" value="prospect"><button type="submit">Requalify</button>
