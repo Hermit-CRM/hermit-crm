@@ -43,6 +43,7 @@ hermitcrm backup status                    where the backup is, its size, the la
 hermitcrm backup list [PATH] [-n 20]       versions in the backup, newest first, optionally only those touching PATH
 hermitcrm backup restore ID [PATH ...] [--apply]
                                         put files back as they were in version ID, as a new commit
+hermitcrm backup guard                     block history-rewriting git commands for Claude Code (.claude/settings.json)
 ```
 
 See [Backups and undo](/help/backups).

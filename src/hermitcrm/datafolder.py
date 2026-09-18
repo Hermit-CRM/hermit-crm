@@ -8,7 +8,7 @@ import subprocess
 from datetime import datetime, time, timedelta
 from pathlib import Path
 
-from . import fields, migrations
+from . import fields, guard, migrations
 from .store import DEFAULT_CONFIG, Store
 
 ENV_DATA = "HERMITCRM_DATA"
@@ -167,16 +167,25 @@ Writing rules:
 - Never rewrite interaction bodies; they are the record.
 - Never put secrets in config.toml and never commit .secrets.toml.
 
-Backups and undo (`hermitcrm help backups`):
+"""
+
+AGENT_BACKUP_RULES = """Backups and undo (`hermitcrm help backups`):
 - This folder is backed up every few minutes to a repository outside it that
   only grows (`hermitcrm backup status` says where, under ~/.hermitcrm/backups/).
 - Never rewrite history here: no `git reset --hard`, `commit --amend`, `rebase`,
-  `filter-branch` or `push --force`. Undo with a new commit instead.
-- Never touch ~/.hermitcrm/backups/ or .git/hermitcrm-backup.json.
+  `filter-branch`, `git clean -f` or `push --force`. Undo with a new commit instead.
+- For Claude Code these commands are blocked: `.claude/settings.json` denies
+  them in every permission mode. A refusal is intended; do not work around it
+  (another form of the command, a script, `bash -c`). Ask the user instead.
+- Never touch ~/.hermitcrm/backups/, .git/hermitcrm-backup.json or
+  .claude/settings.json.
 - To undo damage: `hermitcrm backup list <path>` finds the version,
   `hermitcrm backup restore <id> <path>` shows what would change, `--apply`
   does it (as a new commit). Say what you restored and from which version.
 """
+
+# Its own constant so migration 6 can add it to CLAUDE.md files written before it.
+AGENT_RULES += AGENT_BACKUP_RULES
 
 MESSAGING = """# Messaging playbook
 
@@ -289,6 +298,7 @@ def init_folder(target: str | Path, demo: bool = False, now: datetime | None = N
         gitignore.write_text(existing + sep + "\n".join(missing) + "\n", encoding="utf-8")
     for name in ("CLAUDE.md", "AGENTS.md"):
         (path / name).write_text(AGENT_RULES, encoding="utf-8")
+    guard.write(path)
     if not (path / "MESSAGING.md").exists():
         (path / "MESSAGING.md").write_text(MESSAGING, encoding="utf-8")
     migrations.write_format(path, migrations.LATEST)

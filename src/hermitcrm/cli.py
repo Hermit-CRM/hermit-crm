@@ -222,6 +222,17 @@ def cmd_backup(root: Path, args, home: Path | None = None) -> int:
 
     config = load_config(root)
     action = args.action or "run"
+    if action == "guard":
+        from hermitcrm import guard
+
+        try:
+            added = guard.write(root)
+        except guard.GuardError as exc:
+            print(exc, file=sys.stderr)
+            return 2
+        print(f"added {len(added)} deny rule(s) to {guard.SETTINGS}" if added
+              else f"{guard.SETTINGS} already blocks all {len(guard.DENY)} commands")
+        return 0
     if action == "status":
         state = backup.status(root, config, home=home)
         print("\n".join(state["lines"]))
@@ -953,6 +964,8 @@ def _build_parser() -> argparse.ArgumentParser:
     b_restore.add_argument("paths", nargs="*",
                            help="files or folders to restore (default: everything)")
     b_restore.add_argument("--apply", action="store_true")
+    b_sub.add_parser("guard", help="block history-rewriting git commands for Claude Code "
+                     "(.claude/settings.json; new folders have it)")
     p_backup.set_defaults(action="run", quiet=False)
 
     p_migrate = sub.add_parser("migrate", help="upgrade the data format (runs automatically)")

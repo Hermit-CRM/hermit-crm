@@ -14,7 +14,7 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import __version__, backup, bcc, migrations, schedule, secrets, updates
+from . import __version__, backup, bcc, guard, migrations, schedule, secrets, updates
 from . import setup as setup_steps
 from .datafolder import is_data_folder
 from .enrich import Enricher
@@ -148,6 +148,17 @@ def run_checks(root: Path, *, online: bool = False, env: dict | None = None,
             add("backup", OK, found["summary"])
     except Exception as exc:
         add("backup", WARN, f"could not check: {exc}")
+
+    try:
+        gone = guard.missing(root)
+        if gone:
+            add("agent guard", WARN, f"{len(gone)} of {len(guard.DENY)} deny rules missing "
+                f"from {guard.SETTINGS}; run hermitcrm backup guard")
+        else:
+            add("agent guard", OK, f"history-rewriting git commands blocked for Claude Code "
+                f"({guard.SETTINGS})")
+    except guard.GuardError as exc:
+        add("agent guard", WARN, str(exc))
 
     remote = str(config.get("remote") or "origin")
     url = setup_steps.remote_url(root, remote, runner)

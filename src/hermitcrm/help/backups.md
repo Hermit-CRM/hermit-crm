@@ -1,12 +1,47 @@
 # Backups and undo
 
-A second copy of the folder's history, outside the folder, that can only grow; every few minutes, and any version can be put back.
+A second copy of the folder's history, outside the folder, that can only grow; every few minutes, and any version can be put back. Claude Code is blocked from the git commands that destroy history.
 
 Every change in Hermit CRM is already a git commit, so a bad edit is undone
 from the history. What the history cannot protect is *itself*: a
 `git reset --hard`, an amended or rebased commit, a deleted `.git` folder or a
 force-push loses it. Anything with a shell in the folder can do that -- you, a
 script, or an AI agent that meant well. The backup covers that case.
+
+## Dangerous git commands are blocked
+
+Every data folder has a `.claude/settings.json` that stops Claude Code from
+running the commands that destroy history, in every permission mode (bypass
+included). An agent that tries one gets a refusal instead of a result:
+
+| Blocked | Why |
+|---|---|
+| `git reset --hard`, `git commit --amend`, `git rebase` | move `main` back or replace commits |
+| `git push --force` / `-f` / `--force-with-lease` | overwrite the copy on your remote |
+| `git filter-branch`, `git filter-repo` | rewrite every commit |
+| `git update-ref -d`, `git reflog expire`, `git gc --prune` | delete refs, or the objects a reset left behind |
+| `git clean -f` / `-fd` / `-fdx` | delete files git does not track |
+| the same with `git -C <dir> ...` | `git -C` would slip past a plain prefix match |
+| `rm -rf .git`, `rm -rf companies`, `rm -rf ~/.hermitcrm` | delete the history, the data or the backup |
+| editing `~/.hermitcrm/**` or `.claude/settings.json` | the backup, and this list itself |
+
+New folders get it from `hermitcrm init`; existing folders get it with the
+upgrade (data format 6), merged into any settings file already there. Your
+own rules in that file are kept. `hermitcrm doctor` warns when a rule is
+missing and `hermitcrm backup guard` puts them back.
+
+Two limits, stated plainly:
+
+- **It is Claude Code only.** Codex, Gemini and other agents have no such file;
+  they get the same rules as text in `AGENTS.md`.
+- **It matches command patterns; it is a seat belt, not a lock.** A script,
+  `bash -c "..."` or a command spelled differently still gets through. That is
+  what the backup below is for: whatever gets through, the versions it
+  destroyed are still in the backup.
+
+You are not blocked: these rules apply to Claude Code, not to your own
+terminal. To let an agent run one of them anyway, remove that line from the
+file for the moment (`doctor` will remind you to put it back).
 
 ## What it is
 
@@ -129,7 +164,7 @@ hermitcrm backup restore snapshots/<time> --apply
   a folder another disk or a sync service holds.
 - **Someone going after the backup itself.** Anything running as you can
   delete `~/.hermitcrm/backups`. Hermit CRM notices (the next run says the
-  backup "was missing" and `doctor` warns) but cannot bring it back. For AI
-  agents, deny them that path; see [AI agents](/help/ai-agents).
+  backup "was missing" and `doctor` warns) but cannot bring it back. Claude
+  Code is denied that path (above); other agents only have the written rule.
 
 Related: [Settings](/help/settings), [CLI](/help/cli), [AI agents](/help/ai-agents)

@@ -47,13 +47,14 @@ def test_fresh_folder_warns_but_does_not_fail(folder, tmp_path):
     res = checks(folder, tmp_path)
     assert [c for c in res] == ["python", "git", "data folder", "data format", "config",
                                 "owner_email", "bcc password", "imap login", "calendar url",
-                                "schedule", "backup", "git remote", "enrich cli", "update"]
+                                "schedule", "backup", "agent guard", "git remote", "enrich cli",
+                                "update"]
     assert res["owner_email"].status == "warn"
     assert res["schedule"].status == "warn" and res["git remote"].status == "warn"
     assert res["imap login"].detail == "not checked; add --online"
     assert res["enrich cli"].detail == "claude"
     text, code = doctor.report(list(res.values()))
-    assert code == 0 and len(text.splitlines()) == 14
+    assert code == 0 and len(text.splitlines()) == 15
     assert res["backup"].status == "warn"
     assert text.splitlines()[0].startswith("ok    python: ")
 
@@ -169,3 +170,16 @@ def test_doctor_schedule_names_the_folder_the_job_actually_serves(tmp_path):
     assert checks["schedule"].status == "warn"
     assert str(theirs.resolve()) in checks["schedule"].detail
 
+
+
+def test_agent_guard_warns_when_a_rule_is_missing(folder, tmp_path):
+    from hermitcrm import guard
+
+    assert checks(folder, tmp_path)["agent guard"].status == "ok"
+    path = folder / guard.SETTINGS
+    path.write_text(path.read_text().replace('"Bash(git rebase:*)",', ""))
+    found = checks(folder, tmp_path)["agent guard"]
+    assert found.status == "warn" and "1 of" in found.detail
+    assert "hermitcrm backup guard" in found.detail
+    path.write_text("{oops")
+    assert "not valid JSON" in checks(folder, tmp_path)["agent guard"].detail

@@ -73,37 +73,25 @@ only grows (`hermitcrm backup status` says where; see
   `rebase`, `filter-branch` or `push --force`. Undo with a new commit
   (`git revert`, or `hermitcrm backup restore`). A rewrite is not lost -- the
   backup keeps both lines and flags it -- but it is noisy and looks like damage.
-- Never touch `~/.hermitcrm/backups/` or `.git/hermitcrm-backup.json`.
+- Never touch `~/.hermitcrm/backups/`, `.git/hermitcrm-backup.json` or
+  `.claude/settings.json`.
 - To undo damage, find the version with `hermitcrm backup list <path>`, check
   with `hermitcrm backup restore <id> <path>` (a dry run), then add `--apply`.
   Say what you restored and from which version.
 
-For Claude Code, a deny list in the data folder's `.claude/settings.json` stops
-those commands before they run (deny rules apply in every permission mode):
+**For Claude Code, these commands are blocked, not just discouraged.** Every
+data folder has a `.claude/settings.json` whose deny list refuses `git reset
+--hard`, `commit --amend`, `rebase`, `push --force`, `filter-branch`,
+`git clean -f`, `rm -rf .git` and the rest (also as `git -C <dir> ...`), in
+every permission mode, bypass included. The full list and its limits are in
+[Backups and undo](/help/backups), its first section. A
+refusal there is the rule working: make a new commit instead, and do not
+try another spelling, a script or `bash -c` to get round it.
 
-```json
-{
-  "permissions": {
-    "deny": [
-      "Bash(git reset --hard:*)", "Bash(git push --force:*)", "Bash(git push -f:*)",
-      "Bash(git push --force-with-lease:*)", "Bash(git commit --amend:*)",
-      "Bash(git rebase:*)", "Bash(git filter-branch:*)", "Bash(git filter-repo:*)",
-      "Bash(git update-ref -d:*)", "Bash(git reflog expire:*)", "Bash(git gc --prune:*)",
-      "Bash(git clean -f:*)", "Bash(git clean -fd:*)", "Bash(git clean -fdx:*)",
-      "Bash(git -C * reset --hard*)", "Bash(git -C * push --force*)",
-      "Bash(git -C * push -f*)", "Bash(git -C * commit --amend*)",
-      "Bash(git -C * rebase*)", "Bash(git -C * filter-branch*)",
-      "Bash(rm -rf .git:*)", "Bash(rm -rf companies:*)", "Bash(rm -rf ~/.hermitcrm:*)",
-      "Edit(~/.hermitcrm/**)", "Write(~/.hermitcrm/**)"
-    ]
-  }
-}
-```
-
-A deny list matches command patterns, so it is a seat belt, not a lock: the
-`git -C * ...` lines are there because `git -C <dir> commit --amend` does not
-start with `git commit`, and a `bash -c "..."` or a script still gets past
-all of them. The backup is what makes that safe.
+Other agents (Codex, Gemini, ...) have no such file and get these rules as
+text in `AGENTS.md`. A deny list matches command patterns, so it is a seat
+belt, not a lock; the backup is what makes a command that gets past it
+survivable.
 
 ## What the web app does with hand edits
 

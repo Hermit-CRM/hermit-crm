@@ -5,9 +5,10 @@ the data format always comes with an automatic migration.
 
 ## 0.3.0 (unreleased)
 
-Data format 5: the stage `reached-out` is renamed to **engaged** (in `stage`
-and `stage_history`), and the four built-in scoring fields become fields you
-define. Both migrate automatically in one commit.
+Data format 6: the stage `reached-out` is renamed to **engaged** (in `stage`
+and `stage_history`), the four built-in scoring fields become fields you
+define, and every folder gets a `.claude/settings.json` that blocks
+history-rewriting git commands. All migrate automatically in one commit.
 
 - **Backups that nothing can rewrite, and undo for any version.** Every change
   was already a commit, but the history itself was unprotected: a
@@ -24,6 +25,15 @@ define. Both migrate automatically in one commit.
   nothing, so the backup grows only with real edits (about 1 MB for a folder of
   350 companies). Help: Backups and undo; the agent rules in `CLAUDE.md` and
   `AGENTS.md` tell agents not to rewrite history and how to roll back.
+- **Claude Code can no longer run the git commands that destroy history.**
+  Every data folder gets a `.claude/settings.json` deny list (new folders from
+  `init`, existing ones with format 6, merged into what is there): `git reset
+  --hard`, `commit --amend`, `rebase`, `push --force`, `filter-branch`,
+  `reflog expire`, `gc --prune`, `git clean -f`, the `git -C <dir>` forms,
+  `rm -rf .git` / `companies` / `~/.hermitcrm`, and edits to the backup or the
+  list itself. It holds in every permission mode. `doctor` warns when a rule
+  is missing; `hermitcrm backup guard` puts them back. Pattern rules are a seat
+  belt, not a lock, which the help says plainly; the backup covers the rest.
 - **Fields of your own, and four fewer of somebody else's.** `my_score`,
   `fit_score`, `fte_estimate` and `ae_count` were built into every Hermit CRM.
   They were one person's way of working, and a new install met all four before
