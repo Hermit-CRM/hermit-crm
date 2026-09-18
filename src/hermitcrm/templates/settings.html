@@ -7,7 +7,7 @@
 <h1>Settings</h1>
 <p class="small settings-toc">
   <a href="#you">You</a> &middot; <a href="#bcc">BCC capture</a> &middot; <a href="#calendar">Calendar</a> &middot;
-  <a href="#backup">Backup</a> &middot; <a href="#fields">Fields</a> &middot; <a href="#enrichment">Enrichment</a> &middot; <a href="#outcomes">Outcomes</a> &middot;
+  <a href="#backup">Backup</a> &middot; <a href="#fields">Fields</a> &middot; <a href="#messaging">Drafts</a> &middot; <a href="#enrichment">Enrichment</a> &middot; <a href="#outcomes">Outcomes</a> &middot;
   <a href="#inbox">Review queue{% if items %} ({{ items|length }}){% endif %}</a> &middot; <a href="#schedule">Schedule</a> &middot; <a href="#access">Access</a> &middot; <a href="#about">About</a>
   &middot; <a href="/help/settings">Help</a>
 </p>
@@ -121,6 +121,7 @@
       <label class="grow">options, comma separated (select only) <input name="options" placeholder="smb, mid-market, enterprise"></label>
       <label class="grow">help text under the input <input name="help"></label>
     </div>
+    <label class="inline"><input type="checkbox" name="messaging" value="on" checked> Outreach templates may use it as <code>{key}</code></label>
     <fieldset class="switch">
       <legend>Shown in</legend>
       {% for view in ['detail', 'board', 'companies', 'contacts', 'messages'] %}
@@ -137,6 +138,31 @@
     <label class="grow">fields.toml <textarea name="fields_toml" rows="12" spellcheck="false">{{ fields_form.toml }}</textarea></label>
     <p class="small">This is the file itself, so what you save is what you are reading. Removing a field here stops Hermit CRM showing it; the values stay in your records untouched, and putting the field back brings them straight back.</p>
     <button type="submit">Save fields</button>
+  </form>
+</section>
+
+<section class="setup-step" id="messaging">
+  <h2>Drafts</h2>
+  <p class="small">Every field of your own is a slot the outreach templates can use by name, written <code>{{ '{' }}key{{ '}' }}</code>; an empty one renders as its label in square brackets, the mark the templates already use for "only you can fill this in". Two of them can also play the roles the shipped wording knows about. See <a href="/help/messages">Messages</a>.</p>
+  {{ step_errors('messaging') }}
+  <form method="post" action="/settings/messaging" class="record-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="row">
+      <label>Headcount field
+        <select name="size_field">
+          <option value="">none</option>
+          {% for k in company_field_keys %}<option value="{{ k }}"{% if messaging_form.size_field == k %} selected{% endif %}>{{ k }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Sales-team-size field
+        <select name="team_field">
+          <option value="">none</option>
+          {% for k in company_field_keys %}<option value="{{ k }}"{% if messaging_form.team_field == k %} selected{% endif %}>{{ k }}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+    <p class="small">With neither set, the sentences about team size use their "unknown" wording, which is a line you fill in yourself. Nothing is invented.</p>
+    <button type="submit">Save</button>
   </form>
 </section>
 

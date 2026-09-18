@@ -402,7 +402,8 @@ def save_fields(data_dir: Path, text: str) -> StepResult:
 
 def add_field(data_dir: Path, key: str, label: str = "", type: str = "text",
               applies_to: str = "company", options: str = "",
-              show_in: list[str] | None = None, help: str = "") -> StepResult:
+              show_in: list[str] | None = None, help: str = "",
+              messaging: bool = True) -> StepResult:
     """Append one field to the folder's definitions."""
     from . import fields as custom
     result = StepResult()
@@ -419,6 +420,7 @@ def add_field(data_dir: Path, key: str, label: str = "", type: str = "text",
         "help": help,
         "options": [o.strip() for o in (options or "").split(",") if o.strip()],
         "show_in": list(show_in or ["detail"]),
+        "messaging": bool(messaging),
     }
     try:
         added = custom.parse({"field": [{**e.__dict__} for e in existing] + [entry]})
@@ -428,6 +430,33 @@ def add_field(data_dir: Path, key: str, label: str = "", type: str = "text",
         return result
     custom.write(data_dir, added)
     result.messages.append(f"Field {added[-1].key} added.")
+    return result
+
+
+def save_messaging_fields(data_dir: Path, size_field: str = "",
+                          team_field: str = "") -> StepResult:
+    """Which of your fields play the two roles the shipped playbook has wording for."""
+    from . import fields as custom
+    result = StepResult()
+    data_dir = Path(data_dir)
+    try:
+        keys = {d.key for d in custom.load(data_dir) if d.applies_to == "company"}
+    except custom.FieldError:
+        keys = set()
+    values = {}
+    for name, value in (("messaging_size_field", size_field),
+                        ("messaging_team_field", team_field)):
+        value = (value or "").strip()
+        if value and value not in keys:
+            result.errors[name] = (f"No company field called {value!r}; add it under "
+                                   "Fields first, or leave this empty.")
+        values[name] = value
+    if result.errors:
+        result.ok = False
+        return result
+    result.values = values
+    set_config_values(data_dir / "config.toml", values)
+    result.messages.append("Drafts saved.")
     return result
 
 
