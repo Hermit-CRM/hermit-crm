@@ -6,6 +6,11 @@ import pytest
 
 
 from hermitcrm.store import Store  # noqa: E402
+from hermitcrm import web  # noqa: E402
+
+# Starlette's TestClient sends `Host: testserver`; the web app refuses host
+# names it does not know (DNS rebinding), so the tests name theirs.
+web.EXTRA_HOST_NAMES.add("testserver")
 
 FIXED_NOW = datetime(2026, 9, 14, 10, 30)
 

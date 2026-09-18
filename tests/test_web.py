@@ -361,6 +361,7 @@ def test_companies_table_and_search_by_contact_email(client):
 
 def test_reload_picks_up_a_hand_edit(client, repo):
     post_company(client, name="Acme GmbH")
+    client.get("/pipeline")  # the index catches up with the app's own commit
     path = company_file(repo, "acme")
     path.write_text(path.read_text(encoding="utf-8")
                     .replace("stage: prospect", "stage: offer"), encoding="utf-8")

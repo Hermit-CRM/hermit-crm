@@ -51,6 +51,7 @@ CONFIG_DOCS = {
     "owner_email": "Your main email address (informational).",
     "port": "Port of the web app on 127.0.0.1 (`hermitcrm serve --port` overrides it).",
     "host": "Address the web app binds to (`hermitcrm serve --host` overrides it). 0.0.0.0 reaches your phone over the network; Hermit CRM has no password, so use a network you trust.",
+    "allowed_hosts": "Host names the web app answers to besides localhost and IP addresses, e.g. [\"mymac.tail1234.ts.net\"]. Other names are refused, which stops DNS-rebinding attacks from web pages. Restart after changing it.",
     "silent_days": "A company with no interaction for this many days counts as silent.",
     "followup_reply_days": "Days before a message they sent and you have not answered shows on the follow-up radar.",
     "followup_nudge_days": "Days before a message you sent and nobody answered shows on the follow-up radar.",

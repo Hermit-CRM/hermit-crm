@@ -23,7 +23,7 @@ def fresh(store):
 
 def test_load_config_defaults(tmp_path):
     cfg = load_config(tmp_path)
-    assert cfg == {"port": 8765, "host": "127.0.0.1", "silent_days": 14,
+    assert cfg == {"port": 8765, "host": "127.0.0.1", "allowed_hosts": [], "silent_days": 14,
                    "followup_reply_days": 1, "followup_nudge_days": 5,
                    "push_enabled": True,
                    "remote": "origin", "welcome_done": [], "welcome_dismissed": False,
@@ -49,7 +49,7 @@ def test_load_config_reads_toml(tmp_path):
     (tmp_path / "config.toml").write_text(
         "port = 9000\nsilent_days = 7\npush_enabled = false\nremote = \"upstream\"\n"
     )
-    assert load_config(tmp_path) == {"port": 9000, "host": "127.0.0.1", "silent_days": 7,
+    assert load_config(tmp_path) == {"port": 9000, "host": "127.0.0.1", "allowed_hosts": [], "silent_days": 7,
                                      "followup_reply_days": 1, "followup_nudge_days": 5,
                                      "push_enabled": False, "remote": "upstream",
                                      "welcome_done": [], "welcome_dismissed": False,

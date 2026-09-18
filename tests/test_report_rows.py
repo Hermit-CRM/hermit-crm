@@ -481,7 +481,8 @@ def test_web_notes_outcomes_outside_the_configured_list(tmp_path):
                              date="2026-09-10T09:30", subject="Intro", body="Hello")
     odd = store.create_interaction("acme", channel="linkedin", direction="out",
                                    contact="jane-doe", date="2026-09-11T09:30", body="Ping")
-    odd.outcome = "Sent"  # set on the in-memory record: outside hit / miss
+    odd.outcome = "Sent"  # outside hit / miss, as a hand edit would leave it
+    store.write_interaction("acme", odd)  # on disk: the app re-reads the folder
     c = TestClient(app, follow_redirects=False)
     r = c.get("/reports?period=30d")
     assert r.status_code == 200

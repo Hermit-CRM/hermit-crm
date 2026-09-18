@@ -75,6 +75,7 @@
   <h2>Company</h2>
   {{ m.errors_box(errors) }}
   <form method="post" action="/companies/{{ company.slug }}" class="record-form">
+    <input type="hidden" name="version" value="{{ record_version(company.slug) }}">
     {{ m.company_fields(values, errors) }}
     <button type="submit">Save company</button>
   </form>
