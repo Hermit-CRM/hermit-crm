@@ -54,7 +54,7 @@ def test_format_detection(tmp_path, old_folder):
 def test_dry_run_lists_files_and_writes_nothing(old_folder):
     before = {p: p.read_bytes() for p in old_folder.rglob("company.md")}
     text = migrations.dry_run(old_folder)
-    assert "Data format 0 → 5" in text
+    assert "Data format 0 → 6" in text
     assert "1. rename gijs_score to my_score: 3 file(s)" in text  # bolt has an empty key
     assert "2. country UK→GB, USA→US: 2 file(s)" in text
     assert "3. interaction result folded into outcome: 0 file(s)" in text
@@ -75,19 +75,21 @@ def test_migrate_before_after_in_one_commit(old_folder):
 
     summary = migrations.ensure_current(old_folder)
 
-    assert summary.startswith("migrate: data format 0 → 5 (rename gijs_score to my_score; "
+    assert summary.startswith("migrate: data format 0 → 6 (rename gijs_score to my_score; "
                               "country UK→GB, USA→US; interaction result folded into "
                               "outcome; stage reached-out renamed to engaged; scores and "
-                              "team size become fields you define)")
+                              "team size become fields you define; agents may not rewrite "
+                              "history (.claude/settings.json))")
     assert acme.read_text() == expected and acme.read_text().endswith(BODY)
     bolt = (old_folder / "companies/bolt/company.md").read_text()
     assert "country: US\n" in bolt and "my_score:\n" in bolt and "gijs_score" not in bolt.split("---")[1]
-    assert (old_folder / ".hermitcrm-format").read_text() == "5\n"
+    assert (old_folder / ".hermitcrm-format").read_text() == "6\n"
     assert int(git(["rev-list", "--count", "HEAD"], old_folder)) == commits_before + 1
-    assert git(["log", "-1", "--format=%s|%an"], old_folder).startswith("migrate: data format 0 → 5")
+    assert git(["log", "-1", "--format=%s|%an"], old_folder).startswith("migrate: data format 0 → 6")
     assert "hermitcrm" in git(["log", "-1", "--format=%an"], old_folder)
     changed = git(["show", "--name-only", "--format=", "HEAD"], old_folder).split()
-    assert sorted(changed) == [".hermitcrm-format", "companies/acme/company.md",
+    assert sorted(changed) == [".claude/settings.json", ".hermitcrm-format",
+                               "companies/acme/company.md",
                                "companies/bolt/company.md", "companies/cygne/company.md",
                                "fields.toml"]
     assert git(["status", "--porcelain"], old_folder) == ""
@@ -123,7 +125,7 @@ def test_works_without_git(tmp_path):
     path.parent.mkdir(parents=True)
     path.write_text(old_company_file("Acme", "acme", "UK", 1))
     # the company file, plus the fields.toml describing the score it carries
-    assert "2 file(s) changed" in migrations.ensure_current(tmp_path)
+    assert "3 file(s) changed" in migrations.ensure_current(tmp_path)  # + .claude/settings.json
     assert "country: GB" in path.read_text()
     assert 'key = "my_score"' in (tmp_path / "fields.toml").read_text()
 
@@ -143,7 +145,7 @@ def test_m5_describes_the_old_fields_without_touching_a_company_file(tmp_path):
     summary = migrations.ensure_current(tmp_path)
 
     assert path.read_bytes() == before          # byte for byte
-    assert "fields.toml" in summary or "1 file(s) changed" in summary
+    assert "2 file(s) changed" in summary  # fields.toml, .claude/settings.json
     defs = fields.load(tmp_path)
     assert [d.key for d in defs] == ["my_score"]     # only what the folder used
     assert defs[0].type == "number" and "companies" in defs[0].show_in
@@ -172,7 +174,7 @@ def test_m4_renames_reached_out_in_stage_and_history(tmp_path):
                         "created:", 1)
     path.write_text(text)
     migrations.write_format(tmp_path, 3)
-    assert "1 file(s) changed" in migrations.ensure_current(tmp_path)
+    assert "2 file(s) changed" in migrations.ensure_current(tmp_path)  # + .claude/settings.json
     store = Store(tmp_path)
     assert store.load() == []
     c = store.get("acme")

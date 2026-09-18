@@ -40,6 +40,12 @@ Saving sets or updates the remote, tries a push, and turns `push_enabled` on
 when it worked. Pushes then run in the background after every commit and
 never block.
 
+Separately from the remote, `hermitcrm schedule install` backs the folder up
+every 5 minutes to a local repository that can only grow, so a reset, a
+deleted `.git` or a force-push loses nothing. The remote is the copy off this
+machine; the local backup is the one nothing can rewrite. See
+[Backups and undo](/help/backups).
+
 ## Appearance
 
 Night mode: off (`theme = "light"`), on (`"dark"`) or follow the operating

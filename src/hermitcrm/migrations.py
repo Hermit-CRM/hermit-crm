@@ -4,8 +4,8 @@ The folder carries a committed ``.hermitcrm-format`` file holding one integer.
 A folder without it counts as format 0 when it has ``companies/`` (data from
 before versioning) and as the latest format otherwise (nothing to migrate).
 
-Migrations are numbered, idempotent and touch front matter only, never
-bodies. ``ensure_current`` runs every pending one and records the result in
+Migrations are numbered and idempotent, and never touch an interaction body;
+most change front matter only, a few add a file the folder did not have. ``ensure_current`` runs every pending one and records the result in
 ONE git commit, so ``git revert <sha>`` undoes an upgrade. A folder newer
 than this code is refused with an upgrade hint.
 """
@@ -162,6 +162,44 @@ def m5_custom_fields(data_dir: Path, meta_by_path: dict, write: bool) -> list[st
     return [fields_mod.FILENAME]
 
 
+def _insert_section(text: str, section: str) -> str:
+    """Put a section before the first `## ` heading (where people add their own)."""
+    at = text.find("\n## ")
+    if at == -1:
+        return text.rstrip("\n") + "\n\n" + section
+    return text[:at].rstrip("\n") + "\n\n" + section + text[at:]
+
+
+def m6_agent_guard(data_dir: Path, meta_by_path: dict, write: bool) -> list[str]:
+    """Block history-rewriting git commands for agents; say so in CLAUDE.md.
+
+    `.claude/settings.json` gets the deny rules merged in (anything else in it
+    stays). CLAUDE.md and AGENTS.md written before backups existed get the
+    "Backups and undo" rules; a file that already mentions `hermitcrm backup`
+    is left alone, and a folder without one does not get one.
+    """
+    from . import guard
+    from .datafolder import AGENT_BACKUP_RULES
+
+    changed = []
+    try:
+        if guard.write(data_dir, apply=write):
+            changed.append(guard.SETTINGS)
+    except guard.GuardError:
+        pass  # a settings file we cannot parse is left as it is; doctor says so
+    for name in ("CLAUDE.md", "AGENTS.md"):
+        path = data_dir / name
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "hermitcrm backup" in text:
+            continue
+        if write:
+            path.write_text(_insert_section(text, AGENT_BACKUP_RULES), encoding="utf-8")
+        changed.append(name)
+    return changed
+
+
 MIGRATIONS = [
     Migration(1, "rename gijs_score to my_score", "companies/*/company.md", m1_my_score),
     Migration(2, "country UK→GB, USA→US", "companies/*/company.md", m2_country_codes),
@@ -171,6 +209,8 @@ MIGRATIONS = [
               m4_stage_engaged),
     Migration(5, "scores and team size become fields you define",
               "companies/*/company.md", folder=m5_custom_fields),
+    Migration(6, "agents may not rewrite history (.claude/settings.json)", "CLAUDE.md",
+              folder=m6_agent_guard),
 ]
 LATEST = MIGRATIONS[-1].version
 
@@ -297,7 +337,13 @@ def ensure_current(data_dir: Path | str) -> str:
     titles = "; ".join(m.title for m in todo)
     message = f"migrate: data format {before} → {LATEST} ({titles})"
     files = sorted({f for fs in changed.values() for f in fs} | {FORMAT_FILE})
+    count = len(files) - 1
     if _is_git_repo(data_dir):
+        # A folder may keep a file a migration wrote out of git (.claude/ in its
+        # .gitignore, say); that file is changed on disk, just not committed.
+        ignored = subprocess.run(["git", "check-ignore", "--", *files], cwd=data_dir,
+                                 capture_output=True, text=True).stdout.splitlines()
+        files = [f for f in files if f not in ignored]
         subprocess.run(["git", "add", "--", *files], cwd=data_dir, check=True,
                        capture_output=True)
         staged = subprocess.run(["git", "diff", "--cached", "--quiet", "--", *files],
@@ -305,5 +351,4 @@ def ensure_current(data_dir: Path | str) -> str:
         if staged.returncode != 0:  # nothing staged means the data was already current
             subprocess.run(["git", *GIT_AUTHOR, "commit", "-q", "-m", message, "--", *files],
                            cwd=data_dir, check=True, capture_output=True)
-    count = len(files) - 1
     return f"{message}: {count} file(s) changed"

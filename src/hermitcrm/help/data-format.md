@@ -10,6 +10,7 @@ Every record is a Markdown file with YAML front matter in a fixed key order; the
   .hermitcrm-format              data format version, one integer, committed
   PIPELINE.md                 generated, never edit by hand
   CLAUDE.md, AGENTS.md        rules for AI agents
+  .claude/settings.json       git commands Claude Code may not run (see Backups and undo)
   MESSAGING.md                your outreach playbook
   inbox/                      BCC and calendar items waiting for a decision
   companies/<slug>/company.md
@@ -135,7 +136,8 @@ collision.
 
 `.hermitcrm-format` holds one integer. When a release changes the format, the
 next command migrates the folder in one commit named
-`migrate: data format N → M (...)`, front matter only, never bodies;
+`migrate: data format N → M (...)`, never touching a body (format 6 adds
+`.claude/settings.json` and the backup rules in `CLAUDE.md` / `AGENTS.md`);
 `hermitcrm migrate --dry-run` lists the files first and `git revert` undoes it. A
 folder written by a newer Hermit CRM is refused until you upgrade.
 

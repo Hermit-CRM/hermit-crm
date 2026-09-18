@@ -63,6 +63,36 @@ nothing is written and nothing is committed.
 - Never rewrite interaction bodies; they are the record.
 - Never put secrets in `config.toml` and never commit `.secrets.toml`.
 
+## Backups and undo
+
+The folder is backed up every few minutes to a repository outside it that
+only grows (`hermitcrm backup status` says where; see
+[Backups and undo](/help/backups)). For an agent that means:
+
+- Never rewrite history in the folder: no `git reset --hard`, `commit --amend`,
+  `rebase`, `filter-branch` or `push --force`. Undo with a new commit
+  (`git revert`, or `hermitcrm backup restore`). A rewrite is not lost -- the
+  backup keeps both lines and flags it -- but it is noisy and looks like damage.
+- Never touch `~/.hermitcrm/backups/`, `.git/hermitcrm-backup.json` or
+  `.claude/settings.json`.
+- To undo damage, find the version with `hermitcrm backup list <path>`, check
+  with `hermitcrm backup restore <id> <path>` (a dry run), then add `--apply`.
+  Say what you restored and from which version.
+
+**For Claude Code, these commands are blocked, not just discouraged.** Every
+data folder has a `.claude/settings.json` whose deny list refuses `git reset
+--hard`, `commit --amend`, `rebase`, `push --force`, `filter-branch`,
+`git clean -f`, `rm -rf .git` and the rest (also as `git -C <dir> ...`), in
+every permission mode, bypass included. The full list and its limits are in
+[Backups and undo](/help/backups), its first section. A
+refusal there is the rule working: make a new commit instead, and do not
+try another spelling, a script or `bash -c` to get round it.
+
+Other agents (Codex, Gemini, ...) have no such file and get these rules as
+text in `AGENTS.md`. A deny list matches command patterns, so it is a seat
+belt, not a lock; the backup is what makes a command that gets past it
+survivable.
+
 ## What the web app does with hand edits
 
 A company page re-reads that company's folder on every request, so an edit

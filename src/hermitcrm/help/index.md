@@ -24,6 +24,7 @@ page for the screen you are on; `hermitcrm help <topic>` prints the same text.
 - [Enrich](/help/enrich): "Fetch from URL" (no AI) and Enrich (an AI CLI).
 - [Ask the Hermit](/help/ask): ask a question about the page you are on or the whole CRM.
 - [Merge](/help/merge): merging two companies or two contacts.
+- [Backups and undo](/help/backups): a backup every few minutes that nothing can rewrite, and putting any version back.
 - [CLI](/help/cli): every `hermitcrm` command.
 - [Data format](/help/data-format): the files, their front-matter keys, stage history, migrations.
 - [AI agents](/help/ai-agents): how an AI session should read and write the folder, and the MCP server (`hermitcrm mcp`) that lets a client with no shell do it.

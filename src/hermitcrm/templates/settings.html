@@ -95,6 +95,10 @@
     <label>Git remote URL <input name="url" value="{{ remote_url }}" placeholder="git@github.com:you/crm.git"></label>
     <button type="submit">Save and test push</button>
   </form>
+  <h3>Local backup</h3>
+  <p class="small">Every few minutes, to a repository outside this folder that can only grow: a reset, a deleted <code>.git</code> or a force-push loses nothing, and any version can be put back. <a href="/help/backups">How it works and how to roll back</a>.</p>
+  <p class="{{ 'warning' if local_backup.level != 'ok' else 'small' }}">{{ local_backup.summary }}</p>
+  {% if local_backup.lines %}<ul class="schedule-lines">{% for line in local_backup.lines %}<li><code>{{ line }}</code></li>{% endfor %}</ul>{% endif %}
 </section>
 
 <section class="setup-step" id="appearance">
