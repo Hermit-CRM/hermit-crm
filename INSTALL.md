@@ -55,7 +55,22 @@ xcode-select -p          # prints a path when the tools are installed; errors wh
 There are two separate problems on such a Mac, and fixing the first does not fix
 the second:
 
-**Git.** This is the one thing you cannot do for them. Run it yourself:
+**Git.** Work down this list and stop at the first one that prints a version.
+
+*It may already be on the disk.* If full Xcode is installed, it carries its own
+git and nothing needs installing:
+
+```bash
+ls /Applications/Xcode.app/Contents/Developer/usr/bin/git
+```
+
+If that file exists, put it on PATH and go to Python:
+
+```bash
+export PATH="/Applications/Xcode.app/Contents/Developer/usr/bin:$PATH"
+```
+
+*Someone is sitting at the Mac.* Run it yourself:
 
 ```bash
 xcode-select --install
@@ -67,6 +82,42 @@ Install, it takes a few minutes, tell me when it finishes. Then re-run
 `git --version`. (If it says the tools are already installed but git still fails,
 their install is broken: `sudo rm -rf /Library/Developer/CommandLineTools` and
 `xcode-select --install` again. Say so; do not run it yourself.)
+
+*Nobody is sitting at the Mac.* If that install fails with something about no
+active GUI session, then no one is logged in at the screen: you are on SSH, or in
+a background session. Apple's installer is a window, so it cannot open, and
+waiting will not change that. Say so rather than retrying, and take one of the
+two ways around it.
+
+With a password, install the same tools with no dialog. This is Apple's own
+unattended path, the one build servers use:
+
+```bash
+sudo touch /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+label=$(softwareupdate -l | grep -o 'Command Line Tools for Xcode.*' | tail -1)
+sudo softwareupdate -i "$label" --verbose
+sudo rm -f /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+```
+
+`sudo` will ask for a password. If you were not given one, ask for it or ask them
+to run those four lines; never guess at it.
+
+Without a password, skip Apple's tools altogether. Hermit CRM wants *a* git, not
+Apple's git, and conda-forge publishes a ready-built one that unpacks into the
+home folder:
+
+```bash
+curl -Ls https://micro.mamba.pm/api/micromamba/osx-arm64/latest | tar -xj bin/micromamba
+./bin/micromamba create -y -p "$HOME/.hermit-tools" -c conda-forge git
+export PATH="$HOME/.hermit-tools/bin:$PATH"
+git --version
+```
+
+Use `osx-64` instead of `osx-arm64` on an Intel Mac; `uname -m` says which
+(`arm64` or `x86_64`). It takes about ten seconds, writes only inside the home
+folder, compiles nothing and asks for no password. Add that `export PATH` line to
+`~/.zshrc` so tomorrow's shell still has git. Homebrew is not the answer here: it
+requires the same Command Line Tools you are working around.
 
 **Python.** Command Line Tools ship **Python 3.9.6**, which is too old for Hermit
 CRM, so `xcode-select --install` will not fix this and neither will waiting. Do
@@ -82,8 +133,8 @@ Then use `uv` for step 2. It downloads a suitable Python by itself when the
 system one is too old, so there is nothing else to install. If you would rather
 be explicit, `uv python install 3.12` first.
 
-Stop only if `xcode-select --install` is refused or the `uv` install fails; say
-what happened and what you tried.
+Stop only if every one of those git routes fails, or the `uv` install fails; say
+which ones you tried and what each said.
 
 ### 2. Install the `hermitcrm` command
 

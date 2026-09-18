@@ -25,6 +25,12 @@ and `stage_history`), migrated automatically in one commit.
   package index; the upgrade hint follows the source.
 - **`scripts/release.sh`**: builds `dist/hermitcrm-<version>.tar.gz` (unpacking to
   `hermitcrm-<version>/`) and its `.sha256`, from tracked files at a commit.
+- **`hermitcrm init` explains a missing git** instead of ending in a
+  `FileNotFoundError` traceback, and recognises Apple's command-line-tools stub
+  rather than reporting it as a failed `git init`. INSTALL.md step 1 now also
+  covers the Mac where nobody is logged in at the screen, so Apple's installer
+  cannot open a window: `softwareupdate` with a password, or a conda-forge git in
+  the home folder without one.
 
 - Logging an interaction on a **prospect** moves it to **engaged** in the same
   commit (manual, BCC and calendar imports alike).

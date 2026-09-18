@@ -218,10 +218,33 @@ unknown = "[Something specific about the team.]"
 # ------------------------------------------------------------------- init
 
 
+GIT_MISSING = (
+    "git is not on PATH. A Hermit CRM data folder is a git repository, so there "
+    "is nothing sensible to create without it. See step 1 of INSTALL.md: on a Mac "
+    "that is Apple's Command Line Tools, or, on a Mac with no screen for their "
+    "installer, a git of your own from conda-forge."
+)
+
+GIT_STUB = (
+    "git on this Mac is Apple's placeholder for git, not git: it only asks for the "
+    "Command Line Tools to be installed. Run xcode-select --install and click "
+    "Install in the window it opens, or put a real git on PATH. Step 1 of "
+    "INSTALL.md covers both, including the case where no one is at the screen."
+)
+
+
 def _git(args: list[str], cwd: Path) -> str:
-    proc = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+    try:
+        proc = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+    except FileNotFoundError:
+        raise InitError(GIT_MISSING) from None
     if proc.returncode != 0:
-        raise InitError(f"git {' '.join(args)} failed: {proc.stderr.strip()}")
+        stderr = proc.stderr.strip()
+        # The stub always exists and always "runs", so a plain "git init failed"
+        # sends people looking for a broken repo instead of a missing toolchain.
+        if "No developer tools were found" in stderr or "xcode-select" in stderr:
+            raise InitError(GIT_STUB)
+        raise InitError(f"git {' '.join(args)} failed: {stderr}")
     return proc.stdout
 
 
