@@ -72,11 +72,12 @@ DEFAULT_CONFIG = {
     # first of claude, codex, gemini, grok on PATH. Empty command/model mean
     # the provider's own binary and default model.
     "enrich_provider": "auto",
+    "enrich_account": "subscription",
     "enrich_command": "",
     "enrich_model": "",
     "enrich_model_strong": "",
     "enrich_timeout": 180,
-    # Enrich and Ask Hermit run on the "medium" model (Claude: Opus) unless this
+    # Enrich and Ask the Hermit run on the "medium" model (Claude: Opus) unless this
     # says "strong" (Claude: Fable); "Retry with ..." always uses strong.
     "ai_tier": "medium",
     "ask_timeout": 300,

@@ -1,4 +1,4 @@
-"""Ask Hermit: answer a question about the CRM with the configured AI CLI.
+"""Ask the Hermit: answer a question about the CRM with the configured AI CLI.
 
 Two steps, cheapest first. The page the question was asked on is rendered to
 plain text and the model answers from that text alone, without tools. Only

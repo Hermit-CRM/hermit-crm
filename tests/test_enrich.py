@@ -8,8 +8,8 @@ import pytest
 
 from hermitcrm import cli as crm
 from hermitcrm.enrich import (
-    COMPANY_FIELDS, EnrichError, Enricher, Proposal, extract_json, model_label,
-    resolve_provider,
+    COMPANY_FIELDS, EnrichError, Enricher, Proposal, error_lines, extract_json,
+    model_label, resolve_provider,
 )
 
 
@@ -163,6 +163,59 @@ def test_tiers_overrides_and_with_tier(monkeypatch):
                     which=ALL).model == "y"
     assert Enricher(provider="custom", command="llm", which=ALL).model == ""
     assert model_label("claude-fable-5-1") == "Fable" and model_label("gpt-5") == "gpt-5"
+
+
+# A ChatGPT account refuses the model id an API key gets. Reported verbatim by
+# the first person to install Hermit CRM, on both Enrich and Ask the Hermit.
+CODEX_REFUSAL = (
+    '{"type":"error","status":400,"error":{"type":"invalid_request_error",'
+    '"message":"The \'gpt-5-mini\' model is not supported when using Codex with a '
+    'ChatGPT account."}}')
+
+
+def test_a_subscription_asks_codex_for_no_particular_model(monkeypatch):
+    """The account, not the provider, decides whether a model id may be sent."""
+    run = FakeRun("{}")
+    monkeypatch.setattr(subprocess, "run", run)
+    e = Enricher(provider="codex", which=ALL, account="subscription")
+    assert (e.model, e.strong_model) == ("", "")
+    e.runner("p", {})
+    assert "-m" not in run.seen["argv"]
+
+
+def test_an_api_key_keeps_the_pinned_codex_tiers():
+    e = Enricher(provider="codex", which=ALL, account="api")
+    assert (e.model, e.strong_model) == ("gpt-5-mini", "gpt-5")
+
+
+def test_claude_tiers_survive_a_subscription():
+    """Only what is known to differ is listed; claude's ids work either way."""
+    e = Enricher(provider="claude", which=ALL, account="subscription")
+    assert (e.model, e.strong_model) == ("claude-opus-5", "claude-fable-5-1")
+
+
+def test_an_explicit_model_wins_over_the_account_type():
+    e = Enricher(provider="codex", which=ALL, account="subscription", model="gpt-5")
+    assert e.model == "gpt-5"
+
+
+def test_a_refused_model_is_one_sentence_naming_the_setting(monkeypatch):
+    """Not three repetitions of a JSON envelope, which is what this printed."""
+    monkeypatch.setattr(subprocess, "run", FakeRun(
+        "", returncode=1, stderr="\n".join([CODEX_REFUSAL] * 3)))
+    e = Enricher(provider="codex", which=ALL, account="api")
+    with pytest.raises(EnrichError) as exc:
+        e.runner("p", {})
+    text = str(exc.value)
+    assert "gpt-5-mini" in text and "codex" in text and "Settings" in text
+    assert text.count("invalid_request_error") == 0
+    assert text.count("gpt-5-mini") == 1
+
+
+def test_error_lines_keeps_the_last_distinct_lines():
+    assert error_lines("boom\nboom\nboom") == ["boom"]
+    assert error_lines("a\nb\nc\nd") == ["b", "c", "d"]
+    assert error_lines("  a  \n\n a \nb") == ["a", "b"]
 
 
 def test_tools_and_cwd_per_call(monkeypatch):

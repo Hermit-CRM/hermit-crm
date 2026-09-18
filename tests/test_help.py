@@ -87,7 +87,8 @@ def test_render_escapes_and_refuses_unsafe_links():
     ("/messages", "messages"), ("/reports", "reports"),
     ("/settings", "settings"), ("/setup", "settings"), ("/inbox", "settings"),
     ("/import", "import"), ("/import/preview", "import"),
-    ("/capture", "capture"), ("/capture/new", "capture"),
+    ("/extension", "extension"), ("/extension/new", "extension"),
+    ("/capture", "extension"), ("/capture/new", "extension"),  # the old path
     ("/companies/acme/enrich", "enrich"), ("/companies/acme/enrich/apply", "enrich"),
     ("/companies/acme/fetch", "enrich"),
     ("/companies/acme/contacts/jane-doe/enrich", "enrich"),
@@ -119,8 +120,8 @@ def test_help_routes(client):
     assert "<table>" in r.text and "<td>stage_history</td>" in r.text
     assert 'class="current"><a href="/help/data-format">' in r.text
     assert "hermitcrm help data-format" in r.text
-    r = client.get("/help/capture")
-    assert r.status_code == 200 and "<h1>Capture</h1>" in r.text
+    r = client.get("/help/extension")
+    assert r.status_code == 200 and "<h1>Extension</h1>" in r.text
     assert client.get("/help/nope").status_code == 404
     assert client.get("/help/..%2Fstore").status_code == 404
 
@@ -131,7 +132,7 @@ def test_every_page_links_to_its_help_topic(client):
                         ("/companies", "companies"), (f"/companies/{slug}", "companies"),
                         ("/contacts", "contacts"), ("/messages", "messages"),
                         ("/reports", "reports"), ("/settings", "settings"),
-                        ("/import", "import"), ("/capture", "capture"),
+                        ("/import", "import"), ("/extension", "extension"),
                         (f"/companies/{slug}/interactions/new", "interactions")]:
         nav = client.get(path).text.split("</nav>")[0]
         assert f'href="/help/{topic}"' in nav, path

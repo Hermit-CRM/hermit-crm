@@ -143,6 +143,24 @@ def test_enrichment_saves_config_and_rebuilds_enricher(demo, tmp_path):
     assert 'value="/nonexistent/bin/my-llm --json"' in page
 
 
+def test_the_account_type_is_saved_and_reaches_the_enricher(demo, tmp_path):
+    """Settings has to be able to say 'this CLI is signed in with a plan'."""
+    app, client = make_client(demo, tmp_path)
+    t = token(client)
+    assert cfg(demo).get("enrich_account", "subscription") == "subscription"
+
+    r = client.post("/settings/enrichment", data={
+        "csrf_token": t, "provider": "codex", "account": "api", "timeout": "42"})
+    assert r.status_code == 303
+    assert cfg(demo)["enrich_account"] == "api"
+    assert app.state.enricher.account == "api"
+
+    r = client.post("/settings/enrichment", data={
+        "csrf_token": t, "provider": "codex", "account": "nonsense", "timeout": "42"})
+    assert r.status_code == 400 and "Account must be one of" in r.text
+    assert cfg(demo)["enrich_account"] == "api"  # the bad value was not written
+
+
 def test_enrichment_validation(demo, tmp_path):
     _, client = make_client(demo, tmp_path)
     t = token(client)
@@ -162,7 +180,8 @@ def test_save_enrichment_function(tmp_path):
     folder = init_folder(tmp_path / "crm")
     assert st.ENRICH_PROVIDERS == ("auto", "claude", "codex", "gemini", "grok", "custom")
     r = st.save_enrichment(folder, " Codex ", "", " gpt-x ", " 90 ")
-    assert r.ok and r.values == {"enrich_provider": "codex", "enrich_command": "",
+    assert r.ok and r.values == {"enrich_provider": "codex", "enrich_account": "subscription",
+                                 "enrich_command": "",
                                  "enrich_model": "gpt-x", "enrich_model_strong": "",
                                  "ai_tier": "medium", "enrich_timeout": 90}
     assert cfg(folder)["enrich_provider"] == "codex" and cfg(folder)["enrich_timeout"] == 90
