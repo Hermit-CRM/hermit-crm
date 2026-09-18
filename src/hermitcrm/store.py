@@ -6,7 +6,9 @@ uses to commit with the message this module produces.
 
 from __future__ import annotations
 
+import functools
 import shutil
+import threading
 import tomllib
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -16,6 +18,11 @@ from typing import Callable, Sequence
 
 import frontmatter
 import yaml
+
+try:  # not on Windows: there the in-process lock is all there is
+    import fcntl
+except ImportError:  # pragma: no cover
+    fcntl = None
 
 from . import fields as fields_mod
 from .models import (
@@ -45,6 +52,7 @@ from .models import (
     interaction_to_frontmatter,
     normalise_country,
     normalise_email,
+    normalise_linkedin,
     normalise_website,
     parse_date,
     parse_datetime,
@@ -212,6 +220,60 @@ INTERACTION_COPY_FIELDS = (
 )
 
 
+class WriteLock:
+    """One write at a time, across threads and across processes.
+
+    The web app handles requests on a thread pool, and the daily sync, the CLI
+    and the MCP server are other processes on the same folder. A write reads
+    files, writes files and commits exactly the paths it touched; two of them
+    interleaved could commit one's files under the other's message or pick the
+    same interaction id. The thread lock is re-entrant (a batch holds it while
+    its writes take it again); the file lock is `flock` on .git/hermitcrm.lock,
+    inside .git so it is never a file in the data, and released by the OS if
+    the process dies.
+    """
+
+    def __init__(self, root: Path):
+        self._thread_lock = threading.RLock()
+        self._depth = 0
+        self._file = None
+        self._path = Path(root) / ".git" / "hermitcrm.lock"
+
+    def __enter__(self) -> "WriteLock":
+        self._thread_lock.acquire()
+        self._depth += 1
+        if self._depth == 1 and fcntl is not None and self._path.parent.is_dir():
+            try:
+                self._file = open(self._path, "a")
+                fcntl.flock(self._file, fcntl.LOCK_EX)
+            except OSError:  # a read-only .git: the thread lock still holds
+                self._release_file()
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self._depth -= 1
+        if self._depth == 0:
+            self._release_file()
+        self._thread_lock.release()
+
+    def _release_file(self) -> None:
+        if self._file is not None:
+            try:
+                fcntl.flock(self._file, fcntl.LOCK_UN)
+            finally:
+                self._file.close()
+                self._file = None
+
+
+def _locked(method):
+    """Run a Store method under the store's WriteLock."""
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        with self.lock:
+            return method(self, *args, **kwargs)
+    return wrapper
+
+
 class Store:
     def __init__(
         self,
@@ -231,6 +293,7 @@ class Store:
         self.on_write = on_write
         self._touched: list[str] = []
         self._batch: list[str] | None = None
+        self.lock = WriteLock(self.root)
         self.clock = clock
 
     # --- clock
@@ -278,18 +341,20 @@ class Store:
     def batch(self, message: str):
         """Group several writes into one on_write call (one commit)."""
         ctx = {"message": message}  # callers may set ctx["message"] once counts are known
-        if self._batch is not None:
-            yield ctx
-            return
-        self._batch = []
-        try:
-            yield ctx
-        finally:
-            written = self._batch
-            self._batch = None
-        if written and self.on_write:
-            self.on_write(ctx["message"])
+        with self.lock:  # another thread's write must not land in this batch
+            if self._batch is not None:
+                yield ctx
+                return
+            self._batch = []
+            try:
+                yield ctx
+            finally:
+                written = self._batch
+                self._batch = None
+            if written and self.on_write:
+                self.on_write(ctx["message"])
 
+    @_locked
     def notify(self, message: str, paths: Sequence[str] = ()) -> None:
         """Commit a write made outside companies/ (the BCC inbox)."""
         for path in paths:
@@ -298,6 +363,7 @@ class Store:
 
     # --- loading
 
+    @_locked
     def load(self) -> list[Problem]:
         # Built aside and swapped in whole: the web app reloads while other
         # requests read the index, and they must never see it half empty.
@@ -365,6 +431,7 @@ class Store:
                                   reverse=True)
         return company
 
+    @_locked
     def reload_company(self, slug: str) -> Company | None:
         prefix = self._rel(self.company_dir(slug))
         self.problems = [
@@ -424,6 +491,7 @@ class Store:
 
     # --- writing (low level, deterministic)
 
+    @_locked
     def write_company(self, c: Company) -> Path:
         path = self.company_dir(c.slug) / "company.md"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -432,6 +500,7 @@ class Store:
         self._touch(path)
         return path
 
+    @_locked
     def write_contact(self, company_slug: str, contact: Contact) -> Path:
         path = self.company_dir(company_slug) / "contacts" / f"{contact.slug}.md"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -440,6 +509,7 @@ class Store:
         self._touch(path)
         return path
 
+    @_locked
     def write_interaction(self, company_slug: str, it: Interaction) -> Path:
         path = self.company_dir(company_slug) / "interactions" / f"{it.id}.md"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -512,6 +582,7 @@ class Store:
 
     # --- mutations: company
 
+    @_locked
     def create_company(
         self,
         name,
@@ -556,7 +627,7 @@ class Store:
             name=name,
             slug=slug,
             website=normalise_website(website),
-            linkedin=(linkedin or "").strip(),
+            linkedin=normalise_linkedin(linkedin),
             country=country,
             source=source,
             stage=stage,
@@ -585,6 +656,7 @@ class Store:
         self._notify(f"company: {slug} created")
         return company
 
+    @_locked
     def update_company(self, slug: str, message: str | None = None, **fields) -> Company:
         """Update fields; `message` overrides the default commit message."""
         company = self._current(slug)
@@ -606,7 +678,7 @@ class Store:
         if "website" in fields:
             new.website = normalise_website(fields["website"])
         if "linkedin" in fields:
-            new.linkedin = (fields["linkedin"] or "").strip()
+            new.linkedin = normalise_linkedin(fields["linkedin"])
         if "country" in fields:
             new.country = self._coerce_enum(normalise_country(fields["country"]), Country, "country",
                                             True, "")
@@ -678,6 +750,7 @@ class Store:
             self._notify(f"company: {slug} updated")
         return new
 
+    @_locked
     def requalify_due(self, today: date | None = None) -> list[str]:
         """Put every temp-disqualified company whose requalify date has arrived
         back into prospect. Idempotent; one commit for all of them."""
@@ -699,6 +772,7 @@ class Store:
                 self.update_company(slug, stage=Stage.PROSPECT.value)
         return due
 
+    @_locked
     def backfill_stage_history(self, slug: str, history: list[StageChange]) -> Company:
         """Write a reconstructed history (hermitcrm backfill-history) for a company
         that has none yet. Existing entries are never rewritten."""
@@ -785,6 +859,7 @@ class Store:
                                            "loaded; reload and try again"})
         return task
 
+    @_locked
     def add_task(self, slug: str, text: str, due=None, contact: str = "",
                  message: str | None = None) -> Task:
         company, record = self._task_owner(slug, contact)
@@ -799,6 +874,7 @@ class Store:
         self._notify(message or f"task: {where} added")
         return task
 
+    @_locked
     def set_task_done(self, slug: str, index: int, done: bool = True,
                       contact: str = "", text: str = "") -> Task:
         company, record = self._task_owner(slug, contact)
@@ -811,6 +887,7 @@ class Store:
         self._notify(f"task: {where} {verb}")
         return task
 
+    @_locked
     def delete_task(self, slug: str, index: int, contact: str = "",
                     text: str = "") -> Task:
         company, record = self._task_owner(slug, contact)
@@ -839,6 +916,7 @@ class Store:
                         out.append((company, person, index, task))
         return out
 
+    @_locked
     def merge_companies(self, keep: str, drop: str,
                         choices: dict[str, str] | None = None) -> Company:
         """Fold company `drop` into `keep`: fields per `choices` (keep | drop |
@@ -906,6 +984,7 @@ class Store:
         self._notify(f"company: {drop} merged into {keep}")
         return self.companies[keep]
 
+    @_locked
     def merge_contacts(self, company_slug: str, keep: str, drop: str,
                        choices: dict[str, str] | None = None) -> Contact:
         """Fold contact `drop` into `keep` within one company; interactions of
@@ -956,6 +1035,7 @@ class Store:
 
     # --- mutations: contact
 
+    @_locked
     def create_contact(self, company_slug: str, first_name, last_name="", title="",
                        linkedin="", email="", phone="", role="", notes="",
                        custom=None) -> Contact:
@@ -977,7 +1057,7 @@ class Store:
             last_name=last_name,
             slug=unique_slug(slugify(name, default="contact"), existing),
             title=(title or "").strip(),
-            linkedin=(linkedin or "").strip(),
+            linkedin=normalise_linkedin(linkedin),
             email=normalise_email(email),
             phone=(phone or "").strip(),
             role=self._coerce_enum(role, Role, "role", True, ""),
@@ -991,6 +1071,7 @@ class Store:
         self._notify(f"contact: {company_slug}/{contact.slug} created")
         return contact
 
+    @_locked
     def update_contact(self, company_slug: str, cslug: str, message: str | None = None,
                        **fields) -> Contact:
         company = self._current(company_slug)
@@ -1014,7 +1095,7 @@ class Store:
         if "title" in fields:
             new.title = (fields["title"] or "").strip()
         if "linkedin" in fields:
-            new.linkedin = (fields["linkedin"] or "").strip()
+            new.linkedin = normalise_linkedin(fields["linkedin"])
         if "email" in fields:
             new.email = normalise_email(fields["email"])
         if "phone" in fields:
@@ -1029,6 +1110,7 @@ class Store:
         self._notify(message or f"contact: {company_slug}/{new.slug} updated")
         return new
 
+    @_locked
     def delete_contact(self, company_slug: str, cslug: str) -> Contact:
         """Remove one contact file. Its interactions stay on the company with
         the contact cleared (front matter only; bodies are untouched), so the
@@ -1067,6 +1149,7 @@ class Store:
             n += 1
             candidate = f"{base}-{n}"
 
+    @_locked
     def create_interaction(self, company_slug: str, channel, direction, subject="",
                            contact="", date=None, outcome="", body="",
                            source="manual", message_id="", custom=None) -> Interaction:
@@ -1113,6 +1196,7 @@ class Store:
                 self.update_company(company_slug, stage=Stage.ENGAGED.value)
         return it
 
+    @_locked
     def update_interaction(self, company_slug: str, id: str, **fields) -> Interaction:
         company = self._current(company_slug)
         if company is None:
@@ -1172,6 +1256,7 @@ class Store:
             self._notify(f"interaction: {company_slug} {new.id} updated")
         return new
 
+    @_locked
     def delete_interaction(self, company_slug: str, id: str) -> Interaction:
         """Remove one interaction file; the commit (the path is recorded for it)
         records the deletion. The company's list is updated in place, as

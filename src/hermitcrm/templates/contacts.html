@@ -14,7 +14,7 @@
     <td><a href="/companies/{{ r.company_slug }}">{{ r.company_name }}</a></td>
     <td>{{ r.title }}</td>
     <td>{% if r.email %}<a href="mailto:{{ r.email }}">{{ r.email }}</a>{% endif %}</td>
-    <td>{% if r.linkedin %}<a href="{{ r.linkedin }}" target="_blank" rel="noopener">{{ r.linkedin | replace('https://www.linkedin.com/in/', '') | replace('https://', '') }}</a>{% endif %}</td>
+    <td>{% if r.linkedin %}<a href="{{ r.linkedin | href }}" target="_blank" rel="noopener">{{ r.linkedin | replace('https://www.linkedin.com/in/', '') | replace('https://', '') }}</a>{% endif %}</td>
     <td>{{ fmt_datetime(r.last_touch).replace('T', ' ') if r.last_touch else 'none' }}</td>
     <td>{{ r.interaction_count }}</td>
     {% for f in custom_fields_for('contact') if f.shows_in('contacts') %}

@@ -34,6 +34,7 @@ from .models import (
     Stage,
     ValidationError,
     normalise_email,
+    normalise_linkedin,
     normalise_website,
     parse_tags,
     slugify,
@@ -144,17 +145,6 @@ INT_FIELDS = ("value_eur_month",)
 
 def normalise_header(header: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", (header or "").strip().lower()).strip("_")
-
-
-def normalise_linkedin(value: str) -> str:
-    value = (value or "").strip()
-    if not value:
-        return ""
-    if not re.match(r"^https?://", value, re.IGNORECASE):
-        value = "https://" + value.removeprefix("www.")
-    value = re.sub(r"^https?://(www\.)?linkedin\.com", "https://www.linkedin.com", value,
-                   flags=re.IGNORECASE)
-    return value.rstrip("/")
 
 
 def map_country(value: str) -> str | None:
