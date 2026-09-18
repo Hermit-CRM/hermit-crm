@@ -72,6 +72,8 @@ DEFAULT_CONFIG = {
     # Enrichment shells out to an AI CLI; see hermitcrm/enrich.py. "auto" picks the
     # first of claude, codex, gemini, grok on PATH. Empty command/model mean
     # the provider's own binary and default model.
+    "messaging_size_field": "fte_estimate",
+    "messaging_team_field": "ae_count",
     "enrich_provider": "auto",
     "enrich_account": "subscription",
     "enrich_command": "",

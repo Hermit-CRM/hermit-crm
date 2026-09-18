@@ -11,14 +11,17 @@ def company(**kw):
     `fte_estimate` and `ae_count` were attributes until custom fields arrived.
     The playbook still reads them by name, out of `extra`.
     """
-    extra = {"fte_estimate": "~12", "ae_count": 2}
-    for key in ("fte_estimate", "ae_count"):
-        if key in kw:
-            value = kw.pop(key)
-            if value in (None, ""):
-                extra.pop(key, None)
-            else:
-                extra[key] = value
+    extra = kw.pop("extra", None)
+    if extra is None:
+        extra = {"fte_estimate": "~12", "ae_count": 2}
+        for key in ("fte_estimate", "ae_count"):
+            if key in kw:
+                value = kw.pop(key)
+                if value in (None, ""):
+                    extra.pop(key, None)
+                else:
+                    extra[key] = value
+    extra = dict(extra)
     base = dict(name="Acme", slug="acme", country="DE",
                 website="https://acme.example.com")
     base.update(kw)
@@ -174,3 +177,54 @@ def test_messages_without_a_declining_sentence_fall_back_to_unchecked():
     out = drafts(company(country="NL"), None, signal="declining", messages=messages)
     assert out[0].body.splitlines()[1] == messages["languages"]["nl"]["growth"][""].format(
         company=company().name)
+
+
+# ---------------------------------------------------- fields in the playbook
+
+
+def test_every_field_of_your_own_is_a_slot():
+    from hermitcrm.fields import FieldDef
+    from hermitcrm.messaging import field_slots
+
+    defs = [
+        FieldDef(key="segment", label="segment", type="select", options=["smb"]),
+        FieldDef(key="fit_score", label="fit", type="number"),
+        FieldDef(key="secret", messaging=False),          # opted out in Settings
+        FieldDef(key="seniority", applies_to="contact"),  # wrong record
+        FieldDef(key="company"),                          # would shadow a built-in slot
+    ]
+    c = company(extra={"segment": "smb", "secret": "x", "company": "nope"})
+    slots = field_slots(c, defs)
+    assert slots == {"segment": "smb", "fit_score": "[fit]"}
+
+
+def test_a_template_can_name_a_field_of_your_own():
+    """The point of the change: wording that is data, not code."""
+    from hermitcrm.fields import FieldDef
+
+    messages = deep_merge(load_messages(None), {"languages": {"en": {
+        "hook": "You sell to {segment}.\nWhat would make this worth a look?"}}})
+    defs = [FieldDef(key="segment", label="segment")]
+
+    out = drafts(company(country="GB", extra={"segment": "enterprise"}),
+                 Contact("Ada", "L", "ada"), messages=messages, defs=defs)
+    assert "You sell to enterprise." in out[2].body
+
+    # ...and an empty one says so rather than going blank
+    out = drafts(company(country="GB", extra={}), Contact("Ada", "L", "ada"),
+                 messages=messages, defs=defs)
+    assert "You sell to [segment]." in out[2].body
+
+
+def test_which_field_plays_the_size_role_is_configurable():
+    c = company(country="GB", extra={"headcount": "~40", "reps": 3})
+    out = drafts(c, Contact("Ada", "L", "ada"),
+                 size_field="headcount", team_field="reps")
+    bodies = "\n".join(d.body for d in out)
+    assert "~40 people now" in bodies and "3 people in sales" in bodies
+
+    # with neither role filled, the wording falls back instead of inventing
+    out = drafts(company(country="GB", extra={}), Contact("Ada", "L", "ada"),
+                 size_field="", team_field="")
+    bodies = "\n".join(d.body for d in out)
+    assert "people now" not in bodies and "you're at N people" in bodies

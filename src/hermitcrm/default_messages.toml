@@ -11,6 +11,8 @@
 #
 # Slots: {first} {company} {growth} {size} {hurdle} {team} {observation}
 #        {fte} {ae} {site} {owner_first_name}
+# ...plus one per field you defined yourself, by its key: a field `segment`
+# is {segment}. An empty one renders as its label in square brackets.
 # Square brackets mark what only you can fill in.
 
 [signals]

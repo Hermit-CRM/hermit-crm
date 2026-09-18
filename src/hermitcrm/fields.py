@@ -59,6 +59,7 @@ class FieldDef:
     show_in: list[str] = field(default_factory=list)
     enrich: bool = False          # offer it to the AI schema
     description: str = ""         # what to tell the model to look for
+    messaging: bool = True        # offer it to the outreach templates as a slot
 
     def __post_init__(self):
         self.label = self.label or self.key.replace("_", " ")
@@ -166,6 +167,7 @@ def parse(data: dict) -> list[FieldDef]:
             applies_to=scope, help=str(entry.get("help", "")).strip(),
             options=options, show_in=show_in, enrich=bool(entry.get("enrich", False)),
             description=str(entry.get("description", "")).strip(),
+            messaging=bool(entry.get("messaging", True)),
         ))
     if errors:
         raise FieldError(errors)
@@ -214,6 +216,8 @@ def render(defs: list[FieldDef]) -> str:
             lines.append("enrich = true")
         if d.description:
             lines.append(f"description = {_toml(d.description)}")
+        if not d.messaging:
+            lines.append("messaging = false")
         lines.append("")
     return "\n".join(lines)
 
