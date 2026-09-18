@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import calendar
 import hmac
+import json
 import logging
 import subprocess
 import sys
@@ -1626,6 +1627,32 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         state["install_command"] = f"hermitcrm --data {root} schedule install --serve"
         return state
 
+    def access_facts() -> dict:
+        """The two front doors the Settings page cannot switch on for you.
+
+        A phone needs the app bound to something other than loopback, and an MCP
+        client needs a command to spawn; both are terminal-side. The page can
+        only tell you what to type, but Settings is where you look for it.
+        """
+        from .cli import reachable_address  # cli imports web, so import it late
+
+        host = str(config.get("host") or DEFAULT_CONFIG["host"])
+        port = str(config.get("port") or DEFAULT_CONFIG["port"])
+        binary = Path(sys.executable).with_name("hermitcrm")
+        command = str(binary) if binary.exists() else "hermitcrm"
+        return {
+            "host": host,
+            "port": port,
+            "on_network": host not in ("127.0.0.1", "localhost", "::1"),
+            "lan_url": "http://%s:%s" % (reachable_address("0.0.0.0"), port),
+            "serve_command": "%s --data %s serve --host 0.0.0.0" % (command, root),
+            "mcp_command": "%s --data %s mcp" % (command, root),
+            "mcp_config": json.dumps(
+                {"mcpServers": {"hermitcrm": {"command": command,
+                                              "args": ["--data", str(root), "mcp"]}}},
+                indent=2),
+        }
+
     def settings_context(**extra) -> dict:
         state = current_setup_state()
         owner = str(config.get("owner_email") or "")
@@ -1670,6 +1697,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
                                                          or 14),
                               "silent_days": str(config.get("silent_days") or 14)},
             "schedule": schedule_status(),
+            "access": access_facts(),
             "about": {"version": __version__, "data_dir": str(root),
                       "data_format": data_format, "latest_format": migrations.LATEST,
                       "update_check": bool(config.get("update_check", True))},

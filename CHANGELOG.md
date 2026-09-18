@@ -42,6 +42,12 @@ and `stage_history`), migrated automatically in one commit.
   rather than `0.0.0.0`. Hermit CRM has no password, so it also prints a warning
   and the advice to prefer a private network (Tailscale, WireGuard) over open
   Wi-Fi.
+- **Settings has an Access section**, and Capture has a help page. Both new
+  front doors are started from a terminal, so nothing on screen mentioned them:
+  the page now shows the `serve --host` command with this machine's LAN address,
+  the no-password warning, and the MCP JSON to paste into a client, filled in
+  with the real paths. The help sidebar's CLI hint no longer looks like one more
+  topic in the list.
 - **`hermitcrm add company|contact|interaction`**: create a record from the
   command line. Same validation and same commit as the web form, so an agent
   no longer has to compose YAML by hand. `--set field=value` reaches any field

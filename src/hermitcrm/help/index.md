@@ -16,13 +16,14 @@ page for the screen you are on; `hermitcrm help <topic>` prints the same text.
 - [Interactions](/help/interactions): logging email, LinkedIn, call and meeting touches; outcomes.
 - [Messages](/help/messages): every sent message with its outcome.
 - [Reports](/help/reports): activity, funnel, outcomes, messages, sources, hygiene.
-- [Settings](/help/settings): you, BCC capture, calendar, backup, enrichment, outcomes, the review queue, schedule, about.
+- [Settings](/help/settings): you, BCC capture, calendar, backup, enrichment, outcomes, the review queue, schedule, phone and MCP access, about.
 - [Import](/help/import): bulk import from CSV, TSV, .xlsx or a pasted table.
+- [Capture](/help/capture): turn the page you are looking at into a company, from a bookmarklet.
 - [Enrich](/help/enrich): "Fetch from URL" (no AI) and Enrich (an AI CLI).
 - [Ask Hermit](/help/ask): ask a question about the page you are on or the whole CRM.
 - [Merge](/help/merge): merging two companies or two contacts.
 - [CLI](/help/cli): every `hermitcrm` command.
 - [Data format](/help/data-format): the files, their front-matter keys, stage history, migrations.
-- [AI agents](/help/ai-agents): how an AI session should read and write the folder.
+- [AI agents](/help/ai-agents): how an AI session should read and write the folder, and the MCP server (`hermitcrm mcp`) that lets a client with no shell do it.
 
 Related: [Settings](/help/settings), [CLI](/help/cli), [AI agents](/help/ai-agents)

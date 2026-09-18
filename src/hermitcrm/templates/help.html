@@ -7,7 +7,7 @@
     <ul>
       {% for slug, name in topics %}<li{% if slug == topic %} class="current"{% endif %}><a href="/help/{{ slug }}">{{ name }}</a></li>{% endfor %}
     </ul>
-    <p class="small">Same text: <code>hermitcrm help {{ '' if topic == 'index' else topic }}</code></p>
+    <p class="small helpdoc-cli">In a terminal: <code>hermitcrm help {{ '' if topic == 'index' else topic }}</code></p>
   </div>
   <article class="helpdoc">
 {{ body | safe }}
