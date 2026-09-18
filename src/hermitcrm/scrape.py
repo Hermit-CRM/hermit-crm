@@ -250,12 +250,102 @@ def _website_from(facts: PageFacts) -> str:
     return ""
 
 
+# A person's page, not a company's. Nothing in Hermit CRM recognised these
+# until now, so a LinkedIn profile was read as if it were a company.
+PERSON_URL = re.compile(r"linkedin\.com/in/|xing\.com/profile/", re.I)
+
+# What LinkedIn appends to a person's own headline in og:description:
+#   "<headline> · Experience: <employer> · Education: ... · Location: ...
+#    · 500+ connections on LinkedIn. View X's profile on LinkedIn, ..."
+PROFILE_TAIL = re.compile(
+    r"\s*·\s*(Experience|Education|Location|Erfahrung|Ausbildung|Standort|"
+    r"Expérience|Formation|Localisation|Ervaring|Opleiding|Locatie)\s*:|"
+    r"\s*·\s*\d[\d,.+]*\s*(connections|followers|Kontakte|relations|connecties)\b|"
+    r"\s*View\s+[^·]{1,60}?'s?\s+profile\s+on\s+LinkedIn", re.I)
+
+PROFILE_PART = re.compile(
+    r"·\s*(?:Experience|Erfahrung|Expérience|Ervaring)\s*:\s*([^·]+)", re.I)
+PROFILE_PLACE = re.compile(
+    r"·\s*(?:Location|Standort|Localisation|Locatie)\s*:\s*([^·]+)", re.I)
+
+
+@dataclass
+class PersonFacts:
+    """What a public profile page gives away, which is not much."""
+
+    name: str = ""
+    headline: str = ""
+    employer: str = ""
+    location: str = ""
+
+
+def is_person_page(facts: PageFacts) -> bool:
+    if PERSON_URL.search(facts.url or ""):
+        return True
+    for item in facts.jsonld:
+        if str(item.get("@type", "")).strip().lower() == "person":
+            return True
+    return False
+
+
+def person_from(facts: PageFacts) -> PersonFacts:
+    """A name, a headline and an employer, from a page built to hide them.
+
+    Logged out, LinkedIn gives a title and one description string; everything
+    below is squeezed out of those two. What cannot be found stays empty rather
+    than being guessed, because a wrong employer creates a wrong company.
+    """
+    person = PersonFacts()
+    for item in facts.jsonld:
+        if str(item.get("@type", "")).strip().lower() != "person":
+            continue
+        person.name = str(item.get("name") or "").strip()
+        person.headline = str(item.get("jobTitle") or "").strip()
+        works = item.get("worksFor")
+        works = works[0] if isinstance(works, list) and works else works
+        if isinstance(works, dict):
+            person.employer = str(works.get("name") or "").strip()
+        elif isinstance(works, str):
+            person.employer = works.strip()
+
+    title = " ".join((facts.title or "").split())
+    # "Ines Vega - Harbour Light Labs | LinkedIn"
+    title = re.sub(r"\s*[|\-–—]\s*LinkedIn\s*$", "", title, flags=re.I).strip()
+    if not person.name and title:
+        person.name = re.split(r"\s+[-–—|]\s+", title)[0].strip()
+
+    text = " ".join((facts.description or "").split())
+    if not person.headline and text:
+        head = PROFILE_TAIL.split(text)[0].strip(" .·")
+        person.headline = head
+    if not person.employer:
+        m = PROFILE_PART.search(text)
+        if m:
+            person.employer = m.group(1).strip(" .·")
+    if not person.employer and " - " in title:
+        person.employer = title.split(" - ", 1)[1].strip()
+    m = PROFILE_PLACE.search(text)
+    if m:
+        person.location = m.group(1).strip(" .·")
+    return person
+
+
 def _oneliner_from(facts: PageFacts) -> str:
+    """One sentence about the product. Never about a person.
+
+    A profile's og:description is that person's headline with their experience,
+    education and connection count stapled on. Read as a company one-liner it
+    produced the worst field Hermit CRM has ever written, so a person's page
+    now yields nothing here and `enrich` is the way to fill it.
+    """
+    if is_person_page(facts):
+        return ""
     text = facts.description
     if _is_linkedin(facts.url):
         # "Acme | 1,234 followers on LinkedIn. Tagline. | Long description"
         text = re.sub(r"^.*?followers on LinkedIn\.\s*", "", text, flags=re.I)
         text = text.split(" | ")[0]
+    text = PROFILE_TAIL.split(text)[0] if text else text
     if not text:
         text = facts.title
         for sep in (" | ", " – ", " - ", " — "):
