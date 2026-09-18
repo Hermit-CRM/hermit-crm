@@ -167,11 +167,12 @@ def test_demo_loads_clean_with_every_stage_and_reports(tmp_path):
 def test_demo_every_web_page_returns_200(tmp_path):
     folder = init_folder(tmp_path / "demo", demo=True)
     app = create_app(folder, config={**load_config(folder), "push_enabled": False,
-                                     "owner_email": "me@example.com"})
+                                     "owner_email": "me@example.com",
+                                     "welcome_dismissed": True})
     app.state.calendar_url = lambda refresh=False: ""
     client = TestClient(app, follow_redirects=False)
     store = app.state.store
-    urls = ["/", "/settings", "/calendar", "/import", "/companies", "/contacts", "/messages",
+    urls = ["/", "/welcome", "/pipeline", "/?tour=1", "/settings", "/calendar", "/import", "/companies", "/contacts", "/messages",
             "/reports", "/reports?period=90d", "/companies/new", "/help", "/help/settings", "/health"]
     companies = store.all()
     for n, c in enumerate(companies):
