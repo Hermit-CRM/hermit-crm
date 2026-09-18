@@ -57,6 +57,12 @@ BARE_CONFIG = {
     "gc.reflogExpire": "never",
     "gc.reflogExpireUnreachable": "never",
     "gc.pruneExpire": "never",
+    # Housekeeping runs once per run, in the foreground (the `gc --auto` in
+    # run()). A push would otherwise start one of its own after receiving, and
+    # gc detaches by default: a background gc still writing packs when a
+    # restore reads, or the next run pushes, is a race for no benefit.
+    "receive.autogc": "false",
+    "gc.autoDetach": "false",
     # `backup restore <sha>` fetches a commit by id, which may be reachable only
     # from a snapshot ref.
     "uploadpack.allowAnySHA1InWant": "true",
