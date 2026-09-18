@@ -42,3 +42,24 @@ change to the data format, add a numbered migration in
   fixtures: use example.com / example.org addresses and fictional names.
 - File output must stay deterministic (fixed key order, byte-for-byte bodies).
 - The web app binds to 127.0.0.1 only.
+
+## Cutting a release
+
+```bash
+scripts/release.sh          # or: scripts/release.sh <commit>
+```
+
+Bump `__version__` in `src/hermitcrm/__init__.py` and move the CHANGELOG heading
+first; the script reads the version from there and refuses to overwrite a tarball
+that already exists, so a forgotten bump fails loudly instead of quietly shipping
+0.3.0 twice.
+
+It writes `dist/hermitcrm-<version>.tar.gz`, which unpacks to
+`hermitcrm-<version>/`, and `dist/hermitcrm-<version>.tar.gz.sha256` beside it.
+Put **both** on the download page: the checksum is how someone tells your file
+from a corrupted or substituted one, and it costs nothing.
+
+The archive comes from `git archive`, so it holds the tracked files at that commit
+and nothing else -- no `.secrets.toml`, no stray data folder, no editor backups. The
+other side of that coin is that uncommitted work is not in it; the script prints a
+warning when the tree is dirty, and it means what it says.

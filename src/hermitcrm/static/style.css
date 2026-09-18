@@ -494,6 +494,15 @@ nav a.help-link { margin-left: 4px; }
 .helpdoc pre code { background: none; padding: 0; }
 .helpdoc table { width: auto; margin: 8px 0; }
 .helpdoc td, .helpdoc th { font-size: 13px; }
+/* Feedback is the one help page that is also a form. The form sits above the prose
+   and is boxed, so the page reads as "do this, and here is what it does". */
+.feedback-form, .feedback-saved { border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; background: var(--surface-2); margin-bottom: 20px; }
+.feedback-saved { margin-top: 0; }
+.feedback-saved h2 { margin-top: 0; font-size: 16px; text-transform: none; }
+.feedback-saved textarea { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.feedback-facts { margin-bottom: 24px; font-size: 13px; color: var(--muted); }
+.feedback-facts summary { cursor: pointer; }
+.feedback-facts ul { margin: 8px 0; }
 @media (max-width: 800px) { .helpdoc-layout { flex-direction: column; } .helpdoc-topics { position: static; flex-basis: auto; } }
 
 /* anchor jumps (#appearance, #inbox) land below the sticky top bar */

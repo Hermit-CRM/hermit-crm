@@ -2,6 +2,7 @@
 
 import json
 import threading
+import urllib.error
 
 from hermitcrm import updates
 
@@ -28,7 +29,8 @@ def test_check_caches_for_24_hours(tmp_path):
     got = updates.check({}, fetcher=fake("9.9.9", calls), cache=cache, now=1000.0, env={},
                         current="0.1.0")
     assert got == "9.9.9" and len(calls) == 1
-    assert json.loads(cache.read_text()) == {"checked": 1000.0, "latest": "9.9.9"}
+    assert json.loads(cache.read_text()) == {"checked": 1000.0, "latest": "9.9.9",
+                                             "state": "current", "url": updates.PYPI_URL}
     again = updates.check({}, fetcher=fake("10.0.0", calls), cache=cache,
                           now=1000.0 + DAY - 1, env={}, current="0.1.0")
     assert again == "9.9.9" and len(calls) == 1  # cached, no request
@@ -89,3 +91,74 @@ def test_footer_version_and_nav_notice(tmp_path):
     app.state.update_notice.available = "9.9.9"
     page = client.get("/companies").text
     assert "v9.9.9 available: <code>pipx upgrade hermitcrm</code>" in page
+
+
+# ---------------------------------------------------------- what the check knows
+# The old check returned "" for three different things -- up to date, nothing
+# published yet, and no network -- so `doctor` said "is the latest" for a check that
+# had never once succeeded. These tests exist to keep those three apart.
+
+
+def http_error(code):
+    def fetch():
+        raise urllib.error.HTTPError(updates.PYPI_URL, code, "nope", {}, None)
+    return fetch
+
+
+def test_a_404_says_nothing_is_published_not_that_we_are_current(tmp_path):
+    result = updates.look({}, fetcher=http_error(404), cache=tmp_path / "a.json",
+                          now=0.0, env={}, current="0.3.0")
+    assert result.state == updates.ABSENT and result.newer == ""
+    assert result.sentence("0.3.0") == "v0.3.0; no release published at pypi.org yet"
+    assert "is the latest" not in result.sentence("0.3.0")
+
+
+def test_offline_and_a_500_are_unreachable_not_current(tmp_path):
+    def offline():
+        raise OSError("no network")
+
+    for name, fetcher in (("b", offline), ("c", http_error(500))):
+        result = updates.look({}, fetcher=fetcher, cache=tmp_path / f"{name}.json",
+                              now=0.0, env={}, current="0.3.0")
+        assert result.state == updates.UNREACHABLE
+        assert result.sentence("0.3.0").endswith("could not reach pypi.org to check")
+
+
+def test_reaching_the_index_is_the_only_way_to_be_current(tmp_path):
+    result = updates.look({}, fetcher=fake("0.3.0", []), cache=tmp_path / "d.json",
+                          now=0.0, env={}, current="0.3.0")
+    assert result.state == updates.CURRENT and result.sentence("0.3.0") == "v0.3.0 is the latest"
+
+
+def test_a_custom_url_is_asked_and_changes_the_upgrade_hint(tmp_path):
+    """Any URL answering {"version": ...} works, so a static file on a site is enough."""
+    config = {"update_url": "https://hermitcrm.example/latest.json"}
+    assert updates.source_url(config) == "https://hermitcrm.example/latest.json"
+    result = updates.look(config, fetcher=fake("0.4.0", []), cache=tmp_path / "e.json",
+                          now=0.0, env={}, current="0.3.0")
+    assert result.state == updates.NEWER and result.newer == "0.4.0"
+    assert result.hint == "download it from hermitcrm.example"
+    assert updates.upgrade_hint(updates.PYPI_URL) == updates.UPGRADE_HINT
+
+
+def test_changing_the_url_invalidates_a_fresh_cache(tmp_path):
+    """Yesterday's answer was about somewhere else; it must not be reused."""
+    cache, calls = tmp_path / "f.json", []
+    updates.look({}, fetcher=fake("0.4.0", calls), cache=cache, now=1000.0, env={},
+                 current="0.3.0")
+    again = updates.look({"update_url": "https://elsewhere.example/v.json"},
+                         fetcher=fake("0.9.0", calls), cache=cache, now=1001.0, env={},
+                         current="0.3.0")
+    assert again.newer == "0.9.0" and len(calls) == 2
+
+
+def test_both_answer_shapes_parse():
+    assert updates.version_in({"info": {"version": "1.2.3"}}) == "1.2.3"
+    assert updates.version_in({"version": "1.2.3"}) == "1.2.3"
+    assert updates.version_in({"latest": "1.2.3"}) == "1.2.3"
+
+
+def test_a_fresh_notice_has_not_checked_anything():
+    notice = updates.UpdateNotice()
+    assert notice.result.state == updates.PENDING and notice.available == ""
+    assert updates.note(notice.result) == "update check has not run yet"
