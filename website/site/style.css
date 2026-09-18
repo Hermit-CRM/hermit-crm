@@ -1,0 +1,236 @@
+/* Hermit CRM website, direction A: Quiet cabin.
+   Text lives in content.toml; this file is only the look. */
+
+/* No web fonts. Every font below is already on the visitor's computer, so
+   the page downloads nothing but itself and makes no request to a font host.
+   Serif: New York in Safari (ui-serif), Iowan Old Style or Charter in other
+   Mac browsers (both ship with macOS), Georgia elsewhere.
+   Mono and the app mock-up use the same stacks as the app's style.css. */
+
+:root {
+  --paper: #F5F1E8;
+  --card: #FBF9F4;
+  --rule: #E3DCCD;
+  --ink: #17181A;
+  --muted: #5C574E;       /* 6.3:1 on paper */
+  --green: #1D8A60;       /* fills only; white on it needs 19px bold */
+  --green-ink: #166B4A;   /* links and text: 5.9:1 on paper */
+  --green-deep: #0F4F36;
+  --serif: ui-serif, "Iowan Old Style", Charter, "Bitstream Charter", Georgia, serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --col: 640px;
+  --wide: 1040px;
+  --gutter: 20px;
+  --gap: 144px;           /* space around the section rules */
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-optical-sizing: auto;
+  font-size: 19px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-wrap: pretty;       /* no lone last words where the browser supports it */
+}
+
+a { color: var(--green-ink); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+a:hover { color: var(--green-deep); }
+:focus-visible { outline: 2px solid var(--green-ink); outline-offset: 3px; border-radius: 4px; }
+strong { font-weight: 600; }
+code { font-family: var(--mono); font-size: .84em; }
+
+.skip { position: absolute; left: -9999px; }
+.skip:focus { left: var(--gutter); top: 12px; background: var(--card); padding: 8px 12px; z-index: 1; }
+
+.col  { width: min(var(--col),  100% - 2 * var(--gutter)); margin-inline: auto; }
+.wide { width: min(var(--wide), 100% - 2 * var(--gutter)); margin-inline: auto; }
+.narrow { max-width: var(--col); margin-inline: auto; }
+
+.label {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 500;
+  color: var(--muted);
+  font-variant-caps: all-small-caps;
+  letter-spacing: .09em;
+}
+
+hr.rule {
+  width: min(var(--col), 100% - 2 * var(--gutter));
+  margin: var(--gap) auto;
+  border: 0;
+  border-top: 1px solid var(--rule);
+}
+
+/* ── Header ─────────────────────────────────────────────────────── */
+.site-header { display: flex; align-items: center; justify-content: space-between; padding: 28px 0; }
+.brand { display: flex; align-items: center; gap: 12px; color: var(--ink); text-decoration: none; }
+.brand:hover { color: var(--ink); }
+.brand svg { width: 34px; height: 27px; flex-shrink: 0; }
+.brand span { font-size: 25px; font-weight: 500; letter-spacing: -.01em; }
+.site-header > a:last-child { font-size: 18px; }
+
+/* ── Hero ───────────────────────────────────────────────────────── */
+.hero { padding-top: 72px; }
+h1 { margin: 0; font-size: 72px; font-weight: 400; line-height: 1.05; letter-spacing: -.015em; }
+.subline { margin: 24px 0 0; font-size: 20px; line-height: 1.55; }
+
+.download { margin-top: 36px; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--green); color: #FFFFFF;
+  font-size: 19px; font-weight: 700; line-height: 1.2;
+  text-decoration: none;
+  padding: 18px 30px; border-radius: 10px;
+}
+.btn:hover { background: var(--green-ink); color: #FFFFFF; }
+.meta { font-size: 15px; line-height: 1.5; color: var(--muted); }
+
+.install { margin-top: 44px; display: flex; flex-direction: column; gap: 14px; }
+.steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; counter-reset: step; }
+.steps li { display: flex; gap: 16px; counter-increment: step; }
+.steps li::before { content: counter(step); width: 18px; flex-shrink: 0; color: var(--muted); font-variant-numeric: oldstyle-nums; }
+.indent { margin-left: 34px; }
+
+.card {
+  background: var(--card); border: 1px solid var(--rule); border-radius: 14px;
+  padding: 22px 20px 22px 26px;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 20px;
+}
+.card .message { margin: 7px 0 0; font-family: var(--mono); font-size: 16px; line-height: 1.55; }
+.copy {
+  flex-shrink: 0;
+  font: 600 17px/1.2 var(--serif);
+  color: var(--green-ink);
+  background: transparent;
+  border: 1px solid var(--rule); border-radius: 8px;
+  padding: 10px 16px; min-height: 44px; min-width: 88px;
+  cursor: pointer;
+}
+.copy:hover { border-color: var(--green-ink); }
+.install .note { margin: 4px 0 0; font-size: 16px; line-height: 1.55; color: var(--muted); }
+.install .manual { margin: 0; font-size: 16px; }
+
+/* ── Features ───────────────────────────────────────────────────── */
+.features h2 { margin-bottom: 20px; }
+.features dl { display: grid; grid-template-columns: 150px minmax(0, 1fr); column-gap: 32px; margin: 0; border-bottom: 1px solid var(--rule); }
+.features dt, .features dd { padding: 18px 0; border-top: 1px solid var(--rule); }
+.features dt { font-weight: 600; font-variant-caps: all-small-caps; letter-spacing: .09em; }
+.features dd { margin: 0; }
+.principles { margin-top: 72px; display: flex; flex-direction: column; gap: 28px; }
+.principles p { margin: 0; }
+
+/* ── One company, one file ──────────────────────────────────────── */
+.idea h2.big { margin: 12px 0 0; font-size: 48px; font-weight: 400; line-height: 1.1; letter-spacing: -.01em; }
+.idea-grid { margin-top: 56px; display: grid; grid-template-columns: 620px minmax(0, 1fr); gap: 40px; align-items: start; }
+.window {
+  margin: 0; border-radius: 12px; overflow: hidden;
+  background: #FFFFFF; border: 1px solid var(--rule);
+  box-shadow: 0 18px 40px -24px rgba(40, 32, 20, .28);  /* the only shadow on the page */
+}
+.window-bar { height: 34px; background: #EFEBE2; border-bottom: 1px solid var(--rule); display: flex; align-items: center; gap: 8px; padding: 0 14px; }
+.window-bar i { width: 11px; height: 11px; border-radius: 50%; background: #D6CFC0; }
+.window-bar span { flex-grow: 1; text-align: center; margin-right: 50px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.window img { display: block; width: 100%; height: auto; }
+.file { display: flex; flex-direction: column; gap: 14px; padding-top: 18px; }
+.file p { margin: 0; font-size: 16px; color: var(--muted); }
+.file pre {
+  margin: 0; background: var(--card); border: 1px solid var(--rule); border-radius: 14px;
+  padding: 22px 24px; font-family: var(--mono); font-size: 15px; line-height: 1.7;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.file pre .path { color: var(--muted); }
+.idea .after { margin-top: 40px; }
+
+/* ── Requirements ───────────────────────────────────────────────── */
+.requirements h2 { margin-bottom: 20px; }
+.requirements ul { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 12px; }
+
+/* ── Questions ──────────────────────────────────────────────────── */
+.questions h2 { margin-bottom: 12px; }
+.questions > div { border-bottom: 1px solid var(--rule); }
+details { border-top: 1px solid var(--rule); }
+summary {
+  cursor: pointer; list-style: none;
+  padding: 22px 0; font-size: 22px; font-weight: 500; line-height: 1.35;
+  display: flex; justify-content: space-between; gap: 24px;
+}
+summary::-webkit-details-marker { display: none; }
+summary::after { content: "+"; color: var(--muted); font-weight: 400; }
+details[open] summary::after { content: "\2212"; }
+details p { margin: 0 0 24px; }
+
+/* ── End ────────────────────────────────────────────────────────── */
+.site-footer { margin-top: 120px; padding: 28px 0 64px; border-top: 1px solid var(--rule); font-size: 15px; color: var(--muted); }
+
+/* ── Pipeline placeholder (drawn at 800 x 500, scales to its box) ─ */
+/* The drawn app uses the app's own light-mode colours, copied from
+   src/hermitcrm/static/style.css. Change them there first, then here. */
+.mock-box {
+  --app-bg: #fbfbfc; --app-surface: #fff; --app-text: #1b1b1f; --app-muted: #5c5c66;
+  --app-line: #d9d9de; --app-line-strong: #c4c4cc;
+  --app-sidebar: #eeeef1; --app-sidebar-active: #d9d9e0;
+}
+.mock-box { container-type: inline-size; aspect-ratio: 8 / 5; overflow: hidden; }
+.mock {
+  --u: calc(100cqw / 800);
+  width: 100%; height: 100%; display: flex; overflow: hidden;
+  background: #FFFFFF; color: #17181A;
+  font-family: var(--sans);
+  font-size: calc(var(--u) * 12.5); line-height: 1.3;
+}
+.mock-side { width: calc(var(--u) * 148); flex-shrink: 0; background: var(--app-sidebar); border-right: 1px solid var(--app-line); padding: calc(var(--u) * 16) calc(var(--u) * 10); display: flex; flex-direction: column; gap: calc(var(--u) * 2); }
+.mock-brand { white-space: nowrap; display: flex; align-items: center; gap: calc(var(--u) * 8); padding: 0 calc(var(--u) * 10) calc(var(--u) * 14); font-size: calc(var(--u) * 13); font-weight: 600; }
+.mock-brand svg { width: calc(var(--u) * 22); height: calc(var(--u) * 17); }
+.mock-nav { color: var(--app-text); padding: calc(var(--u) * 6) calc(var(--u) * 10); border-radius: calc(var(--u) * 6); }
+.mock-nav.on { background: var(--app-sidebar-active); color: var(--app-text); font-weight: 600; }
+.mock-main { flex-grow: 1; min-width: 0; background: var(--app-bg); padding: calc(var(--u) * 18) calc(var(--u) * 18) 0; display: flex; flex-direction: column; gap: calc(var(--u) * 14); }
+.mock-top { display: flex; align-items: baseline; justify-content: space-between; }
+.mock-title { font-size: calc(var(--u) * 17); font-weight: 600; }
+.mock-tag { font-size: calc(var(--u) * 11); color: var(--app-muted); border: 1px dashed var(--app-line-strong); border-radius: calc(var(--u) * 4); padding: calc(var(--u) * 3) calc(var(--u) * 8); }
+.mock-cols { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: calc(var(--u) * 10); }
+.mock-col { display: flex; flex-direction: column; gap: calc(var(--u) * 8); min-width: 0; }
+.mock-h { display: flex; justify-content: space-between; padding: 0 calc(var(--u) * 2) calc(var(--u) * 4); font-size: calc(var(--u) * 11); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--app-muted); }
+.mock-card { background: var(--app-surface); border: 1px solid var(--app-line); border-radius: calc(var(--u) * 6); padding: calc(var(--u) * 9) calc(var(--u) * 10); display: flex; flex-direction: column; gap: calc(var(--u) * 4); }
+.mock-card.hi { border: calc(var(--u) * 2) solid var(--green); padding: calc(var(--u) * 8) calc(var(--u) * 9); }
+.mock-card b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mock-card small { font-size: calc(var(--u) * 11); color: var(--app-muted); }
+
+/* ── Narrow screens ─────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .idea-grid { grid-template-columns: minmax(0, 1fr); gap: 28px; max-width: var(--col); margin-inline: auto; }
+  .file { padding-top: 0; }
+}
+@media (max-width: 720px) {
+  :root { --gap: 88px; }
+  .site-header { padding: 20px 0; }
+  .brand svg { width: 30px; height: 24px; }
+  .brand span { font-size: 22px; }
+  .hero { padding-top: 40px; }
+  h1 { font-size: 44px; }
+  .subline { margin-top: 18px; font-size: 19px; }
+  .download { margin-top: 28px; align-items: stretch; }
+  .install { margin-top: 36px; }
+  .indent { margin-left: 0; }
+  .card { flex-direction: column; align-items: stretch; gap: 16px; padding: 20px; }
+  .card .message { margin: 0; font-size: 16px; }
+  .copy { width: 100%; font-size: 18px; border-color: #D2C8B4; border-radius: 10px; padding: 12px 16px; }
+  .features dl { grid-template-columns: minmax(0, 1fr); }
+  .features dt { padding: 16px 0 2px; }
+  .features dd { padding: 0 0 18px; border-top: 0; }
+  .idea h2.big { font-size: 34px; line-height: 1.12; }
+  .idea-grid { margin-top: 32px; }
+  .window { border-radius: 10px; }
+  .window-bar span { margin-right: 40px; }
+  summary { padding: 18px 0; font-size: 20px; }
+}
+
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+@media print { .copy, .skip { display: none; } }
