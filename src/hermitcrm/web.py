@@ -11,6 +11,7 @@ import calendar
 import hmac
 import json
 import logging
+import platform as platform_info
 import subprocess
 import sys
 from collections import Counter
@@ -27,7 +28,7 @@ from starlette.concurrency import run_in_threadpool
 from . import __version__, updates
 from fastapi.templating import Jinja2Templates
 
-from . import bcc, brief, calendar_sync, capture, filters, followups, messaging, migrations, pipeline, reports
+from . import bcc, brief, calendar_sync, capture, feedback, filters, followups, messaging, migrations, pipeline, reports
 from . import schedule, scrape
 from . import help as helpdocs
 from . import setup as setup_steps
@@ -1700,7 +1701,8 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "access": access_facts(),
             "about": {"version": __version__, "data_dir": str(root),
                       "data_format": data_format, "latest_format": migrations.LATEST,
-                      "update_check": bool(config.get("update_check", True))},
+                      "update_check": bool(config.get("update_check", True)),
+                      "update_note": updates.note(app.state.update_notice.result)},
         }
         if ctx["remote_url"]:
             ctx["remote_warning"] = setup_steps.private_warning(ctx["remote_url"])
@@ -1935,16 +1937,64 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
 
     # ------------------------------------------------------------------- help
 
-    def help_page(request: Request, topic: str):
+    def help_page(request: Request, topic: str, **extra):
         text = helpdocs.read(topic)
         if text is None:
             raise HTTPException(status_code=404, detail=f"unknown help topic {topic!r}")
-        return render(request, "help.html", {
+        ctx = {
             "topic": topic,
             "title": helpdocs.title_of(text) or topic,
             "body": helpdocs.render(text),
             "topics": helpdocs.titles(),
-        })
+        }
+        # Feedback is the one topic that is also a form, so it renders a template that
+        # extends help.html: same sidebar, same prose, a form above it.
+        if topic == "feedback":
+            ctx.update(feedback_context(**extra))
+            return render(request, "feedback.html", ctx,
+                          status_code=422 if ctx.get("errors") else 200)
+        return render(request, "help.html", ctx)
+
+    def feedback_facts() -> list[str]:
+        """Numbers and flags only; see hermitcrm/feedback.py for why."""
+        companies = store.all()
+        try:
+            data_format = migrations.current_format(root)
+        except Exception:
+            data_format = None
+        state = current_setup_state()
+        return feedback.diagnostics(
+            version=__version__,
+            python=platform_info.python_version(),
+            platform=f"{platform_info.system()} {platform_info.release()} "
+                     f"({platform_info.machine()})",
+            counts={"companies": len(companies),
+                    "contacts": sum(len(c.contacts) for c in companies),
+                    "interactions": sum(len(c.interactions) for c in companies)},
+            data_format=data_format,
+            features={
+                "BCC import": "on" if state.get("bcc") else "off",
+                "Calendar import": "on" if state.get("calendar") else "off",
+                "Git remote": "yes" if state.get("backup") else "no",
+                "Enrichment": (app.state.enricher.provider_name
+                               if app.state.enricher.available else "unavailable"),
+                "Daily schedule": ("installed" if schedule_status().get("installed")
+                                   else "not installed"),
+            })
+
+    def feedback_context(saved=None, errors=None, form=None) -> dict:
+        return {
+            "kinds": feedback.KINDS,
+            "facts": feedback_facts(),
+            "errors": errors or {},
+            "saved": saved,
+            "form": form or {"kind": feedback.KIND_VALUES[0], "summary": "", "detail": "",
+                             "reporter": " ".join(x for x in
+                                                  (str(config.get("owner_name") or ""),
+                                                   f"<{config.get('owner_email')}>"
+                                                   if config.get("owner_email") else "")
+                                                  if x)},
+        }
 
     @app.get("/help", response_class=HTMLResponse)
     def help_index(request: Request):
@@ -1953,6 +2003,36 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
     @app.get("/help/{topic}", response_class=HTMLResponse)
     def help_topic(request: Request, topic: str):
         return help_page(request, topic)
+
+    @app.post("/help/feedback", response_class=HTMLResponse)
+    def help_feedback(request: Request, csrf_token: str = Form(""), kind: str = Form(""),
+                      summary: str = Form(""), detail: str = Form(""),
+                      reporter: str = Form("")):
+        check_csrf(csrf_token)
+        form = {"kind": kind, "summary": summary, "detail": detail, "reporter": reporter}
+        errors = {}
+        if not summary.strip():
+            errors["summary"] = "Give it a one-line summary."
+        if not detail.strip():
+            errors["detail"] = "Say what happened; an empty report cannot be acted on."
+        if errors:
+            return help_page(request, "feedback", errors=errors, form=form)
+
+        text = feedback.report(kind, summary, detail, reporter, facts=feedback_facts(),
+                               now=store.now(), version=__version__)
+        name = feedback.filename(summary, now=store.now())
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        try:
+            gitops.commit(f"feedback: {' '.join(summary.split())}", [name])
+            gitops.push_async()
+        except Exception:  # a report is still a report if git is unhappy
+            logger.exception("could not commit feedback %r", name)
+        return help_page(request, "feedback", saved={
+            "path": name, "text": text,
+            "mailto": feedback.mailto(str(config.get("feedback_email") or ""),
+                                      " ".join(summary.split()), text)})
 
     # ------------------------------------------------------------ housekeeping
 

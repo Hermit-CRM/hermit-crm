@@ -49,6 +49,10 @@ hermitcrm --data ~/crm serve                        # http://127.0.0.1:8765
 hermitcrm --data ~/crm schedule install --serve     # daily sync, web app always on
 ```
 
+A download is `hermitcrm-<version>.tar.gz` and unpacks to `hermitcrm-<version>/`,
+with a `.sha256` beside it; check it with `shasum -a 256 -c hermitcrm-<version>.tar.gz.sha256`
+before you unpack.
+
 Hermit CRM is not on PyPI yet, so install it from a clone. When it is published,
 `pipx install hermitcrm` (or `uv tool install hermitcrm`) will replace the first
 three lines and give you a `hermitcrm` command that works without activating the
@@ -148,6 +152,9 @@ file per conversation. Everything below is convenience on top of it.
 - **MCP server** (`hermitcrm mcp`): read and write the CRM from Claude Desktop,
   ChatGPT, Cursor or anything else that speaks MCP, with no terminal. Seven read
   tools and three write tools, over stdio, with no extra dependency.
+- **Feedback form** at `/help/feedback`: writes a report into your folder with the
+  version, counts and feature flags attached, and shows it to you to send. Nothing
+  leaves your machine on its own, and no names or paths go in the report.
 - **PIPELINE.md**: a generated one-page summary for you and your agents.
 - **Unknown front-matter keys are preserved**, so other tools can add fields.
 
@@ -185,7 +192,9 @@ Uncomment what you want to change.
 | `enrich_model_strong` | `""` | Strong-tier model override; empty means the provider default. |
 | `ask_timeout` | `300` | Seconds before one Ask Hermit call is abandoned. |
 | `theme` | `"light"` | Look of the web app: `light`, `dark` or `system`. |
-| `update_check` | `true` | Check PyPI for a newer Hermit CRM at most once a day (no identifiers sent). |
+| `update_check` | `true` | Check for a newer Hermit CRM at most once a day (no identifiers sent). |
+| `update_url` | `""` | Where that check asks; empty means PyPI. Any URL answering `{"version": "0.4.0"}` works. |
+| `feedback_email` | `""` | Address the Feedback form offers to mail a report to; empty means copy it yourself. |
 
 Secrets never go in `config.toml`; see [Secrets](#secrets).
 
@@ -301,9 +310,13 @@ company waits in the review queue on the Settings page (`/settings#inbox`).
 pipx upgrade hermitcrm   # or: uv tool upgrade hermitcrm
 ```
 
-The web app checks PyPI at most once a day (no identifiers sent; turn it off
-with `update_check = false` or `HERMITCRM_NO_UPDATE_CHECK=1`) and shows a notice
-in the nav when a newer version exists. When a release changes the data
+The web app checks at most once a day (no identifiers sent; turn it off with
+`update_check = false` or `HERMITCRM_NO_UPDATE_CHECK=1`) and shows a notice in
+the nav when a newer version exists. It asks PyPI unless `update_url` points
+elsewhere; any URL answering `{"version": "0.4.0"}` works, so a static file on a
+download page needs no package index. A check that 404s or cannot reach the
+network says so -- it never reports "is the latest" for a question it failed to
+ask. When a release changes the data
 format, the next command migrates your folder automatically, in **one git
 commit** named `migrate: data format N → M (...)`, so `git revert <sha>`
 undoes it. See what would change first with `hermitcrm migrate --dry-run`. A

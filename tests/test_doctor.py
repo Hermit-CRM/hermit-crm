@@ -110,6 +110,29 @@ def test_update_and_enrich_warnings(folder, tmp_path):
     assert res["update"].detail.endswith("update check is off")
 
 
+def test_doctor_never_claims_to_be_current_on_a_failed_check(folder, tmp_path):
+    """Hermit CRM is not on PyPI, so the check 404s. Reporting "v0.3.0 is the latest"
+    for a request that never succeeded is the bug this guards."""
+    import urllib.error
+
+    from hermitcrm import updates
+
+    def gone():
+        raise urllib.error.HTTPError(updates.PYPI_URL, 404, "nope", {}, None)
+
+    res = checks(folder, tmp_path / "a", update_fetcher=gone)
+    assert res["update"].status == "ok"  # nothing is wrong on this machine
+    assert "is the latest" not in res["update"].detail
+    assert res["update"].detail.endswith("no release published at pypi.org yet")
+
+    def offline():
+        raise OSError("no network")
+
+    res = checks(folder, tmp_path / "b", update_fetcher=offline)
+    assert "is the latest" not in res["update"].detail
+    assert res["update"].detail.endswith("could not reach pypi.org to check")
+
+
 def test_cli_doctor(folder, monkeypatch, capsys):
     seen = {}
 

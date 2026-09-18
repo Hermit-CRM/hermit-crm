@@ -162,14 +162,11 @@ def run_checks(root: Path, *, online: bool = False, env: dict | None = None,
     except Exception as exc:
         add("enrich cli", WARN, f"could not check: {exc}")
 
-    if not updates.enabled(config, env):
-        add("update", OK, f"v{__version__}; update check is off")
-    else:
-        newer = updates.check(config, fetcher=update_fetcher or updates.fetch_latest,
-                              cache=update_cache, env=env)
-        add("update", WARN if newer else OK,
-            f"v{newer} available: {updates.UPGRADE_HINT}" if newer
-            else f"v{__version__} is the latest")
+    # Only a genuinely newer version is a warning. A 404 or an unreachable index is
+    # reported as what it is; what doctor must never do is answer "is the latest"
+    # for a check that never got an answer.
+    result = updates.look(config, fetcher=update_fetcher, cache=update_cache, env=env)
+    add("update", WARN if result.state == updates.NEWER else OK, result.sentence())
     return checks
 
 

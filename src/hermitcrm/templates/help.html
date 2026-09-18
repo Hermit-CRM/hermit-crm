@@ -10,6 +10,7 @@
     <p class="small helpdoc-cli">In a terminal: <code>hermitcrm help {{ '' if topic == 'index' else topic }}</code></p>
   </div>
   <article class="helpdoc">
+{% block helpdoc_top %}{% endblock %}
 {{ body | safe }}
   </article>
 </div>
