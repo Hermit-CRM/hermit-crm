@@ -22,6 +22,14 @@ define. Both migrate automatically in one commit.
   keeps them**: the migration writes a `fields.toml` describing them and does
   not touch a single company file, because those keys were always ordinary
   front matter. A folder that never used them gets no file at all.
+- **A home page, separate from the pipeline.** The logo and the Pipeline tab
+  went to the same place, so the product had no front door, and on a fresh
+  install that place was an empty board wearing three onboarding cards. `/` is
+  now the home page -- what is due in the next seven days (next steps and tasks
+  together), replies you owe, last month's numbers, and a grid saying in one
+  line what each part of the app is for. The board moved to `/pipeline` with its
+  own nav entry, and the ways to get started moved to the home page where a new
+  folder will actually meet them.
 - **Tasks: more than one per company, and one per person.** A company had
   exactly one thing you could write down -- its next step -- so a second thing
   you owed an account overwrote the first. Companies and contacts now each keep
