@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Capture{% endblock %}
+{% block title %}Extension{% endblock %}
 {% block content %}
-<h1>Capture a company from a page</h1>
+<h1>Extension: save a page to the CRM</h1>
 
 <p>Drag this to your bookmarks bar. On any company website or LinkedIn company
 page, click it: Hermit CRM reads the page and opens a filled-in new-company form.</p>
@@ -16,7 +16,7 @@ browser strips it, copy the code below into a new bookmark by hand.</p>
 <pre class="bookmarklet-code"><code>{{ bookmarklet }}</code></pre>
 
 <h2>Or paste a URL</h2>
-<form method="get" action="/capture/new" class="record-form">
+<form method="get" action="/extension/new" class="record-form">
   <label>Company website or LinkedIn company page
     <input type="text" name="url" value="" placeholder="acme.example.com" autofocus>
   </label>

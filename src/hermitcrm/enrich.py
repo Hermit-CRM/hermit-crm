@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 import os
 import shlex
 import shutil
@@ -157,6 +158,42 @@ DEFAULT_MODELS = {
     "gemini": {"medium": "gemini-2.5-flash", "strong": "gemini-2.5-pro"},
     "grok": {"medium": "grok-4-fast", "strong": "grok-4"},
 }
+
+# How the CLI is signed in. A subscription (a ChatGPT, Claude or Gemini plan)
+# is not entitled to the same model ids as an API key, and asking for one it
+# does not have is a hard error rather than a downgrade.
+ACCOUNTS = ("subscription", "api")
+
+# What a subscription gets instead, per provider. Only what is actually known
+# belongs here: a ChatGPT account refuses `gpt-5-mini` outright, so codex is
+# given no model flag at all and uses whatever that account gets. Claude's
+# tiers work on a subscription, so claude is absent and keeps its defaults.
+# An empty string means "pass no model flag".
+SUBSCRIPTION_MODELS = {
+    "codex": {"medium": "", "strong": ""},
+}
+
+# Every provider says "you cannot have that model" in its own words, and every
+# one of them names the model when it does. Recognising it turns a wall of
+# repeated JSON into one sentence naming the setting to change.
+UNSUPPORTED_MODEL = re.compile(
+    r"model[^\n]{0,80}?\bnot (supported|available|found)\b"
+    r"|\bunknown model\b|\bmodel[_ ]not[_ ]found\b|\binvalid[_ ]model\b", re.I)
+
+
+def error_lines(text: str, limit: int = 3) -> list[str]:
+    """The last few distinct lines of a failure.
+
+    A CLI that fails during startup and again during the run prints the same
+    message several times; without the de-duplication the reader sees one fact
+    three times and has to work out that it is one fact.
+    """
+    seen: list[str] = []
+    for line in text.splitlines():
+        line = line.strip()
+        if line and line not in seen:
+            seen.append(line)
+    return seen[-limit:]
 MODEL_LABELS = {"claude-opus-5": "Opus", "claude-fable-5-1": "Fable",
                 "claude-sonnet-5": "Sonnet", "claude-haiku-4-5": "Haiku"}
 
@@ -423,11 +460,13 @@ def _with_path(env: dict, extra_path: str) -> dict:
 class Enricher:
     def __init__(self, provider: str = "auto", command: str = "", model: str = "",
                  timeout: float = 180, runner=None, which=find_executable,
-                 model_strong: str = "", tier: str = "medium"):
+                 model_strong: str = "", tier: str = "medium",
+                 account: str = "subscription"):
         self.requested = (provider or "auto").strip().lower()
         self.command = command or ""
         self.overrides = {"medium": model or "", "strong": model_strong or ""}
         self.tier = tier if tier in TIERS else "medium"
+        self.account = account if account in ACCOUNTS else "subscription"
         self.timeout = float(timeout)
         self.error = ""
         try:
@@ -437,11 +476,16 @@ class Enricher:
         self.runner = runner or self._run_cli
 
     def model_for(self, tier: str) -> str:
-        """The config override for the tier, else the provider's default ('' = CLI default)."""
+        """The model id for a tier: an explicit override first, then the default
+        for this account type. An empty string means no model flag at all, so
+        the CLI answers on whatever the signed-in account gets."""
         tier = tier if tier in TIERS else "medium"
         if self.overrides.get(tier):
             return self.overrides[tier]
-        return DEFAULT_MODELS.get(self.provider_name, {}).get(tier, "")
+        name = self.provider_name
+        if self.account == "subscription" and name in SUBSCRIPTION_MODELS:
+            return SUBSCRIPTION_MODELS[name].get(tier, "")
+        return DEFAULT_MODELS.get(name, {}).get(tier, "")
 
     @property
     def model(self) -> str:
@@ -513,8 +557,14 @@ class Enricher:
                         tail = envelope["result"].strip() or tail
                 except json.JSONDecodeError:
                     pass
-                tail = tail.splitlines()[-3:]
-                raise EnrichError(f"{provider.name} ({self.model or 'default model'}) failed: " + " | ".join(tail))
+                if self.model and UNSUPPORTED_MODEL.search(tail):
+                    raise EnrichError(
+                        f"{provider.name} has no model {self.model!r} on this account. "
+                        "If you signed in with a subscription rather than an API key, "
+                        "say so under Account in Settings \u2192 AI; otherwise set a "
+                        "model id your account has.")
+                raise EnrichError(f"{provider.name} ({self.model or 'default model'}) failed: "
+                                  + " | ".join(error_lines(tail)))
             out = Path(out_path)
             out_text = out.read_text(encoding="utf-8") if out.exists() else ""
             data = provider.parse(proc.stdout or "", out_text)

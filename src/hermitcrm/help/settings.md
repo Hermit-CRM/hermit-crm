@@ -1,6 +1,6 @@
 # Settings
 
-`/settings`: who you are, mail and calendar capture, backup, appearance, AI (Enrich and Ask Hermit), outcomes, the review queue, the daily schedule, access from a phone or an AI client, and About.
+`/settings`: who you are, mail and calendar capture, backup, appearance, AI (Enrich and Ask the Hermit), outcomes, the review queue, the daily schedule, access from a phone or an AI client, and About.
 
 Every section writes `config.toml` in the data folder, keeping its comments;
 secrets (the mail app password, the calendar URL) go to `.secrets.toml`
@@ -45,12 +45,24 @@ never block.
 Night mode: off (`theme = "light"`), on (`"dark"`) or follow the operating
 system (`"system"`).
 
-## AI: Enrich and Ask Hermit
+## AI: Enrich and Ask the Hermit
 
 `enrich_provider` (`auto`, `claude`, `codex`, `gemini`, `grok` or `custom`),
-`enrich_command` and `enrich_timeout`. **Model** switches between the medium
+`enrich_command` and `enrich_timeout`.
+
+**Account** (`enrich_account`) says how that CLI is signed in: `subscription`
+(a ChatGPT, Claude or Gemini plan, the default) or `api` (an API key). It
+matters because a plan is not entitled to the same model ids as an API key,
+and asking for one it does not have fails outright rather than quietly
+choosing something else: a Codex CLI signed in with a ChatGPT account answers
+`The 'gpt-5-mini' model is not supported`. On a subscription Hermit CRM asks
+for no particular model where that is known to matter, and the CLI answers on
+whatever the plan gets. A model you type into the fields below is always used,
+whatever the account type.
+
+**Model** switches between the medium
 tier (default; Claude: Opus) and the strong tier (Claude: Fable) for Enrich
-and [Ask Hermit](/help/ask); `ai_tier` in `config.toml`. Answers and proposals
+and [Ask the Hermit](/help/ask); `ai_tier` in `config.toml`. Answers and proposals
 made on the medium tier offer "Retry with" the strong model. The two model
 fields (`enrich_model`, `enrich_model_strong`) override the provider defaults. The section shows which
 CLI is in use, or why none is. Under launchd or systemd the process starts

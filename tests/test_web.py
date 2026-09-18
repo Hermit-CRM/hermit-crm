@@ -506,30 +506,21 @@ def test_acceptance_flow(client, app, repo):
     assert "no budget" in closed_block
 
 
-def test_country_field_and_add_country_button(client, app, repo):
+def test_country_stays_on_the_record_but_leaves_the_company_header(client, app, repo):
+    """The header lost its country line; the field itself did not go anywhere.
+
+    Country still decides which language a draft is written in, so it has to
+    survive. It lives in the edit form, the board and the table now.
+    """
     post_company(client, name="Acme", country="NL")
     page = client.get("/companies/acme").text
-    assert "country: NL" in page and "Change country" in page
-    assert 'name="country" value="NL" list="country-codes-edit"' in page
+    assert "country: NL" not in page and "Change country" not in page
+    assert 'action="/companies/acme/country"' not in page
+
+    assert 'name="country" value="NL" list="country-codes"' in page  # the edit form
+    assert app.state.store.get("acme").country == "NL"
     assert "NL" in client.get("/").text.split('id="col-prospect"')[1].split("</section>")[0]
     assert "<th>country" in client.get("/companies").text
-
-    post_company(client, name="Beta")
-    page = client.get("/companies/beta").text
-    assert "country: none" in page and "Add country" in page
-    assert 'action="/companies/beta/country"' in page
-
-    r = client.post("/companies/beta/country", data={"country": "DE"})
-    assert r.status_code == 303 and "Country%20saved" in r.headers["location"]
-    assert app.state.store.get("beta").country == "DE"
-    assert last_commit(repo) == "company: beta updated"
-
-    r = client.post("/companies/beta/country", data={"country": "XX"})
-    assert r.status_code == 303 and "unknown%20country" in r.headers["location"]
-    assert app.state.store.get("beta").country == "DE"
-
-    bad = post_company(client, name="Gamma", country="XX")
-    assert bad.status_code == 400 and "unknown country" in bad.text
 
 
 def test_board_stage_dropdown_offers_engaged(client, app):
@@ -1237,7 +1228,37 @@ def test_contact_page_sections_in_order_and_nav_marks_contacts(client, app):
     assert '<option value="declining">headcount decline</option>' in page
 
 
-# ------------------------------------------------------------------- capture
+def test_the_old_capture_paths_still_work(client, app):
+    """A bookmarklet already sitting in someone's bookmarks bar points here."""
+    r = client.get("/capture", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/extension"
+    r = client.get("/capture/new", params={"url": "https://northwind.example.com"},
+                   follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"] == "/extension/new?url=https%3A%2F%2Fnorthwind.example.com"
+    r = client.get("/capture/new", follow_redirects=False)
+    assert r.headers["location"] == "/extension"
+
+
+def test_the_nav_and_the_ask_button_carry_the_new_names(client):
+    page = client.get("/").text
+    assert ">Extension<" in page and ">Capture<" not in page
+    assert "Ask the Hermit" in page and ">Ask Hermit" not in page
+
+
+def test_the_company_header_lost_four_of_its_six_rows(client, app):
+    """The country line is gone and the two disqualify panels became one menu."""
+    post_company(client, name="Acme", country="NL", stage="prospect")
+    page = client.get("/companies/acme").text
+    assert "country-line" not in page and "stage-line" not in page
+    assert page.count("record-meta") == 1 and page.count("record-actions") == 1
+    # one summary to open, not two always-open panels
+    assert page.count('summary class="button">Disqualify') == 1
+    assert "Temp disqualify" in page  # still there, inside the menu
+    assert 'action="/companies/acme/fetch"' in page  # the actions survived the move
+
+
+# ----------------------------------------------------------------- extension
 
 
 CAPTURE_PAGE = (
@@ -1248,17 +1269,17 @@ CAPTURE_PAGE = (
     '</body></html>')
 
 
-def test_capture_page_hands_out_a_bookmarklet_for_this_address(client):
-    page = htmllib.unescape(client.get("/capture").text)
-    assert ("javascript:(function(){window.open('http://testserver/capture/new?url='"
+def test_extension_page_hands_out_a_bookmarklet_for_this_address(client):
+    page = htmllib.unescape(client.get("/extension").text)
+    assert ("javascript:(function(){window.open('http://testserver/extension/new?url='"
             "+encodeURIComponent(location.href),'_blank');})();") in page
     # built from the request, so a serve --host session hands out a working one
 
 
-def test_capture_new_opens_a_prefilled_company_form(client, app):
+def test_extension_new_opens_a_prefilled_company_form(client, app):
     app.state.fetcher = lambda url: CAPTURE_PAGE
 
-    r = client.get("/capture/new", params={"url": "northwind.example.com"})
+    r = client.get("/extension/new", params={"url": "northwind.example.com"})
     assert r.status_code == 200
     assert 'name="name" value="Northwind Robotics"' in r.text
     assert 'name="website" value="https://northwind.example.com"' in r.text
@@ -1268,29 +1289,29 @@ def test_capture_new_opens_a_prefilled_company_form(client, app):
     assert app.state.store.companies == {}  # a read, not a write
 
 
-def test_capture_of_a_company_you_already_have_goes_to_it(client, app):
+def test_extension_of_a_company_you_already_have_goes_to_it(client, app):
     post_company(client, name="Northwind Robotics", website="northwind.example.com")
     app.state.fetcher = lambda url: CAPTURE_PAGE
 
-    r = client.get("/capture/new", params={"url": "https://northwind.example.com/pricing"},
+    r = client.get("/extension/new", params={"url": "https://northwind.example.com/pricing"},
                    follow_redirects=False)
     assert r.status_code == 303
     assert r.headers["location"].startswith("/companies/northwind-robotics")
     assert "already%20in%20the%20CRM" in r.headers["location"]
 
 
-def test_capture_says_why_a_page_could_not_be_read(client, app):
+def test_extension_says_why_a_page_could_not_be_read(client, app):
     def refuse(url):
         from hermitcrm.scrape import ScrapeError
         raise ScrapeError("LinkedIn refused the anonymous request (HTTP 999)")
 
     app.state.fetcher = refuse
-    r = client.get("/capture/new", params={"url": "https://www.linkedin.com/company/x"},
+    r = client.get("/extension/new", params={"url": "https://www.linkedin.com/company/x"},
                    follow_redirects=False)
-    assert r.status_code == 303 and r.headers["location"].startswith("/capture?flash=")
+    assert r.status_code == 303 and r.headers["location"].startswith("/extension?flash=")
     assert "LinkedIn%20refused" in r.headers["location"]
 
 
-def test_capture_new_without_a_url_goes_back_to_the_capture_page(client):
-    r = client.get("/capture/new", follow_redirects=False)
-    assert r.status_code == 303 and r.headers["location"] == "/capture"
+def test_extension_new_without_a_url_goes_back_to_the_capture_page(client):
+    r = client.get("/extension/new", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/extension"
