@@ -29,9 +29,6 @@ COMPANY_FIELDS = {
     "linkedin": ("string", "LinkedIn company page URL"),
     "country": ("string", "HQ country as an ISO 3166-1 alpha-2 code "
                           "(DE, GB, US, ...); null if unknown"),
-    "fte_estimate": ("string", "approximate headcount as a short string like '~25'"),
-    "ae_count": ("integer", "number of account executives or sales reps you can "
-                            "see on LinkedIn; null if you cannot tell"),
     "product_oneliner": ("string", "one sentence saying what the product does and "
                                    "for whom"),
 }
@@ -39,6 +36,28 @@ CONTACT_FIELDS = {
     "title": ("string", "current job title at the company"),
     "linkedin": ("string", "personal LinkedIn profile URL"),
 }
+
+# JSON-schema types for a user-defined field that asked to be enriched.
+CUSTOM_TYPES = {"number": "number", "text": "string", "date": "string",
+                "select": "string"}
+
+
+def fields_with_custom(base: dict, defs: list, scope: str) -> dict:
+    """The fixed schema plus any custom field that set `enrich = true`.
+
+    A user who defines their own field and says what it means gets the model
+    filling it, which is strictly more than the two hard-coded fields this
+    replaced.
+    """
+    out = dict(base)
+    for d in defs:
+        if d.applies_to != scope or not d.enrich:
+            continue
+        description = d.description or d.help or d.label
+        if d.type == "select" and d.options:
+            description += " (one of: " + ", ".join(d.options) + ")"
+        out[d.key] = (CUSTOM_TYPES.get(d.type, "string"), description)
+    return out
 
 
 class EnrichError(Exception):
@@ -598,22 +617,34 @@ class Enricher:
         proposal.notes = " ".join(str(data.get("notes") or "").split())
         return proposal
 
-    def propose_company(self, company: Company) -> Proposal:
-        missing = [k for k in COMPANY_FIELDS if getattr(company, k) in ("", None)]
+    @staticmethod
+    def _empty(record, key: str, custom_keys: set) -> bool:
+        """A built-in field reads off the object; a custom one out of `extra`."""
+        if key in custom_keys:
+            return (record.extra or {}).get(key) in ("", None)
+        return getattr(record, key, None) in ("", None)
+
+    def propose_company(self, company: Company, defs: list | None = None) -> Proposal:
+        wanted = fields_with_custom(COMPANY_FIELDS, defs or [], "company")
+        custom_keys = set(wanted) - set(COMPANY_FIELDS)
+        missing = [k for k in wanted if self._empty(company, k, custom_keys)]
         if not missing:
             return Proposal(missing=[])
         data = self.runner(company_prompt(company, missing), _schema(
-            {k: COMPANY_FIELDS[k] for k in missing}))
-        proposal = self._clean(data, {k: COMPANY_FIELDS[k] for k in missing})
+            {k: wanted[k] for k in missing}))
+        proposal = self._clean(data, {k: wanted[k] for k in missing})
         proposal.missing = missing
         return proposal
 
-    def propose_contact(self, company: Company, contact: Contact) -> Proposal:
-        missing = [k for k in CONTACT_FIELDS if getattr(contact, k) in ("", None)]
+    def propose_contact(self, company: Company, contact: Contact,
+                        defs: list | None = None) -> Proposal:
+        wanted = fields_with_custom(CONTACT_FIELDS, defs or [], "contact")
+        custom_keys = set(wanted) - set(CONTACT_FIELDS)
+        missing = [k for k in wanted if self._empty(contact, k, custom_keys)]
         if not missing:
             return Proposal(missing=[])
         data = self.runner(contact_prompt(company, contact, missing), _schema(
-            {k: CONTACT_FIELDS[k] for k in missing}))
-        proposal = self._clean(data, {k: CONTACT_FIELDS[k] for k in missing})
+            {k: wanted[k] for k in missing}))
+        proposal = self._clean(data, {k: wanted[k] for k in missing})
         proposal.missing = missing
         return proposal

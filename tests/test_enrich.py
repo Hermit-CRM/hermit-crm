@@ -9,7 +9,7 @@ import pytest
 from hermitcrm import cli as crm
 from hermitcrm.enrich import (
     COMPANY_FIELDS, EnrichError, Enricher, Proposal, error_lines, extract_json,
-    model_label, resolve_provider,
+    fields_with_custom, model_label, resolve_provider,
 )
 
 
@@ -34,25 +34,40 @@ ALL = on_path("claude", "codex", "gemini", "grok", "my-llm", "claude-cli",
 def test_company_proposal_asks_only_for_missing_fields(store):
     store.create_company("Acme", website="https://acme.de", product_oneliner="Does X.")
     runner = FakeRunner({"linkedin": "https://www.linkedin.com/company/acme",
-                         "country": "de", "fte_estimate": " ~25 ", "ae_count": "3",
+                         "country": "de",
                          "sources": ["https://acme.de/about"], "notes": "high confidence"})
     proposal = Enricher(runner=runner).propose_company(store.get("acme"))
     prompt, schema = runner.calls[0]
-    assert proposal.missing == ["linkedin", "country", "fte_estimate", "ae_count"]
-    assert set(schema["properties"]) == {"linkedin", "country", "fte_estimate",
-                                         "ae_count", "sources", "notes"}
+    assert proposal.missing == ["linkedin", "country"]
+    assert set(schema["properties"]) == {"linkedin", "country", "sources", "notes"}
     assert "website" not in schema["properties"]
     assert "- name: Acme" in prompt and "- website: https://acme.de" in prompt
     assert proposal.fields == {"linkedin": "https://www.linkedin.com/company/acme",
-                               "country": "DE", "fte_estimate": "~25", "ae_count": 3}
+                               "country": "DE"}
     assert proposal.sources == ["https://acme.de/about"]
     assert proposal.notes == "high confidence"
+
+
+def test_a_custom_field_can_join_the_ai_schema():
+    """The two hard-coded fields this replaced were a special case of this."""
+    from hermitcrm.fields import FieldDef
+    defs = [
+        FieldDef(key="segment", type="select", options=["smb", "enterprise"],
+                 enrich=True, description="which segment they sell to"),
+        FieldDef(key="headcount", type="number", enrich=True, help="staff, roughly"),
+        FieldDef(key="private_note", type="text"),            # never asked for
+        FieldDef(key="seniority", applies_to="contact", enrich=True),  # wrong scope
+    ]
+    out = fields_with_custom(COMPANY_FIELDS, defs, "company")
+    assert set(out) == set(COMPANY_FIELDS) | {"segment", "headcount"}
+    assert out["headcount"] == ("number", "staff, roughly")
+    assert out["segment"][0] == "string"
+    assert "one of: smb, enterprise" in out["segment"][1]
 
 
 def test_proposal_drops_unusable_values(store):
     store.create_company("Acme")
     runner = FakeRunner({"website": None, "linkedin": "", "country": "France",
-                         "fte_estimate": None, "ae_count": "many",
                          "product_oneliner": "Sells  things.", "sources": [], "notes": ""})
     proposal = Enricher(runner=runner).propose_company(store.get("acme"))
     assert proposal.fields == {"product_oneliner": "Sells things."}
@@ -61,8 +76,7 @@ def test_proposal_drops_unusable_values(store):
 
 def test_nothing_missing_means_no_cli_call(store):
     store.create_company("Acme", website="https://acme.de", linkedin="https://l/acme",
-                         country="DE", fte_estimate="10", ae_count=1,
-                         product_oneliner="X.")
+                         country="DE", product_oneliner="X.")
     runner = FakeRunner({})
     proposal = Enricher(runner=runner).propose_company(store.get("acme"))
     assert proposal.missing == [] and runner.calls == []

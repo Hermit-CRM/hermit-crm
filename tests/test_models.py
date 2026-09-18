@@ -264,8 +264,8 @@ def test_company_frontmatter_key_order():
     c = Company(name="Acme", slug="acme")
     assert list(company_to_frontmatter(c)) == [
         "name", "slug", "website", "linkedin", "country", "source", "stage", "stage_changed",
-        "lost_reason", "requalify_on", "value_eur_month", "my_score", "fit_score",
-        "fte_estimate", "ae_count", "product_oneliner", "next_step", "next_step_due",
+        "lost_reason", "requalify_on", "value_eur_month",
+        "product_oneliner", "next_step", "next_step_due",
         "next_step_status", "tags", "created", "updated",
     ]
 

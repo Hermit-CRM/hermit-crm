@@ -28,7 +28,8 @@ from starlette.concurrency import run_in_threadpool
 from . import __version__, updates
 from fastapi.templating import Jinja2Templates
 
-from . import bcc, brief, calendar_sync, capture, feedback, filters, followups, messaging, migrations, pipeline, reports
+from . import (bcc, brief, calendar_sync, capture, feedback, fields as custom, filters,
+               followups, messaging, migrations, pipeline, reports)
 from . import schedule, scrape
 from . import help as helpdocs
 from . import setup as setup_steps
@@ -94,15 +95,29 @@ def message_statuses(outcomes: list[str]) -> list[str]:
 # --------------------------------------------------------------------- filters
 
 
-def company_columns() -> list[Column]:
+def custom_columns(defs: list, view: str) -> list[Column]:
+    """Filterable columns for the user's own fields.
+
+    `Column` already takes a getter, so a custom field needs no change to the
+    filter engine at all: it reads out of `extra` and the whole operator
+    syntax (`!foo`, `>5`, `-`, `*`) works on it unmodified.
+    """
+    kinds = {"number": "number", "date": "date", "select": "enum", "text": "text"}
+    return [
+        Column(d.key, d.label, kinds.get(d.type, "text"),
+               options=list(d.options),
+               getter=(lambda key: lambda obj: (getattr(obj, "extra", None) or {}).get(key))(d.key))
+        for d in defs if d.shows_in(view)
+    ]
+
+
+def company_columns(defs: list | None = None) -> list[Column]:
     return [
         Column("name", "name"),
         Column("country", "country", "enum", COUNTRIES),
         Column("stage", "stage", "enum", STAGES),
         Column("source", "source", "enum", SOURCES),
-        Column("my_score", "my score", "number"),
-        Column("fit_score", "fit", "number"),
-        Column("fte_estimate", "FTE", "number"),
+        *custom_columns(defs or [], "companies"),
         Column("tags", "tags"),
         Column("last_touch", "last touch", "date"),
         Column("next_step", "next step"),
@@ -110,14 +125,13 @@ def company_columns() -> list[Column]:
     ]
 
 
-def board_columns() -> list[Column]:
+def board_columns(defs: list | None = None) -> list[Column]:
     return [
         Column("stage", "columns", "enum", BOARD_STAGES),
         Column("name", "name"),
         Column("country", "country", "enum", COUNTRIES),
         Column("source", "source", "enum", SOURCES),
-        Column("my_score", "my score", "number"),
-        Column("fit_score", "fit", "number"),
+        *custom_columns(defs or [], "board"),
         Column("tags", "tags"),
         Column("next_step_due", "due", "date"),
     ]
@@ -137,12 +151,13 @@ class ContactRow:
         self.linkedin = contact.linkedin
         self.company_name = company.name
         self.company_slug = company.slug
+        self.extra = contact.extra  # custom fields read from here
         self.last_touch = company.contact_last_touch(contact.slug)
         self.interaction_count = sum(
             1 for i in company.interactions if i.contact == contact.slug)
 
 
-def contact_columns() -> list[Column]:
+def contact_columns(defs: list | None = None) -> list[Column]:
     return [
         Column("name", "name"),
         Column("company_name", "company"),
@@ -151,6 +166,7 @@ def contact_columns() -> list[Column]:
         Column("linkedin", "linkedin"),
         Column("last_touch", "last touch", "date"),
         Column("interaction_count", "interactions", "number"),
+        *custom_columns(defs or [], "contacts"),
     ]
 
 
@@ -176,9 +192,10 @@ class MessageRow:
         self.country = company.country
         self.language = company.language
         self.stage = company.stage
+        self.extra = it.extra  # custom fields read from here
 
 
-def message_columns(statuses: list[str]) -> list[Column]:
+def message_columns(statuses: list[str], defs: list | None = None) -> list[Column]:
     return [
         Column("date", "sent", "date"),
         Column("company_name", "company"),
@@ -188,6 +205,7 @@ def message_columns(statuses: list[str]) -> list[Column]:
         Column("stage", "stage", "enum", STAGES),
         Column("status", "outcome", "enum", statuses),
         Column("uses", "uses", "number"),
+        *custom_columns(defs or [], "messages"),
         Column("body", "message"),
     ]
 
@@ -209,12 +227,26 @@ def sort_url_for(request: Request):
     return build
 
 
-def merge_rows(keep, drop, fields, labels: dict | None = None) -> list[dict]:
-    """Side-by-side rows for the merge page with the default choice filled in."""
-    labels = labels or {}
+def merge_rows(keep, drop, fields, labels: dict | None = None,
+               defs: list | None = None) -> list[dict]:
+    """Side-by-side rows for the merge page with the default choice filled in.
+
+    Custom fields get a row like any other: a merge that silently kept one
+    side's user-defined values would lose work without saying so.
+    """
+    labels = dict(labels or {})
+    fields = list(fields)
+    custom_keys = set()
+    for d in (defs or []):
+        fields.append(d.key)
+        labels[d.key] = d.label
+        custom_keys.add(d.key)
     rows = []
     for key in fields:
-        a, b = getattr(keep, key), getattr(drop, key)
+        if key in custom_keys:
+            a, b = (keep.extra or {}).get(key), (drop.extra or {}).get(key)
+        else:
+            a, b = getattr(keep, key), getattr(drop, key)
         empty_a = a in ("", None, [])
         rows.append({
             "key": key,
@@ -327,10 +359,6 @@ def company_values(c: Company) -> dict:
         "lost_reason": c.lost_reason,
         "requalify_on": fmt_date(c.requalify_on),
         "value_eur_month": "" if c.value_eur_month is None else str(c.value_eur_month),
-        "my_score": "" if c.my_score is None else str(c.my_score),
-        "fit_score": "" if c.fit_score is None else str(c.fit_score),
-        "fte_estimate": c.fte_estimate,
-        "ae_count": "" if c.ae_count is None else str(c.ae_count),
         "product_oneliner": c.product_oneliner,
         "next_step": c.next_step,
         "next_step_due": fmt_date(c.next_step_due),
@@ -430,6 +458,18 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
                   on_write=on_write, outcomes=outcomes)
     store.load()
 
+    def load_custom_fields() -> list:
+        """Field definitions, or none at all when fields.toml cannot be read.
+
+        A broken fields.toml must not stop the app: the values it describes are
+        in the files either way, and `hermitcrm check` is where the reason
+        belongs.
+        """
+        try:
+            return custom.load(root)
+        except custom.FieldError:
+            return []
+
     messages = messaging.load_messages(root)
     app = FastAPI(title="Hermit CRM")
     app.state.messages = messages
@@ -437,6 +477,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
     if config.get("start_update_check"):  # set by `hermitcrm serve`; tests stay offline
         app.state.update_notice.start(config)
     app.state.store = store
+    app.state.custom_fields = load_custom_fields()
     app.state.gitops = gitops
     app.state.config = config
     app.state.enricher = build_enricher(config)
@@ -495,6 +536,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         store.silent_days = int(config.get("silent_days", 14))
         message_window = int(config.get("message_window_days", 14))
         app.state.enricher = build_enricher(config)
+        app.state.custom_fields = load_custom_fields()
         cal_url_cache.clear()
         current_setup_state(refresh=True)
 
@@ -543,6 +585,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         hermitcrm_version=__version__,
         update_notice=app.state.update_notice,
         render_markdown=helpdocs.render,
+        custom_fields_for=lambda scope: custom.for_scope(app.state.custom_fields, scope),
     )
 
     templates.env.filters["slug"] = slugify  # CSS class names from outcome values
@@ -575,6 +618,30 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         if company is None:
             raise HTTPException(status_code=404, detail=f"unknown company {slug!r}")
         return company
+
+    def custom_defs(scope: str) -> list:
+        return custom.for_scope(app.state.custom_fields, scope)
+
+    def with_custom(values: dict, record, scope: str) -> dict:
+        """Form values plus this record's custom fields, named as the form names
+        them (`custom_<key>`), so one dict drives the whole form."""
+        extra = getattr(record, "extra", None) or {}
+        out = dict(values)
+        for d in custom_defs(scope):
+            out.setdefault(f"custom_{d.key}", d.display(extra.get(d.key)))
+        return out
+
+    async def custom_submitted(request: Request, scope: str) -> tuple[dict, dict, dict]:
+        """(values for the store, values to re-render, errors) from a submitted form."""
+        defs = custom_defs(scope)
+        if not defs:
+            return {}, {}, {}
+        form = await request.form()
+        raw = {d.key: form.get(f"custom_{d.key}", "") for d in defs}
+        values, errors = custom.coerce_all(defs, raw)
+        return (values,
+                {f"custom_{k}": v for k, v in raw.items()},
+                {f"custom_{k}": v for k, v in errors.items()})
 
     def interaction_values(company: Company, contact: str | None = None,
                            form: dict | None = None, channel: str = "",
@@ -616,7 +683,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             app.state.setup_redirected = True  # once per server start; "Skip for now" works
             return goto("/settings")
         today = store.today()
-        cols = board_columns()
+        cols = board_columns(app.state.custom_fields)
         active = filters.parse(request.query_params, cols)
         sort_key, sort_dir = filters.parse_sort(request.query_params, cols)
         shown_stages = active.get("stage") or BOARD_STAGES
@@ -757,7 +824,8 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         try:
             text = _import_text(text, form.get("file"))
             plan = plan_import(store, text, mode=mode or None,
-                               mapping=_form_mapping(form, text))
+                               mapping=_form_mapping(form, text),
+                               defs=app.state.custom_fields)
         except ValidationError as exc:
             return _import_page(request, text, mode, exc.errors, status_code=400)
         return render(request, "import_preview.html",
@@ -770,7 +838,8 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         mode = str(form.get("mode") or "")
         try:
             plan = plan_import(store, text, mode=mode or None,
-                               mapping=_form_mapping(form, text))
+                               mapping=_form_mapping(form, text),
+                               defs=app.state.custom_fields)
         except ValidationError as exc:
             return _import_page(request, text, mode, exc.errors, status_code=400)
         counts = apply_import(store, plan)
@@ -806,7 +875,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         company = need_company(slug, refresh=True)
         try:
             enricher = tiered(request)
-            proposal = enricher.propose_company(company)
+            proposal = enricher.propose_company(company, custom_defs('company'))
         except EnrichError as exc:
             return flashed(f"/companies/{slug}", str(exc))
         if not proposal.missing:
@@ -841,7 +910,9 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         if not url:
             return flashed(f"/companies/{slug}", "Give a website or LinkedIn URL to fetch")
         try:
-            proposal = scrape.propose_from_url(company, url, fetcher=app.state.fetcher)
+            proposal = scrape.propose_from_url(
+                company, url, fetcher=app.state.fetcher,
+                custom_keys={d.key for d in custom_defs('company')})
         except ScrapeError as exc:
             return flashed(f"/companies/{slug}", str(exc))
         if not proposal.missing:
@@ -862,7 +933,8 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         back = f"/companies/{slug}/contacts/{cslug}"
         try:
             enricher = tiered(request)
-            proposal = enricher.propose_contact(company, contact)
+            proposal = enricher.propose_contact(company, contact,
+                                                custom_defs('contact'))
         except EnrichError as exc:
             return flashed(back, str(exc))
         if not proposal.missing:
@@ -897,7 +969,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
 
     @app.get("/companies", response_class=HTMLResponse)
     def companies_list(request: Request, q: str = ""):
-        cols = company_columns()
+        cols = company_columns(app.state.custom_fields)
         active = filters.parse(request.query_params, cols)
         sort_key, sort_dir = filters.parse_sort(request.query_params, cols)
         companies = filters.apply(store.search(q), cols, active)
@@ -921,7 +993,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
 
     @app.get("/contacts", response_class=HTMLResponse)
     def contacts_list(request: Request, q: str = ""):
-        cols = contact_columns()
+        cols = contact_columns(app.state.custom_fields)
         active = filters.parse(request.query_params, cols)
         sort_key, sort_dir = filters.parse_sort(request.query_params, cols)
         needle = (q or "").strip().lower()
@@ -946,7 +1018,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
     @app.get("/messages", response_class=HTMLResponse)
     def messages_list(request: Request, q: str = ""):
         today = store.today()
-        cols = message_columns(message_statuses(outcomes))
+        cols = message_columns(message_statuses(outcomes), app.state.custom_fields)
         active = filters.parse(request.query_params, cols)
         sort_key, sort_dir = filters.parse_sort(request.query_params, cols)
         needle = (q or "").strip().lower()
@@ -1082,29 +1154,32 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         if not (url or "").strip():
             return goto("/extension")
         try:
-            found = capture.from_url(store, url, fetcher=app.state.fetcher)
+            found = capture.from_url(
+                store, url, fetcher=app.state.fetcher,
+                custom_keys={d.key for d in custom_defs('company')})
         except ScrapeError as exc:
             return flashed("/extension", f"Could not read that page: {exc}")
         if found.existing is not None:
             return flashed(f"/companies/{found.existing.slug}",
                            f"{found.existing.name} is already in the CRM")
         return render(request, "company_new.html",
-                      {"values": found.values, "capture": found})
+                      {"values": with_custom(found.values, None, "company"),
+                       "capture": found})
 
     @app.get("/companies/new", response_class=HTMLResponse)
     def company_new(request: Request):
         values = {
             "name": "", "website": "", "linkedin": "", "country": "", "source": "other",
             "stage": "prospect", "lost_reason": "", "requalify_on": "", "value_eur_month": "",
-            "my_score": "", "fit_score": "", "fte_estimate": "", "ae_count": "",
             "product_oneliner": "",
             "next_step": "", "next_step_due": "", "next_step_status": "open",
             "tags": "", "notes": "",
         }
-        return render(request, "company_new.html", {"values": values})
+        return render(request, "company_new.html",
+                      {"values": with_custom(values, None, "company")})
 
     @app.post("/companies")
-    def company_create(
+    async def company_create(
         request: Request,
         name: str = Form(""),
         website: str = Form(""),
@@ -1115,10 +1190,6 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         lost_reason: str = Form(""),
         requalify_on: str = Form(""),
         value_eur_month: str = Form(""),
-        my_score: str = Form(""),
-        fit_score: str = Form(""),
-        fte_estimate: str = Form(""),
-        ae_count: str = Form(""),
         product_oneliner: str = Form(""),
         next_step: str = Form(""),
         next_step_due: str = Form(""),
@@ -1130,18 +1201,22 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "name": name, "website": website, "linkedin": linkedin,
             "country": country, "source": source, "stage": stage,
             "lost_reason": lost_reason, "requalify_on": requalify_on,
-            "value_eur_month": value_eur_month, "my_score": my_score,
-            "fit_score": fit_score, "fte_estimate": fte_estimate,
-            "ae_count": ae_count, "product_oneliner": product_oneliner,
+            "value_eur_month": value_eur_month, "product_oneliner": product_oneliner,
             "next_step": next_step,
             "next_step_due": next_step_due, "next_step_status": next_step_status,
             "tags": tags, "notes": notes,
         }
+        extra, shown, custom_errors = await custom_submitted(request, "company")
+        if custom_errors:
+            return render(request, "company_new.html",
+                          {"values": {**values, **shown}, "errors": custom_errors},
+                          status_code=400)
         try:
-            company = store.create_company(**values)
+            company = store.create_company(custom=extra, **values)
         except ValidationError as exc:
             return render(request, "company_new.html",
-                          {"values": values, "errors": exc.errors}, status_code=400)
+                          {"values": {**values, **shown}, "errors": exc.errors},
+                          status_code=400)
         return flashed(f"/companies/{company.slug}", "Company created")
 
     @app.get("/companies/{slug}", response_class=HTMLResponse)
@@ -1152,7 +1227,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             iter(company.contacts.values()), None)
         return render(request, "company.html", {
             "company": company,
-            "values": company_values(company),
+            "values": with_custom(company_values(company), company, "company"),
             "interaction": interaction,
             "focus": request.query_params.get("focus", ""),
             "others": sorted((c for c in store.companies.values() if c.slug != slug),
@@ -1161,7 +1236,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         })
 
     @app.post("/companies/{slug}")
-    def company_update(
+    async def company_update(
         request: Request,
         slug: str,
         name: str = Form(""),
@@ -1173,10 +1248,6 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         lost_reason: str = Form(""),
         requalify_on: str = Form(""),
         value_eur_month: str = Form(""),
-        my_score: str = Form(""),
-        fit_score: str = Form(""),
-        fte_estimate: str = Form(""),
-        ae_count: str = Form(""),
         product_oneliner: str = Form(""),
         next_step: str = Form(""),
         next_step_due: str = Form(""),
@@ -1189,19 +1260,20 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "name": name, "website": website, "linkedin": linkedin,
             "country": country, "source": source, "stage": stage,
             "lost_reason": lost_reason, "requalify_on": requalify_on,
-            "value_eur_month": value_eur_month, "my_score": my_score,
-            "fit_score": fit_score, "fte_estimate": fte_estimate,
-            "ae_count": ae_count, "product_oneliner": product_oneliner,
+            "value_eur_month": value_eur_month, "product_oneliner": product_oneliner,
             "next_step": next_step,
             "next_step_due": next_step_due, "next_step_status": next_step_status,
             "tags": tags, "notes": notes,
         }
+        extra, shown, custom_errors = await custom_submitted(request, "company")
         try:
-            store.update_company(slug, **values)
+            if custom_errors:
+                raise ValidationError(custom_errors)
+            store.update_company(slug, custom=extra, **values)
         except ValidationError as exc:
             return render(request, "company.html", {
                 "company": company,
-                "values": values,
+                "values": {**values, **shown},
                 "errors": exc.errors,
                 "interaction": interaction_values(company),
                 "focus": "lost_reason" if "lost_reason" in exc.errors else "",
@@ -1275,7 +1347,8 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "action": f"/companies/{slug}/merge",
             "keep_label": f"{keep.name} ({keep.slug}, kept)",
             "drop_label": f"{other.name} ({other.slug}, removed)",
-            "rows": merge_rows(keep, other, COMPANY_MERGE_FIELDS),
+            "rows": merge_rows(keep, other, COMPANY_MERGE_FIELDS,
+                               defs=custom_defs("company")),
             "drop": drop,
             "back": f"/companies/{slug}",
             "note": (f"{len(other.contacts)} contacts and {len(other.interactions)} "
@@ -1314,7 +1387,8 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "action": f"{back}/merge",
             "keep_label": f"{keep.name} ({keep.slug}, kept)",
             "drop_label": f"{other.name} ({other.slug}, removed)",
-            "rows": merge_rows(keep, other, CONTACT_MERGE_FIELDS),
+            "rows": merge_rows(keep, other, CONTACT_MERGE_FIELDS,
+                               defs=custom_defs("contact")),
             "drop": drop,
             "back": back,
             "note": f"Interactions logged for {other.name} are re-pointed to {keep.name}.",
@@ -1413,7 +1487,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
                       {"company": company, "values": values})
 
     @app.post("/companies/{slug}/contacts")
-    def contact_create(
+    async def contact_create(
         request: Request,
         slug: str,
         first_name: str = Form(""),
@@ -1430,12 +1504,18 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         values = {"first_name": first_name, "last_name": last_name, "title": title,
                   "linkedin": linkedin, "email": email, "phone": phone, "role": role,
                   "notes": notes}
+        extra, shown, custom_errors = await custom_submitted(request, "contact")
+        values.update(shown)
         duplicates = duplicate_links(store, f"{first_name} {last_name}", email, slug)
         if duplicates and not force:
             return render(request, "contact_new.html",
                           {"company": company, "values": values, "duplicates": duplicates})
         try:
-            contact = store.create_contact(slug, **values)
+            if custom_errors:
+                raise ValidationError(custom_errors)
+            contact = store.create_contact(slug, custom=extra,
+                                           **{k: v for k, v in values.items()
+                                              if not k.startswith("custom_")})
         except ValidationError as exc:
             return render(request, "contact_new.html",
                           {"company": company, "values": values,
@@ -1459,7 +1539,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         })
 
     @app.post("/companies/{slug}/contacts/{cslug}")
-    def contact_update(
+    async def contact_update(
         request: Request,
         slug: str,
         cslug: str,
@@ -1479,9 +1559,13 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         values = {"first_name": first_name, "last_name": last_name, "title": title,
                   "linkedin": linkedin, "email": email, "phone": phone, "role": role,
                   "notes": notes}
+        extra, shown, custom_errors = await custom_submitted(request, "contact")
         try:
-            store.update_contact(slug, cslug, **values)
+            if custom_errors:
+                raise ValidationError(custom_errors)
+            store.update_contact(slug, cslug, custom=extra, **values)
         except ValidationError as exc:
+            values.update(shown)
             return render(request, "contact.html", {
                 "company": company,
                 "contact": contact,
@@ -1520,7 +1604,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         })
 
     @app.post("/companies/{slug}/interactions")
-    def interaction_create(
+    async def interaction_create(
         request: Request,
         slug: str,
         channel: str = Form(""),
@@ -1535,9 +1619,13 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         values = {"channel": channel, "direction": direction, "contact": contact,
                   "date": date, "subject": subject, "outcome": outcome,
                   "body": body}
+        extra, shown, custom_errors = await custom_submitted(request, "interaction")
         try:
-            created = store.create_interaction(slug, **values)
+            if custom_errors:
+                raise ValidationError(custom_errors)
+            created = store.create_interaction(slug, custom=extra, **values)
         except ValidationError as exc:
+            values.update(shown)
             return render(request, "interaction_new.html", {
                 "company": company,
                 "interaction": values,
@@ -1561,7 +1649,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
                       {"company": company, "id": id, "interaction": values})
 
     @app.post("/companies/{slug}/interactions/{id}/edit")
-    def interaction_save(
+    async def interaction_save(
         request: Request,
         slug: str,
         id: str,
@@ -1579,8 +1667,11 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         values = {"channel": channel, "direction": direction, "contact": contact,
                   "date": date, "subject": subject, "outcome": outcome,
                   "body": body}
+        extra, shown, custom_errors = await custom_submitted(request, "interaction")
         try:
-            saved = store.update_interaction(slug, id, **values)
+            if custom_errors:
+                raise ValidationError(custom_errors)
+            saved = store.update_interaction(slug, id, custom=extra, **values)
         except ValidationError as exc:
             return render(request, "interaction_edit.html", {
                 "company": company, "id": id, "interaction": values,
@@ -1688,6 +1779,12 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
                             "timeout": str(config.get("enrich_timeout") or 180)},
             "tier_models": {t: enricher.model_for(t) for t in setup_steps.AI_TIERS},
             "themes": setup_steps.THEMES,
+            "fields_form": {"toml": (root / custom.FILENAME).read_text(encoding="utf-8")
+                            if (root / custom.FILENAME).exists() else ""},
+            "custom_field_defs": app.state.custom_fields,
+            "field_types": custom.TYPES,
+            "field_scopes": custom.SCOPES,
+            "field_views": custom.VIEWS_FOR_SCOPE,
             "enrich_providers": setup_steps.ENRICH_PROVIDERS,
             "enrich_accounts": setup_steps.ENRICH_ACCOUNTS,
             "enrich_status": {"available": enricher.available,
@@ -1799,6 +1896,33 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         if result.errors.get("url"):
             return setup_invalid(request, result, "calendar")
         return setup_done(result, "calendar")
+
+    @app.post("/settings/fields")
+    async def settings_fields(request: Request, csrf_token: str = Form(""),
+                              fields_toml: str = Form("")):
+        check_csrf(csrf_token)
+        result = setup_steps.save_fields(root, fields_toml)
+        if not result.ok:
+            return setup_invalid(request, result, "fields",
+                                 fields_form={"toml": fields_toml})
+        app.state.custom_fields = load_custom_fields()
+        return flashed("/settings", result.text(), anchor="fields")
+
+    @app.post("/settings/fields/add")
+    async def settings_fields_add(request: Request, csrf_token: str = Form(""),
+                                  key: str = Form(""), label: str = Form(""),
+                                  type: str = Form("text"),
+                                  applies_to: str = Form("company"),
+                                  options: str = Form(""), help: str = Form("")):
+        check_csrf(csrf_token)
+        form = await request.form()
+        result = setup_steps.add_field(root, key, label, type, applies_to, options,
+                                       show_in=form.getlist("show_in") or ["detail"],
+                                       help=help)
+        if not result.ok:
+            return setup_invalid(request, result, "fields")
+        app.state.custom_fields = load_custom_fields()
+        return flashed("/settings", result.text(), anchor="fields")
 
     @app.post("/settings/enrichment")
     def settings_enrichment(request: Request, csrf_token: str = Form(""),
@@ -2043,7 +2167,9 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
 
     @app.post("/reload")
     def reload_index(request: Request):
+        """Re-read the data folder: the records and the fields that describe them."""
         store.load()
+        app.state.custom_fields = load_custom_fields()
         return goto(request.headers.get("referer") or "/")
 
     @app.get("/health")

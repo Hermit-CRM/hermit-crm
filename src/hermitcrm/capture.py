@@ -46,8 +46,8 @@ class Capture:
         blank = {
             "name": "", "website": "", "linkedin": "", "country": "", "source": "other",
             "stage": "prospect", "lost_reason": "", "requalify_on": "",
-            "value_eur_month": "", "my_score": "", "fit_score": "", "fte_estimate": "",
-            "ae_count": "", "product_oneliner": "", "next_step": "", "next_step_due": "",
+            "value_eur_month": "", "product_oneliner": "",
+            "next_step": "", "next_step_due": "",
             "next_step_status": "open", "tags": "", "notes": "",
         }
         return {**blank, **self.fields, "name": self.name}
@@ -97,7 +97,8 @@ def find_existing(store: Store, url: str, fields: dict) -> Company | None:
     return None
 
 
-def from_url(store: Store, url: str, fetcher=scrape.fetch) -> Capture:
+def from_url(store: Store, url: str, fetcher=scrape.fetch,
+             custom_keys=()) -> Capture:
     """Read a page and come back with a company ready to create.
 
     Raises ScrapeError when the page cannot be read; the caller shows the reason
@@ -108,7 +109,8 @@ def from_url(store: Store, url: str, fetcher=scrape.fetch) -> Capture:
         raise scrape.ScrapeError("no URL given")
     facts = scrape.parse_page(url, fetcher(url))
     # A blank company has every field empty, so nothing is skipped as "already set".
-    proposal = scrape.propose_from_facts(Company(name="", slug=""), facts)
+    proposal = scrape.propose_from_facts(Company(name="", slug=""), facts,
+                                         custom_keys=custom_keys)
     fields = dict(proposal.fields)
     return Capture(url=url, name=company_name(facts, url), fields=fields,
                    notes=proposal.notes, existing=find_existing(store, url, fields))
