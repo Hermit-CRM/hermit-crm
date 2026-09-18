@@ -227,7 +227,7 @@
 <section class="setup-step" id="about">
   <h2>About</h2>
   <table class="about">
-    <tr><th>Version</th><td>Hermit CRM v{{ about.version }}{% if update_notice and update_notice.available %} &mdash; <span class="update-notice">v{{ update_notice.available }} available: <code>{{ update_notice.hint }}</code></span>{% elif about.update_check %} (update check runs at most once a day){% else %} (update check is off){% endif %}</td></tr>
+    <tr><th>Version</th><td>Hermit CRM v{{ about.version }}{% if update_notice and update_notice.available %} &mdash; <span class="update-notice">v{{ update_notice.available }} available: <code>{{ update_notice.hint }}</code></span>{% elif about.update_note %} <span class="small">({{ about.update_note }})</span>{% endif %}</td></tr>
     <tr><th>Data folder</th><td><code>{{ about.data_dir }}</code></td></tr>
     <tr><th>Data format</th><td>{% if about.data_format is none %}unknown{% else %}{{ about.data_format }}{% if about.data_format != about.latest_format %} (this Hermit CRM writes {{ about.latest_format }}; run <code>hermitcrm migrate</code>){% endif %}{% endif %}</td></tr>
     <tr><th>Check the installation</th><td><code>hermitcrm --data {{ about.data_dir }} doctor</code> (add <code>--online</code> to try the IMAP login)</td></tr>

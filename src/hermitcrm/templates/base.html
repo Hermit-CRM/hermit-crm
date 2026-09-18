@@ -29,7 +29,7 @@
   {{ navlink('/help/' ~ help_topic, 'Help', 'help', path.startswith('/help')) }}
   <div class="sidebar-foot">
     <form method="post" action="/reload"><button type="submit" class="nav-button" title="Re-read the data folder">{{ icon('reload') }}<span>Reload</span></button></form>
-    {% if update_notice and update_notice.available %}<p class="update-notice" title="A newer Hermit CRM is on PyPI">v{{ update_notice.available }} available: <code>{{ update_notice.hint }}</code></p>{% endif %}
+    {% if update_notice and update_notice.available %}<p class="update-notice" title="A newer Hermit CRM has been published">v{{ update_notice.available }} available: <code>{{ update_notice.hint }}</code></p>{% endif %}
   </div>
 </nav>
 <header class="topbar">

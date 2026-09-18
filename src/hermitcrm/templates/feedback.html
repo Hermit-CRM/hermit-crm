@@ -1,0 +1,38 @@
+{% extends "help.html" %}
+{% block helpdoc_top %}
+{% if saved %}
+<section class="feedback-saved">
+  <h2>Saved</h2>
+  <p>Written to <code>{{ saved.path }}</code> and committed. Nothing has been sent; that part is yours.</p>
+  <p>
+    {% if saved.mailto %}<a class="button" href="{{ saved.mailto }}">Send by email</a>{% else %}<span class="small">No <code>feedback_email</code> is set in <code>config.toml</code>, so copy the text below and send it to whoever gave you Hermit CRM.</span>{% endif %}
+  </p>
+  <label>The report
+    <textarea rows="16" readonly onclick="this.select()">{{ saved.text }}</textarea>
+  </label>
+  <p class="small">Click the box to select all of it. <a href="/help/feedback">Write another</a>.</p>
+</section>
+{% else %}
+<form method="post" action="/help/feedback" class="record-form feedback-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if errors %}<div class="errors"><ul>{% for msg in errors.values() %}<li>{{ msg }}</li>{% endfor %}</ul></div>{% endif %}
+  <label>What is this about
+    <select name="kind">
+      {% for value, label in kinds %}<option value="{{ value }}"{% if value == form.kind %} selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>In one line <input name="summary" value="{{ form.summary }}" required placeholder="Sorting by last contact put the empty rows first"></label>
+  <label>What happened, and what you expected
+    <textarea name="detail" rows="8" required placeholder="What you were doing, what Hermit CRM did, and what you thought it would do. Screens and exact wording help.">{{ form.detail }}</textarea>
+  </label>
+  <label>From (optional, but the only way anyone can reply)
+    <input name="reporter" value="{{ form.reporter }}"></label>
+  <button type="submit">Save this report</button>
+</form>
+<details class="feedback-facts">
+  <summary>The facts that will be attached ({{ facts|length }} lines)</summary>
+  <ul>{% for line in facts %}<li>{{ line }}</li>{% endfor %}</ul>
+  <p class="small">No names, no company names, no mail addresses from your CRM, and no file paths.</p>
+</details>
+{% endif %}
+{% endblock %}

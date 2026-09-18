@@ -82,6 +82,12 @@ Then edit `~/crm/config.toml`: uncomment `owner_name`, `owner_email` and
 out, with a line explaining it. Keep the comments. Run `hermitcrm --data ~/crm
 check` afterwards.
 
+If the line below has an address on it, set `feedback_email` to it in the same
+file. It is where the Feedback form offers to send a report, and it is the only
+way whoever packaged this hears whether it worked.
+
+    feedback_email:
+
 ### 5. Start the app and show them
 
 ```bash
@@ -139,6 +145,12 @@ them if they ask.
 Show them, briefly and in their words: add a company, log an interaction, what
 the follow-up radar on the home page is for. `hermitcrm help` lists the topics,
 and every page in the app has a Help link. Do not dump the whole manual.
+
+Point out **Help -> Feedback**. Hermit CRM is early, and the small annoyances --
+a label read twice, a button looked for and not found -- are the ones that never
+get reported, because reporting them means leaving what you were doing. The form
+writes a file into their folder and hands it back to them to send; it posts
+nothing anywhere.
 
 ### What not to do
 

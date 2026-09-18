@@ -8,6 +8,24 @@ the data format always comes with an automatic migration.
 Data format 4: the stage `reached-out` is renamed to **engaged** (in `stage`
 and `stage_history`), migrated automatically in one commit.
 
+- **Feedback form** (`/help/feedback`, in the Help sidebar). A tester writes what
+  broke or confused them; Hermit CRM saves it as `feedback/<date>-<slug>.md`,
+  commits it, and shows the text to copy or a prefilled mail link when
+  `feedback_email` is set. Nothing is posted anywhere -- there is no server to post
+  to, and adding one would undo the point. The report carries the version, Python,
+  platform, record counts and which optional features are on; it deliberately
+  carries no names, no company names and no file paths, since a data folder path
+  is usually `/Users/<your name>/...`.
+- **The update check no longer claims to be up to date when it failed.** Hermit
+  CRM is not on PyPI, so the check 404s, and `doctor` answered `v0.3.0 is the
+  latest` for a request that had never once succeeded. It now keeps "asked and we
+  are current", "nothing published there yet" and "could not reach it" apart, and
+  says which. New `update_url` key points the check at any URL answering
+  `{"version": "0.4.0"}`, so a static file on a download page works with no
+  package index; the upgrade hint follows the source.
+- **`scripts/release.sh`**: builds `dist/hermitcrm-<version>.tar.gz` (unpacking to
+  `hermitcrm-<version>/`) and its `.sha256`, from tracked files at a commit.
+
 - Logging an interaction on a **prospect** moves it to **engaged** in the same
   commit (manual, BCC and calendar imports alike).
 - **Follow-up radar on the home page** and `hermitcrm followups`: the threads

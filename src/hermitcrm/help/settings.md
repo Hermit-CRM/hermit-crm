@@ -106,8 +106,15 @@ as the web form does. [AI agents](/help/ai-agents) has the tool list.
 
 ## About
 
-Version and the update check (PyPI, at most once a day, no identifiers sent),
-the data folder, its format version, and `hermitcrm doctor`, which checks the
-whole installation line by line.
+Version and the update check, the data folder, its format version, and
+`hermitcrm doctor`, which checks the whole installation line by line.
+
+The update check asks once a day, sends no identifiers, and says what it found:
+a newer version, "the latest", "no release published yet" when nothing is
+published where it asks, or "could not reach ..." when it could not ask at all.
+Those last two are not the same as being up to date, and it will not say they
+are. It asks PyPI unless `update_url` in `config.toml` points somewhere else;
+any URL answering `{"version": "0.4.0"}` works, so a static file on a download
+page is enough. Turn it off with `update_check = false`.
 
 Related: [Interactions](/help/interactions), [Enrich](/help/enrich), [CLI](/help/cli), [Data format](/help/data-format)
