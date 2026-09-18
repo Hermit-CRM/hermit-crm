@@ -39,7 +39,7 @@ def test_load_config_defaults(tmp_path):
                    "calendar_keychain_service": "crm-calendar",
                    "calendar_keychain_account": "ics", "calendar_lookback_days": 30,
                    "calendar_ignore_titles": [], "calendar_min_attendees": 2,
-                   "update_check": True}
+                   "update_check": True, "update_url": "", "feedback_email": ""}
 
 
 def test_load_config_reads_toml(tmp_path):
@@ -62,7 +62,7 @@ def test_load_config_reads_toml(tmp_path):
                    "calendar_keychain_service": "crm-calendar",
                    "calendar_keychain_account": "ics", "calendar_lookback_days": 30,
                    "calendar_ignore_titles": [], "calendar_min_attendees": 2,
-                   "update_check": True}
+                   "update_check": True, "update_url": "", "feedback_email": ""}
 
 
 # ------------------------------------------------------------------ clock

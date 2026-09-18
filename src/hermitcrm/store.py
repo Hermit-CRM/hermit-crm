@@ -107,8 +107,14 @@ DEFAULT_CONFIG = {
     "calendar_lookback_days": 30,
     "calendar_ignore_titles": [],
     "calendar_min_attendees": 2,
-    # Check PyPI for a newer version at most once a day (hermitcrm/updates.py).
+    # Check for a newer version at most once a day (hermitcrm/updates.py). Empty
+    # update_url means PyPI; any URL answering {"version": "0.4.0"} also works, so a
+    # static file on a download site is enough.
     "update_check": True,
+    "update_url": "",
+    # Where the Feedback form (Help -> Feedback) offers to mail a report. Empty
+    # means the form only writes the file and shows the text to copy.
+    "feedback_email": "",
 }
 
 
