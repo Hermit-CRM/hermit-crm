@@ -22,6 +22,15 @@ define. Both migrate automatically in one commit.
   keeps them**: the migration writes a `fields.toml` describing them and does
   not touch a single company file, because those keys were always ordinary
   front matter. A folder that never used them gets no file at all.
+- **The outreach playbook reads whichever fields you have.** Every field you
+  define is a slot the templates can use by its key, so wording is data rather
+  than code; an empty field renders as its label in square brackets, the mark
+  the templates already use for the lines only you can write. Which field plays
+  the two roles the shipped wording knows about -- a headcount, a count of sales
+  people -- is set under Settings → Drafts, and defaults to the two keys a
+  migrated folder already has, so nothing changes for a folder that had them. A
+  new install has neither, and those sentences use their "unknown" wording
+  instead of inventing a number.
 - **Merging two records no longer drops what Hermit CRM does not recognise.**
   A merge rebuilt the kept record from the fields it knows by name, so every
   other front-matter key on both sides was silently lost. They are merged

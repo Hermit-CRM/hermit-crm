@@ -667,9 +667,15 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         signal = request.query_params.get("signal", "")
         observation = request.query_params.get("observation", "")
         return {
-            "drafts": messaging.drafts(company, contact, signal, observation,
-                                      messages=app.state.messages,
-                                      owner_name=str(config.get("owner_name", ""))),
+            "drafts": messaging.drafts(
+                company, contact, signal, observation,
+                messages=app.state.messages,
+                owner_name=str(config.get("owner_name", "")),
+                defs=custom_defs("company"),
+                size_field=str(config.get("messaging_size_field",
+                                          messaging.DEFAULT_SIZE_FIELD)),
+                team_field=str(config.get("messaging_team_field",
+                                          messaging.DEFAULT_TEAM_FIELD))),
             "signal": signal if signal in messaging.SIGNALS else "",
             "observation": observation,
             "draft_contact": contact,
@@ -1782,6 +1788,11 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "fields_form": {"toml": (root / custom.FILENAME).read_text(encoding="utf-8")
                             if (root / custom.FILENAME).exists() else ""},
             "custom_field_defs": app.state.custom_fields,
+            "messaging_form": {
+                "size_field": str(config.get("messaging_size_field") or ""),
+                "team_field": str(config.get("messaging_team_field") or "")},
+            "company_field_keys": [d.key for d in app.state.custom_fields
+                                   if d.applies_to == "company"],
             "field_types": custom.TYPES,
             "field_scopes": custom.SCOPES,
             "field_views": custom.VIEWS_FOR_SCOPE,
@@ -1913,16 +1924,27 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
                                   key: str = Form(""), label: str = Form(""),
                                   type: str = Form("text"),
                                   applies_to: str = Form("company"),
-                                  options: str = Form(""), help: str = Form("")):
+                                  options: str = Form(""), help: str = Form(""),
+                                  messaging: str = Form("on")):
         check_csrf(csrf_token)
         form = await request.form()
         result = setup_steps.add_field(root, key, label, type, applies_to, options,
                                        show_in=form.getlist("show_in") or ["detail"],
-                                       help=help)
+                                       help=help, messaging=bool(messaging))
         if not result.ok:
             return setup_invalid(request, result, "fields")
         app.state.custom_fields = load_custom_fields()
         return flashed("/settings", result.text(), anchor="fields")
+
+    @app.post("/settings/messaging")
+    def settings_messaging(request: Request, csrf_token: str = Form(""),
+                           size_field: str = Form(""), team_field: str = Form("")):
+        check_csrf(csrf_token)
+        result = setup_steps.save_messaging_fields(root, size_field, team_field)
+        if not result.ok:
+            return setup_invalid(request, result, "messaging")
+        refresh_config()
+        return flashed("/settings", result.text(), anchor="messaging")
 
     @app.post("/settings/enrichment")
     def settings_enrichment(request: Request, csrf_token: str = Form(""),

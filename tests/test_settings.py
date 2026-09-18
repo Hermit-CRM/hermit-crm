@@ -342,3 +342,19 @@ def test_the_whole_file_can_be_edited_at_once(demo, tmp_path):
     r = client.post("/settings/fields", data={"csrf_token": t, "fields_toml": ""})
     assert r.status_code == 303 and "fields.toml%20removed" in r.headers["location"]
     assert app.state.custom_fields == [] and not (demo / "fields.toml").exists()
+
+
+def test_the_two_draft_roles_point_at_fields_that_exist(demo, tmp_path):
+    app, client = make_client(demo, tmp_path)
+    t = token(client)
+    # the demo folder defines fte_estimate and ae_count
+    r = client.post("/settings/messaging", data={
+        "csrf_token": t, "size_field": "fte_estimate", "team_field": ""})
+    assert r.status_code == 303
+    assert cfg(demo)["messaging_size_field"] == "fte_estimate"
+    assert cfg(demo)["messaging_team_field"] == ""
+
+    r = client.post("/settings/messaging", data={
+        "csrf_token": t, "size_field": "nonesuch", "team_field": ""})
+    assert r.status_code == 400 and "No company field called" in r.text
+    assert cfg(demo)["messaging_size_field"] == "fte_estimate"   # unchanged

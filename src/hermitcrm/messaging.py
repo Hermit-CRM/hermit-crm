@@ -16,8 +16,11 @@ a ``declining`` signal for ``decline`` (a tough stretch, then an open question).
 Square brackets mark what only you can fill in.
 
 Slots: {first} {company} {growth} {size} {hurdle} {team} {observation} {fte}
-{ae} {site}, plus {owner_first_name} (from ``owner_name`` in config.toml).
-The ``size`` and ``team`` tables have ``known`` / ``unknown`` variants.
+{ae} {site}, plus {owner_first_name} (from ``owner_name`` in config.toml), plus
+one slot per field the folder defined itself, named by its key. The ``size``
+and ``team`` tables have ``known`` / ``unknown`` variants, and which field
+feeds them is ``messaging_size_field`` / ``messaging_team_field`` in
+config.toml: the wording the playbook has is fixed, the field it reads is not.
 """
 
 from __future__ import annotations
@@ -33,6 +36,17 @@ from pathlib import Path
 from .models import Company, Contact, language_for, normalise_country
 
 SIGNALS = ["", "growing", "stalled", "declining", "hiring"]
+# Slot names the templates already use. A field of your own cannot take one of
+# these, or a field keyed `company` would quietly replace the company's name.
+RESERVED_SLOTS = frozenset({
+    "first", "company", "growth", "size", "hurdle", "team", "observation",
+    "fte", "ae", "site", "owner_first_name",
+})
+# The two roles the shipped playbook understands, named by the keys a folder
+# migrated from an older Hermit CRM already has. A folder without those fields
+# simply has neither, and the size and team lines use their "unknown" wording.
+DEFAULT_SIZE_FIELD = "fte_estimate"
+DEFAULT_TEAM_FIELD = "ae_count"
 # Signals with their own `growth` sentence; the others use the "" one.
 GROWTH_SIGNALS = ("growing", "stalled", "declining")
 HURDLES = [10, 20, 50, 100, 250, 500]
@@ -214,10 +228,33 @@ def belgian_language(company: Company) -> str:
     return "nl" if nl > fr else "fr"
 
 
+def field_slots(company: Company, defs: list | None) -> dict:
+    """One slot per field of your own: `{segment}`, `{fit_score}`, and so on.
+
+    An empty field renders as its label in square brackets, the same mark the
+    templates already use for "only you can fill this in", so a draft written
+    against a field you have not filled says so instead of going blank.
+    """
+    slots = {}
+    for d in (defs or []):
+        if d.applies_to != "company" or not d.messaging or d.key in RESERVED_SLOTS:
+            continue
+        shown = d.display((company.extra or {}).get(d.key))
+        slots[d.key] = shown if shown else f"[{d.label}]"
+    return slots
+
+
 def drafts(company: Company, contact: Contact | None = None, signal: str = "",
            observation: str = "", messages: dict | None = None,
-           owner_name: str = "") -> list[Draft]:
-    """Three distinct drafts for one contact (company-level when None)."""
+           owner_name: str = "", defs: list | None = None,
+           size_field: str = DEFAULT_SIZE_FIELD,
+           team_field: str = DEFAULT_TEAM_FIELD) -> list[Draft]:
+    """Three distinct drafts for one contact (company-level when None).
+
+    `defs` are the folder's own field definitions; each becomes a slot the
+    templates may use. `size_field` and `team_field` name which of them play
+    the two roles the shipped playbook has wording for.
+    """
     messages = messages if messages is not None else default_messages()
     languages = messages["languages"]
     lang = (belgian_language(company) if normalise_country(company.country) == "BE"
@@ -227,11 +264,9 @@ def drafts(company: Company, contact: Contact | None = None, signal: str = "",
     t = languages[lang]
     labels = messages.get("labels", {})
     signal = signal if signal in SIGNALS else ""
-    # These two were company attributes until custom fields arrived. They are
-    # ordinary user-defined fields now, read by name; the next change lets a
-    # playbook name whichever fields it wants instead of these two.
-    fte_estimate = str(company.extra.get("fte_estimate") or "")
-    ae_count = company.extra.get("ae_count") or 0
+    extra = company.extra or {}
+    fte_estimate = str(extra.get(size_field) or "") if size_field else ""
+    ae_count = (extra.get(team_field) or 0) if team_field else 0
     fte = fte_number(fte_estimate)
     hurdle = next_hurdle(fte_estimate)
     site = (company.website or company.linkedin or "their site").replace(
@@ -239,6 +274,7 @@ def drafts(company: Company, contact: Contact | None = None, signal: str = "",
     first = (contact.first_name if contact else "") or "[first name]"
     observation = " ".join((observation or "").split())
     slots = {
+        **field_slots(company, defs),
         "first": first,
         "company": company.name,
         "fte": fte if fte is not None else "N",
