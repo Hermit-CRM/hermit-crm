@@ -42,6 +42,18 @@ and `stage_history`), migrated automatically in one commit.
   rather than `0.0.0.0`. Hermit CRM has no password, so it also prints a warning
   and the advice to prefer a private network (Tailscale, WireGuard) over open
   Wi-Fi.
+- **`INSTALL.md`: install by asking an AI assistant.** Unpack the download,
+  open the folder in Claude Code, Codex or Cursor and say "Read INSTALL.md and
+  set up Hermit CRM for me". It checks Python, installs the command so it
+  survives closing the terminal, creates the data folder, asks your name and
+  sending addresses and writes them to `config.toml`, starts the app and
+  verifies with `doctor`. It is told **not** to run `hermitcrm setup` (which
+  reads a terminal an agent does not control) and **never** to ask for or
+  handle the mail app password or calendar URL -- those you type into the
+  Settings page yourself, so they never reach a model provider. `CLAUDE.md` and
+  `AGENTS.md` now say up front that they are rules for changing the code, not
+  for installing it, so an assistant does not read a contributor's checklist to
+  somebody who just wants a CRM.
 - **Settings has an Access section**, and Capture has a help page. Both new
   front doors are started from a terminal, so nothing on screen mentioned them:
   the page now shows the `serve --host` command with this machine's LAN address,

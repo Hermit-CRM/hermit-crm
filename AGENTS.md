@@ -1,5 +1,9 @@
 # Hermit CRM: rules for AI sessions working on this repo (the code, not a data folder)
 
+**Installing rather than changing it?** If the person you are talking to
+unpacked this folder to *use* Hermit CRM, none of the rules below apply. Read
+`INSTALL.md` and follow that instead.
+
 Layout: the package is `src/hermitcrm/` (`cli.py` entry point, `store.py` file
 store, `models.py`, `web.py` + `templates/` + `static/`, `migrations.py`,
 `secrets.py`, `updates.py`, `datafolder.py` for `init`). Tests are in `tests/`.

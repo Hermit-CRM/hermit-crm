@@ -28,7 +28,17 @@ files you own, Hermit CRM is for you.
 
 ## Install
 
-Quick start. You need Python 3.11 or newer and git:
+**With an AI assistant.** Unpack the download, open the folder in Claude Code,
+Codex, Cursor or another AI coding tool, and send it one message:
+
+> Read INSTALL.md and set up Hermit CRM for me.
+
+It checks the machine, installs the command, makes your data folder, asks your
+name and sending addresses, and starts the app. It will not ask you for an app
+password or a calendar URL: those you type into the Settings page yourself, so
+they stay on your machine. [INSTALL.md](INSTALL.md) is the script it follows.
+
+**By hand.** You need Python 3.11 or newer and git:
 
 ```bash
 git clone https://github.com/Hermit-CRM/hermit-crm.git && cd hermit-crm
