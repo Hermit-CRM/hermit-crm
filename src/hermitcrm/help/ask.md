@@ -1,6 +1,6 @@
-# Ask Hermit
+# Ask the Hermit
 
-The **Ask Hermit** button, top right on every page, sends a question to the AI CLI configured under [Settings](/help/settings) (the same one Enrich uses).
+The **Ask the Hermit** button, top right on every page, sends a question to the AI CLI configured under [Settings](/help/settings) (the same one Enrich uses).
 
 ## How it answers
 

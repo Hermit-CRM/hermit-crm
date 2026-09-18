@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Ask Hermit{% endblock %}
+{% block title %}Ask the Hermit{% endblock %}
 {% block content %}
-<h1>Ask Hermit</h1>
+<h1>Ask the Hermit</h1>
 <p class="small">About <a href="{{ ask_page }}"><code>{{ ask_page }}</code></a>{% if ai.available %} &middot; {{ ai.provider }}, {{ model_label(answer.model if answer else (tried or ai[ai.tier])) }}{% endif %}</p>
 
 {% if not ai.available %}

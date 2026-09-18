@@ -86,8 +86,8 @@
 </section>
 
 <section class="setup-step" id="enrichment">
-  <h2>AI: Enrich and Ask Hermit</h2>
-  <p class="small">Enrich and Ask Hermit use an AI CLI you already have. The Enrich button asks it for a company's or contact's empty fields; Ask Hermit answers questions about the page you are on, then about the whole CRM. Provider <code>auto</code> takes the first of claude, codex, gemini, grok it finds; <code>custom</code> runs the command line below. "Fetch from URL" needs none of this.</p>
+  <h2>AI: Enrich and Ask the Hermit</h2>
+  <p class="small">Enrich and Ask the Hermit use an AI CLI you already have. The Enrich button asks it for a company's or contact's empty fields; Ask the Hermit answers questions about the page you are on, then about the whole CRM. Provider <code>auto</code> takes the first of claude, codex, gemini, grok it finds; <code>custom</code> runs the command line below. "Fetch from URL" needs none of this.</p>
   {% if enrich_status.available %}
   <p class="setup-status done">In use: {{ enrich_status.provider }}</p>
   {% else %}
@@ -107,11 +107,17 @@
       <label>Timeout (seconds) <input name="timeout" value="{{ enrich_form.timeout }}" inputmode="numeric" size="6"></label>
     </div>
     <fieldset class="switch">
+      <legend>Account</legend>
+      <label><input type="radio" name="account" value="subscription"{% if enrich_form.account != 'api' %} checked{% endif %}> Subscription: signed in with a ChatGPT, Claude or Gemini plan</label>
+      <label><input type="radio" name="account" value="api"{% if enrich_form.account == 'api' %} checked{% endif %}> API key</label>
+    </fieldset>
+    <p class="small">A subscription is not entitled to the same model ids as an API key, and asking for one it does not have fails outright rather than falling back. On a subscription, Hermit CRM asks for no particular model where that is known to matter, and the CLI answers on whatever your plan gets.</p>
+    <fieldset class="switch">
       <legend>Model</legend>
       <label><input type="radio" name="tier" value="medium"{% if enrich_form.tier != 'strong' %} checked{% endif %}> Medium: {{ model_label(tier_models.medium) }}{% if tier_models.medium %} <code>{{ tier_models.medium }}</code>{% endif %} (default)</label>
       <label><input type="radio" name="tier" value="strong"{% if enrich_form.tier == 'strong' %} checked{% endif %}> Strong: {{ model_label(tier_models.strong) }}{% if tier_models.strong %} <code>{{ tier_models.strong }}</code>{% endif %}</label>
     </fieldset>
-    <p class="small">Answers and enrich proposals made on the medium model offer "Retry with {{ model_label(tier_models.strong) }}". Override a model id when your CLI names it differently.</p>
+    <p class="small">{% if tier_models.strong %}Answers and enrich proposals made on the medium model offer "Retry with {{ model_label(tier_models.strong) }}". {% endif %}Override a model id when your CLI names it differently; an override is used whatever the account type.</p>
     <div class="row">
       <label>Medium model (empty: provider default) <input name="model" value="{{ enrich_form.model }}" placeholder="{{ tier_models.medium if not enrich_form.model else '' }}"></label>
       <label>Strong model (empty: provider default) <input name="model_strong" value="{{ enrich_form.model_strong }}" placeholder="{{ tier_models.strong if not enrich_form.model_strong else '' }}"></label>
