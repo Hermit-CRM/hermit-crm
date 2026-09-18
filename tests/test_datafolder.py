@@ -110,6 +110,35 @@ def test_init_refuses_non_empty_folder_but_accepts_existing_repo(tmp_path, capsy
         init_folder(repo, now=NOW)  # has config.toml now
 
 
+def test_init_says_git_is_missing_instead_of_raising_filenotfound(tmp_path, monkeypatch,
+                                                                  capsys):
+    """A first-run machine without git must get a sentence, not a traceback."""
+    empty = tmp_path / "bin"
+    empty.mkdir()
+    monkeypatch.setenv("PATH", str(empty))
+    assert cli.main(["init", str(tmp_path / "crm")]) == 2
+    err = capsys.readouterr().err
+    assert "git is not on PATH" in err
+    assert "INSTALL.md" in err
+    assert "Traceback" not in err
+
+
+def test_init_recognises_apples_command_line_tools_stub(tmp_path, monkeypatch, capsys):
+    """The stub runs and fails; the error must name that, not a broken repo."""
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    stub = fake / "git"
+    stub.write_text("#!/bin/sh\n"
+                    "echo 'xcode-select: note: No developer tools were found, "
+                    "requesting install.' >&2\nexit 1\n")
+    stub.chmod(0o755)
+    monkeypatch.setenv("PATH", str(fake))
+    assert cli.main(["init", str(tmp_path / "crm")]) == 2
+    err = capsys.readouterr().err
+    assert "placeholder for git" in err
+    assert "xcode-select --install" in err
+
+
 # ------------------------------------------------------------------ demo
 
 
