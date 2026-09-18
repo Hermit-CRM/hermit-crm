@@ -35,6 +35,11 @@ from . import __version__
 PYPI_URL = "https://pypi.org/pypi/hermitcrm/json"
 TIMEOUT = 3.0
 INTERVAL = 24 * 60 * 60
+# A failed check is not an answer, so it is not worth a day. The web app starts its
+# check in a thread the moment the process does, and under launchd that can be before
+# the network is up: one unlucky second at boot should not leave "could not reach
+# pypi.org" on the Settings page until tomorrow.
+RETRY_INTERVAL = 60 * 60
 UPGRADE_HINT = "pipx upgrade hermitcrm"
 
 # Result.state
@@ -166,7 +171,8 @@ def look(config: dict, fetcher: Callable[[], str] | None = None,
     state, latest = "", ""
     try:
         cached = json.loads(cache.read_text(encoding="utf-8"))
-        fresh = now - float(cached.get("checked", 0)) < INTERVAL
+        age = now - float(cached.get("checked", 0))
+        fresh = age < (RETRY_INTERVAL if cached.get("state") == UNREACHABLE else INTERVAL)
         # A changed index invalidates the cache; yesterday's answer was about
         # somewhere else.
         if fresh and str(cached.get("url", "")) == url:
