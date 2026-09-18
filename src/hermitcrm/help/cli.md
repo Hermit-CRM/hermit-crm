@@ -13,8 +13,9 @@ hermitcrm init DIR [--demo] [--no-setup]   new data folder (git repo, config, ag
 hermitcrm setup                            the setup questions again (you, BCC, backup, calendar)
 hermitcrm serve [--port N]                 the web app on 127.0.0.1 (port from config.toml, default 8765)
 hermitcrm doctor [--online]                one ok/warn/fail line per check; exit 1 on a failure
-hermitcrm schedule install [--at HH:MM] [--serve]
-                                        daily sync --apply via launchd or systemd (schtasks printed on Windows)
+hermitcrm schedule install [--at HH:MM] [--serve] [--backup-every MIN | --no-backup]
+                                        daily sync --apply and a backup every 5 minutes, via launchd
+                                        or systemd (schtasks printed on Windows)
 hermitcrm schedule remove|status
 hermitcrm migrate [--dry-run]              upgrade the data format (every command does this automatically)
 hermitcrm help [TOPIC]                     these pages; no topic prints the index and the topic list
@@ -33,6 +34,19 @@ hermitcrm report [--days N | --from D --to D] [--md]
                                         the Reports page as text tables (Markdown with --md)
 hermitcrm check                            validate every file; exit 1 and the file paths on problems
 ```
+
+## Backups
+
+```text
+hermitcrm backup [run] [--quiet]           back up now: new commits, uncommitted edits, a rewrite kept aside
+hermitcrm backup status                    where the backup is, its size, the last run; exit 1 on a warning
+hermitcrm backup list [PATH] [-n 20]       versions in the backup, newest first, optionally only those touching PATH
+hermitcrm backup restore ID [PATH ...] [--apply]
+                                        put files back as they were in version ID, as a new commit
+hermitcrm backup guard                     block history-rewriting git commands for Claude Code (.claude/settings.json)
+```
+
+See [Backups and undo](/help/backups).
 
 ## Write
 

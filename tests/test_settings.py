@@ -358,3 +358,21 @@ def test_the_two_draft_roles_point_at_fields_that_exist(demo, tmp_path):
         "csrf_token": t, "size_field": "nonesuch", "team_field": ""})
     assert r.status_code == 400 and "No company field called" in r.text
     assert cfg(demo)["messaging_size_field"] == "fte_estimate"   # unchanged
+
+
+def test_backup_section_shows_the_local_backup(demo, tmp_path):
+    from hermitcrm import backup
+
+    app, client = make_client(demo, tmp_path)
+    page = client.get("/settings").text
+    assert "Local backup" in page and 'href="/help/backups"' in page
+    assert "no backup yet" in page
+    assert backup.run(demo, {}, home=tmp_path / "home").code == 0
+    page = client.get("/settings").text
+    assert "last good run" in page and ".hermitcrm/backups/" in page
+
+
+def test_help_backups_page_renders(demo, tmp_path):
+    app, client = make_client(demo, tmp_path)
+    r = client.get("/help/backups")
+    assert r.status_code == 200 and "Rolling back" in r.text

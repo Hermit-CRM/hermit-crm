@@ -14,7 +14,7 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import __version__, bcc, migrations, schedule, secrets, updates
+from . import __version__, backup, bcc, guard, migrations, schedule, secrets, updates
 from . import setup as setup_steps
 from .datafolder import is_data_folder
 from .enrich import Enricher
@@ -120,6 +120,7 @@ def run_checks(root: Path, *, online: bool = False, env: dict | None = None,
     add("calendar url", OK if calendar else WARN,
         "found (not shown)" if calendar else "not set up (optional)")
 
+    state: dict = {}
     try:
         ctx = schedule.Context(data_dir=root, home=home or Path.home(), platform=platform,
                                runner=runner, env=env)
@@ -135,10 +136,34 @@ def run_checks(root: Path, *, online: bool = False, env: dict | None = None,
     except Exception as exc:
         add("schedule", WARN, f"could not check: {exc}")
 
+    try:
+        found = backup.status(root, config, home=home)
+        job = bool(state.get("backup_installed"))
+        if found["level"] != "ok":
+            add("backup", WARN, found["summary"] + "; see hermitcrm help backups")
+        elif not job:
+            add("backup", WARN, f"{found['summary']}, but no job runs it; "
+                "run hermitcrm schedule install")
+        else:
+            add("backup", OK, found["summary"])
+    except Exception as exc:
+        add("backup", WARN, f"could not check: {exc}")
+
+    try:
+        gone = guard.missing(root)
+        if gone:
+            add("agent guard", WARN, f"{len(gone)} of {len(guard.DENY)} deny rules missing "
+                f"from {guard.SETTINGS}; run hermitcrm backup guard")
+        else:
+            add("agent guard", OK, f"history-rewriting git commands blocked for Claude Code "
+                f"({guard.SETTINGS})")
+    except guard.GuardError as exc:
+        add("agent guard", WARN, str(exc))
+
     remote = str(config.get("remote") or "origin")
     url = setup_steps.remote_url(root, remote, runner)
     if not url:
-        add("git remote", WARN, f"no remote {remote!r}: no backup; run hermitcrm setup")
+        add("git remote", WARN, f"no remote {remote!r}: no copy off this machine; run hermitcrm setup")
     else:
         code, when = _git(root, ["log", "-1", "-g", "--format=%cd", "--date=iso",
                                  f"refs/remotes/{remote}/main"], runner)

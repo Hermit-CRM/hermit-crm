@@ -332,6 +332,7 @@ folder written by a newer Hermit CRM is refused until you upgrade.
 ├── .hermitcrm-format              data format version (committed)
 ├── PIPELINE.md                 generated summary, never edit by hand
 ├── CLAUDE.md / AGENTS.md       rules for AI agents working in this folder
+├── .claude/settings.json       git commands Claude Code may not run here
 ├── MESSAGING.md                your outreach playbook
 ├── inbox/                      BCC and calendar items waiting for a decision
 └── companies/<slug>/
@@ -368,6 +369,13 @@ how a feature works. To write, an agent uses `hermitcrm add company|contact|
 interaction`, which validates the fields and commits, rather than composing
 YAML by hand. Open the folder in Claude Code, Codex or any agent and ask for a
 pipeline review or a follow-up draft.
+
+Claude Code is **blocked** from the git commands that destroy history
+(`git reset --hard`, `commit --amend`, `rebase`, `push --force`, `git clean -f`,
+`rm -rf .git`, ...): every data folder has a `.claude/settings.json` deny list
+that holds in every permission mode, bypass included. It matches command
+patterns, so it is a seat belt, not a lock; the 5-minute backup
+(`hermitcrm help backups`) keeps every version even when something gets past it.
 
 For a client with no shell, `hermitcrm mcp` serves the folder over MCP. In
 Claude Desktop, Settings → Developer → Edit Config:
