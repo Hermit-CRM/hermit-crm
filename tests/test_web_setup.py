@@ -144,3 +144,16 @@ def test_setup_backup_and_calendar(folder, tmp_path):
     page = client.get("/settings").text
     assert "s3cr3t" not in page and "PRIVATE" in page
     assert client.post("/setup/calendar", data={"csrf_token": t, "url": "x"}).status_code == 400
+
+
+def test_access_section_shows_the_phone_and_mcp_commands(folder):
+    """The Access section is where you look for the two front doors that are
+    started from a terminal, so it must name both and say the port is open."""
+    app, client = make_client(folder)
+    page = client.get("/settings").text
+    assert 'id="access"' in page and 'href="#access">Access' in page
+    assert f"--data {folder} serve --host 0.0.0.0" in page
+    assert f"--data {folder} mcp" in page
+    assert "&#34;mcpServers&#34;" in page  # the JSON to paste, escaped
+    assert "Hermit CRM has no password" in page
+    assert 'href="/help/ai-agents"' in page
