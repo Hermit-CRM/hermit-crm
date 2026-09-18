@@ -56,6 +56,22 @@ front matter of the record they belong to, like every other field.
 Removing a field stops Hermit CRM showing it and leaves every value where it
 is; describing it again brings them back. See [the data format](/help/data-format).
 
+## BCC capture, per mail provider
+
+Pick your **mail provider** and the IMAP server fills itself in, with a note on
+where that provider hides its app password. Every one of them wants an app
+password rather than your normal one, and that is the step people get stuck on.
+
+- **Gmail / Google Workspace**: `imap.gmail.com`. Turn on 2-step verification
+  first; the app password page does not appear until you do.
+- **iCloud Mail**: `imap.mail.me.com`, an app-specific password from your Apple
+  account.
+- **Fastmail**: `imap.fastmail.com`, an app password with IMAP access.
+- **Outlook.com / Microsoft 365**: Microsoft has switched off password sign-in
+  for IMAP on most accounts, so this usually fails however the password is
+  made. What works is forwarding or BCC'ing to a Gmail or Fastmail address kept
+  for the purpose, and pointing Hermit CRM at that one.
+
 ## AI: Enrich and Ask the Hermit
 
 `enrich_provider` (`auto`, `claude`, `codex`, `gemini`, `grok` or `custom`),

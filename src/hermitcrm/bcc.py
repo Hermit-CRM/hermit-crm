@@ -65,6 +65,48 @@ class BccError(Exception):
 # ------------------------------------------------------------------ settings
 
 
+
+# Where each common provider's mail lives, and how to get the app password
+# every one of them wants instead of your normal password. `works` is honest
+# about Microsoft: it switched off password sign-in for IMAP on most accounts,
+# and no app password brings it back.
+MAIL_PROVIDERS = {
+    "gmail": {
+        "label": "Gmail / Google Workspace",
+        "imap_host": "imap.gmail.com",
+        "password_url": "https://myaccount.google.com/apppasswords",
+        "note": "Turn on 2-step verification first; the app password page is "
+                "hidden until you do. A Workspace admin can switch IMAP off.",
+        "works": True,
+    },
+    "icloud": {
+        "label": "iCloud Mail",
+        "imap_host": "imap.mail.me.com",
+        "password_url": "https://account.apple.com",
+        "note": "Sign-In and Security, then App-Specific Passwords. The IMAP user "
+                "is your iCloud address.",
+        "works": True,
+    },
+    "fastmail": {
+        "label": "Fastmail",
+        "imap_host": "imap.fastmail.com",
+        "password_url": "",
+        "note": "Settings, then Privacy & Security, then App passwords; give it "
+                "IMAP access.",
+        "works": True,
+    },
+    "outlook": {
+        "label": "Outlook.com / Microsoft 365",
+        "imap_host": "outlook.office365.com",
+        "password_url": "",
+        "note": "Microsoft has switched off password sign-in for IMAP on most "
+                "accounts, so this usually fails however the password is made. "
+                "What works: forward or BCC to a Gmail or Fastmail address kept "
+                "for the purpose, and point Hermit CRM at that one.",
+        "works": False,
+    },
+}
+
 @dataclass
 class Settings:
     address: str = DEFAULT_ADDRESS

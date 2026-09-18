@@ -29,7 +29,7 @@ from . import __version__, updates
 from fastapi.templating import Jinja2Templates
 
 from . import (bcc, brief, calendar_sync, capture, feedback, fields as custom, filters,
-               followups, messaging, migrations, pipeline, reports)
+               followups, messaging, migrations, pipeline, reports, welcome)
 from . import schedule, scrape
 from . import help as helpdocs
 from . import setup as setup_steps
@@ -713,11 +713,53 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
          "A question about the page you are on, or the whole CRM."),
     ]
 
+    def welcome_steps() -> list:
+        return welcome.steps(store, config, current_setup_state(),
+                             app.state.enricher.available)
+
+    @app.get("/welcome", response_class=HTMLResponse)
+    def welcome_page(request: Request):
+        app.state.setup_redirected = True
+        all_steps = welcome_steps()
+        done, total = welcome.progress(all_steps)
+        return render(request, "welcome.html", {
+            "steps": all_steps, "done": done, "total": total,
+            "dismissed": bool(config.get("welcome_dismissed")),
+        })
+
+    @app.post("/welcome/tick")
+    def welcome_tick(request: Request, csrf_token: str = Form(""), key: str = Form(""),
+                     done: str = Form("1")):
+        """Tick (or untick) a step the app cannot see happen."""
+        check_csrf(csrf_token)
+        if key not in welcome.MANUAL:
+            return flashed("/welcome", "That step ticks itself when it is done")
+        ticked = [k for k in (config.get("welcome_done") or []) if k != key]
+        if done:
+            ticked.append(key)
+        setup_steps.set_config_values(root / "config.toml", {"welcome_done": ticked})
+        refresh_config()
+        return goto("/welcome#" + key)
+
+    @app.post("/welcome/dismiss")
+    def welcome_dismiss(request: Request, csrf_token: str = Form(""),
+                        dismissed: str = Form("1")):
+        check_csrf(csrf_token)
+        setup_steps.set_config_values(root / "config.toml",
+                                      {"welcome_dismissed": bool(dismissed)})
+        refresh_config()
+        return flashed("/" if dismissed else "/welcome",
+                       "The walkthrough stays under Help" if dismissed
+                       else "The walkthrough opens at start again")
+
     @app.get("/", response_class=HTMLResponse)
     def home(request: Request):
-        if not str(config.get("owner_email") or "").strip() and not app.state.setup_redirected:
-            app.state.setup_redirected = True  # once per server start; "Skip for now" works
-            return goto("/settings")
+        # Once per server start, a folder that has not finished the walkthrough
+        # lands on it; "Skip for now" there works for the rest of the session.
+        if not app.state.setup_redirected:
+            app.state.setup_redirected = True
+            if welcome.should_show(config, welcome_steps()):
+                return goto("/welcome")
         today = store.today()
         week = today + timedelta(days=7)
         due_soon = sorted(
@@ -1933,6 +1975,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "field_types": custom.TYPES,
             "field_scopes": custom.SCOPES,
             "field_views": custom.VIEWS_FOR_SCOPE,
+            "mail_providers": bcc.MAIL_PROVIDERS,
             "enrich_providers": setup_steps.ENRICH_PROVIDERS,
             "enrich_accounts": setup_steps.ENRICH_ACCOUNTS,
             "enrich_status": {"available": enricher.available,

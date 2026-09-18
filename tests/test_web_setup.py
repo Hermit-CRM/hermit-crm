@@ -40,20 +40,28 @@ def cfg(folder):
     return tomllib.loads((folder / "config.toml").read_text())
 
 
-def test_redirects_to_setup_once_per_start(folder):
+def test_a_first_start_lands_on_the_walkthrough_once(folder):
+    """Its first step is the Settings form, so nothing is lost by going there first."""
     app, client = make_client(folder)
     r = client.get("/")
-    assert r.status_code == 303 and r.headers["location"] == "/settings"
-    assert client.get("/").status_code == 200  # "Skip for now"
+    assert r.status_code == 303 and r.headers["location"] == "/welcome"
+    assert client.get("/").status_code == 200        # once per start, then home
+    page = client.get("/welcome").text
+    assert "0 of 10" in page and 'href="/settings#you"' in page
+
+
+def test_no_redirect_once_the_walkthrough_is_dismissed(folder):
+    (folder / "config.toml").write_text('owner_email = "me@example.com"\n'
+                                        "welcome_dismissed = true\n")
+    _, client = make_client(folder)
+    assert client.get("/").status_code == 200
+
+
+def test_the_settings_page_still_offers_skip_for_now(folder):
+    _, client = make_client(folder)
     page = client.get("/settings").text
     assert 'href="/">Skip for now' in page
     assert page.count("pending") >= 4
-
-
-def test_no_redirect_when_owner_email_set(folder):
-    (folder / "config.toml").write_text('owner_email = "me@example.com"\n')
-    _, client = make_client(folder)
-    assert client.get("/").status_code == 200
 
 
 def test_the_empty_home_page_says_where_to_start(folder):

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Welcome{% endblock %}
+{% block content %}
+<h1>Getting started</h1>
+<p class="progress-line"><strong>{{ done }} of {{ total }}</strong> done.
+  {% if done == total %}That is all of it. This page stays under <a href="/help">Help</a>.{% else %}Each step ticks itself when the thing it describes has happened, except the two marked <em>tick it yourself</em>.{% endif %}</p>
+<div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="{{ total }}" aria-valuenow="{{ done }}"><span style="width: {{ (100 * done / total) | round | int }}%"></span></div>
+
+<p><a class="button" href="/?tour=1" data-start-tour>Show me around</a> <span class="small">A quick pass over the screen, pointing at each part.</span></p>
+
+<ol class="welcome-steps">
+  {% for s in steps %}
+  <li id="{{ s.key }}" class="welcome-step{% if s.done %} done{% endif %}">
+    <div class="step-head">
+      <span class="step-mark" aria-hidden="true">{% if s.done %}&#10003;{% else %}{{ loop.index }}{% endif %}</span>
+      <h2>{{ s.title }}</h2>
+      {% if s.manual %}<span class="tag">tick it yourself</span>{% endif %}
+    </div>
+    <p>{{ s.why }}</p>
+    <div class="step-actions">
+      <a class="button" href="{{ s.href }}">{{ s.action }}</a>
+      {% if s.manual %}
+      <form method="post" action="/welcome/tick" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="key" value="{{ s.key }}">
+        <input type="hidden" name="done" value="{{ '' if s.done else '1' }}">
+        <button type="submit">{{ 'Untick' if s.done else 'Mark as done' }}</button>
+      </form>
+      {% endif %}
+    </div>
+  </li>
+  {% endfor %}
+</ol>
+
+<form method="post" action="/welcome/dismiss" class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if dismissed %}
+  <input type="hidden" name="dismissed" value="">
+  <button type="submit">Open this at start again</button>
+  {% else %}
+  <input type="hidden" name="dismissed" value="1">
+  <button type="submit">Don't open this at start</button> <span class="small">It stays under Help either way.</span>
+  {% endif %}
+</form>
+{% endblock %}
