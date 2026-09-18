@@ -7,6 +7,7 @@
   <input type="hidden" name="drop" value="{{ drop }}">
   <table>
     <tr><th>field</th><th>{{ keep_label }}</th><th>{{ drop_label }}</th>{% if rows | selectattr('both') | list %}<th>both</th>{% endif %}</tr>
+    <tr class="small"><td>tasks</td><td colspan="3">Both lists are kept. A task is work you still owe; there is no side to pick.</td></tr>
     {% for r in rows %}
     <tr class="{% if r.keep == r.drop %}same{% endif %}">
       <td>{{ r.label }}</td>

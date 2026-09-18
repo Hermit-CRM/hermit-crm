@@ -43,6 +43,25 @@ page.
 Edits made outside the app (by hand or by an agent) show up on the next page
 view: the company's folder is re-read for every request.
 
+## Tasks and the next step
+
+Two different things, deliberately.
+
+The **next step** is the one task that decides where the deal stands. There is
+exactly one per company, it shows on the board card, in PIPELINE.md and on the
+calendar, and rewriting it starts a new one.
+
+**Tasks** are everything else you owe that account: a list, with a due date and
+a done flag each. They live on the company, or on one of its contacts when the
+thing you owe is owed to a person. A contact's tasks show on their own page and,
+grouped under their name, on the company's. Add one from either page or from
+the calendar, where every open task appears on its due date beside the next
+steps.
+
+Deleting a contact takes their tasks with them, and says how many are open
+before it does. Merging two records keeps both lists: a task is work you still
+owe, so there is no side to pick.
+
 ## Stages
 
 `prospect`, `engaged`, `discovery`, `offer` are open; `won`, `lost` and

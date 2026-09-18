@@ -46,6 +46,19 @@ show only real changes.
 | stage_history | list of maps | see below; omitted while empty |
 | created, updated | datetime | |
 
+`tasks` is a list of maps, absent until there is one, on a company **and** on
+a contact:
+
+```yaml
+tasks:
+  - {text: send the pricing page, due: 2026-09-24}
+  - {text: check whether the audit landed, done: true}
+```
+
+`text` is required, `due` and `done` are optional. A company's `next_step` is
+separate and stays separate: it is the one task that decides where the deal
+stands, and it is what the pipeline and PIPELINE.md read.
+
 Plus any field you defined yourself (see below), and any key Hermit CRM does
 not recognise, which is kept and written back untouched.
 

@@ -274,7 +274,48 @@
       <input name="next_step" value="{{ '' if company.next_step_done else company.next_step }}" placeholder="e.g. follow up on LinkedIn" required>
     </label>
     <label>due <input type="date" name="next_step_due" value="{{ '' if company.next_step_done else fmt_date(company.next_step_due) }}"></label>
-    <button type="submit">Save task</button>
+    <button type="submit">Save next step</button>
   </form>
+
+  <h3 class="small">Everything else you owe them</h3>
+  {{ task_list(company, company.tasks, today, contact='') }}
+  {% for c in company.contacts.values() if c.tasks %}
+  <h3 class="small"><a href="/companies/{{ company.slug }}/contacts/{{ c.slug }}">{{ c.name }}</a></h3>
+  {{ task_list(company, c.tasks, today, contact=c.slug, adding=false) }}
+  {% endfor %}
 </section>
+{%- endmacro %}
+
+{% macro task_list(company, tasks, today, contact='', adding=true) -%}
+<table class="tasks">
+  {% for t in tasks %}
+  <tr class="{% if t.overdue(today) %}overdue{% endif %}{% if t.done %} done{% endif %}">
+    <td>{{ t.text }}</td>
+    <td class="{% if t.overdue(today) %}overdue{% endif %}">{{ fmt_date(t.due) if t.due else '' }}</td>
+    <td class="actions">
+      <form method="post" action="/companies/{{ company.slug }}/tasks/{{ loop.index0 }}/done" class="inline">
+        <input type="hidden" name="contact" value="{{ contact }}">
+        <input type="hidden" name="text" value="{{ t.text }}">
+        <input type="hidden" name="done" value="{{ '' if t.done else '1' }}">
+        <button type="submit">{{ 'Reopen' if t.done else 'Done' }}</button>
+      </form>
+      <form method="post" action="/companies/{{ company.slug }}/tasks/{{ loop.index0 }}/delete" class="inline">
+        <input type="hidden" name="contact" value="{{ contact }}">
+        <input type="hidden" name="text" value="{{ t.text }}">
+        <button type="submit" title="Remove this task">Delete</button>
+      </form>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="3" class="empty">Nothing else on the list.</td></tr>
+  {% endfor %}
+</table>
+{% if adding %}
+<form method="post" action="/companies/{{ company.slug }}/tasks" class="inline-row">
+  <input type="hidden" name="contact" value="{{ contact }}">
+  <label class="grow">task <input name="text" placeholder="e.g. send the pricing page" required></label>
+  <label>due <input type="date" name="due"></label>
+  <button type="submit">Add task</button>
+</form>
+{% endif %}
 {%- endmacro %}
