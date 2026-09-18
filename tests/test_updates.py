@@ -162,3 +162,27 @@ def test_a_fresh_notice_has_not_checked_anything():
     notice = updates.UpdateNotice()
     assert notice.result.state == updates.PENDING and notice.available == ""
     assert updates.note(notice.result) == "update check has not run yet"
+
+
+def test_a_failed_check_is_retried_within_the_hour_not_the_day(tmp_path):
+    """A check started at boot can miss the network by a second. Honest is not the
+    same as stuck: only an answer earns a full day in the cache."""
+    def offline():
+        raise OSError("no network")
+
+    cache, calls = tmp_path / "g.json", []
+    assert updates.look({}, fetcher=offline, cache=cache, now=0.0, env={},
+                        current="0.3.0").state == updates.UNREACHABLE
+    still = updates.look({}, fetcher=fake("9.9.9", calls), cache=cache, now=600.0, env={},
+                         current="0.3.0")
+    assert still.state == updates.UNREACHABLE and calls == []  # 10 minutes: cached
+    later = updates.look({}, fetcher=fake("9.9.9", calls), cache=cache,
+                         now=updates.RETRY_INTERVAL + 1, env={}, current="0.3.0")
+    assert later.newer == "9.9.9" and len(calls) == 1  # an hour on: asked again
+
+    # An answer, even "nothing published here", still holds for the full day.
+    absent = tmp_path / "h.json"
+    updates.look({}, fetcher=http_error(404), cache=absent, now=0.0, env={}, current="0.3.0")
+    held = updates.look({}, fetcher=fake("9.9.9", calls), cache=absent,
+                        now=updates.RETRY_INTERVAL + 1, env={}, current="0.3.0")
+    assert held.state == updates.ABSENT and len(calls) == 1  # not asked again
