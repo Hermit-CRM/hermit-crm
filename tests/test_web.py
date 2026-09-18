@@ -569,25 +569,128 @@ def test_next_step_done_button_and_views(client, app, repo):
     assert last_commit(repo) == "company: acme next step reopened"
 
 
-def test_tasks_section_on_company_and_contact_pages(client, app, repo):
+def test_the_next_step_lives_on_the_company_and_tasks_live_where_they_belong(
+        client, app, repo):
+    """One next step decides the deal; everything else is a list beside it."""
     post_company(client, name="Acme")
     post_contact(client, "acme", first_name="Jane", last_name="Roe")
-    for page in (client.get("/companies/acme").text,
-                 client.get("/companies/acme/contacts/jane-roe").text):
-        assert 'id="tasks"' in page and "No open task." in page
-        assert 'action="/companies/acme/task"' in page
+
+    page = client.get("/companies/acme").text
+    assert 'id="tasks"' in page and "No open task." in page
+    assert 'action="/companies/acme/task"' in page          # the next step
+    assert 'action="/companies/acme/tasks"' in page         # everything else
+
+    contact_page = client.get("/companies/acme/contacts/jane-roe").text
+    assert "Tasks for Jane Roe" in contact_page
+    assert 'href="/companies/acme#tasks"' in contact_page   # points at the next step
+    assert 'action="/companies/acme/task"' not in contact_page
 
     r = client.post("/companies/acme/task",
                     data={"next_step": "Call Jane", "next_step_due": "2026-09-20"},
-                    headers={"referer": "http://testserver/companies/acme/contacts/jane-roe"})
-    assert r.status_code == 303
-    assert r.headers["location"].endswith("#tasks")
-    assert r.headers["location"].startswith("/companies/acme/contacts/jane-roe?flash=")
+                    headers={"referer": "http://testserver/companies/acme"})
+    assert r.status_code == 303 and r.headers["location"].endswith("#tasks")
     assert last_commit(repo) == "company: acme next step set"
     company = app.state.store.get("acme")
     assert company.next_step == "Call Jane" and company.next_step_open
-    page = client.get("/companies/acme/contacts/jane-roe").text
-    assert "Call Jane" in page and "Mark done" in page
+
+
+def test_a_company_keeps_a_list_of_tasks_beside_its_next_step(client, app, repo):
+    post_company(client, name="Acme", next_step="Call Jane", next_step_due="2026-09-20")
+
+    r = client.post("/companies/acme/tasks",
+                    data={"text": "  send the  pricing page ", "due": "2026-09-24"},
+                    headers={"referer": "http://testserver/companies/acme"})
+    assert r.status_code == 303 and "Task%20added" in r.headers["location"]
+    assert last_commit(repo) == "task: acme added"
+    company = app.state.store.get("acme")
+    assert [(t.text, str(t.due), t.done) for t in company.tasks] == \
+        [("send the pricing page", "2026-09-24", False)]
+    assert company.next_step == "Call Jane"          # untouched
+
+    client.post("/companies/acme/tasks", data={"text": "check the audit"})
+    assert len(app.state.store.get("acme").tasks) == 2   # a second one, not a replacement
+
+    page = client.get("/companies/acme").text
+    assert "send the pricing page" in page and "check the audit" in page
+
+    r = client.post("/companies/acme/tasks/0/done",
+                    data={"done": "1", "text": "send the pricing page"})
+    assert r.status_code == 303 and last_commit(repo) == "task: acme done"
+    assert app.state.store.get("acme").tasks[0].done is True
+
+    r = client.post("/companies/acme/tasks/1/delete", data={"text": "check the audit"})
+    assert r.status_code == 303 and last_commit(repo) == "task: acme deleted"
+    assert [t.text for t in app.state.store.get("acme").tasks] == ["send the pricing page"]
+
+
+def test_a_stale_page_cannot_tick_off_the_wrong_task(client, app):
+    """Index alone would silently hit whatever moved into that slot."""
+    post_company(client, name="Acme")
+    client.post("/companies/acme/tasks", data={"text": "first"})
+    client.post("/companies/acme/tasks", data={"text": "second"})
+
+    r = client.post("/companies/acme/tasks/0/delete", data={"text": "second"})
+    assert "has%20changed%20since" in r.headers["location"]
+    assert [t.text for t in app.state.store.get("acme").tasks] == ["first", "second"]
+
+    r = client.post("/companies/acme/tasks/9/done", data={"done": "1"})
+    assert "no%20longer%20there" in r.headers["location"]
+
+
+def test_a_contact_keeps_their_own_tasks(client, app, repo):
+    post_company(client, name="Acme")
+    post_contact(client, "acme", first_name="Jane", last_name="Roe")
+
+    r = client.post("/companies/acme/tasks", data={"text": "send her the deck",
+                                                   "contact": "jane-roe"})
+    assert r.status_code == 303 and last_commit(repo) == "task: acme/jane-roe added"
+    company = app.state.store.get("acme")
+    assert company.tasks == []                                    # not on the company
+    assert [t.text for t in company.contacts["jane-roe"].tasks] == ["send her the deck"]
+    assert "send her the deck" in (
+        repo / "companies/acme/contacts/jane-roe.md").read_text()
+
+    # it shows on the contact's page and, grouped under their name, on the company's
+    assert "send her the deck" in client.get("/companies/acme/contacts/jane-roe").text
+    page = client.get("/companies/acme").text
+    assert "send her the deck" in page and "Jane Roe" in page
+
+
+def test_a_task_can_be_created_from_the_calendar(client, app, repo):
+    post_company(client, name="Harbour Light Labs")
+    post_contact(client, "harbour-light-labs", first_name="Ines", last_name="Vega")
+
+    r = client.post("/calendar/task", data={"text": "send the pricing page",
+                                            "company": "Harbour Light Labs",
+                                            "contact": "", "due": "2026-09-24"})
+    assert r.status_code == 303 and "Task%20created" in r.headers["location"]
+    assert r.headers["location"].endswith("#task-list")
+    assert last_commit(repo) == "task: harbour-light-labs added"
+
+    r = client.post("/calendar/task", data={"text": "book the intro call",
+                                            "company": "harbour-light-labs",
+                                            "contact": "ines-vega", "due": ""})
+    assert r.status_code == 303
+    company = app.state.store.get("harbour-light-labs")
+    assert [t.text for t in company.tasks] == ["send the pricing page"]
+    assert [t.text for t in company.contacts["ines-vega"].tasks] == ["book the intro call"]
+
+    page = client.get("/calendar").text
+    assert "send the pricing page" in page.split('id="day-2026-09-24"')[1].split("</td>")[0]
+    listing = page.split('id="task-list"')[1].split('id="future-tasks"')[0]
+    assert "send the pricing page" in listing and "book the intro call" in listing
+    assert "Ines Vega" in listing and "no date" in listing
+
+    # a company nobody has is refused rather than invented
+    r = client.post("/calendar/task", data={"text": "x", "company": "Nobody"})
+    assert "No%20company%20called" in r.headers["location"]
+
+    # ticking one off from the calendar works on the right record
+    r = client.post("/companies/harbour-light-labs/tasks/0/done",
+                    data={"contact": "ines-vega", "text": "book the intro call",
+                          "done": "1"})
+    assert r.status_code == 303
+    assert app.state.store.get("harbour-light-labs").contacts["ines-vega"].tasks[0].done
 
 
 def test_calendar_view_shows_open_tasks(client, app):
@@ -602,7 +705,11 @@ def test_calendar_view_shows_open_tasks(client, app):
     cell = page.split('id="day-2026-09-10"')[1].split("</td>")[0]
     assert "Acme" in cell and 'class="task overdue"' in cell
     assert "Beta" in page.split('id="day-2026-09-20"')[1].split("</td>")[0]
-    assert "Done Co" not in page and "Finished" not in page
+    # a done next step is off the calendar; the company still appears in the
+    # new-task picker, because a task on a won customer is an ordinary thing
+    grid = page.split('id="month-grid"')[1].split("</table>")[0] \
+        if 'id="month-grid"' in page else page.split("<h2 id=\"task-list\"")[0]
+    assert "Done Co" not in grid and "Finished" not in page
     priority = page.split('id="top-priority"')[1].split('class="month-nav"')[0]
     assert priority.index("Delta") < priority.index("Acme")
     assert "Beta" not in priority and "Gamma" not in priority

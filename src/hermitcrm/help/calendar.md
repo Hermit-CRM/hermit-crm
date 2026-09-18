@@ -31,3 +31,10 @@ Calendar** link: an all-day event on that date with a link back to the
 company. No API, no account connection.
 
 Related: [Pipeline](/help/pipeline), [Companies](/help/companies), [Settings](/help/settings)
+
+## Your task list
+
+Below the month grid: everything you owe an account or a person that is not a
+deal's next step, soonest first, with the undated ones last. **Create task**
+takes a company (by name or slug), an optional contact slug and a due date.
+Tasks with a date also appear in the grid on that day, next to the next steps.
