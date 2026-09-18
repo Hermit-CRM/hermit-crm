@@ -9,10 +9,12 @@
 <meta property="og:title" content="Hermit CRM: a local CRM for one person, for Mac">
 <meta property="og:description" content="Hermit CRM keeps every company, contact and conversation as a plain text file on your Mac. A local web app gives you a pipeline, a calendar, message drafts and dashboards. Your AI tools can work in it too.">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="theme-color" content="#F5F1E8">
+<meta name="theme-color" content="#F5F1E8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1C1B18" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="img/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="stylesheet" href="app-tokens.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -20,7 +22,7 @@
 <a class="skip" href="#main">Skip to content</a>
 
 <header class="site-header wide">
-  <a class="brand" href="./" aria-label="Hermit CRM home"><svg viewBox="4.5 10.5 55 43" aria-hidden="true" focusable="false"><rect x="7" y="13" width="50" height="38" rx="7" fill="none" stroke="#17181A" stroke-width="5"/><circle cx="24" cy="27" r="5.5" fill="#1E8A60"/><path d="M16 43 a8 8 0 0 1 16 0 z" fill="#1E8A60"/><rect x="38" y="25" width="12" height="4" rx="2" fill="#17181A"/><rect x="38" y="34" width="8" height="4" rx="2" fill="#17181A"/></svg><span>Hermit CRM</span></a>
+  <a class="brand" href="./" aria-label="Hermit CRM home"><svg viewBox="4.5 10.5 55 43" aria-hidden="true" focusable="false"><rect x="7" y="13" width="50" height="38" rx="7" fill="none" stroke="currentColor" stroke-width="5"/><circle cx="24" cy="27" r="5.5" fill="#1E8A60"/><path d="M16 43 a8 8 0 0 1 16 0 z" fill="#1E8A60"/><rect x="38" y="25" width="12" height="4" rx="2" fill="currentColor"/><rect x="38" y="34" width="8" height="4" rx="2" fill="currentColor"/></svg><span>Hermit CRM</span></a>
   <a href="#">GitHub [TBC]</a>
 </header>
 
@@ -37,17 +39,47 @@
       <h2 class="label">Install with your AI</h2>
       <ol class="steps">
       <li><span><strong>Download and unpack it.</strong> Double-click the file in Finder.</span></li>
-      <li><span><strong>Open the folder in your AI coding tool:</strong> Claude Code, Codex, Cursor, Gemini CLI or another.</span></li>
+      <li><span><strong>Open the folder in your <a href="#requirements">AI coding tool</a>:</strong> Claude Code, Codex, Cursor, Gemini CLI or another.</span></li>
       <li><span><strong>Send it this message:</strong></span></li>
       </ol>
       <div class="card indent">
         <p class="message" id="install-message">Read INSTALL.md and set up Hermit CRM for me.</p>
-        <button class="copy" type="button" data-copy="Read INSTALL.md and set up Hermit CRM for me." data-done="Copied"
+        <button class="copy" type="button" hidden data-copy="Read INSTALL.md and set up Hermit CRM for me." data-done="Copied"
+                data-failed="Press ⌘C"
                 aria-label="Copy the install message"><span aria-live="polite">Copy</span></button>
       </div>
       <p class="note indent">It checks your Mac, installs what is missing, asks your name and email addresses, and starts the app. Passwords and calendar links you type into the app's Settings page yourself, so they stay on your Mac.</p>
       <p class="manual indent"><a href="#">Prefer the terminal? Install by hand.</a></p>
     </div>
+  </section>
+
+  <hr class="rule">
+
+  <section class="idea wide" aria-labelledby="idea">
+    <div class="narrow">
+      <p class="label">The idea</p>
+      <h2 class="big" id="idea">One company, one file, one commit.</h2>
+    </div>
+    <div class="idea-grid">
+      <figure class="window">
+        <div class="window-bar"><i></i><i></i><i></i><span>127.0.0.1:8765</span></div>
+        <div class="mock-box" data-theme="system" role="img" aria-label="Placeholder drawing of the pipeline board"><div class="mock" aria-hidden="true"><div class="mock-side"><div class="mock-brand"><svg viewBox="4.5 10.5 55 43" aria-hidden="true" focusable="false"><rect x="7" y="13" width="50" height="38" rx="7" fill="none" stroke="currentColor" stroke-width="5"/><circle cx="24" cy="27" r="5.5" fill="#1E8A60"/><path d="M16 43 a8 8 0 0 1 16 0 z" fill="#1E8A60"/><rect x="38" y="25" width="12" height="4" rx="2" fill="currentColor"/><rect x="38" y="34" width="8" height="4" rx="2" fill="currentColor"/></svg><span>Hermit CRM</span></div><div class="mock-nav">Home</div><div class="mock-nav on">Pipeline</div><div class="mock-nav">Calendar</div><div class="mock-nav">Companies</div><div class="mock-nav">Contacts</div><div class="mock-nav">Messages</div><div class="mock-nav">Extension</div><div class="mock-nav">Reports</div><div class="mock-nav">Settings</div><div class="mock-nav">Help</div></div><div class="mock-main"><div class="mock-top"><div class="mock-title">Pipeline</div><div class="mock-tag">Placeholder · real screenshot [TBC]</div></div><div class="mock-cols"><div class="mock-col"><div class="mock-h"><span>Prospect</span><span>3</span></div><div class="mock-card hi"><b>Acme BV</b><small>NL · today</small></div><div class="mock-card"><b>Globex GmbH</b><small>DE · 3 days</small></div><div class="mock-card"><b>Initech SARL</b><small>FR · 1 week</small></div></div><div class="mock-col"><div class="mock-h"><span>Engaged</span><span>2</span></div><div class="mock-card"><b>Umbrella NV</b><small>BE · 2 days</small></div><div class="mock-card"><b>Hooli Ltd</b><small>GB · 5 days</small></div></div><div class="mock-col"><div class="mock-h"><span>Discovery</span><span>2</span></div><div class="mock-card"><b>Soylent AG</b><small>CH · 4 days</small></div><div class="mock-card"><b>Stark &amp; Co</b><small>NL · 2 weeks</small></div></div><div class="mock-col"><div class="mock-h"><span>Offer</span><span>1</span></div><div class="mock-card"><b>Wonka BV</b><small>NL · 6 days</small></div></div><div class="mock-col"><div class="mock-h"><span>Won</span><span>1</span></div><div class="mock-card"><b>Vandelay SA</b><small>FR · 3 weeks</small></div></div></div></div></div></div>
+      </figure>
+      <div class="file">
+        <p>The file behind the Acme card:</p>
+        <pre><span class="path">~/crm/companies/acme/company.md</span>
+---
+name: Acme BV
+slug: acme
+website: https://acme.example.com
+country: NL
+source: other
+stage: prospect
+stage_changed: 2026-09-17
+...</pre>
+      </div>
+    </div>
+    <p class="after narrow">Add a company in the app or from the terminal. Either way it becomes this file, and one commit records it.</p>
   </section>
 
   <hr class="rule">
@@ -66,35 +98,6 @@
       <p><strong>AI-native.</strong> Plain files, a small CLI and an MCP server, so Claude Code, Codex or Claude Desktop can read your pipeline and log a call. Ask Hermit answers questions on every page.</p>
       <p><strong>Configurable.</strong> One commented settings file, your own message wording, and any fields you add are kept.</p>
     </div>
-  </section>
-
-  <hr class="rule">
-
-  <section class="idea wide" aria-labelledby="idea">
-    <div class="narrow">
-      <p class="label">The idea</p>
-      <h2 class="big" id="idea">One company, one file, one commit.</h2>
-    </div>
-    <div class="idea-grid">
-      <figure class="window">
-        <div class="window-bar"><i></i><i></i><i></i><span>127.0.0.1:8765</span></div>
-        <div class="mock-box" role="img" aria-label="Placeholder drawing of the pipeline board"><div class="mock" aria-hidden="true"><div class="mock-side"><div class="mock-brand"><svg viewBox="4.5 10.5 55 43" aria-hidden="true" focusable="false"><rect x="7" y="13" width="50" height="38" rx="7" fill="none" stroke="#17181A" stroke-width="5"/><circle cx="24" cy="27" r="5.5" fill="#1E8A60"/><path d="M16 43 a8 8 0 0 1 16 0 z" fill="#1E8A60"/><rect x="38" y="25" width="12" height="4" rx="2" fill="#17181A"/><rect x="38" y="34" width="8" height="4" rx="2" fill="#17181A"/></svg><span>Hermit CRM</span></div><div class="mock-nav">Home</div><div class="mock-nav on">Pipeline</div><div class="mock-nav">Calendar</div><div class="mock-nav">Companies</div><div class="mock-nav">Contacts</div><div class="mock-nav">Messages</div><div class="mock-nav">Extension</div><div class="mock-nav">Reports</div><div class="mock-nav">Settings</div><div class="mock-nav">Help</div></div><div class="mock-main"><div class="mock-top"><div class="mock-title">Pipeline</div><div class="mock-tag">Placeholder · real screenshot [TBC]</div></div><div class="mock-cols"><div class="mock-col"><div class="mock-h"><span>Prospect</span><span>3</span></div><div class="mock-card hi"><b>Acme BV</b><small>NL · today</small></div><div class="mock-card"><b>Globex GmbH</b><small>DE · 3 days</small></div><div class="mock-card"><b>Initech SARL</b><small>FR · 1 week</small></div></div><div class="mock-col"><div class="mock-h"><span>Engaged</span><span>2</span></div><div class="mock-card"><b>Umbrella NV</b><small>BE · 2 days</small></div><div class="mock-card"><b>Hooli Ltd</b><small>GB · 5 days</small></div></div><div class="mock-col"><div class="mock-h"><span>Discovery</span><span>2</span></div><div class="mock-card"><b>Soylent AG</b><small>CH · 4 days</small></div><div class="mock-card"><b>Stark &amp; Co</b><small>NL · 2 weeks</small></div></div><div class="mock-col"><div class="mock-h"><span>Offer</span><span>1</span></div><div class="mock-card"><b>Wonka BV</b><small>NL · 6 days</small></div></div><div class="mock-col"><div class="mock-h"><span>Won</span><span>1</span></div><div class="mock-card"><b>Vandelay SA</b><small>FR · 3 weeks</small></div></div></div></div></div></div>
-      </figure>
-      <div class="file">
-        <p>The file behind the Acme card:</p>
-        <pre><span class="path">~/crm/companies/acme/company.md</span>
----
-name: Acme BV
-slug: acme
-website: https://acme.example.com
-country: NL
-source: other
-stage: prospect
-stage_changed: 2026-09-17
-...</pre>
-      </div>
-    </div>
-    <p class="after narrow">Add a company in the app or from the terminal. Either way it becomes this file, and one commit records it.</p>
   </section>
 
   <hr class="rule">
@@ -136,26 +139,45 @@ stage_changed: 2026-09-17
 <footer class="site-footer col">Hermit CRM · MIT License · <a href="#">GitHub [TBC]</a> · Built by Gijs Bos at <a href="https://compoundgtm.io">CompoundGTM</a></footer>
 
 <script>
-// Copy button: copies the install message and says "Copied" for 2 seconds.
+// Copy button: shown only when scripts run. "Copied" only when the copy
+// worked; otherwise the message is selected and the button says how to copy.
 document.querySelectorAll("[data-copy]").forEach(function (btn) {
   var label = btn.querySelector("span"), idle = label.textContent, timer;
+  var message = document.getElementById("install-message");
+  btn.hidden = false;
+  function show(text, ms) {
+    label.textContent = text;
+    clearTimeout(timer);
+    timer = setTimeout(function () { label.textContent = idle; }, ms);
+  }
+  function done() { show(btn.dataset.done, 2000); }
+  function failed() {
+    var range = document.createRange(), sel = window.getSelection();
+    range.selectNodeContents(message); sel.removeAllRanges(); sel.addRange(range);
+    show(btn.dataset.failed, 4000);
+  }
   function fallback(text) {
-    var t = document.createElement("textarea");
+    var t = document.createElement("textarea"), ok = false;
     t.value = text; t.setAttribute("readonly", ""); t.style.position = "fixed"; t.style.opacity = "0";
     document.body.appendChild(t); t.select();
-    try { document.execCommand("copy"); } catch (e) {}
+    try { ok = document.execCommand("copy"); } catch (e) {}
     document.body.removeChild(t);
+    ok ? done() : failed();
   }
   btn.addEventListener("click", function () {
     var text = btn.dataset.copy;
     if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(text).catch(function () { fallback(text); });
+      navigator.clipboard.writeText(text).then(done, function () { fallback(text); });
     } else { fallback(text); }
-    label.textContent = btn.dataset.done;
-    clearTimeout(timer);
-    timer = setTimeout(function () { label.textContent = idle; }, 2000);
   });
 });
+// Printing: open every answer, then put them back as they were.
+var shut = [];
+addEventListener("beforeprint", function () {
+  shut = [].filter.call(document.querySelectorAll("details"), function (d) { return !d.open; });
+  shut.forEach(function (d) { d.open = true; });
+});
+addEventListener("afterprint", function () { shut.forEach(function (d) { d.open = false; }); });
 </script>
 </body>
 </html>

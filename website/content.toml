@@ -14,7 +14,8 @@
 #  inside it are ignored, so wrap it however you like.
 #  Leave [TBC] in place until the real value is known. The build lists
 #  every [TBC] that is left, and warns about em dashes, exclamation
-#  marks and the banned marketing words.
+#  marks and the banned marketing words. `python3 build.py --release`
+#  refuses to finish while any of those are left.
 # ─────────────────────────────────────────────────────────────────────
 
 
@@ -66,13 +67,16 @@ sha256_label    = "SHA-256"
 label = "Install with your AI"
 steps = [
   "**Download and unpack it.** Double-click the file in Finder.",
-  "**Open the folder in your AI coding tool:** Claude Code, Codex, Cursor, Gemini CLI or another.",
+  "**Open the folder in your [AI coding tool](#requirements):** Claude Code, Codex, Cursor, Gemini CLI or another.",
   "**Send it this message:**",
 ]
 # The sentence people copy. The Copy button copies exactly this.
 message      = "Read INSTALL.md and set up Hermit CRM for me."
 copy_button  = "Copy"
 copied_label = "Copied"
+# Shown for 4 seconds when the browser refuses to copy; the message is then
+# selected, so the visitor can copy it with the keyboard.
+copy_failed_label = "Press ⌘C"
 note = """
 It checks your Mac, installs what is missing, asks your name and email
 addresses, and starts the app. Passwords and calendar links you type into
