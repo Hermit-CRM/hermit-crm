@@ -86,7 +86,7 @@ def test_settings_page_offers_skip_while_setup_pending(tmp_path):
     app.state.setup_platform = "linux"
     app.state.schedule_home = tmp_path / "home"
     client = TestClient(app, follow_redirects=False)
-    assert client.get("/").headers["location"] == "/settings"
+    assert client.get("/").headers["location"] == "/welcome"
     page = client.get("/settings").text
     assert 'href="/">Skip for now' in page
 

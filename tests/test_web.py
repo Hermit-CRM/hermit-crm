@@ -15,7 +15,9 @@ from fastapi.testclient import TestClient
 from hermitcrm.web import company_values, create_app
 
 CONFIG = {"port": 8765, "silent_days": 14, "push_enabled": False, "remote": "origin",
-          "owner_email": "me@example.com"}
+          "owner_email": "me@example.com",
+          # an established user: these tests are not about the first launch
+          "welcome_dismissed": True}
 
 TODAY = date.today()
 YESTERDAY = TODAY - timedelta(days=1)
@@ -181,6 +183,58 @@ def test_the_home_page_only_shows_the_next_seven_days(client, app):
     doing = page.split('id="doing"')[1].split("</table>")[0]
     assert "this week" in doing and "next month" not in doing
     assert 'href="/calendar"' in page          # the rest is one click away
+
+
+def test_the_walkthrough_ticks_itself_from_the_data(client, app, repo):
+    page = client.get("/welcome").text
+    assert "of 10</strong> done" in page
+    before = int(page.split("<strong>")[1].split(" of")[0])
+
+    post_company(client, name="Acme")
+    post_contact(client, "acme", first_name="Jane", last_name="Roe")
+    page = client.get("/welcome").text
+    after = int(page.split("<strong>")[1].split(" of")[0])
+    assert after == before + 2                        # company and contact, from the files
+    step = page.split('id="company"')[1].split("</li>")[0]
+    assert "&#10003;" in step
+
+
+def test_the_two_steps_nobody_can_see_are_ticked_by_hand(client, app, repo):
+    token = app.state.csrf_token
+    r = client.post("/welcome/tick", data={"csrf_token": token, "key": "extension"})
+    assert r.status_code == 303
+    assert "extension" in app.state.config.get("welcome_done", []) or \
+        '"extension"' in (repo / "config.toml").read_text()
+    page = client.get("/welcome").text
+    assert "Untick" in page.split('id="extension"')[1].split("</li>")[0]
+
+    # a step that ticks itself cannot be ticked by hand
+    r = client.post("/welcome/tick", data={"csrf_token": token, "key": "company"})
+    assert "ticks%20itself" in r.headers["location"]
+
+
+def test_the_walkthrough_explains_filters_and_bcc(client):
+    page = client.get("/welcome").text
+    assert "!text for everything that does not contain it" in page
+    assert "matches each message to a company" in page
+    assert "app password" in page
+
+
+def test_the_tour_is_anchored_to_every_part_it_names(client):
+    """A stop with no anchor would be skipped; this makes sure none are."""
+    page = client.get("/").text
+    for key in ("home", "pipeline", "calendar", "companies", "contacts", "messages",
+                "capture", "search", "ask", "settings"):
+        assert f'data-tour="{key}"' in page, key
+    assert "/static/tour.js" in page
+    assert client.get("/static/tour.js").status_code == 200
+
+
+def test_bcc_settings_offer_the_common_providers(client):
+    page = client.get("/settings").text
+    assert "imap.gmail.com" in page and "imap.mail.me.com" in page
+    assert "Microsoft has switched off password sign-in" in page
+    assert "what does !text mean?" in client.get("/companies").text
 
 
 def test_logo_and_favicon(client):
@@ -1387,9 +1441,9 @@ def test_contact_page_sections_in_order_and_nav_marks_contacts(client, app):
     ids = ['id="details"', 'id="timeline"', 'id="drafts"', 'id="quick-add"', 'id="delete"']
     positions = [page.index(i) for i in ids]
     assert positions == sorted(positions)
-    active = re.findall(r'<a href="([^"]+)" class="active"', page)
+    active = re.findall(r'<a href="([^"]+)"[^>]*class="active"', page)
     assert active == ["/contacts"]
-    assert re.findall(r'<a href="([^"]+)" class="active"', client.get("/companies/acme").text) == ["/companies"]
+    assert re.findall(r'<a href="([^"]+)"[^>]*class="active"', client.get("/companies/acme").text) == ["/companies"]
     assert '<option value="declining">headcount decline</option>' in page
 
 

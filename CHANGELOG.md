@@ -22,6 +22,23 @@ define. Both migrate automatically in one commit.
   keeps them**: the migration writes a `fields.toml` describing them and does
   not touch a single company file, because those keys were always ordinary
   front matter. A folder that never used them gets no file at all.
+- **A walkthrough, on first launch and under Help.** `/welcome` has ten steps
+  -- who you are, a first company and contact, logging an interaction, moving a
+  deal, next steps and tasks, BCC capture, the calendar, the extension, and
+  finding things again -- each ticked by the data rather than by a click: "your
+  first company" is done when a company exists. The two nothing can observe
+  (installing a bookmarklet, learning the filters) are ticked by hand. A fresh
+  start opens it once per server start until you dismiss it. **Show me around**
+  runs a tour that points at each part of the screen, anchored to attributes on
+  the elements themselves so a redesign cannot aim it at the wrong thing.
+- **BCC capture explains itself, per mail provider.** Settings says how BCC
+  capture works and offers Gmail, iCloud, Fastmail and Outlook presets that fill
+  in the server and say where the app password lives -- and says plainly that
+  Microsoft has switched off password sign-in for IMAP on most accounts, with
+  the workaround.
+- **The filter help says what it is.** `!text`, `=text`, `>5` and the rest were
+  documented behind a bare `?` that nobody found; it now reads "what does !text
+  mean?".
 - **A home page, separate from the pipeline.** The logo and the Pipeline tab
   went to the same place, so the product had no front door, and on a fresh
   install that place was an empty board wearing three onboarding cards. `/` is

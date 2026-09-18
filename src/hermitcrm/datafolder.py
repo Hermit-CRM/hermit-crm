@@ -56,6 +56,8 @@ CONFIG_DOCS = {
     "followup_nudge_days": "Days before a message you sent and nobody answered shows on the follow-up radar.",
     "push_enabled": "Push to the git remote after each commit (when a remote exists).",
     "remote": "Name of the git remote to push to.",
+    "welcome_done": "Walkthrough steps you ticked yourself, the ones Hermit CRM cannot see happen.",
+    "welcome_dismissed": "Stop opening the walkthrough when Hermit CRM starts; it stays under Help.",
     "messaging_size_field": "Which of your fields holds a headcount, for the drafts that mention team size; empty means the size line always uses its 'unknown' wording.",
     "messaging_team_field": "Which of your fields holds a count of sales people, for the drafts that mention the team; empty means the team line always uses its 'unknown' wording.",
     "enrich_provider": "AI CLI for Enrich: auto, claude, codex, gemini, grok or custom.",
