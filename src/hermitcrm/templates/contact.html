@@ -19,6 +19,7 @@
   <h2>Contact</h2>
   {{ m.errors_box(errors) }}
   <form method="post" action="/companies/{{ company.slug }}/contacts/{{ contact.slug }}" class="record-form">
+    <input type="hidden" name="version" value="{{ record_version(company.slug, contact.slug) }}">
     {{ m.contact_fields(values, errors) }}
     <button type="submit">Save contact</button>
   </form>

@@ -8,10 +8,13 @@ the single source of truth.
 from __future__ import annotations
 
 import calendar
+import hashlib
 import hmac
+import ipaddress
 import json
 import logging
 import platform as platform_info
+import socket
 import subprocess
 import sys
 from collections import Counter
@@ -21,7 +24,7 @@ from secrets import token_urlsafe
 from urllib.parse import quote, urlencode, urlparse
 
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
@@ -69,6 +72,7 @@ from .models import (
 )
 from .store import (
     COMPANY_MERGE_FIELDS, CONTACT_MERGE_FIELDS, DEFAULT_CONFIG, Store, load_config,
+    normalise_body,
 )
 
 logger = logging.getLogger("crm.web")
@@ -424,6 +428,110 @@ def safe_page(page: str) -> str:
     return page
 
 
+# ---------------------------------------------------------------- request guards
+#
+# Hermit CRM has no login, so the browser is the only thing between a web page
+# you happen to have open and your CRM. Two checks close that gap:
+#
+# * Host: a page on attacker.example whose DNS answer flips to 127.0.0.1 (DNS
+#   rebinding) talks to this app as if it were its own site, and could read
+#   every page. Its requests carry `Host: attacker.example`. An IP address can
+#   never be rebound, so IP literals always pass; names must be known.
+# * Cross-site POST: any page can submit a form to 127.0.0.1:8765. Browsers
+#   say where a request came from (Sec-Fetch-Site, else Origin, else Referer);
+#   a write that another site started is refused. Requests with none of these
+#   headers are not from a browser page (curl, scripts, tests) and pass.
+
+# Host names accepted besides IP literals, `localhost` and config
+# `allowed_hosts`. Tests add their client's "testserver" here.
+EXTRA_HOST_NAMES: set[str] = set()
+UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+def host_name(value: str) -> str:
+    """The name in a Host header or URL netloc: lower case, no port, no brackets."""
+    value = (value or "").strip().lower()
+    if value.startswith("["):
+        return value[1:].split("]", 1)[0]
+    if value.count(":") == 1:
+        return value.split(":", 1)[0]
+    return value
+
+
+def is_ip(name: str) -> bool:
+    try:
+        ipaddress.ip_address(name)
+    except ValueError:
+        return False
+    return True
+
+
+def allowed_host_names(config: dict) -> set[str]:
+    """Every host name (not IP) this app answers to."""
+    names = {"localhost", *EXTRA_HOST_NAMES}
+    names |= {str(h).strip().lower() for h in (config.get("allowed_hosts") or [])
+              if str(h).strip()}
+    bind = str(config.get("host") or "127.0.0.1").strip().lower()
+    if bind and not is_ip(bind):
+        names.add(bind)
+    if bind in ("0.0.0.0", "::"):
+        # On the network, your phone may use this machine's own name.
+        machine = socket.gethostname().strip().lower()
+        if machine:
+            short = machine.split(".")[0]
+            names |= {machine, short, f"{short}.local"}
+    return names
+
+
+def host_allowed(host_header: str, names: set[str]) -> bool:
+    name = host_name(host_header)
+    # No Host at all is not a browser, and so not a rebinding page.
+    return not name or is_ip(name) or name in names
+
+
+def cross_site(request: Request) -> bool:
+    """True when the browser says another site's page sent this request."""
+    site = request.headers.get("sec-fetch-site")
+    if site:
+        return site not in ("same-origin", "none")
+    host = (request.headers.get("host") or "").strip().lower()
+    origin = request.headers.get("origin")
+    if origin is not None:
+        return origin.strip() == "null" or urlparse(origin).netloc.lower() != host
+    referer = request.headers.get("referer")
+    if referer:
+        return urlparse(referer).netloc.lower() != host
+    return False
+
+
+def record_version(root: Path, slug: str, cslug: str = "") -> str:
+    """A short hash of a company's file (or a contact's), as a page showed it.
+
+    The edit forms send it back, so a save made from a page opened before
+    another process changed the record is caught instead of reverting it.
+    """
+    folder = Path(root) / "companies" / slug
+    path = folder / "contacts" / f"{cslug}.md" if cslug else folder / "company.md"
+    try:
+        return hashlib.sha1(path.read_bytes()).hexdigest()[:16]
+    except OSError:
+        return ""
+
+
+def changed_fields(submitted: dict, current: dict) -> list[str]:
+    """Form fields whose submitted value is not what the record now holds."""
+    def norm(value) -> str:
+        return normalise_body(str(value or "")).strip()
+    return [k for k in submitted if k in current and norm(submitted[k]) != norm(current[k])]
+
+
+def stale_form_text(what: str, differ: list[str]) -> str:
+    fields = f" It now differs from what you typed in: {', '.join(differ)}." if differ else ""
+    return (f"Not saved: this {what} changed after you opened the page (another tab, "
+            f"the daily import or a git pull).{fields} The form keeps what you typed; "
+            "check it against the record and save again.")
+
+
 def create_app(root: Path, config: dict | None = None) -> FastAPI:
     root = Path(root)
     config = dict(config) if config is not None else load_config(root)
@@ -546,15 +654,54 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             return ""
         return bcc.run_alert(last, store.now(), "calendar import")
 
+    app.state.index_head = gitops.last_commit_sha()
+
+    def refresh_if_moved() -> None:
+        """Reload the index when git HEAD moved since it was loaded.
+
+        Every write by any Hermit CRM process (the daily sync, the CLI, the MCP
+        server, another `serve`) is a commit, and so is a git pull; this app's
+        own writes are too, which costs one reload (~0.1 s for 350 companies)
+        on the page after a save. Writes re-read their record either way (see
+        Store._current); this keeps the lists and the pipeline current.
+        """
+        head = gitops.last_commit_sha()
+        if head and head != app.state.index_head:
+            store.load()
+            app.state.custom_fields = load_custom_fields()
+            app.state.index_head = head
+
     @app.middleware("http")
     async def requalify_sweep(request: Request, call_next):
         # Parked companies whose "requalify on" date has arrived go back to
         # prospect the next time any page is opened (idempotent, one commit).
         if request.method == "GET" and not request.url.path.startswith("/static"):
             try:
+                refresh_if_moved()
+            except Exception:
+                logger.exception("index refresh failed")
+            try:
                 store.requalify_due()
             except Exception:
                 logger.exception("requalify sweep failed")
+        return await call_next(request)
+
+    host_names = allowed_host_names(config)
+
+    @app.middleware("http")  # registered last, so it runs first
+    async def request_guard(request: Request, call_next):
+        host = request.headers.get("host", "")
+        if not host_allowed(host, host_names):
+            logger.warning("refused request for unknown host %r", host)
+            return PlainTextResponse(
+                f"Hermit CRM does not answer to the host name {host_name(host)!r}. "
+                "If that name is yours, add it to allowed_hosts in config.toml and "
+                "restart.", status_code=400)
+        if request.method in UNSAFE_METHODS and cross_site(request):
+            logger.warning("refused cross-site %s %s", request.method, request.url.path)
+            return PlainTextResponse(
+                "Refused: this change was sent from another website's page. Make it "
+                "from Hermit CRM itself.", status_code=403)
         return await call_next(request)
 
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
@@ -585,6 +732,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         hermitcrm_version=__version__,
         update_notice=app.state.update_notice,
         render_markdown=helpdocs.render,
+        record_version=lambda slug, cslug="": record_version(root, slug, cslug),
         custom_fields_for=lambda scope: custom.for_scope(app.state.custom_fields, scope),
     )
 
@@ -1408,6 +1556,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         next_step_status: str = Form("open"),
         tags: str = Form(""),
         notes: str = Form(""),
+        version: str = Form(""),
     ):
         company = need_company(slug)
         values = {
@@ -1420,6 +1569,19 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "tags": tags, "notes": notes,
         }
         extra, shown, custom_errors = await custom_submitted(request, "company")
+        if version and version != record_version(root, slug):
+            current = need_company(slug, refresh=True)
+            return render(request, "company.html", {
+                "company": current,
+                "values": {**values, **shown},
+                "flash": stale_form_text("company",
+                                         changed_fields(values, company_values(current))),
+                "interaction": interaction_values(current),
+                "focus": "",
+                "others": [],
+                **draft_context(request, current,
+                                next(iter(current.contacts.values()), None)),
+            }, status_code=409)
         try:
             if custom_errors:
                 raise ValidationError(custom_errors)
@@ -1736,6 +1898,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         phone: str = Form(""),
         role: str = Form(""),
         notes: str = Form(""),
+        version: str = Form(""),
     ):
         company = need_company(slug)
         contact = company.contacts.get(cslug)
@@ -1745,6 +1908,21 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
                   "linkedin": linkedin, "email": email, "phone": phone, "role": role,
                   "notes": notes}
         extra, shown, custom_errors = await custom_submitted(request, "contact")
+        if version and version != record_version(root, slug, cslug):
+            current = need_company(slug, refresh=True)
+            person = current.contacts.get(cslug)
+            if person is None:
+                raise HTTPException(status_code=404, detail=f"unknown contact {cslug!r}")
+            return render(request, "contact.html", {
+                "company": current,
+                "contact": person,
+                "values": {**values, **shown},
+                "flash": stale_form_text("contact",
+                                         changed_fields(values, contact_values(person))),
+                "interactions": [i for i in current.interactions if i.contact == cslug],
+                "interaction": interaction_values(current, contact=cslug),
+                **draft_context(request, current, person),
+            }, status_code=409)
         try:
             if custom_errors:
                 raise ValidationError(custom_errors)

@@ -62,6 +62,10 @@ DEFAULT_CONFIG = {
     # puts it on the network (your phone) and, since Hermit CRM has no password,
     # on that network's terms -- prefer a private one over open Wi-Fi.
     "host": "127.0.0.1",
+    # Host names (not IP addresses) the web app answers to besides localhost,
+    # e.g. a Tailscale name. Anything else is refused: that is what stops a
+    # web page from reaching this app through DNS rebinding.
+    "allowed_hosts": [],
     "silent_days": 14,
     # Follow-up radar (hermitcrm/followups.py). A message they sent counts as
     # owed after this many days; one you sent counts as unanswered after the
@@ -295,14 +299,16 @@ class Store:
     # --- loading
 
     def load(self) -> list[Problem]:
-        self.companies = {}
+        # Built aside and swapped in whole: the web app reloads while other
+        # requests read the index, and they must never see it half empty.
+        companies: dict[str, Company] = {}
         self.problems = []
-        if not self.companies_dir.exists():
-            return self.problems
-        for folder in sorted(p for p in self.companies_dir.iterdir() if p.is_dir()):
-            company = self._parse_company_folder(folder)
-            if company:
-                self.companies[company.slug] = company
+        if self.companies_dir.exists():
+            for folder in sorted(p for p in self.companies_dir.iterdir() if p.is_dir()):
+                company = self._parse_company_folder(folder)
+                if company:
+                    companies[company.slug] = company
+        self.companies = companies
         return self.problems
 
     def _parse_company_folder(self, folder: Path) -> Company | None:
@@ -375,6 +381,22 @@ class Store:
             return None
         self.companies[slug] = company
         return company
+
+    def _current(self, slug: str) -> Company | None:
+        """The company as it is on disk now, for a write to start from.
+
+        The web app, the daily sync job, the CLI and the MCP server are separate
+        processes with their own index, and a git pull writes underneath all of
+        them. A write that started from this process's index would put back
+        whatever it last loaded: a sync run's new interaction and stage move
+        were reverted by the next click in a web app started before it. So
+        every write re-reads its company first. A company whose files no longer
+        parse is unknown here rather than overwritten.
+        """
+        slug = str(slug or "")
+        if not slug or slug.startswith(".") or "/" in slug or "\\" in slug:
+            return None
+        return self.reload_company(slug)
 
     # --- reading
 
@@ -565,7 +587,7 @@ class Store:
 
     def update_company(self, slug: str, message: str | None = None, **fields) -> Company:
         """Update fields; `message` overrides the default commit message."""
-        company = self.companies.get(slug)
+        company = self._current(slug)
         if company is None:
             raise ValidationError({"slug": f"unknown company {slug!r}"})
         old_stage = company.stage
@@ -660,7 +682,11 @@ class Store:
         """Put every temp-disqualified company whose requalify date has arrived
         back into prospect. Idempotent; one commit for all of them."""
         today = today or self.today()
-        due = sorted(c.slug for c in self.companies.values() if c.requalify_due(today))
+        candidates = sorted(c.slug for c in self.companies.values()
+                            if c.requalify_due(today))
+        # Another process may have moved a candidate on since this index loaded.
+        due = [slug for slug in candidates
+               if (c := self._current(slug)) is not None and c.requalify_due(today)]
         if not due:
             return []
         if len(due) == 1:
@@ -676,7 +702,7 @@ class Store:
     def backfill_stage_history(self, slug: str, history: list[StageChange]) -> Company:
         """Write a reconstructed history (hermitcrm backfill-history) for a company
         that has none yet. Existing entries are never rewritten."""
-        company = self.companies.get(slug)
+        company = self._current(slug)
         if company is None:
             raise ValidationError({"slug": f"unknown company {slug!r}"})
         if company.stage_history:
@@ -728,7 +754,7 @@ class Store:
 
     def _task_owner(self, slug: str, contact: str = ""):
         """(company, record) -- the record is the company or one of its contacts."""
-        company = self.companies.get(slug)
+        company = self._current(slug)
         if company is None:
             raise ValidationError({"slug": f"unknown company {slug!r}"})
         if not contact:
@@ -819,8 +845,8 @@ class Store:
         both; default keeps the non-empty one), contacts and interactions moved,
         the dropped folder deleted. One commit."""
         choices = choices or {}
-        a = self.companies.get(keep)
-        b = self.companies.get(drop)
+        a = self._current(keep)
+        b = self._current(drop) if drop != keep else a
         if a is None:
             raise ValidationError({"keep": f"unknown company {keep!r}"})
         if b is None:
@@ -885,7 +911,7 @@ class Store:
         """Fold contact `drop` into `keep` within one company; interactions of
         `drop` are re-pointed (and renamed) to `keep`. One commit."""
         choices = choices or {}
-        company = self.companies.get(company_slug)
+        company = self._current(company_slug)
         if company is None:
             raise ValidationError({"company": f"unknown company {company_slug!r}"})
         a = company.contacts.get(keep)
@@ -933,7 +959,7 @@ class Store:
     def create_contact(self, company_slug: str, first_name, last_name="", title="",
                        linkedin="", email="", phone="", role="", notes="",
                        custom=None) -> Contact:
-        company = self.companies.get(company_slug)
+        company = self._current(company_slug)
         if company is None:
             raise ValidationError({"company": f"unknown company {company_slug!r}"})
         first_name = " ".join((first_name or "").split())
@@ -967,7 +993,7 @@ class Store:
 
     def update_contact(self, company_slug: str, cslug: str, message: str | None = None,
                        **fields) -> Contact:
-        company = self.companies.get(company_slug)
+        company = self._current(company_slug)
         if company is None:
             raise ValidationError({"company": f"unknown company {company_slug!r}"})
         contact = company.contacts.get(cslug)
@@ -1007,7 +1033,7 @@ class Store:
         """Remove one contact file. Its interactions stay on the company with
         the contact cleared (front matter only; bodies are untouched), so the
         record of what happened survives. One commit for all of it."""
-        company = self.companies.get(company_slug)
+        company = self._current(company_slug)
         if company is None:
             raise ValidationError({"company": f"unknown company {company_slug!r}"})
         contact = company.contacts.get(cslug)
@@ -1024,6 +1050,7 @@ class Store:
             self._touch(gone)
             gone.unlink(missing_ok=True)
             company.contacts.pop(cslug, None)
+            self.reload_company(company_slug)  # the index may hold a newer object
             self._notify(message)
         return contact
 
@@ -1043,7 +1070,7 @@ class Store:
     def create_interaction(self, company_slug: str, channel, direction, subject="",
                            contact="", date=None, outcome="", body="",
                            source="manual", message_id="", custom=None) -> Interaction:
-        company = self.companies.get(company_slug)
+        company = self._current(company_slug)
         if company is None:
             raise ValidationError({"company": f"unknown company {company_slug!r}"})
         subject = (subject or "").strip()
@@ -1087,7 +1114,7 @@ class Store:
         return it
 
     def update_interaction(self, company_slug: str, id: str, **fields) -> Interaction:
-        company = self.companies.get(company_slug)
+        company = self._current(company_slug)
         if company is None:
             raise ValidationError({"company": f"unknown company {company_slug!r}"})
         old = next((i for i in company.interactions if i.id == id), None)
@@ -1149,7 +1176,7 @@ class Store:
         """Remove one interaction file; the commit (the path is recorded for it)
         records the deletion. The company's list is updated in place, as
         update_interaction does, so pages see it gone at once."""
-        company = self.companies.get(company_slug)
+        company = self._current(company_slug)
         if company is None:
             raise ValidationError({"company": f"unknown company {company_slug!r}"})
         it = next((i for i in company.interactions if i.id == id), None)
