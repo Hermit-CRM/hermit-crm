@@ -278,7 +278,7 @@ def test_merge_rows_default_to_the_filled_side(seeded):
     assert rows["tags"]["default"] == "drop" and rows["tags"]["both"]
     assert rows["notes"]["default"] == "drop" and rows["notes"]["both"]
     assert rows["stage"]["default"] == "keep"       # both filled: ours
-    assert rows["my_score"]["default"] == "keep"    # both empty: ours
+    assert rows["source"]["default"] == "keep"     # both the same: ours
     assert rows["name"]["label"] == "name" and rows["value_eur_month"]["label"] == "value eur month"
     assert not rows["website"]["both"]
     jane = acme.contacts["jane-doe"]

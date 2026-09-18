@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import tomllib
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -372,6 +373,62 @@ def _positive_int(raw: str, key: str, label: str, errors: dict) -> int | None:
         errors[key] = f"{label} must be a whole number of at least 1."
         return None
     return value
+
+
+def save_fields(data_dir: Path, text: str) -> StepResult:
+    """Replace fields.toml with `text`, refusing anything it cannot honour.
+
+    The textarea holds the file itself, so what you are about to save is what
+    you are looking at; there is no separate preview to drift from it.
+    """
+    from . import fields as custom
+    result = StepResult()
+    text = (text or "").strip()
+    try:
+        defs = custom.parse(tomllib.loads(text)) if text else []
+    except tomllib.TOMLDecodeError as exc:
+        result.ok = False
+        result.errors["fields"] = f"That is not valid TOML: {exc}"
+        return result
+    except custom.FieldError as exc:
+        result.ok = False
+        result.errors["fields"] = "; ".join(f"{k}: {v}" for k, v in exc.errors.items())
+        return result
+    custom.write(Path(data_dir), defs)
+    result.messages.append(f"Fields saved: {len(defs)}." if defs
+                           else "Fields saved: none; fields.toml removed.")
+    return result
+
+
+def add_field(data_dir: Path, key: str, label: str = "", type: str = "text",
+              applies_to: str = "company", options: str = "",
+              show_in: list[str] | None = None, help: str = "") -> StepResult:
+    """Append one field to the folder's definitions."""
+    from . import fields as custom
+    result = StepResult()
+    data_dir = Path(data_dir)
+    try:
+        existing = custom.load(data_dir)
+    except custom.FieldError as exc:
+        result.ok = False
+        result.errors["fields"] = ("The existing fields.toml has a problem; fix it below "
+                                   "first: " + "; ".join(exc.errors.values()))
+        return result
+    entry = {
+        "key": key, "label": label, "type": type, "applies_to": applies_to,
+        "help": help,
+        "options": [o.strip() for o in (options or "").split(",") if o.strip()],
+        "show_in": list(show_in or ["detail"]),
+    }
+    try:
+        added = custom.parse({"field": [{**e.__dict__} for e in existing] + [entry]})
+    except custom.FieldError as exc:
+        result.ok = False
+        result.errors["field"] = "; ".join(f"{k}: {v}" for k, v in exc.errors.items())
+        return result
+    custom.write(data_dir, added)
+    result.messages.append(f"Field {added[-1].key} added.")
+    return result
 
 
 def save_enrichment(data_dir: Path, provider: str, command: str = "", model: str = "",

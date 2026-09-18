@@ -8,7 +8,7 @@ import subprocess
 from datetime import datetime, time, timedelta
 from pathlib import Path
 
-from . import migrations
+from . import fields, migrations
 from .store import DEFAULT_CONFIG, Store
 
 ENV_DATA = "HERMITCRM_DATA"
@@ -309,8 +309,22 @@ DEMO_COMPANIES = [
 ]
 
 
+# The demo folder defines three fields of its own. A plain `hermitcrm init`
+# writes no fields.toml at all -- these exist to show what user-defined fields
+# look like once they hold something, which an empty Settings form cannot.
+DEMO_FIELDS = [
+    fields.FieldDef(key="my_score", label="my score", type="number",
+                    help="your own 0 to 10", show_in=["detail", "board", "companies"]),
+    fields.FieldDef(key="fte_estimate", label="FTE estimate", type="text",
+                    help="as written, e.g. ~13", show_in=["detail", "companies"]),
+    fields.FieldDef(key="ae_count", label="AE count", type="number",
+                    show_in=["detail"]),
+]
+
+
 def load_demo(path: Path, now: datetime) -> Store:
     """Six fictional companies spread over the last six weeks, every stage type."""
+    fields.write(path, DEMO_FIELDS)
     today = now.date()
     clock = {"now": datetime.combine(today - timedelta(days=42), time(9, 0))}
     store = Store(path, clock=lambda: clock["now"])
@@ -325,8 +339,9 @@ def load_demo(path: Path, now: datetime) -> Store:
     for i, (name, site, country, source, fte, ae, oneliner, tags, score) in enumerate(DEMO_COMPANIES):
         at(42 - i)
         c = store.create_company(name, website=site, country=country, source=source,
-                                 fte_estimate=fte, ae_count=ae, product_oneliner=oneliner,
-                                 tags=tags, my_score=score,
+                                 product_oneliner=oneliner, tags=tags,
+                                 custom={"fte_estimate": fte, "ae_count": ae,
+                                         "my_score": score},
                                  notes=f"Demo company. {oneliner}.\n")
         slugs.append(c.slug)
     northwind, bluefin, copperleaf, tallpine, quartzline, emberoak = slugs

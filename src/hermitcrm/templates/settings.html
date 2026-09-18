@@ -7,7 +7,7 @@
 <h1>Settings</h1>
 <p class="small settings-toc">
   <a href="#you">You</a> &middot; <a href="#bcc">BCC capture</a> &middot; <a href="#calendar">Calendar</a> &middot;
-  <a href="#backup">Backup</a> &middot; <a href="#enrichment">Enrichment</a> &middot; <a href="#outcomes">Outcomes</a> &middot;
+  <a href="#backup">Backup</a> &middot; <a href="#fields">Fields</a> &middot; <a href="#enrichment">Enrichment</a> &middot; <a href="#outcomes">Outcomes</a> &middot;
   <a href="#inbox">Review queue{% if items %} ({{ items|length }}){% endif %}</a> &middot; <a href="#schedule">Schedule</a> &middot; <a href="#access">Access</a> &middot; <a href="#about">About</a>
   &middot; <a href="/help/settings">Help</a>
 </p>
@@ -82,6 +82,61 @@
       {% endfor %}
     </fieldset>
     <button type="submit">Save</button>
+  </form>
+</section>
+
+<section class="setup-step" id="fields">
+  <h2>Fields</h2>
+  <p class="small">Fields of your own, on top of the ones Hermit CRM has. Their values live in the front matter of the record they belong to, like every other field, so nothing is hidden in a database. They are described in <code>fields.toml</code> next to your data.</p>
+  {{ step_errors('fields') }}
+
+  {% if custom_field_defs %}
+  <table class="fields-list small">
+    <tr><th>key</th><th>label</th><th>type</th><th>on</th><th>shown in</th></tr>
+    {% for f in custom_field_defs %}
+    <tr>
+      <td><code>{{ f.key }}</code></td><td>{{ f.label }}</td><td>{{ f.type }}</td>
+      <td>{{ f.applies_to }}</td><td>{{ f.show_in | join(', ') }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="setup-status pending">No fields of your own yet.</p>
+  {% endif %}
+
+  <h3 class="small">Add one</h3>
+  <form method="post" action="/settings/fields/add" class="record-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="row">
+      <label>key <input name="key" placeholder="segment" required></label>
+      <label class="grow">label (empty: the key) <input name="label"></label>
+      <label>type
+        <select name="type">{% for t in field_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select>
+      </label>
+      <label>on
+        <select name="applies_to">{% for sc in field_scopes %}<option value="{{ sc }}">{{ sc }}</option>{% endfor %}</select>
+      </label>
+    </div>
+    <div class="row">
+      <label class="grow">options, comma separated (select only) <input name="options" placeholder="smb, mid-market, enterprise"></label>
+      <label class="grow">help text under the input <input name="help"></label>
+    </div>
+    <fieldset class="switch">
+      <legend>Shown in</legend>
+      {% for view in ['detail', 'board', 'companies', 'contacts', 'messages'] %}
+      <label class="inline"><input type="checkbox" name="show_in" value="{{ view }}"{% if view == 'detail' %} checked{% endif %}> {{ view }}</label>
+      {% endfor %}
+    </fieldset>
+    <p class="small">A field only appears where its record does: <code>board</code> and <code>companies</code> for a company field, <code>contacts</code> for a contact, <code>messages</code> for an interaction. Wherever it appears as a column it can be filtered and sorted like any other.</p>
+    <button type="submit">Add field</button>
+  </form>
+
+  <h3 class="small">All of them at once</h3>
+  <form method="post" action="/settings/fields" class="record-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label class="grow">fields.toml <textarea name="fields_toml" rows="12" spellcheck="false">{{ fields_form.toml }}</textarea></label>
+    <p class="small">This is the file itself, so what you save is what you are reading. Removing a field here stops Hermit CRM showing it; the values stay in your records untouched, and putting the field back brings them straight back.</p>
+    <button type="submit">Save fields</button>
   </form>
 </section>
 

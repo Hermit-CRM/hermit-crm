@@ -46,7 +46,7 @@ the language of the company's country:
    when the signal is hiring (help while the role is open), or **decline** when
    the signal is headcount decline (a tough stretch, then an open question);
 2. **unblock**: past the next headcount hurdle (10, 20, 50, 100, 250, 500,
-   from `fte_estimate`);
+   from the company's own fields);
 3. **hook**: one observation, then an open question.
 
 Two inputs are yours: the **signal** (growing, stalled, headcount decline, hiring, read off

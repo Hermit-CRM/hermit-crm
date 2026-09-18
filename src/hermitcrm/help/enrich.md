@@ -12,14 +12,15 @@ Fields that already have a value are never touched.
 On the company page. Reads the given website or LinkedIn company URL
 (defaults to the company's own) with the standard library: title, meta
 description, links, JSON-LD and the domain's country TLD become proposals for
-website, LinkedIn, country, FTE estimate and the one-liner. LinkedIn serves
+website, LinkedIn, country and the one-liner. LinkedIn serves
 its public page to some anonymous requests and refuses others (HTTP 999); the
 error says so. CLI: `hermitcrm fetch <slug> [--url URL] [--apply]`.
 
 ## Enrich
 
 On company and contact pages when a CLI is available. Company fields: website,
-LinkedIn, country, FTE estimate, AE count, one-liner. Contact fields: title,
+LinkedIn, country, one-liner, plus any field of your own that set
+`enrich = true`. Contact fields: title,
 LinkedIn. The CLI is asked for a JSON answer with sources; anything it cannot
 verify comes back as "not found", never guessed. When nothing could be
 verified but the CLI found sources (say, a LinkedIn profile at another

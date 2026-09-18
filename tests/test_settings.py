@@ -295,3 +295,50 @@ Content-Type: text/plain; charset=utf-8
 
 Hi there
 """
+
+
+# ------------------------------------------------------------------- fields
+
+
+def test_fields_can_be_added_one_at_a_time(demo, tmp_path):
+    app, client = make_client(demo, tmp_path)
+    t = token(client)
+    r = client.post("/settings/fields/add", data={
+        "csrf_token": t, "key": " Deal Source ", "label": "how we met",
+        "type": "select", "options": "inbound, outbound, referral",
+        "show_in": ["detail", "companies"]})
+    assert r.status_code == 303 and "Field%20deal_source%20added" in r.headers["location"]
+
+    added = [d for d in app.state.custom_fields if d.key == "deal_source"]
+    assert len(added) == 1
+    assert added[0].label == "how we met" and added[0].options == \
+        ["inbound", "outbound", "referral"]
+    assert 'key = "deal_source"' in (demo / "fields.toml").read_text()
+    assert "how we met" in client.get("/settings").text
+
+
+def test_a_field_that_would_shadow_a_built_in_one_is_refused(demo, tmp_path):
+    app, client = make_client(demo, tmp_path)
+    before = (demo / "fields.toml").read_text()
+    r = client.post("/settings/fields/add",
+                    data={"csrf_token": token(client), "key": "stage"})
+    assert r.status_code == 400 and "already a built-in company field" in r.text
+    assert (demo / "fields.toml").read_text() == before
+
+
+def test_the_whole_file_can_be_edited_at_once(demo, tmp_path):
+    app, client = make_client(demo, tmp_path)
+    t = token(client)
+    good = ('[[field]]\nkey = "segment"\ntype = "select"\n'
+            'options = ["smb", "enterprise"]\nshow_in = ["detail"]\n')
+    r = client.post("/settings/fields", data={"csrf_token": t, "fields_toml": good})
+    assert r.status_code == 303 and "Fields%20saved%3A%201" in r.headers["location"]
+    assert [d.key for d in app.state.custom_fields] == ["segment"]
+
+    r = client.post("/settings/fields", data={"csrf_token": t, "fields_toml": "key = ["})
+    assert r.status_code == 400 and "not valid TOML" in r.text
+    assert [d.key for d in app.state.custom_fields] == ["segment"]   # unchanged
+
+    r = client.post("/settings/fields", data={"csrf_token": t, "fields_toml": ""})
+    assert r.status_code == 303 and "fields.toml%20removed" in r.headers["location"]
+    assert app.state.custom_fields == [] and not (demo / "fields.toml").exists()

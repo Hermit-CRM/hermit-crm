@@ -17,9 +17,12 @@
     <td>{% if r.linkedin %}<a href="{{ r.linkedin }}" target="_blank" rel="noopener">{{ r.linkedin | replace('https://www.linkedin.com/in/', '') | replace('https://', '') }}</a>{% endif %}</td>
     <td>{{ fmt_datetime(r.last_touch).replace('T', ' ') if r.last_touch else 'none' }}</td>
     <td>{{ r.interaction_count }}</td>
+    {% for f in custom_fields_for('contact') if f.shows_in('contacts') %}
+    <td>{{ f.display(r.extra.get(f.key)) }}</td>
+    {% endfor %}
   </tr>
   {% else %}
-  <tr><td colspan="7" class="empty">No contacts.</td></tr>
+  <tr><td colspan="{{ filter_columns | length }}" class="empty">No contacts.</td></tr>
   {% endfor %}
 </table>
 {% endblock %}
