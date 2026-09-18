@@ -195,14 +195,16 @@ def cmd_setup(root: Path, ask=input, ask_secret=None, say=print, runner=subproce
 
 def cmd_schedule(root: Path, action: str, at: str = "07:00", serve: bool = False,
                  home: Path | None = None, runner=subprocess.run,
-                 platform: str | None = None, env: dict | None = None) -> int:
+                 platform: str | None = None, env: dict | None = None,
+                 backup: bool = True, backup_every: int = 5) -> int:
     from hermitcrm import schedule
 
     ctx = schedule.Context(data_dir=root, home=home or Path.home(),
                            platform=platform or schedule.sys.platform, runner=runner, env=env)
     try:
         if action == "install":
-            lines = schedule.install(ctx, at=at, serve=serve)
+            lines = schedule.install(ctx, at=at, serve=serve, backup=backup,
+                                     backup_every=backup_every)
         elif action == "remove":
             lines = schedule.remove(ctx)
         else:
@@ -212,6 +214,52 @@ def cmd_schedule(root: Path, action: str, at: str = "07:00", serve: bool = False
         return 2
     print("\n".join(lines))
     return 0
+
+
+def cmd_backup(root: Path, args, home: Path | None = None) -> int:
+    """run / status / list / restore; see hermitcrm/backup.py."""
+    from hermitcrm import backup
+
+    config = load_config(root)
+    action = args.action or "run"
+    if action == "status":
+        state = backup.status(root, config, home=home)
+        print("\n".join(state["lines"]))
+        if state["summary"]:
+            print(f"{state['level']}: {state['summary']}")
+        return 0 if state["level"] == "ok" else 1
+    if action == "list":
+        try:
+            text, code = backup.list_versions(root, config, path=args.path, limit=args.limit,
+                                              home=home)
+        except backup.BackupError as exc:
+            text, code = str(exc), 2
+        print(text, file=sys.stderr if code == 2 else sys.stdout)
+        return code
+    if action == "restore":
+        outcome, commit = backup.restore(root, args.ref, args.paths, config=config,
+                                         apply=args.apply, home=home)
+        print("\n".join(outcome.lines),
+              file=sys.stderr if outcome.code == 2 else sys.stdout)
+        if commit:
+            try:
+                migrations.ensure_current(root)  # an older version may be an older format
+                store = build_store(root)
+                gitops = GitOps(root, push_enabled=config["push_enabled"],
+                                remote=config.get("remote", "origin"))
+                print(cmd_rebuild(store, gitops))
+                _reload_server(config)
+            except migrations.FormatTooNew as exc:
+                print(exc, file=sys.stderr)
+        return outcome.code
+    outcome = backup.run(root, config, home=home)
+    if outcome.changed or outcome.warnings or outcome.code or not args.quiet:
+        stamp = f"{datetime.now():%Y-%m-%d %H:%M}"
+        for line in outcome.lines:
+            print(f"{stamp} {line}", file=sys.stderr if outcome.code == 2 else sys.stdout)
+        for line in outcome.warnings:
+            print(f"{stamp} WARNING: {line}", file=sys.stderr)
+    return outcome.code
 
 
 # ---------------------------------------------------------------------- mcp
@@ -881,6 +929,28 @@ def _build_parser() -> argparse.ArgumentParser:
                          help="time of the daily sync --apply (default 07:00)")
     p_sched.add_argument("--serve", action="store_true",
                          help="also keep the web app running (install only)")
+    p_sched.add_argument("--backup-every", type=int, default=5, metavar="MIN",
+                         help="minutes between backups (default 5; install only)")
+    p_sched.add_argument("--no-backup", action="store_true",
+                         help="do not schedule the backup job (install only)")
+
+    p_backup = sub.add_parser("backup", help="back up to a repository that only grows; "
+                              "list and restore versions")
+    b_sub = p_backup.add_subparsers(dest="action")
+    b_run = b_sub.add_parser("run", help="one backup now (the default; what the job runs)")
+    b_run.add_argument("--quiet", action="store_true",
+                       help="print nothing when there was nothing new (for the job's log)")
+    b_sub.add_parser("status", help="where the backup is, its size and the last run")
+    b_list = b_sub.add_parser("list", help="versions in the backup, newest first")
+    b_list.add_argument("path", nargs="?", default="",
+                        help="only versions that touch this file or folder")
+    b_list.add_argument("-n", type=int, default=20, dest="limit", help="how many (default 20)")
+    b_restore = b_sub.add_parser("restore", help="put files back as they were in a version")
+    b_restore.add_argument("ref", help="a version id from hermitcrm backup list")
+    b_restore.add_argument("paths", nargs="*",
+                           help="files or folders to restore (default: everything)")
+    b_restore.add_argument("--apply", action="store_true")
+    p_backup.set_defaults(action="run", quiet=False)
 
     p_migrate = sub.add_parser("migrate", help="upgrade the data format (runs automatically)")
     p_migrate.add_argument("--dry-run", action="store_true",
@@ -1040,6 +1110,9 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
             root = Path(args.data or os.environ.get("HERMITCRM_DATA") or Path.cwd())
     root = Path(root)
 
+    if args.command == "backup":  # before migrations: a backup never changes the data
+        return cmd_backup(root, args)
+
     if args.command == "doctor":  # before migrations: report, never change the folder
         from hermitcrm import doctor
         text, code = doctor.report(doctor.run_checks(root, online=args.online))
@@ -1068,7 +1141,8 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
         return cmd_setup(root)
 
     if args.command == "schedule":
-        return cmd_schedule(root, args.action, at=args.at, serve=args.serve)
+        return cmd_schedule(root, args.action, at=args.at, serve=args.serve,
+                            backup=not args.no_backup, backup_every=args.backup_every)
 
     store = build_store(root)
 

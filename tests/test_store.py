@@ -26,7 +26,7 @@ def test_load_config_defaults(tmp_path):
     assert cfg == {"port": 8765, "host": "127.0.0.1", "silent_days": 14,
                    "followup_reply_days": 1, "followup_nudge_days": 5,
                    "push_enabled": True,
-                   "remote": "origin", "welcome_done": [], "welcome_dismissed": False,
+                   "remote": "origin", "backup_dir": "", "welcome_done": [], "welcome_dismissed": False,
                    "messaging_size_field": "fte_estimate", "messaging_team_field": "ae_count",
                    "enrich_provider": "auto", "enrich_account": "subscription",
                    "enrich_command": "", "enrich_model": "", "enrich_timeout": 180,
@@ -51,7 +51,7 @@ def test_load_config_reads_toml(tmp_path):
     )
     assert load_config(tmp_path) == {"port": 9000, "host": "127.0.0.1", "silent_days": 7,
                                      "followup_reply_days": 1, "followup_nudge_days": 5,
-                                     "push_enabled": False, "remote": "upstream",
+                                     "push_enabled": False, "remote": "upstream", "backup_dir": "",
                                      "welcome_done": [], "welcome_dismissed": False,
                    "messaging_size_field": "fte_estimate", "messaging_team_field": "ae_count",
                    "enrich_provider": "auto", "enrich_account": "subscription",

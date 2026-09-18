@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from hermitcrm import cli, doctor
+from hermitcrm import backup, cli, doctor
 from hermitcrm import setup as st
 from hermitcrm.bcc import BccError
 from hermitcrm.datafolder import init_folder
@@ -47,13 +47,14 @@ def test_fresh_folder_warns_but_does_not_fail(folder, tmp_path):
     res = checks(folder, tmp_path)
     assert [c for c in res] == ["python", "git", "data folder", "data format", "config",
                                 "owner_email", "bcc password", "imap login", "calendar url",
-                                "schedule", "git remote", "enrich cli", "update"]
+                                "schedule", "backup", "git remote", "enrich cli", "update"]
     assert res["owner_email"].status == "warn"
     assert res["schedule"].status == "warn" and res["git remote"].status == "warn"
     assert res["imap login"].detail == "not checked; add --online"
     assert res["enrich cli"].detail == "claude"
     text, code = doctor.report(list(res.values()))
-    assert code == 0 and len(text.splitlines()) == 13
+    assert code == 0 and len(text.splitlines()) == 14
+    assert res["backup"].status == "warn"
     assert text.splitlines()[0].startswith("ok    python: ")
 
 
@@ -82,6 +83,8 @@ def test_configured_folder_all_ok_and_secret_not_printed(folder, tmp_path):
     home = tmp_path / "home"
     (home / ".config/systemd/user").mkdir(parents=True)
     (home / ".config/systemd/user/hermitcrm-sync.timer").write_text("OnCalendar=*-*-* 07:00:00\n")
+    (home / ".config/systemd/user/hermitcrm-backup.timer").write_text("OnUnitActiveSec=5min\n")
+    assert backup.run(folder, {}, home=home).code == 0
     res = checks(folder, tmp_path, online=True, open_mailbox=Box)
     text, code = doctor.report(list(res.values()))
     assert code == 0, text

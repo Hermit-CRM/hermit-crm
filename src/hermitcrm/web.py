@@ -1904,6 +1904,16 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         state["install_command"] = f"hermitcrm --data {root} schedule install --serve"
         return state
 
+    def local_backup_status() -> dict:
+        """`hermitcrm backup status` for the Backup section; never raises."""
+        from . import backup
+
+        try:
+            return backup.status(root, config, home=app.state.schedule_home)
+        except Exception as exc:
+            logger.warning("backup status failed: %s", exc)
+            return {"level": "warn", "summary": f"could not check: {exc}", "lines": []}
+
     def access_facts() -> dict:
         """The two front doors the Settings page cannot switch on for you.
 
@@ -1988,6 +1998,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
                                                          or 14),
                               "silent_days": str(config.get("silent_days") or 14)},
             "schedule": schedule_status(),
+            "local_backup": local_backup_status(),
             "access": access_facts(),
             "about": {"version": __version__, "data_dir": str(root),
                       "data_format": data_format, "latest_format": migrations.LATEST,

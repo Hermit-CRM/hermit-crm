@@ -63,6 +63,42 @@ nothing is written and nothing is committed.
 - Never rewrite interaction bodies; they are the record.
 - Never put secrets in `config.toml` and never commit `.secrets.toml`.
 
+## Backups and undo
+
+The folder is backed up every few minutes to a repository outside it that
+only grows (`hermitcrm backup status` says where; see
+[Backups and undo](/help/backups)). For an agent that means:
+
+- Never rewrite history in the folder: no `git reset --hard`, `commit --amend`,
+  `rebase`, `filter-branch` or `push --force`. Undo with a new commit
+  (`git revert`, or `hermitcrm backup restore`). A rewrite is not lost -- the
+  backup keeps both lines and flags it -- but it is noisy and looks like damage.
+- Never touch `~/.hermitcrm/backups/` or `.git/hermitcrm-backup.json`.
+- To undo damage, find the version with `hermitcrm backup list <path>`, check
+  with `hermitcrm backup restore <id> <path>` (a dry run), then add `--apply`.
+  Say what you restored and from which version.
+
+For Claude Code, a deny list in the data folder's `.claude/settings.json` stops
+those commands before they run (deny rules apply in every permission mode):
+
+```json
+{
+  "permissions": {
+    "deny": [
+      "Bash(git reset --hard:*)", "Bash(git push --force:*)", "Bash(git push -f:*)",
+      "Bash(git push --force-with-lease:*)", "Bash(git commit --amend:*)",
+      "Bash(git rebase:*)", "Bash(git filter-branch:*)", "Bash(git filter-repo:*)",
+      "Bash(git update-ref -d:*)", "Bash(git reflog expire:*)", "Bash(git gc --prune:*)",
+      "Bash(rm -rf .git:*)", "Bash(rm -rf companies:*)",
+      "Edit(~/.hermitcrm/**)", "Write(~/.hermitcrm/**)"
+    ]
+  }
+}
+```
+
+A deny list matches command prefixes, so it is a seat belt, not a lock: a
+determined `bash -c "..."` gets past it. The backup is what makes that safe.
+
 ## What the web app does with hand edits
 
 A company page re-reads that company's folder on every request, so an edit

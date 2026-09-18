@@ -19,7 +19,7 @@ HERE = Path(__file__).resolve().parent
 TOPICS = [
     "index", "pipeline", "calendar", "companies", "contacts", "interactions",
     "messages", "reports", "settings", "import", "extension", "enrich", "ask", "merge", "cli",
-    "data-format", "ai-agents", "feedback",
+    "backups", "data-format", "ai-agents", "feedback",
 ]
 
 

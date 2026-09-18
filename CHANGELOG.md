@@ -9,6 +9,21 @@ Data format 5: the stage `reached-out` is renamed to **engaged** (in `stage`
 and `stage_history`), and the four built-in scoring fields become fields you
 define. Both migrate automatically in one commit.
 
+- **Backups that nothing can rewrite, and undo for any version.** Every change
+  was already a commit, but the history itself was unprotected: a
+  `git reset --hard`, an amend, a deleted `.git` or a force-push -- by you, a
+  script or an AI agent -- lost it. `hermitcrm schedule install` now also runs
+  `hermitcrm backup` every 5 minutes (`--backup-every`, `--no-backup`) into a
+  bare repository outside the folder (`~/.hermitcrm/backups/`, or `backup_dir`)
+  that refuses non-fast-forward pushes and deletions and never expires
+  anything. Uncommitted edits are saved as snapshots without touching your
+  branch or index; a rewritten history is kept beside the old one, with a
+  warning in the log, `doctor` and Settings. `hermitcrm backup list [PATH]`
+  finds a version and `hermitcrm backup restore ID [PATH ...] --apply` puts it
+  back as a new commit, backing up the current state first. An idle run writes
+  nothing, so the backup grows only with real edits (about 1 MB for a folder of
+  350 companies). Help: Backups and undo; the agent rules in `CLAUDE.md` and
+  `AGENTS.md` tell agents not to rewrite history and how to roll back.
 - **Fields of your own, and four fewer of somebody else's.** `my_score`,
   `fit_score`, `fte_estimate` and `ae_count` were built into every Hermit CRM.
   They were one person's way of working, and a new install met all four before

@@ -56,6 +56,7 @@ CONFIG_DOCS = {
     "followup_nudge_days": "Days before a message you sent and nobody answered shows on the follow-up radar.",
     "push_enabled": "Push to the git remote after each commit (when a remote exists).",
     "remote": "Name of the git remote to push to.",
+    "backup_dir": "Where `hermitcrm backup` keeps its repository that only grows; empty means ~/.hermitcrm/backups/<folder>-<hash>.git. Must be outside this folder.",
     "welcome_done": "Walkthrough steps you ticked yourself, the ones Hermit CRM cannot see happen.",
     "welcome_dismissed": "Stop opening the walkthrough when Hermit CRM starts; it stays under Help.",
     "messaging_size_field": "Which of your fields holds a headcount, for the drafts that mention team size; empty means the size line always uses its 'unknown' wording.",
@@ -165,6 +166,16 @@ Writing rules:
 - Commit messages for AI-made changes start with "ai:".
 - Never rewrite interaction bodies; they are the record.
 - Never put secrets in config.toml and never commit .secrets.toml.
+
+Backups and undo (`hermitcrm help backups`):
+- This folder is backed up every few minutes to a repository outside it that
+  only grows (`hermitcrm backup status` says where, under ~/.hermitcrm/backups/).
+- Never rewrite history here: no `git reset --hard`, `commit --amend`, `rebase`,
+  `filter-branch` or `push --force`. Undo with a new commit instead.
+- Never touch ~/.hermitcrm/backups/ or .git/hermitcrm-backup.json.
+- To undo damage: `hermitcrm backup list <path>` finds the version,
+  `hermitcrm backup restore <id> <path>` shows what would change, `--apply`
+  does it (as a new commit). Say what you restored and from which version.
 """
 
 MESSAGING = """# Messaging playbook

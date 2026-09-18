@@ -70,6 +70,9 @@ DEFAULT_CONFIG = {
     "followup_nudge_days": 5,
     "push_enabled": True,
     "remote": "origin",
+    # Where `hermitcrm backup` keeps its repository that only grows. Empty means
+    # ~/.hermitcrm/backups/<folder>-<hash>.git; it must be outside the folder.
+    "backup_dir": "",
     # Enrichment shells out to an AI CLI; see hermitcrm/enrich.py. "auto" picks the
     # first of claude, codex, gemini, grok on PATH. Empty command/model mean
     # the provider's own binary and default model.
