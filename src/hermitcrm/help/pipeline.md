@@ -1,6 +1,6 @@
 # Pipeline
 
-The board at `/`: one column per open stage, cards you can move with a dropdown, closed companies in lists below.
+The board at `/pipeline`: one column per open stage, cards you can move with a dropdown, closed companies in lists below.
 
 ## Columns and cards
 

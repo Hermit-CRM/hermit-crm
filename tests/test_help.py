@@ -75,7 +75,7 @@ def test_render_escapes_and_refuses_unsafe_links():
 
 
 @pytest.mark.parametrize("path,topic", [
-    ("/", "pipeline"), ("/today", "pipeline"),
+    ("/", "index"), ("/pipeline", "pipeline"), ("/today", "pipeline"),
     ("/calendar", "calendar"), ("/calendar?month=2026-09", "calendar"),
     ("/companies", "companies"), ("/companies/new", "companies"),
     ("/companies/acme", "companies"), ("/companies/acme/", "companies"),
@@ -128,7 +128,7 @@ def test_help_routes(client):
 
 def test_every_page_links_to_its_help_topic(client):
     slug = next(iter(client.app.state.store.companies))
-    for path, topic in [("/", "pipeline"), ("/calendar", "calendar"),
+    for path, topic in [("/pipeline", "pipeline"), ("/calendar", "calendar"),
                         ("/companies", "companies"), (f"/companies/{slug}", "companies"),
                         ("/contacts", "contacts"), ("/messages", "messages"),
                         ("/reports", "reports"), ("/settings", "settings"),

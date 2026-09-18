@@ -9,6 +9,7 @@ page for the screen you are on; `hermitcrm help <topic>` prints the same text.
 
 ## Topics
 
+- **The home page** (`/`, the logo): what is due in the next seven days, replies you owe, last month's numbers, and one line on what each part is for.
 - [Pipeline](/help/pipeline): the board, stages, filters and the closed lists.
 - [Calendar](/help/calendar): next steps due, the month grid, silent accounts, meetings this week.
 - [Companies](/help/companies): the table, the company page, stages, next steps, disqualify and requalify.
