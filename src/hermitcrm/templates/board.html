@@ -3,12 +3,31 @@
 {% block title %}Pipeline{% endblock %}
 {% block content %}
 <h1>Pipeline</h1>
-{{ m.filter_form('board-filters', '/', active, none, sort, dir) }}
-<div class="filter-bar">
-  {% for col in filter_columns %}
-  <label>{{ col.label }}{% if col.key != 'stage' %} {{ m.sort_links(col, sort, dir, sort_url) }}{% endif %} {{ m.filter_control(col, active, 'board-filters') }}</label>
-  {% endfor %}
-</div>
+{% if followups %}
+<section class="radar" id="followups">
+  <h2>Follow up ({{ followups | length }})</h2>
+  <ul class="radar-list">
+    {% for r in followups %}
+    <li class="radar-row radar-{{ r.kind }}">
+      <a class="radar-company" href="/companies/{{ r.slug }}">{{ r.name }}</a>
+      <span class="radar-days">{{ r.days }}d</span>
+      <span class="radar-reason">{{ r.reason }}</span>
+      <span class="radar-summary">{{ r.summary }}</span>
+      <a class="radar-act" href="/companies/{{ r.slug }}/interactions/new{% if r.contact %}?contact={{ r.contact.slug }}{% endif %}">Log a reply</a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+<details class="filters-fold"{% if active or sort %} open{% endif %}>
+  <summary>Filters{% if active %} ({{ active | length }} on){% endif %}</summary>
+  {{ m.filter_form('board-filters', '/', active, none, sort, dir) }}
+  <div class="filter-bar">
+    {% for col in filter_columns %}
+    <label>{{ col.label }}{% if col.key != 'stage' %} {{ m.sort_links(col, sort, dir, sort_url) }}{% endif %} {{ m.filter_control(col, active, 'board-filters') }}</label>
+    {% endfor %}
+  </div>
+</details>
 {% if no_companies %}
 <div class="start-cards">
   <a class="card start-card" href="/import"><h3>Import a spreadsheet</h3><div class="small">CSV, TSV or Excel paste of companies or contacts.</div></a>

@@ -101,8 +101,15 @@ file per conversation. Everything below is convenience on top of it.
 - **Pipeline board** with stages prospect, reached out, discovery, offer, won,
   lost, disqualified and temporarily disqualified (with a requalify date).
 - **Companies and contacts tables** with column filters and sorting.
+- **Follow-up radar** on the home page: the threads where somebody wrote to you
+  and you have not answered, and the ones where you wrote and nothing came back.
+  Also `hermitcrm followups`.
 - **Calendar** of next steps: overdue and due-today lists, a month grid and
   Google Calendar links.
+- **Pre-meeting brief** under every upcoming meeting: stage, open next step,
+  contacts and the last three interactions. Also `hermitcrm brief`.
+- **Capture**: a bookmarklet that turns the company page you are looking at
+  into a filled-in new-company form. No browser extension.
 - **Timeline per company**: email, LinkedIn, call and meeting interactions,
   in or out, with bodies kept byte for byte.
 - **Message drafts without AI**: three angles per contact in English, German,
@@ -122,9 +129,15 @@ file per conversation. Everything below is convenience on top of it.
   you are on, or reads the whole data folder (read only) when the page is not
   enough; retry on the strong model with one click.
 - **Night mode** (on, off or follow the system) and a sidebar with icons.
+- **On your phone**: `hermitcrm serve --host 0.0.0.0` puts the app on your local
+  network. It has no password, so use a network you trust or a private one
+  (Tailscale, WireGuard).
 - **Enrichment**: free "fetch from URL" (website or LinkedIn page), or any AI
   CLI you already use (claude, codex, gemini, grok or a custom command).
 - **Stage history** per company, reconstructable from git.
+- **MCP server** (`hermitcrm mcp`): read and write the CRM from Claude Desktop,
+  ChatGPT, Cursor or anything else that speaks MCP, with no terminal. Seven read
+  tools and three write tools, over stdio, with no extra dependency.
 - **PIPELINE.md**: a generated one-page summary for you and your agents.
 - **Unknown front-matter keys are preserved**, so other tools can add fields.
 
@@ -193,9 +206,13 @@ hermitcrm doctor [--online]           check Python, git, config, secrets, schedu
 hermitcrm schedule install [--at HH:MM] [--serve]
                                    daily sync --apply (launchd, systemd; schtasks is printed)
 hermitcrm schedule remove|status
-hermitcrm serve [--port N]            the web app on 127.0.0.1
+hermitcrm serve [--port N] [--host A] the web app (default 127.0.0.1; --host 0.0.0.0 reaches your phone)
 hermitcrm show <slug> [--bodies N | --all]
 hermitcrm digest [--days 7]           recent interactions, oldest first
+hermitcrm followups [--reply-after N] [--nudge-after N]
+                                   threads you owe a reply, and ones you are waiting on
+hermitcrm brief [--days 7]            each upcoming meeting with the record behind it
+hermitcrm mcp                         serve this folder to AI clients over MCP (stdio)
 hermitcrm report [--days N | --from D --to D] [--md]
 hermitcrm check                       validate every file (exit 1 on problems)
 hermitcrm rebuild                     regenerate PIPELINE.md and commit
@@ -328,6 +345,25 @@ how a feature works. To write, an agent uses `hermitcrm add company|contact|
 interaction`, which validates the fields and commits, rather than composing
 YAML by hand. Open the folder in Claude Code, Codex or any agent and ask for a
 pipeline review or a follow-up draft.
+
+For a client with no shell, `hermitcrm mcp` serves the folder over MCP. In
+Claude Desktop, Settings → Developer → Edit Config:
+
+```json
+{
+  "mcpServers": {
+    "hermitcrm": {
+      "command": "hermitcrm",
+      "args": ["--data", "/Users/you/crm", "mcp"]
+    }
+  }
+}
+```
+
+It exposes seven read tools (`list_pipeline`, `search_companies`,
+`show_company`, `digest`, `report`, `followups`, `brief`) and three writes
+(`add_company`, `add_contact`, `add_interaction`). The writes commit, exactly as
+the web form does. `hermitcrm help ai-agents` has the details.
 
 ## Roadmap
 
