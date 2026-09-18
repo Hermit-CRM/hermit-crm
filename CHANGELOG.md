@@ -22,6 +22,17 @@ define. Both migrate automatically in one commit.
   keeps them**: the migration writes a `fields.toml` describing them and does
   not touch a single company file, because those keys were always ordinary
   front matter. A folder that never used them gets no file at all.
+- **The extension captures a person.** A LinkedIn profile URL opened a form to
+  create a *company* from it, because nothing in Hermit CRM recognised a profile
+  page: the code only ever matched `linkedin.com/company/`. A profile now opens
+  the new-contact form with the name, the headline as the title and the profile
+  URL filled in, and the employer the page names typed into the company box --
+  which matches an existing company, so capturing three people from one company
+  gives you one record rather than three.
+- **A person's headline is no longer read as a product one-liner.** Captured
+  from a profile, `product_oneliner` came out as the headline with the
+  experience, education and connection count stapled on. A profile yields none
+  now, and the tail is stripped from company pages too.
 - **The outreach playbook reads whichever fields you have.** Every field you
   define is a slot the templates can use by its key, so wording is data rather
   than code; an empty field renders as its label in square brackets, the mark
