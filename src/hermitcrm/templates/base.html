@@ -9,11 +9,12 @@
   <link rel="icon" type="image/png" sizes="180x180" href="/static/favicon.png?v={{ hermitcrm_version }}">
   <link rel="apple-touch-icon" href="/static/favicon.png?v={{ hermitcrm_version }}">
   <link rel="stylesheet" href="/static/style.css?v={{ hermitcrm_version }}">
+  <script src="/static/tour.js?v={{ hermitcrm_version }}" defer></script>
 </head>
 <body>
 {% set path = request.url.path %}
 {% macro navlink(href, label, name, active) -%}
-<a href="{{ href }}"{% if active %} class="active" aria-current="page"{% endif %}>{{ icon(name) }}<span>{{ label }}{{ caller() if caller }}</span></a>
+<a href="{{ href }}" data-tour="{{ name }}"{% if active %} class="active" aria-current="page"{% endif %}>{{ icon(name) }}<span>{{ label }}{{ caller() if caller }}</span></a>
 {%- endmacro %}
 <nav class="sidebar" aria-label="Main">
   <a class="brand" href="/"><svg class="brand-mark" viewBox="0 0 64 64" width="22" height="22" aria-hidden="true"><rect x="7" y="13" width="50" height="38" rx="7" fill="none" stroke="currentColor" stroke-width="5"/><circle cx="24" cy="27" r="5.5" fill="#1E8A60"/><path d="M16 43 a8 8 0 0 1 16 0 z" fill="#1E8A60"/><rect x="38" y="25" width="12" height="4" rx="2" fill="currentColor"/><rect x="38" y="34" width="8" height="4" rx="2" fill="currentColor"/></svg><span>Hermit CRM</span></a>
@@ -34,11 +35,11 @@
   </div>
 </nav>
 <header class="topbar">
-  <form class="search" action="/companies" role="search">
+  <form class="search" action="/companies" role="search" data-tour="search">
     {{ icon('search') }}<input name="q" value="{{ q }}" placeholder="Search companies, tags, contacts" aria-label="Search">
   </form>
   <details class="ask">
-    <summary class="ask-button">{{ icon('ask') }} Ask the Hermit</summary>
+    <summary class="ask-button" data-tour="ask">{{ icon('ask') }} Ask the Hermit</summary>
     <form class="ask-panel" method="post" action="/ask">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <input type="hidden" name="page" value="{{ ask_page }}">

@@ -1,6 +1,22 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
-{% block title %}Settings{% endblock %}
+{% block title %}Settings<script>
+// Picking a provider fills the server and shows how to get its app password.
+// Plain progressive enhancement: without this, the server box is typed by hand.
+(function () {
+  var select = document.getElementById("bcc-provider");
+  var host = document.getElementById("bcc-imap-host");
+  if (!select || !host) return;
+  select.addEventListener("change", function () {
+    var chosen = select.options[select.selectedIndex];
+    if (chosen.dataset.host) host.value = chosen.dataset.host;
+    document.querySelectorAll(".provider-note").forEach(function (n) {
+      n.hidden = n.dataset.provider !== select.value;
+    });
+  });
+})();
+</script>
+{% endblock %}
 {% macro status(done) %}<span class="setup-status {{ 'done' if done else 'pending' }}">{{ 'done' if done else 'pending' }}</span>{% endmacro %}
 {% macro step_errors(step) %}{% set errs = form_errors.get(step, {}) %}{% if errs %}<div class="errors"><ul>{% for msg in errs.values() %}<li>{{ msg }}</li>{% endfor %}</ul></div>{% endif %}{% endmacro %}
 {% block content %}
@@ -27,12 +43,23 @@
 
 <section class="setup-step" id="bcc">
   <h2>BCC capture {{ status(state.bcc) }}</h2>
-  <p class="small">BCC or forward mail to a tracking address; Hermit CRM reads it over IMAP and logs it. For Gmail, turn on 2-step verification and create an <a href="https://myaccount.google.com/apppasswords">app password</a>.</p>
+  <p class="small">How it works: when you write to a prospect, put a tracking address in BCC (or forward the thread to it later). Hermit CRM reads that mailbox over IMAP, matches each message to a company by the other person's address or domain, and logs it as an interaction. Anything it cannot match waits in the review queue below. With Gmail, <code>you+crm@gmail.com</code> reaches your own inbox, so no second account is needed; a filter can file those messages out of the way.</p>
   {{ step_errors('bcc') }}
-  <form method="post" action="/settings/bcc" class="record-form">
+  <form method="post" action="/settings/bcc" class="record-form" id="bcc-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Mail provider
+      <select id="bcc-provider" aria-describedby="bcc-provider-note">
+        <option value="">other (type the server yourself)</option>
+        {% for key, p in mail_providers.items() %}<option value="{{ key }}" data-host="{{ p.imap_host }}"{% if bcc_form.imap_host == p.imap_host %} selected{% endif %}>{{ p.label }}</option>{% endfor %}
+      </select>
+    </label>
+    {% for key, p in mail_providers.items() %}
+    <p class="small provider-note{% if not p.works %} warning{% endif %}" data-provider="{{ key }}" id="{{ 'bcc-provider-note' if loop.first else '' }}"{% if bcc_form.imap_host != p.imap_host %} hidden{% endif %}>
+      <strong>{{ p.label }}:</strong> {{ p.note }}{% if p.password_url %} <a href="{{ p.password_url }}" target="_blank" rel="noopener">Create the app password</a>.{% endif %}
+    </p>
+    {% endfor %}
     <label>BCC address <input name="address" value="{{ bcc_form.address }}" placeholder="you+crm@gmail.com"></label>
-    <label>IMAP server <input name="imap_host" value="{{ bcc_form.imap_host }}" placeholder="imap.gmail.com"></label>
+    <label>IMAP server <input name="imap_host" id="bcc-imap-host" value="{{ bcc_form.imap_host }}" placeholder="imap.gmail.com"></label>
     <label>App password <input type="password" name="password" value="" autocomplete="new-password" placeholder="{{ 'stored; leave empty to keep it' if state.bcc else '' }}"></label>
     {% if is_mac %}<label class="inline"><input type="checkbox" name="keychain" value="1" checked style="display:inline;width:auto"> Store the password in the macOS Keychain</label>{% endif %}
     <button type="submit">Save</button>
