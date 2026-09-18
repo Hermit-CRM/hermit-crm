@@ -10,6 +10,38 @@ and `stage_history`), migrated automatically in one commit.
 
 - Logging an interaction on a **prospect** moves it to **engaged** in the same
   commit (manual, BCC and calendar imports alike).
+- **Follow-up radar on the home page** and `hermitcrm followups`: the threads
+  where somebody wrote to you and you have not answered, and the ones where you
+  wrote and nothing came back. Replies owed come first. A company with an open
+  next step due in the future is left off the nudge list -- you have already
+  decided what happens next, and the calendar owns that.
+- **`hermitcrm mcp`: an MCP server for the data folder.** Ten tools over stdio
+  (`list_pipeline`, `search_companies`, `show_company`, `digest`, `report`,
+  `followups`, `brief`, and the three `add_*` writes), so Claude Desktop,
+  ChatGPT, Cursor and anything else that speaks MCP can use the CRM without a
+  terminal. No new dependency: MCP's stdio transport is newline-delimited
+  JSON-RPC. The writes are the same `store.create_*` calls the web form and
+  `hermitcrm add` make. See `hermitcrm help ai-agents` for a client config.
+- **Capture from the page you are on**: a bookmarklet on the new **Capture**
+  page reads the company website or LinkedIn page in front of you and opens a
+  filled-in new-company form. `fetch` ran backwards for this -- it needed the
+  record to exist first -- so capture inverts it. No extension to install. A
+  page belonging to a company you already have takes you to that record instead
+  of quietly making a second one.
+- **Pre-meeting brief**: `hermitcrm brief`, and a folded "Brief" under every
+  meeting on the Calendar page. Stage, open next step, contacts and the last
+  three interactions for each company you are about to talk to. It reads the
+  `upcoming.json` the calendar import already writes, so it is instant and works
+  offline.
+- **The pipeline board works on a phone**: the filter block folds behind a
+  "Filters" toggle and the four stage columns stack, so the first screen is the
+  follow-up radar and your companies rather than controls. Unchanged above
+  760px.
+- **`hermitcrm serve --host`** (config key `host`). `--host 0.0.0.0` puts the
+  web app on your phone over the local network, and prints the address to type
+  rather than `0.0.0.0`. Hermit CRM has no password, so it also prints a warning
+  and the advice to prefer a private network (Tailscale, WireGuard) over open
+  Wi-Fi.
 - **`hermitcrm add company|contact|interaction`**: create a record from the
   command line. Same validation and same commit as the web form, so an agent
   no longer has to compose YAML by hand. `--set field=value` reaches any field

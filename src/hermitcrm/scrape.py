@@ -270,8 +270,16 @@ def propose_from_url(company: Company, url: str, fetcher=fetch) -> Proposal:
     """Fetch `url` (a website or LinkedIn company page) and propose values for
     the company's empty fields. Never overwrites anything."""
     url = normalise_website(url)
-    text = fetcher(url)
-    facts = parse_page(url, text)
+    return propose_from_facts(company, parse_page(url, fetcher(url)))
+
+
+def propose_from_facts(company: Company, facts: PageFacts) -> Proposal:
+    """The proposing half of propose_from_url, for a page already fetched.
+
+    Capture needs the parsed page for the company's *name* as well as its
+    fields, and fetching the same URL twice to get both would be silly.
+    """
+    url = facts.url
     found = {}
     if _is_linkedin(url):
         found["linkedin"] = url.split("?")[0].rstrip("/")

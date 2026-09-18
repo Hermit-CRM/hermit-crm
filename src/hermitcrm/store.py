@@ -56,7 +56,16 @@ DEFAULT_CONFIG = {
     "owner_name": "",
     "owner_email": "",
     "port": 8765,
+    # Address the web app binds to. 127.0.0.1 keeps it on this machine; 0.0.0.0
+    # puts it on the network (your phone) and, since Hermit CRM has no password,
+    # on that network's terms -- prefer a private one over open Wi-Fi.
+    "host": "127.0.0.1",
     "silent_days": 14,
+    # Follow-up radar (hermitcrm/followups.py). A message they sent counts as
+    # owed after this many days; one you sent counts as unanswered after the
+    # other. Reply-owed is deliberately the shorter of the two.
+    "followup_reply_days": 1,
+    "followup_nudge_days": 5,
     "push_enabled": True,
     "remote": "origin",
     # Enrichment shells out to an AI CLI; see hermitcrm/enrich.py. "auto" picks the

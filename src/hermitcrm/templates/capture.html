@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Capture{% endblock %}
+{% block content %}
+<h1>Capture a company from a page</h1>
+
+<p>Drag this to your bookmarks bar. On any company website or LinkedIn company
+page, click it: Hermit CRM reads the page and opens a filled-in new-company form.</p>
+
+<p><a class="bookmarklet" href="{{ bookmarklet }}">Add to Hermit CRM</a>
+<span class="small">&larr; drag me</span></p>
+
+<p class="small">Some browsers refuse to run a bookmarklet you click from a page.
+Dragging it to the bookmarks bar first is the way that always works. If your
+browser strips it, copy the code below into a new bookmark by hand.</p>
+
+<pre class="bookmarklet-code"><code>{{ bookmarklet }}</code></pre>
+
+<h2>Or paste a URL</h2>
+<form method="get" action="/capture/new" class="record-form">
+  <label>Company website or LinkedIn company page
+    <input type="text" name="url" value="" placeholder="acme.example.com" autofocus>
+  </label>
+  <button type="submit">Read the page</button>
+</form>
+
+<h2>What it reads</h2>
+<p class="small">The website, the LinkedIn company page it links to, the country,
+an employee-count hint and a one-line description, from the page's own metadata.
+Nothing is written until you press <em>Create company</em> on the form it opens,
+and nothing is sent anywhere: your machine fetches the page directly.</p>
+<p class="small">Hermit CRM is serving on <code>{{ base }}</code>, so the
+bookmarklet points there. If you later run <code>serve</code> on a different
+host or port, come back to this page and take the bookmarklet again.</p>
+{% endblock %}
