@@ -56,19 +56,26 @@ def test_no_redirect_when_owner_email_set(folder):
     assert client.get("/").status_code == 200
 
 
-def test_empty_board_cards_and_setup_nav(folder):
+def test_the_empty_home_page_says_where_to_start(folder):
+    """The ways in live on the home page now, not on an empty board."""
     _, client = make_client(folder, setup_redirected=True)
     page = client.get("/").text
     for text, href in (("Import a spreadsheet", "/import"), ("Add a company", "/companies/new"),
-                       ("Set up BCC capture", "/setup#bcc")):
+                       ("Set up BCC capture", "/settings#bcc")):
         assert text in page and f'href="{href}"' in page
     assert 'href="/settings"' in page.split("</nav>")[0]
+    # and the board itself just points back here
+    board = client.get("/pipeline").text
+    assert "Import a spreadsheet" not in board
+    assert 'The home page</a> has the ways to start' in board
 
 
-def test_demo_board_has_no_start_cards(tmp_path):
+def test_a_folder_with_data_gets_the_numbers_instead(tmp_path):
     demo = init_folder(tmp_path / "demo", demo=True)
     _, client = make_client(demo, setup_redirected=True)
-    assert "Import a spreadsheet" not in client.get("/").text
+    page = client.get("/").text
+    assert "Import a spreadsheet" not in page
+    assert "What needs doing" in page and "How it is going" in page
 
 
 def test_csrf_required(folder):
