@@ -947,3 +947,30 @@ def test_delete_contact_keeps_interactions_without_contact(store, messages):
     assert kept.id == "2026-09-10T0900-linkedin-out-company"
     with pytest.raises(ValidationError):
         store.delete_contact("acme", "jane-doe")
+
+
+def test_merging_keeps_every_task_from_both_sides(store):
+    """A merge that drops a task loses work and says nothing about it."""
+    a = store.create_company("Acme")
+    b = store.create_company("Acme Software")
+    store.add_task(a.slug, "ours")
+    store.add_task(b.slug, "theirs")
+    merged = store.merge_companies(a.slug, b.slug, {"name": "keep"})
+    assert [t.text for t in merged.tasks] == ["ours", "theirs"]
+
+    store.create_contact("acme", "Jane", "Roe")
+    store.create_contact("acme", "Jane", "Roe ")
+    slugs = [c for c in store.get("acme").contacts]
+    store.add_task("acme", "hers", contact=slugs[0])
+    store.add_task("acme", "also hers", contact=slugs[1])
+    merged_contact = store.merge_contacts("acme", slugs[0], slugs[1], {})
+    assert sorted(t.text for t in merged_contact.tasks) == ["also hers", "hers"]
+
+
+def test_deleting_a_contact_takes_their_tasks_with_them(store, tmp_path):
+    company = store.create_company("Acme")
+    store.create_contact(company.slug, "Jane", "Roe")
+    store.add_task(company.slug, "send her the deck", contact="jane-roe")
+    store.delete_contact(company.slug, "jane-roe")
+    assert "jane-roe" not in store.get(company.slug).contacts
+    assert store.get(company.slug).tasks == []       # never moved to the company

@@ -286,6 +286,7 @@ class Contact:
     email: str = ""
     phone: str = ""
     role: str = ""
+    tasks: list["Task"] = field(default_factory=list)
     created: datetime | None = None
     updated: datetime | None = None
     notes: str = ""
@@ -336,6 +337,24 @@ class Interaction:
 
 
 @dataclass
+class Task:
+    """One thing you owe an account or a person.
+
+    The company's `next_step` is the single task that decides where the deal
+    stands; these are everything else. Keeping them apart is deliberate: the
+    pipeline stays one line per company, and a to-do list does not quietly
+    become a second pipeline.
+    """
+
+    text: str
+    due: date | None = None
+    done: bool = False
+
+    def overdue(self, today: date | None = None) -> bool:
+        return bool(self.due and not self.done and self.due < (today or date.today()))
+
+
+@dataclass
 class StageChange:
     """One entry of a company's append-only stage history. `from_stage` is
     empty for the entry that records the stage a company was created in."""
@@ -364,6 +383,7 @@ class Company:
     next_step_status: str = "open"
     tags: list[str] = field(default_factory=list)
     stage_history: list[StageChange] = field(default_factory=list)
+    tasks: list[Task] = field(default_factory=list)
     created: datetime | None = None
     updated: datetime | None = None
     notes: str = ""
@@ -589,6 +609,39 @@ def dump_frontmatter(meta: dict) -> str:
     return "".join(line + "\n" for line in lines)
 
 
+def task_to_dict(t: Task) -> dict:
+    item: dict = {"text": t.text}
+    if t.due:
+        item["due"] = t.due
+    if t.done:
+        item["done"] = True
+    return item
+
+
+def _tasks(value, errors: dict[str, str]) -> list[Task]:
+    if value in (None, "", []):
+        return []
+    if not isinstance(value, list):
+        errors["tasks"] = "tasks must be a list"
+        return []
+    out = []
+    for n, item in enumerate(value, 1):
+        if not isinstance(item, dict):
+            errors["tasks"] = f"task {n} is not a mapping"
+            return []
+        text = " ".join(str(item.get("text") or "").split())
+        if not text:
+            errors["tasks"] = f"task {n} has no text"
+            return []
+        try:
+            due = parse_date(item.get("due")) if item.get("due") else None
+        except ValidationError:
+            errors["tasks"] = f"task {n} has an unreadable due date"
+            return []
+        out.append(Task(text=text, due=due, done=bool(item.get("done"))))
+    return out
+
+
 def stage_change_to_dict(e: StageChange) -> dict:
     item = {"date": e.date, "from": e.from_stage, "to": e.to_stage}
     if e.reason:
@@ -617,6 +670,8 @@ def company_to_frontmatter(c: Company) -> dict:
     }
     if c.stage_history:  # absent until the first recorded change
         meta["stage_history"] = [stage_change_to_dict(e) for e in c.stage_history]
+    if c.tasks:          # absent until there is one
+        meta["tasks"] = [task_to_dict(t) for t in c.tasks]
     meta["created"] = c.created
     meta["updated"] = c.updated
     return _with_extra(meta, c.extra, COMPANY_KEYS)
@@ -635,7 +690,7 @@ def _extra(meta: dict, known: frozenset) -> dict:
 
 
 def contact_to_frontmatter(c: Contact) -> dict:
-    return _with_extra({
+    meta = {
         "first_name": c.first_name,
         "last_name": c.last_name,
         "slug": c.slug,
@@ -644,9 +699,12 @@ def contact_to_frontmatter(c: Contact) -> dict:
         "email": c.email,
         "phone": c.phone,
         "role": c.role,
-        "created": c.created,
-        "updated": c.updated,
-    }, c.extra, CONTACT_KEYS)
+    }
+    if c.tasks:      # absent until there is one
+        meta["tasks"] = [task_to_dict(t) for t in c.tasks]
+    meta["created"] = c.created
+    meta["updated"] = c.updated
+    return _with_extra(meta, c.extra, CONTACT_KEYS)
 
 
 def interaction_to_frontmatter(i: Interaction) -> dict:
@@ -669,11 +727,11 @@ COMPANY_KEYS = frozenset({
     "name", "slug", "website", "linkedin", "country", "source", "stage", "stage_changed",
     "lost_reason", "requalify_on", "value_eur_month", "product_oneliner",
     "next_step", "next_step_due",
-    "next_step_status", "tags", "stage_history", "created", "updated",
+    "next_step_status", "tags", "stage_history", "tasks", "created", "updated",
 })
 CONTACT_KEYS = frozenset({
     "first_name", "last_name", "name", "slug", "title", "linkedin", "email", "phone",
-    "role", "created", "updated",
+    "role", "tasks", "created", "updated",
 })
 INTERACTION_KEYS = frozenset({
     "date", "channel", "direction", "contact", "subject", "outcome", "source",
@@ -793,6 +851,7 @@ def company_from_dict(meta: dict, body: str, slug: str) -> Company:
                                "next_step_status", True, errors, "open"),
         tags=parse_tags(meta.get("tags")),
         stage_history=_stage_history(meta.get("stage_history"), errors),
+        tasks=_tasks(meta.get("tasks"), errors),
         created=_datetime_or_none(meta.get("created"), "created", errors),
         updated=_datetime_or_none(meta.get("updated"), "updated", errors),
         notes=body,
@@ -823,6 +882,7 @@ def contact_from_dict(meta: dict, body: str, slug: str) -> Contact:
         email=normalise_email(_str(meta, "email")),
         phone=_str(meta, "phone").strip(),
         role=_enum(_str(meta, "role"), Role, "role", True, errors, ""),
+        tasks=_tasks(meta.get("tasks"), errors),
         created=_datetime_or_none(meta.get("created"), "created", errors),
         updated=_datetime_or_none(meta.get("updated"), "updated", errors),
         notes=body,

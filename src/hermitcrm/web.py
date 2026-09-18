@@ -622,6 +622,14 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
     def custom_defs(scope: str) -> list:
         return custom.for_scope(app.state.custom_fields, scope)
 
+    def _task_back(request: Request, slug: str, contact: str) -> str:
+        """Back to the page the task was ticked on, not always the company."""
+        referer = urlparse(request.headers.get("referer", "")).path
+        if referer:
+            return referer
+        return (f"/companies/{slug}/contacts/{contact}" if contact
+                else f"/companies/{slug}")
+
     def with_custom(values: dict, record, scope: str) -> dict:
         """Form values plus this record's custom fields, named as the form names
         them (`custom_<key>`), so one dict drives the whole form."""
@@ -751,11 +759,25 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         for c in open_tasks:
             if c.next_step_due:
                 by_day.setdefault(c.next_step_due, []).append(c)
+        # The other tasks: a company's own list and its contacts', on their day.
+        listed = [
+            {"company": company, "contact": None if record is company else record,
+             "index": index, "task": task}
+            for company, record, index, task in store.open_tasks(today)
+        ]
+        tasks_by_day: dict[date, list[dict]] = {}
+        for row in listed:
+            if row["task"].due:
+                tasks_by_day.setdefault(row["task"].due, []).append(row)
         weeks = [
-            [{"date": d, "tasks": by_day.get(d, [])} for d in week]
+            [{"date": d, "tasks": by_day.get(d, []), "listed": tasks_by_day.get(d, [])}
+             for d in week]
             for week in calendar.Calendar(firstweekday=0).monthdatescalendar(
                 first.year, first.month)
         ]
+        listed_due = sorted((r for r in listed if r["task"].due),
+                            key=lambda r: (r["task"].due, r["company"].name.lower()))
+        listed_undated = [r for r in listed if not r["task"].due]
         return render(request, "calendar.html", {
             "today": today,
             "first": first,
@@ -763,6 +785,10 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "next_month": next_month,
             "weeks": weeks,
             "open_tasks": open_tasks,
+            "listed_overdue": [r for r in listed_due if r["task"].due <= today],
+            "listed_future": [r for r in listed_due if r["task"].due > today],
+            "listed_undated": listed_undated,
+            "companies": store.all(),
             "priority": priority,
             "future": future,
             "silent": silent,
@@ -770,6 +796,20 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "upcoming": brief.briefs(store, inbox, store.now()),
             "calendar_last_run": inbox.last_run(calendar_sync.LAST_RUN_FILE),
         })
+
+    @app.post("/calendar/task")
+    def calendar_task(request: Request, text: str = Form(""), company: str = Form(""),
+                      contact: str = Form(""), due: str = Form("")):
+        """Create a task from the calendar: pick the company, optionally the person."""
+        try:
+            slug = bcc.resolve_company(store, company)
+        except ValidationError:
+            return flashed("/calendar", f"No company called {company!r}", "task-list")
+        try:
+            store.add_task(slug, text, due=due, contact=contact.strip())
+        except ValidationError as exc:
+            return flashed("/calendar", "; ".join(exc.errors.values()), "task-list")
+        return flashed("/calendar", "Task created", "task-list")
 
     @app.post("/calendar/import")
     def calendar_import(request: Request, back: str = Form("/calendar")):
@@ -1323,6 +1363,36 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         except ValidationError as exc:
             return flashed(back, "; ".join(exc.errors.values()), "tasks")
         return flashed(back, "Task saved", "tasks")
+
+    @app.post("/companies/{slug}/tasks")
+    def task_add(request: Request, slug: str, text: str = Form(""),
+                 due: str = Form(""), contact: str = Form("")):
+        back = _task_back(request, slug, contact)
+        try:
+            store.add_task(slug, text, due=due, contact=contact)
+        except ValidationError as exc:
+            return flashed(back, "; ".join(exc.errors.values()), "tasks")
+        return flashed(back, "Task added", "tasks")
+
+    @app.post("/companies/{slug}/tasks/{index}/done")
+    def task_done(request: Request, slug: str, index: int, done: str = Form(""),
+                  contact: str = Form(""), text: str = Form("")):
+        back = _task_back(request, slug, contact)
+        try:
+            store.set_task_done(slug, index, bool(done), contact=contact, text=text)
+        except ValidationError as exc:
+            return flashed(back, "; ".join(exc.errors.values()), "tasks")
+        return flashed(back, "Task done" if done else "Task reopened", "tasks")
+
+    @app.post("/companies/{slug}/tasks/{index}/delete")
+    def task_delete(request: Request, slug: str, index: int, contact: str = Form(""),
+                    text: str = Form("")):
+        back = _task_back(request, slug, contact)
+        try:
+            store.delete_task(slug, index, contact=contact, text=text)
+        except ValidationError as exc:
+            return flashed(back, "; ".join(exc.errors.values()), "tasks")
+        return flashed(back, "Task deleted", "tasks")
 
     @app.post("/companies/{slug}/disqualify")
     def company_disqualify(request: Request, slug: str, stage: str = Form(""),
