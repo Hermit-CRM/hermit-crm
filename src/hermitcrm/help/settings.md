@@ -1,6 +1,6 @@
 # Settings
 
-`/settings`: who you are, mail and calendar capture, backup, appearance, AI (Enrich and Ask Hermit), outcomes, the review queue, the daily schedule and About.
+`/settings`: who you are, mail and calendar capture, backup, appearance, AI (Enrich and Ask Hermit), outcomes, the review queue, the daily schedule, access from a phone or an AI client, and About.
 
 Every section writes `config.toml` in the data folder, keeping its comments;
 secrets (the mail app password, the calendar URL) go to `.secrets.toml`
@@ -82,6 +82,27 @@ Read-only status of the daily job (`hermitcrm sync --apply`: BCC, then calendar)
 installed by `hermitcrm schedule install [--at HH:MM] [--serve]` through launchd
 (macOS) or systemd user units (Linux); on Windows the `schtasks` commands are
 printed for you to run. The install command to copy is on the page.
+
+## Access
+
+Read-only: the two other ways into the same folder, both started from a
+terminal.
+
+**From your phone.** The web app binds to `host` in `config.toml`, `127.0.0.1`
+by default, which only this machine can reach. `hermitcrm serve --host 0.0.0.0`
+binds every interface and prints the LAN address to open on the phone; setting
+`host = "0.0.0.0"` in `config.toml` makes it permanent. Hermit CRM has no
+password, so anyone who can reach the port can read and write the CRM: use a
+network you trust, or a private one (Tailscale, WireGuard), not public Wi-Fi.
+
+**From an AI client (MCP).** `hermitcrm mcp` speaks the Model Context Protocol
+on stdin and stdout, so a desktop AI client -- Claude Desktop, ChatGPT desktop,
+Cursor -- can read and write the CRM with no terminal. You do not run it
+yourself; the page shows the JSON to paste into the client's MCP config, which
+starts it. Because it is a local process talking over a pipe, the client has to
+run on this machine: a phone app cannot reach it, and the phone route is the
+web app above. Seven read tools and three writes, the writes committing exactly
+as the web form does. [AI agents](/help/ai-agents) has the tool list.
 
 ## About
 

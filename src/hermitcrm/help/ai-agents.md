@@ -95,6 +95,13 @@ Developer → Edit Config):
 
 Use the full path to the `hermitcrm` binary if it is not on the launcher's PATH
 (`which hermitcrm` prints it). Other clients take the same command and arguments.
+The client starts the process and talks to it over a pipe, so it has to run on
+the machine holding the folder. A phone reaches the CRM through the web app
+(`hermitcrm serve --host 0.0.0.0`), not through this.
+
+If you already have a shell in the folder, you do not need any of this: the CLI
+is strictly more capable, because it can also grep, read a single interaction
+and use git. MCP is for the client that has no shell.
 
 The tools, reads first:
 
