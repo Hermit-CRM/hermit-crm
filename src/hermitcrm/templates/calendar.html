@@ -31,8 +31,37 @@
   <tr>
     <td>{{ e.start.strftime('%a %d %b') }}{% if not e.all_day %} {{ e.start.strftime('%H:%M') }}&ndash;{{ e.end.strftime('%H:%M') }}{% endif %}</td>
     <td>{{ e.title or '(no title)' }}{% if e.location %} <span class="small">{{ e.location }}</span>{% endif %}</td>
-    <td>{% for c in e.companies %}<a href="/companies/{{ c.slug }}">{{ c.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</td>
+    <td>{% for m in e.companies %}<a href="/companies/{{ m.company.slug }}">{{ m.company.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</td>
     <td>{{ e.attendees | join(', ') }}</td>
+  </tr>
+  <tr class="brief-row">
+    <td colspan="4">
+      <details class="brief">
+        <summary>Brief</summary>
+        {% for m in e.companies %}
+        <div class="brief-company">
+          <div class="brief-head">
+            <a href="/companies/{{ m.company.slug }}">{{ m.company.name }}</a>
+            <span class="small">{{ m.company.stage }} &middot; {{ m.company.days_in_stage(today) }}d in stage{% if m.company.value_eur_month is not none %} &middot; {{ m.company.value_eur_month }} EUR/month{% endif %}</span>
+          </div>
+          {% if m.company.product_oneliner %}<div class="small">{{ m.company.product_oneliner }}</div>{% endif %}
+          {% if m.company.next_step_open %}
+          <div class="small{% if m.company.next_step_overdue(today) %} overdue{% endif %}">next: {{ m.company.next_step or '(no text)' }}{% if m.company.next_step_due %}, due {{ fmt_date(m.company.next_step_due) }}{% endif %}</div>
+          {% endif %}
+          {% if m.company.contacts %}
+          <div class="small">{% for c in m.company.contacts.values() %}<a href="/companies/{{ m.company.slug }}/contacts/{{ c.slug }}">{{ c.name }}</a>{% if c.title %} ({{ c.title }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+          {% endif %}
+          <ul class="brief-timeline">
+            {% for it in m.interactions %}
+            <li><span class="small">{{ fmt_date(it.date) }} {{ it.channel }} {{ it.direction }} ({{ it.contact_label }})</span>{% if it.subject or it.body %} {{ it.subject or preview(it.body) }}{% endif %}</li>
+            {% else %}
+            <li class="small empty">No interactions logged yet.</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endfor %}
+      </details>
+    </td>
   </tr>
   {% else %}
   <tr><td colspan="4" class="empty">No meetings with known companies in the next 7 days{% if not calendar_last_run %} (no meeting import has run yet){% endif %}.</td></tr>

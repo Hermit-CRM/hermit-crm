@@ -450,3 +450,35 @@ def test_cli_enrich_dry_run_and_apply(tmp_path, capsys, monkeypatch):
     text, code = crm.cmd_enrich(store, Stub(), "acme", contact="jane-doe")
     assert code == 0 and "not found: title" in text and "nothing public" in text
     assert crm.cmd_enrich(store, Stub(), "acme", contact="ghost")[1] == 1
+
+
+# --------------------------------------------------------------- serve --host
+
+
+def test_reachable_address_prints_a_typeable_one_for_a_wildcard_bind():
+    """0.0.0.0 is not something you can open on a phone; a LAN address is."""
+    assert crm.reachable_address("127.0.0.1") == "127.0.0.1"
+    assert crm.reachable_address("crm.local") == "crm.local"
+    for wildcard in ("0.0.0.0", "::"):
+        shown = crm.reachable_address(wildcard)
+        assert shown not in ("0.0.0.0", "::") and shown.count(".") == 3
+
+
+def test_serve_binds_the_host_it_is_given_and_warns_off_loopback(tmp_path, capsys,
+                                                                 monkeypatch):
+    calls = {}
+    monkeypatch.setattr(crm, "load_config", lambda root: {"port": 8765,
+                                                          "host": "127.0.0.1"})
+    monkeypatch.setitem(sys.modules, "uvicorn",
+                        type("M", (), {"run": staticmethod(
+                            lambda app, host, port: calls.update(host=host, port=port))}))
+    monkeypatch.setattr("hermitcrm.web.create_app", lambda root, config: "app")
+
+    crm.cmd_serve(tmp_path)
+    assert calls["host"] == "127.0.0.1"
+    assert "Hermit CRM has no password" not in capsys.readouterr().err
+
+    crm.cmd_serve(tmp_path, host="0.0.0.0", port=9001)
+    assert calls == {"host": "0.0.0.0", "port": 9001}
+    err = capsys.readouterr().err
+    assert "Hermit CRM has no password" in err and "network you trust" in err

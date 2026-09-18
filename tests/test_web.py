@@ -182,6 +182,28 @@ def test_delete_is_recorded_without_sweeping_the_folder(client, repo):
     assert git("ls-files", "scratch.md") == ""                           # stray untouched
 
 
+def test_board_shows_the_follow_up_radar(client, app):
+    """An unanswered inbound message is the first thing the home page says."""
+    post_company(client, name="Acme GmbH", stage="engaged")
+    post_contact(client, "acme", first_name="Jane", last_name="Roe")
+    post_interaction(client, "acme", channel="email", direction="in",
+                     contact="jane-roe",
+                     date=str(TODAY - timedelta(days=4)) + "T09:00",
+                     body="Hi there,\n\nCan you send pricing?")
+
+    page = client.get("/").text
+    assert 'id="followups"' in page and "Follow up (1)" in page
+    assert "radar-reply" in page and "wrote, no reply from you" in page
+    assert "Can you send pricing?" in page
+    assert page.index('id="followups"') < page.index('class="board"')
+
+
+def test_board_radar_is_absent_when_nothing_is_waiting(client):
+    post_company(client, name="Acme GmbH", stage="prospect")
+    page = client.get("/").text
+    assert 'id="followups"' not in page
+
+
 def test_board_card_order_follows_pipeline(client):
     post_company(client, name="Later", stage="prospect",
                  next_step="x", next_step_due=str(TODAY + timedelta(days=5)))
@@ -1213,3 +1235,62 @@ def test_contact_page_sections_in_order_and_nav_marks_contacts(client, app):
     assert active == ["/contacts"]
     assert re.findall(r'<a href="([^"]+)" class="active"', client.get("/companies/acme").text) == ["/companies"]
     assert '<option value="declining">headcount decline</option>' in page
+
+
+# ------------------------------------------------------------------- capture
+
+
+CAPTURE_PAGE = (
+    '<html><head><title>Northwind Robotics | Warehouse automation</title>'
+    '<meta property="og:site_name" content="Northwind Robotics">'
+    '<meta name="description" content="Robots that pick and pack.">'
+    '</head><body><a href="https://www.linkedin.com/company/northwind-robotics">li</a>'
+    '</body></html>')
+
+
+def test_capture_page_hands_out_a_bookmarklet_for_this_address(client):
+    page = htmllib.unescape(client.get("/capture").text)
+    assert ("javascript:(function(){window.open('http://testserver/capture/new?url='"
+            "+encodeURIComponent(location.href),'_blank');})();") in page
+    # built from the request, so a serve --host session hands out a working one
+
+
+def test_capture_new_opens_a_prefilled_company_form(client, app):
+    app.state.fetcher = lambda url: CAPTURE_PAGE
+
+    r = client.get("/capture/new", params={"url": "northwind.example.com"})
+    assert r.status_code == 200
+    assert 'name="name" value="Northwind Robotics"' in r.text
+    assert 'name="website" value="https://northwind.example.com"' in r.text
+    assert 'name="linkedin" value="https://www.linkedin.com/company/northwind-robotics"' in r.text
+    assert 'action="/companies"' in r.text
+    assert "Read from" in r.text
+    assert app.state.store.companies == {}  # a read, not a write
+
+
+def test_capture_of_a_company_you_already_have_goes_to_it(client, app):
+    post_company(client, name="Northwind Robotics", website="northwind.example.com")
+    app.state.fetcher = lambda url: CAPTURE_PAGE
+
+    r = client.get("/capture/new", params={"url": "https://northwind.example.com/pricing"},
+                   follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"].startswith("/companies/northwind-robotics")
+    assert "already%20in%20the%20CRM" in r.headers["location"]
+
+
+def test_capture_says_why_a_page_could_not_be_read(client, app):
+    def refuse(url):
+        from hermitcrm.scrape import ScrapeError
+        raise ScrapeError("LinkedIn refused the anonymous request (HTTP 999)")
+
+    app.state.fetcher = refuse
+    r = client.get("/capture/new", params={"url": "https://www.linkedin.com/company/x"},
+                   follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].startswith("/capture?flash=")
+    assert "LinkedIn%20refused" in r.headers["location"]
+
+
+def test_capture_new_without_a_url_goes_back_to_the_capture_page(client):
+    r = client.get("/capture/new", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/capture"
