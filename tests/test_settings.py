@@ -48,6 +48,18 @@ def cfg(folder: Path) -> dict:
 # ------------------------------------------------------------------ the page
 
 
+def test_settings_title_is_plain_and_provider_script_runs_in_body(demo, tmp_path):
+    # The provider picker's script once sat inside the title block; <title> is
+    # RCDATA, so the tab showed the code and the script never ran.
+    app, client = make_client(demo, tmp_path)
+    html = client.get("/settings").text
+    assert "<title>Settings</title>" in html
+    select = html.index('id="bcc-provider"')
+    script = html.index("// Picking a provider fills the server")
+    assert select < script
+    assert html.index("</title>") < script
+
+
 def test_settings_page_renders_every_section(demo, tmp_path):
     app, client = make_client(demo, tmp_path)
     r = client.get("/settings")

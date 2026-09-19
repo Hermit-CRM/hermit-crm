@@ -1,22 +1,6 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
-{% block title %}Settings<script>
-// Picking a provider fills the server and shows how to get its app password.
-// Plain progressive enhancement: without this, the server box is typed by hand.
-(function () {
-  var select = document.getElementById("bcc-provider");
-  var host = document.getElementById("bcc-imap-host");
-  if (!select || !host) return;
-  select.addEventListener("change", function () {
-    var chosen = select.options[select.selectedIndex];
-    if (chosen.dataset.host) host.value = chosen.dataset.host;
-    document.querySelectorAll(".provider-note").forEach(function (n) {
-      n.hidden = n.dataset.provider !== select.value;
-    });
-  });
-})();
-</script>
-{% endblock %}
+{% block title %}Settings{% endblock %}
 {% macro status(done) %}<span class="setup-status {{ 'done' if done else 'pending' }}">{{ 'done' if done else 'pending' }}</span>{% endmacro %}
 {% macro step_errors(step) %}{% set errs = form_errors.get(step, {}) %}{% if errs %}<div class="errors"><ul>{% for msg in errs.values() %}<li>{{ msg }}</li>{% endfor %}</ul></div>{% endif %}{% endmacro %}
 {% block content %}
@@ -364,4 +348,20 @@
     <tr><th>Help</th><td><a href="/help">All help topics</a>, or <code>hermitcrm help</code></td></tr>
   </table>
 </section>
+<script>
+// Picking a provider fills the server and shows how to get its app password.
+// Plain progressive enhancement: without this, the server box is typed by hand.
+(function () {
+  var select = document.getElementById("bcc-provider");
+  var host = document.getElementById("bcc-imap-host");
+  if (!select || !host) return;
+  select.addEventListener("change", function () {
+    var chosen = select.options[select.selectedIndex];
+    if (chosen.dataset.host) host.value = chosen.dataset.host;
+    document.querySelectorAll(".provider-note").forEach(function (n) {
+      n.hidden = n.dataset.provider !== select.value;
+    });
+  });
+})();
+</script>
 {% endblock %}
