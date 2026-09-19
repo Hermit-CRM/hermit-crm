@@ -114,6 +114,18 @@
     </fieldset>
     <button type="submit">Save</button>
   </form>
+  <h3>Your own look</h3>
+  {% if theme_file.active %}
+  <p class="small theme-status"><strong>In use:</strong> <code>{{ theme_file.path }}</code>. It changes colours and fonts on top of the default. Delete the file to go back to the default look.</p>
+  {% if theme_file.problems %}
+  <ul class="small provider-note warning">
+    {% for line, problem in theme_file.problems %}<li>Line {{ line }}: {{ problem }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  {% else %}
+  <p class="small theme-status"><strong>Not in use.</strong> To change colours or fonts, ask your AI tool to write <code>{{ theme_file.path }}</code>, for example "make my Hermit CRM green". It is one block like the one below; <a href="/help/settings">Help > Settings</a> lists what you can change.</p>
+  <pre class="small theme-example">{{ theme_example }}</pre>
+  {% endif %}
 </section>
 
 <section class="setup-step" id="fields">

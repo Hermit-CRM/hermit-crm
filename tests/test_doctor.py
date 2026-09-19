@@ -183,3 +183,15 @@ def test_agent_guard_warns_when_a_rule_is_missing(folder, tmp_path):
     assert "hermitcrm backup guard" in found.detail
     path.write_text("{oops")
     assert "not valid JSON" in checks(folder, tmp_path)["agent guard"].detail
+
+
+def test_theme_css_row(folder, tmp_path):
+    assert "theme.css" not in checks(folder, tmp_path)
+    (folder / "theme.css").write_text(":root { --accent: light-dark(#1E8A60, #6BC49A); }\n"
+                                      "body { background: url(data:image/png;base64,AA); }\n")
+    row = checks(folder, tmp_path)["theme.css"]
+    assert row.status == doctor.OK
+    (folder / "theme.css").write_text(":root{}\n@import 'x.css';\nbody{background:url(https://example.com/a.png)}\n")
+    row = checks(folder, tmp_path)["theme.css"]
+    assert row.status == doctor.WARN
+    assert "line 2: @import" in row.detail and "line 3: url(https://example.com/a.png)" in row.detail

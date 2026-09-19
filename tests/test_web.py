@@ -1644,3 +1644,75 @@ def test_extension_says_why_a_page_could_not_be_read(client, app):
 def test_extension_new_without_a_url_goes_back_to_the_capture_page(client):
     r = client.get("/extension/new", follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"] == "/extension"
+
+
+# ------------------------------------------------------ theme.css and the CSP
+
+
+def test_stylesheets_load_tokens_then_style_then_theme(client, repo):
+    page = client.get("/").text
+    links = re.findall(r'<link rel="stylesheet" href="([^"?]+)', page)
+    assert links == ["/static/tokens.css", "/static/style.css"]
+    (repo / "theme.css").write_text(":root { --accent: red; }")
+    links = re.findall(r'<link rel="stylesheet" href="([^"?]+)', client.get("/").text)
+    assert links == ["/static/tokens.css", "/static/style.css", "/theme.css"]
+
+
+def test_theme_css_served_as_written(client, repo):
+    assert client.get("/theme.css").status_code == 404
+    body = b"/* mine */\n:root { --accent: light-dark(#1E8A60, #6BC49A); }\n"
+    (repo / "theme.css").write_bytes(body)
+    r = client.get("/theme.css")
+    assert r.status_code == 200 and r.content == body
+    assert r.headers["content-type"].startswith("text/css")
+    assert r.headers["cache-control"] == "no-cache"
+
+
+@pytest.mark.parametrize("body", [b"", b"\xff\xfe not utf-8"])
+def test_theme_css_odd_bytes_do_not_crash(client, repo, body):
+    (repo / "theme.css").write_bytes(body)
+    r = client.get("/theme.css")
+    assert r.status_code == 200 and r.content == body
+    assert client.get("/").status_code == 200
+    assert client.get("/settings").status_code == 200
+
+
+def test_theme_css_never_escapes_the_data_folder(client, repo, tmp_path_factory):
+    (repo / "theme.css").mkdir()
+    assert client.get("/theme.css").status_code == 404
+    (repo / "theme.css").rmdir()
+    outside = tmp_path_factory.mktemp("elsewhere") / "id_rsa"
+    outside.write_text("PRIVATE")
+    (repo / "theme.css").symlink_to(outside)
+    r = client.get("/theme.css")
+    assert r.status_code == 404 and "PRIVATE" not in r.text
+    assert "/theme.css" not in client.get("/").text
+
+
+def test_theme_css_skips_the_requalify_sweep(client, app, repo, monkeypatch):
+    calls = []
+    monkeypatch.setattr(app.state.store, "requalify_due", lambda: calls.append(1))
+    (repo / "theme.css").write_text(":root{}")
+    client.get("/theme.css")
+    client.get("/static/tokens.css")
+    assert calls == []
+    client.get("/")
+    assert calls == [1]
+
+
+def test_pages_carry_a_content_security_policy(client):
+    for path in ("/", "/settings", "/pipeline"):
+        csp = client.get(path).headers["content-security-policy"]
+        assert "default-src 'self'" in csp and "frame-ancestors 'none'" in csp
+        assert "form-action 'self'" in csp
+    assert "content-security-policy" not in client.get("/static/tokens.css").headers
+
+
+def test_settings_appearance_shows_the_theme_file(client, repo):
+    page = client.get("/settings").text
+    assert "Not in use." in page and str(repo / "theme.css") in page
+    assert "light-dark(#1E8A60, #6BC49A)" in page
+    (repo / "theme.css").write_text(":root { --accent: red; }\n@import url(https://example.com/x.css);\n")
+    page = htmllib.unescape(client.get("/settings").text)
+    assert "In use:" in page
+    assert "Line 2: @import loads another file" in page

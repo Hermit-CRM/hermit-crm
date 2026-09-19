@@ -51,6 +51,43 @@ machine; the local backup is the one nothing can rewrite. See
 Night mode: off (`theme = "light"`), on (`"dark"`) or follow the operating
 system (`"system"`).
 
+### Your own look: theme.css
+
+To change colours or fonts, put a file called `theme.css` in your data folder.
+The app loads it after its own styles, so whatever it sets wins, and it is
+committed with the rest of your data. Delete the file to go back to the
+default look. Settings > Appearance says whether the app is using it.
+
+The easiest way is to ask your AI tool, for example "make my Hermit CRM green
+and use a serif font". Point it at this page (`hermitcrm help settings`). The
+file is one `:root` block. Each colour is `light-dark(light value, dark value)`,
+so one line covers both night mode off and on:
+
+```css
+/* My look for Hermit CRM. Delete this file to go back to the default. */
+:root {
+  --accent: light-dark(#1E8A60, #6BC49A);      /* links, buttons, focus */
+  --bg: light-dark(#fbfbfc, #16171b);          /* page background */
+  --surface: light-dark(#fff, #1e1f24);        /* cards and tables */
+  --text: light-dark(#1b1b1f, #e6e6ea);        /* body text */
+  --muted: light-dark(#5c5c66, #a4a4ae);       /* secondary text */
+  --line: light-dark(#d9d9de, #34353d);        /* borders */
+  --sidebar: light-dark(#eeeef1, #1b1c21);     /* the menu on the left */
+  --sans: ui-serif, Georgia, serif;            /* the main font */
+  --mono: ui-monospace, Menlo, monospace;      /* code and text boxes */
+}
+```
+
+Keep only the lines you change. Every token and its default is in
+`static/tokens.css` inside the Hermit CRM package; read it there, do not edit
+it (an update would overwrite it, and the website shares it).
+
+Two limits keep your data private. The file cannot load anything: `@import`
+and `url()` pointing at another file or website are blocked by the app, and
+`hermitcrm doctor` and Settings name the line. Colours and fonts already on
+your computer work; `data:` URLs work too. Keep text contrast readable, at
+least 4.5:1 against the background.
+
 ## Fields
 
 Fields of your own, on top of the ones Hermit CRM has: a key, a label, a type

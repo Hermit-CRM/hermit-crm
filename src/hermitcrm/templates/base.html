@@ -8,7 +8,9 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v={{ hermitcrm_version }}">
   <link rel="icon" type="image/png" sizes="180x180" href="/static/favicon.png?v={{ hermitcrm_version }}">
   <link rel="apple-touch-icon" href="/static/favicon.png?v={{ hermitcrm_version }}">
+  <link rel="stylesheet" href="/static/tokens.css?v={{ hermitcrm_version }}">
   <link rel="stylesheet" href="/static/style.css?v={{ hermitcrm_version }}">
+  {% if user_theme %}<link rel="stylesheet" href="/theme.css">{% endif %}
   <script src="/static/tour.js?v={{ hermitcrm_version }}" defer></script>
 </head>
 <body>
@@ -17,7 +19,7 @@
 <a href="{{ href }}" data-tour="{{ name }}"{% if active %} class="active" aria-current="page"{% endif %}>{{ icon(name) }}<span>{{ label }}{{ caller() if caller }}</span></a>
 {%- endmacro %}
 <nav class="sidebar" aria-label="Main">
-  <a class="brand" href="/"><svg class="brand-mark" viewBox="0 0 64 64" width="22" height="22" aria-hidden="true"><rect x="7" y="13" width="50" height="38" rx="7" fill="none" stroke="currentColor" stroke-width="5"/><circle cx="24" cy="27" r="5.5" fill="#1E8A60"/><path d="M16 43 a8 8 0 0 1 16 0 z" fill="#1E8A60"/><rect x="38" y="25" width="12" height="4" rx="2" fill="currentColor"/><rect x="38" y="34" width="8" height="4" rx="2" fill="currentColor"/></svg><span>Hermit CRM</span></a>
+  <a class="brand" href="/"><svg class="brand-mark" viewBox="0 0 64 64" width="22" height="22" aria-hidden="true"><rect x="7" y="13" width="50" height="38" rx="7" fill="none" stroke="currentColor" stroke-width="5"/><circle cx="24" cy="27" r="5.5" class="brand-fill"/><path d="M16 43 a8 8 0 0 1 16 0 z" class="brand-fill"/><rect x="38" y="25" width="12" height="4" rx="2" fill="currentColor"/><rect x="38" y="34" width="8" height="4" rx="2" fill="currentColor"/></svg><span>Hermit CRM</span></a>
   {{ navlink('/', 'Home', 'home', path == '/') }}
   {{ navlink('/pipeline', 'Pipeline', 'pipeline', path.startswith('/pipeline')) }}
   {{ navlink('/calendar', 'Calendar', 'calendar', path.startswith('/calendar')) }}

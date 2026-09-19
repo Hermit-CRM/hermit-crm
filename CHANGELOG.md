@@ -47,6 +47,15 @@ history-rewriting git commands. All migrate automatically in one commit.
   keeps them**: the migration writes a `fields.toml` describing them and does
   not touch a single company file, because those keys were always ordinary
   front matter. A folder that never used them gets no file at all.
+- **Your own look, in one file.** Put a `theme.css` in your data folder and the
+  app uses it on top of its own styles: one `:root` block of colours and fonts,
+  each colour written once for light and dark with `light-dark()`. Ask your AI
+  tool to write it; Help > Settings has the template, Settings > Appearance says
+  whether it is in use, and deleting it brings the default back. The defaults
+  moved to `static/tokens.css`, which the website shares, so the default app and
+  the site cannot drift apart. Every page now sends a Content-Security-Policy
+  that allows only the app's own files, so a theme cannot load or send anything
+  elsewhere; `hermitcrm doctor` names the line that tries.
 - **A walkthrough, on first launch and under Help.** `/welcome` has ten steps
   -- who you are, a first company and contact, logging an interaction, moving a
   deal, next steps and tasks, BCC capture, the calendar, the extension, and

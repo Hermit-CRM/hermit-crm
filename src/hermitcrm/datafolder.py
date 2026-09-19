@@ -167,6 +167,8 @@ Writing rules:
 - Commit messages for AI-made changes start with "ai:".
 - Never rewrite interaction bodies; they are the record.
 - Never put secrets in config.toml and never commit .secrets.toml.
+- To change how the app looks, write overrides to `theme.css` in this folder
+  (`hermitcrm help settings`, "Your own look"). Never edit the Hermit CRM package.
 
 """
 

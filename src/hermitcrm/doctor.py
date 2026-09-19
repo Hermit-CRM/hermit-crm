@@ -14,7 +14,7 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import __version__, backup, bcc, guard, migrations, schedule, secrets, updates
+from . import __version__, backup, bcc, guard, migrations, schedule, secrets, updates, usertheme
 from . import setup as setup_steps
 from .datafolder import is_data_folder
 from .enrich import Enricher
@@ -186,6 +186,13 @@ def run_checks(root: Path, *, online: bool = False, env: dict | None = None,
             add("enrich cli", WARN, f"unavailable (optional): {enr.unavailable_reason()}")
     except Exception as exc:
         add("enrich cli", WARN, f"could not check: {exc}")
+
+    theme = usertheme.status(root)
+    if theme["active"]:
+        problems = theme["problems"]
+        add("theme.css", WARN if problems else OK,
+            "; ".join(f"line {n}: {msg}" for n, msg in problems) if problems
+            else "your own look is in use")
 
     # Only a genuinely newer version is a warning. A 404 or an unreachable index is
     # reported as what it is; what doctor must never do is answer "is the latest"
