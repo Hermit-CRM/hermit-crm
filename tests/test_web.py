@@ -12,6 +12,7 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 from fastapi.testclient import TestClient
 
+from hermitcrm import usertheme
 from hermitcrm.web import company_values, create_app
 
 CONFIG = {"port": 8765, "silent_days": 14, "push_enabled": False, "remote": "origin",
@@ -1838,7 +1839,7 @@ def test_pages_carry_a_content_security_policy(client):
 def test_settings_appearance_shows_the_theme_file(client, repo):
     page = client.get("/settings").text
     assert "Not in use." in page and str(repo / "theme.css") in page
-    assert "light-dark(#1E8A60, #6BC49A)" in page
+    assert usertheme.EXAMPLE.strip() in page
     (repo / "theme.css").write_text(":root { --accent: red; }\n@import url(https://example.com/x.css);\n")
     page = htmllib.unescape(client.get("/settings").text)
     assert "In use:" in page

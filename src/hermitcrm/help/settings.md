@@ -58,29 +58,63 @@ The app loads it after its own styles, so whatever it sets wins, and it is
 committed with the rest of your data. Delete the file to go back to the
 default look. Settings > Appearance says whether the app is using it.
 
-The easiest way is to ask your AI tool, for example "make my Hermit CRM green
-and use a serif font". Point it at this page (`hermitcrm help settings`). The
-file is one `:root` block. Each colour is `light-dark(light value, dark value)`,
-so one line covers both night mode off and on:
+The easiest way is to ask your AI tool, for example "make my Hermit CRM blue"
+or "put the titles in the same font as the rest". Point it at this page
+(`hermitcrm help settings`). Most looks need one `:root` block. Each colour is
+`light-dark(light value, dark value)`, so one line covers both night mode off
+and on. The colours most worth changing, with their defaults:
 
 ```css
 /* My look for Hermit CRM. Delete this file to go back to the default. */
 :root {
-  --accent: light-dark(#1E8A60, #6BC49A);      /* links, buttons, focus */
-  --bg: light-dark(#fbfbfc, #16171b);          /* page background */
-  --surface: light-dark(#fff, #1e1f24);        /* cards and tables */
-  --text: light-dark(#1b1b1f, #e6e6ea);        /* body text */
-  --muted: light-dark(#5c5c66, #a4a4ae);       /* secondary text */
-  --line: light-dark(#d9d9de, #34353d);        /* borders */
-  --sidebar: light-dark(#eeeef1, #1b1c21);     /* the menu on the left */
-  --sans: ui-serif, Georgia, serif;            /* the main font */
-  --mono: ui-monospace, Menlo, monospace;      /* code and text boxes */
+  --accent: light-dark(#166b4a, #6bc49a);      /* links, buttons, focus */
+  --bg: light-dark(#f5f1e8, #1c1b18);          /* page background */
+  --surface: light-dark(#fbf9f4, #24221e);     /* cards and tables */
+  --text: light-dark(#17181a, #ece7dc);        /* body text */
+  --muted: light-dark(#5c574e, #a8a193);       /* secondary text */
+  --line: light-dark(#d2c8b4, #3f3a33);        /* borders */
+  --line-strong: light-dark(#8f8778, #7a7264); /* borders of fields you type in */
+  --sidebar: light-dark(#efebe2, #211f1c);     /* the menu on the left */
 }
 ```
 
-Keep only the lines you change. Every token and its default is in
-`static/tokens.css` inside the Hermit CRM package; read it there, do not edit
-it (an update would overwrite it, and the website shares it).
+Keep only the lines you change. Fonts are tokens too: `--sans` is the main
+font (the system's sans-serif), `--title-font` sets the page titles, the name
+in the menu and the numbers on Home (`var(--serif)`, the system's serif), and
+`--mono` sets code and text boxes. `--title-font: var(--sans);` puts the titles
+in the main font; `--sans: ui-serif, Georgia, serif;` sets everything in a
+serif. Every token and its default is in `static/tokens.css` inside the Hermit
+CRM package; read it there, do not edit it (an update would overwrite it, and
+the website shares it).
+
+The file can also hold ordinary CSS rules, which win over the app's own. A
+ready-made cooler look, white and grey with a blue accent and sans-serif titles
+(Hermit CRM's look until September 2026):
+
+```css
+/* A cooler look: white, grey and blue. Delete this file to go back to the default. */
+:root {
+  --bg: light-dark(#fbfbfc, #16171b);
+  --surface: light-dark(#ffffff, #1e1f24);
+  --surface-2: light-dark(#f7f7f9, #23242a);
+  --subtle: light-dark(#f2f2f5, #2a2b32);
+  --text: light-dark(#1b1b1f, #e6e6ea);
+  --muted: light-dark(#5c5c66, #a4a4ae);
+  --faint: light-dark(#8e8e98, #7c7c86);
+  --line: light-dark(#d9d9de, #34353d);
+  --line-strong: light-dark(#8e8e98, #7c7c86);
+  --accent: light-dark(#1a4fd6, #7ea6ff);
+  --info-bg: light-dark(#eef4ff, #1d2a44);
+  --info-line: light-dark(#c7d8ff, #2f4675);
+  --sidebar: light-dark(#eeeef1, #1b1c21);
+  --sidebar-hover: light-dark(#e2e2e7, #26272e);
+  --sidebar-active: light-dark(#d9d9e0, #30313a);
+  --shadow-color: light-dark(rgba(20, 20, 30, .14), rgba(0, 0, 0, .5));
+  --title-font: var(--sans);
+}
+/* section labels in lowercase instead of small caps */
+h2 { font-variant-caps: normal; letter-spacing: 0; text-transform: lowercase; }
+```
 
 Two limits keep your data private. The file cannot load anything: `@import`
 and `url()` pointing at another file or website are blocked by the app, and

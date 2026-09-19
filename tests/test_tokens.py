@@ -67,8 +67,8 @@ def effective(css: str, selector: str) -> dict[str, str]:
 DEFINED = declarations(root_block(TOKENS))
 
 
-def light_dark(name: str) -> tuple[str, str]:
-    return re.fullmatch(r"light-dark\((#\w+),\s*(#\w+)\)", DEFINED[name]).groups()
+def light_dark(name: str, tokens: dict[str, str] = DEFINED) -> tuple[str, str]:
+    return re.fullmatch(r"light-dark\((#\w+),\s*(#\w+)\)", tokens[name]).groups()
 
 
 def contrast(a: str, b: str) -> float:
@@ -171,14 +171,42 @@ def test_each_theme_sets_its_colour_scheme():
     assert re.search(r'\[data-theme="system"\]\s*\{\s*color-scheme: light dark;', TOKENS)
 
 
-def test_help_template_parses_and_names_only_real_tokens():
+def help_theme_blocks() -> list[str]:
+    """The css blocks under "Your own look: theme.css" in Help > Settings."""
     text = HELP.read_text(encoding="utf-8")
-    css = re.search(r"### Your own look: theme\.css.*?```css\n(.*?)```", text, re.S).group(1)
-    names = declarations(root_block(css))
-    assert names and set(names) <= DEFINED.keys()
-    assert usertheme.lint(css) == []
+    section = re.search(r"### Your own look: theme\.css\n(.*?)\n## ", text, re.S).group(1)
+    return re.findall(r"```css\n(.*?)```", section, re.S)
+
+
+def test_help_templates_parse_and_name_only_real_tokens():
+    blocks = help_theme_blocks()
+    assert len(blocks) == 2  # the defaults, and a ready-made cooler look
+    for css in blocks:
+        names = declarations(root_block(css))
+        assert names and set(names) <= DEFINED.keys()
+        assert usertheme.lint(css) == []
     example = declarations(root_block(usertheme.EXAMPLE))
     assert example and set(example) <= DEFINED.keys()
+
+
+def test_help_lists_the_real_defaults():
+    """An AI tool reading the help starts from the colours the app shows."""
+    for name, value in declarations(root_block(help_theme_blocks()[0])).items():
+        assert value.lower() == DEFINED[name].lower(), name
+
+
+@pytest.mark.parametrize("scheme", [0, 1], ids=["light", "dark"])
+def test_the_ready_made_look_in_the_help_meets_the_contrast_rules(scheme):
+    look = DEFINED | declarations(root_block(help_theme_blocks()[1]))
+    for fg, bg, minimum in CONTRAST:
+        ratio = contrast(light_dark(fg, look)[scheme], light_dark(bg, look)[scheme])
+        assert ratio >= minimum, f"{fg} on {bg}: {ratio:.2f}"
+
+
+def test_the_settings_example_changes_something():
+    """Settings > Appearance shows it when no theme.css is in use."""
+    for name, value in declarations(root_block(usertheme.EXAMPLE)).items():
+        assert value != DEFINED[name], name
 
 
 # ----------------------------------------------------------- usertheme.py
