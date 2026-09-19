@@ -426,3 +426,11 @@ def test_a_location_on_one_line_with_contact_info_is_read():
     person = read(top=top)
     assert person.location == "Rotterdam, South Holland, Netherlands"
     assert person.headline == "Head of Compliance | DORA"
+
+
+def test_an_entity_linkedin_encoded_twice_is_read_as_the_character(store):
+    """Seen on a real profile: the description said "I&amp;#39;ve spent..."."""
+    page = PROFILE.replace("Most teams do not have", "I&amp;#39;ve seen most teams not have")
+    found = capture.from_url(store, "https://www.linkedin.com/in/ines-vega/",
+                             fetcher=lambda u: page)
+    assert found.contact_values["title"].startswith("I've seen most teams")

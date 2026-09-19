@@ -16,6 +16,7 @@ What a page can give us:
 
 from __future__ import annotations
 
+import html
 import json
 import re
 import urllib.error
@@ -144,8 +145,9 @@ def parse_page(url: str, text: str) -> PageFacts:
     parser.close()
     facts = parser.facts
     facts.url = url
-    facts.title = " ".join(facts.title.split())
-    facts.description = " ".join(facts.description.split())
+    # LinkedIn encodes some entities twice ("I&amp;#39;ve"): one more pass.
+    facts.title = " ".join(html.unescape(facts.title).split())
+    facts.description = " ".join(html.unescape(facts.description).split())
     facts.text_hints = parser.hints()
     return facts
 
