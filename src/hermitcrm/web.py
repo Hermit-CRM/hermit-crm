@@ -24,7 +24,7 @@ from secrets import token_urlsafe
 from urllib.parse import quote, urlencode, urlparse
 
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
@@ -33,7 +33,7 @@ from fastapi.templating import Jinja2Templates
 
 from . import (bcc, brief, calendar_sync, capture, feedback, fields as custom, filters,
                followups, messaging, migrations, pipeline, reports, welcome)
-from . import schedule, scrape
+from . import schedule, scrape, usertheme
 from . import help as helpdocs
 from . import setup as setup_steps
 from .filters import Column
@@ -420,6 +420,10 @@ def build_enricher(config: dict) -> Enricher:
     )
 
 
+CSP = ("default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+       "script-src 'self' 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'")
+
+
 def safe_page(page: str) -> str:
     """A local path to answer questions about; anything else becomes /."""
     page = (page or "").strip()
@@ -676,7 +680,8 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
     async def requalify_sweep(request: Request, call_next):
         # Parked companies whose "requalify on" date has arrived go back to
         # prospect the next time any page is opened (idempotent, one commit).
-        if request.method == "GET" and not request.url.path.startswith("/static"):
+        if request.method == "GET" and not request.url.path.startswith("/static") \
+                and request.url.path != "/theme.css":
             try:
                 refresh_if_moved()
             except Exception:
@@ -686,6 +691,15 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             except Exception:
                 logger.exception("requalify sweep failed")
         return await call_next(request)
+
+    @app.middleware("http")
+    async def content_security_policy(request: Request, call_next):
+        # Pages may only use this app's own files. That is what makes a user's
+        # theme.css safe: it cannot load, or send anything to, another host.
+        response = await call_next(request)
+        if response.headers.get("content-type", "").startswith("text/html"):
+            response.headers.setdefault("Content-Security-Policy", CSP)
+        return response
 
     host_names = allowed_host_names(config)
 
@@ -706,6 +720,15 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         return await call_next(request)
 
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
+
+    @app.get("/theme.css", include_in_schema=False)
+    def user_theme_css() -> Response:
+        """<data folder>/theme.css as written: the user's own look (Help > Settings)."""
+        found = usertheme.path(root)
+        if found is None:
+            raise HTTPException(status_code=404, detail="no theme.css in the data folder")
+        return Response(found.read_bytes(), media_type="text/css",
+                        headers={"Cache-Control": "no-cache"})
 
     @app.get("/favicon.ico", include_in_schema=False)
     def favicon_ico() -> RedirectResponse:
@@ -755,6 +778,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "csrf_token": app.state.csrf_token,
             "help_topic": helpdocs.topic_for(request.url.path),
             "theme": str(config.get("theme") or "light"),
+            "user_theme": usertheme.path(root) is not None,
             "ask_page": safe_page(request.url.path + (f"?{request.url.query}"
                                                       if request.url.query else "")),
             "model_label": model_label,
@@ -2154,6 +2178,8 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
                             "timeout": str(config.get("enrich_timeout") or 180)},
             "tier_models": {t: enricher.model_for(t) for t in setup_steps.AI_TIERS},
             "themes": setup_steps.THEMES,
+            "theme_file": usertheme.status(root),
+            "theme_example": usertheme.EXAMPLE,
             "fields_form": {"toml": (root / custom.FILENAME).read_text(encoding="utf-8")
                             if (root / custom.FILENAME).exists() else ""},
             "custom_field_defs": app.state.custom_fields,

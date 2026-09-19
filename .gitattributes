@@ -1,0 +1,3 @@
+# Not part of the download: scripts/release.sh uses git archive, which skips these.
+website/ export-ignore
+.gitattributes export-ignore

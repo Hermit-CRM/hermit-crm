@@ -1,0 +1,234 @@
+# ─────────────────────────────────────────────────────────────────────
+#  Hermit CRM website: every word on the page lives in this file.
+#
+#  1. Change the text between the quotes.
+#  2. Run:   python3 build.py
+#  3. Open:  site/index.html
+#
+#  Formatting you can use inside any text:
+#     **bold**            ->  bold
+#     `code`              ->  monospace, for file names and commands
+#     [link text](url)    ->  a link
+#
+#  Text between """ and """ may run over several lines; line breaks
+#  inside it are ignored, so wrap it however you like.
+#  Leave [TBC] in place until the real value is known. The build lists
+#  every [TBC] that is left, and warns about em dashes, exclamation
+#  marks and the banned marketing words. `python3 build.py --release`
+#  refuses to finish while any of those are left.
+# ─────────────────────────────────────────────────────────────────────
+
+
+# ── Values used in several places ────────────────────────────────────
+[release]
+version  = "[TBC]"
+file     = "hermitcrm-[TBC version].tar.gz"
+size     = "[TBC size]"
+license  = "Free, MIT license"
+
+[links]
+download       = "#"   # [TBC] URL of the .tar.gz
+sha256         = "#"   # [TBC] URL of the .sha256 file
+github         = "#"   # [TBC] repository URL
+install_manual = "#"   # [TBC] INSTALL.md on GitHub
+
+
+# ── Browser tab, search results and link previews ────────────────────
+[page]
+title       = "Hermit CRM: a local CRM for one person, for Mac"
+# Meta description: the brief says to use the hero subline. Leave empty
+# to reuse [hero].subline automatically.
+description = ""
+# Full address of the live site, e.g. "https://hermitcrm.com". Needed so
+# link previews (LinkedIn, Slack) can find the share image.
+site_url    = ""       # [TBC]
+
+
+# ── Top bar ──────────────────────────────────────────────────────────
+[header]
+name         = "Hermit CRM"
+github_label = "GitHub [TBC]"
+
+
+# ── First screen ─────────────────────────────────────────────────────
+[hero]
+h1 = "A CRM for one."
+subline = """
+Hermit CRM keeps every company, contact and conversation as a plain text
+file on your Mac. A local web app gives you a pipeline, a calendar, message
+drafts and dashboards. Your AI tools can work in it too.
+"""
+download_button = "Download for Mac"
+sha256_label    = "SHA-256"
+
+
+# ── Install with your AI ─────────────────────────────────────────────
+[install]
+label = "Install with your AI"
+steps = [
+  "**Download and unpack it.** Double-click the file in Finder.",
+  "**Open the folder in your [AI coding tool](#requirements):** Claude Code, Codex, Cursor, Gemini CLI or another.",
+  "**Send it this message:**",
+]
+# The sentence people copy. The Copy button copies exactly this.
+message      = "Read INSTALL.md and set up Hermit CRM for me."
+copy_button  = "Copy"
+copied_label = "Copied"
+# Shown for 4 seconds when the browser refuses to copy; the message is then
+# selected, so the visitor can copy it with the keyboard.
+copy_failed_label = "Press ⌘C"
+note = """
+It checks your Mac, installs what is missing, asks your name and email
+addresses, and starts the app. Passwords and calendar links you type into
+the app's Settings page yourself, so they stay on your Mac.
+"""
+manual_link = "Prefer the terminal? Install by hand."
+
+
+# ── What it does ─────────────────────────────────────────────────────
+[features]
+label = "What it does"
+
+[[features.items]]
+name = "Pipeline"
+text = "A board from prospect to won, plus a follow-up radar for unanswered threads."
+
+[[features.items]]
+name = "Calendar"
+text = "Overdue and due-today next steps, a month view, and a brief before each meeting."
+
+[[features.items]]
+name = "Contacts"
+text = "Companies and people in sortable tables, and one timeline per company of every email, call and meeting."
+
+[[features.items]]
+name = "Messages"
+text = "Outreach drafts in English, German, Dutch or French, in your wording, and the outcome of every message."
+
+[[features.items]]
+name = "Dashboards"
+text = "Weekly activity, funnel and conversion, time in stage, and which messages get answers."
+
+
+# ── The three principles (bold word, then the sentence) ──────────────
+[[principles]]
+name = "Local."
+text = "It runs on your Mac. Your data is a folder of Markdown files in git, on your own disk."
+
+[[principles]]
+name = "AI-native."
+text = """
+Plain files, a small CLI and an MCP server, so Claude Code, Codex or Claude
+Desktop can read your pipeline and log a call. Ask Hermit answers questions
+on every page.
+"""
+
+[[principles]]
+name = "Configurable."
+text = "One commented settings file, your own message wording, and any fields you add are kept."
+
+
+# ── One company, one file ────────────────────────────────────────────
+[file]
+label   = "The idea"
+heading = "One company, one file, one commit."
+# Screenshot of the app. Put the image in site/img/ and write its file
+# name here, e.g. "pipeline.png" (1600 x 1000 works well). While empty,
+# the page shows a drawn placeholder of the pipeline board.
+screenshot     = ""
+screenshot_alt = "The Hermit CRM pipeline board in the browser, with the Acme card highlighted."
+address_bar    = "127.0.0.1:8765"
+file_caption   = "The file behind the Acme card:"
+file_path      = "~/crm/companies/acme/company.md"
+# Shown exactly as written, line by line.
+file_body = """
+---
+name: Acme BV
+slug: acme
+website: https://acme.example.com
+country: NL
+source: other
+stage: prospect
+stage_changed: 2026-09-17
+..."""
+after = "Add a company in the app or from the terminal. Either way it becomes this file, and one commit records it."
+
+
+# ── Requirements ─────────────────────────────────────────────────────
+[requirements]
+label = "Requirements"
+items = [
+  "macOS [TBC: minimum version], Apple Silicon [TBC: and Intel]",
+  "An AI coding tool: Claude Code, Codex, Cursor, Gemini CLI or similar",
+  "Python 3.11 or newer and git. If they are missing, your AI tool installs them. On a Mac that has never been used for programming, you click Install once in an Apple dialog.",
+]
+
+
+# ── Questions (open = true shows the answer when the page loads) ─────
+[questions]
+label = "Questions"
+
+[[questions.items]]
+q = "Where does my data live?"
+a = """
+In a folder on your Mac, `~/crm` unless you choose another. Every company,
+contact and conversation is a Markdown file, and every change is a git
+commit, so any mistake is one `git revert` away.
+"""
+open = true
+
+[[questions.items]]
+q = "Does anything leave my Mac?"
+a = """
+Only what you send. A private git backup, if you add one. The AI tool you
+ask, when you use Ask Hermit or enrichment. A once-a-day version check with
+no identifiers, which you can turn off.
+"""
+open = true
+
+[[questions.items]]
+q = "Do I need to be a developer?"
+a = """
+No. Your AI tool runs the commands and tells you in plain words what it is
+doing. On a fresh Mac you click Install once in an Apple dialog.
+"""
+
+[[questions.items]]
+q = "Which AI tools work?"
+a = """
+For the install, any AI coding tool that can read a file and run commands:
+Claude Code, Codex, Cursor, Gemini CLI and others. Afterwards, Claude
+Desktop, ChatGPT, Cursor or any other MCP client can read your pipeline and
+log interactions.
+"""
+
+[[questions.items]]
+q = "Does it work with my email and calendar?"
+a = """
+Yes, without OAuth. BCC or forward mail to an address such as
+you+crm@gmail.com and it is logged on the right contact. Past meetings come
+in from your calendar's secret ICS link (Google, Outlook or iCloud). You
+type the app password and the link into the Settings page yourself, so they
+never pass through an AI chat.
+"""
+
+[[questions.items]]
+q = "Can my team use it?"
+a = "No. Hermit CRM is built for one person. If you need a team CRM, use one of the others."
+
+[[questions.items]]
+q = "What does it cost?"
+a = "Nothing. It is open source under the MIT license."
+
+
+# ── Bottom of the page ───────────────────────────────────────────────
+[footer]
+# {github} is replaced by a link to [links].github labelled with
+# [header].github_label.
+text = "Hermit CRM · MIT License · {github} · Built by Gijs Bos at [CompoundGTM](https://compoundgtm.io)"
+
+
+# ── Share image (og.png, 1200 x 630) ─────────────────────────────────
+# Regenerate with: python3 build.py --share   (needs Playwright)
+[share]
+tagline = "Free for Mac · MIT license"

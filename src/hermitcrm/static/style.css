@@ -1,75 +1,5 @@
-/* Hermit CRM: plain CSS, no framework. Colours are tokens; dark mode swaps them. */
-
-:root {
-  color-scheme: light;
-  --bg: #fbfbfc;
-  --surface: #fff;
-  --surface-2: #f7f7f9;
-  --subtle: #f2f2f5;
-  --text: #1b1b1f;
-  --muted: #5c5c66;
-  --faint: #8e8e98;
-  --line: #d9d9de;
-  --line-strong: #c4c4cc;
-  --accent: #1a4fd6;
-  --danger: #b00020;
-  --info-bg: #eef4ff; --info-line: #c7d8ff;
-  --error-bg: #fff0f2; --error-line: #f2c2ca;
-  --warn-bg: #fff6e3; --warn-line: #f0d9a0; --warn: #8a5300;
-  --ok-bg: #e6f4ea; --ok: #1b7f3b;
-  --sidebar: #eeeef1;
-  --sidebar-hover: #e2e2e7;
-  --sidebar-active: #d9d9e0;
-  --shadow: 0 8px 28px rgba(20, 20, 30, .14);
-}
-
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #16171b;
-  --surface: #1e1f24;
-  --surface-2: #23242a;
-  --subtle: #2a2b32;
-  --text: #e6e6ea;
-  --muted: #a4a4ae;
-  --faint: #7c7c86;
-  --line: #34353d;
-  --line-strong: #44454e;
-  --accent: #7ea6ff;
-  --danger: #ff7a8a;
-  --info-bg: #1d2a44; --info-line: #2f4675;
-  --error-bg: #3a1f25; --error-line: #6b3440;
-  --warn-bg: #362a14; --warn-line: #6a5424; --warn: #f0c46c;
-  --ok-bg: #1b3325; --ok: #6fd28f;
-  --sidebar: #1b1c21;
-  --sidebar-hover: #26272e;
-  --sidebar-active: #30313a;
-  --shadow: 0 8px 28px rgba(0, 0, 0, .5);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root[data-theme="system"] {
-    color-scheme: dark;
-    --bg: #16171b;
-    --surface: #1e1f24;
-    --surface-2: #23242a;
-    --subtle: #2a2b32;
-    --text: #e6e6ea;
-    --muted: #a4a4ae;
-    --faint: #7c7c86;
-    --line: #34353d;
-    --line-strong: #44454e;
-    --accent: #7ea6ff;
-    --danger: #ff7a8a;
-    --info-bg: #1d2a44; --info-line: #2f4675;
-    --error-bg: #3a1f25; --error-line: #6b3440;
-    --warn-bg: #362a14; --warn-line: #6a5424; --warn: #f0c46c;
-    --ok-bg: #1b3325; --ok: #6fd28f;
-    --sidebar: #1b1c21;
-    --sidebar-hover: #26272e;
-    --sidebar-active: #30313a;
-    --shadow: 0 8px 28px rgba(0, 0, 0, .5);
-  }
-}
+/* Hermit CRM: plain CSS, no framework. Every colour and font is a token from
+   tokens.css (loaded first); dark mode is handled there. Use var(--*) only. */
 
 * { box-sizing: border-box; }
 
@@ -77,7 +7,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font: 14px/1.45 var(--sans);
 }
 
 main { max-width: 1700px; width: 100%; margin: 0 auto; padding: 18px 24px 60px; }
@@ -261,7 +191,7 @@ input, select, textarea {
   border-radius: 3px;
   background: var(--surface);
 }
-textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+textarea { font-family: var(--mono); font-size: 13px; }
 .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
 @media (min-width: 1000px) { form.record-form .row, form.interaction-form .row { flex-wrap: nowrap; } }
 form.record-form .row > label.grow, form.interaction-form .row > label.grow { min-width: 0; }
@@ -532,7 +462,7 @@ nav a.help-link { margin-left: 4px; }
 .feedback-form, .feedback-saved { border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; background: var(--surface-2); margin-bottom: 20px; }
 .feedback-saved { margin-top: 0; }
 .feedback-saved h2 { margin-top: 0; font-size: 16px; text-transform: none; }
-.feedback-saved textarea { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.feedback-saved textarea { width: 100%; font-family: var(--mono); font-size: 12px; }
 .feedback-facts { margin-bottom: 24px; font-size: 13px; color: var(--muted); }
 .feedback-facts summary { cursor: pointer; }
 .feedback-facts ul { margin: 8px 0; }
@@ -634,5 +564,9 @@ a.button { display: inline-block; padding: 4px 12px; border: 1px solid var(--lin
 .tour-bubble .tour-nav { display: flex; align-items: center; gap: 8px; }
 .tour-bubble .tour-nav .small { margin-right: auto; }
 
-.provider-note.warning { color: var(--warn, #9a5b00); }
+.provider-note.warning { color: var(--warn); }
 .help .help-label { font-size: 12px; color: var(--muted); text-decoration: underline dotted; margin-left: 2px; }
+
+/* the logo mark: its green is the brand token */
+.brand-fill { fill: var(--brand); }
+pre.theme-example { background: var(--surface-2); border: 1px solid var(--line); border-radius: 3px; padding: 6px 8px; overflow-x: auto; font-family: var(--mono); }
