@@ -12,6 +12,9 @@ Now (19 Sep):
 - [ ] Register hermitcrm.com and hermitcrm.io (.io redirects to .com).
 - [ ] Apply for GitHub Sponsors on the `Hermit-CRM` org (payout to
       CompoundGTM) and open a Ko-fi account for CompoundGTM; both take days.
+- [ ] Send the testers a new build with the website's look (merged
+      19 Sep). `rm -rf dist && ./scripts/release.sh`, then they unpack it and
+      run `uv tool install --reinstall .` in it, then restart Hermit CRM.
 
 Use (19 Sep - 3 Oct):
 - [ ] Use it daily for two weeks for real sales work; fix what annoys.

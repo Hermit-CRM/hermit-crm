@@ -205,8 +205,9 @@ details p { margin: 0 0 24px; }
 
 /* ── Pipeline placeholder (drawn at 800 x 500, scales to its box) ─ */
 /* The drawn app uses the app's own palette (--bg, --surface, --text, --muted,
-   --line, --sidebar...) from app-tokens.css, scoped to .mock-box. It follows
-   the visitor's light or dark setting, like the app on "Follow the system". */
+   --line, --sidebar...) and title font (--title-font) from app-tokens.css,
+   scoped to .mock-box. It follows the visitor's light or dark setting, like
+   the app on "Follow the system". */
 .mock-box { container-type: inline-size; aspect-ratio: 8 / 5; overflow: hidden; }
 .mock {
   --u: calc(100cqw / 800);
@@ -216,13 +217,13 @@ details p { margin: 0 0 24px; }
   font-size: calc(var(--u) * 12.5); line-height: 1.3;
 }
 .mock-side { width: calc(var(--u) * 148); flex-shrink: 0; background: var(--sidebar); border-right: 1px solid var(--line); padding: calc(var(--u) * 16) calc(var(--u) * 10); display: flex; flex-direction: column; gap: calc(var(--u) * 2); }
-.mock-brand { white-space: nowrap; display: flex; align-items: center; gap: calc(var(--u) * 8); padding: 0 calc(var(--u) * 10) calc(var(--u) * 14); font-size: calc(var(--u) * 15); font-weight: 700; }
+.mock-brand { white-space: nowrap; display: flex; align-items: center; gap: calc(var(--u) * 8); padding: 0 calc(var(--u) * 10) calc(var(--u) * 14); font-family: var(--title-font); font-size: calc(var(--u) * 15); font-weight: 500; }
 .mock-brand svg { width: calc(var(--u) * 22); height: calc(var(--u) * 17); }
 .mock-nav { color: var(--text); padding: calc(var(--u) * 6) calc(var(--u) * 10); border-radius: calc(var(--u) * 6); }
 .mock-nav.on { background: var(--sidebar-active); color: var(--text); font-weight: 600; }
 .mock-main { flex-grow: 1; min-width: 0; background: var(--bg); padding: calc(var(--u) * 18) calc(var(--u) * 18) 0; display: flex; flex-direction: column; gap: calc(var(--u) * 14); }
 .mock-top { display: flex; align-items: baseline; justify-content: space-between; }
-.mock-title { font-size: calc(var(--u) * 17); font-weight: 600; }
+.mock-title { font-family: var(--title-font); font-size: calc(var(--u) * 17); font-weight: 500; }
 .mock-tag { font-size: calc(var(--u) * 11); color: var(--muted); border: 1px dashed var(--line-strong); border-radius: calc(var(--u) * 4); padding: calc(var(--u) * 3) calc(var(--u) * 8); }
 .mock-cols { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: calc(var(--u) * 10); }
 .mock-col { display: flex; flex-direction: column; gap: calc(var(--u) * 8); min-width: 0; }

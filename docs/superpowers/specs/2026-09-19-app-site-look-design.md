@@ -1,7 +1,10 @@
 # The app takes the website's look
 
-Proposal of 2026-09-19. Status: **waiting for a decision**. Nothing is built.
-Branch `spec-app-site-look`. The pictures, the two preview themes and the script
+Proposal of 2026-09-19. Status: **decided and built the same day: option B**, now the
+default. Where the build differs from this text (one added token, `--title-font`, and
+the field borders), the plan says why:
+[`../plans/2026-09-19-app-site-look.md`](../plans/2026-09-19-app-site-look.md).
+The pictures, the two preview themes and the script
 behind every colour and contrast figure are in
 [`2026-09-19-app-site-look/`](2026-09-19-app-site-look/).
 
@@ -17,7 +20,7 @@ behind every colour and contrast figure are in
   work in (the board, tables, forms, all 12 to 14px text) stays in the system sans at
   today's size and density. No layout or template changes.
 - It is a small change: 16 values in `tokens.css`, 7 rules in `style.css`, 2 rules in
-  the website's drawing of the app. No token is renamed or added, so every user's
+  the website's drawing of the app. No token is renamed, so every user's
   `theme.css` keeps working.
 - It replaces decision D0 of 18 Sep ("the app stays blue"). It also fixes a rule the
   app breaks today: input borders are 1.7:1, and `DESIGN.md` asks for 3:1.
