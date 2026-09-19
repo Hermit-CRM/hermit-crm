@@ -13,7 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from hermitcrm import usertheme
-from hermitcrm.web import company_values, create_app
+from hermitcrm.web import asset_version, company_values, create_app
 
 CONFIG = {"port": 8765, "silent_days": 14, "push_enabled": False, "remote": "origin",
           "owner_email": "me@example.com",
@@ -1784,6 +1784,19 @@ def test_stylesheets_load_tokens_then_style_then_theme(client, repo):
     (repo / "theme.css").write_text(":root { --accent: red; }")
     links = re.findall(r'<link rel="stylesheet" href="([^"?]+)', client.get("/").text)
     assert links == ["/static/tokens.css", "/static/style.css", "/theme.css"]
+
+
+def test_static_urls_change_when_the_files_do(client, tmp_path):
+    """An update within one version number (a rebuilt 0.3.0) must not leave the old
+    stylesheet in the browser's cache, so ?v= is a hash of the files, not the version."""
+    page = client.get("/").text
+    assert f'href="/static/style.css?v={asset_version()}"' in page
+    folder = tmp_path / "static"
+    folder.mkdir()
+    (folder / "style.css").write_text("a {}")
+    before = asset_version(folder)
+    (folder / "style.css").write_text("a { color: red; }")
+    assert asset_version(folder) != before
 
 
 def test_theme_css_served_as_written(client, repo):
