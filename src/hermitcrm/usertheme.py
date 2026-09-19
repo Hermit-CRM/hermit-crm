@@ -18,11 +18,12 @@ from pathlib import Path
 
 FILENAME = "theme.css"
 
-# The template in help/settings.md and the hint in Settings start from this.
+# The hint in Settings > Appearance: one line that visibly changes the default
+# (Help > Settings has the full template).
 EXAMPLE = """\
 /* My look for Hermit CRM. Delete this file to go back to the default. */
 :root {
-  --accent: light-dark(#1E8A60, #6BC49A);
+  --accent: light-dark(#1a4fd6, #7ea6ff);  /* blue links and buttons */
 }
 """
 

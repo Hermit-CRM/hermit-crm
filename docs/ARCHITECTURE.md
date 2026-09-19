@@ -233,7 +233,7 @@ settings, `/help…` → index, and so on). The same pages are served at `/help`
 
 ## 8. Web app (`web.py` + templates)
 
-Server-rendered HTML. One base template with a top nav: Pipeline, Calendar, Companies, Contacts, Messages, Reports, Settings (with the review-queue count and a red `!` when the last import failed or is two days old), Reload, the search box, and a right-aligned Help link to `/help/<topic>` for the current page (§7). Vanilla JS only for: submitting the stage dropdown on change, and prefilling the quick-add interaction form. Plain, fast, readable on a 13-inch laptop; no dark mode needed.
+Server-rendered HTML. One base template with a top nav: Pipeline, Calendar, Companies, Contacts, Messages, Reports, Settings (with the review-queue count and a red `!` when the last import failed or is two days old), Reload, the search box, and a right-aligned Help link to `/help/<topic>` for the current page (§7). Vanilla JS only for: submitting the stage dropdown on change, and prefilling the quick-add interaction form. Plain, fast, readable on a 13-inch laptop, in light, dark or following the system (Settings > Appearance); the look and its tokens are in `DESIGN.md`.
 
 | Method and route | Behaviour |
 |---|---|

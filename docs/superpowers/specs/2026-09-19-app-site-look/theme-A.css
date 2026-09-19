@@ -1,0 +1,10 @@
+/* Preview of option A from the app/site alignment proposal.
+   Delete this file to go back to the default look. */
+:root {
+  --accent: light-dark(#166B4A, #6BC49A);
+  --info-bg: light-dark(#E8F0ED, #273332);
+  --info-line: light-dark(#B9D3C9, #355147);
+}
+
+/* Keyboard focus in the accent, like the site (today the browser's own blue ring). */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
