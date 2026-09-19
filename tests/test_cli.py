@@ -485,7 +485,7 @@ def test_serve_binds_the_host_it_is_given_and_warns_off_loopback(tmp_path, capsy
                                                           "host": "127.0.0.1"})
     monkeypatch.setitem(sys.modules, "uvicorn",
                         type("M", (), {"run": staticmethod(
-                            lambda app, host, port: calls.update(host=host, port=port))}))
+                            lambda app, host, port, **kw: calls.update(host=host, port=port))}))
     monkeypatch.setattr("hermitcrm.web.create_app", lambda root, config: "app")
 
     crm.cmd_serve(tmp_path)
@@ -496,3 +496,30 @@ def test_serve_binds_the_host_it_is_given_and_warns_off_loopback(tmp_path, capsy
     assert calls == {"host": "0.0.0.0", "port": 9001}
     err = capsys.readouterr().err
     assert "Hermit CRM has no password" in err and "network you trust" in err
+
+
+def test_serve_keeps_what_a_capture_read_out_of_its_log(tmp_path, capsys, monkeypatch):
+    """The bookmarklet puts a profile's name and headline in a local address,
+    and uvicorn writes every address it answers to the serve log."""
+    import logging
+    import logging.config
+    calls = {}
+    monkeypatch.setattr(crm, "load_config", lambda root: {"port": 8765,
+                                                          "host": "127.0.0.1"})
+    monkeypatch.setitem(sys.modules, "uvicorn",
+                        type("M", (), {"run": staticmethod(
+                            lambda app, **kw: calls.update(kw))}))
+    monkeypatch.setattr("hermitcrm.web.create_app", lambda root, config: "app")
+    crm.cmd_serve(tmp_path)
+    monkeypatch.undo()                      # the real uvicorn, for its formatters
+
+    access = logging.getLogger("uvicorn.access")
+    saved = (access.handlers[:], access.filters[:], access.propagate)
+    try:
+        logging.config.dictConfig(calls["log_config"])
+        access.info('%s - "%s %s HTTP/%s" %d', "127.0.0.1:1", "GET",
+                    "/extension/new?url=x&name=Ines+Vega", "1.1", 200)
+        out = capsys.readouterr().out
+    finally:
+        access.handlers[:], access.filters[:], access.propagate = saved
+    assert "GET /extension/new" in out and "Ines" not in out

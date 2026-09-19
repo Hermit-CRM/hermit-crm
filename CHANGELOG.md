@@ -94,6 +94,26 @@ history-rewriting git commands. All migrate automatically in one commit.
   records keeps both lists rather than choosing a side. Ticking off or deleting
   a task checks its text first, so a page left open in another tab cannot hit
   whatever moved into that position.
+- **The extension reads the profile you are logged in to.** Capturing a person
+  still fetched the profile again from your machine, logged out, and LinkedIn
+  shows an ordinary member almost nothing that way: one in three real profiles
+  answered HTTP 999 (an error page, no form), and the rest masked the job
+  titles, which reached the title field as `['********** *** ***', ...]`. On a
+  LinkedIn profile the bookmarklet now reads the page in your own tab -- name,
+  headline, current company and its LinkedIn page, location, the current role
+  from Experience as the title, and the email when Contact info is open -- and
+  nothing is fetched at all. A company it creates keeps its LinkedIn page, so
+  the next colleague you capture lands on the same record. It reads the order
+  of lines and the labels screen readers get, never LinkedIn's scrambled class
+  names; what it cannot place stays empty. Take the bookmarklet again from
+  `/extension`; the old one keeps working the old way.
+- **A profile address is one address.** `/in/x/overlay/contact-info/`,
+  `nl.linkedin.com/in/x` and `/in/x?miniProfileUrn=...` are now stored as
+  `https://www.linkedin.com/in/x`, and "already in the CRM" matches any of
+  them, before anything is fetched. A profile LinkedIn will not show opens the
+  contact form with its address and the name spelled in it, rather than an
+  error. The serve log no longer keeps what a capture read: uvicorn wrote each
+  captured address, query and all, to `~/Library/Logs/hermitcrm-serve.log`.
 - **The extension captures a person.** A LinkedIn profile URL opened a form to
   create a *company* from it, because nothing in Hermit CRM recognised a profile
   page: the code only ever matched `linkedin.com/company/`. A profile now opens

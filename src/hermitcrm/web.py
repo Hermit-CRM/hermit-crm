@@ -1444,9 +1444,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         Built from the request rather than from config, so a `serve --host`
         session hands out a bookmarklet that works from the phone that asked.
         """
-        base = str(request.base_url).rstrip("/")
-        return ("javascript:(function(){window.open('" + base +
-                "/extension/new?url='+encodeURIComponent(location.href),'_blank');})();")
+        return capture.bookmarklet(str(request.base_url).rstrip("/"))
 
     @app.get("/extension", response_class=HTMLResponse)
     def extension_page(request: Request):
@@ -1473,10 +1471,15 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         """
         if not (url or "").strip():
             return goto("/extension")
+        page = dict(request.query_params)
         try:
-            found = capture.from_url(
-                store, url, fetcher=app.state.fetcher,
-                custom_keys={d.key for d in custom_defs('company')})
+            if page.get("v") and scrape.PERSON_URL.search(url):
+                # read in your own logged-in tab by the bookmarklet: no fetch
+                found = capture.from_page(store, url, page)
+            else:
+                found = capture.from_url(
+                    store, url, fetcher=app.state.fetcher,
+                    custom_keys={d.key for d in custom_defs('company')})
         except ScrapeError as exc:
             return flashed("/extension", f"Could not read that page: {exc}")
         if found.kind == "person":
@@ -1794,7 +1797,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
     # --------------------------------------------------------------- contacts
 
     GLOBAL_CONTACT_BLANK = {"name": "", "email": "", "title": "", "linkedin": "",
-                            "company": "", "website": ""}
+                            "company": "", "website": "", "company_linkedin": ""}
 
     def _global_contact_page(request: Request, values: dict, errors=None,
                              duplicates=None, status_code: int = 200, capture=None):
@@ -1817,13 +1820,19 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         linkedin: str = Form(""),
         company: str = Form(""),
         website: str = Form(""),
+        company_linkedin: str = Form(""),
         force: str = Form(""),
     ):
         """New contact anywhere: the company is found by name or slug, else by
         the email's domain, else created (default stage). Possible duplicates
-        stop the write once; "Create anyway" (force=1) goes through."""
+        stop the write once; "Create anyway" (force=1) goes through.
+
+        `company_linkedin` comes from a captured profile and only ever goes on
+        a company created here, cleaned by scrape.company_page_url: it never
+        rewrites a company you already have."""
         values = {"name": name, "email": email, "title": title, "linkedin": linkedin,
-                  "company": company, "website": website}
+                  "company": company, "website": website,
+                  "company_linkedin": company_linkedin}
         errors = {}
         if not name.strip():
             errors["name"] = "name is required"
@@ -1840,7 +1849,9 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         try:
             with store.batch("") as ctx:
                 if not slug:
-                    slug = store.create_company(company, website=new_site).slug
+                    slug = store.create_company(
+                        company, website=new_site,
+                        linkedin=scrape.company_page_url(company_linkedin)).slug
                 contact = store.create_contact(slug, first_name, last_name, title=title,
                                                linkedin=linkedin, email=email)
                 ctx["message"] = f"contact: {slug}/{contact.slug} created" + (
