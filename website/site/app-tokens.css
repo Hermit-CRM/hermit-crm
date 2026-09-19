@@ -13,19 +13,20 @@
 /* the app's palette, only inside the drawn app */
 .mock-box {
   color-scheme: light;
-  --bg: light-dark(#fbfbfc, #16171b);
-  --surface: light-dark(#fff, #1e1f24);
-  --surface-2: light-dark(#f7f7f9, #23242a);
-  --subtle: light-dark(#f2f2f5, #2a2b32);
-  --text: light-dark(#1b1b1f, #e6e6ea);
-  --muted: light-dark(#5c5c66, #a4a4ae);
-  --faint: light-dark(#8e8e98, #7c7c86);
-  --line: light-dark(#d9d9de, #34353d);
-  --line-strong: light-dark(#c4c4cc, #44454e);
-  --accent: light-dark(#1a4fd6, #7ea6ff);
+  --title-font: var(--serif);
+  --bg: light-dark(#f5f1e8, #1c1b18);
+  --surface: light-dark(#fbf9f4, #24221e);
+  --surface-2: light-dark(#f2eee6, #292723);
+  --subtle: light-dark(#ece7dc, #302d28);
+  --text: light-dark(#17181a, #ece7dc);
+  --muted: light-dark(#5c574e, #a8a193);
+  --faint: light-dark(#8f8778, #7a7264);
+  --line: light-dark(#d2c8b4, #3f3a33);
+  --line-strong: light-dark(#8f8778, #7a7264);
+  --accent: light-dark(#166b4a, #6bc49a);
   --danger: light-dark(#b00020, #ff7a8a);
-  --info-bg: light-dark(#eef4ff, #1d2a44);
-  --info-line: light-dark(#c7d8ff, #2f4675);
+  --info-bg: light-dark(#e4ebe3, #2d352d);
+  --info-line: light-dark(#b6cec1, #395343);
   --error-bg: light-dark(#fff0f2, #3a1f25);
   --error-line: light-dark(#f2c2ca, #6b3440);
   --warn-bg: light-dark(#fff6e3, #362a14);
@@ -33,10 +34,10 @@
   --warn: light-dark(#8a5300, #f0c46c);
   --ok-bg: light-dark(#e6f4ea, #1b3325);
   --ok: light-dark(#1b7f3b, #6fd28f);
-  --sidebar: light-dark(#eeeef1, #1b1c21);
-  --sidebar-hover: light-dark(#e2e2e7, #26272e);
-  --sidebar-active: light-dark(#d9d9e0, #30313a);
-  --shadow-color: light-dark(rgba(20, 20, 30, .14), rgba(0, 0, 0, .5));
+  --sidebar: light-dark(#efebe2, #211f1c);
+  --sidebar-hover: light-dark(#e7e1d5, #2b2924);
+  --sidebar-active: light-dark(#ded7c8, #35322c);
+  --shadow-color: light-dark(rgba(40, 32, 20, .16), rgba(0, 0, 0, .5));
   --shadow: 0 8px 28px var(--shadow-color);
 }
 .mock-box[data-theme="dark"] { color-scheme: dark; }
@@ -44,19 +45,19 @@
 
 @supports not (color: light-dark(#000, #fff)) {
   .mock-box {
-    --bg: #fbfbfc;
-    --surface: #fff;
-    --surface-2: #f7f7f9;
-    --subtle: #f2f2f5;
-    --text: #1b1b1f;
-    --muted: #5c5c66;
-    --faint: #8e8e98;
-    --line: #d9d9de;
-    --line-strong: #c4c4cc;
-    --accent: #1a4fd6;
+    --bg: #f5f1e8;
+    --surface: #fbf9f4;
+    --surface-2: #f2eee6;
+    --subtle: #ece7dc;
+    --text: #17181a;
+    --muted: #5c574e;
+    --faint: #8f8778;
+    --line: #d2c8b4;
+    --line-strong: #8f8778;
+    --accent: #166b4a;
     --danger: #b00020;
-    --info-bg: #eef4ff;
-    --info-line: #c7d8ff;
+    --info-bg: #e4ebe3;
+    --info-line: #b6cec1;
     --error-bg: #fff0f2;
     --error-line: #f2c2ca;
     --warn-bg: #fff6e3;
@@ -64,10 +65,10 @@
     --warn: #8a5300;
     --ok-bg: #e6f4ea;
     --ok: #1b7f3b;
-    --sidebar: #eeeef1;
-    --sidebar-hover: #e2e2e7;
-    --sidebar-active: #d9d9e0;
-    --shadow-color: rgba(20, 20, 30, .14);
+    --sidebar: #efebe2;
+    --sidebar-hover: #e7e1d5;
+    --sidebar-active: #ded7c8;
+    --shadow-color: rgba(40, 32, 20, .16);
   }
   .mock-box[data-theme] { color-scheme: light; }
 }

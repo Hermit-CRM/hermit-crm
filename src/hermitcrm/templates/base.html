@@ -5,13 +5,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Hermit CRM{% endblock %}</title>
-  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v={{ hermitcrm_version }}">
-  <link rel="icon" type="image/png" sizes="180x180" href="/static/favicon.png?v={{ hermitcrm_version }}">
-  <link rel="apple-touch-icon" href="/static/favicon.png?v={{ hermitcrm_version }}">
-  <link rel="stylesheet" href="/static/tokens.css?v={{ hermitcrm_version }}">
-  <link rel="stylesheet" href="/static/style.css?v={{ hermitcrm_version }}">
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v={{ asset_version }}">
+  <link rel="icon" type="image/png" sizes="180x180" href="/static/favicon.png?v={{ asset_version }}">
+  <link rel="apple-touch-icon" href="/static/favicon.png?v={{ asset_version }}">
+  <link rel="stylesheet" href="/static/tokens.css?v={{ asset_version }}">
+  <link rel="stylesheet" href="/static/style.css?v={{ asset_version }}">
   {% if user_theme %}<link rel="stylesheet" href="/theme.css">{% endif %}
-  <script src="/static/tour.js?v={{ hermitcrm_version }}" defer></script>
+  <script src="/static/tour.js?v={{ asset_version }}" defer></script>
 </head>
 <body>
 {% set path = request.url.path %}

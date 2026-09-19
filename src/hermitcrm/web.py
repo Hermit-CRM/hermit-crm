@@ -97,6 +97,16 @@ def message_statuses(outcomes: list[str]) -> list[str]:
     return [o for o in outcomes if o] + ["unknown"]
 
 
+def asset_version(folder: Path = HERE / "static") -> str:
+    """The ?v= on static URLs: a hash of the files, not the version number, so an
+    update within one version (a rebuilt tarball) never shows yesterday's
+    stylesheet from the browser's cache."""
+    digest = hashlib.sha256()
+    for path in sorted(p for p in folder.rglob("*") if p.is_file()):
+        digest.update(path.relative_to(folder).as_posix().encode() + b"\0" + path.read_bytes())
+    return digest.hexdigest()[:10]
+
+
 # --------------------------------------------------------------------- filters
 
 
@@ -754,6 +764,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         outcomes=outcomes,
         message_statuses=message_statuses(outcomes),
         hermitcrm_version=__version__,
+        asset_version=asset_version(),
         update_notice=app.state.update_notice,
         render_markdown=helpdocs.render,
         record_version=lambda slug, cslug="": record_version(root, slug, cslug),

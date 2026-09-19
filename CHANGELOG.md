@@ -56,6 +56,16 @@ history-rewriting git commands. All migrate automatically in one commit.
   the site cannot drift apart. Every page now sends a Content-Security-Policy
   that allows only the app's own files, so a theme cannot load or send anything
   elsewhere; `hermitcrm doctor` names the line that tries.
+- **The app takes the website's look.** Warm paper instead of cool grey, and
+  the logo's green instead of blue for links, buttons and the keyboard focus
+  ring, in light and dark. Page titles, the name in the menu and the numbers on
+  Home are in the website's serif, and section labels are small caps. What you
+  work in (the board, tables, forms) keeps the system sans at the same size.
+  Fields you type in have borders you can see (3:1; they were 1.35:1). Your
+  `theme.css` keeps working: `--title-font: var(--sans);` puts the titles back
+  in sans, and Help > Settings has the earlier white, grey and blue look as a
+  ready-made theme. Stylesheet URLs now carry a hash of the files, so an update
+  shows its new look at once instead of the browser's cached copy.
 - **A walkthrough, on first launch and under Help.** `/welcome` has ten steps
   -- who you are, a first company and contact, logging an interaction, moving a
   deal, next steps and tasks, BCC capture, the calendar, the extension, and
