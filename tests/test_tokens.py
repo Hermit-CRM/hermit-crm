@@ -17,7 +17,18 @@ TOKENS = (STATIC / "tokens.css").read_text(encoding="utf-8")
 STYLE = (STATIC / "style.css").read_text(encoding="utf-8")
 
 # Tokens that are the same in light and dark by design.
-SCHEME_FREE = {"--brand", "--ink", "--sans", "--mono", "--serif", "--shadow"}
+SCHEME_FREE = {"--brand", "--ink", "--sans", "--mono", "--serif", "--title-font", "--shadow"}
+
+# (foreground, background, minimum): every pair that carries text or marks a
+# control. DESIGN.md: 4.5:1 for text, 3:1 for control borders and hints.
+CONTRAST = [
+    ("--text", "--bg", 4.5), ("--text", "--surface", 4.5), ("--text", "--sidebar-active", 4.5),
+    ("--text", "--info-bg", 4.5), ("--muted", "--bg", 4.5), ("--muted", "--surface", 4.5),
+    ("--muted", "--sidebar", 4.5), ("--faint", "--surface", 3.0), ("--accent", "--bg", 4.5),
+    ("--accent", "--surface", 4.5), ("--accent", "--info-bg", 4.5),
+    ("--surface", "--accent", 4.5), ("--line-strong", "--surface", 3.0),
+    ("--danger", "--surface", 4.5), ("--ok", "--surface", 4.5), ("--warn", "--warn-bg", 4.5),
+]
 
 
 def declarations(block: str) -> dict[str, str]:
@@ -36,6 +47,22 @@ def fallback_block(css: str) -> str:
 
 
 DEFINED = declarations(root_block(TOKENS))
+
+
+def light_dark(name: str) -> tuple[str, str]:
+    return re.fullmatch(r"light-dark\((#\w+),\s*(#\w+)\)", DEFINED[name]).groups()
+
+
+def contrast(a: str, b: str) -> float:
+    """WCAG 2 contrast ratio of two #rgb or #rrggbb colours."""
+    def luminance(colour: str) -> float:
+        h = colour.lstrip("#")
+        h = "".join(c * 2 for c in h) if len(h) == 3 else h
+        rgb = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+        r, g, b = (c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in rgb)
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    hi, lo = sorted((luminance(a), luminance(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
 
 
 def test_every_var_used_by_the_app_is_defined_in_tokens():
@@ -66,6 +93,19 @@ def test_fallback_gives_every_colour_token_its_light_value():
     for name, value in colour.items():
         light = re.match(r"light-dark\((.*),\s*(?:#|rgba?\()", value).group(1).strip()
         assert fallback[name] == light, name
+
+
+@pytest.mark.parametrize("scheme", [0, 1], ids=["light", "dark"])
+@pytest.mark.parametrize("fg, bg, minimum", CONTRAST)
+def test_default_colours_meet_the_contrast_rules(fg, bg, minimum, scheme):
+    ratio = contrast(light_dark(fg)[scheme], light_dark(bg)[scheme])
+    assert ratio >= minimum, f"{fg} on {bg}: {ratio:.2f}"
+
+
+def test_titles_have_a_font_token_of_their_own():
+    """Page titles, the wordmark and the Home numbers are in the website's serif; a
+    user's theme.css puts them back in sans with one line: --title-font: var(--sans)."""
+    assert DEFINED["--title-font"] == "var(--serif)"
 
 
 def test_each_theme_sets_its_colour_scheme():
