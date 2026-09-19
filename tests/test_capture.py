@@ -2,7 +2,7 @@
 
 import pytest
 
-from hermitcrm import capture
+from hermitcrm import capture, scrape
 from hermitcrm.scrape import ScrapeError
 
 PAGE = """<html><head>
@@ -105,7 +105,7 @@ def test_a_profile_makes_a_contact_not_a_company(store):
     values = found.contact_values
     assert values["name"] == "Ines Vega"
     assert values["company"] == "Harbour Light Labs"
-    assert values["linkedin"] == "https://www.linkedin.com/in/ines-vega/"
+    assert values["linkedin"] == "https://www.linkedin.com/in/ines-vega"
 
 
 def test_the_headline_is_the_title_and_never_the_product_oneliner(store):
@@ -139,3 +139,290 @@ def test_a_company_page_is_still_a_company(store):
                              fetcher=lambda u: "<html><head><title>Acme | Robots"
                                                "</title></head></html>")
     assert found.kind == "company" and found.name == "Acme"
+
+
+# Logged out, LinkedIn's structured data masks an ordinary member's job titles
+# and sends them as a list. Both reached the title field as "['*****', ...]".
+MASKED = """<html><head>
+<title>Ines Vega - Harbour Light Labs | LinkedIn</title>
+<meta property="og:description" content="Execution, not leads &middot; Experience: Harbour Light Labs">
+<script type="application/ld+json">{"@context":"http://schema.org","@graph":[{"@type":"Person",
+ "name":"Ines Vega","jobTitle":["********** *** ***","******* ****"],
+ "worksFor":[{"@type":"Organization","name":"Harbour Light Labs"}]}]}</script>
+</head><body></body></html>"""
+
+
+def test_masked_job_titles_are_dropped_not_written_as_a_list(store):
+    found = capture.from_url(store, "https://www.linkedin.com/in/ines-vega/",
+                             fetcher=lambda u: MASKED)
+    assert found.contact_values["title"] == "Execution, not leads"
+
+
+def test_a_list_of_job_titles_gives_the_first(store):
+    page = MASKED.replace('"********** *** ***","******* ****"',
+                          '"Head of Compliance","Board member"')
+    found = capture.from_url(store, "https://www.linkedin.com/in/ines-vega/",
+                             fetcher=lambda u: page)
+    assert found.contact_values["title"] == "Head of Compliance"
+
+
+def test_the_profile_address_is_stored_in_one_form(store):
+    found = person(store, "https://nl.linkedin.com/in/ines-vega/overlay/contact-info/")
+    assert found.contact_values["linkedin"] == "https://www.linkedin.com/in/ines-vega"
+
+
+def test_someone_you_have_is_found_from_any_page_of_their_profile(store):
+    company = store.create_company("Harbour Light Labs")
+    store.create_contact(company.slug, "Ines", "Vega",
+                         linkedin="https://nl.linkedin.com/in/ines-vega?trk=abc")
+    found = person(store, "https://www.linkedin.com/in/ines-vega/details/experience/")
+    assert found.existing is not None and found.existing.slug == "harbour-light-labs"
+    assert capture.contact_slug_in(found.existing, found.url) == "ines-vega"
+
+
+def test_someone_you_have_is_found_without_asking_linkedin(store):
+    company = store.create_company("Harbour Light Labs")
+    store.create_contact(company.slug, "Ines", "Vega",
+                         linkedin="https://www.linkedin.com/in/ines-vega")
+
+    def must_not_fetch(url):
+        raise AssertionError(f"fetched {url}")
+
+    found = capture.from_url(store, "https://www.linkedin.com/in/ines-vega/",
+                             fetcher=must_not_fetch)
+    assert found.existing is not None and found.existing.slug == "harbour-light-labs"
+
+
+def test_a_profile_linkedin_will_not_show_still_makes_a_contact_form(store):
+    """HTTP 999 used to end in an error page. The address still gives a person."""
+    def refuse(url):
+        raise ScrapeError("LinkedIn refused the anonymous request (HTTP 999)")
+
+    found = capture.from_url(store, "https://www.linkedin.com/in/ines-vega-8a1b2c3d/",
+                             fetcher=refuse)
+    assert found.kind == "person"
+    values = found.contact_values
+    assert values["name"] == "Ines Vega"
+    assert values["linkedin"] == "https://www.linkedin.com/in/ines-vega-8a1b2c3d"
+    assert values["company"] == "" and values["title"] == ""
+    assert "HTTP 999" in found.fetch_error
+    assert store.companies == {}
+
+
+def test_a_company_page_linkedin_will_not_show_is_still_an_error(store):
+    def refuse(url):
+        raise ScrapeError("LinkedIn refused the anonymous request (HTTP 999)")
+
+    with pytest.raises(ScrapeError):
+        capture.from_url(store, "https://www.linkedin.com/company/harbour-light-labs/",
+                         fetcher=refuse)
+
+
+# ------------------------------------------------ what the bookmarklet read
+# Logged in, the page you are looking at has everything; the bookmarklet sends
+# pieces of it (v=2) and nothing is fetched. These are the parts no layout
+# change moves: the h1, a mailto link, links to company pages.
+
+READ = {"v": "2", "h1": "Ines Vega",
+        "co": "https://www.linkedin.com/company/1234567/|Harbour Light Labs logo",
+        "mail": "ines@harbourlight.example"}
+
+
+def test_a_page_read_in_the_browser_makes_a_contact_without_a_fetch(store):
+    found = capture.from_page(store, "https://www.linkedin.com/in/ines-vega/", READ)
+    assert found.kind == "person"
+    values = found.contact_values
+    assert values["name"] == "Ines Vega"
+    assert values["email"] == "ines@harbourlight.example"
+    assert values["linkedin"] == "https://www.linkedin.com/in/ines-vega"
+    assert values["company"] == "Harbour Light Labs"
+    assert values["company_linkedin"] == "https://www.linkedin.com/company/1234567"
+    assert store.companies == {}
+
+
+def test_the_employer_is_found_by_its_linkedin_page_before_its_name(store):
+    store.create_company("Harbour Light Labs B.V.",
+                         linkedin="https://www.linkedin.com/company/1234567")
+    found = capture.from_page(store, "https://www.linkedin.com/in/ines-vega/", READ)
+    assert found.company is not None and found.company.slug == "harbour-light-labs"
+    assert found.contact_values["company"] == "Harbour Light Labs B.V."
+
+
+def test_someone_you_have_is_found_from_what_the_page_sent(store):
+    company = store.create_company("Harbour Light Labs")
+    store.create_contact(company.slug, "Ines", "Vega",
+                         linkedin="https://www.linkedin.com/in/ines-vega")
+    found = capture.from_page(store, "https://www.linkedin.com/in/ines-vega/overlay/contact-info/",
+                              READ)
+    assert found.existing is not None and found.existing.slug == "harbour-light-labs"
+
+
+def test_a_page_that_sent_nothing_still_gives_the_name_in_its_address(store):
+    """Clicked before the profile had loaded: the address is all there is."""
+    found = capture.from_page(store, "https://www.linkedin.com/in/ines-vega-8a1b2c3d/",
+                              {"v": "2"})
+    assert found.contact_values["name"] == "Ines Vega"
+    assert found.read_nothing
+    assert found.contact_values["company"] == ""
+
+
+@pytest.mark.parametrize("mail,want", [
+    ("not an address", ""),
+    ("javascript:alert(1)", ""),
+    ("a@b.example?subject=hi", "a@b.example"),
+    ("mailto:a@b.example", "a@b.example"),
+    ("A@B.example ", "A@B.example"),
+])
+def test_only_a_plain_email_address_is_taken(store, mail, want):
+    found = capture.from_page(store, "https://www.linkedin.com/in/ines-vega/",
+                              {**READ, "mail": mail})
+    assert found.contact_values["email"] == want
+
+
+# The top card and Experience as a logged-in tab's innerText gives them:
+# pronouns and the connection degree on lines of their own, and every
+# Experience line twice (once for the eye, once for screen readers).
+TOP = """Ines Vega
+
+She/Her
+· 2nd
+Head of Compliance | DORA, ISO 27001 | ex-Big Four
+Harbour Light Labs
+TU Delft
+Rotterdam, South Holland, Netherlands
+·
+Contact info
+500+ connections
+Message
+Connect
+More"""
+
+EXP_SINGLE = """Experience
+Experience
+Head of Compliance
+Head of Compliance
+Harbour Light Labs · Full-time
+Harbour Light Labs · Full-time
+Jan 2023 - Present · 2 yrs 9 mos
+Jan 2023 - Present · 2 yrs 9 mos
+Rotterdam, Netherlands
+Compliance Officer
+Compliance Officer
+Old Bank · Full-time"""
+
+EXP_GROUPED = """Experience
+Harbour Light Labs
+Harbour Light Labs
+Full-time · 5 yrs 2 mos
+Full-time · 5 yrs 2 mos
+Head of Compliance
+Head of Compliance
+Jan 2023 - Present · 2 yrs 9 mos
+Compliance Lead
+Compliance Lead"""
+
+LABELS = ("Current company: Harbour Light Labs. Click to skip to experience card\n"
+          "Education: TU Delft. Click to skip to education card")
+
+PAGE = {"v": "2", "h1": "Ines Vega", "top": TOP, "exp": EXP_SINGLE, "lab": LABELS,
+        "co": "https://www.linkedin.com/company/1234567/|Harbour Light Labs logo\n"
+              "https://www.linkedin.com/company/7654321/|Old Bank logo"}
+
+
+def read(**changes):
+    return scrape.person_from_page({**PAGE, **changes})
+
+
+def test_the_headline_is_the_line_under_the_name_not_pronouns_or_degree():
+    assert read().headline == "Head of Compliance | DORA, ISO 27001 | ex-Big Four"
+
+
+def test_the_employer_is_the_current_company_the_page_labels():
+    person = read()
+    assert person.employer == "Harbour Light Labs"
+    assert person.company_linkedin == "https://www.linkedin.com/company/1234567"
+
+
+def test_the_location_is_the_line_before_contact_info():
+    assert read().location == "Rotterdam, South Holland, Netherlands"
+
+
+def test_the_position_is_the_first_role_in_experience():
+    assert read().position == "Head of Compliance"
+
+
+def test_the_position_is_found_under_a_company_with_several_roles():
+    assert read(exp=EXP_GROUPED).position == "Head of Compliance"
+
+
+def test_the_title_is_the_position_rather_than_the_headline(store):
+    found = capture.from_page(store, "https://www.linkedin.com/in/ines-vega/", PAGE)
+    assert found.contact_values["title"] == "Head of Compliance"
+
+
+def test_without_labels_the_first_company_in_experience_is_the_employer():
+    person = read(lab="")
+    assert person.employer == "Harbour Light Labs"
+    assert person.company_linkedin == "https://www.linkedin.com/company/1234567"
+
+
+def test_a_dutch_interface_reads_the_same():
+    person = read(lab="Huidig bedrijf: Harbour Light Labs. Klik om naar de ervaringskaart "
+                      "te gaan", top=TOP.replace("Contact info", "Contactgegevens"))
+    assert person.employer == "Harbour Light Labs"
+    assert person.location == "Rotterdam, South Holland, Netherlands"
+
+
+def test_a_company_page_that_is_not_the_employer_is_never_attached():
+    person = read(co="https://www.linkedin.com/company/7654321/|Old Bank logo")
+    assert person.employer == "Harbour Light Labs"
+    assert person.company_linkedin == ""
+
+
+def test_a_page_that_is_not_laid_out_as_expected_leaves_fields_empty():
+    """LinkedIn will change its layout. Then fields stay empty, never wrong."""
+    person = read(top="Ines Vega", exp="", lab="", co="")
+    assert (person.name, person.headline, person.employer, person.location,
+            person.position) == ("Ines Vega", "", "", "", "")
+
+
+def test_the_company_and_school_lines_are_never_the_headline():
+    """Some layouts print the company and school block above the headline."""
+    top = ("Ines Vega\nHarbour Light Labs\nTU Delft\nHead of Compliance | DORA\n"
+           "Rotterdam, South Holland, Netherlands\nContact info")
+    assert read(top=top).headline == "Head of Compliance | DORA"
+
+
+def test_a_school_right_before_contact_info_is_not_a_location():
+    top = "Ines Vega\nHead of Compliance | DORA\nTU Delft\nContact info"
+    person = read(top=top)
+    assert person.location == "" and person.headline == "Head of Compliance | DORA"
+
+
+def test_a_name_sharing_its_line_with_pronouns_still_anchors_the_headline():
+    """LinkedIn's h1 has been display:inline: the name, pronouns and degree
+    then come out as one line of innerText."""
+    top = ("Ines Vega She/Her · 2nd\nHead of Compliance | DORA\n"
+           "Rotterdam, South Holland, Netherlands\nContact info")
+    assert read(top=top).headline == "Head of Compliance | DORA"
+
+
+def test_without_the_name_in_the_top_card_there_is_no_headline_guess():
+    top = "Open to work\nHead of Compliance | DORA\nRotterdam\nContact info"
+    assert read(top=top).headline == ""
+
+
+def test_a_label_without_its_click_sentence_still_names_the_company():
+    person = read(lab="Current company: Harbour Light Labs",
+                  co="https://www.linkedin.com/company/7654321/|Old Bank logo")
+    assert person.employer == "Harbour Light Labs"
+
+
+def test_a_location_on_one_line_with_contact_info_is_read():
+    """The location, a separator and the Contact info link are inline elements
+    in one block, so innerText can give them as a single line."""
+    top = ("Ines Vega\nHead of Compliance | DORA\n"
+           "Rotterdam, South Holland, Netherlands · Contact info\n500+ connections")
+    person = read(top=top)
+    assert person.location == "Rotterdam, South Holland, Netherlands"
+    assert person.headline == "Head of Compliance | DORA"

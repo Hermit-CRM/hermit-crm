@@ -1499,6 +1499,134 @@ def test_capturing_a_profile_you_already_saved_goes_to_the_contact(client, app):
         "/companies/harbour-light-labs/contacts/ines-vega")
 
 
+def test_a_profile_linkedin_refuses_still_opens_the_contact_form(client, app):
+    """HTTP 999 on a profile used to end on the extension page with an error."""
+    def refuse(url):
+        from hermitcrm.scrape import ScrapeError
+        raise ScrapeError("LinkedIn refused the anonymous request (HTTP 999)")
+
+    app.state.fetcher = refuse
+    r = client.get("/extension/new",
+                   params={"url": "https://www.linkedin.com/in/ines-vega-8a1b2c3d/"})
+    assert r.status_code == 200
+    assert "<h1>New contact</h1>" in r.text
+    assert 'name="name" value="Ines Vega"' in r.text
+    assert 'name="linkedin" value="https://www.linkedin.com/in/ines-vega-8a1b2c3d"' in r.text
+    note = re.search(r'<div class="flash capture-note">(.*?)</div>', r.text, re.S).group(1)
+    assert "HTTP 999" in note                   # why the fields are thin
+    assert 'href="/extension"' in note          # and where the bookmarklet that reads it is
+    assert app.state.store.companies == {}
+
+
+CONTACT_FORM = {"name": "Ines Vega", "email": "", "title": "",
+                "linkedin": "https://www.linkedin.com/in/ines-vega", "website": ""}
+
+
+def test_a_company_made_from_a_profile_keeps_its_linkedin_page(client, app):
+    r = client.post("/contacts", data={
+        **CONTACT_FORM, "company": "Harbour Light Labs",
+        "company_linkedin": "https://www.linkedin.com/company/1234567/"})
+    assert r.status_code == 303
+    company = app.state.store.get("harbour-light-labs")
+    assert company.linkedin == "https://www.linkedin.com/company/1234567"
+
+
+def test_a_profile_never_changes_the_linkedin_of_a_company_you_have(client, app):
+    post_company(client, name="Harbour Light Labs",
+                 linkedin="https://www.linkedin.com/company/harbour-light-labs")
+    client.post("/contacts", data={
+        **CONTACT_FORM, "company": "Harbour Light Labs",
+        "company_linkedin": "https://www.linkedin.com/company/1234567/"})
+    company = app.state.store.get("harbour-light-labs")
+    assert company.linkedin == "https://www.linkedin.com/company/harbour-light-labs"
+    assert "ines-vega" in company.contacts
+
+
+@pytest.mark.parametrize("junk", ["javascript:alert(1)",
+                                  "https://evil.example.com/company/acme",
+                                  "https://www.linkedin.com/in/someone-else"])
+def test_only_a_linkedin_company_page_is_taken_for_a_new_company(client, app, junk):
+    client.post("/contacts", data={**CONTACT_FORM, "company": "Harbour Light Labs",
+                                   "company_linkedin": junk})
+    assert app.state.store.get("harbour-light-labs").linkedin == ""
+
+
+def test_the_company_linkedin_survives_a_form_that_comes_back(client, app):
+    r = client.post("/contacts", data={
+        **CONTACT_FORM, "name": "", "company": "Harbour Light Labs",
+        "company_linkedin": "https://www.linkedin.com/company/1234567"})
+    assert r.status_code == 400
+    assert 'name="company_linkedin" value="https://www.linkedin.com/company/1234567"' in r.text
+
+
+def never_fetch(url):
+    raise AssertionError(f"asked LinkedIn for {url}")
+
+
+BOOKMARKLET_READ = {
+    "url": "https://www.linkedin.com/in/ines-vega/overlay/contact-info/", "v": "2",
+    "h1": "Ines Vega",
+    "co": "https://www.linkedin.com/company/1234567/|Harbour Light Labs logo",
+    "mail": "ines@harbourlight.example"}
+
+
+def test_what_the_bookmarklet_read_opens_the_contact_form_without_a_fetch(client, app):
+    app.state.fetcher = never_fetch
+    r = client.get("/extension/new", params=BOOKMARKLET_READ)
+    assert r.status_code == 200
+    assert "<h1>New contact</h1>" in r.text
+    assert 'name="name" value="Ines Vega"' in r.text
+    assert 'name="email" value="ines@harbourlight.example"' in r.text
+    assert 'name="linkedin" value="https://www.linkedin.com/in/ines-vega"' in r.text
+    assert 'name="company" value="Harbour Light Labs"' in r.text
+    assert 'name="company_linkedin" value="https://www.linkedin.com/company/1234567"' in r.text
+    assert app.state.store.companies == {}
+
+
+def test_what_the_bookmarklet_read_saves_a_contact_and_its_company(client, app):
+    """The whole round trip, as a click on Create contact would send it."""
+    app.state.fetcher = never_fetch
+    page = client.get("/extension/new", params=BOOKMARKLET_READ).text
+    form = dict(re.findall(r'<input[^>]*name="([a-z_]+)"[^>]*value="([^"]*)"', page))
+    r = client.post("/contacts", data={k: htmllib.unescape(v) for k, v in form.items()})
+    assert r.status_code == 303
+    company = app.state.store.get("harbour-light-labs")
+    assert company.linkedin == "https://www.linkedin.com/company/1234567"
+    contact = company.contacts["ines-vega"]
+    assert contact.email == "ines@harbourlight.example"
+    assert contact.linkedin == "https://www.linkedin.com/in/ines-vega"
+
+
+def test_the_bookmarklet_on_someone_you_have_goes_to_them(client, app):
+    app.state.fetcher = never_fetch
+    post_company(client, name="Harbour Light Labs")
+    post_contact(client, "harbour-light-labs", first_name="Ines", last_name="Vega",
+                 linkedin="https://www.linkedin.com/in/ines-vega")
+    r = client.get("/extension/new", params=BOOKMARKLET_READ, follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"].startswith("/companies/harbour-light-labs/contacts/ines-vega")
+
+
+def test_a_bookmarklet_that_read_nothing_says_to_try_again(client, app):
+    app.state.fetcher = never_fetch
+    r = client.get("/extension/new", params={
+        "url": "https://www.linkedin.com/in/ines-vega-8a1b2c3d/", "v": "2", "h1": ""})
+    assert r.status_code == 200
+    assert 'name="name" value="Ines Vega"' in r.text
+    note = re.search(r'<div class="flash capture-note">(.*?)</div>', r.text, re.S).group(1)
+    assert "again" in note and "loaded" in note
+
+
+def test_the_bookmarklet_is_one_line_a_bookmark_can_hold(client):
+    """A bookmark's javascript: address is percent-decoded and loses its line
+    breaks before it runs: a stray % or a newline would break the code."""
+    page = client.get("/extension").text
+    code = htmllib.unescape(re.search(r'class="bookmarklet" href="([^"]+)"', page).group(1))
+    assert code.startswith("javascript:")
+    assert "'http://testserver'" in code and "'/extension/new?'" in code
+    assert "%" not in code and "\n" not in code
+
+
 def test_the_old_capture_paths_still_work(client, app):
     """A bookmarklet already sitting in someone's bookmarks bar points here."""
     r = client.get("/capture", follow_redirects=False)
@@ -1600,9 +1728,8 @@ CAPTURE_PAGE = (
 
 def test_extension_page_hands_out_a_bookmarklet_for_this_address(client):
     page = htmllib.unescape(client.get("/extension").text)
-    assert ("javascript:(function(){window.open('http://testserver/extension/new?url='"
-            "+encodeURIComponent(location.href),'_blank');})();") in page
     # built from the request, so a serve --host session hands out a working one
+    assert "var B = 'http://testserver'" in page
 
 
 def test_extension_new_opens_a_prefilled_company_form(client, app):
