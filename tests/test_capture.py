@@ -434,3 +434,45 @@ def test_an_entity_linkedin_encoded_twice_is_read_as_the_character(store):
     found = capture.from_url(store, "https://www.linkedin.com/in/ines-vega/",
                              fetcher=lambda u: page)
     assert found.contact_values["title"].startswith("I've seen most teams")
+
+
+# LinkedIn's newer profile layout has no <h1> and no #experience: the
+# bookmarklet then sends the page's whole text, and the name comes from the
+# tab's title, which still reads "Name | LinkedIn".
+@pytest.mark.parametrize("title,want", [
+    ("Ines Vega | LinkedIn", "Ines Vega"),
+    ("(3) Ines Vega | LinkedIn", "Ines Vega"),
+    ("(99+) Ines Vega | LinkedIn", "Ines Vega"),
+    ("LinkedIn", ""),
+    ("", ""),
+])
+def test_without_a_heading_the_name_comes_from_the_tab_title(title, want):
+    assert read(h1="", title=title).name == want
+
+
+WHOLE = ("Skip to main content\nHome\nMy Network\nJobs\nMessaging\n"
+         + TOP + "\nAbout\nI help banks stay compliant.\nActivity\n1,204 followers\n"
+         + EXP_SINGLE)
+
+
+def test_the_whole_page_text_reads_like_the_top_card():
+    person = read(h1="", title="Ines Vega | LinkedIn", top=WHOLE)
+    assert person.name == "Ines Vega"
+    assert person.headline == "Head of Compliance | DORA, ISO 27001 | ex-Big Four"
+    assert person.location == "Rotterdam, South Holland, Netherlands"
+    assert person.position == "Head of Compliance"
+
+
+def test_a_title_alone_gives_the_name_but_says_nothing_was_read(store):
+    found = capture.from_page(store, "https://www.linkedin.com/in/ines-vega-8a1b2c3d/",
+                              {"v": "2", "title": "Ines Vega | LinkedIn"})
+    assert found.contact_values["name"] == "Ines Vega"
+    assert found.read_nothing
+
+
+def test_a_page_that_sent_its_text_is_not_reported_empty(store):
+    found = capture.from_page(store, "https://www.linkedin.com/in/ines-vega/",
+                              {"v": "2", "title": "Ines Vega | LinkedIn", "top": WHOLE,
+                               "co": PAGE["co"]})
+    assert not found.read_nothing
+    assert found.contact_values["title"] == "Head of Compliance"

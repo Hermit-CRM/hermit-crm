@@ -205,8 +205,8 @@ def from_page(store: Store, url: str, page: dict) -> Capture:
     if saved is not None:
         return saved
     person = scrape.person_from_page(page)
-    empty = not person.name
-    if empty:
+    empty = not any((page.get(k) or "").strip() for k in ("h1", "top", "exp"))
+    if not person.name:
         person.name = scrape.name_from_handle(url)
     company = (company_by_linkedin(store, person.company_linkedin)
                or company_by_name(store, person.employer))

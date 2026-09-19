@@ -426,6 +426,16 @@ def _same(a: str, b: str) -> bool:
     return bool(a and b) and key(a) == key(b)
 
 
+# "(3) Ines Vega | LinkedIn": an unread-count, the name, the site.
+TAB_TITLE = re.compile(r"^(?:\(\d+\+?\)\s*)?(.*?)\s*\|\s*LinkedIn\s*$", re.I)
+
+
+def _name_from_title(title) -> str:
+    """The name in a profile tab's title, for a layout with no <h1> to read."""
+    m = TAB_TITLE.match(" ".join((title or "").split()))
+    return m.group(1) if m else ""
+
+
 def person_from_page(page: dict) -> PersonFacts:
     """A person from what the bookmarklet read on a profile you are logged in to.
 
@@ -439,10 +449,15 @@ def person_from_page(page: dict) -> PersonFacts:
     info link -- and never on class names, which LinkedIn scrambles. What it
     cannot place stays empty: a wrong employer would create a wrong company.
     """
-    person = PersonFacts(name=" ".join((page.get("h1") or "").split()),
+    person = PersonFacts(name=" ".join((page.get("h1") or "").split())
+                         or _name_from_title(page.get("title")),
                          email=_email(page.get("mail")))
     links = _company_links(page.get("co"))
     exp = _lines(page.get("exp"))
+    if not exp:
+        # The whole page's text came instead: Experience is where its heading is.
+        whole = _lines(page.get("top"))
+        exp = next((whole[i:] for i, line in enumerate(whole) if EXPERIENCE.match(line)), [])
     if exp and EXPERIENCE.match(exp[0]):
         exp = exp[1:]
 
