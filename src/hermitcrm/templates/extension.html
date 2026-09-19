@@ -4,7 +4,9 @@
 <h1>Extension: save a page to the CRM</h1>
 
 <p>Drag this to your bookmarks bar. On any company website or LinkedIn company
-page, click it: Hermit CRM reads the page and opens a filled-in new-company form.</p>
+page, click it: Hermit CRM reads the page and opens a filled-in new-company form.
+On a LinkedIn profile you are logged in to, it reads the page you are looking at
+and opens a filled-in new-contact form.</p>
 
 <p><a class="bookmarklet" href="{{ bookmarklet }}">Add to Hermit CRM</a>
 <span class="small">&larr; drag me</span></p>
@@ -17,17 +19,24 @@ browser strips it, copy the code below into a new bookmark by hand.</p>
 
 <h2>Or paste a URL</h2>
 <form method="get" action="/extension/new" class="record-form">
-  <label>Company website or LinkedIn company page
+  <label>Company website, LinkedIn company page or profile
     <input type="text" name="url" value="" placeholder="acme.example.com" autofocus>
   </label>
   <button type="submit">Read the page</button>
 </form>
 
 <h2>What it reads</h2>
-<p class="small">The website, the LinkedIn company page it links to, the country,
-an employee-count hint and a one-line description, from the page's own metadata.
-Nothing is written until you press <em>Create company</em> on the form it opens,
-and nothing is sent anywhere: your machine fetches the page directly.</p>
+<p class="small">A company page: the website, the LinkedIn company page it links
+to, the country, an employee-count hint and a one-line description, from the
+page's own metadata, which your machine fetches directly.</p>
+<p class="small">A LinkedIn profile: the name, the current role, the company and
+its LinkedIn page, the location, and the email when <em>Contact info</em> is open,
+read in your own tab. Nothing is fetched and nothing goes to LinkedIn. If you took
+this bookmarklet before, take it again: the old one reads profiles logged out,
+which gives very little.</p>
+<p class="small">Nothing is written until you press <em>Create</em> on the form it
+opens, and nothing is sent anywhere but this Hermit CRM.
+<a href="/help/extension">More in Help</a>.</p>
 <p class="small">Hermit CRM is serving on <code>{{ base }}</code>, so the
 bookmarklet points there. If you later run <code>serve</code> on a different
 host or port, come back to this page and take the bookmarklet again.</p>

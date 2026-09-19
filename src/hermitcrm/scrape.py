@@ -16,13 +16,14 @@ What a page can give us:
 
 from __future__ import annotations
 
+import html
 import json
 import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
-from urllib.parse import urljoin, urlparse
+from urllib.parse import unquote, urljoin, urlparse
 
 from .enrich import Proposal
 from .models import Company, Country, normalise_website
@@ -144,8 +145,9 @@ def parse_page(url: str, text: str) -> PageFacts:
     parser.close()
     facts = parser.facts
     facts.url = url
-    facts.title = " ".join(facts.title.split())
-    facts.description = " ".join(facts.description.split())
+    # LinkedIn encodes some entities twice ("I&amp;#39;ve"): one more pass.
+    facts.title = " ".join(html.unescape(facts.title).split())
+    facts.description = " ".join(html.unescape(facts.description).split())
     facts.text_hints = parser.hints()
     return facts
 
@@ -269,14 +271,242 @@ PROFILE_PLACE = re.compile(
     r"·\s*(?:Location|Standort|Localisation|Locatie)\s*:\s*([^·]+)", re.I)
 
 
+_PROFILE_PATH = re.compile(r"^/in/([\w%.~-]+)", re.I)
+_COMPANY_PATH = re.compile(r"^/company/([\w%.~-]+)", re.I)
+
+# Tussenvoegsels and their cousins stay lower-case inside a name.
+NAME_PARTICLES = {"van", "der", "den", "de", "del", "della", "di", "da", "du", "dos",
+                  "das", "von", "zu", "ten", "ter", "te", "la", "le", "y"}
+
+
+def _linkedin_path(url: str) -> str:
+    """The path of a LinkedIn address, or "" when it is not one.
+
+    A link read off a LinkedIn page may be relative ("/company/123/"); anything
+    that is not http(s) on linkedin.com or a subdomain of it is not LinkedIn.
+    """
+    text = (url or "").strip()
+    if text.startswith("/"):
+        return text
+    if "://" not in text:
+        text = "https://" + text
+    parsed = urlparse(text)
+    host = parsed.netloc.lower().split(":")[0]
+    if parsed.scheme not in ("http", "https"):
+        return ""
+    if host != "linkedin.com" and not host.endswith(".linkedin.com"):
+        return ""
+    return parsed.path
+
+
+def profile_url(url: str) -> str:
+    """The one address of a LinkedIn profile, from whichever page of it you were on.
+
+    `/in/x/overlay/contact-info/`, `nl.linkedin.com/in/x` and `/in/x?miniProfileUrn=`
+    are one person; compared raw, they were three. No trailing slash, which is
+    how most profile addresses in a CRM already look. Anything that is not a
+    profile comes back unchanged.
+    """
+    m = _PROFILE_PATH.match(_linkedin_path(url))
+    return "https://www.linkedin.com/in/" + m.group(1) if m else url
+
+
+def company_page_url(href: str) -> str:
+    """A LinkedIn company page's address, cleaned; "" for anything else.
+
+    It comes from a link on a page that is not ours, so it is only ever
+    rebuilt from the part that names the company, never passed through.
+    """
+    m = _COMPANY_PATH.match(_linkedin_path(href))
+    return "https://www.linkedin.com/company/" + m.group(1) if m else ""
+
+
+def name_from_handle(url: str) -> str:
+    """A name guessed from a profile's address, for when the page cannot be read.
+
+    `ines-vega-8a1b2c3d` spells a name plus LinkedIn's suffix. `inesvega` or an
+    internal id does not, and there a wrong guess is worse than none.
+    """
+    m = re.match(r"https://www\.linkedin\.com/in/(.+)$", profile_url(url))
+    if not m:
+        return ""
+    words = [w for w in unquote(m.group(1)).split("-") if w]
+    while words and any(ch.isdigit() for ch in words[-1]):
+        words.pop()
+    if len(words) < 2 or not all(w.isalpha() for w in words):
+        return ""
+    return " ".join(w.lower() if i and w.lower() in NAME_PARTICLES else w.capitalize()
+                    for i, w in enumerate(words))
+
+
 @dataclass
 class PersonFacts:
-    """What a public profile page gives away, which is not much."""
+    """What a profile page gives away: little logged out, more logged in."""
 
     name: str = ""
     headline: str = ""
     employer: str = ""
     location: str = ""
+    position: str = ""          # the current job title, from Experience
+    company_linkedin: str = ""  # the employer's LinkedIn page
+    email: str = ""             # only when Contact info was open
+
+
+EMAIL = re.compile(r"[^@\s:/?#<>\"']+@[^@\s:/?#<>\"']+\.[^@\s:/?#<>\"']+")
+
+
+def _email(text: str) -> str:
+    """A plain address from a mailto link, or ""."""
+    text = (text or "").strip()
+    if text.lower().startswith("mailto:"):
+        text = text[7:]
+    text = unquote(text.split("?")[0]).strip()
+    return text if EMAIL.fullmatch(text) else ""
+
+
+def _company_links(text: str) -> list[tuple[str, str]]:
+    """(company page, name) for each "href|label" line the bookmarklet sent.
+
+    The label is the link's text, else its logo's alt text ("Acme logo").
+    """
+    out = []
+    for line in (text or "").splitlines():
+        href, _, label = line.partition("|")
+        url = company_page_url(href)
+        if url:
+            label = re.sub(r"\s+logo$", "", " ".join(label.split()), flags=re.I)
+            out.append((url, label))
+    return out
+
+
+# What the interface itself says, in the languages it is most used in here.
+# A line matching one of these is never a headline, a location or a job title.
+# "Contact info" on its own line, or at the end of the location's line when the
+# location, a separator and the link come out of one block of inline elements.
+CONTACT_INFO = re.compile(r"(?:^|\s*[·•]\s*)(contact info|contactgegevens|contactinformatie|"
+                          r"kontaktinfo(rmationen)?|coordonnées)$", re.I)
+TOP_NOISE = re.compile(
+    r"^(·|•|\(?(he|she|they|hij|zij|hen|er|sie|il|elle|iel)\s*/\s*\w+\)?"
+    r"|·?\s*(1st|2nd|3rd\+?|1e|2e|3e\+?|[123]\.\+?)(\s+degree connection)?"
+    r"|verified|geverifieerd|verifiziert|vérifié"
+    r"|\d[\d.,]*\+?\s+(connections|followers|connecties|volgers|kontakte|follower"
+    r"|relations|abonnés)"
+    r"|message|bericht|nachricht|connect|connectie maken|vernetzen|se connecter"
+    r"|follow|volgen|folgen|suivre|more|meer|mehr|plus)$", re.I)
+EXPERIENCE = re.compile(r"^(experience|ervaring|berufserfahrung|erfahrung|expérience)$",
+                        re.I)
+# "Full-time · 5 yrs 2 mos", "Jan 2023 - Present · 2 yrs 9 mos": a role's
+# furniture, never its title.
+ROLE_FURNITURE = re.compile(
+    r"\b(\d+\s*(yrs?|mos?|jr|jaar|mnd|maanden|jahre?|mon\.?|ans?|mois))\b"
+    r"|^(full-time|part-time|freelance|self-employed|contract|internship|fulltime"
+    r"|parttime|vollzeit|teilzeit|temps plein|temps partiel)\b", re.I)
+# "Current company: Acme. Click to skip to experience card" -> the label, the name.
+LABELLED = re.compile(r"^([^:]{2,40}):\s*(.+?)(?:\.?\s+(?:click|klik|klicken|cliquez)\b.*)?$",
+                      re.I)
+CURRENT_COMPANY = re.compile(r"^(current company|huidig bedrijf|huidige werkgever"
+                             r"|aktuelles unternehmen|derzeitiges unternehmen"
+                             r"|entreprise actuelle)$", re.I)
+
+
+def _lines(text: str) -> list[str]:
+    """Non-empty lines, with the copy LinkedIn prints for screen readers dropped."""
+    out: list[str] = []
+    for line in (text or "").splitlines():
+        line = " ".join(line.split())
+        if line and (not out or out[-1] != line):
+            out.append(line)
+    return out
+
+
+def _same(a: str, b: str) -> bool:
+    """One name, whatever its case or a trailing full stop ("Acme Inc." / "acme inc")."""
+    def key(text):
+        return " ".join(text.split()).rstrip(".").casefold()
+    return bool(a and b) and key(a) == key(b)
+
+
+# "(3) Ines Vega | LinkedIn": an unread-count, the name, the site.
+TAB_TITLE = re.compile(r"^(?:\(\d+\+?\)\s*)?(.*?)\s*\|\s*LinkedIn\s*$", re.I)
+
+
+def _name_from_title(title) -> str:
+    """The name in a profile tab's title, for a layout with no <h1> to read."""
+    m = TAB_TITLE.match(" ".join((title or "").split()))
+    return m.group(1) if m else ""
+
+
+def person_from_page(page: dict) -> PersonFacts:
+    """A person from what the bookmarklet read on a profile you are logged in to.
+
+    `page` is the bookmarklet's query: h1 (the name), top (the top card's
+    text), exp (the Experience section's text), co ("href|label" per company
+    link), lab (the top card's aria-labels), mail (a mailto from Contact info).
+    Nothing here fetches anything.
+
+    It leans on what a layout change leaves alone -- the order of lines around
+    the name, the "Current company: X" label a screen reader gets, the Contact
+    info link -- and never on class names, which LinkedIn scrambles. What it
+    cannot place stays empty: a wrong employer would create a wrong company.
+    """
+    person = PersonFacts(name=" ".join((page.get("h1") or "").split())
+                         or _name_from_title(page.get("title")),
+                         email=_email(page.get("mail")))
+    links = _company_links(page.get("co"))
+    exp = _lines(page.get("exp"))
+    if not exp:
+        # The whole page's text came instead: Experience is where its heading is.
+        whole = _lines(page.get("top"))
+        exp = next((whole[i:] for i, line in enumerate(whole) if EXPERIENCE.match(line)), [])
+    if exp and EXPERIENCE.match(exp[0]):
+        exp = exp[1:]
+
+    # The employer: the label the page gives the current company, else the
+    # first company in Experience (it lists the current role first).
+    labelled = {}
+    for label in (page.get("lab") or "").splitlines():
+        m = LABELLED.match(" ".join(label.split()))
+        if m:
+            labelled[m.group(2).strip()] = bool(CURRENT_COMPANY.match(m.group(1).strip()))
+    person.employer = next((name for name, current in labelled.items() if current), "")
+    if not person.employer and links:
+        person.employer = links[0][1]
+    person.company_linkedin = next(
+        (url for url, label in links if _same(label, person.employer)), "")
+
+    # The top card: the headline is the first line under the name that is not
+    # pronouns, the connection degree or a name the labels already gave (the
+    # company and the school sit in the same block); the location is the line
+    # before "Contact info". The name may share its line with the pronouns
+    # and the degree, and without it nothing marks where the headline starts.
+    def known(line):
+        return any(_same(line, name) for name in labelled)
+
+    top = [line for line in _lines(page.get("top")) if not TOP_NOISE.match(line)]
+    anchor = next((i for i, line in enumerate(top) if person.name
+                   and line.casefold().startswith(person.name.casefold())), None)
+    for i, line in enumerate(top):
+        marker = CONTACT_INFO.search(line)
+        if marker:
+            before = line[:marker.start()].strip(" ·•")
+            at, place = (i, before) if before else (i - 1, top[i - 1] if i else "")
+            if place and at != anchor and not known(place) \
+                    and not _same(place, person.headline):
+                person.location = place
+            break
+        if anchor is not None and i > anchor and not person.headline and not known(line):
+            person.headline = line
+
+    # The position: the first role in Experience. On its own it reads "title,
+    # company · Full-time, dates"; several roles at one company read "company,
+    # Full-time · 5 yrs, title, dates".
+    if exp and person.employer:
+        if len(exp) > 1 and _same(exp[1].split(" · ")[0].strip(), person.employer):
+            person.position = exp[0]
+        elif _same(exp[0], person.employer):
+            person.position = next(
+                (line for line in exp[1:4] if not ROLE_FURNITURE.search(line)), "")
+    return person
 
 
 def is_person_page(facts: PageFacts) -> bool:
@@ -286,6 +516,26 @@ def is_person_page(facts: PageFacts) -> bool:
         if str(item.get("@type", "")).strip().lower() == "person":
             return True
     return False
+
+
+MASKED = re.compile(r"[\s*·•]+")
+
+
+def _jsonld_text(value) -> str:
+    """The first readable text in a JSON-LD value.
+
+    schema.org lets any value be a list, and LinkedIn sends job titles as one;
+    str() of it put "['Co-chair', 'Founder']" in a title field. Logged out,
+    an ordinary member's titles also come masked, "********** *** ***", which
+    says only that LinkedIn is hiding them: skipped, never written.
+    """
+    for item in value if isinstance(value, list) else [value]:
+        if isinstance(item, dict):
+            item = item.get("name")
+        text = " ".join(str(item or "").split())
+        if text and not MASKED.fullmatch(text):
+            return text
+    return ""
 
 
 def person_from(facts: PageFacts) -> PersonFacts:
@@ -299,14 +549,9 @@ def person_from(facts: PageFacts) -> PersonFacts:
     for item in facts.jsonld:
         if str(item.get("@type", "")).strip().lower() != "person":
             continue
-        person.name = str(item.get("name") or "").strip()
-        person.headline = str(item.get("jobTitle") or "").strip()
-        works = item.get("worksFor")
-        works = works[0] if isinstance(works, list) and works else works
-        if isinstance(works, dict):
-            person.employer = str(works.get("name") or "").strip()
-        elif isinstance(works, str):
-            person.employer = works.strip()
+        person.name = _jsonld_text(item.get("name"))
+        person.headline = _jsonld_text(item.get("jobTitle"))
+        person.employer = _jsonld_text(item.get("worksFor"))
 
     title = " ".join((facts.title or "").split())
     # "Ines Vega - Harbour Light Labs | LinkedIn"

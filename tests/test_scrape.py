@@ -3,7 +3,8 @@
 import pytest
 
 from hermitcrm.models import Company
-from hermitcrm.scrape import ScrapeError, fetch, parse_page, propose_from_url
+from hermitcrm.scrape import (ScrapeError, company_page_url, fetch, name_from_handle,
+                             parse_page, profile_url, propose_from_url)
 
 SITE = """<html lang="de"><head><title>Acme – Procurement AI</title>
 <meta name="description" content="Acme automates   tail spend for buyers.">
@@ -73,3 +74,75 @@ def test_fetch_rejects_non_web_urls():
         fetch("file:///etc/passwd")
     with pytest.raises(ScrapeError):
         fetch("not a url")
+
+
+# ------------------------------------------------------ LinkedIn addresses
+# One person, many addresses: the bookmarklet sends whatever the tab shows,
+# and "already in the CRM" only works if all of them come out the same.
+
+@pytest.mark.parametrize("given,want", [
+    ("https://www.linkedin.com/in/ines-vega/", "https://www.linkedin.com/in/ines-vega"),
+    ("https://www.linkedin.com/in/ines-vega", "https://www.linkedin.com/in/ines-vega"),
+    ("https://nl.linkedin.com/in/ines-vega/", "https://www.linkedin.com/in/ines-vega"),
+    ("http://linkedin.com/in/ines-vega?originalSubdomain=nl",
+     "https://www.linkedin.com/in/ines-vega"),
+    ("https://www.linkedin.com/in/ines-vega/overlay/contact-info/",
+     "https://www.linkedin.com/in/ines-vega"),
+    ("https://www.linkedin.com/in/ines-vega/details/experience/",
+     "https://www.linkedin.com/in/ines-vega"),
+    ("https://www.linkedin.com/in/ines-vega/?miniProfileUrn=urn%3Ali%3Afs_miniProfile%3AACoAAB",
+     "https://www.linkedin.com/in/ines-vega"),
+    ("www.linkedin.com/in/ines-vega/#experience", "https://www.linkedin.com/in/ines-vega"),
+    ("https://www.linkedin.com/in/j%C3%B6rg-m%C3%BCller-4b2a/",
+     "https://www.linkedin.com/in/j%C3%B6rg-m%C3%BCller-4b2a"),
+])
+def test_a_profile_has_one_address_whichever_page_it_came_from(given, want):
+    assert profile_url(given) == want
+
+
+@pytest.mark.parametrize("given", [
+    "https://acme.example.com/about",
+    "https://www.linkedin.com/company/acme/",
+    "https://www.linkedin.com/feed/",
+    "",
+])
+def test_anything_that_is_not_a_profile_is_left_alone(given):
+    assert profile_url(given) == given
+
+
+@pytest.mark.parametrize("given,want", [
+    ("https://www.linkedin.com/company/1234567/", "https://www.linkedin.com/company/1234567"),
+    ("https://www.linkedin.com/company/harbour-light-labs/life/?trk=x",
+     "https://www.linkedin.com/company/harbour-light-labs"),
+    ("https://nl.linkedin.com/company/harbour-light-labs",
+     "https://www.linkedin.com/company/harbour-light-labs"),
+    ("/company/1234567/", "https://www.linkedin.com/company/1234567"),
+    ("https://www.linkedin.com/in/ines-vega/", ""),
+    ("https://www.linkedin.com/school/tu-delft/", ""),
+    ("javascript:alert(1)", ""),
+    ("https://evil.example.com/company/acme", ""),
+])
+def test_a_company_page_address_is_cleaned_or_refused(given, want):
+    assert company_page_url(given) == want
+
+
+@pytest.mark.parametrize("url,want", [
+    ("https://www.linkedin.com/in/ines-vega-8a1b2c3d/", "Ines Vega"),
+    ("https://www.linkedin.com/in/ines-vega-654588385", "Ines Vega"),
+    ("https://www.linkedin.com/in/ines-vega/", "Ines Vega"),
+    ("https://www.linkedin.com/in/ines-van-der-berg-2/", "Ines van der Berg"),
+    ("https://www.linkedin.com/in/j%C3%B6rg-m%C3%BCller/", "Jörg Müller"),
+    ("https://www.linkedin.com/in/inesvega/", ""),       # one word: no guess
+    ("https://www.linkedin.com/in/ACoAABx1y2z3/", ""),   # an internal id, not a name
+    ("https://acme.example.com/", ""),
+])
+def test_a_name_is_guessed_from_the_address_only_when_it_spells_one(url, want):
+    assert name_from_handle(url) == want
+
+
+def test_an_address_built_from_a_link_keeps_only_url_characters():
+    """The parts come from pages and queries that are not ours."""
+    assert profile_url('https://www.linkedin.com/in/ines"><script>/') == \
+        "https://www.linkedin.com/in/ines"
+    assert company_page_url("https://www.linkedin.com/company/acme'onmouseover=x/") == \
+        "https://www.linkedin.com/company/acme"

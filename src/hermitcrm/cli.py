@@ -79,6 +79,7 @@ def reachable_address(host: str) -> str:
 
 
 def cmd_serve(root: Path, port: int | None = None, host: str | None = None) -> None:
+    from hermitcrm import accesslog
     from hermitcrm.web import create_app
     import uvicorn
 
@@ -97,7 +98,7 @@ def cmd_serve(root: Path, port: int | None = None, host: str | None = None) -> N
               "can\n  reach this port can read and write your CRM. Use it on a "
               "network you trust,\n  or put it on a private one (Tailscale, "
               "WireGuard) rather than a public Wi-Fi.", file=sys.stderr)
-    uvicorn.run(app, host=host, port=int(config["port"]))
+    uvicorn.run(app, host=host, port=int(config["port"]), log_config=accesslog.log_config())
 
 
 def cmd_init(target: Path, demo: bool = False) -> tuple[str, int]:

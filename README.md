@@ -122,8 +122,9 @@ file per conversation. Everything below is convenience on top of it.
   Google Calendar links.
 - **Pre-meeting brief** under every upcoming meeting: stage, open next step,
   contacts and the last three interactions. Also `hermitcrm brief`.
-- **Capture**: a bookmarklet that turns the company page you are looking at
-  into a filled-in new-company form. No browser extension.
+- **Extension**: a bookmarklet that turns the page you are looking at into a
+  filled-in form: a company page into a new company, a LinkedIn profile you
+  are logged in to into a new contact, read in your own tab. Nothing to install.
 - **Timeline per company**: email, LinkedIn, call and meeting interactions,
   in or out, with bodies kept byte for byte.
 - **Message drafts without AI**: three angles per contact in English, German,

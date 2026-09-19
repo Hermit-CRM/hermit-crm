@@ -10,10 +10,17 @@
 {% endif %}
 {% if capture %}
 <div class="flash capture-note">
+  {% if capture.read_nothing %}
+  Nothing could be read from <a href="{{ capture.url | href }}" rel="noreferrer noopener">{{ capture.url }}</a>: the profile had probably not finished loading. Click the bookmarklet again once it has loaded, or fill in the rest yourself.
+  {% elif capture.fetch_error %}
+  Could not read <a href="{{ capture.url | href }}" rel="noreferrer noopener">{{ capture.url }}</a> ({{ capture.fetch_error }}), so this is only what its address says: type the company yourself.
+  On a profile you are logged in to, the <a href="/extension">bookmarklet</a> reads the page you are looking at instead.
+  {% else %}
   Read from <a href="{{ capture.url | href }}" rel="noreferrer noopener">{{ capture.url }}</a>: a profile, so this makes a contact and the company it names.
   {% if capture.company %}<strong>{{ capture.company.name }}</strong> is already in the CRM and the contact will go there.
-  {% elif capture.person and capture.person.employer %}No company called <strong>{{ capture.person.employer }}</strong> yet; saving creates it.
+  {% elif capture.person and capture.person.employer %}No company called <strong>{{ capture.person.employer }}</strong> yet; saving creates it{% if capture.person.company_linkedin %}, with its LinkedIn page{% endif %}.
   {% else %}The page did not name an employer, so type the company yourself.{% endif %}
+  {% endif %}
   {% if capture.person and capture.person.location %}<span class="small">Location on the page: {{ capture.person.location }}.</span>{% endif %}
   Check the fields before saving.
 </div>
@@ -42,6 +49,11 @@
     </label>
     <label class="grow">website (new company only) <input name="website" value="{{ values.website }}" placeholder="defaults to the email domain"></label>
   </div>
+  {% if values.company_linkedin %}
+  <div class="row">
+    <label class="grow">company LinkedIn (new company only) <input name="company_linkedin" value="{{ values.company_linkedin }}"></label>
+  </div>
+  {% endif %}
   {% endif %}
   <button type="submit">Create contact</button>
 </form>
