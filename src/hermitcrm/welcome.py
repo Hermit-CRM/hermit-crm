@@ -28,7 +28,8 @@ class Step:
 
 
 def steps(store, config: dict, setup_state: dict, ai_available: bool) -> list[Step]:
-    companies = list(store.companies.values())
+    # The sample account is there to look at; the steps count your own records.
+    companies = [c for c in store.companies.values() if not c.is_sample]
     contacts = [c for co in companies for c in co.contacts.values()]
     interactions = [i for co in companies for i in co.interactions]
     moved = any(co.stage != "prospect" or any(e.from_stage for e in co.stage_history)

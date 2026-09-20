@@ -61,7 +61,7 @@ virtualenv.
 `hermitcrm init` asks three questions: **you** (your name and sending addresses),
 **BCC capture** (the tracking address and its app password) and **backup** (a
 private git remote). Skip any of them; rerun with `hermitcrm setup` or open the
-Settings page (`/settings`) in the web app. Add `--demo` for six fictional companies,
+Settings page (`/settings`) in the web app. Add `--demo` for eight fictional companies,
 `--no-setup` to skip the questions. Instead of `--data` you can set
 `HERMITCRM_DATA=~/crm` or run commands from inside the folder.
 
@@ -69,6 +69,12 @@ Settings page (`/settings`) in the web app. Add `--demo` for six fictional compa
 web app has a Help link; `hermitcrm help [topic]` prints the same pages.
 
 ## Your first company
+
+Want to see a worked account first? The empty home page offers **Look at a
+sample account** (or run `hermitcrm sample add`): one made-up company with its
+people, messages, a deal on the pipeline and tasks. A bar on every page says it
+is there; **Remove it** deletes it again in one commit (`hermitcrm sample
+remove`), and never touches your own companies.
 
 With the app running at http://127.0.0.1:8765, click **New company**, type a
 name and a country, and save. Or do the same from the terminal:

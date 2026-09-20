@@ -164,9 +164,10 @@ def test_the_home_page_is_not_the_board(client, app, repo):
     page = client.get("/").text
     assert 'class="board"' not in page                  # the board is elsewhere now
     assert "What needs doing" in page and "How it is going" in page
-    assert "What this thing does" in page
     assert "Call Jane" in page and "send the deck" in page   # both kinds of work
-    assert 'href="/pipeline"' in page and "Every open deal as a card" in page
+    assert 'href="/pipeline"' in page
+    # this folder has put the walkthrough away, so the beginner block is gone too
+    assert "What this thing does" not in page and "Getting started" not in page
 
     nav = page.split("</nav>")[0]
     assert 'href="/"' in nav and 'href="/pipeline"' in nav   # two entries, two places
@@ -202,15 +203,22 @@ def test_the_walkthrough_ticks_itself_from_the_data(client, app, repo):
 
 def test_the_two_steps_nobody_can_see_are_ticked_by_hand(client, app, repo):
     token = app.state.csrf_token
-    r = client.post("/welcome/tick", data={"csrf_token": token, "key": "extension"})
+    r = client.post("/welcome/tick", data={"csrf_token": token, "key": "extension",
+                                           "done": "1"})
     assert r.status_code == 303
     assert "extension" in app.state.config.get("welcome_done", []) or \
         '"extension"' in (repo / "config.toml").read_text()
     page = client.get("/welcome").text
     assert "Untick" in page.split('id="extension"')[1].split("</li>")[0]
 
+    # and the Untick button gives it back: the form sends an empty value for off
+    client.post("/welcome/tick", data={"csrf_token": token, "key": "extension",
+                                       "done": ""})
+    assert "extension" not in (app.state.config.get("welcome_done") or [])
+
     # a step that ticks itself cannot be ticked by hand
-    r = client.post("/welcome/tick", data={"csrf_token": token, "key": "company"})
+    r = client.post("/welcome/tick", data={"csrf_token": token, "key": "company",
+                                           "done": "1"})
     assert "ticks%20itself" in r.headers["location"]
 
 

@@ -8,6 +8,15 @@
 
 <p><a class="button" href="/?tour=1" data-start-tour>Show me around</a> <span class="small">A quick pass over the screen, pointing at each part.</span></p>
 
+{% if samples %}
+<p class="small">The sample account <a href="/companies/{{ samples[0].slug }}">{{ samples[0].name }}</a> is loaded. It is there to look at: the steps below count only your own records.</p>
+{% else %}
+<form method="post" action="/sample" class="inline sample-offer">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit">Load a sample account</button> <span class="small">Want to see a filled-in account first? One made-up company with its people, messages, a deal and tasks. You remove it in one click.</span>
+</form>
+{% endif %}
+
 <ol class="welcome-steps">
   {% for s in steps %}
   <li id="{{ s.key }}" class="welcome-step{% if s.done %} done{% endif %}">
@@ -39,7 +48,7 @@
   <button type="submit">Open this at start again</button>
   {% else %}
   <input type="hidden" name="dismissed" value="1">
-  <button type="submit">Don't open this at start</button> <span class="small">It stays under Help either way.</span>
+  <button type="submit">Don't open this at start</button> <span class="small">This also hides the tutorial on the home page. It stays under Help either way.</span>
   {% endif %}
 </form>
 {% endblock %}

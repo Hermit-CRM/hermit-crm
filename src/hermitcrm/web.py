@@ -32,7 +32,7 @@ from . import __version__, updates
 from fastapi.templating import Jinja2Templates
 
 from . import (bcc, brief, calendar_sync, capture, feedback, fields as custom, filters,
-               followups, messaging, migrations, pipeline, reports, welcome)
+               followups, messaging, migrations, pipeline, reports, sample, welcome)
 from . import schedule, scrape, usertheme
 from . import help as helpdocs
 from . import setup as setup_steps
@@ -793,6 +793,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "ask_page": safe_page(request.url.path + (f"?{request.url.query}"
                                                       if request.url.query else "")),
             "model_label": model_label,
+            "samples": sample.samples(store),
         }
         context.update(ctx)
         return templates.TemplateResponse(request, name, context,
@@ -914,7 +915,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
 
     @app.post("/welcome/tick")
     def welcome_tick(request: Request, csrf_token: str = Form(""), key: str = Form(""),
-                     done: str = Form("1")):
+                     done: str = Form("")):
         """Tick (or untick) a step the app cannot see happen."""
         check_csrf(csrf_token)
         if key not in welcome.MANUAL:
@@ -928,22 +929,56 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
 
     @app.post("/welcome/dismiss")
     def welcome_dismiss(request: Request, csrf_token: str = Form(""),
-                        dismissed: str = Form("1")):
+                        dismissed: str = Form("")):
+        """A toggle's default is its off value: an empty form field never reaches
+        the handler -- FastAPI puts the default in its place -- so a default of
+        "1" would make the off button switch the thing back on."""
         check_csrf(csrf_token)
         setup_steps.set_config_values(root / "config.toml",
                                       {"welcome_dismissed": bool(dismissed)})
         refresh_config()
         return flashed("/" if dismissed else "/welcome",
-                       "The walkthrough stays under Help" if dismissed
-                       else "The walkthrough opens at start again")
+                       "Getting started stays under Help" if dismissed
+                       else "Getting started opens at start again")
+
+    # ------------------------------------------------------------ sample account
+
+    @app.post("/sample")
+    def sample_add(request: Request, csrf_token: str = Form("")):
+        check_csrf(csrf_token)
+        try:
+            company = sample.add(store)
+        except sample.SampleError as exc:
+            return flashed("/", str(exc))
+        return flashed(f"/companies/{company.slug}",
+                       "The sample account is loaded. Look around; the bar at the top "
+                       "removes it when you are done.")
+
+    @app.get("/sample/remove", response_class=HTMLResponse)
+    def sample_remove_page(request: Request):
+        return render(request, "sample_remove.html", {})
+
+    @app.post("/sample/remove")
+    def sample_remove(request: Request, csrf_token: str = Form("")):
+        check_csrf(csrf_token)
+        removed = sample.remove(store)
+        if not removed:
+            return flashed("/", "There is no sample account to remove")
+        return flashed("/", "Removed the sample account: "
+                       + ", ".join(c.name for c in removed)
+                       + ". You can load it again from Getting started.")
 
     @app.get("/", response_class=HTMLResponse)
     def home(request: Request):
         # Once per server start, a folder that has not finished the walkthrough
         # lands on it; "Skip for now" there works for the rest of the session.
+        all_steps = welcome_steps()
+        # The same test decides whether home keeps its beginner block, so there
+        # is one switch for the two of them: "Hide the tutorial" is /welcome/dismiss.
+        intro = welcome.should_show(config, all_steps)
         if not app.state.setup_redirected:
             app.state.setup_redirected = True
-            if welcome.should_show(config, welcome_steps()):
+            if intro:
                 return goto("/welcome")
         today = store.today()
         week = today + timedelta(days=7)
@@ -969,6 +1004,9 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "funnel": report["funnel"],
             "delta": reports.delta,
             "areas": AREAS,
+            "intro": intro,
+            "steps_done": welcome.progress(all_steps)[0],
+            "steps_total": len(all_steps),
             "counts": {
                 "companies": len(store.companies),
                 "contacts": sum(len(c.contacts) for c in store.companies.values()),

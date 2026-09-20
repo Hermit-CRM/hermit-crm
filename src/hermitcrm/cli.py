@@ -111,6 +111,23 @@ def cmd_init(target: Path, demo: bool = False) -> tuple[str, int]:
     return ("\n".join(lines), 0)
 
 
+def cmd_sample(store: Store, action: str) -> tuple[str, int]:
+    from hermitcrm import sample
+
+    if action == "add":
+        try:
+            company = sample.add(store)
+        except sample.SampleError as exc:
+            return (str(exc), 1)
+        return (f"Added the sample account {company.name} (companies/{company.slug}). "
+                "It is made up; `hermitcrm sample remove` deletes it again.", 0)
+    removed = sample.remove(store)
+    if not removed:
+        return ("No sample account to remove.", 0)
+    return ("Removed the sample account: " + ", ".join(c.name for c in removed)
+            + ". It stays in the git history.", 0)
+
+
 # -------------------------------------------------------------------- setup
 
 
@@ -929,7 +946,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_init = sub.add_parser("init", help="create a new data folder (a git repo)")
     p_init.add_argument("dir", type=Path)
-    p_init.add_argument("--demo", action="store_true", help="add six fictional companies")
+    p_init.add_argument("--demo", action="store_true", help="add eight fictional companies")
     p_init.add_argument("--no-setup", action="store_true",
                         help="skip the setup questions (also skipped without a terminal)")
 
@@ -996,6 +1013,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("rebuild", help="rebuild the index and PIPELINE.md")
     sub.add_parser("check", help="validate every file")
+
+    p_sample = sub.add_parser("sample", help="add or remove the made-up sample account")
+    p_sample.add_argument("action", choices=["add", "remove"])
 
     p_add = sub.add_parser("add", help="create one company, contact or interaction")
     add_sub = p_add.add_subparsers(dest="what", required=True)
@@ -1238,6 +1258,12 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
         print(text)
         if code == 0 and args.apply:
             _reload_server(config)
+        return code
+
+    if args.command == "sample":
+        store.on_write = _writer(store, root, load_config(root))
+        text, code = cmd_sample(store, args.action)
+        print(text, file=sys.stderr if code else sys.stdout)
         return code
 
     if args.command == "add":

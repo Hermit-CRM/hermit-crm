@@ -16,6 +16,20 @@ country, source, stage, value, next step, tags, notes are optional), from
 [Import](/help/import), or from the BCC and calendar imports on the Settings
 page.
 
+## The sample account
+
+A new folder can load one made-up company to look at: **Look at a sample
+account** on the empty home page or on Getting started, or `hermitcrm sample
+add`. It is Northwind Robotics, with two people, a message and its reply, a
+meeting, a deal at offer with its stage history, a next step and tasks. Its
+`company.md` carries `sample: true`, and a bar at the top of every page says
+it is there. The Getting started steps do not count it.
+
+**Remove it** in that bar (or `hermitcrm sample remove`) lists what goes and
+deletes it in one commit. Only companies with `sample: true` can be removed
+this way; delete that line by hand and the company is yours to keep. Hermit
+CRM has no other way to delete a company: you disqualify it instead.
+
 ## The company page
 
 - The header, two lines: one-liner, website and LinkedIn links, stage with days
