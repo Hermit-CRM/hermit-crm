@@ -5,6 +5,22 @@ the data format always comes with an automatic migration.
 
 ## 0.3.0 (unreleased)
 
+**Hermit CRM is now Apache License 2.0, not MIT.** Apache 2.0 says the same
+thing about warranty and liability in far more explicit words, and it adds a
+patent grant and a trademark reservation that MIT has no wording for. The code
+is as free as it was: use it, change it, sell it, keep your changes to
+yourself. New beside it: `NOTICE`, `DISCLAIMER.md` (no warranty, your backups,
+your integrations, in plain language), `SECURITY.md` (where to report, and that
+a fix is not promised), and a DCO sign-off requirement in `CONTRIBUTING.md`
+(`git commit -s`). Every source file carries the standard Apache header.
+
+- **A one-time disclaimer when the web app first opens a folder.** Three
+  points -- no warranty, your backups are yours, your integrations are your
+  responsibility -- a checkbox, and a link to the full text at
+  `/help/disclaimer`. Ticking it writes the time to `disclaimer_accepted` in
+  `config.toml` and it never appears again. Nothing is sent anywhere; there is
+  nowhere to send it.
+
 - A **sample account** for new users: **Look at a sample account** on the
   empty home page and on Getting started, or `hermitcrm sample add`, loads one
   made-up company (people, a message and its reply, a meeting, a deal at offer,

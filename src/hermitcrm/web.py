@@ -1,3 +1,17 @@
+# Copyright 2026 Gijs Bos
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """FastAPI application: server-rendered HTML over the Markdown file store.
 
 Every mutation goes through ``Store``; the store's ``on_write`` hook
@@ -32,8 +46,9 @@ from starlette.concurrency import run_in_threadpool
 from . import __version__, updates
 from fastapi.templating import Jinja2Templates
 
-from . import (bcc, brief, calendar_sync, capture, feedback, fields as custom, filters,
-               followups, messaging, migrations, pipeline, reports, sample, welcome)
+from . import (bcc, brief, calendar_sync, capture, disclaimer, feedback,
+               fields as custom, filters, followups, messaging, migrations,
+               pipeline, reports, sample, welcome)
 from . import schedule, scrape, usertheme
 from . import help as helpdocs
 from . import setup as setup_steps
@@ -792,6 +807,9 @@ def create_app(root: Path, config: dict | None = None,
             "enricher": app.state.enricher,
             "setup_pending": setup_steps.pending(current_setup_state()),
             "csrf_token": app.state.csrf_token,
+            # The one-time acknowledgement, over every page until it is ticked.
+            "disclaimer_pending": not disclaimer.accepted(config),
+            "disclaimer_points": disclaimer.POINTS,
             "help_topic": helpdocs.topic_for(request.url.path),
             "theme": str(config.get("theme") or "light"),
             "user_theme": usertheme.path(root) is not None,
@@ -972,6 +990,18 @@ def create_app(root: Path, config: dict | None = None,
         return flashed("/", "Removed the sample account: "
                        + ", ".join(c.name for c in removed)
                        + ". You can load it again from Getting started.")
+
+    @app.post("/disclaimer/accept")
+    def disclaimer_accept(request: Request, csrf_token: str = Form(""),
+                          accepted: str = Form(""), back: str = Form("/")):
+        """Tick the one-time disclaimer. The time goes in config.toml, nowhere else."""
+        check_csrf(csrf_token)
+        if not accepted:
+            return goto(safe_page(back))
+        setup_steps.set_config_values(root / "config.toml",
+                                      {disclaimer.KEY: disclaimer.stamp()})
+        refresh_config()
+        return goto(safe_page(back))
 
     @app.get("/", response_class=HTMLResponse)
     def home(request: Request):

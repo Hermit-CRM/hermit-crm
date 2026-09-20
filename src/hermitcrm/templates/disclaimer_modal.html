@@ -1,0 +1,29 @@
+{# The one-time acknowledgement. Over every page until the box is ticked;
+   see hermitcrm/disclaimer.py. No script: the checkbox is `required`, so the
+   browser itself refuses to post the form until it is on. #}
+<div class="modal-backdrop" role="dialog" aria-modal="true"
+     aria-labelledby="disclaimer-title">
+  <div class="modal-card">
+    <h2 id="disclaimer-title">Before you start</h2>
+    <p class="small">Three things to know. They are not going to be asked again.</p>
+    <ul class="disclaimer-points">
+      {% for heading, body in disclaimer_points %}
+      <li><strong>{{ heading }}</strong><br>{{ body }}</li>
+      {% endfor %}
+    </ul>
+    <form method="post" action="/disclaimer/accept">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="back" value="{{ ask_page }}">
+      <label class="disclaimer-tick">
+        <input type="checkbox" name="accepted" value="1" required>
+        <span>I have read and accept the
+          {# a new tab, or the modal would sit on top of the page it just opened,
+             and leaving this one would lose the tick #}
+          <a href="/help/disclaimer" target="_blank" rel="noopener">disclaimer</a>.</span>
+      </label>
+      <div class="step-actions">
+        <button type="submit">Continue</button>
+      </div>
+    </form>
+  </div>
+</div>

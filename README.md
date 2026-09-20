@@ -1,13 +1,23 @@
 # Hermit CRM
 
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)](DISCLAIMER.md)
+
+> **Alpha software.** Hermit CRM is incomplete, it changes without notice, and
+> it has bugs nobody has found yet. It is free and comes with **no warranty of
+> any kind** — nobody is on the hook if it loses your data. Keep your own
+> backups, and check that they restore. Read [DISCLAIMER.md](DISCLAIMER.md)
+> before you put real work in it.
+
 Your CRM is a folder of Markdown files in git. Every company, contact and
 conversation is a small text file you can read, grep, edit and diff; every
-change the app makes is a commit, so nothing is ever lost and any mistake is
-one `git revert` away. A local web app gives you a pipeline board, a calendar
-of next steps, message drafts and reports, and because the data is plain files
-with a small CLI, AI agents (Claude Code, Codex and others) can read and
-update your pipeline as easily as you can. Hermit CRM is built for one person:
-a founder, a freelancer, someone doing their own sales.
+change the app makes is a commit, so the previous version of a file stays in
+`git log` and most mistakes are one `git revert` away. A local web app gives
+you a pipeline board, a calendar of next steps, message drafts and reports,
+and because the data is plain files with a small CLI, AI agents (Claude Code,
+Codex and others) can read and update your pipeline as easily as you can.
+Hermit CRM is built for one person: a founder, a freelancer, someone doing
+their own sales.
 
 ## How it compares
 
@@ -352,6 +362,22 @@ Every file is Markdown with YAML front matter in a fixed key order, so two
 writes of the same data are identical and diffs show only real changes. Keys
 Hermit CRM does not know are kept, after the known ones.
 
+## Your data, your responsibility
+
+Hermit CRM runs on your machine and sends nothing anywhere. There is no
+account, no server, no telemetry. The author never receives, stores or
+processes your data, and under the GDPR you are the data controller for
+everything you put in.
+
+The other side of that: the data is yours to look after. A commit per write and
+a copy of the folder every few minutes are a convenience, not a guarantee. **Do
+your own backups, and restore one now and then to check it works.** If you
+connect a mail account, a calendar or an AI tool, you supply the keys and you
+answer for those providers' terms.
+
+[DISCLAIMER.md](DISCLAIMER.md) sets this out in full: no warranty, no liability,
+no support, and what the trademark does not cover.
+
 ## Rollback recipes
 
 Every write is a commit, so rolling back is plain git, run in the data folder:
@@ -413,8 +439,19 @@ the web form does. `hermitcrm help ai-agents` has the details.
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-MIT licensed.
+Commits need a DCO sign-off (`git commit -s`). Security reports go to the
+address in [SECURITY.md](SECURITY.md), which promises a reading and not a fix.
+
+## Licence
+
+Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+
+The licence covers the code. It does not license the "Hermit CRM" name or the
+hermit logo (section 6): fork it, rename it. There is no warranty and no
+liability; sections 7 and 8 say so in legal wording and
+[DISCLAIMER.md](DISCLAIMER.md) says so in plain words.
 
 ---
 
-Built by Gijs Bos at CompoundGTM
+Built by Gijs Bos. A personal project shared as it is, not a product
+and not a service.
