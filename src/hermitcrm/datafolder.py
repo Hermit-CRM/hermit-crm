@@ -1,3 +1,17 @@
+# Copyright 2026 Gijs Bos
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Where the data lives, and `hermitcrm init`: a fresh data folder (optionally with demo data)."""
 
 from __future__ import annotations
@@ -61,6 +75,7 @@ CONFIG_DOCS = {
     "backup_dir": "Where `hermitcrm backup` keeps its repository that only grows; empty means ~/.hermitcrm/backups/<folder>-<hash>.git. Must be outside this folder.",
     "welcome_done": "Walkthrough steps you ticked yourself, the ones Hermit CRM cannot see happen.",
     "welcome_dismissed": "Stop opening the walkthrough when Hermit CRM starts; it stays under Help.",
+    "disclaimer_accepted": "When you ticked the one-time disclaimer, as local time. Empty means the web app still shows it. Never sent anywhere.",
     "messaging_size_field": "Which of your fields holds a headcount, for the drafts that mention team size; empty means the size line always uses its 'unknown' wording.",
     "messaging_team_field": "Which of your fields holds a count of sales people, for the drafts that mention the team; empty means the team line always uses its 'unknown' wording.",
     "enrich_provider": "AI CLI for Enrich: auto, claude, codex, gemini, grok or custom.",

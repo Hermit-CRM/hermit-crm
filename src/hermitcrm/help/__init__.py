@@ -1,3 +1,17 @@
+# Copyright 2026 Gijs Bos
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Help: short Markdown pages, read by people (``/help``, ``hermitcrm help``) and by
 AI agents (``hermitcrm help <topic>`` from the data folder's CLAUDE.md).
 
@@ -19,7 +33,7 @@ HERE = Path(__file__).resolve().parent
 TOPICS = [
     "index", "pipeline", "calendar", "companies", "contacts", "interactions",
     "messages", "reports", "settings", "import", "extension", "enrich", "ask", "merge", "cli",
-    "backups", "data-format", "ai-agents", "feedback",
+    "backups", "data-format", "ai-agents", "feedback", "disclaimer",
 ]
 
 

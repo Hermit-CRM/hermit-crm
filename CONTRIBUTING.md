@@ -33,6 +33,49 @@ change to the data format, add a numbered migration in
   why is not obvious.
 - Commits written with an AI assistant start with `ai: `.
 - Update `CHANGELOG.md` for anything a user would notice.
+- **Every commit must be signed off** (`git commit -s`). See below.
+
+## Sign your work (DCO)
+
+Hermit CRM uses the [Developer Certificate of Origin](https://developercertificate.org/)
+1.1. It is not a copyright assignment and not a CLA: it is you stating that you
+wrote the patch, or otherwise have the right to send it.
+
+Add the line by committing with `-s`:
+
+```bash
+git commit -s -m "add a thing"
+```
+
+which appends
+
+```
+Signed-off-by: Your Name <your.email@example.com>
+```
+
+using your `user.name` and `user.email`. Use a real name and a real address,
+the same ones each time. Forgot it on the last commit? `git commit -s --amend`
+before you push. On a branch, `git rebase --signoff main` fixes the lot.
+
+A pull request whose commits are not signed off cannot be merged.
+
+### What you are certifying
+
+The full text is at <https://developercertificate.org/>. In short: the
+contribution is yours to give, or it came from somewhere with a compatible
+licence and you are passing it on, and you understand that the contribution and
+your sign-off are public and kept forever.
+
+### Licence of contributions
+
+Hermit CRM is licensed under the Apache License 2.0 (see [LICENSE](LICENSE)).
+Anything you contribute is under the same licence, as Apache 2.0 section 5 sets
+out, unless you say otherwise in writing. You keep the copyright in your own
+work; nothing here transfers it.
+
+Do not paste in code you found unless you know its licence and it is compatible
+— and say where it came from in the commit body. That includes code an AI tool
+produced from a prompt naming someone else's project.
 
 ## Rules
 
