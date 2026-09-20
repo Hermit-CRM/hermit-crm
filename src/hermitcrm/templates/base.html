@@ -61,5 +61,6 @@
   {% block content %}{% endblock %}
 </main>
 <footer class="small">Hermit CRM v{{ hermitcrm_version }} &middot; <a href="/help">Help</a></footer>
+{% if disclaimer_pending %}{% include "disclaimer_modal.html" %}{% endif %}
 </body>
 </html>

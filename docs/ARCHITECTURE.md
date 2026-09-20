@@ -35,6 +35,7 @@ src/hermitcrm/
 ├── migrations.py          # data format versions and migrations
 ├── secrets.py             # env, .secrets.toml, macOS Keychain
 ├── updates.py             # daily PyPI update check
+├── disclaimer.py          # the one-time acknowledgement over the web app
 ├── messaging.py           # outreach drafts (§8.3) + default_messages.toml
 ├── bcc.py, calendar_sync.py, importer.py, enrich.py, scrape.py, filters.py, reports.py
 ├── help/                  # help pages (§7): __init__.py renders <topic>.md, topic_for(path)

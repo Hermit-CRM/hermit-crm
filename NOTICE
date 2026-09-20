@@ -1,0 +1,35 @@
+Hermit CRM
+Copyright 2026 Gijs Bos
+
+This product includes software developed by Gijs Bos.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+this file except in compliance with the License. You may obtain a copy of the
+License at http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+Third-party code
+--------------------------------------------------------------------------------
+
+This repository bundles no third-party source code. Every file under src/,
+tests/, scripts/ and website/ is original work by the copyright holder above.
+There are no vendored libraries, no minified bundles, no web fonts and no CDN
+assets; the web app loads only files it ships itself.
+
+Hermit CRM does depend, at run time, on packages that are installed separately
+from PyPI and are not part of this distribution. They are listed in
+pyproject.toml and remain under their own licences:
+
+  fastapi             MIT
+  uvicorn             BSD-3-Clause
+  jinja2              BSD-3-Clause
+  python-multipart    Apache-2.0
+  python-frontmatter  MIT
+  pyyaml              MIT
+
+Installing Hermit CRM also pulls in the transitive dependencies of those
+packages (starlette, pydantic and others), likewise under their own licences.
+Run `pip show <package>` or read the package's own LICENSE file for the text.
+
+The "Hermit CRM" name and the hermit logo are trademarks of the copyright
+holder and are not licensed under the Apache License. See DISCLAIMER.md.

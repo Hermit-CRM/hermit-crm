@@ -24,7 +24,7 @@
 version  = "[TBC]"
 file     = "hermitcrm-[TBC version].tar.gz"
 size     = "[TBC size]"
-license  = "Free, MIT license"
+license  = "Free, Apache 2.0"
 
 [links]
 download       = "#"   # [TBC] URL of the .tar.gz
@@ -218,17 +218,17 @@ a = "No. Hermit CRM is built for one person. If you need a team CRM, use one of 
 
 [[questions.items]]
 q = "What does it cost?"
-a = "Nothing. It is open source under the MIT license."
+a = "Nothing. It is free and open source under the Apache License 2.0. It is alpha software with no warranty and no support; see DISCLAIMER.md in the download."
 
 
 # ── Bottom of the page ───────────────────────────────────────────────
 [footer]
 # {github} is replaced by a link to [links].github labelled with
 # [header].github_label.
-text = "Hermit CRM · MIT License · {github} · Built by Gijs Bos at [CompoundGTM](https://compoundgtm.io)"
+text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · {github} · Built by Gijs Bos"
 
 
 # ── Share image (og.png, 1200 x 630) ─────────────────────────────────
 # Regenerate with: python3 build.py --share   (needs Playwright)
 [share]
-tagline = "Free for Mac · MIT license"
+tagline = "Free for Mac · Apache 2.0"
