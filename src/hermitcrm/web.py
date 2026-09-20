@@ -2564,11 +2564,13 @@ def create_app(root: Path, config: dict | None = None,
                      first_name: str = Form(""), last_name: str = Form("")):
         if inbox.get(item_id) is None:
             raise HTTPException(status_code=404, detail=f"unknown inbox item {item_id!r}")
+        existed = set(store.companies)
         try:
             slug, it = bcc.assign(store, inbox, item_id, company, first_name, last_name)
         except ValidationError as exc:
             return settings_page(request, status_code=400, errors=exc.errors)
-        return flashed("/settings", f"Logged at {slug}/{it.contact}", anchor="inbox")
+        note = "" if slug in existed else f" (new company {store.get(slug).name})"
+        return flashed("/settings", f"Logged at {slug}/{it.contact}{note}", anchor="inbox")
 
     @app.post("/inbox/{item_id}/discard")
     def inbox_discard(request: Request, item_id: str):

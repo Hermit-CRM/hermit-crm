@@ -287,7 +287,8 @@ def test_review_queue_actions_redirect_to_settings_inbox(demo, tmp_path, monkeyp
 
     app, client = make_client(demo, tmp_path, open_mailbox=lambda: Box())
     app.state.bcc_settings = bcc.Settings(address="me+crm@gmail.com",
-                                          my_addresses=["me@example.com"])
+                                          my_addresses=["me@example.com"],
+                                          create_companies=False)
     r = client.post("/bcc/import")
     assert r.status_code == 303
     assert r.headers["location"].startswith("/settings?flash=BCC%20import")
@@ -298,8 +299,8 @@ def test_review_queue_actions_redirect_to_settings_inbox(demo, tmp_path, monkeyp
     assert '<span class="badge">1</span>' in page.split("</nav>")[0]
     assert 'href="/settings#inbox"' in page.split("</nav>")[0]
     assert "Review queue (1)" in page and "someone@nowhere.example" in page
-    r = client.post(f"/inbox/{items[0].id}/assign", data={"company": "no-such-company"})
-    assert r.status_code == 400 and "unknown company" in r.text and 'id="inbox"' in r.text
+    r = client.post(f"/inbox/{items[0].id}/assign", data={"company": ""})
+    assert r.status_code == 400 and "pick a company" in r.text and 'id="inbox"' in r.text
     r = client.post(f"/inbox/{items[0].id}/discard")
     assert r.status_code == 303 and r.headers["location"].endswith("#inbox")
     assert r.headers["location"].startswith("/settings?flash=Discarded")

@@ -23,7 +23,11 @@ Per external address in a mail:
 - an existing contact with that email: log the interaction there;
 - else exactly one company whose website (or a contact's email) has that
   domain: create the contact, then log;
-- else: an item in inbox/ that you assign to a company on /inbox.
+- else, for mail you sent or forwarded yourself (``bcc_create_companies``, on
+  by default): create the company, named after the domain, then the contact,
+  then log. Not for no-reply senders, nor when a company of that name exists;
+- else: an item in inbox/ that you assign to a company in the review queue,
+  which creates the company when the name you type is new.
 
 Mails are never imported twice: the Message-ID is stored as ``message_id`` on
 the interaction, on inbox items, and in inbox/discarded.tsv.
@@ -60,6 +64,10 @@ DEFAULT_ADDRESS = ""
 LAST_RUN_FILE = ".last-run.json"
 DISCARDED_FILE = "discarded.tsv"
 STALE_AFTER_DAYS = 2
+
+# Senders that are a machine, not a person at a company: never a new company.
+NO_REPLY = re.compile(r"^(no-?reply|do-?not-?reply|mailer-daemon|postmaster|bounces?"
+                      r"|notifications?)\b")
 
 # Personal mailboxes never identify a company by their domain.
 FREEMAIL = {
@@ -130,6 +138,7 @@ class Settings:
     my_addresses: tuple[str, ...] = ()
     ignore_domains: tuple[str, ...] = ()
     lookback_days: int = 30
+    create_companies: bool = True
 
     def __post_init__(self) -> None:
         self.address = normalise_email(self.address)
@@ -159,6 +168,7 @@ def settings_from_config(config: dict) -> Settings:
         my_addresses=tuple(config.get("my_addresses", ())),
         ignore_domains=tuple(config.get("bcc_ignore_domains", ())),
         lookback_days=int(config.get("bcc_lookback_days", 30)),
+        create_companies=bool(config.get("bcc_create_companies", True)),
     )
 
 
@@ -466,6 +476,27 @@ def _domain(address: str) -> str:
     return address.rpartition("@")[2]
 
 
+def name_from_domain(domain: str) -> str:
+    """acme-labs.de -> 'Acme-labs'; acme.co.uk -> 'Acme'."""
+    labels = [label for label in domain.lower().split(".") if label]
+    if len(labels) >= 3 and labels[-2] in ("co", "com", "org", "net", "ac", "gov") \
+            and len(labels[-1]) == 2:
+        label = labels[-3]
+    else:
+        label = labels[-2] if len(labels) >= 2 else (labels[0] if labels else "")
+    return label[:1].upper() + label[1:]
+
+
+def website_for_address(address: str) -> str:
+    """https://<the address's domain>, or "" for a personal mailbox."""
+    domain = _domain(normalise_email(address))
+    return f"https://{domain}" if domain and domain not in FREEMAIL else ""
+
+
+def is_no_reply(address: str) -> bool:
+    return bool(NO_REPLY.match(address.partition("@")[0].lower()))
+
+
 def _host(url: str) -> str:
     host = (urlparse(normalise_website(url)).hostname or "").lower()
     return host[4:] if host.startswith("www.") else host
@@ -483,6 +514,7 @@ class Match:
     company: str = ""
     contact: str = ""
     reason: str = ""
+    new_domain: str = ""  # set when the review is only because no company has this domain
 
 
 def match_address(store: Store, address: str) -> Match:
@@ -503,7 +535,7 @@ def match_address(store: Store, address: str) -> Match:
         return Match("create-contact", companies[0])
     if companies:
         return Match("review", reason=f"domain {domain} matches " + ", ".join(companies))
-    return Match("review", reason=f"no company with domain {domain}")
+    return Match("review", reason=f"no company with domain {domain}", new_domain=domain)
 
 
 def resolve_company(store: Store, text: str) -> str:
@@ -515,6 +547,14 @@ def resolve_company(store: Store, text: str) -> str:
         return by_name[0]
     raise ValidationError({"company": f"unknown company {text!r}" if text
                            else "pick a company"})
+
+
+def company_named(store: Store, name: str):
+    """The one company with this name, ignoring case and legal suffixes (GmbH, BV...)."""
+    key = slugify(name or "", strip_legal=True, default="")
+    hits = [c for c in store.companies.values()
+            if key and slugify(c.name, strip_legal=True, default="") == key]
+    return hits[0] if len(hits) == 1 else None
 
 
 def existing_contact(company, address: str, first_name: str, last_name: str):
@@ -687,6 +727,7 @@ def run_alert(last_run: dict | None, now: datetime, label: str = "BCC import") -
 class RunResult:
     mails: int = 0
     logged: int = 0
+    companies: int = 0
     contacts: int = 0
     review: int = 0
     duplicates: int = 0
@@ -695,13 +736,15 @@ class RunResult:
 
     def summary(self) -> str:
         return (f"{self.mails} mails read: {self.logged} interactions logged, "
+                f"{self.companies} companies created, "
                 f"{self.contacts} contacts created, {self.review} to review, "
                 f"{self.duplicates} already imported, {self.skipped} skipped")
 
     def commit_message(self) -> str:
         mails = "1 mail" if self.mails == 1 else f"{self.mails} mails"
         return (f"bcc: imported {mails} ({self.logged} interactions, "
-                f"{self.contacts} contacts, {self.review} to review)")
+                f"{self.companies} companies, {self.contacts} contacts, "
+                f"{self.review} to review)")
 
 
 def import_mails(store: Store, inbox: Inbox, raws: Iterable[bytes],
@@ -720,8 +763,12 @@ def import_mails(store: Store, inbox: Inbox, raws: Iterable[bytes],
                 result.lines.append(f"{mail.date:%Y-%m-%d %H:%M} | {mail.subject or '-'} "
                                     f"| skipped: no external address")
                 continue
+            # Anyone who learns the tracking address can mail it; only your own
+            # mail (sent, or a reply you forwarded) may create a company.
+            refuse = "" if settings.is_me(mail.sender[1]) else "mail not sent by you"
             for entry in entries:
-                outcome = handle_entry(store, inbox, entry, seen, planned, result, apply)
+                outcome = handle_entry(store, inbox, entry, seen, planned, result, apply,
+                                       create=settings.create_companies, refuse=refuse)
                 result.lines.append(f"{entry.date:%Y-%m-%d %H:%M} | email {entry.direction} "
                                     f"| {entry.address} | {outcome}")
         batch["message"] = result.commit_message()
@@ -729,11 +776,14 @@ def import_mails(store: Store, inbox: Inbox, raws: Iterable[bytes],
 
 
 def handle_entry(store: Store, inbox: Inbox, entry: Entry, seen: set, planned: dict,
-                 result, apply: bool) -> str:
+                 result, apply: bool, create: bool = False, refuse: str = "") -> str:
     """Log, create-and-log, or queue one entry (shared by BCC and calendar import).
 
     ``result`` needs integer ``logged``, ``contacts``, ``review`` and
-    ``duplicates`` attributes; ``planned`` remembers dry-run contacts."""
+    ``duplicates`` attributes (and ``companies`` when ``create``); ``planned``
+    remembers dry-run contacts, and dry-run companies under "@<domain>".
+    ``create`` lets an unknown domain become a new company unless ``refuse``
+    gives the reason it may not (the calendar import never passes it)."""
     if entry.address in planned:
         result.logged += 1
         return f"{planned[entry.address]} | log"
@@ -767,30 +817,82 @@ def handle_entry(store: Store, inbox: Inbox, entry: Entry, seen: set, planned: d
         log_entry(store, match.company, contact.slug, entry)
         return f"{match.company}/{contact.slug} | new contact, log"
     key = (entry.message_id, entry.address)
-    if key in seen:
+    if key in seen:  # waiting in the queue or discarded: never a new company either
         result.duplicates += 1
         return "already in the inbox or discarded"
+    reason = match.reason
+    if match.new_domain and create:
+        name = name_from_domain(match.new_domain)
+        # A dry run's second person at a company it plans: --apply finds that company.
+        if "@" + match.new_domain not in planned:
+            same = company_named(store, name)
+            refuse = (refuse or ("no-reply address" if is_no_reply(entry.address) else "")
+                      or (f"{same.name} has the same name" if same is not None else ""))
+        else:
+            refuse = ""
+        if not refuse:
+            return create_company_entry(store, entry, match.new_domain, name, planned,
+                                        result, apply)
+        reason = f"{reason} ({refuse}, so none created)"
     seen.add(key)
     result.review += 1
     if apply:
-        item = inbox.add(entry, match.reason)
+        item = inbox.add(entry, reason)
         store.notify(f"{kind_prefix(item.kind)}: {item.id} to review", ["inbox"])
-    return f"to review: {match.reason}"
+    return f"to review: {reason}"
+
+
+def create_company_entry(store: Store, entry: Entry, domain: str, name: str,
+                         planned: dict, result, apply: bool) -> str:
+    """Create the company for an unknown domain, then the contact, then log."""
+    first, last = name_parts(entry.name, entry.address)
+    result.logged += 1
+    result.contacts += 1
+    known = planned.get("@" + domain)
+    if known:  # dry run: a second person at a company this run will create
+        planned[entry.address] = known
+        return f"{known} | new contact {first} {last}".rstrip() + ", log"
+    result.companies += 1
+    if not apply:
+        planned["@" + domain] = planned[entry.address] = f"{domain} (new company)"
+        return f"new company from {domain} | new contact {first} {last}".rstrip() + ", log"
+    way = "to" if entry.direction == "out" else "from"
+    company = store.create_company(
+        name, website=f"https://{domain}",
+        notes=f"Created by the BCC import from a mail {way} {entry.address} "
+              f"({entry.date:%Y-%m-%d}).")
+    contact = store.create_contact(company.slug, first, last, email=entry.address)
+    log_entry(store, company.slug, contact.slug, entry)
+    return f"{company.slug}/{contact.slug} | new company, new contact, log"
 
 
 def assign(store: Store, inbox: Inbox, item_id: str, company: str,
            first_name: str = "", last_name: str = ""):
-    """Log an inbox item at a company; returns (company slug, interaction)."""
+    """Log an inbox item at a company; returns (company slug, interaction).
+
+    The company is found by slug or name (ignoring legal suffixes), else by the
+    mail's domain; a name that finds nothing becomes a new company, with the
+    mail's domain as its website unless that is a personal mailbox."""
     item = inbox.get(item_id)
     if item is None:
         raise ValidationError({"item": f"unknown inbox item {item_id!r}"})
-    slug = resolve_company(store, company)
-    target = store.companies[slug]
+    name = (company or "").strip()
+    if not name:
+        raise ValidationError({"company": "pick a company"})
+    try:
+        slug = resolve_company(store, name)
+    except ValidationError:
+        same = company_named(store, name)
+        slug = same.slug if same is not None else match_address(store, item.address).company
     first_name, last_name = (first_name or "").strip(), (last_name or "").strip()
     if not first_name and not last_name:
         first_name, last_name = item.first_name, item.last_name
     prefix = kind_prefix(item.kind)
-    with store.batch(f"{prefix}: {item.id} assigned to {slug}") as batch:
+    new = not slug
+    with store.batch(f"{prefix}: {item.id} assigned") as batch:
+        if new:
+            slug = store.create_company(name, website=website_for_address(item.address)).slug
+        target = store.companies[slug]
         contact = existing_contact(target, item.address, first_name, last_name)
         if contact is None:
             contact = store.create_contact(slug, first_name, last_name, email=item.address)
@@ -802,7 +904,8 @@ def assign(store: Store, inbox: Inbox, item_id: str, company: str,
         # name the path here: a commit only covers what the store was told about,
         # and the removal would stay behind as a deleted-but-uncommitted file.
         store.notify(f"{prefix}: {item.id} assigned", ["inbox"])
-        batch["message"] = f"{prefix}: {item.id} assigned to {slug}/{contact.slug}"
+        batch["message"] = (f"{prefix}: {item.id} assigned to {slug}/{contact.slug}"
+                            + (" (new company)" if new else ""))
     return slug, interaction
 
 
