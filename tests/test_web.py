@@ -21,7 +21,9 @@ CONFIG = {"port": 8765, "silent_days": 14, "push_enabled": False, "remote": "ori
           # an established user: these tests are not about the first launch
           "welcome_dismissed": True}
 
-TODAY = date.today()
+# The day these tests are about. It has to be the day the app believes in too,
+# or every date below becomes a bet on when the suite is run: see the app fixture.
+TODAY = FIXED_NOW.date()
 YESTERDAY = TODAY - timedelta(days=1)
 
 
@@ -42,7 +44,15 @@ def repo(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def app(repo: Path):
-    return create_app(repo, config=CONFIG)
+    app = create_app(repo, config=CONFIG)
+    # Every page under test asks the store what day it is, while the tests write
+    # dates of their own -- TODAY, and literals in September 2026. Leave the store
+    # on the real clock and the gap between the two changes every day: a task due
+    # "2026-09-24" sits in Future tasks, then moves to Top priority when that date
+    # arrives, and once the month rolls over the calendar grid stops drawing it at
+    # all. Fixing the store's day makes the tests mean what they say.
+    app.state.store.clock = lambda: FIXED_NOW
+    return app
 
 
 @pytest.fixture
@@ -790,10 +800,6 @@ def test_a_task_can_be_created_from_the_calendar(client, app, repo):
 
 
 def test_calendar_view_shows_open_tasks(client, app):
-    # Every date below is read as "due yet or not" against the store's clock,
-    # so this test has to fix the day it is asking about: with the real date
-    # the same page moves a task from Future to Top priority as time passes.
-    app.state.store.clock = lambda: FIXED_NOW          # 2026-09-14
     post_company(client, name="Acme", next_step="Call Jane", next_step_due="2026-09-10")
     post_company(client, name="Beta", next_step="Send deck", next_step_due="2026-09-20")
     post_company(client, name="Gamma", next_step="Find intro")
