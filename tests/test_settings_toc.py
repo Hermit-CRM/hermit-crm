@@ -1,3 +1,17 @@
+# Copyright 2026 Gijs Bos
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """The contents line at the top of /settings: every section of the page, in
 page order, named by the start of its heading. Appearance went missing from it
 when the section was added, and the AI section was listed as "Enrichment"."""
