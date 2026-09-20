@@ -21,6 +21,7 @@ from collections import Counter
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from secrets import token_urlsafe
+from typing import Callable
 from urllib.parse import quote, urlencode, urlparse
 
 from fastapi import FastAPI, Form, HTTPException, Request
@@ -547,7 +548,8 @@ def stale_form_text(what: str, differ: list[str]) -> str:
             "check it against the record and save again.")
 
 
-def create_app(root: Path, config: dict | None = None) -> FastAPI:
+def create_app(root: Path, config: dict | None = None,
+               clock: Callable[[], datetime] | None = None) -> FastAPI:
     root = Path(root)
     config = dict(config) if config is not None else load_config(root)
 
@@ -577,8 +579,11 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
                                       DEFAULT_CONFIG["followup_nudge_days"])),
     }
     outcomes = [str(o) for o in (config.get("outcomes") or DEFAULT_OUTCOMES)]
+    # `clock` is what makes "today" injectable: every route asks the store for
+    # the date (store.today()/store.now()), so freezing it here freezes the
+    # whole app. Tests pass a fixed clock; the app itself passes none.
     store = Store(root, silent_days=int(config.get("silent_days", 14)),
-                  on_write=on_write, outcomes=outcomes)
+                  on_write=on_write, outcomes=outcomes, clock=clock)
     store.load()
 
     def load_custom_fields() -> list:

@@ -60,6 +60,23 @@ def client(app):
     return TestClient(app, follow_redirects=False)
 
 
+@pytest.fixture
+def frozen_app(repo: Path):
+    """The app on the suite's fixed clock (2026-09-14).
+
+    Most tests here date their records from the real `TODAY`, so they read the
+    same on any day. A test that names absolute dates instead needs "today" to
+    stand still: this hands `create_app` the same frozen clock the `store`
+    fixture uses, so `store.today()` cannot drift into the dates it asserts on.
+    """
+    return create_app(repo, config=CONFIG, clock=lambda: FIXED_NOW)
+
+
+@pytest.fixture
+def frozen_client(frozen_app):
+    return TestClient(frozen_app, follow_redirects=False)
+
+
 # -------------------------------------------------------------------- helpers
 
 
@@ -799,14 +816,15 @@ def test_a_task_can_be_created_from_the_calendar(client, app, repo):
     assert app.state.store.get("harbour-light-labs").contacts["ines-vega"].tasks[0].done
 
 
-def test_calendar_view_shows_open_tasks(client, app):
-    post_company(client, name="Acme", next_step="Call Jane", next_step_due="2026-09-10")
-    post_company(client, name="Beta", next_step="Send deck", next_step_due="2026-09-20")
-    post_company(client, name="Gamma", next_step="Find intro")
-    post_company(client, name="Delta", next_step="Old", next_step_due="2026-08-03")
-    post_company(client, name="Done Co", next_step="Finished", next_step_due="2026-09-22",
+def test_calendar_view_shows_open_tasks(frozen_client):
+    # absolute dates below are read against the frozen clock, not the real day
+    post_company(frozen_client, name="Acme", next_step="Call Jane", next_step_due="2026-09-10")
+    post_company(frozen_client, name="Beta", next_step="Send deck", next_step_due="2026-09-20")
+    post_company(frozen_client, name="Gamma", next_step="Find intro")
+    post_company(frozen_client, name="Delta", next_step="Old", next_step_due="2026-08-03")
+    post_company(frozen_client, name="Done Co", next_step="Finished", next_step_due="2026-09-22",
                  next_step_status="done")
-    page = client.get("/calendar").text
+    page = frozen_client.get("/calendar").text
     assert "September 2026" in page and 'id="day-2026-09-14"' in page
     cell = page.split('id="day-2026-09-10"')[1].split("</td>")[0]
     assert "Acme" in cell and 'class="task overdue"' in cell
@@ -827,9 +845,9 @@ def test_calendar_view_shows_open_tasks(client, app):
     assert "Mark done" in tasks and "Mark done" in priority
     assert 'href="/calendar?month=2026-08"' in page and 'href="/calendar?month=2026-10"' in page
 
-    august = client.get("/calendar?month=2026-08").text
+    august = frozen_client.get("/calendar?month=2026-08").text
     assert "August 2026" in august and "Delta" in august.split('id="day-2026-08-03"')[1].split("</td>")[0]
-    assert client.get("/calendar?month=garbage").status_code == 200
+    assert frozen_client.get("/calendar?month=garbage").status_code == 200
 
 
 def test_board_unused_columns_are_marked(client):
