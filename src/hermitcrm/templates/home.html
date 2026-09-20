@@ -98,12 +98,12 @@
     <a class="card start-card" href="{{ href }}"><h3>{{ icon(icon_name) }} {{ label }}</h3><div class="small">{{ line }}</div></a>
     {% endfor %}
   </div>
-  <p class="small">Everything lives in plain files in your data folder, and every change is a git commit. <a href="/help">Help</a> explains each part in more detail.</p>
   <form method="post" action="/welcome/dismiss" class="inline">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <input type="hidden" name="dismissed" value="1">
-    <button type="submit">Hide this</button> <span class="small">Getting started and this list stay under <a href="/help">Help</a>.</span>
+    <button type="submit">Hide the tutorial</button> <span class="small">Takes <em>Getting started</em> and <em>What this thing does</em> off this page. Both stay under <a href="/help">Help</a>.</span>
   </form>
+  <p class="small">Everything lives in plain files in your data folder, and every change is a git commit. <a href="/help">Help</a> explains each part in more detail.</p>
 </div>
 {% endif %}
 {% endblock %}

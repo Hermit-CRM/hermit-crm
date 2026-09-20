@@ -97,10 +97,15 @@ def test_the_first_company_does_not_take_the_beginner_help_with_it(folder):
     assert 'action="/sample"' in page and 'href="/welcome"' in page
 
 
-def test_hide_this_takes_the_beginner_help_off_home(folder):
+def test_hide_the_tutorial_takes_the_beginner_help_off_home(folder):
     """One switch for the walkthrough and for home: /welcome/dismiss."""
     app, client = make_client(folder, setup_redirected=True)
     app.state.store.create_company("Real Customer BV")
+    page = client.get("/").text
+    # the button says what it takes away, and both names are on the page it says it
+    assert "Hide the tutorial" in page
+    offer = page.split("Hide the tutorial")[1].split("</form>")[0]
+    assert "Getting started" in offer and "What this thing does" in offer
     r = client.post("/welcome/dismiss", data={"csrf_token": token(client), "dismissed": "1"})
     assert r.status_code == 303 and r.headers["location"].startswith("/?flash=")
     assert cfg(folder)["welcome_dismissed"] is True

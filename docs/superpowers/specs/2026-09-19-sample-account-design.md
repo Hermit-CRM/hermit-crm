@@ -63,7 +63,7 @@ never left at all.
 - The start cards, the sample offer and the areas grid are one block, shown
   while `welcome.should_show()` is true -- the walkthrough's own switch. With
   companies in the folder it sits below the real lists and carries the
-  walkthrough's progress; **Hide this** posts to `/welcome/dismiss`.
+  walkthrough's progress; **Hide the tutorial** posts to `/welcome/dismiss`.
 - Removing the sample now says, on the confirm page and in the flash, that it
   can be loaded again from Getting started.
 - Fixed on the way: a toggle whose off value is an empty form field needs a

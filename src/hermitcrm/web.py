@@ -974,7 +974,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         # lands on it; "Skip for now" there works for the rest of the session.
         all_steps = welcome_steps()
         # The same test decides whether home keeps its beginner block, so there
-        # is one switch for the two of them: "Hide this" is /welcome/dismiss.
+        # is one switch for the two of them: "Hide the tutorial" is /welcome/dismiss.
         intro = welcome.should_show(config, all_steps)
         if not app.state.setup_redirected:
             app.state.setup_redirected = True
