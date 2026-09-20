@@ -6,6 +6,13 @@ from datetime import datetime
 from pathlib import Path
 
 
+# cmd_serve imports hermitcrm.accesslog, which reads LOGGING_CONFIG out of
+# uvicorn.config. The serve tests below put a stub in sys.modules["uvicorn"],
+# and a stub has no __path__ for the import machinery to find a submodule
+# through, so the real uvicorn.config has to be in sys.modules before that --
+# whatever else ran first in this process.
+import uvicorn.config  # noqa: F401
+
 from hermitcrm.gitops import GitOps
 from hermitcrm.store import Store
 from conftest import FIXED_NOW
