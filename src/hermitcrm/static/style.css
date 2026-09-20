@@ -591,3 +591,9 @@ pre.theme-example { background: var(--surface-2); border: 1px solid var(--line);
 .sample-card button { all: unset; box-sizing: border-box; display: block; width: 100%; height: 100%; padding: 8px 10px; cursor: pointer; }
 .sample-card button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sample-offer { display: block; margin: 0 0 12px; }
+
+/* The beginner block on home: it ends with the switch that turns it off. */
+.getting-started { margin-top: 32px; padding-top: 14px; border-top: 1px solid var(--line); }
+.getting-started h2 { margin-top: 0; }
+.getting-started .progress-bar { margin-bottom: 12px; }
+

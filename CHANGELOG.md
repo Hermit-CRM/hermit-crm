@@ -13,6 +13,16 @@ the data format always comes with an automatic migration.
   (`hermitcrm sample remove`). The walkthrough does not count it, PIPELINE.md
   marks its line `sample (fictional)`, and new folders tell AI agents to leave
   it out.
+- **The beginner help on the home page stays until you put it away.** It used
+  to disappear the moment the first company existed -- two steps into ten --
+  taking the ways in and the sample account with it, while *What this thing
+  does* stayed for ever. Both are one block now, under your real lists once the
+  folder has anything in it, and both go when Getting started is finished or
+  when you press **Hide this** (the walkthrough's own switch).
+- Fixed: **Open this at start again** on Getting started, and **Untick** on a
+  step ticked by hand, did nothing. An empty form field never reaches the
+  handler -- FastAPI puts the default in its place -- so the off button asked
+  for "on".
 - The `--demo` folder has eight companies now: every stage (disqualified and
   temp-disqualified too), tasks on companies and people, and a proposal that
   is still waiting for an answer.

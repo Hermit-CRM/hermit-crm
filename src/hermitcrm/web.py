@@ -915,7 +915,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
 
     @app.post("/welcome/tick")
     def welcome_tick(request: Request, csrf_token: str = Form(""), key: str = Form(""),
-                     done: str = Form("1")):
+                     done: str = Form("")):
         """Tick (or untick) a step the app cannot see happen."""
         check_csrf(csrf_token)
         if key not in welcome.MANUAL:
@@ -929,14 +929,17 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
 
     @app.post("/welcome/dismiss")
     def welcome_dismiss(request: Request, csrf_token: str = Form(""),
-                        dismissed: str = Form("1")):
+                        dismissed: str = Form("")):
+        """A toggle's default is its off value: an empty form field never reaches
+        the handler -- FastAPI puts the default in its place -- so a default of
+        "1" would make the off button switch the thing back on."""
         check_csrf(csrf_token)
         setup_steps.set_config_values(root / "config.toml",
                                       {"welcome_dismissed": bool(dismissed)})
         refresh_config()
         return flashed("/" if dismissed else "/welcome",
-                       "The walkthrough stays under Help" if dismissed
-                       else "The walkthrough opens at start again")
+                       "Getting started stays under Help" if dismissed
+                       else "Getting started opens at start again")
 
     # ------------------------------------------------------------ sample account
 
@@ -962,15 +965,20 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         if not removed:
             return flashed("/", "There is no sample account to remove")
         return flashed("/", "Removed the sample account: "
-                       + ", ".join(c.name for c in removed))
+                       + ", ".join(c.name for c in removed)
+                       + ". You can load it again from Getting started.")
 
     @app.get("/", response_class=HTMLResponse)
     def home(request: Request):
         # Once per server start, a folder that has not finished the walkthrough
         # lands on it; "Skip for now" there works for the rest of the session.
+        all_steps = welcome_steps()
+        # The same test decides whether home keeps its beginner block, so there
+        # is one switch for the two of them: "Hide this" is /welcome/dismiss.
+        intro = welcome.should_show(config, all_steps)
         if not app.state.setup_redirected:
             app.state.setup_redirected = True
-            if welcome.should_show(config, welcome_steps()):
+            if intro:
                 return goto("/welcome")
         today = store.today()
         week = today + timedelta(days=7)
@@ -996,6 +1004,9 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "funnel": report["funnel"],
             "delta": reports.delta,
             "areas": AREAS,
+            "intro": intro,
+            "steps_done": welcome.progress(all_steps)[0],
+            "steps_total": len(all_steps),
             "counts": {
                 "companies": len(store.companies),
                 "contacts": sum(len(c.contacts) for c in store.companies.values()),
