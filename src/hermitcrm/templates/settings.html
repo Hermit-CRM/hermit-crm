@@ -27,7 +27,7 @@
 
 <section class="setup-step" id="bcc">
   <h2>BCC capture {{ status(state.bcc) }}</h2>
-  <p class="small">How it works: when you write to a prospect, put a tracking address in BCC (or forward the thread to it later). Hermit CRM reads that mailbox over IMAP, matches each message to a company by the other person's address or domain, and logs it as an interaction. Anything it cannot match waits in the review queue below. With Gmail, <code>you+crm@gmail.com</code> reaches your own inbox, so no second account is needed; a filter can file those messages out of the way.</p>
+  <p class="small">How it works: when you write to a prospect, put a tracking address in BCC (or forward the thread to it later). Hermit CRM reads that mailbox over IMAP, matches each message to a company by the other person's address or domain, and logs it as an interaction. Mail you send or forward to someone at a domain no company has creates that company, named after the domain. Personal addresses and domains that fit more than one company wait in the review queue below. With Gmail, <code>you+crm@gmail.com</code> reaches your own inbox, so no second account is needed; a filter can file those messages out of the way.</p>
   {{ step_errors('bcc') }}
   <form method="post" action="/settings/bcc" class="record-form" id="bcc-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -253,7 +253,7 @@
   <h2>Review queue{% if items %} ({{ items|length }}){% endif %}</h2>
   <p class="small">
     {% if bcc_address %}BCC <code>{{ bcc_address }}</code> on the mails you send, or forward a reply to it.{% else %}No BCC address yet: set one under <a href="#bcc">BCC capture</a>.{% endif %}
-    The daily import logs each mail at the contact with that email address; a new person at a company whose domain it knows becomes a new contact.
+    The daily import logs each mail at the contact with that email address; a new person at a company whose domain it knows becomes a new contact, and a domain it does not know becomes a new company.
     Everything else waits here for you to pick the company.
   </p>
   <div class="bcc-status">
@@ -298,7 +298,7 @@
     <p class="small">{{ it.reason }}</p>
     <details><summary>{{ 'notes' if it.kind == 'meeting' else 'message' }}</summary><pre class="body">{{ it.body }}</pre></details>
     <form method="post" action="/inbox/{{ it.id }}/assign" class="inbox-assign">
-      <label>company <input name="company" list="company-slugs" placeholder="slug or exact name" required></label>
+      <label>company <input name="company" list="company-slugs" placeholder="company name or slug; a new name creates it" required></label>
       <label>first name <input name="first_name" value="{{ it.first_name }}"></label>
       <label>last name <input name="last_name" value="{{ it.last_name }}"></label>
       <button type="submit">Log at company</button>

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import imaplib
 import subprocess
+from dataclasses import replace
 from datetime import datetime
 from email.message import EmailMessage
 from pathlib import Path
@@ -36,6 +37,8 @@ SETTINGS = bcc.Settings(address="me+bcc@gmail.com",
                         my_addresses=("me@work.example.com",),
                         ignore_domains=("work.example.com",))
 ME = "Sam Owner <me@work.example.com>"
+# Today's behaviour with bcc_create_companies = false: unknown domains wait for review.
+QUEUE = replace(SETTINGS, create_companies=False)
 
 
 def raw_mail(subject="Intro", frm=ME, to="Jane Doe <jane@acme.de>", cc=None,
@@ -194,8 +197,10 @@ def test_import_logs_creates_and_queues_in_one_commit(store, messages):
                    cc="x@gmail.com, col@work.example.com, y@nowhere.org",
                    body="Hi all,\n\nNote.\n\nOn Sun, 13 Sept 2026 at 9:00, Jane <jane@acme.de> wrote:\n> old\n")
     result = bcc.import_mails(store, inbox_for(store), [raw], SETTINGS, apply=True)
-    assert (result.logged, result.contacts, result.review, result.duplicates) == (2, 1, 2, 0)
-    assert messages == ["bcc: imported 1 mail (2 interactions, 1 contacts, 2 to review)"]
+    assert (result.logged, result.companies, result.contacts, result.review,
+            result.duplicates) == (3, 1, 2, 1, 0)
+    assert messages == ["bcc: imported 1 mail (3 interactions, 1 companies, 2 contacts, "
+                        "1 to review)"]
 
     [jane_it] = store.companies["acme"].interactions
     assert (jane_it.contact, jane_it.source, jane_it.message_id, jane_it.direction) == (
@@ -210,10 +215,12 @@ def test_import_logs_creates_and_queues_in_one_commit(store, messages):
     assert bob.email == "bob@beta.io"
     assert store.companies["beta"].interactions[0].contact == "bob-stone"
 
-    items = inbox_for(store).items()
-    assert sorted(i.address for i in items) == ["x@gmail.com", "y@nowhere.org"]
-    assert {i.reason for i in items} == {"personal address (gmail.com)",
-                                         "no company with domain nowhere.org"}
+    nowhere = store.companies["nowhere"]
+    assert (nowhere.name, nowhere.website) == ("Nowhere", "https://nowhere.org")
+    assert nowhere.contacts["y"].email == "y@nowhere.org"
+
+    [item] = inbox_for(store).items()
+    assert (item.address, item.reason) == ("x@gmail.com", "personal address (gmail.com)")
 
 
 def test_domain_match_fills_email_of_existing_contact_instead_of_duplicating(store, messages):
@@ -230,7 +237,8 @@ def test_domain_match_fills_email_of_existing_contact_instead_of_duplicating(sto
     assert list(store.companies["gamma"].contacts) == ["ann-lee"]
     assert store.companies["gamma"].contacts["ann-lee"].email == "ann@gamma.fr"
     assert [i.contact for i in store.companies["gamma"].interactions] == ["ann-lee", "ann-lee"]
-    assert messages == ["bcc: imported 2 mails (2 interactions, 0 contacts, 0 to review)"]
+    assert messages == ["bcc: imported 2 mails (2 interactions, 0 companies, 0 contacts, "
+                        "0 to review)"]
 
 
 def test_import_twice_changes_nothing(store, messages):
@@ -240,10 +248,12 @@ def test_import_twice_changes_nothing(store, messages):
     bcc.import_mails(store, inbox, [raw], SETTINGS, apply=True)
     messages.clear()
     again = bcc.import_mails(store, inbox, [raw], SETTINGS, apply=True)
-    assert (again.logged, again.contacts, again.review, again.duplicates) == (0, 0, 0, 3)
+    assert (again.logged, again.companies, again.contacts, again.review,
+            again.duplicates) == (0, 0, 0, 0, 3)
     assert messages == []
     assert len(store.companies["acme"].interactions) == 1
-    assert inbox.count() == 1
+    assert len(store.companies["nowhere"].interactions) == 1
+    assert inbox.count() == 0
 
 
 def test_dry_run_writes_nothing(store, messages):
@@ -252,14 +262,86 @@ def test_dry_run_writes_nothing(store, messages):
     raws = [raw_mail(to="bob@beta.io, y@nowhere.org"),
             raw_mail(to="bob@beta.io", mid="<m2@work.example.com>")]
     result = bcc.import_mails(store, inbox_for(store), raws, SETTINGS, apply=False)
-    assert (result.logged, result.contacts, result.review) == (2, 1, 1)
+    assert (result.logged, result.companies, result.contacts, result.review) == (3, 1, 2, 0)
     assert result.lines == [
         "2026-09-14 10:30 | email out | bob@beta.io | beta | new contact Bob, log",
-        "2026-09-14 10:30 | email out | y@nowhere.org | to review: no company with domain nowhere.org",
+        "2026-09-14 10:30 | email out | y@nowhere.org | new company from nowhere.org "
+        "| new contact Y, log",
         "2026-09-14 10:30 | email out | bob@beta.io | beta (new contact) | log",
     ]
     assert messages == [] and store.companies["beta"].contacts == {}
+    assert "nowhere" not in store.companies
     assert not (store.root / "inbox").exists()
+
+
+def test_unknown_domain_creates_the_company_then_the_contact(store, messages):
+    seed(store)
+    messages.clear()
+    raw = raw_mail(to="Nina Park <nina@parkworks.example>")
+    result = bcc.import_mails(store, inbox_for(store), [raw], SETTINGS, apply=True)
+    assert (result.logged, result.companies, result.contacts, result.review) == (1, 1, 1, 0)
+    assert result.lines == ["2026-09-14 10:30 | email out | nina@parkworks.example "
+                            "| parkworks/nina-park | new company, new contact, log"]
+    assert messages == ["bcc: imported 1 mail (1 interactions, 1 companies, 1 contacts, "
+                        "0 to review)"]
+    company = store.companies["parkworks"]
+    assert (company.name, company.website, company.stage) == (
+        "Parkworks", "https://parkworks.example", "engaged")
+    assert company.notes == ("Created by the BCC import from a mail to "
+                             "nina@parkworks.example (2026-09-14).\n")
+    assert company.contacts["nina-park"].email == "nina@parkworks.example"
+    [it] = company.interactions
+    assert (it.contact, it.message_id, it.source) == (
+        "nina-park", "<m1@work.example.com>", "bcc-import")
+
+
+def test_two_people_at_one_new_domain_make_one_company(store):
+    seed(store)
+    raws = [raw_mail(to="nina@parkworks.example, Omar Reed <omar@parkworks.example>")]
+    dry = bcc.import_mails(store, inbox_for(store), raws, SETTINGS)
+    assert [line.split(" | ", 3)[3] for line in dry.lines] == [
+        "new company from parkworks.example | new contact Nina, log",
+        "parkworks.example (new company) | new contact Omar Reed, log"]
+    assert (dry.companies, dry.contacts, dry.logged) == (1, 2, 2)
+    assert "parkworks" not in store.companies
+    result = bcc.import_mails(store, inbox_for(store), raws, SETTINGS, apply=True)
+    assert (result.companies, result.contacts, result.logged) == (1, 2, 2)
+    assert sorted(store.companies["parkworks"].contacts) == ["nina", "omar-reed"]
+
+
+@pytest.mark.parametrize("raw, settings, reason", [
+    (raw_mail(frm="Nina Park <nina@parkworks.example>", to="me+bcc@gmail.com"), SETTINGS,
+     "no company with domain parkworks.example (mail not sent by you, so none created)"),
+    (raw_mail(to="noreply@parkworks.example"), SETTINGS,
+     "no company with domain parkworks.example (no-reply address, so none created)"),
+    (raw_mail(to="ann@gamma.com"), SETTINGS,
+     "no company with domain gamma.com (Gamma has the same name, so none created)"),
+    (raw_mail(to="nina@parkworks.example"), QUEUE, "no company with domain parkworks.example"),
+], ids=["not-sent-by-you", "no-reply", "same-name", "switched-off"])
+def test_unknown_domain_waits_for_review_when_no_company_is_made(store, raw, settings, reason):
+    seed(store)
+    result = bcc.import_mails(store, inbox_for(store), [raw], settings, apply=True)
+    assert (result.companies, result.review) == (0, 1)
+    assert [i.reason for i in inbox_for(store).items()] == [reason]
+    assert sorted(store.companies) == ["acme", "beta", "gamma"]
+
+
+def test_queued_or_discarded_mail_never_makes_a_company(store):
+    seed(store)
+    inbox = inbox_for(store)
+    raws = [raw_mail(to="nina@parkworks.example"),
+            raw_mail(to="omar@reedco.example", mid="<m2@work.example.com>")]
+    bcc.import_mails(store, inbox, raws, QUEUE, apply=True)
+    bcc.discard(store, inbox, next(i.id for i in inbox.items()
+                                   if i.address == "omar@reedco.example"))
+    again = bcc.import_mails(store, inbox, raws, SETTINGS, apply=True)
+    assert (again.companies, again.duplicates) == (0, 2)
+    assert sorted(store.companies) == ["acme", "beta", "gamma"]
+
+
+def test_create_companies_is_on_unless_config_says_false():
+    assert bcc.settings_from_config({}).create_companies is True
+    assert bcc.settings_from_config({"bcc_create_companies": False}).create_companies is False
 
 
 def test_skipped_mail_without_external_address(store):
@@ -300,7 +382,7 @@ def test_assign_creates_contact_and_rerun_skips(store, messages):
     seed(store)
     inbox = inbox_for(store)
     raw = raw_mail(to="Ann Lee <ann@lee-consulting.com>")
-    bcc.import_mails(store, inbox, [raw], SETTINGS, apply=True)
+    bcc.import_mails(store, inbox, [raw], QUEUE, apply=True)
     [item] = inbox.items()
     assert (item.first_name, item.last_name) == ("Ann", "Lee")
     messages.clear()
@@ -308,7 +390,7 @@ def test_assign_creates_contact_and_rerun_skips(store, messages):
     assert slug == "gamma" and it.contact == "ann-lee" and it.source == "bcc-import"
     assert messages == [f"bcc: {item.id} assigned to gamma/ann-lee"]
     assert inbox.count() == 0
-    again = bcc.import_mails(store, inbox, [raw], SETTINGS, apply=True)
+    again = bcc.import_mails(store, inbox, [raw], QUEUE, apply=True)
     assert again.duplicates == 1 and inbox.count() == 0
 
 
@@ -316,7 +398,7 @@ def test_assign_fills_email_of_same_named_contact(store):
     seed(store)
     store.create_contact("gamma", "Ann", "Lee")
     inbox = inbox_for(store)
-    bcc.import_mails(store, inbox, [raw_mail(to="Ann Lee <ann@lee.com>")], SETTINGS,
+    bcc.import_mails(store, inbox, [raw_mail(to="Ann Lee <ann@lee.com>")], QUEUE,
                      apply=True)
     [item] = inbox.items()
     bcc.assign(store, inbox, item.id, "gamma")
@@ -324,18 +406,58 @@ def test_assign_fills_email_of_same_named_contact(store):
     assert store.companies["gamma"].contacts["ann-lee"].email == "ann@lee.com"
 
 
-def test_assign_unknown_company_and_discard_is_remembered(store, messages):
+def test_assign_to_a_new_name_creates_the_company(store, messages):
+    seed(store)
+    inbox = inbox_for(store)
+    bcc.import_mails(store, inbox, [raw_mail(to="Ann Lee <ann@leeconsult.example>")], QUEUE,
+                     apply=True)
+    [item] = inbox.items()
+    messages.clear()
+    slug, it = bcc.assign(store, inbox, item.id, "Lee Consulting")
+    company = store.companies[slug]
+    assert (slug, company.name, company.website) == (
+        "lee-consulting", "Lee Consulting", "https://leeconsult.example")
+    assert it.contact == "ann-lee"
+    assert company.contacts["ann-lee"].email == "ann@leeconsult.example"
+    assert messages == [f"bcc: {item.id} assigned to lee-consulting/ann-lee (new company)"]
+    assert inbox.count() == 0
+
+
+def test_assign_finds_a_name_without_legal_suffix_or_the_mail_domain(store):
+    seed(store)
+    inbox = inbox_for(store)
+    bcc.import_mails(store, inbox, [raw_mail(to="ann@leeconsult.example"),
+                                    raw_mail(to="bo@bo.example", mid="<m2@work.example.com>")],
+                     QUEUE, apply=True)
+    ann, bo = sorted(inbox.items(), key=lambda i: i.address)
+    store.create_company("LC Partners", website="leeconsult.example")
+    assert bcc.assign(store, inbox, ann.id, "Lee Consult")[0] == "lc-partners"
+    assert bcc.assign(store, inbox, bo.id, "gamma gmbh")[0] == "gamma"
+    assert sorted(store.companies) == ["acme", "beta", "gamma", "lc-partners"]
+
+
+def test_assign_new_company_for_a_personal_address_has_no_website(store):
+    inbox = inbox_for(store)
+    bcc.import_mails(store, inbox, [raw_mail(to="Ann Lee <ann.lee@gmail.com>")], SETTINGS,
+                     apply=True)
+    [item] = inbox.items()
+    with pytest.raises(bcc.ValidationError) as exc:
+        bcc.assign(store, inbox, item.id, "  ")
+    assert exc.value.errors == {"company": "pick a company"}
+    slug, _ = bcc.assign(store, inbox, item.id, "Ann Lee Advisory")
+    assert (slug, store.companies[slug].website) == ("ann-lee-advisory", "")
+
+
+def test_discard_is_remembered(store, messages):
     inbox = inbox_for(store)
     raw = raw_mail(to="y@nowhere.org")
-    bcc.import_mails(store, inbox, [raw], SETTINGS, apply=True)
+    bcc.import_mails(store, inbox, [raw], QUEUE, apply=True)
     [item] = inbox.items()
-    with pytest.raises(bcc.ValidationError):
-        bcc.assign(store, inbox, item.id, "nope")
     messages.clear()
     bcc.discard(store, inbox, item.id)
     assert messages == [f"bcc: {item.id} discarded"] and inbox.count() == 0
     again = bcc.import_mails(store, inbox, [raw], SETTINGS, apply=True)
-    assert again.duplicates == 1 and inbox.count() == 0
+    assert again.duplicates == 1 and inbox.count() == 0 and store.companies == {}
 
 
 def test_inbox_rejects_path_ids(store):
@@ -464,8 +586,8 @@ def test_cmd_bcc_with_eml_files(store, tmp_path):
     assert code == 0
     assert text.splitlines() == [
         "2026-09-14 10:30 | email out | jane@acme.de | acme/jane-doe | log",
-        "1 mails read: 1 interactions logged, 0 contacts created, 0 to review, "
-        "0 already imported, 0 skipped",
+        "1 mails read: 1 interactions logged, 0 companies created, 0 contacts created, "
+        "0 to review, 0 already imported, 0 skipped",
         "Dry run; add --apply to write and mark the mails read.",
     ]
     text, code = crm.cmd_bcc(store, store.root, config,
@@ -505,28 +627,31 @@ def test_inbox_routes_end_to_end(client, repo):
     client.post("/companies", data={"name": "Acme GmbH", "website": "acme.de",
                                     "source": "other", "stage": "prospect"})
     client.app_state.open_mailbox = lambda: FakeBox(
-        [raw_mail(to="Jane Doe <jane@acme.de>, Ann Lee <ann@lee.com>")])
+        [raw_mail(to="Jane Doe <jane@acme.de>, Ann Lee <ann.lee@gmail.com>")])
 
     page = client.get("/settings").text
     assert "No import has run yet." in page and "me+bcc@gmail.com" in page
 
     r = client.post("/bcc/import")
     assert r.status_code == 303 and "BCC%20import%3A%201%20mails%20read" in r.headers["location"]
-    assert last_commit(repo) == "bcc: imported 1 mail (1 interactions, 1 contacts, 1 to review)"
+    assert last_commit(repo) == ("bcc: imported 1 mail (1 interactions, 0 companies, "
+                                 "1 contacts, 1 to review)")
     assert (repo / "companies/acme/contacts/jane-doe.md").exists()
 
     page = client.get("/settings").text
-    assert '<span class="badge">1</span>' in page and "ann@lee.com" in page and 'value="Ann"' in page
+    assert '<span class="badge">1</span>' in page and "ann.lee@gmail.com" in page and 'value="Ann"' in page
     assert "Last import 2026" not in page or "1 interactions logged" in page
     item_id = client.app_state.inbox.items()[0].id
 
-    r = client.post(f"/inbox/{item_id}/assign", data={"company": "nope"})
-    assert r.status_code == 400 and "unknown company" in r.text
+    r = client.post(f"/inbox/{item_id}/assign", data={"company": ""})
+    assert r.status_code == 400 and "pick a company" in r.text
 
     r = client.post(f"/inbox/{item_id}/assign",
-                    data={"company": "acme", "first_name": "Ann", "last_name": "Lee"})
+                    data={"company": "Lee Advisory", "first_name": "Ann", "last_name": "Lee"})
     assert r.status_code == 303
-    assert last_commit(repo) == f"bcc: {item_id} assigned to acme/ann-lee"
+    assert "Logged%20at%20lee-advisory%2Fann-lee%20%28new%20company%20Lee%20Advisory%29" \
+        in r.headers["location"]
+    assert last_commit(repo) == f"bcc: {item_id} assigned to lee-advisory/ann-lee (new company)"
     assert "Settings (1)" not in client.get("/settings").text
     assert client.post("/inbox/nope/discard").status_code == 404
 
@@ -540,9 +665,9 @@ def test_import_now_failure_is_flashed_and_flagged(client):
 
 
 def test_discard_route(client, repo):
-    client.app_state.open_mailbox = lambda: FakeBox([raw_mail(to="y@nowhere.org")])
+    client.app_state.open_mailbox = lambda: FakeBox([raw_mail(to="y@gmail.com")])
     client.post("/bcc/import")
     item_id = client.app_state.inbox.items()[0].id
     r = client.post(f"/inbox/{item_id}/discard")
     assert r.status_code == 303 and last_commit(repo) == f"bcc: {item_id} discarded"
-    assert (repo / "inbox/discarded.tsv").read_text() == "<m1@work.example.com>\ty@nowhere.org\n"
+    assert (repo / "inbox/discarded.tsv").read_text() == "<m1@work.example.com>\ty@gmail.com\n"

@@ -94,6 +94,7 @@ CONFIG_DOCS = {
     "bcc_imap_host": "IMAP server of that mailbox.",
     "bcc_keychain_service": "macOS Keychain service holding the app password (account = IMAP user).",
     "bcc_lookback_days": "How far back the BCC import searches.",
+    "bcc_create_companies": "Create the company when mail you send or forward reaches a domain no company has (named after the domain); false sends it to the review queue instead.",
     "my_addresses": "Mail from these addresses is yours (outbound).",
     "bcc_ignore_domains": "Recipients at these domains (colleagues) are never logged.",
     "calendar_keychain_service": "macOS Keychain service holding the secret ICS URL.",
