@@ -9,6 +9,10 @@
   <a class="card start-card" href="/companies/new"><h3>Add a company</h3><div class="small">One account by hand, to see the shape of things.</div></a>
   <a class="card start-card" href="/import"><h3>Import a spreadsheet</h3><div class="small">CSV, TSV or an Excel paste of companies or contacts.</div></a>
   <a class="card start-card" href="/settings#bcc"><h3>Set up BCC capture</h3><div class="small">Log the mail you send without typing it twice.</div></a>
+  <form class="card start-card sample-card" method="post" action="/sample">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit"><h3>Look at a sample account</h3><div class="small">One made-up company with a full history. Remove it in one click when you are done.</div></button>
+  </form>
 </div>
 {% else %}
 

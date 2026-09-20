@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Remove the sample account{% endblock %}
+{% block content %}
+<h1>Remove the sample account</h1>
+{% if samples %}
+<p>This deletes the made-up records below in one commit. Anything you added to them goes too. Your own companies are not touched. The sample stays in the git history.</p>
+{% for c in samples %}
+<div class="card">
+  <h3>{{ c.name }}</h3>
+  <ul class="small">
+    <li>People: {{ c.contacts.values() | map(attribute='name') | join(', ') or 'none' }}</li>
+    <li>Interactions: {{ c.interactions | length }}</li>
+    <li>Tasks: {{ c.tasks | length + (c.contacts.values() | sum(attribute='tasks', start=[]) | length) }}</li>
+  </ul>
+</div>
+{% endfor %}
+<form method="post" action="/sample/remove" class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit">Remove the sample account</button> <a href="/">Keep it for now</a>
+</form>
+{% else %}
+<p>There is no sample account in this folder. <a href="/">Back to Home</a></p>
+{% endif %}
+{% endblock %}

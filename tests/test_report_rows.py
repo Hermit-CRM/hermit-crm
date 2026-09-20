@@ -30,48 +30,50 @@ BASELINE_30D = """\
 
 | metric | period | previous | delta |
 |---|---|---|---|
-| interactions | 7 | 4 | +3 |
-| companies touched | 4 | 3 | +1 |
-| new companies | 0 | 6 | −6 |
-| new contacts | 0 | 7 | −7 |
+| interactions | 8 | 4 | +4 |
+| companies touched | 5 | 3 | +2 |
+| new companies | 0 | 8 | −8 |
+| new contacts | 0 | 9 | −9 |
 
 | week | email out | email in | linkedin out | linkedin in | call out | call in | meeting out | meeting in | total |
 |---|---|---|---|---|---|---|---|---|---|
 | 2026-W33 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 2026-W34 | 0 | 1 | 0 | 0 | 0 | 0 | 1 | 0 | 2 |
+| 2026-W34 | 0 | 1 | 0 | 0 | 1 | 0 | 1 | 0 | 3 |
 | 2026-W35 | 0 | 0 | 0 | 0 | 1 | 0 | 1 | 0 | 2 |
-| 2026-W36 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
-| 2026-W37 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
+| 2026-W36 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
+| 2026-W37 | 1 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 2 |
 | 2026-W38 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 ## Funnel
 
 | stage | entered | previous | delta |
 |---|---|---|---|
-| prospect | 0 | 6 | −6 |
-| engaged | 2 | 3 | −1 |
+| prospect | 0 | 8 | −8 |
+| engaged | 3 | 3 | ±0 |
 | discovery | 3 | 0 | +3 |
 | offer | 2 | 0 | +2 |
 | won | 1 | 0 | +1 |
 | lost | 1 | 0 | +1 |
-| disqualified | 0 | 0 | ±0 |
-| temp-disqualified | 0 | 0 | ±0 |
+| disqualified | 1 | 0 | +1 |
+| temp-disqualified | 1 | 0 | +1 |
 
 | from | to | reached from | reached to | conversion |
 |---|---|---|---|---|
-| prospect | engaged | 6 | 5 | 83% |
-| engaged | discovery | 5 | 3 | 60% |
+| prospect | engaged | 8 | 6 | 75% |
+| engaged | discovery | 6 | 3 | 50% |
 | discovery | offer | 3 | 2 | 67% |
 | offer | won | 2 | 1 | 50% |
 
 | stage | companies | median days |
 |---|---|---|
-| prospect | 6 | 12 |
-| engaged | 5 | 7 |
-| discovery | 3 | 14 |
-| offer | 2 | 12 |
+| prospect | 8 | 13 |
+| engaged | 6 | 6 |
+| discovery | 3 | 20 |
+| offer | 2 | 8 |
 | won | 1 | 8 |
 | lost | 1 | 12 |
+| disqualified | 1 | 16 |
+| temp-disqualified | 1 | 22 |
 
 | pipeline stage | companies | EUR/month |
 |---|---|---|
@@ -86,7 +88,7 @@ BASELINE_30D = """\
 |---|---|---|---|---|
 | won | 1 | 6,000 | 0 | +1 |
 | lost | 1 | 0 | 0 | +1 |
-| disqualified | 0 | 0 | 0 | ±0 |
+| disqualified | 1 | 0 | 0 | +1 |
 
 win rate: 50% (previous -)
 
@@ -96,18 +98,19 @@ win rate: 50% (previous -)
 
 ## Messages
 
-sent: 3 (previous 3, ±0) | successful 0 | unsuccessful 2 | unknown 1 | successful rate 0% (window 14d)
+sent: 4 (previous 3, +1) | successful 0 | unsuccessful 2 | unknown 2 | successful rate 0% (window 14d)
 
 | language | sent | successful | unsuccessful | unknown | rate |
 |---|---|---|---|---|---|
-| de | 1 | 0 | 1 | 0 | 0% |
+| de | 1 | 0 | 0 | 1 | - |
+| en | 1 | 0 | 1 | 0 | 0% |
 | fr | 1 | 0 | 0 | 1 | - |
 | nl | 1 | 0 | 1 | 0 | 0% |
 
 | channel | sent | successful | unsuccessful | unknown | rate |
 |---|---|---|---|---|---|
-| call | 1 | 0 | 1 | 0 | 0% |
-| email | 1 | 0 | 1 | 0 | 0% |
+| call | 2 | 0 | 2 | 0 | 0% |
+| email | 1 | 0 | 0 | 1 | - |
 | linkedin | 1 | 0 | 0 | 1 | - |
 
 | reused text | uses | successful rate |
@@ -126,11 +129,10 @@ sent: 3 (previous 3, ±0) | successful 0 | unsuccessful 2 | unknown 1 | successf
 |---|---|---|---|
 | bluefin-analytics | discovery | 2026-09-12 | Send case study |
 
-| silent 14+ days (3) | stage | days |
+| silent 14+ days (2) | stage | days |
 |---|---|---|
 | tallpine-software | prospect | 39 |
 | bluefin-analytics | discovery | 20 |
-| northwind-robotics | offer | 14 |
 
 | contacts without email (0) | company |
 |---|---|
@@ -144,10 +146,10 @@ BASELINE_90D = """\
 
 | metric | period | previous | delta |
 |---|---|---|---|
-| interactions | 11 | 0 | +11 |
-| companies touched | 5 | 0 | +5 |
-| new companies | 6 | 0 | +6 |
-| new contacts | 7 | 0 | +7 |
+| interactions | 12 | 0 | +12 |
+| companies touched | 6 | 0 | +6 |
+| new companies | 8 | 0 | +8 |
+| new contacts | 9 | 0 | +9 |
 
 | week | email out | email in | linkedin out | linkedin in | call out | call in | meeting out | meeting in | total |
 |---|---|---|---|---|---|---|---|---|---|
@@ -160,40 +162,42 @@ BASELINE_90D = """\
 | 2026-W31 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | 2026-W32 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | 2026-W33 | 2 | 0 | 1 | 1 | 0 | 0 | 0 | 0 | 4 |
-| 2026-W34 | 0 | 1 | 0 | 0 | 0 | 0 | 1 | 0 | 2 |
+| 2026-W34 | 0 | 1 | 0 | 0 | 1 | 0 | 1 | 0 | 3 |
 | 2026-W35 | 0 | 0 | 0 | 0 | 1 | 0 | 1 | 0 | 2 |
-| 2026-W36 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
-| 2026-W37 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
+| 2026-W36 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
+| 2026-W37 | 1 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 2 |
 | 2026-W38 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 ## Funnel
 
 | stage | entered | previous | delta |
 |---|---|---|---|
-| prospect | 6 | 0 | +6 |
-| engaged | 5 | 0 | +5 |
+| prospect | 8 | 0 | +8 |
+| engaged | 6 | 0 | +6 |
 | discovery | 3 | 0 | +3 |
 | offer | 2 | 0 | +2 |
 | won | 1 | 0 | +1 |
 | lost | 1 | 0 | +1 |
-| disqualified | 0 | 0 | ±0 |
-| temp-disqualified | 0 | 0 | ±0 |
+| disqualified | 1 | 0 | +1 |
+| temp-disqualified | 1 | 0 | +1 |
 
 | from | to | reached from | reached to | conversion |
 |---|---|---|---|---|
-| prospect | engaged | 6 | 5 | 83% |
-| engaged | discovery | 5 | 3 | 60% |
+| prospect | engaged | 8 | 6 | 75% |
+| engaged | discovery | 6 | 3 | 50% |
 | discovery | offer | 3 | 2 | 67% |
 | offer | won | 2 | 1 | 50% |
 
 | stage | companies | median days |
 |---|---|---|
-| prospect | 6 | 12 |
-| engaged | 5 | 7 |
-| discovery | 3 | 14 |
-| offer | 2 | 12 |
+| prospect | 8 | 13 |
+| engaged | 6 | 6 |
+| discovery | 3 | 20 |
+| offer | 2 | 8 |
 | won | 1 | 8 |
 | lost | 1 | 12 |
+| disqualified | 1 | 16 |
+| temp-disqualified | 1 | 22 |
 
 | pipeline stage | companies | EUR/month |
 |---|---|---|
@@ -208,7 +212,7 @@ BASELINE_90D = """\
 |---|---|---|---|---|
 | won | 1 | 6,000 | 0 | +1 |
 | lost | 1 | 0 | 0 | +1 |
-| disqualified | 0 | 0 | 0 | ±0 |
+| disqualified | 1 | 0 | 0 | +1 |
 
 win rate: 50% (previous -)
 
@@ -218,19 +222,19 @@ win rate: 50% (previous -)
 
 ## Messages
 
-sent: 6 (previous 0, +6) | successful 2 | unsuccessful 3 | unknown 1 | successful rate 40% (window 14d)
+sent: 7 (previous 0, +7) | successful 2 | unsuccessful 3 | unknown 2 | successful rate 40% (window 14d)
 
 | language | sent | successful | unsuccessful | unknown | rate |
 |---|---|---|---|---|---|
-| de | 2 | 1 | 1 | 0 | 50% |
-| en | 1 | 0 | 1 | 0 | 0% |
+| de | 2 | 1 | 0 | 1 | 100% |
+| en | 2 | 0 | 2 | 0 | 0% |
 | fr | 1 | 0 | 0 | 1 | - |
 | nl | 2 | 1 | 1 | 0 | 50% |
 
 | channel | sent | successful | unsuccessful | unknown | rate |
 |---|---|---|---|---|---|
-| call | 1 | 0 | 1 | 0 | 0% |
-| email | 3 | 1 | 2 | 0 | 33% |
+| call | 2 | 0 | 2 | 0 | 0% |
+| email | 3 | 1 | 1 | 1 | 50% |
 | linkedin | 2 | 1 | 0 | 1 | 100% |
 
 | reused text | uses | successful rate |
@@ -241,10 +245,10 @@ sent: 6 (previous 0, +6) | successful 2 | unsuccessful 3 | unknown 1 | successfu
 
 | source | created | won |
 |---|---|---|
+| event | 2 | 0 |
+| list | 2 | 0 |
 | inbound | 1 | 1 |
-| event | 1 | 0 |
 | linkedin-search | 1 | 0 |
-| list | 1 | 0 |
 | network | 1 | 0 |
 | referral | 1 | 0 |
 
@@ -254,11 +258,10 @@ sent: 6 (previous 0, +6) | successful 2 | unsuccessful 3 | unknown 1 | successfu
 |---|---|---|---|
 | bluefin-analytics | discovery | 2026-09-12 | Send case study |
 
-| silent 14+ days (3) | stage | days |
+| silent 14+ days (2) | stage | days |
 |---|---|---|
 | tallpine-software | prospect | 39 |
 | bluefin-analytics | discovery | 20 |
-| northwind-robotics | offer | 14 |
 
 | contacts without email (0) | company |
 |---|---|
@@ -559,6 +562,8 @@ def test_rows_page_columns(client, demo):
     r = client.get("/reports/rows?key=hygiene.silent&period=30d")
     assert "39 days silent" in r.text and "<th>note</th>" in r.text
     r = client.get("/reports/rows?key=outcomes.disqualified&period=30d")
+    assert 'href="/companies/driftwood-media"' in r.text
+    r = client.get("/reports/rows?key=outcomes.won&period=custom&from=2026-08-01&to=2026-08-02")
     assert 'class="empty">none</td>' in r.text and "0 rows" in r.text
 
 

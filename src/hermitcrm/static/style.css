@@ -579,3 +579,15 @@ a.button { display: inline-block; padding: 4px 12px; border: 1px solid var(--lin
 /* the logo mark: its green is the brand token */
 .brand-fill { fill: var(--brand); }
 pre.theme-example { background: var(--surface-2); border: 1px solid var(--line); border-radius: 3px; padding: 6px 8px; overflow-x: auto; font-family: var(--mono); }
+
+/* sample account */
+.sample-bar {
+  background: var(--subtle);
+  border: 1px dashed var(--line-strong);
+  padding: 6px 10px;
+  border-radius: 4px;
+}
+.sample-card { padding: 0; }
+.sample-card button { all: unset; box-sizing: border-box; display: block; width: 100%; height: 100%; padding: 8px 10px; cursor: pointer; }
+.sample-card button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sample-offer { display: block; margin: 0 0 12px; }

@@ -5,6 +5,18 @@ the data format always comes with an automatic migration.
 
 ## 0.3.0 (unreleased)
 
+- A **sample account** for new users: **Look at a sample account** on the
+  empty home page and on Getting started, or `hermitcrm sample add`, loads one
+  made-up company (people, a message and its reply, a meeting, a deal at offer,
+  a next step and tasks) marked `sample: true`. A bar on every page links to
+  **Remove it**, which deletes only companies with that marker, in one commit
+  (`hermitcrm sample remove`). The walkthrough does not count it, PIPELINE.md
+  marks its line `sample (fictional)`, and new folders tell AI agents to leave
+  it out.
+- The `--demo` folder has eight companies now: every stage (disqualified and
+  temp-disqualified too), tasks on companies and people, and a proposal that
+  is still waiting for an answer.
+
 Data format 6: the stage `reached-out` is renamed to **engaged** (in `stage`
 and `stage_history`), the four built-in scoring fields become fields you
 define, and every folder gets a `.claude/settings.json` that blocks

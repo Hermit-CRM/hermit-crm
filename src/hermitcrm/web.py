@@ -32,7 +32,7 @@ from . import __version__, updates
 from fastapi.templating import Jinja2Templates
 
 from . import (bcc, brief, calendar_sync, capture, feedback, fields as custom, filters,
-               followups, messaging, migrations, pipeline, reports, welcome)
+               followups, messaging, migrations, pipeline, reports, sample, welcome)
 from . import schedule, scrape, usertheme
 from . import help as helpdocs
 from . import setup as setup_steps
@@ -793,6 +793,7 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
             "ask_page": safe_page(request.url.path + (f"?{request.url.query}"
                                                       if request.url.query else "")),
             "model_label": model_label,
+            "samples": sample.samples(store),
         }
         context.update(ctx)
         return templates.TemplateResponse(request, name, context,
@@ -936,6 +937,32 @@ def create_app(root: Path, config: dict | None = None) -> FastAPI:
         return flashed("/" if dismissed else "/welcome",
                        "The walkthrough stays under Help" if dismissed
                        else "The walkthrough opens at start again")
+
+    # ------------------------------------------------------------ sample account
+
+    @app.post("/sample")
+    def sample_add(request: Request, csrf_token: str = Form("")):
+        check_csrf(csrf_token)
+        try:
+            company = sample.add(store)
+        except sample.SampleError as exc:
+            return flashed("/", str(exc))
+        return flashed(f"/companies/{company.slug}",
+                       "The sample account is loaded. Look around; the bar at the top "
+                       "removes it when you are done.")
+
+    @app.get("/sample/remove", response_class=HTMLResponse)
+    def sample_remove_page(request: Request):
+        return render(request, "sample_remove.html", {})
+
+    @app.post("/sample/remove")
+    def sample_remove(request: Request, csrf_token: str = Form("")):
+        check_csrf(csrf_token)
+        removed = sample.remove(store)
+        if not removed:
+            return flashed("/", "There is no sample account to remove")
+        return flashed("/", "Removed the sample account: "
+                       + ", ".join(c.name for c in removed))
 
     @app.get("/", response_class=HTMLResponse)
     def home(request: Request):

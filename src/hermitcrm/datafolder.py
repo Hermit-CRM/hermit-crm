@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+from contextlib import contextmanager
 from datetime import datetime, time, timedelta
 from pathlib import Path
 
@@ -167,6 +168,8 @@ Writing rules:
 - Commit messages for AI-made changes start with "ai:".
 - Never rewrite interaction bodies; they are the record.
 - Never put secrets in config.toml and never commit .secrets.toml.
+- A company with `sample: true` is the made-up sample account: never draft
+  outreach for it and leave it out of reviews and counts.
 - To change how the app looks, write overrides to `theme.css` in this folder
   (`hermitcrm help settings`, "Your own look"). Never edit the Hermit CRM package.
 
@@ -334,6 +337,10 @@ DEMO_COMPANIES = [
      "~120", 6, "Freight tracking for small shippers", ["logistics", "demo"], 9),
     ("Emberoak Foods", "https://emberoak-foods.example.org", "SE", "network",
      "~30", 2, "Plant-based ready meals", ["food", "demo"], 4),
+    ("Driftwood Media", "https://driftwood-media.example.com", "NL", "list",
+     "~4", None, "Podcast production for B2B brands", ["media", "demo"], 2),
+    ("Glasshouse Health", "https://glasshouse-health.example.com", "IE", "event",
+     "~25", 1, "Patient intake forms for dental clinics", ["healthtech", "demo"], 6),
 ]
 
 
@@ -349,111 +356,193 @@ DEMO_FIELDS = [
                     show_in=["detail"]),
 ]
 
+SAMPLE_NOTES = """This is a **sample account**. Northwind Robotics, its people and everything
+that happened with them are made up, so you can see what a worked account
+looks like:
+
+- the timeline: a LinkedIn message, the reply, a meeting and a proposal that
+  is still waiting for an answer (Home shows it on the follow-up radar);
+- the stage history, from prospect to offer, with a monthly value;
+- the next step, and tasks on the company and on a person.
+
+It is a German company, so a draft written for it comes out in German.
+
+Remove it with **Remove** in the bar at the top of every page. Your own
+companies are never touched.
+"""
+
+
+class _Demo:
+    """Builds the fictional accounts, each on dates in the past.
+
+    The store's clock is moved to every event's date while it is written, so
+    `created`, the stage history and the timeline read like weeks of real work
+    and the reports and the radar have something to show from the first minute.
+    """
+
+    def __init__(self, store: Store, today):
+        self.store = store
+        self.today = today
+        self.when = datetime.combine(today - timedelta(days=42), time(9, 0))
+
+    @contextmanager
+    def backdated(self):
+        # A single-user app: a page rendered during these few writes could see
+        # the past date, which is harmless.
+        old = self.store.clock
+        self.store.clock = lambda: self.when
+        try:
+            yield self
+        finally:
+            self.store.clock = old
+
+    def at(self, days_ago: int, hour: int = 9, minute: int = 0) -> str:
+        self.when = datetime.combine(self.today - timedelta(days=days_ago), time(hour, minute))
+        return self.when.strftime("%Y-%m-%dT%H:%M")
+
+    def due(self, days: int) -> str:
+        return (self.today + timedelta(days=days)).isoformat()
+
+    def company(self, index: int, days_ago: int, sample: bool = False) -> str:
+        name, site, country, source, fte, ae, oneliner, tags, score = DEMO_COMPANIES[index]
+        self.at(days_ago)
+        if sample:
+            custom, notes, tags = {"sample": True}, SAMPLE_NOTES, ["robotics", "sample"]
+        else:
+            custom = {"fte_estimate": fte, "ae_count": ae, "my_score": score}
+            notes = f"Demo company. {oneliner}.\n"
+        return self.store.create_company(name, website=site, country=country, source=source,
+                                         product_oneliner=oneliner, tags=tags,
+                                         custom=custom, notes=notes).slug
+
+    def person(self, slug: str, days_ago: int, first: str, last: str, title: str,
+               role: str = "") -> str:
+        self.at(days_ago)
+        domain = self.store.get(slug).website.split("//")[1]
+        return self.store.create_contact(slug, first, last, title=title, role=role,
+                                         email=f"{first.lower()}@{domain}").slug
+
+    def log(self, slug, days_ago, channel, direction, contact, body, subject="",
+            outcome="", hour=10):
+        return self.store.create_interaction(slug, channel=channel, direction=direction,
+                                             contact=contact, date=self.at(days_ago, hour),
+                                             subject=subject, outcome=outcome, body=body)
+
+    def move(self, slug, days_ago, hour=12, **fields):
+        self.at(days_ago, hour)
+        self.store.update_company(slug, **fields)
+
+    # --- the accounts
+
+    def northwind(self, sample: bool = False) -> str:
+        """Reached out, got a reply, met, sent a proposal that is still open."""
+        s = self.company(0, 42, sample)
+        lena = self.person(s, 41, "Lena", "Vogt", "COO", "decision-maker")
+        jonas = self.person(s, 41, "Jonas", "Brandt", "Head of Operations", "champion")
+        self.log(s, 35, "linkedin", "out", lena,
+                 "Hi Lena,\nNorthwind Robotics is growing fast.\nWorth a short call?\n\nAlex\n")
+        self.log(s, 33, "linkedin", "in", lena, "Hi Alex, sure. Thursday works.\n")
+        self.log(s, 28, "meeting", "out", lena, "Intro call. Pain: slow onboarding of pickers.",
+                 subject="Intro call: wants a proposal for two sites")
+        self.move(s, 28, stage="discovery", value_eur_month=4000)
+        self.at(27)
+        self.store.add_task(s, "Confirm who signs off the budget")
+        self.store.set_task_done(s, 0)
+        self.log(s, 6, "email", "out", jonas,
+                 "Hi Jonas,\nattached the proposal for both sites.\n\nAlex\n",
+                 subject="Proposal sent")
+        self.move(s, 6, hour=11, stage="offer", next_step="Follow up on the proposal",
+                  next_step_due=self.due(3))
+        self.at(6, 12)
+        self.store.add_task(s, "Send Jonas the case study", due=self.due(5), contact=jonas)
+        self.store.add_task(s, "Book a site visit in Hamburg", due=self.due(10))
+        return s
+
+    def bluefin(self) -> str:
+        """A message, a call, discovery with an overdue next step."""
+        s = self.company(1, 41)
+        joris = self.person(s, 40, "Joris", "Veldkamp", "Founder & CEO", "decision-maker")
+        self.log(s, 30, "email", "out", joris,
+                 "Hi Joris,\nyou're at ~18 people now.\nInterested in how similar teams "
+                 "got past 20?\n\nAlex\n", subject="Getting past 20", outcome="successful")
+        self.log(s, 20, "call", "out", joris, "Good call; budget decision next quarter.",
+                 subject="Discovery booked")
+        self.move(s, 20, stage="discovery", value_eur_month=1500,
+                  next_step="Send case study", next_step_due=self.due(-2))
+        self.store.add_task(s, "Ask Joris when the Q4 budget is set", due=self.due(8))
+        return s
+
+    def copperleaf(self) -> str:
+        """One outbound message, no answer yet."""
+        s = self.company(2, 40)
+        camille = self.person(s, 40, "Camille", "Martin", "Managing Partner")
+        self.log(s, 5, "linkedin", "out", camille,
+                 "Bonjour Camille,\nCopperleaf Studio se développe vite.\nUn court échange ?\n\nAlex\n")
+        self.move(s, 5, hour=11, next_step="Follow up if no reply", next_step_due=self.due(5))
+        return s
+
+    def tallpine(self) -> str:
+        """Still a prospect: research first."""
+        s = self.company(3, 39)
+        self.person(s, 39, "Oliver", "Hart", "CTO")
+        self.move(s, 10, hour=9, next_step="Check LinkedIn insights for growth",
+                  next_step_due=self.due(0))
+        return s
+
+    def quartzline(self) -> str:
+        """Inbound, quick win."""
+        s = self.company(4, 38)
+        maya = self.person(s, 38, "Maya", "Chen", "VP Operations", "decision-maker")
+        self.log(s, 25, "email", "in", maya, "Hi, we saw your talk. Can we talk next week?\n",
+                 subject="Inbound request")
+        self.move(s, 25, hour=11, stage="discovery", value_eur_month=6000)
+        self.log(s, 18, "meeting", "out", maya, "Scoping session with the ops team.",
+                 subject="Scoping: agreed on scope")
+        self.move(s, 18, stage="offer")
+        self.log(s, 8, "email", "in", maya, "Signed contract attached. Looking forward!\n",
+                 subject="Contract")
+        self.move(s, 8, hour=11, stage="won")
+        return s
+
+    def emberoak(self) -> str:
+        """Reached out, then lost."""
+        s = self.company(5, 37)
+        erik = self.person(s, 37, "Erik", "Lund", "CEO", "decision-maker")
+        self.log(s, 32, "email", "out", erik,
+                 "Hi Erik,\nEmberoak Foods has come a long way.\nWorth a short call?\n\nAlex\n",
+                 subject="Quick question", outcome="unsuccessful")
+        self.move(s, 12, hour=9, stage="lost", lost_reason="No budget this year")
+        return s
+
+    def driftwood(self) -> str:
+        """Too small to help: disqualified after a look."""
+        s = self.company(6, 36)
+        self.person(s, 36, "Sanne", "de Wit", "Founder")
+        self.move(s, 16, hour=9, stage="disqualified",
+                  lost_reason="Two people, no sales team to help")
+        return s
+
+    def glasshouse(self) -> str:
+        """Interested, but parked until their funding round closes."""
+        s = self.company(7, 35)
+        aoife = self.person(s, 35, "Aoife", "Byrne", "COO", "decision-maker")
+        self.log(s, 22, "call", "out", aoife, "Liked it, but nothing before the round closes.",
+                 subject="Call: revisit after the round")
+        self.move(s, 22, stage="temp-disqualified", requalify_on=self.due(30),
+                  lost_reason="Raising a round; revisit after it closes",
+                  next_step="Check in after their funding round", next_step_due=self.due(30))
+        return s
+
 
 def load_demo(path: Path, now: datetime) -> Store:
-    """Six fictional companies spread over the last six weeks, every stage type."""
+    """Eight fictional companies spread over the last six weeks, every stage."""
     fields.write(path, DEMO_FIELDS)
-    today = now.date()
-    clock = {"now": datetime.combine(today - timedelta(days=42), time(9, 0))}
-    store = Store(path, clock=lambda: clock["now"])
+    store = Store(path)
     store.load()
-
-    def at(days_ago: int, hour: int = 9, minute: int = 0) -> str:
-        when = datetime.combine(today - timedelta(days=days_ago), time(hour, minute))
-        clock["now"] = when
-        return when.strftime("%Y-%m-%dT%H:%M")
-
-    slugs = []
-    for i, (name, site, country, source, fte, ae, oneliner, tags, score) in enumerate(DEMO_COMPANIES):
-        at(42 - i)
-        c = store.create_company(name, website=site, country=country, source=source,
-                                 product_oneliner=oneliner, tags=tags,
-                                 custom={"fte_estimate": fte, "ae_count": ae,
-                                         "my_score": score},
-                                 notes=f"Demo company. {oneliner}.\n")
-        slugs.append(c.slug)
-    northwind, bluefin, copperleaf, tallpine, quartzline, emberoak = slugs
-    domain = lambda slug: next(s for n, s, *_ in DEMO_COMPANIES if store.get(slug).name == n) \
-        .split("//")[1]
-
-    def person(slug, first, last, title, role=""):
-        at(40)
-        return store.create_contact(slug, first, last, title=title, role=role,
-                                    email=f"{first.lower()}@{domain(slug)}").slug
-
-    lena = person(northwind, "Lena", "Vogt", "COO", "decision-maker")
-    jonas = person(northwind, "Jonas", "Brandt", "Head of Operations", "champion")
-    joris = person(bluefin, "Joris", "Veldkamp", "Founder & CEO", "decision-maker")
-    camille = person(copperleaf, "Camille", "Martin", "Managing Partner")
-    oliver = person(tallpine, "Oliver", "Hart", "CTO")
-    maya = person(quartzline, "Maya", "Chen", "VP Operations", "decision-maker")
-    erik = person(emberoak, "Erik", "Lund", "CEO", "decision-maker")
-
-    def log(slug, days_ago, channel, direction, contact, body, subject="", outcome="",
-            hour=10):
-        return store.create_interaction(slug, channel=channel, direction=direction,
-                                        contact=contact, date=at(days_ago, hour),
-                                        subject=subject, outcome=outcome, body=body)
-
-    # Northwind: reached out (logging it makes the company engaged), got a
-    # reply, meetings, now an offer.
-    log(northwind, 35, "linkedin", "out", lena,
-        "Hi Lena,\nNorthwind Robotics is growing fast.\nWorth a short call?\n\nAlex\n")
-    log(northwind, 33, "linkedin", "in", lena, "Hi Alex, sure. Thursday works.\n")
-    log(northwind, 28, "meeting", "out", lena, "Intro call. Pain: slow onboarding of pickers.",
-        subject="Intro call: wants a proposal for two sites")
-    at(28, 12)
-    store.update_company(northwind, stage="discovery", value_eur_month=4000)
-    log(northwind, 14, "email", "out", jonas, "Hi Jonas,\nattached the proposal for both sites.\n\nAlex\n",
-        subject="Proposal sent")
-    at(14, 11)
-    store.update_company(northwind, stage="offer", next_step="Follow up on the proposal",
-                         next_step_due=(today + timedelta(days=3)).isoformat())
-
-    # Bluefin: a message, a call, discovery with an overdue next step.
-    log(bluefin, 30, "email", "out", joris,
-        "Hi Joris,\nyou're at ~18 people now.\nInterested in how similar teams got past 20?\n\nAlex\n",
-        subject="Getting past 20", outcome="successful")
-    log(bluefin, 20, "call", "out", joris, "Good call; budget decision next quarter.",
-        subject="Discovery booked")
-    at(20, 12)
-    store.update_company(bluefin, stage="discovery", value_eur_month=1500,
-                         next_step="Send case study",
-                         next_step_due=(today - timedelta(days=2)).isoformat())
-
-    # Copperleaf: one outbound message, no answer yet.
-    log(copperleaf, 5, "linkedin", "out", camille,
-        "Bonjour Camille,\nCopperleaf Studio se développe vite.\nUn court échange ?\n\nAlex\n")
-    at(5, 11)
-    store.update_company(copperleaf, next_step="Follow up if no reply",
-                         next_step_due=(today + timedelta(days=5)).isoformat())
-
-    # Tallpine: still a prospect, research first.
-    at(10)
-    store.update_company(tallpine, next_step="Check LinkedIn insights for growth",
-                         next_step_due=today.isoformat())
-    _ = oliver
-
-    # Quartzline: inbound, quick win.
-    log(quartzline, 25, "email", "in", maya, "Hi, we saw your talk. Can we talk next week?\n",
-        subject="Inbound request")
-    at(25, 11)
-    store.update_company(quartzline, stage="discovery", value_eur_month=6000)
-    log(quartzline, 18, "meeting", "out", maya, "Scoping session with the ops team.",
-        subject="Scoping: agreed on scope")
-    at(18, 12)
-    store.update_company(quartzline, stage="offer")
-    log(quartzline, 8, "email", "in", maya, "Signed contract attached. Looking forward!\n",
-        subject="Contract")
-    at(8, 11)
-    store.update_company(quartzline, stage="won")
-
-    # Emberoak: reached out, then lost.
-    log(emberoak, 32, "email", "out", erik,
-        "Hi Erik,\nEmberoak Foods has come a long way.\nWorth a short call?\n\nAlex\n",
-        subject="Quick question", outcome="unsuccessful")
-    at(12)
-    store.update_company(emberoak, stage="lost", lost_reason="No budget this year")
-
+    demo = _Demo(store, now.date())
+    with demo.backdated():
+        for build in (demo.northwind, demo.bluefin, demo.copperleaf, demo.tallpine,
+                      demo.quartzline, demo.emberoak, demo.driftwood, demo.glasshouse):
+            build()
     store.load()
     return store
