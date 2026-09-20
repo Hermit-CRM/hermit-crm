@@ -30,7 +30,7 @@ BASELINE_30D = """\
 
 | metric | period | previous | delta |
 |---|---|---|---|
-| interactions | 8 | 4 | +4 |
+| interactions | 9 | 4 | +5 |
 | companies touched | 5 | 3 | +2 |
 | new companies | 0 | 8 | −8 |
 | new contacts | 0 | 9 | −9 |
@@ -41,7 +41,7 @@ BASELINE_30D = """\
 | 2026-W34 | 0 | 1 | 0 | 0 | 1 | 0 | 1 | 0 | 3 |
 | 2026-W35 | 0 | 0 | 0 | 0 | 1 | 0 | 1 | 0 | 2 |
 | 2026-W36 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
-| 2026-W37 | 1 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 2 |
+| 2026-W37 | 1 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 3 |
 | 2026-W38 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 ## Funnel
@@ -98,11 +98,11 @@ win rate: 50% (previous -)
 
 ## Messages
 
-sent: 4 (previous 3, +1) | successful 0 | unsuccessful 2 | unknown 2 | successful rate 0% (window 14d)
+sent: 4 (previous 3, +1) | successful 1 | unsuccessful 2 | unknown 1 | successful rate 33% (window 14d)
 
 | language | sent | successful | unsuccessful | unknown | rate |
 |---|---|---|---|---|---|
-| de | 1 | 0 | 0 | 1 | - |
+| de | 1 | 1 | 0 | 0 | 100% |
 | en | 1 | 0 | 1 | 0 | 0% |
 | fr | 1 | 0 | 0 | 1 | - |
 | nl | 1 | 0 | 1 | 0 | 0% |
@@ -110,7 +110,7 @@ sent: 4 (previous 3, +1) | successful 0 | unsuccessful 2 | unknown 2 | successfu
 | channel | sent | successful | unsuccessful | unknown | rate |
 |---|---|---|---|---|---|
 | call | 2 | 0 | 2 | 0 | 0% |
-| email | 1 | 0 | 0 | 1 | - |
+| email | 1 | 1 | 0 | 0 | 100% |
 | linkedin | 1 | 0 | 0 | 1 | - |
 
 | reused text | uses | successful rate |
@@ -146,7 +146,7 @@ BASELINE_90D = """\
 
 | metric | period | previous | delta |
 |---|---|---|---|
-| interactions | 12 | 0 | +12 |
+| interactions | 13 | 0 | +13 |
 | companies touched | 6 | 0 | +6 |
 | new companies | 8 | 0 | +8 |
 | new contacts | 9 | 0 | +9 |
@@ -165,7 +165,7 @@ BASELINE_90D = """\
 | 2026-W34 | 0 | 1 | 0 | 0 | 1 | 0 | 1 | 0 | 3 |
 | 2026-W35 | 0 | 0 | 0 | 0 | 1 | 0 | 1 | 0 | 2 |
 | 2026-W36 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
-| 2026-W37 | 1 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 2 |
+| 2026-W37 | 1 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 3 |
 | 2026-W38 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 ## Funnel
@@ -222,11 +222,11 @@ win rate: 50% (previous -)
 
 ## Messages
 
-sent: 7 (previous 0, +7) | successful 2 | unsuccessful 3 | unknown 2 | successful rate 40% (window 14d)
+sent: 7 (previous 0, +7) | successful 3 | unsuccessful 3 | unknown 1 | successful rate 50% (window 14d)
 
 | language | sent | successful | unsuccessful | unknown | rate |
 |---|---|---|---|---|---|
-| de | 2 | 1 | 0 | 1 | 100% |
+| de | 2 | 2 | 0 | 0 | 100% |
 | en | 2 | 0 | 2 | 0 | 0% |
 | fr | 1 | 0 | 0 | 1 | - |
 | nl | 2 | 1 | 1 | 0 | 50% |
@@ -234,7 +234,7 @@ sent: 7 (previous 0, +7) | successful 2 | unsuccessful 3 | unknown 2 | successfu
 | channel | sent | successful | unsuccessful | unknown | rate |
 |---|---|---|---|---|---|
 | call | 2 | 0 | 2 | 0 | 0% |
-| email | 3 | 1 | 1 | 1 | 50% |
+| email | 3 | 2 | 1 | 0 | 67% |
 | linkedin | 2 | 1 | 0 | 1 | 100% |
 
 | reused text | uses | successful rate |

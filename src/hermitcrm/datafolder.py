@@ -360,8 +360,8 @@ SAMPLE_NOTES = """This is a **sample account**. Northwind Robotics, its people a
 that happened with them are made up, so you can see what a worked account
 looks like:
 
-- the timeline: a LinkedIn message, the reply, a meeting and a proposal that
-  is still waiting for an answer (Home shows it on the follow-up radar);
+- the timeline: a LinkedIn message and its reply, a meeting, a proposal, and
+  an answer from Jonas that you still owe a reply to (Home lists it);
 - the stage history, from prospect to offer, with a monthly value;
 - the next step, and tasks on the company and on a person.
 
@@ -453,7 +453,10 @@ class _Demo:
                  subject="Proposal sent")
         self.move(s, 6, hour=11, stage="offer", next_step="Follow up on the proposal",
                   next_step_due=self.due(3))
-        self.at(6, 12)
+        self.log(s, 2, "email", "in", jonas,
+                 "Thanks Alex. Can you send the case study for the second site "
+                 "before we decide?\n", subject="Re: Proposal sent")
+        self.at(2, 12)
         self.store.add_task(s, "Send Jonas the case study", due=self.due(5), contact=jonas)
         self.store.add_task(s, "Book a site visit in Hamburg", due=self.due(10))
         return s
