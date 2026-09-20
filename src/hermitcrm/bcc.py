@@ -784,6 +784,10 @@ def assign(store: Store, inbox: Inbox, item_id: str, company: str,
             store.update_contact(slug, contact.slug, email=item.address)
         interaction = log_entry(store, slug, contact.slug, item.entry())
         inbox.remove(item.id)
+        # The inbox is outside companies/ and the Inbox writes its own files, so
+        # name the path here: a commit only covers what the store was told about,
+        # and the removal would stay behind as a deleted-but-uncommitted file.
+        store.notify(f"{prefix}: {item.id} assigned", ["inbox"])
         batch["message"] = f"{prefix}: {item.id} assigned to {slug}/{contact.slug}"
     return slug, interaction
 

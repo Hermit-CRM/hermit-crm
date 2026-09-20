@@ -4,11 +4,15 @@
 <h1>Hermit CRM</h1>
 
 {% if no_companies %}
-<p class="small">Nothing in the folder yet. Start with one of these, or take the <a href="/help">tour of what each part does</a> below.</p>
+<p class="small">Nothing in the folder yet. Start with one of these{% if intro %}, or read what each part does below{% endif %}.</p>
 <div class="start-cards">
   <a class="card start-card" href="/companies/new"><h3>Add a company</h3><div class="small">One account by hand, to see the shape of things.</div></a>
   <a class="card start-card" href="/import"><h3>Import a spreadsheet</h3><div class="small">CSV, TSV or an Excel paste of companies or contacts.</div></a>
   <a class="card start-card" href="/settings#bcc"><h3>Set up BCC capture</h3><div class="small">Log the mail you send without typing it twice.</div></a>
+  <form class="card start-card sample-card" method="post" action="/sample">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit"><h3>Look at a sample account</h3><div class="small">One made-up company with a full history. Remove it in one click when you are done.</div></button>
+  </form>
 </div>
 {% else %}
 
@@ -72,11 +76,34 @@
 </div>
 {% endif %}
 
-<h2 id="areas">What this thing does</h2>
-<div class="start-cards areas">
-  {% for href, label, icon_name, line in areas %}
-  <a class="card start-card" href="{{ href }}"><h3>{{ icon(icon_name) }} {{ label }}</h3><div class="small">{{ line }}</div></a>
-  {% endfor %}
+{# The beginner block: the walkthrough's own switch decides whether it is here. #}
+{% if intro %}
+<div class="getting-started">
+  {% if not no_companies %}
+  <h2 id="started">Getting started</h2>
+  <p class="progress-line"><strong>{{ steps_done }} of {{ steps_total }}</strong> done.
+    <a href="/welcome">Open the walkthrough</a> &mdash; each step ticks itself when the thing it describes has happened.</p>
+  <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="{{ steps_total }}" aria-valuenow="{{ steps_done }}"><span style="width: {{ (100 * steps_done / steps_total) | round | int }}%"></span></div>
+  {% if not samples %}
+  <form method="post" action="/sample" class="inline sample-offer">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">Load a sample account</button> <span class="small">One made-up company with its people, messages, a deal and tasks. You remove it in one click.</span>
+  </form>
+  {% endif %}
+  {% endif %}
+
+  <h2 id="areas">What this thing does</h2>
+  <div class="start-cards areas">
+    {% for href, label, icon_name, line in areas %}
+    <a class="card start-card" href="{{ href }}"><h3>{{ icon(icon_name) }} {{ label }}</h3><div class="small">{{ line }}</div></a>
+    {% endfor %}
+  </div>
+  <form method="post" action="/welcome/dismiss" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="dismissed" value="1">
+    <button type="submit">Hide the tutorial</button> <span class="small">Takes <em>Getting started</em> and <em>What this thing does</em> off this page. Both stay under <a href="/help">Help</a>.</span>
+  </form>
+  <p class="small">Everything lives in plain files in your data folder, and every change is a git commit. <a href="/help">Help</a> explains each part in more detail.</p>
 </div>
-<p class="small">Everything lives in plain files in your data folder, and every change is a git commit. <a href="/help">Help</a> explains each part in more detail.</p>
+{% endif %}
 {% endblock %}

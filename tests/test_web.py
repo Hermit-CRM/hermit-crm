@@ -12,16 +12,18 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 from fastapi.testclient import TestClient
 
-from conftest import FIXED_NOW
 from hermitcrm import usertheme
 from hermitcrm.web import asset_version, company_values, create_app
+from conftest import FIXED_NOW
 
 CONFIG = {"port": 8765, "silent_days": 14, "push_enabled": False, "remote": "origin",
           "owner_email": "me@example.com",
           # an established user: these tests are not about the first launch
           "welcome_dismissed": True}
 
-TODAY = date.today()
+# The day these tests are about. It has to be the day the app believes in too,
+# or every date below becomes a bet on when the suite is run: see the app fixture.
+TODAY = FIXED_NOW.date()
 YESTERDAY = TODAY - timedelta(days=1)
 
 
@@ -42,7 +44,15 @@ def repo(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def app(repo: Path):
-    return create_app(repo, config=CONFIG)
+    app = create_app(repo, config=CONFIG)
+    # Every page under test asks the store what day it is, while the tests write
+    # dates of their own -- TODAY, and literals in September 2026. Leave the store
+    # on the real clock and the gap between the two changes every day: a task due
+    # "2026-09-24" sits in Future tasks, then moves to Top priority when that date
+    # arrives, and once the month rolls over the calendar grid stops drawing it at
+    # all. Fixing the store's day makes the tests mean what they say.
+    app.state.store.clock = lambda: FIXED_NOW
+    return app
 
 
 @pytest.fixture
@@ -182,9 +192,10 @@ def test_the_home_page_is_not_the_board(client, app, repo):
     page = client.get("/").text
     assert 'class="board"' not in page                  # the board is elsewhere now
     assert "What needs doing" in page and "How it is going" in page
-    assert "What this thing does" in page
     assert "Call Jane" in page and "send the deck" in page   # both kinds of work
-    assert 'href="/pipeline"' in page and "Every open deal as a card" in page
+    assert 'href="/pipeline"' in page
+    # this folder has put the walkthrough away, so the beginner block is gone too
+    assert "What this thing does" not in page and "Getting started" not in page
 
     nav = page.split("</nav>")[0]
     assert 'href="/"' in nav and 'href="/pipeline"' in nav   # two entries, two places
@@ -220,15 +231,22 @@ def test_the_walkthrough_ticks_itself_from_the_data(client, app, repo):
 
 def test_the_two_steps_nobody_can_see_are_ticked_by_hand(client, app, repo):
     token = app.state.csrf_token
-    r = client.post("/welcome/tick", data={"csrf_token": token, "key": "extension"})
+    r = client.post("/welcome/tick", data={"csrf_token": token, "key": "extension",
+                                           "done": "1"})
     assert r.status_code == 303
     assert "extension" in app.state.config.get("welcome_done", []) or \
         '"extension"' in (repo / "config.toml").read_text()
     page = client.get("/welcome").text
     assert "Untick" in page.split('id="extension"')[1].split("</li>")[0]
 
+    # and the Untick button gives it back: the form sends an empty value for off
+    client.post("/welcome/tick", data={"csrf_token": token, "key": "extension",
+                                       "done": ""})
+    assert "extension" not in (app.state.config.get("welcome_done") or [])
+
     # a step that ticks itself cannot be ticked by hand
-    r = client.post("/welcome/tick", data={"csrf_token": token, "key": "company"})
+    r = client.post("/welcome/tick", data={"csrf_token": token, "key": "company",
+                                           "done": "1"})
     assert "ticks%20itself" in r.headers["location"]
 
 
@@ -813,10 +831,11 @@ def test_calendar_view_shows_open_tasks(frozen_client):
     assert "Beta" in page.split('id="day-2026-09-20"')[1].split("</td>")[0]
     # a done next step is off the calendar; the company still appears in the
     # new-task picker, because a task on a won customer is an ordinary thing
-    grid = page.split('id="month-grid"')[1].split("</table>")[0] \
-        if 'id="month-grid"' in page else page.split("<h2 id=\"task-list\"")[0]
+    grid = page.split('<h2 id="task-list"')[0]
     assert "Done Co" not in grid and "Finished" not in page
-    priority = page.split('id="top-priority"')[1].split('class="month-nav"')[0]
+    # Stop at the next heading, not at the month nav: between the two sits the
+    # meetings section, and a company named in a brief there is not a task.
+    priority = page.split('id="top-priority"')[1].split('id="meetings"')[0]
     assert priority.index("Delta") < priority.index("Acme")
     assert "Beta" not in priority and "Gamma" not in priority
     tasks = page.split('id="future-tasks"')[1].split('id="silent"')[0]

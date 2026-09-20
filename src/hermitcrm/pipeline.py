@@ -34,6 +34,7 @@ def _company_line(c, today: date) -> str:
     return (
         f"- {c.slug} | {c.name} | in stage {c.days_in_stage(today)}d | "
         f"last: {c.last_touch_summary} | {_next_field(c.next_step, c.next_step_due, c.next_step_done)}"
+        + (" | sample (fictional)" if c.is_sample else "")
     )
 
 
