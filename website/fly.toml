@@ -1,0 +1,31 @@
+# fly.toml — Hermit CRM website (static)
+# See https://fly.io/docs/reference/configuration/
+#
+# STAGING: reachable at https://hermitcrm.fly.dev, noindex, no custom domain.
+
+app = 'hermitcrm'
+primary_region = 'fra'
+
+[build]
+
+[http_service]
+  internal_port = 80
+  force_https = true
+  # Scale to zero: the machine suspends when nobody is looking at the page and
+  # boots again on the first request (about a second). Costs next to nothing.
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+  [[http_service.checks]]
+    grace_period = '2s'
+    interval = '30s'
+    method = 'get'
+    path = '/'
+    timeout = '3s'
+
+[[vm]]
+  memory = '256mb'
+  cpus = 1
+  memory_mb = 256
