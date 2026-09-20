@@ -56,6 +56,7 @@
   </details>
 </header>
 <main>
+  {% if samples %}<p class="sample-bar">Sample data: <strong>{{ samples | map(attribute='name') | join(', ') }}</strong> is made up, to show what a worked account looks like. <a href="/sample/remove">Remove it</a> when you are done looking.</p>{% endif %}
   {% if flash %}<p class="flash">{{ flash }}</p>{% endif %}
   {% block content %}{% endblock %}
 </main>

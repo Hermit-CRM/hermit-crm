@@ -147,9 +147,14 @@ def test_demo_loads_clean_with_every_stage_and_reports(tmp_path):
     store = Store(folder)
     assert store.load() == []
     companies = store.all()
-    assert len(companies) == 6
-    assert {c.stage for c in companies} >= {"prospect", "engaged", "discovery", "offer",
-                                            "won", "lost"}
+    assert len(companies) == 8
+    assert {c.stage for c in companies} == {"prospect", "engaged", "discovery", "offer",
+                                            "won", "lost", "disqualified",
+                                            "temp-disqualified"}
+    company_tasks = [t for c in companies for t in c.tasks]
+    person_tasks = [t for c in companies for p in c.contacts.values() for t in p.tasks]
+    assert person_tasks and any(t.done for t in company_tasks)
+    assert not any(c.is_sample for c in companies)
     domains = {ct.email.split("@")[1] for c in companies for ct in c.contacts.values()}
     assert all(d.endswith((".example.com", ".example.org")) for d in domains)
     its = [i for c in companies for i in c.interactions]

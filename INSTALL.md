@@ -204,7 +204,9 @@ hermitcrm --data ~/crm serve
 ```
 
 Run it in the background and give them the link: http://127.0.0.1:8765. Let
-them look around before you continue.
+them look around before you continue. If they want to see a filled-in account
+first, the page offers **Load a sample account**; it is made up, marked as
+such, and removed in one click.
 
 ### 6. Secrets are theirs to type, and never yours to see
 
@@ -266,7 +268,9 @@ nothing anywhere.
 - Do not modify the Hermit CRM source you just unpacked. They are installing
   it, not developing it. `CLAUDE.md` and `AGENTS.md` in this folder are rules
   for changing the code; they do not apply to an install.
-- Do not create companies, contacts or interactions to "test" it. The demo data
-  is `hermitcrm init <path> --demo` in a throwaway folder if you need one.
+- Do not create companies, contacts or interactions to "test" it. The sample
+  account (`hermitcrm sample add`, removed with `hermitcrm sample remove`) is
+  the one exception, and only when they ask for it. The full demo is
+  `hermitcrm init <path> --demo` in a throwaway folder.
 - Do not push their data anywhere. The backup section in Settings sets up a
   git remote, and they choose it; it must be a **private** repository.

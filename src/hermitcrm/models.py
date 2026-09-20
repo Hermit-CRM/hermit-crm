@@ -523,6 +523,12 @@ class Company:
         return (today - ref_date).days
 
     @property
+    def is_sample(self) -> bool:
+        """The made-up sample account (`sample: true`), the only kind of company
+        Hermit CRM will ever delete (see hermitcrm/sample.py)."""
+        return self.extra.get("sample") is True
+
+    @property
     def is_closed(self) -> bool:
         return self.stage in CLOSED_STAGES
 

@@ -10,6 +10,7 @@ pasted into an AI session.
 
 ```text
 hermitcrm init DIR [--demo] [--no-setup]   new data folder (git repo, config, agent rules); asks the setup questions
+hermitcrm sample add|remove                the made-up sample account in this folder: load it, or delete it again
 hermitcrm setup                            the setup questions again (you, BCC, backup, calendar)
 hermitcrm serve [--port N]                 the web app on 127.0.0.1 (port from config.toml, default 8765)
 hermitcrm doctor [--online]                one ok/warn/fail line per check; exit 1 on a failure

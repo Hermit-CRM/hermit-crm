@@ -988,6 +988,20 @@ class Store:
         return self.companies[keep]
 
     @_locked
+    def delete_sample(self, slug: str) -> Company:
+        """Delete a sample company's folder. Anything without `sample: true` on
+        disk is refused: there is deliberately no way to delete your own companies."""
+        company = self._current(slug)
+        if company is None or not company.is_sample:
+            raise ValidationError({"slug": f"{slug!r} is not the sample account; Hermit "
+                                           "CRM does not delete your own companies"})
+        self._touch(self.company_dir(slug))
+        shutil.rmtree(self.company_dir(slug))
+        self.companies.pop(slug, None)
+        self._notify(f"sample: {slug} removed")
+        return company
+
+    @_locked
     def merge_contacts(self, company_slug: str, keep: str, drop: str,
                        choices: dict[str, str] | None = None) -> Contact:
         """Fold contact `drop` into `keep` within one company; interactions of
