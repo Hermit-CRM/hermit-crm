@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from hermitcrm import usertheme
 from hermitcrm.web import asset_version, company_values, create_app
 from conftest import FIXED_NOW
+from test_tokens import effective  # the CSS reader the token tests use
 
 CONFIG = {"port": 8765, "silent_days": 14, "push_enabled": False, "remote": "origin",
           "owner_email": "me@example.com",
@@ -1694,6 +1695,56 @@ def test_the_company_header_lost_four_of_its_six_rows(client, app):
     assert page.count('summary class="button">Disqualify') == 1
     assert "Temp disqualify" in page  # still there, inside the menu
     assert 'action="/companies/acme/fetch"' in page  # the actions survived the move
+
+
+def phone_and_wide_css() -> tuple[str, str]:
+    """style.css split into the @media (max-width: 760px) blocks and the rest."""
+    css = (Path(create_app.__code__.co_filename).parent / "static" / "style.css").read_text()
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    phone, wide, pos = [], [], 0
+    for m in re.finditer(r"@media \(max-width: 760px\) \{", css):
+        depth, end = 1, m.end()
+        while depth:
+            depth += {"{": 1, "}": -1}.get(css[end], 0)
+            end += 1
+        wide.append(css[pos:m.start()])
+        phone.append(css[m.end():end - 1])
+        pos = end
+    return "".join(phone), "".join(wide) + css[pos:]
+
+
+def test_every_table_on_the_company_page_scrolls_in_a_box_of_its_own(client, app):
+    """On a 390px phone the contacts table (two e-mail addresses) was 476px wide and
+    the whole page scrolled sideways. Each table now sits in a box that scrolls."""
+    post_company(client, name="Acme", next_step="call back", next_step_due=str(TODAY))
+    post_contact(client, "acme", first_name="Jane", last_name="Roe",
+                 email="jane.roe@a-rather-long-company-name.example.com")
+    client.post("/companies/acme/tasks", data={"text": "send the deck"})
+    patch_company(client, app, "acme", stage="engaged")
+    page = client.get("/companies/acme").text
+    assert "Stage history (1)" in page
+    tables = page.count("<table")
+    assert tables >= 4  # stage history, contacts, next step, other tasks
+    assert page.count('<div class="table-scroll"><table') == tables
+
+
+def test_the_phone_rules_that_keep_the_company_page_on_the_screen():
+    """They all sit in @media (max-width: 760px): above that the page is as it was."""
+    phone, wide = phone_and_wide_css()
+    assert effective(phone, ".table-scroll") == {"overflow-x": "auto"}
+    assert effective(wide, ".table-scroll") == {}
+    # The Disqualify menu hung from its button's right edge and ran off the left
+    # of the screen; on a phone it spans the header row instead.
+    assert effective(phone, ".record-meta")["position"] == "relative"
+    assert effective(phone, "details.stage-menu")["position"] == "static"
+    assert effective(phone, "details.stage-menu .menu-panel")["left"] == "0"
+    assert effective(phone, "details.stage-menu .menu-panel form.inline-form")["flex-wrap"] == "wrap"
+    # "Fetch from URL" was a 320px field; open, it takes a row and the field fills it.
+    assert effective(wide, ".record-actions input.url")["width"] == "320px"
+    assert effective(phone, ".record-actions input.url")["width"] == "auto"
+    assert effective(phone, ".record-actions details.inline-edit[open]")["flex-basis"] == "100%"
+    # The 260px merge field pushed Compare off a 375px screen; now Compare wraps.
+    assert effective(phone, "#merge form.inline-row")["flex-wrap"] == "wrap"
 
 
 def test_a_custom_field_goes_all_the_way_through_the_app(client, app, repo):

@@ -241,6 +241,11 @@ history-rewriting git commands. All migrate automatically in one commit.
   "Filters" toggle and the four stage columns stack, so the first screen is the
   follow-up radar and your companies rather than controls. Unchanged above
   760px.
+- **The company page fits a phone**: at 390px it scrolled 110px sideways. Its
+  tables (contacts, tasks, stage history) now scroll inside their own box, the
+  Disqualify menu spans the header instead of running off the left edge, an
+  open "Fetch from URL" field fills its row, and Compare in the merge form moves
+  under the field when both do not fit. Unchanged above 760px.
 - **`hermitcrm serve --host`** (config key `host`). `--host 0.0.0.0` puts the
   web app on your phone over the local network, and prints the address to type
   rather than `0.0.0.0`. Hermit CRM has no password, so it also prints a warning

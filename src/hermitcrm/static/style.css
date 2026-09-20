@@ -181,6 +181,9 @@ th, td {
   vertical-align: top;
 }
 th { background: var(--subtle); font-weight: 600; }
+/* On a phone a wide table scrolls inside its own box instead of pushing the whole
+   page sideways. Above 760px the box is a plain div and changes nothing. */
+@media (max-width: 760px) { .table-scroll { overflow-x: auto; } }
 
 /* forms */
 form.record-form, form.interaction-form {
@@ -295,6 +298,8 @@ form.merge .val { white-space: pre-wrap; word-break: break-word; }
 form.inline-row { display: flex; gap: 10px; align-items: flex-end; }
 form.inline-row label { margin: 0; }
 form.inline-row select, form.inline-row input[list] { width: auto; min-width: 260px; }
+/* The 260px merge field and Compare do not fit side by side on a small phone. */
+@media (max-width: 760px) { #merge form.inline-row { flex-wrap: wrap; } }
 
 /* import */
 textarea.import { font-size: 12px; white-space: pre; overflow-x: auto; }
@@ -367,6 +372,20 @@ details.stage-menu .menu-panel {
 }
 details.stage-menu { position: relative; }
 details.stage-menu .menu-panel form.inline-form { display: flex; align-items: center; gap: 6px; }
+@media (max-width: 760px) {
+  /* On a phone the Disqualify button sits wherever the row wraps, and a menu hung
+     from its right edge ran off the left of the screen. There the menu spans the
+     header row instead, and its two forms wrap. */
+  .record-meta { position: relative; }
+  details.stage-menu { position: static; }
+  details.stage-menu .menu-panel { left: 0; }
+  details.stage-menu .menu-panel form.inline-form { flex-wrap: wrap; }
+  /* An open "Fetch from URL" takes a row of its own, and the URL field fills it
+     beside the button instead of being 320px wide. */
+  .record-actions details.inline-edit[open] { flex-basis: 100%; }
+  .record-actions details.inline-edit form.inline-form { display: flex; gap: 6px; margin: 6px 0 0; }
+  .record-actions input.url { width: auto; flex: 1 1 0; min-width: 0; }
+}
 
 /* messages */
 table.messages td.message { max-width: 520px; }
