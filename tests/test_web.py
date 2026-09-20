@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 from hermitcrm import usertheme
 from hermitcrm.web import asset_version, company_values, create_app
+from conftest import FIXED_NOW
 
 CONFIG = {"port": 8765, "silent_days": 14, "push_enabled": False, "remote": "origin",
           "owner_email": "me@example.com",
@@ -781,6 +782,10 @@ def test_a_task_can_be_created_from_the_calendar(client, app, repo):
 
 
 def test_calendar_view_shows_open_tasks(client, app):
+    # Every date below is read as "due yet or not" against the store's clock,
+    # so this test has to fix the day it is asking about: with the real date
+    # the same page moves a task from Future to Top priority as time passes.
+    app.state.store.clock = lambda: FIXED_NOW          # 2026-09-14
     post_company(client, name="Acme", next_step="Call Jane", next_step_due="2026-09-10")
     post_company(client, name="Beta", next_step="Send deck", next_step_due="2026-09-20")
     post_company(client, name="Gamma", next_step="Find intro")
@@ -794,10 +799,11 @@ def test_calendar_view_shows_open_tasks(client, app):
     assert "Beta" in page.split('id="day-2026-09-20"')[1].split("</td>")[0]
     # a done next step is off the calendar; the company still appears in the
     # new-task picker, because a task on a won customer is an ordinary thing
-    grid = page.split('id="month-grid"')[1].split("</table>")[0] \
-        if 'id="month-grid"' in page else page.split("<h2 id=\"task-list\"")[0]
+    grid = page.split('<h2 id="task-list"')[0]
     assert "Done Co" not in grid and "Finished" not in page
-    priority = page.split('id="top-priority"')[1].split('class="month-nav"')[0]
+    # Stop at the next heading, not at the month nav: between the two sits the
+    # meetings section, and a company named in a brief there is not a task.
+    priority = page.split('id="top-priority"')[1].split('id="meetings"')[0]
     assert priority.index("Delta") < priority.index("Acme")
     assert "Beta" not in priority and "Gamma" not in priority
     tasks = page.split('id="future-tasks"')[1].split('id="silent"')[0]
