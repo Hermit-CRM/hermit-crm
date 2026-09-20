@@ -245,7 +245,7 @@
 <section id="tasks">
   <h2>Tasks</h2>
   {% if note %}<p class="small">{{ note }}</p>{% endif %}
-  <table>
+  <div class="table-scroll"><table>
     <tr><th>next step</th><th>due</th><th>status</th><th></th></tr>
     {% if company.has_next_step %}
     <tr class="{% if company.next_step_overdue(today) %}overdue{% endif %}{% if company.next_step_done %} done{% endif %}">
@@ -268,7 +268,7 @@
     {% else %}
     <tr><td colspan="4" class="empty">No open task.</td></tr>
     {% endif %}
-  </table>
+  </table></div>
   <form method="post" action="/companies/{{ company.slug }}/task" class="inline-row">
     <label class="grow">{{ 'new or changed next step' if company.has_next_step else 'next step' }}
       <input name="next_step" value="{{ '' if company.next_step_done else company.next_step }}" placeholder="e.g. follow up on LinkedIn" required>
@@ -287,7 +287,7 @@
 {%- endmacro %}
 
 {% macro task_list(company, tasks, today, contact='', adding=true) -%}
-<table class="tasks">
+<div class="table-scroll"><table class="tasks">
   {% for t in tasks %}
   <tr class="{% if t.overdue(today) %}overdue{% endif %}{% if t.done %} done{% endif %}">
     <td>{{ t.text }}</td>
@@ -309,7 +309,7 @@
   {% else %}
   <tr><td colspan="3" class="empty">Nothing else on the list.</td></tr>
   {% endfor %}
-</table>
+</table></div>
 {% if adding %}
 <form method="post" action="/companies/{{ company.slug }}/tasks" class="inline-row">
   <input type="hidden" name="contact" value="{{ contact }}">

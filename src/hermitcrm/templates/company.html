@@ -83,19 +83,19 @@
   {% if company.stage_history %}
   <details class="stage-history">
     <summary class="small">Stage history ({{ company.stage_history | length }})</summary>
-    <table>
+    <div class="table-scroll"><table>
       <tr><th>date</th><th>from</th><th>to</th><th>reason</th></tr>
       {% for e in company.stage_history | reverse %}
       <tr><td>{{ fmt_date(e.date) }}</td><td>{{ e.from_stage or '-' }}</td><td>{{ e.to_stage }}</td><td>{{ e.reason }}</td></tr>
       {% endfor %}
-    </table>
+    </table></div>
   </details>
   {% endif %}
 </section>
 
 <section id="contacts">
   <h2>Contacts ({{ company.contacts | length }})</h2>
-  <table>
+  <div class="table-scroll"><table>
     <tr><th>name</th><th>title</th><th>role</th><th>email</th><th>linkedin</th><th></th></tr>
     {% for slug, c in company.contacts.items() %}
     <tr>
@@ -109,7 +109,7 @@
     {% else %}
     <tr><td colspan="6" class="empty">No contacts yet.</td></tr>
     {% endfor %}
-  </table>
+  </table></div>
   <p><a href="/companies/{{ company.slug }}/contacts/new">New contact</a></p>
 </section>
 
