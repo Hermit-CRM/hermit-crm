@@ -118,6 +118,7 @@ DEFAULT_CONFIG = {
     "bcc_imap_host": "imap.gmail.com",
     "bcc_keychain_service": "crm-bcc",
     "bcc_lookback_days": 30,
+    "bcc_create_companies": True,
     # Mail from these addresses is yours (outbound); recipients at these
     # domains (colleagues) are never logged.
     "my_addresses": [],

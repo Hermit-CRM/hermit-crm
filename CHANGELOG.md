@@ -32,6 +32,15 @@ and `stage_history`), the four built-in scoring fields become fields you
 define, and every folder gets a `.claude/settings.json` that blocks
 history-rewriting git commands. All migrate automatically in one commit.
 
+- **BCC import creates the companies it does not know.** Mail you send or
+  forward to someone at a domain no company has used to wait in the review
+  queue; now the import creates the company (named after the domain, website
+  `https://<domain>`), the contact and the interaction in one commit. Not for
+  mail you did not send yourself, no-reply senders, personal addresses, or when
+  a company of that name exists. `bcc_create_companies = false` restores the
+  review queue. In the review queue, **Log at company** with a name that finds
+  no company now creates it instead of refusing.
+
 - **Backups that nothing can rewrite, and undo for any version.** Every change
   was already a commit, but the history itself was unprotected: a
   `git reset --hard`, an amend, a deleted `.git` or a force-push -- by you, a

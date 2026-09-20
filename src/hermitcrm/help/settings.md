@@ -22,8 +22,14 @@ suggested) and Hermit CRM reads it over IMAP with an app password. Gmail needs
 2-step verification and an app password; the page shows the Gmail filter to
 add so the copies skip your inbox. **Test connection** runs a dry-run import.
 Per mail: an exact contact email match logs there; a new person at a company
-whose website or contact domain matches becomes a contact; everything else
-goes to the review queue. Dedup is by Message-ID.
+whose website or contact domain matches becomes a contact. A domain no company
+has becomes a new company, named after the domain (`acme-labs.de` becomes
+"Acme-labs", rename it any time), with the contact and the interaction in the
+same commit -- but only for mail you sent or forwarded yourself, never for a
+no-reply sender, and not when a company of that name already exists. Set
+`bcc_create_companies = false` in `config.toml` to send those to the review
+queue instead. Everything else (personal addresses, a domain that fits several
+companies) goes to the review queue. Dedup is by Message-ID.
 
 ## Calendar
 
@@ -186,8 +192,11 @@ Duplicates and an empty list are refused.
 Mail and meetings the imports could not place: the date, kind, direction,
 person and subject, the reason (personal address, unknown domain, several
 matching companies), the text collapsed, and a form to **Log at company**
-(company slug or exact name; the contact is found by email, else a same-named
-contact gets the email, else it is created) or **Discard** (remembered in
+(a company slug or name, legal suffixes like GmbH ignored, else the company
+that has the mail's domain; a name that finds neither creates a new company,
+with the mail's domain as its website unless it is a personal address; the
+contact is found by email, else a same-named contact gets the email, else it
+is created) or **Discard** (remembered in
 `inbox/discarded.tsv`). **Import now** and **Import meetings now** run the
 imports on the spot. The nav shows the count on the Settings link and a red
 `!` when the last import failed or is two days old.

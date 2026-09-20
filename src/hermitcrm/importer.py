@@ -40,7 +40,7 @@ from .models import (
     slugify,
     split_name,
 )
-from .bcc import FREEMAIL
+from .bcc import FREEMAIL, name_from_domain
 
 # Header aliases (normalised: lower case, non-alphanumerics collapsed to "_").
 COMPANY_COLUMNS = {
@@ -628,17 +628,6 @@ def _email_domain(email: str) -> str:
 
 def _first_email(value: str) -> str:
     return next((normalise_email(p) for p in re.split(r"[,;\s]+", value or "") if "@" in p), "")
-
-
-def name_from_domain(domain: str) -> str:
-    """acme-labs.de -> 'Acme-labs'; acme.co.uk -> 'Acme'."""
-    labels = [label for label in domain.lower().split(".") if label]
-    if len(labels) >= 3 and labels[-2] in ("co", "com", "org", "net", "ac", "gov") \
-            and len(labels[-1]) == 2:
-        label = labels[-3]
-    else:
-        label = labels[-2] if len(labels) >= 2 else (labels[0] if labels else "")
-    return label[:1].upper() + label[1:]
 
 
 def _name_key(first: str, last: str) -> str:
