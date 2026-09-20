@@ -66,7 +66,6 @@ sha256_label    = "SHA-256"
 [install]
 label = "Install with your AI"
 steps = [
-  "**Download and unpack it.** Double-click the file in Finder.",
   "**Open the folder in your [AI coding tool](#requirements):** Claude Code, Codex, Cursor, Gemini CLI or another.",
   "**Send it this message:**",
 ]
@@ -160,7 +159,6 @@ label = "Requirements"
 items = [
   "macOS [TBC: minimum version], Apple Silicon [TBC: and Intel]",
   "An AI coding tool: Claude Code, Codex, Cursor, Gemini CLI or similar",
-  "Python 3.11 or newer and git. If they are missing, your AI tool installs them. On a Mac that has never been used for programming, you click Install once in an Apple dialog.",
 ]
 
 
