@@ -867,6 +867,15 @@ def test_a_task_can_be_created_from_the_calendar(client, app, repo):
     assert r.headers["location"] == "/tasks?when=none&flash=Task%20created#task-list"
     assert [t.text for t in app.state.store.get("harbour-light-labs")
             .contacts["ines-vega"].tasks] == ["book the intro call", "ask about budget"]
+    # a first name alone is enough; an unknown one says who is there
+    client.post("/tasks", data={"text": "first name only", "company": "Harbour Light Labs",
+                                "contact": "Ines"})
+    assert app.state.store.get("harbour-light-labs").contacts["ines-vega"].tasks[-1].text \
+        == "first name only"
+    r = client.post("/tasks", data={"text": "x", "company": "Harbour Light Labs",
+                                    "contact": "jane"})
+    assert "nobody%20at%20Harbour%20Light%20Labs" in r.headers["location"]
+    assert "Ines%20Vega" in r.headers["location"]
     r = client.post("/tasks", data={"text": "x", "company": "Harbour Light Labs",
                                     "back": "https://evil.example/"})
     assert r.headers["location"].startswith("/tasks?flash=")

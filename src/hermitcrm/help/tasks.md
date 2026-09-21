@@ -31,8 +31,8 @@ the same view.
 
 ## Adding a task
 
-**Create task** at the bottom takes a company (by name), an optional person (name
-or slug) and a due date. On a company page, **Add task** does the same with a
+**Create task** at the bottom takes a company (by name), an optional person (first
+name, last name or full name) and a due date. On a company page, **Add task** does the same with a
 list of its people.
 
 Related: [Companies](/help/companies), [Calendar](/help/calendar)

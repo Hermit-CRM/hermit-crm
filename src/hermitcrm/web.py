@@ -1264,11 +1264,19 @@ def create_app(root: Path, config: dict | None = None,
             slug = bcc.resolve_company(store, company)
         except ValidationError:
             return flashed(back, f"No company called {company!r}", "task-list")
-        contact = contact.strip()
+        contact = " ".join(contact.split())
         people = store.companies[slug].contacts if slug in store.companies else {}
         if contact and contact not in people:
-            named = [p.slug for p in people.values() if p.name.lower() == contact.lower()]
-            contact = named[0] if len(named) == 1 else contact
+            # "jane", "Roe" or "Jane Roe" all do, as long as one person answers.
+            wanted = contact.lower()
+            named = [p.slug for p in people.values()
+                     if wanted in (p.name.lower(), p.first_name.lower(), p.last_name.lower())]
+            if len(named) != 1:
+                known = ", ".join(p.name for p in people.values()) or "nobody yet"
+                why = "more than one person" if named else "nobody"
+                return flashed(back, f"{why} at {store.companies[slug].name} is called "
+                                     f"{contact!r}; people there: {known}", "task-list")
+            contact = named[0]
         try:
             store.add_task(slug, text, due=due, contact=contact)
         except ValidationError as exc:

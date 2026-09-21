@@ -43,7 +43,7 @@
       <input name="company" list="task-companies" required placeholder="an existing company">
       <datalist id="task-companies">{% for c in companies %}<option value="{{ c.name }}">{% endfor %}</datalist>
     </label>
-    <label class="grow">person (optional) <input name="contact" placeholder="their name or slug, e.g. Jane Roe"></label>
+    <label class="grow">person (optional) <input name="contact" placeholder="first name or full name, e.g. Jane"></label>
     <label>due <input type="date" name="due"></label>
   </div>
   <button type="submit">Create task</button>
