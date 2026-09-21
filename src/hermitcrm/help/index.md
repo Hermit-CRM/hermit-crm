@@ -12,7 +12,8 @@ page for the screen you are on; `hermitcrm help <topic>` prints the same text.
 - **[Getting started](/welcome)**: ten steps, each ticked when it has actually happened, and a tour that points at each part of the screen.
 - **The home page** (`/`, the logo): Getting started, until every step is ticked or you click *Don't open this at startup*. After that: what is due in the next seven days, replies you owe and last month's numbers.
 - [Pipeline](/help/pipeline): the board, stages, filters and the closed lists.
-- [Calendar](/help/calendar): next steps due, the month grid, silent accounts, meetings this week.
+- [Calendar](/help/calendar): the month grid, meetings this week, silent accounts.
+- [Tasks](/help/tasks): every task in one list, with date buttons and filters.
 - [Companies](/help/companies): the table, the company page, stages, next steps, disqualify and requalify.
 - [Contacts](/help/contacts): the table, the contact page, roles, message drafts.
 - [Interactions](/help/interactions): logging email, LinkedIn, call and meeting touches; outcomes.

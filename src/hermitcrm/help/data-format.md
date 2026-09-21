@@ -43,6 +43,7 @@ show only real changes.
 | next_step | text | one line |
 | next_step_due | date or empty | |
 | next_step_status | enum | open or done |
+| next_step_done_on | date | the day it was marked done; omitted otherwise |
 | tags | list | may be `[]` |
 | stage_history | list of maps | see below; omitted while empty |
 | created, updated | datetime | |
@@ -53,12 +54,14 @@ a contact:
 ```yaml
 tasks:
   - {text: send the pricing page, due: 2026-09-24}
-  - {text: check whether the audit landed, done: true}
+  - {text: check whether the audit landed, done: true, done_on: 2026-09-21}
 ```
 
-`text` is required, `due` and `done` are optional. A company's `next_step` is
-separate and stays separate: it is the one task that decides where the deal
-stands, and it is what the pipeline and PIPELINE.md read.
+`text` is required; `due`, `done` and `done_on` (the day it was ticked off,
+written by the app) are optional. A company's next step is derived, not
+stored: it is the open task due first across the company's `tasks`, its
+contacts' `tasks` and the `next_step` fields, which older files use and which
+are read as one more task.
 
 Plus any field you defined yourself (see below), and any key Hermit CRM does
 not recognise, which is kept and written back untouched.

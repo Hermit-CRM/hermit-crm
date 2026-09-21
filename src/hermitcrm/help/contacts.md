@@ -32,10 +32,9 @@ BCC and calendar imports (a new person at a company whose domain is known).
 
 ## Tasks
 
-The contact page shows the company's **Tasks** section (above Delete): the next
-step, its due date and status, **Mark done** / **Reopen**, and a form to write a
-new one. A next step belongs to the company, so it is the same task you see on
-the company page and in the calendar.
+The contact page lists the tasks you owe this person, with **Done**, **Delete**
+and a form to add one. They also show in the company's task list, and when one
+of them is the company's task due first, it is the company's next step.
 
 ## Message drafts
 

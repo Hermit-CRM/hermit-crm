@@ -21,8 +21,9 @@
     {% endfor %}
     <td>{{ c.tags | join(', ') }}</td>
     <td>{{ c.last_touch_summary }}</td>
-    <td{% if c.next_step_done %} class="done"{% endif %}>{{ c.next_step }}{% if c.next_step_done %} (done){% endif %}</td>
-    <td class="{% if c.next_step_overdue(today) %}overdue{% endif %}">{{ fmt_date(c.next_step_due) }}</td>
+    {% set nxt = c.next_todo() %}
+    <td{% if nxt and nxt.done %} class="done"{% endif %}>{{ nxt.text if nxt else '' }}{% if nxt and nxt.done %} (done){% endif %}</td>
+    <td class="{% if c.next_overdue(today) %}overdue{% endif %}">{{ fmt_date(c.next_due) }}</td>
     <td class="links">
       {% if c.website %}<a href="{{ c.website | href }}" target="_blank" rel="noopener">web</a>{% endif %}
       {% if c.linkedin %}<a href="{{ c.linkedin | href }}" target="_blank" rel="noopener">li</a>{% endif %}

@@ -23,6 +23,7 @@
   {{ navlink('/', 'Home', 'home', path in ('/', '/welcome')) }}
   {{ navlink('/pipeline', 'Pipeline', 'pipeline', path.startswith('/pipeline')) }}
   {{ navlink('/calendar', 'Calendar', 'calendar', path.startswith('/calendar')) }}
+  {{ navlink('/tasks', 'Tasks', 'tasks', path.startswith('/tasks')) }}
   {% set on_contact = path.startswith('/contacts') or (path.startswith('/companies/') and '/contacts/' in path) %}
   {{ navlink('/companies', 'Companies', 'companies', not on_contact and (path.startswith('/companies') or path.startswith('/import') and request.query_params.get('mode') != 'contacts')) }}
   {{ navlink('/contacts', 'Contacts', 'contacts', on_contact or request.query_params.get('mode') == 'contacts') }}

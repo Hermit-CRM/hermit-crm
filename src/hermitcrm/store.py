@@ -220,15 +220,16 @@ COMPANY_COPY_FIELDS = (
     "name", "slug", "website", "linkedin", "country", "source", "stage",
     "stage_changed", "lost_reason", "requalify_on", "value_eur_month",
     "product_oneliner", "next_step",
-    "next_step_due", "next_step_status", "tags", "stage_history", "tasks",
-    "created", "updated",
+    "next_step_due", "next_step_status", "next_step_done_on", "tags",
+    "stage_history", "tasks", "created", "updated",
     "notes",
 )
 # Fields a merge lets you choose per side (everything but slug, timestamps and
 # the stage history, which is always combined).
 COMPANY_MERGE_FIELDS = tuple(
     f for f in COMPANY_COPY_FIELDS
-    if f not in ("slug", "created", "updated", "stage_history", "tasks"))
+    if f not in ("slug", "created", "updated", "stage_history", "tasks",
+                 "next_step_done_on"))
 CONTACT_COPY_FIELDS = (
     "first_name", "last_name", "slug", "title", "linkedin", "email", "phone",
     "role", "tasks", "created", "updated", "notes",
@@ -669,6 +670,8 @@ class Store:
         company.extra = fields_mod.apply({}, custom or {})
         if not company.has_next_step:
             company.next_step_status = TaskStatus.OPEN.value
+        if company.next_step_done:
+            company.next_step_done_on = now.date()
         if stage != Stage.PROSPECT.value:
             # Prospect is the implicit start; any other start is recorded.
             company.stage_history = [StageChange(now.date(), "", stage, lost_reason)]
@@ -735,6 +738,10 @@ class Store:
             new.next_step_status = TaskStatus.OPEN.value
         if not new.has_next_step:
             new.next_step_status = TaskStatus.OPEN.value
+        if not new.next_step_done:
+            new.next_step_done_on = None
+        elif not company.next_step_done or new.next_step_done_on is None:
+            new.next_step_done_on = self.today()
         if "tags" in fields:
             new.tags = parse_tags(fields["tags"])
         if "notes" in fields:
@@ -901,6 +908,7 @@ class Store:
         company, record = self._task_owner(slug, contact)
         task = self._task_at(record, index, text)
         task.done = bool(done)
+        task.done_on = self.today() if task.done else None
         record.updated = self.now()
         where = f"{slug}/{contact}" if contact else slug
         verb = "done" if task.done else "reopened"
@@ -970,6 +978,11 @@ class Store:
             merged.requalify_on = None
         if not merged.has_next_step:
             merged.next_step_status = "open"
+        # The done date follows whichever side's next step won.
+        merged.next_step_done_on = next(
+            (side.next_step_done_on for side in (a, b)
+             if side.next_step == merged.next_step and side.next_step_done), None
+        ) if merged.next_step_done else None
         created = [c for c in (a.created, b.created) if c]
         merged.created = min(created) if created else a.created
         merged.updated = self.now()
