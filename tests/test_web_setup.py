@@ -54,14 +54,28 @@ def cfg(folder):
     return tomllib.loads((folder / "config.toml").read_text())
 
 
-def test_a_first_start_lands_on_the_walkthrough_once(folder):
-    """Its first step is the Settings form, so nothing is lost by going there first."""
+def test_the_walkthrough_is_home_until_it_is_finished(folder):
+    """Every visit to /, not just the first: visiting other pages changes nothing."""
     app, client = make_client(folder)
-    r = client.get("/")
+    for page in ("/", "/settings", "/welcome", "/pipeline", "/"):
+        r = client.get(page)
     assert r.status_code == 303 and r.headers["location"] == "/welcome"
-    assert client.get("/").status_code == 200        # once per start, then home
     page = client.get("/welcome").text
     assert "0 of 10" in page and 'href="/settings#you"' in page
+    assert 'href="/" data-tour="home" class="active"' in page   # Home is this page
+
+
+def test_show_me_around_keeps_the_tour_through_the_redirect(folder):
+    _, client = make_client(folder)
+    assert 'href="/?tour=1" data-start-tour' in client.get("/welcome").text
+    assert client.get("/?tour=1").headers["location"] == "/welcome?tour=1"
+
+
+def test_home_is_the_dashboard_once_every_step_is_done(folder, monkeypatch):
+    from hermitcrm import welcome
+    monkeypatch.setattr(welcome, "progress", lambda steps: (len(steps), len(steps)))
+    _, client = make_client(folder)
+    assert client.get("/").status_code == 200
 
 
 def test_no_redirect_once_the_walkthrough_is_dismissed(folder):

@@ -23,9 +23,11 @@
   "use strict";
   var params = new URLSearchParams(location.search);
   if (!params.has("tour")) return;
+  // Never on top of the one-time disclaimer: accepting it starts the tour.
+  if (document.querySelector(".modal-backdrop")) return;
 
   var STOPS = [
-    ["home", "Home", "What needs doing this week, the replies you owe, and last month's numbers."],
+    ["home", "Home", "This walkthrough, until every step is ticked or you turn it off. Then: what needs doing this week, the replies you owe, and last month's numbers."],
     ["pipeline", "Pipeline", "Every open deal as a card, in the column of the stage it has reached."],
     ["calendar", "Calendar", "Next steps and tasks on their due date, and the form to add a task."],
     ["companies", "Companies", "Every account as a table. Each column has a filter: !text means “does not contain”; the ? next to Filter lists the rest."],
