@@ -8,12 +8,10 @@
 <p class="chips" id="when">
   <a class="chip{% if not when %} on{% endif %}" href="{{ all_url }}">All dates</a>
   {% for c in chips %}<a class="chip{% if c.on %} on{% endif %}{% if c.key == 'overdue' and c.count %} overdue{% endif %}" href="{{ c.url }}"{% if c.on %} aria-current="true"{% endif %}>{{ c.label }} <span class="count">{{ c.count }}</span></a>{% endfor %}
-  <a class="toggle-parked" href="{{ closed_url }}">{% if show_closed %}Hide closed companies{% else %}Show closed companies ({{ closed_count }}){% endif %}</a>
 </p>
 
 {{ m.filter_form('task-filters', '/tasks', active, None, sort, dir) }}
 {% for w in when %}<input type="hidden" name="when" value="{{ w }}" form="task-filters">{% endfor %}
-{% if show_closed %}<input type="hidden" name="closed" value="1" form="task-filters">{% endif %}
 <div class="table-scroll"><table class="filterable tasks">
   <tr>{% for col in filter_columns %}<th>{{ col.label }} {{ m.sort_links(col, sort, dir, sort_url) }}</th>{% endfor %}<th></th></tr>
   <tr class="filters">{% for col in filter_columns %}<th>{{ m.filter_control(col, active, 'task-filters') }}</th>{% endfor %}<th></th></tr>
@@ -27,7 +25,7 @@
     <td>{{ r.stage }}</td>
     <td><span class="tag status-{{ r.status }}">{{ r.status }}</span></td>
     <td class="due">{{ fmt_date(r.done_on) if r.done_on else '' }}</td>
-    <td class="actions">{{ m.todo_actions(r.company, r.todo, back=here) }}{% if not r.todo.done %} <a href="/companies/{{ r.company.slug }}/interactions/new">log interaction</a>{% endif %}</td>
+    <td class="actions">{{ m.todo_actions(r.company, r.todo, back=here) }}</td>
   </tr>
   {% else %}
   <tr><td colspan="9" class="empty">No tasks match.</td></tr>
@@ -35,16 +33,17 @@
 </table></div>
 
 <h2 id="task-list">Add a task</h2>
+{% if form_error %}<div class="errors" role="alert">Task not created: {{ form_error }}</div>{% endif %}
 <form method="post" action="/tasks" class="record-form">
   <input type="hidden" name="back" value="{{ here }}">
   <div class="row">
-    <label class="grow">task <input name="text" placeholder="e.g. send the pricing page" required></label>
+    <label class="grow">task <input name="text" value="{{ form.text or '' }}" placeholder="e.g. send the pricing page" required></label>
     <label class="grow">company
-      <input name="company" list="task-companies" required placeholder="an existing company">
+      <input name="company" value="{{ form.company or '' }}" list="task-companies" required placeholder="an existing company">
       <datalist id="task-companies">{% for c in companies %}<option value="{{ c.name }}">{% endfor %}</datalist>
     </label>
-    <label class="grow">person (optional) <input name="contact" placeholder="first name or full name, e.g. Jane"></label>
-    <label>due <input type="date" name="due"></label>
+    <label class="grow">person (optional) <input name="contact" value="{{ form.contact or '' }}"{% if form_error %} autofocus{% endif %} placeholder="first name or full name, e.g. Jane"></label>
+    <label>due <input type="date" name="due" value="{{ form.due or '' }}"></label>
   </div>
   <button type="submit">Create task</button>
 </form>

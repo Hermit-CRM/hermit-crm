@@ -391,9 +391,9 @@ def test_today_sections(client, app, repo):
     future = table("/tasks?when=later")
     assert "Due Now GmbH" in priority
     assert "Future GmbH" not in priority and "Future GmbH" in future
-    assert "Closed GmbH" not in priority and "Closed GmbH" not in future
-    assert "Closed GmbH" in table("/tasks?closed=1")
-    assert "/companies/due-now/interactions/new" in priority
+    assert "Closed GmbH" not in future
+    assert "Closed GmbH" in table("/tasks")          # closed companies are listed too
+    assert "/interactions/new" not in priority        # no "log interaction" here
     page = client.get("/calendar").text
     silent_part = page[page.index('id="silent"'):]
     assert "Quiet GmbH" in silent_part
@@ -872,16 +872,24 @@ def test_a_task_can_be_created_from_the_calendar(client, app, repo):
                                 "contact": "Ines"})
     assert app.state.store.get("harbour-light-labs").contacts["ines-vega"].tasks[-1].text \
         == "first name only"
-    r = client.post("/tasks", data={"text": "x", "company": "Harbour Light Labs",
-                                    "contact": "jane"})
-    assert "nobody%20at%20Harbour%20Light%20Labs" in r.headers["location"]
-    assert "Ines%20Vega" in r.headers["location"]
+    r = client.post("/tasks", data={"text": "call about pricing",
+                                    "company": "Harbour Light Labs", "contact": "jane",
+                                    "due": "2026-09-30", "back": "/tasks?when=none"})
+    assert r.status_code == 400
+    form = r.text.split('id="task-list"')[1]          # the message sits by the form
+    assert "nobody at Harbour Light Labs is called &#39;jane&#39;" in form
+    assert "Ines Vega" in form and 'class="flash"' not in r.text
+    assert 'value="call about pricing"' in form and 'value="jane"' in form
+    assert 'value="2026-09-30"' in form and 'value="/tasks?when=none"' in form
     r = client.post("/tasks", data={"text": "x", "company": "Harbour Light Labs",
                                     "back": "https://evil.example/"})
     assert r.headers["location"].startswith("/tasks?flash=")
 
     # a company nobody has is refused rather than invented
     r = client.post("/calendar/task", data={"text": "x", "company": "Nobody"})
+    assert r.status_code == 400 and "No company called &#39;Nobody&#39;" in r.text
+    r = client.post("/calendar/task", data={"text": "x", "company": "Nobody",
+                                            "back": "/calendar"})
     assert "No%20company%20called" in r.headers["location"]
 
     # ticking one off from the calendar works on the right record
@@ -942,22 +950,22 @@ def test_the_tasks_page_filters_every_task_in_one_table(frozen_client):
     table = lambda url: main(url).split('class="filters"')[1].split("</table>")[0]
 
     page = main("/tasks")
-    assert "Tasks (4)" in page                    # open, closed companies left out
-    assert "Ask again" not in page and "Show closed companies (1)" in page
+    assert "Tasks (5)" in page                    # open ones, closed companies too
+    assert "Ask again" in page and "Show closed companies" not in page
     # one chip per date range, with a count
-    for label, n in (("Overdue", 1), ("Today", 1), ("Next 7 days", 1), ("Later", 1),
+    for label, n in (("Overdue", 1), ("Today", 1), ("Next 7 days", 2), ("Later", 1),
                      ("No date", 1)):
         assert f'{label} <span class="count">{n}</span>' in page
     # the next step is each company's open task due first
     rows = table("/tasks")
     assert rows.index("Call Jane") < rows.index("Book the demo") \
         < rows.index("send the deck") < rows.index("check the audit")
-    assert rows.count("next step</span>") == 2
+    assert rows.count("next step</span>") == 3
 
     assert "Book the demo" in table("/tasks?when=today") and "Call Jane" not in table("/tasks?when=today")
     both = table("/tasks?when=overdue&when=today")
     assert "Call Jane" in both and "Book the demo" in both and "send the deck" not in both
-    assert "Ask again" in table("/tasks?closed=1")
+    assert "Ask again" not in table("/tasks?f_stage=discovery")
 
     kind = table("/tasks?f_kind=task")
     assert "send the deck" in kind and "Call Jane" not in kind

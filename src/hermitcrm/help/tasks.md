@@ -16,9 +16,9 @@ Above the table: **All dates**, **Overdue**, **Today**, **Next 7 days**,
 (Overdue plus Today is what used to be "Top priority"); click one again to turn
 it off. `/today` opens the page with Overdue and Today on.
 
-Closed companies (won, lost, disqualified) are left out unless you click
-**Show closed companies**. Temp-disqualified ones stay in, so a "revisit in
-March" is not forgotten.
+Tasks of every company are listed, closed ones (won, lost, disqualified)
+included, so a "revisit in March" on a lost deal is not forgotten. To leave
+closed companies out, use the stage filter.
 
 ## Filters and sorting
 

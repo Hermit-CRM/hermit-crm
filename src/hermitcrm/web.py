@@ -42,6 +42,7 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
+from starlette.datastructures import QueryParams
 
 from . import __version__, updates
 from fastapi.templating import Jinja2Templates
@@ -1209,19 +1210,17 @@ def create_app(root: Path, config: dict | None = None,
 
     # ------------------------------------------------------------------ tasks
 
-    @app.get("/tasks", response_class=HTMLResponse)
-    def tasks_view(request: Request):
-        """Every to-do in one table: the date chips, then one filter per column."""
+    def _tasks_page(request: Request, params, form_error: str = "",
+                    form: dict | None = None, status_code: int = 200):
+        """Every to-do in one table: the date chips, then one filter per column.
+        `form_error` and `form` put a refused Add task back next to its form."""
         today = store.today()
-        params = request.query_params
         cols = task_columns()
         active = filters.parse(params, cols)
         if "status" not in active and "f_status" not in params:
             active["status"] = ["open"]      # open ones unless you ask for done
-        show_closed = params.get("closed") == "1"
-        companies = [c for c in store.companies.values()
-                     if show_closed or not c.is_closed]
-        rows = filters.apply(todo_rows(companies, include_done=True), cols, active)
+        rows = filters.apply(todo_rows(store.companies.values(), include_done=True),
+                             cols, active)
         when = [w for w in params.getlist("when") if w in {k for k, _, _ in TASK_WHEN}]
         counts = {k: sum(1 for r in rows if test(r.due, today)) for k, _, test in TASK_WHEN}
         if when:
@@ -1232,7 +1231,7 @@ def create_app(root: Path, config: dict | None = None,
 
         def with_params(drop: tuple, add: list) -> str:
             kept = [(k, v) for k, v in params.multi_items()
-                    if k not in drop and k != "flash"]
+                    if k not in drop and k not in ("flash", "closed")]
             query = urlencode(kept + add)
             return "/tasks" + ("?" + query if query else "")
 
@@ -1240,19 +1239,20 @@ def create_app(root: Path, config: dict | None = None,
                   "url": with_params(("when",), [("when", w) for w in when if w != k]
                                      + ([] if k in when else [("when", k)]))}
                  for k, label, _ in TASK_WHEN]
-        closed_count = sum(1 for c in store.companies.values() if c.is_closed
-                           for t in c.todos() if not t.done)
         return render(request, "tasks.html", {
             "today": today, "rows": rows, "filter_columns": cols, "active": active,
             "sort": sort_key, "dir": sort_dir, "chips": chips, "when": when,
             "all_url": with_params(("when",), []),
-            "show_closed": show_closed, "closed_count": closed_count,
-            "closed_url": with_params(("closed",), [] if show_closed else [("closed", "1")]),
             "here": with_params((), []),
             "companies": store.all(),
+            "form_error": form_error, "form": form or {},
             "sort_url": lambda key, d: with_params(("sort", "dir"),
                                                    [("sort", key), ("dir", d)]),
-        })
+        }, status_code=status_code)
+
+    @app.get("/tasks", response_class=HTMLResponse)
+    def tasks_view(request: Request):
+        return _tasks_page(request, request.query_params)
 
     @app.post("/tasks")
     @app.post("/calendar/task")   # the form's old home; kept for open tabs
@@ -1260,10 +1260,20 @@ def create_app(root: Path, config: dict | None = None,
                     contact: str = Form(""), due: str = Form(""), back: str = Form("")):
         """Create a task: pick the company, optionally the person (slug or name)."""
         back = safe_back(back, "/tasks")
+
+        def refused(message: str):
+            # From the Tasks page the message goes next to the form, with what
+            # was typed still in it; the old calendar form gets a flash.
+            path, _, query = back.partition("?")
+            if path != "/tasks":
+                return flashed(back, message, "task-list")
+            form = {"text": text, "company": company, "contact": contact, "due": due}
+            return _tasks_page(request, QueryParams(query), message, form, 400)
+
         try:
             slug = bcc.resolve_company(store, company)
         except ValidationError:
-            return flashed(back, f"No company called {company!r}", "task-list")
+            return refused(f"No company called {company!r}")
         contact = " ".join(contact.split())
         people = store.companies[slug].contacts if slug in store.companies else {}
         if contact and contact not in people:
@@ -1274,13 +1284,13 @@ def create_app(root: Path, config: dict | None = None,
             if len(named) != 1:
                 known = ", ".join(p.name for p in people.values()) or "nobody yet"
                 why = "more than one person" if named else "nobody"
-                return flashed(back, f"{why} at {store.companies[slug].name} is called "
-                                     f"{contact!r}; people there: {known}", "task-list")
+                return refused(f"{why} at {store.companies[slug].name} is called "
+                               f"{contact!r}; people there: {known}")
             contact = named[0]
         try:
             store.add_task(slug, text, due=due, contact=contact)
         except ValidationError as exc:
-            return flashed(back, "; ".join(exc.errors.values()), "task-list")
+            return refused("; ".join(exc.errors.values()))
         return flashed(back, "Task created", "task-list")
 
     @app.post("/calendar/import")
