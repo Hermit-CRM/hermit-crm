@@ -1882,6 +1882,9 @@ def test_the_phone_rules_that_keep_the_company_page_on_the_screen():
     assert effective(phone, ".record-actions details.inline-edit[open]")["flex-basis"] == "100%"
     # The 260px merge field pushed Compare off a 375px screen; now Compare wraps.
     assert effective(phone, "#merge form.inline-row")["flex-wrap"] == "wrap"
+    # The add-task row gained a 260px type dropdown; every inline row wraps on a phone.
+    assert effective(phone, "form.inline-row")["flex-wrap"] == "wrap"
+    assert "flex-wrap" not in effective(wide, "form.inline-row")
 
 
 def test_a_custom_field_goes_all_the_way_through_the_app(client, app, repo):

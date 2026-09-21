@@ -316,6 +316,8 @@ form.inline-row { display: flex; gap: 10px; align-items: flex-end; }
 form.inline-row label { margin: 0; }
 form.inline-row select, form.inline-row input[list] { width: auto; min-width: 260px; }
 /* The 260px merge field and Compare do not fit side by side on a small phone. */
+@media (max-width: 760px) { #merge form.inline-row { flex-wrap: wrap; } }
+/* The add-task row (task, for, due, type) is wider than a phone: let it wrap too. */
 @media (max-width: 760px) { form.inline-row { flex-wrap: wrap; } }
 table.tasks select[name="type"] { min-width: 9em; padding: 1px 4px; font-size: 12px; }
 
