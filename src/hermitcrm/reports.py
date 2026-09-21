@@ -577,8 +577,8 @@ def hygiene(store: Store, today: date, rows: Rows | None = None) -> dict:
     that are not closed."""
     rows = _rows(rows)
     companies = store.all()
-    overdue = sorted((c for c in companies if not c.is_closed and c.next_step_overdue(today)),
-                     key=lambda c: (c.next_step_due, c.slug))
+    overdue = sorted((c for c in companies if not c.is_closed and c.next_overdue(today)),
+                     key=lambda c: (c.next_due, c.slug))
     silent = sorted((c for c in companies
                      if c.is_active and c.silent_days(today) >= store.silent_days),
                     key=lambda c: (-c.silent_days(today), c.slug))
@@ -586,7 +586,7 @@ def hygiene(store: Store, today: date, rows: Rows | None = None) -> dict:
                 for ct in sorted(c.contacts.values(), key=lambda ct: ct.slug) if not ct.email]
     return {
         "overdue": [{"slug": c.slug, "name": c.name, "stage": c.stage,
-                     "due": c.next_step_due, "next_step": c.next_step} for c in overdue],
+                     "due": c.next_due, "next_step": c.next_text} for c in overdue],
         "silent": [{"slug": c.slug, "name": c.name, "stage": c.stage,
                     "days": c.silent_days(today)} for c in silent],
         "no_email": [{"slug": c.slug, "company": c.name, "contact": ct.slug,
@@ -594,7 +594,7 @@ def hygiene(store: Store, today: date, rows: Rows | None = None) -> dict:
         "silent_days": store.silent_days,
         "row_keys": {
             "overdue": rows.put("hygiene.overdue", "Overdue next steps",
-                                [company_row(c, when=c.next_step_due, note=c.next_step)
+                                [company_row(c, when=c.next_due, note=c.next_text)
                                  for c in overdue]),
             "silent": rows.put("hygiene.silent", f"Silent {store.silent_days}+ days",
                                [company_row(c, note=f"{c.silent_days(today)} days silent")

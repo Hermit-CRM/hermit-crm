@@ -115,9 +115,9 @@ def render_one(brief: Brief, today=None) -> str:
         lines.append(f"### {company.name} ({company.slug}) -- {stage}")
         if company.product_oneliner:
             lines.append(company.product_oneliner)
-        if company.next_step_open:
-            due = f", due {fmt_date(company.next_step_due)}" if company.next_step_due else ""
-            lines.append(f"Open next step: {company.next_step or '(no text)'}{due}")
+        if company.next_open:
+            due = f", due {fmt_date(company.next_due)}" if company.next_due else ""
+            lines.append(f"Open next step: {company.next_text or '(no text)'}{due}")
         people = [c.name + (f" ({c.title})" if c.title else "")
                   for c in company.contacts.values()]
         if people:

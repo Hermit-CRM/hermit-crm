@@ -114,9 +114,9 @@ def _waiting(company, today: date) -> bool:
     same company on two lists for one decision. An overdue next step is not a
     plan any more, so it does not silence the radar.
     """
-    if not company.next_step_open:
+    if not company.next_open:
         return True
-    due = company.next_step_due
+    due = company.next_due
     return due is None or due <= today
 
 

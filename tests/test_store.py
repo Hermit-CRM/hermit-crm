@@ -994,3 +994,72 @@ def test_deleting_a_contact_takes_their_tasks_with_them(store, tmp_path):
     store.delete_contact(company.slug, "jane-roe")
     assert "jane-roe" not in store.get(company.slug).contacts
     assert store.get(company.slug).tasks == []       # never moved to the company
+
+
+# ------------------------------------------- the next step is the task due first
+
+
+def test_the_next_step_is_the_open_todo_due_first(store):
+    c = store.create_company(name="Acme", next_step="Call Jane",
+                             next_step_due="2026-09-20")
+    store.create_contact("acme", first_name="Jane", last_name="Roe")
+    assert store.get("acme").next_todo().is_field
+
+    store.add_task("acme", "undated one")
+    store.add_task("acme", "earlier", due="2026-09-16", contact="jane-roe")
+    c = store.get("acme")
+    todo = c.next_todo()
+    assert (todo.text, todo.contact.slug, todo.index) == ("earlier", "jane-roe", 0)
+    assert [t.text for t in c.open_todos()] == ["earlier", "Call Jane", "undated one"]
+    assert c.next_due == date(2026, 9, 16) and c.next_text == "earlier"
+    assert c.next_step == "Call Jane"       # nothing moved between fields
+
+    store.set_task_done("acme", 0, True, contact="jane-roe")
+    assert store.get("acme").next_text == "Call Jane"
+    store.update_company("acme", next_step_status="done")
+    assert store.get("acme").next_text == "undated one"   # dated first, then undated
+    store.set_task_done("acme", 0, True)
+    c = store.get("acme")
+    assert not c.next_open
+    assert c.next_todo().done and c.next_todo().text == "Call Jane"  # "next: X (done)"
+    assert c.next_due is None and not c.next_overdue(date(2026, 12, 1))
+
+
+def test_ties_keep_the_stored_order(store):
+    store.create_company(name="Acme", next_step="field", next_step_due="2026-09-20")
+    store.add_task("acme", "task", due="2026-09-20")
+    assert store.get("acme").next_text == "field"
+
+
+def test_done_dates_are_recorded_and_cleared(store, tmp_path):
+    store.create_company(name="Acme")
+    store.add_task("acme", "send the deck", due="2026-09-20")
+    store.set_task_done("acme", 0, True)
+    path = tmp_path / "companies/acme/company.md"
+    assert "done_on: 2026-09-14" in read(path)
+    assert store.get("acme").tasks[0].done_on == date(2026, 9, 14)
+    store.set_task_done("acme", 0, False)
+    assert "done_on" not in read(path) and store.get("acme").tasks[0].done_on is None
+
+    store.update_company("acme", next_step="Call", next_step_status="done")
+    assert store.get("acme").next_step_done_on == date(2026, 9, 14)
+    assert "next_step_done_on: 2026-09-14" in read(path)
+    store.update_company("acme", next_step="Call again")       # a new one starts open
+    assert store.get("acme").next_step_done_on is None
+    assert "next_step_done_on" not in read(path)
+
+
+def test_a_file_without_done_dates_is_written_back_unchanged(store, tmp_path):
+    """Folders from before done dates must not churn: no new keys appear."""
+    store.create_company(name="Acme", next_step="Call", next_step_due="2026-09-20")
+    store.add_task("acme", "old done", due="2026-09-01")
+    path = tmp_path / "companies/acme/company.md"
+    text = read(path).replace("- {text: old done, due: 2026-09-01}",
+                              "- {text: old done, due: 2026-09-01, done: true}")
+    path.write_text(text, encoding="utf-8")
+    fresh_store = Store(tmp_path, clock=lambda: FIXED_NOW)
+    fresh_store.load()
+    c = fresh_store.get("acme")
+    assert c.tasks[0].done and c.tasks[0].done_on is None
+    fresh_store.write_company(c)
+    assert read(path) == text

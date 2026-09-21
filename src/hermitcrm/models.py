@@ -388,15 +388,45 @@ class Interaction:
 class Task:
     """One thing you owe an account or a person.
 
-    The company's `next_step` is the single task that decides where the deal
-    stands; these are everything else. Keeping them apart is deliberate: the
-    pipeline stays one line per company, and a to-do list does not quietly
-    become a second pipeline.
+    A company's next step is not chosen: it is whichever open to-do for the
+    company is due first (see `Company.next_todo`). The `next_step` fields are
+    one more to-do on that list, kept where older files put it.
     """
 
     text: str
     due: date | None = None
     done: bool = False
+    done_on: date | None = None  # when it was ticked off; None for older files
+
+    def overdue(self, today: date | None = None) -> bool:
+        return bool(self.due and not self.done and self.due < (today or date.today()))
+
+
+@dataclass
+class Todo:
+    """One item on a company's to-do list, whatever it is stored as.
+
+    `index` is None for the company's `next_step` fields, otherwise the task's
+    place in `contact.tasks` (or the company's own `tasks` when `contact` is
+    None). Derived, never written to file.
+    """
+
+    text: str
+    due: date | None
+    done: bool
+    done_on: date | None
+    contact: "Contact | None" = None
+    index: int | None = None
+
+    @property
+    def key(self) -> tuple[str, int | None]:
+        """Identifies the to-do within its company: (contact slug or '', index)."""
+        return (self.contact.slug if self.contact else "", self.index)
+
+    @property
+    def is_field(self) -> bool:
+        """Stored in the company's next_step fields rather than a task list."""
+        return self.index is None
 
     def overdue(self, today: date | None = None) -> bool:
         return bool(self.due and not self.done and self.due < (today or date.today()))
@@ -429,6 +459,7 @@ class Company:
     next_step: str = ""
     next_step_due: date | None = None
     next_step_status: str = "open"
+    next_step_done_on: date | None = None
     tags: list[str] = field(default_factory=list)
     stage_history: list[StageChange] = field(default_factory=list)
     tasks: list[Task] = field(default_factory=list)
@@ -529,6 +560,54 @@ class Company:
         if self.next_step_due is None or self.next_step_done:
             return False
         return self.next_step_due < (today or date.today())
+
+    # --- the to-do list: next_step fields, company tasks and people's tasks
+    def todos(self) -> list[Todo]:
+        """Every to-do for this company, open and done, in stored order."""
+        out = []
+        if self.has_next_step:
+            out.append(Todo(self.next_step, self.next_step_due, self.next_step_done,
+                            self.next_step_done_on))
+        for i, t in enumerate(self.tasks):
+            out.append(Todo(t.text, t.due, t.done, t.done_on, None, i))
+        for person in self.contacts.values():
+            for i, t in enumerate(person.tasks):
+                out.append(Todo(t.text, t.due, t.done, t.done_on, person, i))
+        return out
+
+    def open_todos(self) -> list[Todo]:
+        """Open to-dos, soonest due first, undated last; ties keep stored order."""
+        return sorted((t for t in self.todos() if not t.done),
+                      key=lambda t: (t.due is None, t.due or date.min))
+
+    def next_todo(self) -> Todo | None:
+        """The next step: the open to-do due first. With nothing open, a done
+        next_step is returned (done) so "next: X (done)" still shows."""
+        todos = self.open_todos()
+        if todos:
+            return todos[0]
+        if self.next_step_done:
+            return Todo(self.next_step, self.next_step_due, True, self.next_step_done_on)
+        return None
+
+    @property
+    def next_open(self) -> bool:
+        return any(not t.done for t in self.todos())
+
+    @property
+    def next_due(self) -> date | None:
+        """Due date of the next step; what the pipeline sorts and colours by."""
+        t = self.next_todo()
+        return t.due if t and not t.done else None
+
+    @property
+    def next_text(self) -> str:
+        t = self.next_todo()
+        return t.text if t else ""
+
+    def next_overdue(self, today: date | None = None) -> bool:
+        t = self.next_todo()
+        return bool(t and t.overdue(today))
 
     def silent_days(self, today: date | None = None) -> int:
         today = today or date.today()
@@ -699,6 +778,8 @@ def task_to_dict(t: Task) -> dict:
         item["due"] = t.due
     if t.done:
         item["done"] = True
+        if t.done_on:
+            item["done_on"] = t.done_on
     return item
 
 
@@ -722,7 +803,13 @@ def _tasks(value, errors: dict[str, str]) -> list[Task]:
         except ValidationError:
             errors["tasks"] = f"task {n} has an unreadable due date"
             return []
-        out.append(Task(text=text, due=due, done=bool(item.get("done"))))
+        try:
+            done_on = parse_date(item.get("done_on")) if item.get("done_on") else None
+        except ValidationError:
+            errors["tasks"] = f"task {n} has an unreadable done_on date"
+            return []
+        done = bool(item.get("done"))
+        out.append(Task(text=text, due=due, done=done, done_on=done_on if done else None))
     return out
 
 
@@ -750,8 +837,10 @@ def company_to_frontmatter(c: Company) -> dict:
         "next_step": c.next_step,
         "next_step_due": c.next_step_due,
         "next_step_status": c.next_step_status,
-        "tags": list(c.tags),
     }
+    if c.next_step_done and c.next_step_done_on:  # absent unless done, so older files stay byte-identical
+        meta["next_step_done_on"] = c.next_step_done_on
+    meta["tags"] = list(c.tags)
     if c.stage_history:  # absent until the first recorded change
         meta["stage_history"] = [stage_change_to_dict(e) for e in c.stage_history]
     if c.tasks:          # absent until there is one
@@ -811,7 +900,8 @@ COMPANY_KEYS = frozenset({
     "name", "slug", "website", "linkedin", "country", "source", "stage", "stage_changed",
     "lost_reason", "requalify_on", "value_eur_month", "product_oneliner",
     "next_step", "next_step_due",
-    "next_step_status", "tags", "stage_history", "tasks", "created", "updated",
+    "next_step_status", "next_step_done_on", "tags", "stage_history", "tasks",
+    "created", "updated",
 })
 CONTACT_KEYS = frozenset({
     "first_name", "last_name", "name", "slug", "title", "linkedin", "email", "phone",
@@ -933,6 +1023,8 @@ def company_from_dict(meta: dict, body: str, slug: str) -> Company:
         next_step_due=_date_or_none(meta.get("next_step_due"), "next_step_due", errors),
         next_step_status=_enum(_str(meta, "next_step_status"), TaskStatus,
                                "next_step_status", True, errors, "open"),
+        next_step_done_on=_date_or_none(meta.get("next_step_done_on"),
+                                        "next_step_done_on", errors),
         tags=parse_tags(meta.get("tags")),
         stage_history=_stage_history(meta.get("stage_history"), errors),
         tasks=_tasks(meta.get("tasks"), errors),

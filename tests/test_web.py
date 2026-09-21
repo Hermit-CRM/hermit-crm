@@ -27,6 +27,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from hermitcrm import usertheme
+from hermitcrm.models import fmt_date
 from hermitcrm.web import asset_version, company_values, create_app
 from conftest import FIXED_NOW
 from test_tokens import effective  # the CSS reader the token tests use
@@ -384,17 +385,20 @@ def test_today_sections(client, app, repo):
     client.post("/reload")
 
     r = client.get("/today")
-    assert r.status_code == 303 and r.headers["location"] == "/calendar#top-priority"
-    page = client.get("/calendar").text
-    priority = page[page.index('id="top-priority"'):page.index('class="month-nav"')]
-    future = page[page.index('id="future-tasks"'):page.index('id="silent"')]
-    silent_part = page[page.index('id="silent"'):]
+    assert r.status_code == 303 and r.headers["location"] == "/tasks?when=overdue&when=today"
+    table = lambda url: client.get(url).text.split("</nav>", 1)[1].split('id="task-list"')[0]
+    priority = table("/tasks?when=overdue&when=today")
+    future = table("/tasks?when=later")
     assert "Due Now GmbH" in priority
     assert "Future GmbH" not in priority and "Future GmbH" in future
-    assert "Closed GmbH" not in priority and "Closed GmbH" not in future
+    assert "Closed GmbH" not in future
+    assert "Closed GmbH" in table("/tasks")          # closed companies are listed too
+    assert "/interactions/new" not in priority        # no "log interaction" here
+    page = client.get("/calendar").text
+    silent_part = page[page.index('id="silent"'):]
     assert "Quiet GmbH" in silent_part
     assert "Due Now GmbH" not in silent_part
-    assert "/companies/due-now/interactions/new" in priority
+    assert "1 due today or earlier" in page
     assert "Today" not in page.split("</nav>")[0]
 
 
@@ -613,9 +617,7 @@ def test_acceptance_flow(client, app, repo):
                          next_step="Send proposal outline",
                          next_step_due=str(YESTERDAY))
     assert resp.status_code == 303
-    today_page = client.get("/calendar").text
-    overdue_part = today_page[today_page.index('id="top-priority"'):
-                              today_page.index('class="month-nav"')]
+    overdue_part = client.get("/tasks?when=overdue").text.split("</nav>", 1)[1]
     assert "Müller &amp; Söhne GmbH" in overdue_part or \
            "Müller & Söhne GmbH" in overdue_part
     pipeline = pipeline_text(repo)
@@ -689,47 +691,85 @@ def test_next_step_done_button_and_views(client, app, repo):
     post_company(client, name="Beta", next_step="Send deck", next_step_due="2026-09-20")
     post_company(client, name="Gamma", next_step="Find intro")
     page = client.get("/companies/acme").text
-    assert "Mark done" in page and 'action="/companies/acme/next-step"' in page
-    assert "Acme" in client.get("/calendar").text.split('class="month-nav"')[0]
+    assert ">Done<" in page and 'action="/companies/acme/next-step"' in page
+    tasks_page = lambda url="/tasks": client.get(url).text.split("</nav>", 1)[1]
+    assert "Call Jane" in tasks_page()
 
     r = client.post("/companies/acme/next-step", data={"status": "done"},
                     headers={"referer": "http://testserver/calendar?flash=x"})
     assert r.status_code == 303 and r.headers["location"].startswith("/calendar?flash=")
-    assert app.state.store.get("acme").next_step_done
+    acme = app.state.store.get("acme")
+    assert acme.next_step_done and acme.next_step_done_on == app.state.store.today()
+    assert f"next_step_done_on: {acme.next_step_done_on}" in \
+        company_file(repo, "acme").read_text(encoding="utf-8")
     assert last_commit(repo) == "company: acme next step done"
-    assert "Acme" not in client.get("/calendar").text.split('class="month-nav"')[0]
+    assert "Call Jane" not in tasks_page()
+    done = tasks_page("/tasks?f_status=done")
+    assert "Call Jane" in done and fmt_date(acme.next_step_done_on) in done
     page = client.get("/companies/acme").text
     assert "Reopen" in page and "status-done" in page and "Add to Google Calendar" not in page
     assert "(done)" in client.get("/pipeline").text and "(done)" in client.get("/companies").text
 
     r = client.post("/companies/acme/next-step", data={"status": "open"})
-    assert r.headers["location"] == "/companies/acme?flash=Next%20step%20reopened#tasks"
+    assert r.headers["location"] == "/companies/acme?flash=Task%20reopened#tasks"
     assert last_commit(repo) == "company: acme next step reopened"
+    acme = app.state.store.get("acme")
+    assert acme.next_step_done_on is None
+    assert "next_step_done_on" not in company_file(repo, "acme").read_text(encoding="utf-8")
 
 
-def test_the_next_step_lives_on_the_company_and_tasks_live_where_they_belong(
-        client, app, repo):
-    """One next step decides the deal; everything else is a list beside it."""
-    post_company(client, name="Acme")
+def test_the_next_step_is_the_task_due_first(client, app, repo):
+    """No picking: the company's open task due first is its next step, for the
+    company or one of its people, and adding a task never replaces one."""
+    post_company(client, name="Acme", next_step="Call Jane",
+                 next_step_due=str(TODAY + timedelta(days=5)))
     post_contact(client, "acme", first_name="Jane", last_name="Roe")
 
     page = client.get("/companies/acme").text
-    assert 'id="tasks"' in page and "No open task." in page
-    assert 'action="/companies/acme/task"' in page          # the next step
-    assert 'action="/companies/acme/tasks"' in page         # everything else
+    assert 'id="tasks"' in page
+    assert 'action="/companies/acme/task"' not in page      # no "Save next step" form
+    assert 'action="/companies/acme/tasks"' in page         # one "Add task" form
+    assert '<option value="jane-roe">Jane Roe</option>' in page
+    # "This company on the Tasks page" filters to this company only
+    post_company(client, name="Acme Two", next_step="Other", next_step_due=str(TODAY))
+    link = re.search(r'href="(/tasks\?f_company_name=[^"]+)"', page).group(1)
+    listed = client.get(htmllib.unescape(link)).text.split("</nav>", 1)[1].split('id="task-list"')[0]
+    assert "Call Jane" in listed and "Other" not in listed
 
     contact_page = client.get("/companies/acme/contacts/jane-roe").text
     assert "Tasks for Jane Roe" in contact_page
-    assert 'href="/companies/acme#tasks"' in contact_page   # points at the next step
-    assert 'action="/companies/acme/task"' not in contact_page
+    assert 'href="/companies/acme#tasks"' in contact_page
 
+    # an earlier task for Jane becomes the next step; the old one stays a task
+    client.post("/companies/acme/tasks", data={
+        "text": "send her the deck", "contact": "jane-roe",
+        "due": str(TODAY + timedelta(days=2))})
+    company = app.state.store.get("acme")
+    assert company.next_step == "Call Jane" and company.next_step_open   # untouched
+    assert company.next_text == "send her the deck"
+    assert company.next_due == TODAY + timedelta(days=2)
+    assert "next: send her the deck (Jane Roe), due" in pipeline_text(repo)
+    page = client.get("/companies/acme").text
+    rows = page.split('id="tasks"')[1].split("</table>")[0]
+    assert rows.index("send her the deck") < rows.index('next step</span>') < rows.index("Call Jane")
+    assert "(Jane Roe), due" in page.split('class="small next-step-line')[1][:600]
+
+    # tick it off and "Call Jane" is next again
+    client.post("/companies/acme/tasks/0/done",
+                data={"contact": "jane-roe", "text": "send her the deck", "done": "1"})
+    company = app.state.store.get("acme")
+    assert company.next_text == "Call Jane"
+    assert company.contacts["jane-roe"].tasks[0].done_on == app.state.store.today()
+
+    # the old "Save next step" form, from a tab left open, now adds a task
     r = client.post("/companies/acme/task",
-                    data={"next_step": "Call Jane", "next_step_due": "2026-09-20"},
+                    data={"next_step": "Book the demo", "next_step_due": ""},
                     headers={"referer": "http://testserver/companies/acme"})
     assert r.status_code == 303 and r.headers["location"].endswith("#tasks")
-    assert last_commit(repo) == "company: acme next step set"
     company = app.state.store.get("acme")
-    assert company.next_step == "Call Jane" and company.next_step_open
+    assert company.next_step == "Call Jane"
+    assert [t.text for t in company.tasks] == ["Book the demo"]
+    assert company.next_text == "Call Jane"       # dated beats undated
 
 
 def test_a_company_keeps_a_list_of_tasks_beside_its_next_step(client, app, repo):
@@ -815,12 +855,41 @@ def test_a_task_can_be_created_from_the_calendar(client, app, repo):
 
     page = client.get("/calendar").text
     assert "send the pricing page" in page.split('id="day-2026-09-24"')[1].split("</td>")[0]
-    listing = page.split('id="task-list"')[1].split('id="future-tasks"')[0]
+    listing = client.get("/tasks").text.split("</nav>", 1)[1]
     assert "send the pricing page" in listing and "book the intro call" in listing
     assert "Ines Vega" in listing and "no date" in listing
 
+    # /tasks takes the same form, a person by name, and returns to the view
+    r = client.post("/tasks", data={"text": "ask about budget",
+                                    "company": "Harbour Light Labs",
+                                    "contact": "ines vega",
+                                    "back": "/tasks?when=none&flash=old"})
+    assert r.headers["location"] == "/tasks?when=none&flash=Task%20created#task-list"
+    assert [t.text for t in app.state.store.get("harbour-light-labs")
+            .contacts["ines-vega"].tasks] == ["book the intro call", "ask about budget"]
+    # a first name alone is enough; an unknown one says who is there
+    client.post("/tasks", data={"text": "first name only", "company": "Harbour Light Labs",
+                                "contact": "Ines"})
+    assert app.state.store.get("harbour-light-labs").contacts["ines-vega"].tasks[-1].text \
+        == "first name only"
+    r = client.post("/tasks", data={"text": "call about pricing",
+                                    "company": "Harbour Light Labs", "contact": "jane",
+                                    "due": "2026-09-30", "back": "/tasks?when=none"})
+    assert r.status_code == 400
+    form = r.text.split('id="task-list"')[1]          # the message sits by the form
+    assert "nobody at Harbour Light Labs is called &#39;jane&#39;" in form
+    assert "Ines Vega" in form and 'class="flash"' not in r.text
+    assert 'value="call about pricing"' in form and 'value="jane"' in form
+    assert 'value="2026-09-30"' in form and 'value="/tasks?when=none"' in form
+    r = client.post("/tasks", data={"text": "x", "company": "Harbour Light Labs",
+                                    "back": "https://evil.example/"})
+    assert r.headers["location"].startswith("/tasks?flash=")
+
     # a company nobody has is refused rather than invented
     r = client.post("/calendar/task", data={"text": "x", "company": "Nobody"})
+    assert r.status_code == 400 and "No company called &#39;Nobody&#39;" in r.text
+    r = client.post("/calendar/task", data={"text": "x", "company": "Nobody",
+                                            "back": "/calendar"})
     assert "No%20company%20called" in r.headers["location"]
 
     # ticking one off from the calendar works on the right record
@@ -844,25 +913,77 @@ def test_calendar_view_shows_open_tasks(frozen_client):
     cell = page.split('id="day-2026-09-10"')[1].split("</td>")[0]
     assert "Acme" in cell and 'class="task overdue"' in cell
     assert "Beta" in page.split('id="day-2026-09-20"')[1].split("</td>")[0]
-    # a done next step is off the calendar; the company still appears in the
-    # new-task picker, because a task on a won customer is an ordinary thing
-    grid = page.split('<h2 id="task-list"')[0]
-    assert "Done Co" not in grid and "Finished" not in page
-    # Stop at the next heading, not at the month nav: between the two sits the
-    # meetings section, and a company named in a brief there is not a task.
-    priority = page.split('id="top-priority"')[1].split('id="meetings"')[0]
+    # a done next step is off the calendar
+    assert "Finished" not in page
+    # the old task tables moved to /tasks; one line points there
+    assert 'id="future-tasks"' not in page and 'id="task-list"' not in page
+    assert "2 due today or earlier" in page and 'href="/tasks?when=overdue&amp;when=today"' in page
+
+    main = lambda url: frozen_client.get(url).text.split("</nav>", 1)[1].split('id="task-list"')[0]
+    priority = main("/tasks?when=overdue&when=today")
     assert priority.index("Delta") < priority.index("Acme")
     assert "Beta" not in priority and "Gamma" not in priority
-    tasks = page.split('id="future-tasks"')[1].split('id="silent"')[0]
-    assert tasks.index("Beta") < tasks.index("Gamma")
-    assert "Acme" not in tasks and "Delta" not in tasks
-    assert "no date" in tasks
-    assert "Mark done" in tasks and "Mark done" in priority
+    later = main("/tasks?when=week&when=none")
+    assert later.index("Beta") < later.index("Gamma")
+    assert "Acme" not in later and "Delta" not in later
+    assert "no date" in later and ">Done<" in later
     assert 'href="/calendar?month=2026-08"' in page and 'href="/calendar?month=2026-10"' in page
 
     august = frozen_client.get("/calendar?month=2026-08").text
     assert "August 2026" in august and "Delta" in august.split('id="day-2026-08-03"')[1].split("</td>")[0]
     assert frozen_client.get("/calendar?month=garbage").status_code == 200
+
+
+def test_the_tasks_page_filters_every_task_in_one_table(frozen_client):
+    """Date buttons, a filter per column, done dates, closed companies."""
+    c = frozen_client
+    post_company(c, name="Acme", stage="discovery", next_step="Call Jane",
+                 next_step_due="2026-09-10")
+    post_contact(c, "acme", first_name="Jane", last_name="Roe")
+    c.post("/companies/acme/tasks", data={"text": "send the deck", "contact": "jane-roe",
+                                          "due": "2026-09-30"})
+    c.post("/companies/acme/tasks", data={"text": "check the audit"})
+    post_company(c, name="Beta", next_step="Book the demo", next_step_due="2026-09-14")
+    post_company(c, name="Lost Co", stage="lost", lost_reason="budget",
+                 next_step="Ask again", next_step_due="2026-09-15")
+    main = lambda url: c.get(url).text.split("</nav>", 1)[1]
+    table = lambda url: main(url).split('class="filters"')[1].split("</table>")[0]
+
+    page = main("/tasks")
+    assert "Tasks (5)" in page                    # open ones, closed companies too
+    assert "Ask again" in page and "Show closed companies" not in page
+    # one chip per date range, with a count
+    for label, n in (("Overdue", 1), ("Today", 1), ("Next 7 days", 2), ("Later", 1),
+                     ("No date", 1)):
+        assert f'{label} <span class="count">{n}</span>' in page
+    # the next step is each company's open task due first
+    rows = table("/tasks")
+    assert rows.index("Call Jane") < rows.index("Book the demo") \
+        < rows.index("send the deck") < rows.index("check the audit")
+    assert rows.count("next step</span>") == 3
+
+    assert "Book the demo" in table("/tasks?when=today") and "Call Jane" not in table("/tasks?when=today")
+    both = table("/tasks?when=overdue&when=today")
+    assert "Call Jane" in both and "Book the demo" in both and "send the deck" not in both
+    assert "Ask again" not in table("/tasks?f_stage=discovery")
+
+    kind = table("/tasks?f_kind=task")
+    assert "send the deck" in kind and "Call Jane" not in kind
+    assert "Jane Roe" in table("/tasks?f_who=jane") and "Beta" not in table("/tasks?f_who=jane")
+    assert "Book the demo" not in table("/tasks?f_stage=discovery")
+    assert "check the audit" in table("/tasks?f_due=-") and "Call Jane" not in table("/tasks?f_due=-")
+    by_text = table("/tasks?sort=text&dir=asc")
+    assert by_text.index("Book the demo") < by_text.index("Call Jane") < by_text.index("check the audit")
+
+    # Done from the filtered view comes back to it and records the day
+    r = c.post("/companies/acme/tasks/0/done",
+               data={"text": "check the audit", "done": "1", "back": "/tasks?f_kind=task"})
+    assert r.headers["location"] == "/tasks?f_kind=task&flash=Task%20done#tasks"
+    assert "check the audit" not in table("/tasks")
+    done = table("/tasks?f_status=done")
+    assert "check the audit" in done and "2026-09-14" in done
+    assert "check the audit" in table("/tasks?f_status=done&f_done_on=>2026-09-13")
+    assert "check the audit" in table("/tasks?f_status=open&f_status=done")
 
 
 def test_board_unused_columns_are_marked(client):
@@ -1103,8 +1224,9 @@ def test_disqualify_buttons_and_routes(client, app, repo):
 def test_parked_company_keeps_its_revisit_task_but_leaves_silent_list(client, app):
     post_company(client, name="Acme", stage="temp-disqualified", next_step="Revisit",
                  next_step_due=YESTERDAY.isoformat())
+    assert "Revisit" in client.get("/tasks?when=overdue").text.split("</nav>", 1)[1]
     today = client.get("/calendar").text
-    assert "Acme" in today.split('class="month-nav"')[0]
+    assert "1 due today or earlier" in today
     assert "Acme" not in today.split('id="silent"')[1]
 
 
@@ -1738,7 +1860,7 @@ def test_every_table_on_the_company_page_scrolls_in_a_box_of_its_own(client, app
     page = client.get("/companies/acme").text
     assert "Stage history (1)" in page
     tables = page.count("<table")
-    assert tables >= 4  # stage history, contacts, next step, other tasks
+    assert tables >= 3  # stage history, contacts, tasks (one list since the merge)
     assert page.count('<div class="table-scroll"><table') == tables
 
 

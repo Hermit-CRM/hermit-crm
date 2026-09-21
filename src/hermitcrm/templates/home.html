@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "macros.html" as m %}
 {% block title %}Hermit CRM{% endblock %}
 {% block content %}
 <h1>Hermit CRM</h1>
@@ -19,38 +20,18 @@
 <h2 id="doing">What needs doing</h2>
 <table>
   <tr><th>due</th><th>for</th><th>what</th><th></th></tr>
-  {% for c in due_soon %}
-  <tr class="{% if c.next_step_overdue(today) %}overdue{% endif %}">
-    <td class="{% if c.next_step_overdue(today) %}overdue{% endif %}">{{ fmt_date(c.next_step_due) }}</td>
-    <td><a href="/companies/{{ c.slug }}">{{ c.name }}</a></td>
-    <td>{{ c.next_step or '(no text)' }} <span class="small">next step</span></td>
-    <td class="actions">
-      <form method="post" action="/companies/{{ c.slug }}/next-step" class="inline">
-        <input type="hidden" name="status" value="done"><button type="submit">Done</button>
-      </form>
-    </td>
+  {% for r in due_soon %}
+  <tr class="{% if r.todo.overdue(today) %}overdue{% endif %}">
+    <td class="{% if r.todo.overdue(today) %}overdue{% endif %}">{{ fmt_date(r.due) }}</td>
+    <td><a href="{{ r.href }}">{{ r.who }}</a>{% if r.contact %} <span class="small">({{ r.company_name }})</span>{% endif %}</td>
+    <td>{{ r.text or '(no text)' }}{% if r.is_next %} <span class="small">next step</span>{% endif %}</td>
+    <td class="actions">{{ m.todo_actions(r.company, r.todo) }}</td>
   </tr>
-  {% endfor %}
-  {% for r in tasks %}
-  <tr class="{% if r.task.overdue(today) %}overdue{% endif %}">
-    <td class="{% if r.task.overdue(today) %}overdue{% endif %}">{{ fmt_date(r.task.due) }}</td>
-    <td><a href="/companies/{{ r.company.slug }}{% if r.contact %}/contacts/{{ r.contact.slug }}{% endif %}">{{ r.contact.name if r.contact else r.company.name }}</a></td>
-    <td>{{ r.task.text }}</td>
-    <td class="actions">
-      <form method="post" action="/companies/{{ r.company.slug }}/tasks/{{ r.index }}/done" class="inline">
-        <input type="hidden" name="contact" value="{{ r.contact.slug if r.contact else '' }}">
-        <input type="hidden" name="text" value="{{ r.task.text }}">
-        <input type="hidden" name="done" value="1">
-        <button type="submit">Done</button>
-      </form>
-    </td>
-  </tr>
-  {% endfor %}
-  {% if not due_soon and not tasks %}
+  {% else %}
   <tr><td colspan="4" class="empty">Nothing due in the next seven days.</td></tr>
-  {% endif %}
+  {% endfor %}
 </table>
-<p class="small"><a href="/calendar">The whole calendar and task list</a>.</p>
+<p class="small"><a href="/tasks">All tasks, with filters</a> &middot; <a href="/calendar">the calendar</a>.</p>
 
 {% if followups %}
 <h2 id="owed">Replies you owe ({{ followups | length }})</h2>

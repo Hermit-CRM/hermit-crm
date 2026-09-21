@@ -53,7 +53,7 @@
 
 <section id="tasks">
   <h2>Tasks for {{ contact.name }}</h2>
-  <p class="small">Things you owe this person. The deal's <a href="/companies/{{ company.slug }}#tasks">next step</a> is kept on {{ company.name }}, because that is what moves the pipeline.</p>
+  <p class="small">Things you owe this person. {{ company.name }}'s <a href="/companies/{{ company.slug }}#tasks">next step</a> is its open task due first, which can be one of these.</p>
   {{ m.task_list(company, contact.tasks, today, contact=contact.slug) }}
 </section>
 
