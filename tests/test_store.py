@@ -1063,3 +1063,15 @@ def test_a_file_without_done_dates_is_written_back_unchanged(store, tmp_path):
     assert c.tasks[0].done and c.tasks[0].done_on is None
     fresh_store.write_company(c)
     assert read(path) == text
+
+
+def test_untyped_tasks_and_next_steps_stay_byte_identical(store):
+    store.create_company(name="Acme")
+    store.update_company("acme", next_step="call", next_step_due="2026-09-30")
+    store.add_task("acme", "send deck", due="2026-10-01")
+    path = store.root / "companies" / "acme" / "company.md"
+    before = read(path)
+    assert "type" not in before
+    s2 = fresh(store)
+    s2.write_company(s2.get("acme"))
+    assert read(path) == before

@@ -220,7 +220,8 @@ COMPANY_COPY_FIELDS = (
     "name", "slug", "website", "linkedin", "country", "source", "stage",
     "stage_changed", "lost_reason", "requalify_on", "value_eur_month",
     "product_oneliner", "next_step",
-    "next_step_due", "next_step_status", "next_step_done_on", "tags",
+    "next_step_due", "next_step_status", "next_step_done_on", "next_step_type",
+    "tags",
     "stage_history", "tasks", "created", "updated",
     "notes",
 )
