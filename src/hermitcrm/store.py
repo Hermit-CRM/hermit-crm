@@ -305,6 +305,7 @@ class Store:
         on_write: Callable[[str], None] | None = None,
         clock: Callable[[], datetime] | None = None,
         outcomes: list[str] | None = None,
+        task_types: list[str] | None = None,
     ):
         self.root = Path(root)
         self.companies_dir = self.root / "companies"
@@ -313,6 +314,8 @@ class Store:
         self.silent_days = silent_days
         # Allowed interaction outcomes (config `outcomes`); "" is always allowed.
         self.outcomes = [str(o) for o in (outcomes or DEFAULT_OUTCOMES)]
+        # Allowed task types (config task_types, by name); "" is always allowed.
+        self.task_types = [str(t) for t in (task_types or [])]
         self.on_write = on_write
         self._touched: list[str] = []
         self._batch: list[str] | None = None
@@ -603,6 +606,15 @@ class Store:
             )
         return value
 
+    def _coerce_type(self, value, current: str = "", key: str = "type") -> str:
+        """Empty, one of the configured task types, or unchanged (a type deleted
+        in Settings stays on the to-dos that have it)."""
+        value = " ".join(str(value or "").split())
+        if value and value != current and value not in self.task_types:
+            allowed = ", ".join(self.task_types) or "none set up in Settings"
+            raise ValidationError({key: f"unknown task type {value!r} (allowed: {allowed})"})
+        return value
+
     # --- mutations: company
 
     @_locked
@@ -727,6 +739,9 @@ class Store:
         if "next_step_due" in fields:
             new.next_step_due = self._coerce_date(fields["next_step_due"],
                                                   "next_step_due")
+        if "next_step_type" in fields:
+            new.next_step_type = self._coerce_type(fields["next_step_type"],
+                                                   company.next_step_type, "next_step_type")
         status_explicit = False
         if "next_step_status" in fields:
             status = self._coerce_enum(fields["next_step_status"], TaskStatus,
@@ -890,12 +905,13 @@ class Store:
 
     @_locked
     def add_task(self, slug: str, text: str, due=None, contact: str = "",
-                 message: str | None = None) -> Task:
+                 message: str | None = None, type: str = "") -> Task:
         company, record = self._task_owner(slug, contact)
         text = " ".join((text or "").split())
         if not text:
             raise ValidationError({"text": "a task needs a line of text"})
-        task = Task(text=text, due=self._coerce_date(due, "due"))
+        task = Task(text=text, due=self._coerce_date(due, "due"),
+                    type=self._coerce_type(type))
         record.tasks = [*record.tasks, task]
         record.updated = self.now()
         where = f"{slug}/{contact}" if contact else slug
@@ -928,6 +944,55 @@ class Store:
         self._write_owner(company, record)
         self._notify(f"task: {where} deleted")
         return task
+
+    @_locked
+    def set_todo_type(self, slug: str, index: int | None, type: str,
+                      contact: str = "", text: str = "") -> None:
+        """Retype one to-do: task `index` of the company or `contact`, or the
+        next-step fields when `index` is None."""
+        if index is None:
+            self.update_company(slug, next_step_type=type,
+                                message=f"task: {slug} next step retyped")
+            return
+        company, record = self._task_owner(slug, contact)
+        task = self._task_at(record, index, text)
+        task.type = self._coerce_type(type, task.type)
+        record.updated = self.now()
+        where = f"{slug}/{contact}" if contact else slug
+        self._write_owner(company, record)
+        self._notify(f"task: {where} retyped")
+
+    def type_names_in_use(self) -> list[str]:
+        """Every type some to-do carries, sorted; the filters offer these too."""
+        return sorted({t.type for c in self.companies.values() for t in c.todos()
+                       if t.type})
+
+    def rename_task_type(self, old: str, new: str) -> int:
+        """Put `new` on every to-do typed `old`, in one commit. Returns the count."""
+        count = 0
+        with self.batch(f'settings: task type "{old}" renamed to "{new}"') as ctx:
+            for company in list(self.companies.values()):
+                changed = company.next_step_type == old
+                if changed:
+                    company.next_step_type = new
+                    count += 1
+                for t in company.tasks:
+                    if t.type == old:
+                        t.type, changed = new, True
+                        count += 1
+                if changed:
+                    self.write_company(company)
+                    self._notify(f"task: {company.slug} retyped")
+                for person in company.contacts.values():
+                    hit = [t for t in person.tasks if t.type == old]
+                    for t in hit:
+                        t.type = new
+                    if hit:
+                        count += len(hit)
+                        self.write_contact(company.slug, person)
+                        self._notify(f"task: {company.slug}/{person.slug} retyped")
+            ctx["message"] += f" ({count} to-do{'s' if count != 1 else ''})"
+        return count
 
     def open_tasks(self, today=None) -> list[tuple[Company, object, int, Task]]:
         """Every open task in the folder as (company, record, index, task).

@@ -30,7 +30,7 @@ import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from hermitcrm import __version__, migrations
+from hermitcrm import __version__, migrations, task_types
 from hermitcrm.datafolder import InitError, NotDataFolder, init_folder, resolve_data_dir
 from hermitcrm.enrich import EnrichError, Enricher
 from hermitcrm.gitops import GitOps
@@ -63,7 +63,8 @@ def _writer(store: Store, root: Path, config: dict):
 
 def build_store(root: Path) -> Store:
     config = load_config(root)
-    store = Store(root, silent_days=config["silent_days"], outcomes=config["outcomes"])
+    store = Store(root, silent_days=config["silent_days"], outcomes=config["outcomes"],
+                  task_types=task_types.names(task_types.from_config(config.get("task_types"))))
     store.load()
     return store
 

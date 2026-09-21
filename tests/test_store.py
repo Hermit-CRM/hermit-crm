@@ -1075,3 +1075,62 @@ def test_untyped_tasks_and_next_steps_stay_byte_identical(store):
     s2 = fresh(store)
     s2.write_company(s2.get("acme"))
     assert read(path) == before
+
+
+# --- task types ------------------------------------------------------------
+
+
+def test_task_types_are_checked_like_outcomes(store):
+    store.task_types = ["prospecting", "lost deals"]
+    store.create_company(name="Acme")
+    store.add_task("acme", "send deck", type="prospecting")
+    assert store.companies["acme"].tasks[0].type == "prospecting"
+    with pytest.raises(ValidationError):
+        store.add_task("acme", "x", type="nope")
+    store.update_company("acme", next_step="call", next_step_type="lost deals")
+    store.task_types = ["prospecting"]              # "lost deals" deleted in Settings
+    store.update_company("acme", next_step_due="2026-09-30",
+                         next_step_type="lost deals")   # unchanged legacy value is kept
+    assert store.companies["acme"].next_step_type == "lost deals"
+    with pytest.raises(ValidationError):
+        store.update_company("acme", next_step_type="other")
+
+
+def test_set_todo_type_changes_a_task_or_the_next_step(store):
+    store.task_types = ["prospecting", "lost deals"]
+    store.create_company(name="Acme")
+    store.update_company("acme", next_step="call")
+    store.add_task("acme", "send deck")
+    store.set_todo_type("acme", 0, "prospecting", text="send deck")
+    store.set_todo_type("acme", None, "lost deals")
+    c = store.companies["acme"]
+    assert c.tasks[0].type == "prospecting" and c.next_step_type == "lost deals"
+    store.set_todo_type("acme", 0, "", text="send deck")
+    assert store.companies["acme"].tasks[0].type == ""
+    with pytest.raises(ValidationError):
+        store.set_todo_type("acme", 0, "prospecting", text="something else")
+
+
+def test_rename_rewrites_every_todo_in_one_commit(store):
+    written = []
+    store.on_write = written.append
+    store.task_types = ["lost deals", "prospecting"]
+    store.create_company(name="Acme")
+    store.create_contact("acme", first_name="Jane", last_name="Roe")
+    store.update_company("acme", next_step="call", next_step_type="lost deals")
+    store.add_task("acme", "a", type="lost deals")
+    store.add_task("acme", "b", type="prospecting")
+    store.add_task("acme", "c", contact="jane-roe", type="lost deals")
+    written.clear()
+    assert store.rename_task_type("lost deals", "lost deal revival") == 3
+    assert written == ['settings: task type "lost deals" renamed to '
+                       '"lost deal revival" (3 to-dos)']
+    c = store.companies["acme"]
+    assert c.next_step_type == "lost deal revival"
+    assert [t.type for t in c.tasks] == ["lost deal revival", "prospecting"]
+    assert c.contacts["jane-roe"].tasks[0].type == "lost deal revival"
+    assert store.type_names_in_use() == ["lost deal revival", "prospecting"]
+    s2 = fresh(store)                                # and it is on disk
+    assert s2.get("acme").contacts["jane-roe"].tasks[0].type == "lost deal revival"
+    written.clear()
+    assert store.rename_task_type("nobody", "x") == 0 and written == []
