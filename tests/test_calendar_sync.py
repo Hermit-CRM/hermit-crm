@@ -416,8 +416,9 @@ def test_calendar_import_route_upcoming_and_inbox(client):
     assert "brief-timeline" in page and "meeting out (jane-doe)" in page
     assert "engaged &middot; 0d in stage" in page
 
-    page = client.get("/settings").text
+    page = client.get("/welcome").text  # Home while the walkthrough is unfinished
     assert 'class="tag">meeting</span>' in page and "ann@lee.com" in page
+    page = client.get("/settings").text
     assert "Import meetings now" in page and "Last meeting import" in page
 
     client.app_state.fetch_calendar = lambda url: (_ for _ in ()).throw(

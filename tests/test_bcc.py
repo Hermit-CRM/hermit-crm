@@ -638,8 +638,10 @@ def test_inbox_routes_end_to_end(client, repo):
                                  "1 contacts, 1 to review)")
     assert (repo / "companies/acme/contacts/jane-doe.md").exists()
 
+    page = client.get("/welcome").text  # Home while the walkthrough is unfinished
+    assert '<span class="badge" title="To file">1</span>' in page
+    assert "ann.lee@gmail.com" in page and 'value="Ann"' in page
     page = client.get("/settings").text
-    assert '<span class="badge">1</span>' in page and "ann.lee@gmail.com" in page and 'value="Ann"' in page
     assert "Last import 2026" not in page or "1 interactions logged" in page
     item_id = client.app_state.inbox.items()[0].id
 
