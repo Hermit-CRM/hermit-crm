@@ -7,7 +7,7 @@
 {{ m.filter_form('company-filters', '/companies', active, q, sort, dir) }}
 <a class="toggle-parked" href="{{ toggle_url }}">{% if show_parked %}Hide temp disqualified{% else %}Show temp disqualified ({{ hidden_parked }}){% endif %}</a>
 {% if show_parked %}<input type="hidden" name="parked" value="1" form="company-filters">{% endif %}
-<table class="filterable">
+<div class="table-scroll"><table class="filterable">
   <tr>{% for col in filter_columns %}<th>{{ col.label }} {{ m.sort_links(col, sort, dir, sort_url) }}</th>{% endfor %}<th>links</th></tr>
   <tr class="filters">{% for col in filter_columns %}<th>{{ m.filter_control(col, active, 'company-filters') }}</th>{% endfor %}<th></th></tr>
   {% for c in companies %}
@@ -33,5 +33,5 @@
   {% else %}
   <tr><td colspan="12" class="empty">No companies.</td></tr>
   {% endfor %}
-</table>
+</table></div>
 {% endblock %}

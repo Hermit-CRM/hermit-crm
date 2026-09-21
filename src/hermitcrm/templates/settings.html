@@ -142,7 +142,7 @@
   {{ step_errors('fields') }}
 
   {% if custom_field_defs %}
-  <table class="fields-list small">
+  <div class="table-scroll"><table class="fields-list small">
     <tr><th>key</th><th>label</th><th>type</th><th>on</th><th>shown in</th></tr>
     {% for f in custom_field_defs %}
     <tr>
@@ -150,7 +150,7 @@
       <td>{{ f.applies_to }}</td><td>{{ f.show_in | join(', ') }}</td>
     </tr>
     {% endfor %}
-  </table>
+  </table></div>
   {% else %}
   <p class="setup-status pending">No fields of your own yet.</p>
   {% endif %}
