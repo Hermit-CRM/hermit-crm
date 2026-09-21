@@ -70,19 +70,43 @@
 
 <section class="setup-step" id="backup">
   <h2>Backup {{ status(state.backup) }}</h2>
-  <p class="small">Push the data folder to a git remote after every change.</p>
+  {{ step_errors('backup') }}
+  <h3>On this computer</h3>
+  <p class="small">Every few minutes, to a repository outside this folder that can only grow: a reset, a deleted <code>.git</code> or a force-push loses nothing, and any version can be put back. <a href="/help/backups">How it works and how to roll back</a>.</p>
+  {% set lb = local_backup %}
+  <p class="{{ 'warning' if lb.level != 'ok' else 'small' }} local-backup-summary">
+    {%- if lb.level == 'ok' and lb.age_minutes is not none -%}
+      Last backup {{ 'just now' if lb.age_minutes < 1 else lb.age_minutes ~ ' min ago' }} ({{ lb.size }}).
+    {%- elif not lb.last_ok -%}
+      No backup yet.
+    {%- else -%}
+      {{ lb.summary }}
+    {%- endif -%}
+    {% if lb.last_ok and not schedule.backup_installed %} It does not repeat on its own yet.{% endif %}
+  </p>
+  {% if schedule.backup_elsewhere %}
+  <p class="warning">This computer's backup job is set up for another folder, <code>{{ schedule.backup_elsewhere }}</code>; there is one per computer. To back up this folder instead, run <code>hermitcrm --data {{ about.data_dir }} schedule install</code>; that folder is then no longer backed up.</p>
+  {% elif not schedule.backup_installed or not lb.last_ok %}
+  <form method="post" action="/settings/backup/local" class="record-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">Start local backups</button>
+    <span class="small">Makes a first backup now, then one every 5 minutes in the background.</span>
+  </form>
+  {% endif %}
+  <details class="small">
+    <summary>Where it is kept</summary>
+    <p>In <code>{{ lb.dest }}</code>, outside your CRM folder, so deleting the folder does not delete the backup. To keep it somewhere else, such as another disk or a synced folder, set <code>backup_dir</code> in <code>config.toml</code>.</p>
+    {% if lb.lines[1:] %}<ul class="schedule-lines">{% for line in lb.lines[1:] %}<li><code>{{ line }}</code></li>{% endfor %}</ul>{% endif %}
+  </details>
+  <h3>Online copy (optional){% if state.remote %} {{ status(true) }}{% endif %}</h3>
+  <p class="small">The backup above lives on the same disk as your data. For a copy that survives a lost laptop, push the folder to a git remote after every change.</p>
   <p class="warning"><strong>The repository must be PRIVATE</strong> on GitHub, GitLab or Bitbucket: it holds your contacts and mail.</p>
   {% if remote_warning %}<p class="warning">{{ remote_warning }}</p>{% endif %}
-  {{ step_errors('backup') }}
   <form method="post" action="/settings/backup" class="record-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Git remote URL <input name="url" value="{{ remote_url }}" placeholder="git@github.com:you/crm.git"></label>
     <button type="submit">Save and test push</button>
   </form>
-  <h3>Local backup</h3>
-  <p class="small">Every few minutes, to a repository outside this folder that can only grow: a reset, a deleted <code>.git</code> or a force-push loses nothing, and any version can be put back. <a href="/help/backups">How it works and how to roll back</a>.</p>
-  <p class="{{ 'warning' if local_backup.level != 'ok' else 'small' }}">{{ local_backup.summary }}</p>
-  {% if local_backup.lines %}<ul class="schedule-lines">{% for line in local_backup.lines %}<li><code>{{ line }}</code></li>{% endfor %}</ul>{% endif %}
 </section>
 
 <section class="setup-step" id="appearance">

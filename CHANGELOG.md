@@ -14,6 +14,16 @@ your integrations, in plain language), `SECURITY.md` (where to report, and that
 a fix is not promised), and a DCO sign-off requirement in `CONTRIBUTING.md`
 (`git commit -s`). Every source file carries the standard Apache header.
 
+- **Local backups start from Settings.** Settings, Backup now leads with the
+  backup on this computer: when it last ran and how big it is, in plain words,
+  and a **Start local backups** button that makes the first one and schedules
+  the rest every 5 minutes, with no terminal. Before, a new user was told to
+  run two commands. Only the backup job is installed; the daily sync is left
+  alone, and a backup job that already serves another folder is not moved.
+  The path and `backup_dir` sit under "Where it is kept". Backup counts as
+  done once a local backup has run; the git remote is now the optional
+  "Online copy", and no longer what setup waits for.
+
 - **A one-time disclaimer when the web app first opens a folder.** Three
   points -- no warranty, your backups are yours, your integrations are your
   responsibility -- a checkbox, and a link to the full text at

@@ -201,7 +201,8 @@ def cmd_setup(root: Path, ask=input, ask_secret=None, say=print, runner=subproce
         else:
             say("Skipped; rerun `hermitcrm setup` or open /setup in the web app.")
 
-        say("\n3/3 Backup: push the data folder to a private git remote.")
+        say("\n3/3 Online copy (optional): push the data folder to a private git remote.\n"
+            "Local backups start with `hermitcrm schedule install` or Settings > Backup.")
         url = ask("Git remote URL (empty to skip): ").strip()
         if url:
             warning = st.private_warning(url)
