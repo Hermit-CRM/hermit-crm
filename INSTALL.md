@@ -9,7 +9,10 @@ message:
 It will do the rest and ask you what it needs to know. You need Python 3.11 or
 newer and git; the assistant checks both. **On a Mac that has never been used
 for programming, neither is really there** and one dialog has to be clicked by
-you: the assistant will say so and wait.
+you: the assistant will say so and wait. On Linux there is no dialog, but
+installing git may ask for your password.
+
+Hermit CRM runs on macOS. Linux works but is less tested.
 
 Prefer to do it by hand? [README.md](README.md) has the same steps as commands.
 
@@ -35,6 +38,11 @@ python3 --version
 
 `git` must print a version, and Python must be **3.11 or newer**. If both are
 fine, go to step 2.
+
+If not, `uname -s` says which machine this is: `Darwin` is a Mac, read
+**On a Mac** below; `Linux` skips to **On Linux**.
+
+#### On a Mac
 
 **On a Mac, expect both to fail, and not in the way they look like they fail.**
 `/usr/bin/python3` and `/usr/bin/git` always exist, so `which` finds them, but
@@ -136,6 +144,44 @@ be explicit, `uv python install 3.12` first.
 Stop only if every one of those git routes fails, or the `uv` install fails; say
 which ones you tried and what each said.
 
+#### On Linux
+
+Nothing here opens a window, so there is nothing for them to click. What they
+may have to do is type their password for `sudo`.
+
+**Git.** Most desktop distributions have it; minimal and server installs often
+do not. Install it with the system's package manager:
+
+```bash
+sudo apt install -y git        # Debian, Ubuntu, Mint
+sudo dnf install -y git        # Fedora
+sudo pacman -S --noconfirm git # Arch
+```
+
+`sudo` asks for their password. Ask them to run the line themselves, or to give
+you the go-ahead to run it while they type the password; never type it for them.
+Without `sudo` rights, use the conda-forge git from **On a Mac** above: the same
+three lines with `linux-64` in place of `osx-arm64` (`linux-aarch64` when
+`uname -m` says `aarch64`), and the `export PATH` line in `~/.bashrc`. The
+`tar -xj` in it needs `bzip2`, which a minimal install may lack.
+
+**Python.** Many distributions ship one that is too old: Ubuntu 22.04 has 3.10
+and Debian 11 has 3.9. Ubuntu 24.04 (3.12) and Debian 12 (3.11) are fine. Either
+way, do not add package sources for a newer Python; install `uv` as on a Mac:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+If `curl` is missing, `wget -qO- https://astral.sh/uv/install.sh | sh` does the
+same. The installer puts `uv` in `~/.local/bin` and adds that to their shell
+settings for new terminals only, so for this one run `source $HOME/.local/bin/env`
+before step 2. The shell settings file on Linux is usually `~/.bashrc`, not
+`~/.zshrc`.
+
+Stop only if git cannot be installed by either route, or the `uv` install fails;
+say what you tried and what each said.
+
 ### 2. Install the `hermitcrm` command
 
 From this folder, try these in order and stop at the first that works:
@@ -157,6 +203,10 @@ python3 -m venv ~/.hermitcrm-venv
 ~/.hermitcrm-venv/bin/pip install .
 mkdir -p ~/.local/bin && ln -sf ~/.hermitcrm-venv/bin/hermitcrm ~/.local/bin/hermitcrm
 ```
+
+On Debian and Ubuntu the first line fails with `ensurepip is not available`
+until the `python3-venv` package is installed (`sudo apt install -y
+python3-venv`, their password again). Going back to `uv` is usually quicker.
 
 Confirm with `hermitcrm --version`. If that is not found, `~/.local/bin` is not
 on their PATH: tell them the one line to add to `~/.zshrc` or `~/.bashrc`, and
@@ -208,6 +258,11 @@ them look around before you continue. If they want to see a filled-in account
 first, the page offers **Load a sample account**; it is made up, marked as
 such, and removed in one click.
 
+If they are not sitting at this machine (you reached it over SSH), that link
+will not open on their own computer. They can forward the port from their
+computer with `ssh -L 8765:127.0.0.1:8765 <this machine>` and then open the same
+link there.
+
 ### 6. Secrets are theirs to type, and never yours to see
 
 Hermit CRM can read mail you BCC to it and log past meetings from a calendar
@@ -216,7 +271,8 @@ feed. Both need a secret: a mail app password, and a private calendar URL.
 **Never ask for one, never accept one if they offer, and never type one into a
 command or a file.** They go through the form at
 http://127.0.0.1:8765/settings, which writes them to `.secrets.toml` (mode 600)
-or the macOS Keychain, on their machine only. A secret pasted into this
+or, on a Mac, the Keychain, on their machine only. On Linux it is always
+`.secrets.toml`: plain text, readable only by their user account. A secret pasted into this
 conversation leaves their machine and reaches a model provider.
 
 So: tell them those two sections exist, what each one buys them, and that they

@@ -48,6 +48,8 @@ name and sending addresses, and starts the app. It will not ask you for an app
 password or a calendar URL: those you type into the Settings page yourself, so
 they stay on your machine. [INSTALL.md](INSTALL.md) is the script it follows.
 
+Hermit CRM runs on macOS. Linux works but is less tested.
+
 **By hand.** You need Python 3.11 or newer and git:
 
 ```bash
@@ -59,9 +61,17 @@ hermitcrm --data ~/crm serve                        # http://127.0.0.1:8765
 hermitcrm --data ~/crm schedule install --serve     # daily sync, web app always on
 ```
 
+On Debian and Ubuntu, `python3 -m venv` needs the `python3-venv` package, and
+Ubuntu 22.04's Python (3.10) is too old; [uv](https://docs.astral.sh/uv/)
+(`uv tool install .` from the clone) brings its own Python and avoids both.
+
 A download is `hermitcrm-<version>.tar.gz` and unpacks to `hermitcrm-<version>/`,
-with a `.sha256` beside it; check it with `shasum -a 256 -c hermitcrm-<version>.tar.gz.sha256`
-before you unpack.
+with a `.sha256` beside it. Check it before you unpack:
+
+```bash
+shasum -a 256 -c hermitcrm-<version>.tar.gz.sha256   # macOS
+sha256sum -c hermitcrm-<version>.tar.gz.sha256       # Linux
+```
 
 Hermit CRM is not on PyPI yet, so install it from a clone. When it is published,
 `pipx install hermitcrm` (or `uv tool install hermitcrm`) will replace the first
@@ -288,6 +298,11 @@ Two secrets exist: `bcc_password` (a Gmail app password) and
    ```
 3. on macOS, the Keychain (service from `bcc_keychain_service` /
    `calendar_keychain_service` in `config.toml`).
+
+On Linux there is no keyring support yet (GNOME Keyring, KWallet): a secret
+lives in the environment or in `.secrets.toml`, in plain text, readable only
+by your user account and never committed. Full-disk encryption protects it
+when the machine is off.
 
 ## BCC import setup
 
