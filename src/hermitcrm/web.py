@@ -787,6 +787,11 @@ def create_app(root: Path, config: dict | None = None,
         gitops.push_enabled = bool(config.get("push_enabled", True))
         gitops.remote = str(config.get("remote", "origin"))
         store.silent_days = int(config.get("silent_days", 14))
+        # In place, so the routes and the template global that hold this list
+        # see the new outcomes; the store keeps its own copy.
+        outcomes[:] = [str(o) for o in (config.get("outcomes") or DEFAULT_OUTCOMES)]
+        store.outcomes = list(outcomes)
+        templates.env.globals["message_statuses"] = message_statuses(outcomes)
         app.state.task_types = task_types.from_config(config.get("task_types"))
         store.task_types = task_types.names(app.state.task_types)
         message_window = int(config.get("message_window_days", 14))
