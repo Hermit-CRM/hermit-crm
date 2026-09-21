@@ -29,6 +29,9 @@ from dataclasses import dataclass
 # Steps you tick yourself, because the app has no way to see them happen.
 MANUAL = ("extension", "find")
 
+# The one stage change Hermit CRM makes by itself: see Store.create_interaction.
+AUTO_MOVE = ("prospect", "engaged")
+
 
 @dataclass
 class Step:
@@ -46,8 +49,12 @@ def steps(store, config: dict, setup_state: dict, ai_available: bool) -> list[St
     companies = [c for c in store.companies.values() if not c.is_sample]
     contacts = [c for co in companies for c in co.contacts.values()]
     interactions = [i for co in companies for i in co.interactions]
-    moved = any(co.stage != "prospect" or any(e.from_stage for e in co.stage_history)
-                for co in companies)
+    # A move is a recorded change from one stage to another. Not the stage a
+    # company was created in (no from_stage), and not prospect -> engaged, which
+    # logging the first interaction does on its own -- by hand, by BCC or by the
+    # calendar import -- so it would tick this step for a user who never moved one.
+    moved = any(e.from_stage and (e.from_stage, e.to_stage) != AUTO_MOVE
+                for co in companies for e in co.stage_history)
     planned = any(co.has_next_step or co.tasks for co in companies) or \
         any(c.tasks for c in contacts)
     ticked = set(config.get("welcome_done") or [])
@@ -69,8 +76,10 @@ def steps(store, config: dict, setup_state: dict, ai_available: bool) -> list[St
              "on its own, and every one of them is what the reports count.",
              "Open a company", "/companies", bool(interactions)),
         Step("move", "Move a deal along",
-             "Change a stage on the pipeline. The history is kept, so the reports "
-             "can say how long deals spend where.",
+             "Your first logged interaction already moved that company to engaged. "
+             "When the deal gets further -- a first real talk about their needs -- "
+             "drag it on to discovery on the pipeline. The history is kept, so the "
+             "reports can say how long deals spend where.",
              "Open the pipeline", "/pipeline", moved),
         Step("plan", "Write down what comes next",
              "Each company has one next step -- the thing that decides where the "

@@ -162,6 +162,37 @@ def test_a_finished_walkthrough_needs_no_hiding(folder):
     assert welcome.should_show({}, steps + [welcome.Step("b", "", "", "", "/")]) is True
 
 
+def _moved(folder) -> bool:
+    from hermitcrm import welcome
+    from hermitcrm.store import Store
+    store = Store(folder)
+    store.load()
+    return next(s for s in welcome.steps(store, {}, {}, False) if s.key == "move").done
+
+
+def test_logging_an_interaction_does_not_tick_move_a_deal(folder):
+    """The first interaction moves prospect -> engaged by itself; that is not
+    the user moving a deal, and the steps are done in exactly that order."""
+    from hermitcrm.store import Store
+    store = Store(folder)
+    store.load()
+    co = store.create_company("Acme")
+    store.create_interaction(co.slug, "email", "out", subject="Hello")
+    assert store.get(co.slug).stage == "engaged"
+    assert not _moved(folder)
+
+    store.update_company(co.slug, stage="discovery")
+    assert _moved(folder)
+
+
+def test_creating_a_company_in_a_later_stage_is_not_a_move(folder):
+    from hermitcrm.store import Store
+    store = Store(folder)
+    store.load()
+    store.create_company("Acme", stage="discovery")
+    assert not _moved(folder)
+
+
 def test_csrf_required(folder):
     _, client = make_client(folder)
     data = {"name": "Jane", "addresses": "jane@example.com"}
