@@ -127,7 +127,7 @@ def session_bus(env: dict | None = None) -> bool:
 def _secret_tool_ready(env: dict | None, which) -> str:
     """'' when secret-tool can be run, else why not (for doctor and Settings)."""
     if not (which or _which)(SECRET_TOOL):
-        return "secret-tool is not installed (package libsecret-tools or libsecret)"
+        return "secret-tool is not installed; its package is libsecret-tools or libsecret"
     if not session_bus(env):
         return "no D-Bus session bus (headless or outside a login session)"
     return ""
