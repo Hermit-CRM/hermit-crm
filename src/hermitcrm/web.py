@@ -50,7 +50,7 @@ from fastapi.templating import Jinja2Templates
 from . import (bcc, brief, calendar_sync, capture, disclaimer, feedback,
                fields as custom, filters, followups, messaging, migrations,
                pipeline, reports, sample, welcome)
-from . import schedule, scrape, usertheme
+from . import schedule, scrape, task_types, usertheme
 from . import help as helpdocs
 from . import setup as setup_steps
 from .filters import Column
@@ -677,11 +677,13 @@ def create_app(root: Path, config: dict | None = None,
                                       DEFAULT_CONFIG["followup_nudge_days"])),
     }
     outcomes = [str(o) for o in (config.get("outcomes") or DEFAULT_OUTCOMES)]
+    configured_types = task_types.from_config(config.get("task_types"))
     # `clock` is what makes "today" injectable: every route asks the store for
     # the date (store.today()/store.now()), so freezing it here freezes the
     # whole app. Tests pass a fixed clock; the app itself passes none.
     store = Store(root, silent_days=int(config.get("silent_days", 14)),
-                  on_write=on_write, outcomes=outcomes, clock=clock)
+                  on_write=on_write, outcomes=outcomes, clock=clock,
+                  task_types=task_types.names(configured_types))
     store.load()
 
     def load_custom_fields() -> list:
@@ -700,6 +702,7 @@ def create_app(root: Path, config: dict | None = None,
     app = FastAPI(title="Hermit CRM")
     app.state.messages = messages
     app.state.update_notice = updates.UpdateNotice()
+    app.state.task_types = configured_types  # refresh_config replaces it after a save
     if config.get("start_update_check"):  # set by `hermitcrm serve`; tests stay offline
         app.state.update_notice.start(config)
     app.state.store = store
@@ -761,6 +764,8 @@ def create_app(root: Path, config: dict | None = None,
         gitops.push_enabled = bool(config.get("push_enabled", True))
         gitops.remote = str(config.get("remote", "origin"))
         store.silent_days = int(config.get("silent_days", 14))
+        app.state.task_types = task_types.from_config(config.get("task_types"))
+        store.task_types = task_types.names(app.state.task_types)
         message_window = int(config.get("message_window_days", 14))
         app.state.enricher = build_enricher(config)
         app.state.custom_fields = load_custom_fields()
@@ -848,6 +853,11 @@ def create_app(root: Path, config: dict | None = None,
     def favicon_ico() -> RedirectResponse:
         """Browsers ask for /favicon.ico regardless of the <link> tags; point them at ours."""
         return RedirectResponse("/static/favicon.svg", status_code=301)
+    def task_type_options() -> list[str]:
+        """Configured types in Settings order, then types only the data still has."""
+        configured = task_types.names(app.state.task_types)
+        return configured + [n for n in store.type_names_in_use() if n not in configured]
+
     templates = Jinja2Templates(directory=str(HERE / "templates"))
     templates.env.globals.update(
         fmt_date=fmt_date,
@@ -873,6 +883,10 @@ def create_app(root: Path, config: dict | None = None,
         render_markdown=helpdocs.render,
         record_version=lambda slug, cslug="": record_version(root, slug, cslug),
         custom_fields_for=lambda scope: custom.for_scope(app.state.custom_fields, scope),
+        task_types=lambda: app.state.task_types,
+        type_names=task_type_options,
+        type_colour=lambda name: task_types.colour_of(app.state.task_types, name),
+        palette=task_types.PALETTE,
     )
 
     templates.env.filters["slug"] = slugify  # CSS class names from outcome values
@@ -2433,6 +2447,7 @@ def create_app(root: Path, config: dict | None = None,
                               "message_window_days": str(config.get("message_window_days")
                                                          or 14),
                               "silent_days": str(config.get("silent_days") or 14)},
+            "task_types_form": {"rows": app.state.task_types},
             "schedule": schedule_status(),
             "local_backup": local_backup_status(),
             "access": access_facts(),
@@ -2718,6 +2733,22 @@ def create_app(root: Path, config: dict | None = None,
                                                 "message_window_days": message_window_days,
                                                 "silent_days": silent_days})
         return setup_done(result, "outcomes")
+
+    @app.post("/settings/task-types")
+    def settings_task_types(request: Request, csrf_token: str = Form(""),
+                            name: list[str] = Form([]), colour: list[str] = Form([]),
+                            old: list[str] = Form([]), delete: str = Form(""),
+                            move: str = Form("")):
+        check_csrf(csrf_token)
+        types, renames, errors = task_types.plan_rows(name, colour, old, delete, move)
+        if errors:
+            result = setup_steps.StepResult(ok=False, errors=errors)
+            return setup_invalid(request, result, "task-types")
+        setup_steps.save_task_types(root, types)
+        refresh_config()      # store.task_types first, so renamed values validate
+        done = [f"{o} to {n} ({store.rename_task_type(o, n)})" for o, n in renames.items()]
+        message = "Task types saved" + ("; renamed " + ", ".join(done) if done else "")
+        return flashed("/settings", message, anchor="task-types")
 
     # Review queue (the former /inbox): BCC and calendar items waiting for a company.
 

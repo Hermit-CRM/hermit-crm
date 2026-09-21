@@ -241,6 +241,13 @@
 {% endmacro %}
 
 
+{% macro type_chip(name) -%}
+{%- if name -%}
+{%- set colour = type_colour(name) -%}
+<span class="type-chip type-{{ colour or 'grey' }}{% if not colour %} unknown{% endif %}"{% if not colour %} title="not in Settings"{% endif %}>{{ name }}</span>
+{%- endif -%}
+{%- endmacro %}
+
 {% macro todo_actions(company, todo, back='', delete=false) -%}
 {%- if todo.is_field -%}
 <form method="post" action="/companies/{{ company.slug }}/next-step" class="inline">
