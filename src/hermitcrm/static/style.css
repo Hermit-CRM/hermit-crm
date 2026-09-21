@@ -267,6 +267,13 @@ a.calendar { font-size: 12px; margin-left: 6px; }
 table.tasks .tag { background: var(--subtle); border-radius: 3px; padding: 0 5px; font-size: 12px; white-space: nowrap; }
 table.tasks .tag.status-done { background: var(--ok-bg); }
 table.tasks .tag.next-step { border: 1px solid var(--accent); color: var(--accent); background: none; }
+.type-chip { display: inline-block; border-radius: 3px; padding: 0 6px; font-size: 12px; white-space: nowrap; background: var(--type-grey-bg); color: var(--type-grey-fg); }
+.type-chip.type-green { background: var(--type-green-bg); color: var(--type-green-fg); }
+.type-chip.type-blue { background: var(--type-blue-bg); color: var(--type-blue-fg); }
+.type-chip.type-amber { background: var(--type-amber-bg); color: var(--type-amber-fg); }
+.type-chip.type-red { background: var(--type-red-bg); color: var(--type-red-fg); }
+.type-chip.type-violet { background: var(--type-violet-bg); color: var(--type-violet-fg); }
+.type-chip.unknown { font-style: italic; }
 table.tasks tr.done td { color: var(--muted); }
 table.tasks td.due, table.tasks td.actions { white-space: nowrap; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -310,6 +317,9 @@ form.inline-row label { margin: 0; }
 form.inline-row select, form.inline-row input[list] { width: auto; min-width: 260px; }
 /* The 260px merge field and Compare do not fit side by side on a small phone. */
 @media (max-width: 760px) { #merge form.inline-row { flex-wrap: wrap; } }
+/* The add-task row (task, for, due, type) is wider than a phone: let it wrap too. */
+@media (max-width: 760px) { form.inline-row { flex-wrap: wrap; } }
+table.tasks select[name="type"] { min-width: 9em; padding: 1px 4px; font-size: 12px; }
 
 /* import */
 textarea.import { font-size: 12px; white-space: pre; overflow-x: auto; }

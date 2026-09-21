@@ -23,6 +23,7 @@
     <td>{{ c.last_touch_summary }}</td>
     {% set nxt = c.next_todo() %}
     <td{% if nxt and nxt.done %} class="done"{% endif %}>{{ nxt.text if nxt else '' }}{% if nxt and nxt.done %} (done){% endif %}</td>
+    {% if filter_columns | selectattr('key', 'equalto', 'next_type') | list %}<td>{{ m.type_chip(nxt.type if nxt and not nxt.done else '') }}</td>{% endif %}
     <td class="{% if c.next_overdue(today) %}overdue{% endif %}">{{ fmt_date(c.next_due) }}</td>
     <td class="links">
       {% if c.website %}<a href="{{ c.website | href }}" target="_blank" rel="noopener">web</a>{% endif %}

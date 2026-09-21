@@ -30,7 +30,7 @@ import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from hermitcrm import __version__, migrations
+from hermitcrm import __version__, migrations, task_types
 from hermitcrm.datafolder import InitError, NotDataFolder, init_folder, resolve_data_dir
 from hermitcrm.enrich import EnrichError, Enricher
 from hermitcrm.gitops import GitOps
@@ -41,7 +41,7 @@ COMPANY_FIELD_ORDER = [
     "name", "slug", "website", "linkedin", "country", "source", "stage",
     "stage_changed", "lost_reason", "requalify_on", "value_eur_month",
     "product_oneliner", "next_step", "next_step_due",
-    "next_step_status", "tags", "created", "updated",
+    "next_step_status", "next_step_type", "tags", "created", "updated",
 ]
 
 
@@ -63,7 +63,8 @@ def _writer(store: Store, root: Path, config: dict):
 
 def build_store(root: Path) -> Store:
     config = load_config(root)
-    store = Store(root, silent_days=config["silent_days"], outcomes=config["outcomes"])
+    store = Store(root, silent_days=config["silent_days"], outcomes=config["outcomes"],
+                  task_types=task_types.names(task_types.from_config(config.get("task_types"))))
     store.load()
     return store
 
@@ -442,6 +443,8 @@ def cmd_show(store: Store, slug: str, bodies: int = 3, all_bodies: bool = False)
     lines: list[str] = []
     for key in COMPANY_FIELD_ORDER:
         text = _company_field_text(company, key)
+        if key == "next_step_type" and not text:
+            continue  # as in the file: only there once a type is set
         lines.append(f"{key}: {text}" if text else f"{key}:")
 
     lines.append("")
@@ -530,7 +533,7 @@ def parse_map_args(pairs: list[str] | None) -> dict[str, str]:
 NAMED_FIELDS = {
     "website", "linkedin", "country", "source", "stage", "lost_reason",
     "requalify_on", "value_eur_month", "product_oneliner", "next_step",
-    "next_step_due", "tags", "notes",
+    "next_step_due", "next_step_type", "tags", "notes",
     "title", "email", "phone", "role",
     "contact", "subject", "date", "outcome",
 }
@@ -1048,8 +1051,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_add_co.add_argument("name", help='the company name, e.g. "Acme BV"')
     for flag in ("--website", "--linkedin", "--country", "--source", "--stage",
                  "--lost-reason", "--requalify-on", "--value-eur-month",
-                 "--product-oneliner", "--next-step", "--next-step-due", "--tags",
-                 "--notes"):
+                 "--product-oneliner", "--next-step", "--next-step-due",
+                 "--next-step-type", "--tags", "--notes"):
         p_add_co.add_argument(flag, default=None)
 
     p_add_ct = add_sub.add_parser("contact", help="create a contact under a company")

@@ -486,3 +486,45 @@ def test_help_backups_page_renders(demo, tmp_path):
     app, client = make_client(demo, tmp_path)
     r = client.get("/help/backups")
     assert r.status_code == 200 and "Rolling back" in r.text
+
+
+def test_task_types_are_added_renamed_moved_and_deleted_in_settings(demo, tmp_path):
+    app, client = make_client(demo, tmp_path)
+    page = client.get("/settings").text
+    assert '<section class="setup-step" id="task-types">' in page
+    t = token(client)
+    names = lambda: [x.name for x in app.state.task_types]
+
+    r = client.post("/settings/task-types", data={
+        "csrf_token": t, "name": ["lost deals", "prospecting", ""],
+        "colour": ["amber", "blue", "green"], "old": ["", "", ""]})
+    assert r.status_code == 303
+    assert names() == ["lost deals", "prospecting"]
+    assert app.state.store.task_types == ["lost deals", "prospecting"]   # live, no restart
+    assert 'task_types = [{name = "lost deals", colour = "amber"}' in \
+        (demo / "config.toml").read_text()
+
+    store = app.state.store
+    slug = next(iter(store.companies))
+    store.add_task(slug, "revive", type="lost deals")
+    r = client.post("/settings/task-types", data={
+        "csrf_token": t, "name": ["lost deal revival", "prospecting", ""],
+        "colour": ["amber", "blue", "grey"], "old": ["lost deals", "prospecting", ""],
+        "move": "1-up"})
+    assert names() == ["prospecting", "lost deal revival"]
+    assert store.companies[slug].tasks[-1].type == "lost deal revival"
+    assert "renamed" in r.headers["location"]
+
+    client.post("/settings/task-types", data={
+        "csrf_token": t, "name": ["prospecting", "lost deal revival", ""],
+        "colour": ["blue", "amber", "grey"],
+        "old": ["prospecting", "lost deal revival", ""], "delete": "1"})
+    assert names() == ["prospecting"]
+    assert store.companies[slug].tasks[-1].type == "lost deal revival"   # kept
+
+    r = client.post("/settings/task-types", data={
+        "csrf_token": t, "name": ["a", "A", ""], "colour": ["green"] * 3,
+        "old": ["", "", ""]})
+    assert r.status_code == 400 and "Duplicate task type" in r.text
+    assert names() == ["prospecting"]
+    assert client.post("/settings/task-types", data={"name": ["x"]}).status_code == 403

@@ -512,3 +512,34 @@ def test_iso_countries_and_aliases():
     assert c.country == "GB"
     with pytest.raises(ValidationError):
         company_from_dict({"name": "Acme", "country": "XX"}, "", "acme")
+
+
+# --- task types ------------------------------------------------------------
+
+
+def test_a_task_type_round_trips_and_is_absent_when_empty():
+    from hermitcrm.models import Task, _tasks, task_to_dict
+    assert task_to_dict(Task("send deck")) == {"text": "send deck"}
+    item = task_to_dict(Task("send deck", type="lost deals: EU #2"))
+    assert item["type"] == "lost deals: EU #2"
+    assert _tasks([item], {})[0].type == "lost deals: EU #2"
+    assert _tasks([{"text": "x", "type": "  a   b "}], {})[0].type == "a b"
+    # the dumped line reads back as the same map, however odd the name
+    line = dump_frontmatter({"tasks": [item]})
+    assert yaml.safe_load(line)["tasks"][0]["type"] == "lost deals: EU #2"
+
+
+def test_next_step_type_is_written_only_when_set():
+    c = Company(name="Acme", slug="acme", next_step="call")
+    assert "next_step_type" not in company_to_frontmatter(c)
+    c.next_step_type = "prospecting"
+    meta = company_to_frontmatter(c)
+    assert meta["next_step_type"] == "prospecting"
+    assert company_from_dict(meta, "", "acme").next_step_type == "prospecting"
+
+
+def test_todos_carry_the_type_of_what_they_come_from():
+    from hermitcrm.models import Task
+    c = Company(name="Acme", slug="acme", next_step="call", next_step_type="prospecting",
+                tasks=[Task("deck", type="pipeline follow-up")])
+    assert [t.type for t in c.todos()] == ["prospecting", "pipeline follow-up"]
