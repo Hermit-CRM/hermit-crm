@@ -134,8 +134,11 @@ file per conversation. Everything below is convenience on top of it.
 - **Follow-up radar** on the home page: the threads where somebody wrote to you
   and you have not answered, and the ones where you wrote and nothing came back.
   Also `hermitcrm followups`.
-- **Calendar** of next steps: overdue and due-today lists, a month grid and
-  Google Calendar links.
+- **Tasks**: as many as you like per company or person, one table with date
+  buttons and a filter per column, done dates kept. A company's next step is
+  its task due first.
+- **Calendar**: every task on a month grid, meetings this week and Google
+  Calendar links.
 - **Pre-meeting brief** under every upcoming meeting: stage, open next step,
   contacts and the last three interactions. Also `hermitcrm brief`.
 - **Extension**: a bookmarklet that turns the page you are looking at into a

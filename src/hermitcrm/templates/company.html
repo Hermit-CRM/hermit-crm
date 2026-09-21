@@ -49,21 +49,17 @@
     </form>
   </details>
 </div>
-<div class="small next-step-line{% if company.next_step_overdue(today) %} overdue{% endif %}{% if company.next_step_done %} done{% endif %}">
-  next step: <span class="next-step-text">{{ company.next_step or 'none' }}{% if company.next_step_due %}, due {{ fmt_date(company.next_step_due) }}{% endif %}</span>
-  {% if company.has_next_step %}
-  <span class="tag status-{{ company.next_step_status }}">{{ company.next_step_status }}</span>
-  <form method="post" action="/companies/{{ company.slug }}/next-step" class="inline">
-    {% if company.next_step_done %}
-    <input type="hidden" name="status" value="open"><button type="submit">Reopen</button>
-    {% else %}
-    <input type="hidden" name="status" value="done"><button type="submit">Mark done</button>
-    {% endif %}
-  </form>
+{% set nxt = company.next_todo() %}
+<div class="small next-step-line{% if nxt and nxt.overdue(today) %} overdue{% endif %}{% if nxt and nxt.done %} done{% endif %}">
+  next step: <span class="next-step-text">{{ (nxt.text or '(no text)') if nxt else 'none' }}{% if nxt and nxt.contact %} ({{ nxt.contact.name }}){% endif %}{% if nxt and nxt.due %}, due {{ fmt_date(nxt.due) }}{% endif %}</span>
+  {% if nxt %}
+  <span class="tag status-{{ 'done' if nxt.done else 'open' }}">{{ 'done' if nxt.done else 'open' }}</span>
+  {{ m.todo_actions(company, nxt) }}
+  {% if nxt.due and not nxt.done %}
+  <a class="calendar" target="_blank" rel="noopener" href="{{ calendar_link(company, nxt) }}">Add to Google Calendar</a>
   {% endif %}
-  {% if company.next_step_due and not company.next_step_done %}
-  <a class="calendar" target="_blank" rel="noopener" href="{{ calendar_link(company) }}">Add to Google Calendar</a>
   {% endif %}
+  <a class="small" href="#tasks">all tasks</a>
 </div>
 
 <section id="quick-add">

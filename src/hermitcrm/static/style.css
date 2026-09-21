@@ -264,6 +264,16 @@ a.calendar { font-size: 12px; margin-left: 6px; }
 .done .next-step-text, td.done, .card .done { text-decoration: line-through; color: var(--muted); }
 .next-step-line .tag { background: var(--subtle); border-radius: 3px; padding: 0 5px; margin-left: 4px; }
 .next-step-line .tag.status-done { background: var(--ok-bg); }
+table.tasks .tag { background: var(--subtle); border-radius: 3px; padding: 0 5px; font-size: 12px; white-space: nowrap; }
+table.tasks .tag.status-done { background: var(--ok-bg); }
+table.tasks .tag.next-step { border: 1px solid var(--accent); color: var(--accent); background: none; }
+table.tasks tr.done td { color: var(--muted); }
+table.tasks td.due, table.tasks td.actions { white-space: nowrap; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chips a.chip { border: 1px solid var(--line-strong); border-radius: 12px; padding: 1px 10px; font-size: 13px; text-decoration: none; }
+.chips a.chip.on { border-color: var(--accent); background: var(--subtle); font-weight: 600; }
+.chips a.chip .count { color: var(--muted); font-size: 12px; }
+.chips a.chip.overdue .count { color: var(--danger); }
 .next-step-line form.inline, td.actions form.inline { display: inline; margin-left: 6px; }
 .next-step-line button, td.actions button { padding: 1px 8px; font-size: 12px; }
 td.actions a { margin-right: 6px; }

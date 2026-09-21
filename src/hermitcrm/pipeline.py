@@ -32,8 +32,15 @@ def _fmt_money(n: int) -> str:
     return f"{n:,}"
 
 
-def _next_field(next_step: str, next_step_due: date | None, done: bool = False) -> str:
-    suffix = " (done)" if done else ""
+def _next_field(c) -> str:
+    """The company's next step: its open to-do due first (see Company.next_todo)."""
+    todo = c.next_todo()
+    if todo is None:
+        return "next: none"
+    next_step, next_step_due = todo.text, todo.due
+    if todo.contact is not None and next_step:
+        next_step = f"{next_step} ({todo.contact.name})"
+    suffix = " (done)" if todo.done else ""
     if next_step and next_step_due:
         return f"next: {next_step}, due {next_step_due:%Y-%m-%d}{suffix}"
     if next_step:
@@ -47,13 +54,13 @@ def _next_field(next_step: str, next_step_due: date | None, done: bool = False) 
 def _company_line(c, today: date) -> str:
     return (
         f"- {c.slug} | {c.name} | in stage {c.days_in_stage(today)}d | "
-        f"last: {c.last_touch_summary} | {_next_field(c.next_step, c.next_step_due, c.next_step_done)}"
+        f"last: {c.last_touch_summary} | {_next_field(c)}"
         + (" | sample (fictional)" if c.is_sample else "")
     )
 
 
 def _stage_sort_key(c):
-    due = c.next_step_due
+    due = c.next_due
     due_key = (0, due) if due is not None else (1, date.max)
     lt = c.last_touch
     lt_key = (0, -lt.timestamp()) if lt is not None else (1, 0.0)
@@ -81,11 +88,11 @@ def render(store: Store, now: datetime | None = None) -> str:
         blocks.append("\n".join(lines))
 
     overdue = sorted(
-        (c for c in companies if not c.is_closed and c.next_step_overdue(today)),
-        key=lambda c: (c.next_step_due, c.slug),
+        (c for c in companies if not c.is_closed and c.next_overdue(today)),
+        key=lambda c: (c.next_due, c.slug),
     )
     lines = [f"## Overdue next steps ({len(overdue)})"] + [
-        f"- {c.slug} | {c.stage} | due {c.next_step_due:%Y-%m-%d} | {c.next_step}"
+        f"- {c.slug} | {c.stage} | due {c.next_due:%Y-%m-%d} | {c.next_text}"
         for c in overdue
     ]
     blocks.append("\n".join(lines))
@@ -123,7 +130,7 @@ def render(store: Store, now: datetime | None = None) -> str:
             since += f" until {c.requalify_on:%Y-%m-%d}"
         reason = c.lost_reason or "no reason"
         lines.append(f"- {c.slug} | since {since} | {reason} | "
-                     f"{_next_field(c.next_step, c.next_step_due, c.next_step_done)}")
+                     f"{_next_field(c)}")
     blocks.append("\n".join(lines))
 
     lines = ["## Closed last 90 days"]

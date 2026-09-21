@@ -29,7 +29,8 @@
   var STOPS = [
     ["home", "Home", "This walkthrough, until every step is ticked or you turn it off. Then: what needs doing this week, the replies you owe, and last month's numbers."],
     ["pipeline", "Pipeline", "Every open deal as a card, in the column of the stage it has reached."],
-    ["calendar", "Calendar", "Next steps and tasks on their due date, and the form to add a task."],
+    ["calendar", "Calendar", "Your tasks on their due date, this week's meetings and the accounts going quiet."],
+    ["tasks", "Tasks", "Every task in one list, with date buttons and a filter per column. A company's next step is its task due first."],
     ["companies", "Companies", "Every account as a table. Each column has a filter: !text means “does not contain”; the ? next to Filter lists the rest."],
     ["contacts", "Contacts", "Every person, with the company they belong to."],
     ["messages", "Messages", "What you sent, and whether it was answered."],

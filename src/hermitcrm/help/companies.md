@@ -38,8 +38,8 @@ CRM has no other way to delete a company: you disqualify it instead.
   not the header.
 - **Disqualify** and **Temp disqualify** (with a reason and, for temp, an
   "until" date); **Requalify** brings a disqualified company back to prospect.
-- The next step with its status tag, **Mark done** / **Reopen** and the Google
-  Calendar link.
+- The next step (the open task due first) with its status tag, **Done** /
+  **Reopen**, the Google Calendar link and a link down to all tasks.
 - **Log an interaction**: the quick-add form with the most recently touched
   contact preselected.
 - **Company**: every field in an edit form. Setting the stage to lost needs a
@@ -47,9 +47,10 @@ CRM has no other way to delete a company: you disqualify it instead.
   form: slug, created, updated, stage changed, and the stage history collapsed.
 - **Contacts** with title, role, email and LinkedIn, and a New contact link.
 - **Message drafts** for the preselected contact (see [Contacts](/help/contacts)).
-- **Tasks**: the next step with its due date and status, **Mark done** /
-  **Reopen**, the Google Calendar link, and a form to write a new next step.
-  A rewritten next step starts open again.
+- **Tasks**: one list for the company and its people, open ones by due date
+  (the first is labelled **next step**), then the done ones with the day they
+  were done. **Done** / **Reopen** / **Delete** on each, and **Add task** with a
+  "for" list: the company or one of its people.
 - **Merge**: pick another company to compare and merge into this one.
 - **Timeline**: every interaction across all contacts, newest first, bodies
   collapsed.
@@ -59,18 +60,22 @@ view: the company's folder is re-read for every request.
 
 ## Tasks and the next step
 
-Two different things, deliberately.
+A company has as many **tasks** as you like, each with an optional due date.
+They live on the company, or on one of its contacts when the thing you owe is
+owed to a person. A contact's tasks show on their own page and in the company's
+list with their name.
 
-The **next step** is the one task that decides where the deal stands. There is
-exactly one per company, it shows on the board card, in PIPELINE.md and on the
-calendar, and rewriting it starts a new one.
+The **next step** is not a separate thing you pick: it is the company's open
+task due first (undated tasks come after dated ones). That is what the board
+card, the Companies table, PIPELINE.md, meeting briefs and the follow-up radar
+show. To change what is next, change a due date or tick the task off. Adding a
+task never replaces another one.
 
-**Tasks** are everything else you owe that account: a list, with a due date and
-a done flag each. They live on the company, or on one of its contacts when the
-thing you owe is owed to a person. A contact's tasks show on their own page and,
-grouped under their name, on the company's. Add one from either page or from
-the calendar, where every open task appears on its due date beside the next
-steps.
+Files written before this rule keep their `next_step` field; it is read as one
+more task on the list, and **Done** and **Delete** work on it like any other.
+
+Ticking a task off records the day (`done_on`), shown on the company page and
+filterable on the [Tasks](/help/tasks) page.
 
 Deleting a contact takes their tasks with them, and says how many are open
 before it does. Merging two records keeps both lists: a task is work you still

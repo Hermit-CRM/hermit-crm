@@ -241,48 +241,71 @@
 {% endmacro %}
 
 
-{% macro task_section(company, today, note='') -%}
+{% macro todo_actions(company, todo, back='', delete=false) -%}
+{%- if todo.is_field -%}
+<form method="post" action="/companies/{{ company.slug }}/next-step" class="inline">
+  {% if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
+  <input type="hidden" name="status" value="{{ 'open' if todo.done else 'done' }}"><button type="submit">{{ 'Reopen' if todo.done else 'Done' }}</button>
+</form>
+{%- if delete %}
+<form method="post" action="/companies/{{ company.slug }}/next-step/delete" class="inline">
+  {% if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
+  <button type="submit" title="Remove this task">Delete</button>
+</form>
+{%- endif %}
+{%- else -%}
+<form method="post" action="/companies/{{ company.slug }}/tasks/{{ todo.index }}/done" class="inline">
+  {% if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
+  <input type="hidden" name="contact" value="{{ todo.contact.slug if todo.contact else '' }}">
+  <input type="hidden" name="text" value="{{ todo.text }}">
+  <input type="hidden" name="done" value="{{ '' if todo.done else '1' }}">
+  <button type="submit">{{ 'Reopen' if todo.done else 'Done' }}</button>
+</form>
+{%- if delete %}
+<form method="post" action="/companies/{{ company.slug }}/tasks/{{ todo.index }}/delete" class="inline">
+  {% if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
+  <input type="hidden" name="contact" value="{{ todo.contact.slug if todo.contact else '' }}">
+  <input type="hidden" name="text" value="{{ todo.text }}">
+  <button type="submit" title="Remove this task">Delete</button>
+</form>
+{%- endif %}
+{%- endif -%}
+{%- endmacro %}
+
+{% macro task_section(company, today) -%}
+{% set first = company.next_todo() %}
 <section id="tasks">
   <h2>Tasks</h2>
-  {% if note %}<p class="small">{{ note }}</p>{% endif %}
-  <div class="table-scroll"><table>
-    <tr><th>next step</th><th>due</th><th>status</th><th></th></tr>
-    {% if company.has_next_step %}
-    <tr class="{% if company.next_step_overdue(today) %}overdue{% endif %}{% if company.next_step_done %} done{% endif %}">
-      <td>{{ company.next_step or '(no text)' }}</td>
-      <td class="{% if company.next_step_overdue(today) %}overdue{% endif %}">{{ fmt_date(company.next_step_due) if company.next_step_due else 'no date' }}</td>
-      <td><span class="tag status-{{ company.next_step_status }}">{{ company.next_step_status }}</span></td>
+  <p class="small">For the company and its people. The <strong>next step</strong> is the open task due first; change a due date to change what is next. <a href="/tasks?f_company_name={{ ('=' ~ company.name) | urlencode }}">This company on the Tasks page</a>.</p>
+  <div class="table-scroll"><table class="tasks">
+    <tr><th>task</th><th>for</th><th>due</th><th>status</th><th></th></tr>
+    {% for t in company.open_todos() + (company.todos() | selectattr('done') | list) %}
+    {% set is_next = first and not first.done and not t.done and t.key == first.key %}
+    <tr class="{% if t.overdue(today) %}overdue{% endif %}{% if t.done %} done{% endif %}{% if is_next %} next{% endif %}">
+      <td>{{ t.text or '(no text)' }}{% if is_next %} <span class="tag next-step">next step</span>{% endif %}</td>
+      <td>{% if t.contact %}<a href="/companies/{{ company.slug }}/contacts/{{ t.contact.slug }}">{{ t.contact.name }}</a>{% else %}<span class="small">company</span>{% endif %}</td>
+      <td class="due{% if t.overdue(today) %} overdue{% endif %}">{{ fmt_date(t.due) if t.due else 'no date' }}</td>
+      <td>{% if t.done %}<span class="tag status-done">done</span>{% if t.done_on %} <span class="small">{{ fmt_date(t.done_on) }}</span>{% endif %}{% else %}<span class="tag status-open">open</span>{% endif %}</td>
       <td class="actions">
-        <form method="post" action="/companies/{{ company.slug }}/next-step" class="inline">
-          {% if company.next_step_done %}
-          <input type="hidden" name="status" value="open"><button type="submit">Reopen</button>
-          {% else %}
-          <input type="hidden" name="status" value="done"><button type="submit">Mark done</button>
-          {% endif %}
-        </form>
-        {% if company.next_step_due and not company.next_step_done %}
-        <a class="calendar" target="_blank" rel="noopener" href="{{ calendar_link(company) }}">Add to Google Calendar</a>
-        {% endif %}
+        {{ todo_actions(company, t, delete=true) }}
+        {% if is_next and t.due %}<a class="calendar" target="_blank" rel="noopener" href="{{ calendar_link(company, t) }}">Add to Google Calendar</a>{% endif %}
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="4" class="empty">No open task.</td></tr>
-    {% endif %}
+    <tr><td colspan="5" class="empty">No tasks yet.</td></tr>
+    {% endfor %}
   </table></div>
-  <form method="post" action="/companies/{{ company.slug }}/task" class="inline-row">
-    <label class="grow">{{ 'new or changed next step' if company.has_next_step else 'next step' }}
-      <input name="next_step" value="{{ '' if company.next_step_done else company.next_step }}" placeholder="e.g. follow up on LinkedIn" required>
+  <form method="post" action="/companies/{{ company.slug }}/tasks" class="inline-row">
+    <label class="grow">task <input name="text" placeholder="e.g. send the pricing page" required></label>
+    <label>for
+      <select name="contact">
+        <option value="">{{ company.name }}</option>
+        {% for c in company.contacts.values() %}<option value="{{ c.slug }}">{{ c.name }}</option>{% endfor %}
+      </select>
     </label>
-    <label>due <input type="date" name="next_step_due" value="{{ '' if company.next_step_done else fmt_date(company.next_step_due) }}"></label>
-    <button type="submit">Save next step</button>
+    <label>due <input type="date" name="due"></label>
+    <button type="submit">Add task</button>
   </form>
-
-  <h3 class="small">Everything else you owe them</h3>
-  {{ task_list(company, company.tasks, today, contact='') }}
-  {% for c in company.contacts.values() if c.tasks %}
-  <h3 class="small"><a href="/companies/{{ company.slug }}/contacts/{{ c.slug }}">{{ c.name }}</a></h3>
-  {{ task_list(company, c.tasks, today, contact=c.slug, adding=false) }}
-  {% endfor %}
 </section>
 {%- endmacro %}
 
@@ -292,6 +315,7 @@
   <tr class="{% if t.overdue(today) %}overdue{% endif %}{% if t.done %} done{% endif %}">
     <td>{{ t.text }}</td>
     <td class="{% if t.overdue(today) %}overdue{% endif %}">{{ fmt_date(t.due) if t.due else '' }}</td>
+    <td>{% if t.done %}done{% if t.done_on %} {{ fmt_date(t.done_on) }}{% endif %}{% endif %}</td>
     <td class="actions">
       <form method="post" action="/companies/{{ company.slug }}/tasks/{{ loop.index0 }}/done" class="inline">
         <input type="hidden" name="contact" value="{{ contact }}">
@@ -307,7 +331,7 @@
     </td>
   </tr>
   {% else %}
-  <tr><td colspan="3" class="empty">Nothing else on the list.</td></tr>
+  <tr><td colspan="4" class="empty">Nothing on the list.</td></tr>
   {% endfor %}
 </table></div>
 {% if adding %}

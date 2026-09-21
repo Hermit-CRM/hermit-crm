@@ -36,7 +36,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from secrets import token_urlsafe
 from typing import Callable
-from urllib.parse import quote, urlencode, urlparse
+from urllib.parse import parse_qsl as _parse_qsl, quote, urlencode, urlparse
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
@@ -77,6 +77,7 @@ from .models import (
     Source,
     Stage,
     TaskStatus,
+    Todo,
     ValidationError,
     fmt_date,
     fmt_datetime,
@@ -151,8 +152,10 @@ def company_columns(defs: list | None = None) -> list[Column]:
         *custom_columns(defs or [], "companies"),
         Column("tags", "tags"),
         Column("last_touch", "last touch", "date"),
-        Column("next_step", "next step"),
-        Column("next_step_due", "due", "date"),
+        # The next step is derived (the open to-do due first); the keys keep
+        # their old names so bookmarked filters still work.
+        Column("next_step", "next step", getter=lambda c: c.next_text),
+        Column("next_step_due", "due", "date", getter=lambda c: c.next_due),
     ]
 
 
@@ -164,8 +167,84 @@ def board_columns(defs: list | None = None) -> list[Column]:
         Column("source", "source", "enum", SOURCES),
         *custom_columns(defs or [], "board"),
         Column("tags", "tags"),
-        Column("next_step_due", "due", "date"),
+        Column("next_step_due", "due", "date", getter=lambda c: c.next_due),
     ]
+
+
+class TodoRow:
+    """One line of the Tasks page: a company's to-do with the company attached.
+
+    The next step is not a separate kind of record: it is the company's open
+    to-do due first, so `is_next` is worked out here, per company.
+    """
+
+    def __init__(self, company: Company, todo: Todo, is_next: bool):
+        self.company = company
+        self.todo = todo
+        self.is_next = is_next
+        self.contact = todo.contact
+        self.text = todo.text
+        self.due = todo.due
+        self.done_on = todo.done_on
+        self.kind = "next step" if is_next else "task"
+        self.who = todo.contact.name if todo.contact else company.name
+        self.company_name = company.name
+        self.stage = company.stage
+        self.status = "done" if todo.done else "open"
+
+    @property
+    def href(self) -> str:
+        base = f"/companies/{self.company.slug}"
+        return f"{base}/contacts/{self.contact.slug}" if self.contact else base
+
+
+def todo_rows(companies, include_done: bool = False) -> list[TodoRow]:
+    """Every to-do of `companies`, open first by due date (undated last)."""
+    rows = []
+    for company in companies:
+        first = company.next_todo()
+        todos = company.todos() if include_done else company.open_todos()
+        for todo in todos:
+            is_next = (first is not None and not first.done and not todo.done
+                       and todo.key == first.key)
+            rows.append(TodoRow(company, todo, is_next))
+    rows.sort(key=lambda r: (r.todo.done, r.due is None, r.due or date.min,
+                             r.company_name.lower()))
+    return rows
+
+
+def task_columns() -> list[Column]:
+    return [
+        Column("due", "due", "date"),
+        Column("text", "what"),
+        Column("kind", "kind", "enum", ["next step", "task"]),
+        Column("who", "for"),
+        Column("company_name", "company"),
+        Column("stage", "stage", "enum", STAGES),
+        Column("status", "status", "enum", ["open", "done"]),
+        Column("done_on", "done on", "date"),
+    ]
+
+
+# The quick date chips on the Tasks page: key, label, test on (due, today).
+TASK_WHEN = [
+    ("overdue", "Overdue", lambda d, t: d is not None and d < t),
+    ("today", "Today", lambda d, t: d == t),
+    ("week", "Next 7 days", lambda d, t: d is not None and t <= d <= t + timedelta(days=7)),
+    ("later", "Later", lambda d, t: d is not None and d > t + timedelta(days=7)),
+    ("none", "No date", lambda d, t: d is None),
+]
+
+
+def safe_back(back: str, default: str) -> str:
+    """A same-site path (with its query) to return to; anything else is `default`.
+    A flash left over from the last redirect is dropped."""
+    back = (back or "").strip()
+    if not back.startswith("/") or back.startswith("//") or "\\" in back:
+        return default
+    parts = urlparse(back)
+    query = [(k, v) for k, v in _parse_qsl(parts.query) if k != "flash"]
+    return parts.path + ("?" + urlencode(query) if query else "")
 
 
 class ContactRow:
@@ -353,24 +432,27 @@ def website_for_new_company(website: str, email: str) -> str:
 
 
 def board_sort_key(c: Company):
-    """PIPELINE.md order: next_step_due asc (empty last), then last_touch desc."""
+    """PIPELINE.md order: next step due asc (empty last), then last_touch desc."""
     lt = c.last_touch
+    due = c.next_due
     return (
-        c.next_step_due is None,
-        c.next_step_due or date.min,
+        due is None,
+        due or date.min,
         -(lt.timestamp() if lt else 0.0),
         c.name.lower(),
     )
 
 
-def calendar_link(c: Company) -> str:
-    """All-day Google Calendar event on next_step_due (§8.1). '' when no due date."""
-    if not c.next_step_due:
+def calendar_link(c: Company, todo: Todo | None = None) -> str:
+    """All-day Google Calendar event on a to-do's due date (§8.1), by default
+    the company's next step. '' when there is no due date."""
+    todo = todo or c.next_todo()
+    if todo is None or not todo.due:
         return ""
-    start = c.next_step_due
+    start = todo.due
     end = start + timedelta(days=1)
-    text = f"{c.name}: {c.next_step}" if c.next_step else c.name
-    details = f"{c.next_step}\n\n{BASE_URL}/companies/{c.slug}"
+    text = f"{c.name}: {todo.text}" if todo.text else c.name
+    details = f"{todo.text}\n\n{BASE_URL}/companies/{c.slug}"
     return (
         "https://calendar.google.com/calendar/render?action=TEMPLATE"
         f"&text={quote(text, safe='')}"
@@ -424,7 +506,7 @@ def goto(path: str) -> RedirectResponse:
 
 
 def flashed(path: str, message: str, anchor: str = "") -> RedirectResponse:
-    url = f"{path}?flash={quote(message, safe='')}"
+    url = f"{path}{'&' if '?' in path else '?'}flash={quote(message, safe='')}"
     if anchor:
         url += f"#{anchor}"
     return goto(url)
@@ -832,13 +914,13 @@ def create_app(root: Path, config: dict | None = None,
     def custom_defs(scope: str) -> list:
         return custom.for_scope(app.state.custom_fields, scope)
 
-    def _task_back(request: Request, slug: str, contact: str) -> str:
-        """Back to the page the task was ticked on, not always the company."""
+    def _task_back(request: Request, slug: str, contact: str, back: str = "") -> str:
+        """Back to the page the task was ticked on, not always the company; a
+        posted `back` keeps the Tasks page's filters."""
         referer = urlparse(request.headers.get("referer", "")).path
-        if referer:
-            return referer
-        return (f"/companies/{slug}/contacts/{contact}" if contact
-                else f"/companies/{slug}")
+        default = referer or (f"/companies/{slug}/contacts/{contact}" if contact
+                              else f"/companies/{slug}")
+        return safe_back(back, default)
 
     def with_custom(values: dict, record, scope: str) -> dict:
         """Form values plus this record's custom fields, named as the form names
@@ -1022,22 +1104,13 @@ def create_app(root: Path, config: dict | None = None,
             return goto("/welcome" + ("?" + query if query else ""))
         today = store.today()
         week = today + timedelta(days=7)
-        due_soon = sorted(
-            (c for c in store.companies.values()
-             if not c.is_closed and c.next_step_open and c.next_step_due
-             and c.next_step_due <= week),
-            key=lambda c: (c.next_step_due, c.name.lower()))
-        tasks = sorted(
-            ({"company": company, "contact": None if record is company else record,
-              "index": index, "task": task}
-             for company, record, index, task in store.open_tasks(today)
-             if task.due and task.due <= week),
-            key=lambda r: (r["task"].due, r["company"].name.lower()))
+        due_soon = [r for r in todo_rows(c for c in store.companies.values()
+                                         if not c.is_closed)
+                    if r.due and r.due <= week]
         report = build_report(reports.period_for("30d", today), today)
         return render(request, "home.html", {
             "today": today,
             "due_soon": due_soon,
-            "tasks": tasks,
             "followups": followups.radar(store, today, **followup_days),
             "totals": report["activity"]["totals"],
             "previous": report["activity"]["previous"],
@@ -1091,8 +1164,8 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.get("/today")
     def today_view(request: Request):
-        """The Today lists live at the top of the Calendar page now."""
-        return goto("/calendar#top-priority")
+        """The Today lists live on the Tasks page now."""
+        return goto("/tasks?when=overdue&when=today")
 
     # --------------------------------------------------------------- calendar
 
@@ -1106,73 +1179,101 @@ def create_app(root: Path, config: dict | None = None,
         first = first.replace(day=1)
         prev_month = (first - timedelta(days=1)).replace(day=1)
         next_month = (first + timedelta(days=32)).replace(day=1)
-        open_tasks = sorted(
-            (c for c in store.companies.values() if not c.is_closed and c.next_step_open),
-            key=lambda c: (c.next_step_due is None, c.next_step_due or date.min,
-                           c.name.lower()),
-        )
-        priority = [c for c in open_tasks if c.next_step_due and c.next_step_due <= today]
-        future = [c for c in open_tasks if c not in priority]
+        rows = todo_rows(c for c in store.companies.values() if not c.is_closed)
         silent = sorted(
             (c for c in store.companies.values()
              if c.is_active and c.silent_days(today) >= store.silent_days),
             key=lambda c: (-c.silent_days(today), c.name.lower()),
         )
-        by_day: dict[date, list[Company]] = {}
-        for c in open_tasks:
-            if c.next_step_due:
-                by_day.setdefault(c.next_step_due, []).append(c)
-        # The other tasks: a company's own list and its contacts', on their day.
-        listed = [
-            {"company": company, "contact": None if record is company else record,
-             "index": index, "task": task}
-            for company, record, index, task in store.open_tasks(today)
-        ]
-        tasks_by_day: dict[date, list[dict]] = {}
-        for row in listed:
-            if row["task"].due:
-                tasks_by_day.setdefault(row["task"].due, []).append(row)
+        by_day: dict[date, list[TodoRow]] = {}
+        for row in rows:
+            if row.due:
+                by_day.setdefault(row.due, []).append(row)
         weeks = [
-            [{"date": d, "tasks": by_day.get(d, []), "listed": tasks_by_day.get(d, [])}
-             for d in week]
+            [{"date": d, "rows": by_day.get(d, [])} for d in week]
             for week in calendar.Calendar(firstweekday=0).monthdatescalendar(
                 first.year, first.month)
         ]
-        listed_due = sorted((r for r in listed if r["task"].due),
-                            key=lambda r: (r["task"].due, r["company"].name.lower()))
-        listed_undated = [r for r in listed if not r["task"].due]
         return render(request, "calendar.html", {
             "today": today,
             "first": first,
             "prev_month": prev_month,
             "next_month": next_month,
             "weeks": weeks,
-            "open_tasks": open_tasks,
-            "listed_overdue": [r for r in listed_due if r["task"].due <= today],
-            "listed_future": [r for r in listed_due if r["task"].due > today],
-            "listed_undated": listed_undated,
-            "companies": store.all(),
-            "priority": priority,
-            "future": future,
+            "due_now": sum(1 for r in rows if r.due and r.due <= today),
             "silent": silent,
             "silent_threshold": store.silent_days,
             "upcoming": brief.briefs(store, inbox, store.now()),
             "calendar_last_run": inbox.last_run(calendar_sync.LAST_RUN_FILE),
         })
 
-    @app.post("/calendar/task")
-    def calendar_task(request: Request, text: str = Form(""), company: str = Form(""),
-                      contact: str = Form(""), due: str = Form("")):
-        """Create a task from the calendar: pick the company, optionally the person."""
+    # ------------------------------------------------------------------ tasks
+
+    @app.get("/tasks", response_class=HTMLResponse)
+    def tasks_view(request: Request):
+        """Every to-do in one table: the date chips, then one filter per column."""
+        today = store.today()
+        params = request.query_params
+        cols = task_columns()
+        active = filters.parse(params, cols)
+        if "status" not in active and "f_status" not in params:
+            active["status"] = ["open"]      # open ones unless you ask for done
+        show_closed = params.get("closed") == "1"
+        companies = [c for c in store.companies.values()
+                     if show_closed or not c.is_closed]
+        rows = filters.apply(todo_rows(companies, include_done=True), cols, active)
+        when = [w for w in params.getlist("when") if w in {k for k, _, _ in TASK_WHEN}]
+        counts = {k: sum(1 for r in rows if test(r.due, today)) for k, _, test in TASK_WHEN}
+        if when:
+            tests = [test for k, _, test in TASK_WHEN if k in when]
+            rows = [r for r in rows if any(t(r.due, today) for t in tests)]
+        sort_key, sort_dir = filters.parse_sort(params, cols)
+        rows = filters.sort_rows(rows, cols, sort_key, sort_dir)
+
+        def with_params(drop: tuple, add: list) -> str:
+            kept = [(k, v) for k, v in params.multi_items()
+                    if k not in drop and k != "flash"]
+            query = urlencode(kept + add)
+            return "/tasks" + ("?" + query if query else "")
+
+        chips = [{"key": k, "label": label, "count": counts[k], "on": k in when,
+                  "url": with_params(("when",), [("when", w) for w in when if w != k]
+                                     + ([] if k in when else [("when", k)]))}
+                 for k, label, _ in TASK_WHEN]
+        closed_count = sum(1 for c in store.companies.values() if c.is_closed
+                           for t in c.todos() if not t.done)
+        return render(request, "tasks.html", {
+            "today": today, "rows": rows, "filter_columns": cols, "active": active,
+            "sort": sort_key, "dir": sort_dir, "chips": chips, "when": when,
+            "all_url": with_params(("when",), []),
+            "show_closed": show_closed, "closed_count": closed_count,
+            "closed_url": with_params(("closed",), [] if show_closed else [("closed", "1")]),
+            "here": with_params((), []),
+            "companies": store.all(),
+            "sort_url": lambda key, d: with_params(("sort", "dir"),
+                                                   [("sort", key), ("dir", d)]),
+        })
+
+    @app.post("/tasks")
+    @app.post("/calendar/task")   # the form's old home; kept for open tabs
+    def task_create(request: Request, text: str = Form(""), company: str = Form(""),
+                    contact: str = Form(""), due: str = Form(""), back: str = Form("")):
+        """Create a task: pick the company, optionally the person (slug or name)."""
+        back = safe_back(back, "/tasks")
         try:
             slug = bcc.resolve_company(store, company)
         except ValidationError:
-            return flashed("/calendar", f"No company called {company!r}", "task-list")
+            return flashed(back, f"No company called {company!r}", "task-list")
+        contact = contact.strip()
+        people = store.companies[slug].contacts if slug in store.companies else {}
+        if contact and contact not in people:
+            named = [p.slug for p in people.values() if p.name.lower() == contact.lower()]
+            contact = named[0] if len(named) == 1 else contact
         try:
-            store.add_task(slug, text, due=due, contact=contact.strip())
+            store.add_task(slug, text, due=due, contact=contact)
         except ValidationError as exc:
-            return flashed("/calendar", "; ".join(exc.errors.values()), "task-list")
-        return flashed("/calendar", "Task created", "task-list")
+            return flashed(back, "; ".join(exc.errors.values()), "task-list")
+        return flashed(back, "Task created", "task-list")
 
     @app.post("/calendar/import")
     def calendar_import(request: Request, back: str = Form("/calendar")):
@@ -1719,35 +1820,45 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.post("/companies/{slug}/next-step")
     def company_next_step_status(request: Request, slug: str,
-                                 status: str = Form("open")):
-        """Mark the next step done, or reopen it, from a one-click button."""
+                                 status: str = Form("open"), back: str = Form("")):
+        """Mark the to-do kept in the next_step fields done, or reopen it."""
         need_company(slug)
         try:
             store.update_company(slug, next_step_status=status)
         except ValidationError as exc:
             return flashed(f"/companies/{slug}", "; ".join(exc.errors.values()))
-        back = urlparse(request.headers.get("referer", "")).path or f"/companies/{slug}"
+        back = safe_back(back, urlparse(request.headers.get("referer", "")).path
+                         or f"/companies/{slug}")
         word = "done" if status == TaskStatus.DONE.value else "reopened"
-        return flashed(back, f"Next step {word}", "tasks" if back.startswith("/companies/") else "")
+        return flashed(back, f"Task {word}", "tasks" if back.startswith("/companies/") else "")
+
+    @app.post("/companies/{slug}/next-step/delete")
+    def company_next_step_delete(request: Request, slug: str, back: str = Form("")):
+        """Delete the to-do kept in the next_step fields (the Delete button)."""
+        need_company(slug)
+        back = safe_back(back, f"/companies/{slug}")
+        store.update_company(slug, next_step="", next_step_due="",
+                             message=f"task: {slug} next step deleted")
+        return flashed(back, "Task deleted", "tasks" if back.startswith("/companies/") else "")
 
     @app.post("/companies/{slug}/task")
     def company_task(request: Request, slug: str, next_step: str = Form(""),
                      next_step_due: str = Form("")):
-        """Set the next step and its due date from the Tasks section; it starts open."""
+        """The old "Save next step" form, kept for open tabs. It used to
+        overwrite the next step; now it adds a task, and the next step is
+        whichever task is due first."""
         need_company(slug)
         back = urlparse(request.headers.get("referer", "")).path or f"/companies/{slug}"
         try:
-            store.update_company(slug, next_step=next_step, next_step_due=next_step_due,
-                                 next_step_status="open",
-                                 message=f"company: {slug} next step set")
+            store.add_task(slug, next_step, due=next_step_due)
         except ValidationError as exc:
             return flashed(back, "; ".join(exc.errors.values()), "tasks")
-        return flashed(back, "Task saved", "tasks")
+        return flashed(back, "Task added", "tasks")
 
     @app.post("/companies/{slug}/tasks")
     def task_add(request: Request, slug: str, text: str = Form(""),
-                 due: str = Form(""), contact: str = Form("")):
-        back = _task_back(request, slug, contact)
+                 due: str = Form(""), contact: str = Form(""), back: str = Form("")):
+        back = _task_back(request, slug, contact, back)
         try:
             store.add_task(slug, text, due=due, contact=contact)
         except ValidationError as exc:
@@ -1756,8 +1867,8 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.post("/companies/{slug}/tasks/{index}/done")
     def task_done(request: Request, slug: str, index: int, done: str = Form(""),
-                  contact: str = Form(""), text: str = Form("")):
-        back = _task_back(request, slug, contact)
+                  contact: str = Form(""), text: str = Form(""), back: str = Form("")):
+        back = _task_back(request, slug, contact, back)
         try:
             store.set_task_done(slug, index, bool(done), contact=contact, text=text)
         except ValidationError as exc:
@@ -1766,8 +1877,8 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.post("/companies/{slug}/tasks/{index}/delete")
     def task_delete(request: Request, slug: str, index: int, contact: str = Form(""),
-                    text: str = Form("")):
-        back = _task_back(request, slug, contact)
+                    text: str = Form(""), back: str = Form("")):
+        back = _task_back(request, slug, contact, back)
         try:
             store.delete_task(slug, index, contact=contact, text=text)
         except ValidationError as exc:

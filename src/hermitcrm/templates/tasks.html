@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}Tasks{% endblock %}
+{% block content %}
+<h1>Tasks ({{ rows | length }})</h1>
+<p class="small">Every task for a company or one of its people. A company's <strong>next step</strong> is its open task due first.</p>
+
+<p class="chips" id="when">
+  <a class="chip{% if not when %} on{% endif %}" href="{{ all_url }}">All dates</a>
+  {% for c in chips %}<a class="chip{% if c.on %} on{% endif %}{% if c.key == 'overdue' and c.count %} overdue{% endif %}" href="{{ c.url }}"{% if c.on %} aria-current="true"{% endif %}>{{ c.label }} <span class="count">{{ c.count }}</span></a>{% endfor %}
+  <a class="toggle-parked" href="{{ closed_url }}">{% if show_closed %}Hide closed companies{% else %}Show closed companies ({{ closed_count }}){% endif %}</a>
+</p>
+
+{{ m.filter_form('task-filters', '/tasks', active, None, sort, dir) }}
+{% for w in when %}<input type="hidden" name="when" value="{{ w }}" form="task-filters">{% endfor %}
+{% if show_closed %}<input type="hidden" name="closed" value="1" form="task-filters">{% endif %}
+<div class="table-scroll"><table class="filterable tasks">
+  <tr>{% for col in filter_columns %}<th>{{ col.label }} {{ m.sort_links(col, sort, dir, sort_url) }}</th>{% endfor %}<th></th></tr>
+  <tr class="filters">{% for col in filter_columns %}<th>{{ m.filter_control(col, active, 'task-filters') }}</th>{% endfor %}<th></th></tr>
+  {% for r in rows %}
+  <tr class="{% if r.todo.overdue(today) %}overdue{% endif %}{% if r.todo.done %} done{% endif %}">
+    <td class="due{% if r.todo.overdue(today) %} overdue{% endif %}">{{ fmt_date(r.due) if r.due else 'no date' }}</td>
+    <td>{{ r.text or '(no text)' }}</td>
+    <td>{% if r.is_next %}<span class="tag next-step">next step</span>{% else %}<span class="small">task</span>{% endif %}</td>
+    <td><a href="{{ r.href }}">{{ r.who }}</a></td>
+    <td><a href="/companies/{{ r.company.slug }}#tasks">{{ r.company_name }}</a></td>
+    <td>{{ r.stage }}</td>
+    <td><span class="tag status-{{ r.status }}">{{ r.status }}</span></td>
+    <td class="due">{{ fmt_date(r.done_on) if r.done_on else '' }}</td>
+    <td class="actions">{{ m.todo_actions(r.company, r.todo, back=here) }}{% if not r.todo.done %} <a href="/companies/{{ r.company.slug }}/interactions/new">log interaction</a>{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="9" class="empty">No tasks match.</td></tr>
+  {% endfor %}
+</table></div>
+
+<h2 id="task-list">Add a task</h2>
+<form method="post" action="/tasks" class="record-form">
+  <input type="hidden" name="back" value="{{ here }}">
+  <div class="row">
+    <label class="grow">task <input name="text" placeholder="e.g. send the pricing page" required></label>
+    <label class="grow">company
+      <input name="company" list="task-companies" required placeholder="an existing company">
+      <datalist id="task-companies">{% for c in companies %}<option value="{{ c.name }}">{% endfor %}</datalist>
+    </label>
+    <label class="grow">person (optional) <input name="contact" placeholder="their name or slug, e.g. Jane Roe"></label>
+    <label>due <input type="date" name="due"></label>
+  </div>
+  <button type="submit">Create task</button>
+</form>
+{% endblock %}
