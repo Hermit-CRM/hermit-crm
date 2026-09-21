@@ -88,6 +88,7 @@ CONFIG_ROUTES = [
     ("/settings/appearance", {"theme": "dark"}),
     ("/settings/outcomes", {"outcomes": "Replied\nNo reply", "message_window_days": "7",
                             "silent_days": "21"}),
+    ("/settings/task-types", {"name": "prospecting", "colour": "green", "old": ""}),
     ("/welcome/tick", {"key": "find", "done": "1"}),
     ("/welcome/dismiss", {"dismissed": "1"}),
     ("/disclaimer/accept", {"accepted": "1"}),

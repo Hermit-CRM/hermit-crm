@@ -718,7 +718,7 @@ def create_app(root: Path, config: dict | None = None,
     app = FastAPI(title="Hermit CRM")
     app.state.messages = messages
     app.state.update_notice = updates.UpdateNotice()
-    app.state.task_types = configured_types  # refresh_config replaces it after a save
+    app.state.task_types = configured_types  # config_saved replaces it after a save
     if config.get("start_update_check"):  # set by `hermitcrm serve`; tests stay offline
         app.state.update_notice.start(config)
     app.state.store = store
@@ -2810,7 +2810,7 @@ def create_app(root: Path, config: dict | None = None,
             result = setup_steps.StepResult(ok=False, errors=errors)
             return setup_invalid(request, result, "task-types")
         setup_steps.save_task_types(root, types)
-        refresh_config()      # store.task_types first, so renamed values validate
+        config_saved()        # store.task_types first, so renamed values validate
         done = [f"{o} to {n} ({store.rename_task_type(o, n)})" for o, n in renames.items()]
         message = "Task types saved" + ("; renamed " + ", ".join(done) if done else "")
         return flashed("/settings", message, anchor="task-types")
