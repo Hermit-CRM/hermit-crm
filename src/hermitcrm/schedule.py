@@ -22,6 +22,11 @@ Every file write and command goes through seams (``home``, ``runner``,
 
 Reading plist values uses ``plutil -extract KEY json -o - FILE``: plutil
 without ``-o`` rewrites the file in place.
+
+systemd user units only outlive a login session when lingering is on
+(``loginctl enable-linger``). Without it the timers stop at logout and do not
+start at boot, while the unit files still look installed; ``install`` turns it
+on (or says how) and ``status`` reports it, so ``doctor`` can warn.
 """
 
 from __future__ import annotations
@@ -48,6 +53,7 @@ WIN_SYNC_TASK = r"Hermit CRM\sync"
 WIN_SERVE_TASK = r"Hermit CRM\serve"
 WIN_BACKUP_TASK = r"Hermit CRM\backup"
 DRY_ENV = "HERMITCRM_DRY_SCHEDULE"
+LINGER_DIR = Path("/var/lib/systemd/linger")  # one empty file per lingering user
 
 
 class ScheduleError(Exception):
@@ -93,6 +99,7 @@ class Context:
     env: dict | None = None
     exe: list[str] | None = None
     uid: int | None = None
+    linger_dir: Path = LINGER_DIR
 
     def __post_init__(self) -> None:
         self.data_dir = Path(self.data_dir).expanduser().resolve()
@@ -300,6 +307,60 @@ def backup_service(ctx: Context) -> str:
             f"ExecStart={_exec_line(ctx.backup_args())}\n")
 
 
+def _user_name(ctx: Context) -> str:
+    name = ctx.env.get("USER") or ctx.env.get("LOGNAME")
+    if not name:
+        try:
+            import pwd
+
+            name = pwd.getpwuid(ctx.uid).pw_name
+        except (ImportError, KeyError):
+            name = ""
+    return name
+
+
+def linger_enabled(ctx: Context) -> bool | None:
+    """Whether systemd keeps this user's units running with nobody logged in.
+
+    None when it cannot be told. `loginctl show-user` fails for a user with no
+    session and no lingering (the very case that matters), so the file logind
+    itself reads is the fallback.
+    """
+    try:
+        proc = ctx.runner(["loginctl", "show-user", str(ctx.uid), "--property=Linger",
+                           "--value"], capture_output=True, text=True, timeout=10)
+        value = (proc.stdout or "").strip().lower() if proc.returncode == 0 else ""
+    except (OSError, subprocess.TimeoutExpired):
+        value = ""
+    if value in ("yes", "no"):
+        return value == "yes"
+    name = _user_name(ctx)
+    if name and (ctx.linger_dir / name).exists():
+        return True
+    if name and ctx.linger_dir.is_dir():
+        return False
+    return None
+
+
+def _enable_linger(ctx: Context, lines: list[str]) -> None:
+    fix = f"sudo loginctl enable-linger {_user_name(ctx) or '$USER'}"
+    if ctx.dry:
+        ctx.run(["loginctl", "--no-ask-password", "enable-linger"], lines)
+        return
+    if linger_enabled(ctx):
+        lines.append("lingering is on: the jobs run while you are logged out and after a reboot")
+        return
+    # Allowed without a password for your own active session on most distros;
+    # --no-ask-password keeps polkit from prompting inside a captured subprocess.
+    ctx.run(["loginctl", "--no-ask-password", "enable-linger"], lines)
+    if linger_enabled(ctx):
+        lines.append("turned on lingering (loginctl enable-linger): the jobs run while you "
+                     "are logged out and after a reboot")
+    else:
+        lines.append("WARNING: lingering is off, so these jobs stop when you log out and do "
+                     f"not start at boot. Run: {fix}")
+
+
 def backup_timer(every: int) -> str:
     return ("[Unit]\nDescription=Run Hermit CRM backup every few minutes\n\n"
             f"[Timer]\nOnBootSec=2min\nOnUnitActiveSec={every}min\nPersistent=true\n\n"
@@ -380,6 +441,7 @@ def install(ctx: Context, at: str = "07:00", serve: bool = False, backup: bool =
             code = ctx.run(["systemctl", "--user", "enable", "--now", unit], lines)
             if not ctx.dry:
                 lines.append(f"enabled {unit}" if code == 0 else f"could not enable {unit}")
+        _enable_linger(ctx, lines)
         lines.append(f"sync runs daily at {hour:02d}:{minute:02d}; log: "
                      f"journalctl --user -u {SYNC_UNIT}")
         if every:
@@ -437,6 +499,7 @@ def status(ctx: Context) -> dict:
     installed = False
     backup_installed = False
     elsewhere: Path | None = None
+    linger: bool | None = None
     if kind == "mac":
         for label in (SYNC_LABEL, BACKUP_LABEL, SERVE_LABEL):
             path = agents_dir(ctx) / f"{label}.plist"
@@ -488,8 +551,13 @@ def status(ctx: Context) -> dict:
             lines.append(f"{BACKUP_UNIT}.timer: not installed")
         serve = units_dir(ctx) / f"{SERVE_UNIT}.service"
         lines.append(f"{SERVE_UNIT}.service: {'installed' if serve.exists() else 'not installed'}")
+        if timer.exists() or btimer.exists() or serve.exists():
+            linger = None if ctx.dry else linger_enabled(ctx)
+            lines.append("lingering: " + {True: "on", None: "unknown (loginctl show-user)",
+                                          False: "off; the jobs stop when you log out, run: "
+                                                 "sudo loginctl enable-linger $USER"}[linger])
     else:
         lines.append(f'Windows: check with: schtasks /Query /TN "{WIN_SYNC_TASK}" and '
                      f'/TN "{WIN_BACKUP_TASK}"')
     return {"installed": installed, "backup_installed": backup_installed,
-            "elsewhere": elsewhere, "lines": lines}
+            "elsewhere": elsewhere, "linger": linger, "lines": lines}
