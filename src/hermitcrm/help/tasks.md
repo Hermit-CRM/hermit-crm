@@ -5,9 +5,19 @@
 ## The next step
 
 A company's **next step** is its open task due first; undated tasks come after
-dated ones. The **kind** column says `next step` for that one and `task` for
-the rest. Nothing to pick or pin: to change what is next, change a due date or
-tick the task off.
+dated ones. It carries a `next step` tag, and **Next steps only** (next to the
+date buttons) shows just those. Nothing to pick or pin: to change what is
+next, change a due date or tick the task off.
+
+## Task types
+
+Give tasks your own labels, such as *pipeline follow-up*, *prospecting* or
+*lost deals*, in **Settings → Task types**, each with a colour. Then pick a type
+when you add a task, or change it from the dropdown in the task's row. The
+**type** column filters by it; `(none)` finds the tasks without one. A type is
+only a label: it changes no dates. Renaming a type in Settings renames it on
+every task. A deleted type stays on its tasks, in grey. The next step's type
+also shows on the Companies list, the board and in PIPELINE.md.
 
 ## Date buttons
 
@@ -22,8 +32,9 @@ closed companies out, use the stage filter.
 
 ## Filters and sorting
 
-One box per column, as on the Companies page: due, what, kind, for (the
-company or person the task is for), company, stage, status and done on. The
+One box per column, as on the Companies page: due, what, type (once you have
+task types), for (the company or person the task is for), company, stage,
+status and done on. The
 page shows open tasks until you pick a status; choose `done` (or both) to see
 finished ones with the day they were done. Filters, date buttons and sorting
 stay in the URL, so a view can be bookmarked, and **Done** brings you back to

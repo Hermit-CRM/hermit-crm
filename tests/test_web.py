@@ -21,7 +21,7 @@ import re
 import subprocess
 from datetime import date, timedelta
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import pytest
 from fastapi.testclient import TestClient
@@ -960,15 +960,16 @@ def test_the_tasks_page_filters_every_task_in_one_table(frozen_client):
     rows = table("/tasks")
     assert rows.index("Call Jane") < rows.index("Book the demo") \
         < rows.index("send the deck") < rows.index("check the audit")
-    assert rows.count("next step</span>") == 3
+    assert rows.count('class="tag next-step"') == 3
+    assert 'Next steps only <span class="count">3</span>' in page
 
     assert "Book the demo" in table("/tasks?when=today") and "Call Jane" not in table("/tasks?when=today")
     both = table("/tasks?when=overdue&when=today")
     assert "Call Jane" in both and "Book the demo" in both and "send the deck" not in both
     assert "Ask again" not in table("/tasks?f_stage=discovery")
 
-    kind = table("/tasks?f_kind=task")
-    assert "send the deck" in kind and "Call Jane" not in kind
+    nexts = table("/tasks?next=1")
+    assert "Call Jane" in nexts and "send the deck" not in nexts
     assert "Jane Roe" in table("/tasks?f_who=jane") and "Beta" not in table("/tasks?f_who=jane")
     assert "Book the demo" not in table("/tasks?f_stage=discovery")
     assert "check the audit" in table("/tasks?f_due=-") and "Call Jane" not in table("/tasks?f_due=-")
@@ -977,8 +978,8 @@ def test_the_tasks_page_filters_every_task_in_one_table(frozen_client):
 
     # Done from the filtered view comes back to it and records the day
     r = c.post("/companies/acme/tasks/0/done",
-               data={"text": "check the audit", "done": "1", "back": "/tasks?f_kind=task"})
-    assert r.headers["location"] == "/tasks?f_kind=task&flash=Task%20done#tasks"
+               data={"text": "check the audit", "done": "1", "back": "/tasks?next=1&f_who=acme"})
+    assert r.headers["location"] == "/tasks?next=1&f_who=acme&flash=Task%20done#tasks"
     assert "check the audit" not in table("/tasks")
     done = table("/tasks?f_status=done")
     assert "check the audit" in done and "2026-09-14" in done
@@ -1881,6 +1882,9 @@ def test_the_phone_rules_that_keep_the_company_page_on_the_screen():
     assert effective(phone, ".record-actions details.inline-edit[open]")["flex-basis"] == "100%"
     # The 260px merge field pushed Compare off a 375px screen; now Compare wraps.
     assert effective(phone, "#merge form.inline-row")["flex-wrap"] == "wrap"
+    # The add-task row gained a 260px type dropdown; every inline row wraps on a phone.
+    assert effective(phone, "form.inline-row")["flex-wrap"] == "wrap"
+    assert "flex-wrap" not in effective(wide, "form.inline-row")
 
 
 def test_a_custom_field_goes_all_the_way_through_the_app(client, app, repo):
@@ -2082,3 +2086,101 @@ def test_settings_appearance_shows_the_theme_file(client, repo):
     page = htmllib.unescape(client.get("/settings").text)
     assert "In use:" in page
     assert "Line 2: @import loads another file" in page
+
+
+# --- task types ------------------------------------------------------------
+
+TYPES = [{"name": "prospecting", "colour": "blue"}, {"name": "lost deals", "colour": "amber"}]
+
+
+@pytest.fixture
+def typed_client(repo: Path):
+    app = create_app(repo, config=dict(CONFIG, task_types=TYPES))
+    app.state.store.clock = lambda: FIXED_NOW
+    return TestClient(app, follow_redirects=False)
+
+
+def test_a_task_gets_a_type_when_made_and_can_be_retyped(typed_client):
+    c = typed_client
+    post_company(c, name="Acme", next_step="Call Jane", next_step_due="2026-09-10",
+                 next_step_type="lost deals")
+    post_contact(c, "acme", first_name="Jane", last_name="Roe")
+    c.post("/companies/acme/tasks", data={"text": "send deck", "type": "prospecting"})
+    c.post("/tasks", data={"text": "ask Jane", "company": "Acme", "contact": "Jane",
+                           "type": "prospecting", "back": "/tasks"})
+    store = c.app.state.store
+    acme = store.companies["acme"]
+    assert acme.next_step_type == "lost deals" and acme.tasks[0].type == "prospecting"
+    assert acme.contacts["jane-roe"].tasks[0].type == "prospecting"
+    page = c.get("/companies/acme").text
+    assert 'name="type"' in page and 'name="next_step_type"' in page
+    assert c.get("/companies/acme/contacts/jane-roe").text.count('name="type"') >= 2
+
+    r = c.post("/companies/acme/todo-type", data={"index": "0", "text": "send deck",
+                                                  "type": "lost deals"})
+    assert r.status_code == 303 and store.companies["acme"].tasks[0].type == "lost deals"
+    c.post("/companies/acme/todo-type", data={"index": "", "type": ""})
+    assert store.companies["acme"].next_step_type == ""
+    c.post("/companies/acme/todo-type", data={"index": "0", "contact": "jane-roe",
+                                              "text": "ask Jane", "type": ""})
+    assert store.companies["acme"].contacts["jane-roe"].tasks[0].type == ""
+    r = c.post("/companies/acme/todo-type", data={"index": "0", "text": "send deck",
+                                                  "type": "nope"})
+    assert "unknown task type" in unquote(r.headers["location"])
+    r = c.post("/companies/acme/todo-type", data={"index": "0", "text": "changed",
+                                                  "type": "prospecting"})
+    assert "reload" in unquote(r.headers["location"])
+
+
+def test_saving_the_company_form_without_a_type_field_keeps_the_type(typed_client):
+    c = typed_client
+    post_company(c, name="Acme", next_step="Call Jane", next_step_type="prospecting")
+    c.post("/companies/acme", data={**COMPANY_BLANK, "name": "Acme", "next_step": "Call Jane"})
+    assert c.app.state.store.companies["acme"].next_step_type == "prospecting"
+    c.post("/companies/acme", data={**COMPANY_BLANK, "name": "Acme", "next_step": "Call Jane",
+                                    "next_step_type": ""})
+    assert c.app.state.store.companies["acme"].next_step_type == ""
+
+
+def test_without_task_types_there_is_no_type_field(client):
+    post_company(client, name="Plain", next_step="call")
+    client.post("/companies/plain/tasks", data={"text": "send deck"})
+    page = client.get("/companies/plain").text
+    assert 'name="type"' not in page and 'name="next_step_type"' not in page
+    assert 'name="type"' not in client.get("/tasks").text
+    assert "next type" not in client.get("/companies").text
+
+
+def test_the_tasks_page_filters_by_type(typed_client):
+    c = typed_client
+    post_company(c, name="Acme", next_step="Call Jane", next_step_due="2026-09-10")
+    c.post("/companies/acme/tasks", data={"text": "send deck", "type": "prospecting"})
+    c.post("/companies/acme/tasks", data={"text": "untyped one"})
+    table = lambda url: c.get(url).text.split('class="filters"')[1].split("</table>")[0]
+    assert "send deck" in table("/tasks?f_type=prospecting")
+    assert "untyped one" not in table("/tasks?f_type=prospecting")
+    assert "untyped one" in table("/tasks?f_type=(none)")
+    assert "send deck" not in table("/tasks?f_type=(none)")
+    assert 'class="type-chip type-blue"' in table("/tasks")
+    assert "Call Jane" in table("/tasks?next=1&f_type=(none)")
+    assert c.get("/tasks?f_kind=task").status_code == 200     # old links still load
+
+
+def test_the_tasks_page_has_no_type_column_without_types(client):
+    post_company(client, name="Plain", next_step="call")
+    head = client.get("/tasks").text.split('class="filters"')[0]
+    assert "f_type" not in head and ">type " not in head
+
+
+def test_the_next_step_type_shows_on_companies_and_board(typed_client):
+    c = typed_client
+    post_company(c, name="Acme", next_step="Call Jane", next_step_due="2026-09-10")
+    post_company(c, name="Beta", next_step="Book demo")
+    c.post("/companies/acme/todo-type", data={"index": "", "type": "prospecting"})
+    body = lambda url: c.get(url).text.split('class="filters"')[1].split("</table>")[0]
+    companies = c.get("/companies").text
+    assert ">next type " in companies and 'class="type-chip type-blue"' in companies
+    assert "Acme" in body("/companies?f_next_type=prospecting")
+    assert "Beta" not in body("/companies?f_next_type=prospecting")
+    assert "Beta" in body("/companies?f_next_type=(none)")
+    assert 'class="type-chip type-blue"' in c.get("/pipeline").text

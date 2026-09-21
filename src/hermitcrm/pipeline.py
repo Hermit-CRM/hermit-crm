@@ -40,6 +40,8 @@ def _next_field(c) -> str:
     next_step, next_step_due = todo.text, todo.due
     if todo.contact is not None and next_step:
         next_step = f"{next_step} ({todo.contact.name})"
+    if todo.type and next_step:
+        next_step = f"{next_step} [{todo.type}]"
     suffix = " (done)" if todo.done else ""
     if next_step and next_step_due:
         return f"next: {next_step}, due {next_step_due:%Y-%m-%d}{suffix}"
