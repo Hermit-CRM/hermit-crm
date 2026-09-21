@@ -63,4 +63,5 @@ echo
 files=$(tar -tzf "$out" | grep -cv '/$')
 echo "Built from $(git rev-parse --short "$commit"): $files files, $(du -h "$out" | cut -f1), unpacks to $name/."
 echo "Put both files on the download page. To check one after downloading:"
-echo "  shasum -a 256 -c $name.tar.gz.sha256"
+echo "  shasum -a 256 -c $name.tar.gz.sha256   (macOS)"
+echo "  sha256sum -c $name.tar.gz.sha256   (Linux)"
