@@ -1,0 +1,7 @@
+# Only site/ and nginx.conf belong in the image.
+content.toml
+build.py
+README.md
+.gitignore
+Dockerfile
+fly.toml
