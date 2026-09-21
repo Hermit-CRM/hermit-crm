@@ -41,7 +41,10 @@ def repo(tmp_path: Path) -> Path:
     subprocess.run(["git", "init", "-b", "main"], cwd=tmp_path, check=True,
                    capture_output=True)
     (tmp_path / "companies").mkdir()
-    (tmp_path / "config.toml").write_text("# port = 8765\n", encoding="utf-8")
+    # welcome_dismissed on disk too: accepting re-reads config.toml, and a folder
+    # with the walkthrough still open goes to it instead of back (tested below).
+    (tmp_path / "config.toml").write_text("# port = 8765\nwelcome_dismissed = true\n",
+                                          encoding="utf-8")
     return tmp_path
 
 
@@ -128,6 +131,27 @@ def test_ticking_the_box_writes_a_timestamp_and_retires_the_modal(client, repo):
 
     assert "Before you start" not in client.get("/").text
     assert "Before you start" not in client.get("/companies").text
+
+
+def test_a_new_user_goes_from_the_box_straight_into_the_tour(repo):
+    """The only click a new user needs: the box. The tour then starts on its own."""
+    (repo / "config.toml").write_text("# port = 8765\n", encoding="utf-8")
+    app = create_app(repo, config={"port": 8765, "push_enabled": False},
+                     clock=lambda: FIXED_NOW)
+    client = TestClient(app, follow_redirects=False)
+    assert client.get("/").headers["location"] == "/welcome"
+    assert "Before you start" in client.get("/welcome").text
+    r = client.post("/disclaimer/accept",
+                    data={"csrf_token": token(client), "accepted": "1", "back": "/welcome"})
+    assert r.status_code == 303 and r.headers["location"] == "/welcome?tour=1"
+    page = client.get("/welcome?tour=1").text
+    assert "Before you start" not in page and "/static/tour.js" in page
+
+
+def test_the_modal_names_the_apache_licence(client):
+    text = client.get("/").text
+    assert "Apache 2.0 licence" in text
+    assert 'href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank"' in text
 
 
 def test_posting_without_the_box_changes_nothing(client, repo):

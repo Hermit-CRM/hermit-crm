@@ -634,7 +634,8 @@ def create_app(root: Path, config: dict | None = None,
     app.state.open_mailbox = lambda: bcc.open_gmail(app.state.bcc_settings, root)
     cal_settings = calendar_sync.settings_from_config(config)
     app.state.calendar_settings = cal_settings
-    # Settings page: a per-process CSRF token, redirect-once state and test seams.
+    # Settings page: a per-process CSRF token and test seams. setup_redirected
+    # = True lets a test reach the dashboard while the walkthrough is unfinished.
     app.state.csrf_token = token_urlsafe(32)
     app.state.setup_redirected = False
     app.state.setup_runner = subprocess.run
@@ -928,7 +929,6 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.get("/welcome", response_class=HTMLResponse)
     def welcome_page(request: Request):
-        app.state.setup_redirected = True
         all_steps = welcome_steps()
         done, total = welcome.progress(all_steps)
         return render(request, "welcome.html", {
@@ -962,7 +962,7 @@ def create_app(root: Path, config: dict | None = None,
         refresh_config()
         return flashed("/" if dismissed else "/welcome",
                        "Getting started stays under Help" if dismissed
-                       else "Getting started opens at start again")
+                       else "Getting started is the home page again")
 
     # ------------------------------------------------------------ sample account
 
@@ -1001,20 +1001,25 @@ def create_app(root: Path, config: dict | None = None,
         setup_steps.set_config_values(root / "config.toml",
                                       {disclaimer.KEY: disclaimer.stamp()})
         refresh_config()
+        # The box is ticked once per data folder, which makes this the first
+        # start: a new user goes straight into the walkthrough with the tour
+        # running, without having to find the "Show me around" button.
+        if welcome.should_show(config, welcome_steps()):
+            return goto("/welcome?tour=1")
         return goto(safe_page(back))
 
     @app.get("/", response_class=HTMLResponse)
     def home(request: Request):
-        # Once per server start, a folder that has not finished the walkthrough
-        # lands on it; "Skip for now" there works for the rest of the session.
+        # Until every step is done or "Don't open this at startup" is clicked,
+        # the walkthrough is the home page: every visit to / lands on it, and
+        # ?tour=1 goes along so "Show me around" still starts the tour.
         all_steps = welcome_steps()
         # The same test decides whether home keeps its beginner block, so there
         # is one switch for the two of them: "Hide the tutorial" is /welcome/dismiss.
         intro = welcome.should_show(config, all_steps)
-        if not app.state.setup_redirected:
-            app.state.setup_redirected = True
-            if intro:
-                return goto("/welcome")
+        if intro and not app.state.setup_redirected:
+            query = request.url.query
+            return goto("/welcome" + ("?" + query if query else ""))
         today = store.today()
         week = today + timedelta(days=7)
         due_soon = sorted(
@@ -2331,7 +2336,6 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.get("/settings", response_class=HTMLResponse)
     def settings_view(request: Request):
-        app.state.setup_redirected = True
         return settings_page(request)
 
     @app.get("/setup")

@@ -74,7 +74,7 @@ CONFIG_DOCS = {
     "remote": "Name of the git remote to push to.",
     "backup_dir": "Where `hermitcrm backup` keeps its repository that only grows; empty means ~/.hermitcrm/backups/<folder>-<hash>.git. Must be outside this folder.",
     "welcome_done": "Walkthrough steps you ticked yourself, the ones Hermit CRM cannot see happen.",
-    "welcome_dismissed": "Stop opening the walkthrough when Hermit CRM starts; it stays under Help.",
+    "welcome_dismissed": "Stop showing the walkthrough as the home page; it stays under Help.",
     "disclaimer_accepted": "When you ticked the one-time disclaimer, as local time. Empty means the web app still shows it. Never sent anywhere.",
     "messaging_size_field": "Which of your fields holds a headcount, for the drafts that mention team size; empty means the size line always uses its 'unknown' wording.",
     "messaging_team_field": "Which of your fields holds a count of sales people, for the drafts that mention the team; empty means the team line always uses its 'unknown' wording.",
