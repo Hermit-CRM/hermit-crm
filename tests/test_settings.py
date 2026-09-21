@@ -238,6 +238,33 @@ def test_outcomes_saved_one_per_line_and_windows_applied(demo, tmp_path):
     assert "silent for 30+" in client.get("/calendar").text.lower()
 
 
+def test_new_outcomes_usable_without_restart(demo, tmp_path):
+    """Outcomes saved in Settings are live at once: the store accepts them, the
+    interaction form offers them and the Messages tab counts them."""
+    app, client = make_client(demo, tmp_path)
+    slug = "bluefin-analytics"
+    r = client.post("/settings/outcomes", data={
+        "csrf_token": token(client), "outcomes": "positive\nmeeting booked\nsilent",
+        "message_window_days": "14", "silent_days": "14"})
+    assert r.status_code == 303
+    assert app.state.store.outcomes == ["positive", "meeting booked", "silent"]
+    page = client.get(f"/companies/{slug}").text
+    assert '<option value="meeting booked"' in page
+    r = client.post(f"/companies/{slug}/interactions", data={
+        "channel": "email", "direction": "out", "contact": "", "date": "2026-09-01",
+        "subject": "Intro", "outcome": "meeting booked", "body": "Hello"})
+    assert r.status_code == 303, r.text
+    logged = [i for i in app.state.store.companies[slug].interactions
+              if i.subject == "Intro"]
+    assert [i.outcome for i in logged] == ["meeting booked"]
+    assert "1 meeting booked" in client.get("/messages").text
+    # And the old list is gone from validation too.
+    r = client.post(f"/companies/{slug}/interactions", data={
+        "channel": "email", "direction": "out", "contact": "", "date": "2026-09-02",
+        "subject": "Old", "outcome": "successful", "body": "Hi"})
+    assert r.status_code != 303
+
+
 def test_outcomes_validation(demo, tmp_path):
     _, client = make_client(demo, tmp_path)
     t = token(client)
