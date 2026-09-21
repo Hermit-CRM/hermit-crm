@@ -209,3 +209,32 @@ def test_theme_css_row(folder, tmp_path):
     row = checks(folder, tmp_path)["theme.css"]
     assert row.status == doctor.WARN
     assert "line 2: @import" in row.detail and "line 3: url(https://example.com/a.png)" in row.detail
+
+
+def test_doctor_warns_when_systemd_lingering_is_off(folder, tmp_path):
+    """Unit files alone are not a working schedule: without lingering the
+    timers stop at logout, so doctor must not say OK."""
+    import subprocess
+
+    from hermitcrm import schedule
+
+    class Logind:  # loginctl reports Linger=no and refuses enable-linger
+        linger = False
+
+        def __call__(self, argv, **kw):
+            if argv[:2] == ["loginctl", "show-user"]:
+                return subprocess.CompletedProcess(argv, 0, "yes\n" if self.linger else "no\n", "")
+            return subprocess.CompletedProcess(argv, int(argv[:2] == ["loginctl", "--no-ask-password"]),
+                                               "", "")
+
+    home = tmp_path / "home"
+    rec = Logind()
+    schedule.install(schedule.Context(data_dir=folder, home=home, platform="linux",
+                                      runner=rec, env={}, exe=["/x/hermitcrm"], uid=501,
+                                      linger_dir=tmp_path / "linger"))
+    res = checks(folder, tmp_path, runner=rec, home=home)
+    assert res["schedule"].status == "warn"
+    assert "loginctl enable-linger" in res["schedule"].detail
+
+    rec.linger = True
+    assert checks(folder, tmp_path, runner=rec, home=home)["schedule"].status == "ok"
