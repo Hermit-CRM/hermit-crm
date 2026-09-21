@@ -596,6 +596,37 @@ def test_schedule_backup_on_linux_and_windows(tmp_path):
     assert any("/SC MINUTE /MO 5" in l and "backup" in l for l in schedule.install(w))
 
 
+def test_schedule_install_can_leave_the_sync_alone(tmp_path):
+    c, _ = sched_ctx(tmp_path / "m", "darwin")
+    lines = schedule.install(c, sync=False)
+    agents = tmp_path / "m/h/Library/LaunchAgents"
+    assert (agents / "io.hermitcrm.backup.plist").exists()
+    assert not (agents / "io.hermitcrm.sync.plist").exists()
+    assert not any("sync runs" in l for l in lines)
+    st = schedule.status(c)
+    assert st["backup_installed"] is True and st["installed"] is False
+    c, calls = sched_ctx(tmp_path / "l", "linux")
+    schedule.install(c, sync=False)
+    units = tmp_path / "l/h/.config/systemd/user"
+    assert (units / "hermitcrm-backup.timer").exists()
+    assert not (units / "hermitcrm-sync.timer").exists()
+    assert not any("hermitcrm-sync.timer" in a for argv in calls for a in argv)
+    w, _ = sched_ctx(tmp_path / "w", "win32")
+    lines = schedule.install(w, sync=False)
+    assert any("backup" in l for l in lines if l.startswith("schtasks"))
+    assert not any("sync" in l.lower() for l in lines if l.startswith("schtasks"))
+
+
+def test_schedule_status_names_the_folder_another_backup_job_is_for(tmp_path):
+    c, _ = sched_ctx(tmp_path, "darwin")
+    schedule.install(c, sync=False)
+    other = schedule.Context(data_dir=tmp_path / "elsewhere", home=c.home, platform="darwin",
+                             runner=c.runner, env={}, exe=["/x/hermitcrm"], uid=501)
+    st = schedule.status(other)
+    assert st["backup_installed"] is False and st["backup_elsewhere"] == c.data_dir
+    assert schedule.status(c)["backup_elsewhere"] is None
+
+
 @pytest.mark.parametrize("bad", [0, 1441, "x"])
 def test_schedule_backup_every_bounds(tmp_path, bad):
     c, _ = sched_ctx(tmp_path, "darwin")

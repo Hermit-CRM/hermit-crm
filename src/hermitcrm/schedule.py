@@ -424,9 +424,11 @@ def _win_cmd(args: list[str]) -> str:
 
 
 def windows_commands(ctx: Context, hour: int, minute: int, serve: bool,
-                     backup_every: int | None = None) -> list[str]:
-    cmds = [f'schtasks /Create /F /SC DAILY /ST {hour:02d}:{minute:02d} /TN "{WIN_SYNC_TASK}" '
-            f'/TR "{_win_cmd(ctx.sync_args())}"']
+                     backup_every: int | None = None, sync: bool = True) -> list[str]:
+    cmds = []
+    if sync:
+        cmds.append(f'schtasks /Create /F /SC DAILY /ST {hour:02d}:{minute:02d} '
+                    f'/TN "{WIN_SYNC_TASK}" /TR "{_win_cmd(ctx.sync_args())}"')
     if backup_every:
         cmds.append(f'schtasks /Create /F /SC MINUTE /MO {backup_every} /TN "{WIN_BACKUP_TASK}" '
                     f'/TR "{_win_cmd(ctx.backup_args())}"')
@@ -440,7 +442,9 @@ def windows_commands(ctx: Context, hour: int, minute: int, serve: bool,
 
 
 def install(ctx: Context, at: str = "07:00", serve: bool = False, backup: bool = True,
-            backup_every: int = 5) -> list[str]:
+            backup_every: int = 5, sync: bool = True) -> list[str]:
+    """Write and load the jobs. sync=False leaves the daily sync alone, for
+    Settings > Backup, which only starts the backup job."""
     hour, minute = parse_time(at)
     every = parse_every(backup_every) if backup else None
     kind = _platform_kind(ctx.platform)
@@ -455,7 +459,7 @@ def install(ctx: Context, at: str = "07:00", serve: bool = False, backup: bool =
                 legacy.unlink()
                 lines.append(f"removed {legacy}")
         files = [(agents_dir(ctx) / f"{SYNC_LABEL}.plist", sync_plist(ctx, hour, minute),
-                  SYNC_LABEL)]
+                  SYNC_LABEL)] if sync else []
         if every:
             files.append((agents_dir(ctx) / f"{BACKUP_LABEL}.plist", backup_plist(ctx, every),
                           BACKUP_LABEL))
@@ -466,15 +470,16 @@ def install(ctx: Context, at: str = "07:00", serve: bool = False, backup: bool =
             path.write_bytes(data)
             lines.append(f"wrote {path}")
             _launchctl_load(ctx, path, label, lines)
-        lines.append(f"sync runs daily at {hour:02d}:{minute:02d}; log: "
-                     f"{logs_dir(ctx) / 'hermitcrm-sync.log'}")
+        if sync:
+            lines.append(f"sync runs daily at {hour:02d}:{minute:02d}; log: "
+                         f"{logs_dir(ctx) / 'hermitcrm-sync.log'}")
         if every:
             lines.append(f"backup runs every {every} min; log: "
                          f"{logs_dir(ctx) / 'hermitcrm-backup.log'}")
     elif kind == "linux":
         units_dir(ctx).mkdir(parents=True, exist_ok=True)
-        files = {f"{SYNC_UNIT}.service": sync_service(ctx),
-                 f"{SYNC_UNIT}.timer": sync_timer(hour, minute)}
+        files = ({f"{SYNC_UNIT}.service": sync_service(ctx),
+                  f"{SYNC_UNIT}.timer": sync_timer(hour, minute)} if sync else {})
         if every:
             files[f"{BACKUP_UNIT}.service"] = backup_service(ctx)
             files[f"{BACKUP_UNIT}.timer"] = backup_timer(every)
@@ -488,21 +493,23 @@ def install(ctx: Context, at: str = "07:00", serve: bool = False, backup: bool =
             raise ScheduleError("\n".join([*lines, _no_user_bus_message(ctx, problem)]))
         if ctx.dry:
             ctx.run(["systemctl", "--user", "daemon-reload"], lines)
-        enable = ([f"{SYNC_UNIT}.timer"] + ([f"{BACKUP_UNIT}.timer"] if every else [])
+        enable = (([f"{SYNC_UNIT}.timer"] if sync else [])
+                  + ([f"{BACKUP_UNIT}.timer"] if every else [])
                   + ([f"{SERVE_UNIT}.service"] if serve else []))
         for unit in enable:
             code = ctx.run(["systemctl", "--user", "enable", "--now", unit], lines)
             if not ctx.dry:
                 lines.append(f"enabled {unit}" if code == 0 else f"could not enable {unit}")
         _enable_linger(ctx, lines)
-        lines.append(f"sync runs daily at {hour:02d}:{minute:02d}; log: "
-                     f"journalctl --user -u {SYNC_UNIT}")
+        if sync:
+            lines.append(f"sync runs daily at {hour:02d}:{minute:02d}; log: "
+                         f"journalctl --user -u {SYNC_UNIT}")
         if every:
             lines.append(f"backup runs every {every} min; log: "
                          f"journalctl --user -u {BACKUP_UNIT}")
     else:
         lines.append("Windows: run these in a terminal (Hermit CRM does not run them for you):")
-        lines += windows_commands(ctx, hour, minute, serve, every)
+        lines += windows_commands(ctx, hour, minute, serve, every, sync)
     return lines
 
 
@@ -552,6 +559,7 @@ def status(ctx: Context) -> dict:
     installed = False
     backup_installed = False
     elsewhere: Path | None = None
+    backup_elsewhere: Path | None = None
     linger: bool | None = None
     if kind == "mac":
         for label in (SYNC_LABEL, BACKUP_LABEL, SERVE_LABEL):
@@ -567,7 +575,7 @@ def status(ctx: Context) -> dict:
                 elsewhere = other
             if label == BACKUP_LABEL:
                 backup_installed = other is None
-            if label == BACKUP_LABEL:
+                backup_elsewhere = other
                 interval = plist_value(ctx, path, "StartInterval")
                 at = f" every {int(interval) // 60} min" if interval else ""
             else:
@@ -596,6 +604,7 @@ def status(ctx: Context) -> dict:
             folder = unit_data_dir(units_dir(ctx) / f"{BACKUP_UNIT}.service")
             other = folder if folder is not None and folder != ctx.data_dir else None
             backup_installed = other is None
+            backup_elsewhere = other
             m = re.search(r"^OnUnitActiveSec=(.*)$", btimer.read_text(encoding="utf-8"), re.M)
             whose = f", for {other}" if other else ""
             lines.append(f"{BACKUP_UNIT}.timer: installed (every {m.group(1) if m else '?'})"
@@ -613,4 +622,5 @@ def status(ctx: Context) -> dict:
         lines.append(f'Windows: check with: schtasks /Query /TN "{WIN_SYNC_TASK}" and '
                      f'/TN "{WIN_BACKUP_TASK}"')
     return {"installed": installed, "backup_installed": backup_installed,
-            "elsewhere": elsewhere, "linger": linger, "lines": lines}
+            "elsewhere": elsewhere, "backup_elsewhere": backup_elsewhere, "linger": linger,
+            "lines": lines}

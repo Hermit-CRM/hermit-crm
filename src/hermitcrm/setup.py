@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import urlparse
 
+from . import backup as local_backup
 from . import bcc, calendar_sync, secrets
 from .gitops import GitOps
 from .store import DEFAULT_CONFIG, Store, load_config
@@ -567,8 +568,14 @@ def save_theme(data_dir: Path, theme: str) -> StepResult:
 
 
 def setup_state(data_dir: Path, config: dict | None = None, *, env: dict | None = None,
-                runner=subprocess.run, platform: str | None = None) -> dict[str, bool]:
-    """Which steps are done: you, bcc, backup (the three) and calendar (optional)."""
+                runner=subprocess.run, platform: str | None = None,
+                home: Path | None = None) -> dict[str, bool]:
+    """Which steps are done: you, bcc, backup (the three), calendar and remote
+    (both optional).
+
+    backup is the local backup having run at least once; a git remote is an
+    extra copy on top of it, not what makes the data safe.
+    """
     data_dir = Path(data_dir)
     config = dict(DEFAULT_CONFIG, **(config if config is not None else load_config(data_dir)))
     you = bool(str(config.get("owner_email") or "").strip())
@@ -576,11 +583,14 @@ def setup_state(data_dir: Path, config: dict | None = None, *, env: dict | None 
     bcc_done = bool(settings.address) and bool(secrets.get(
         "bcc_password", data_dir, config, account=settings.imap_user, env=env,
         runner=runner, platform=platform))
-    backup = bool(remote_url(data_dir, str(config.get("remote") or "origin"), runner)) \
+    remote = bool(remote_url(data_dir, str(config.get("remote") or "origin"), runner)) \
         and bool(config.get("push_enabled"))
+    backup = bool(local_backup.load_state(data_dir).get("last_ok")) \
+        and local_backup.backup_path(data_dir, config, home).exists()
     calendar = bool(secrets.get("calendar_ics_url", data_dir, config, env=env,
                                 runner=runner, platform=platform))
-    return {"you": you, "bcc": bcc_done, "backup": backup, "calendar": calendar}
+    return {"you": you, "bcc": bcc_done, "backup": backup, "calendar": calendar,
+            "remote": remote}
 
 
 def pending(state: dict[str, bool]) -> bool:

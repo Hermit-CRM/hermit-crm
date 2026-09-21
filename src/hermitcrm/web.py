@@ -659,11 +659,11 @@ def create_app(root: Path, config: dict | None = None,
             try:
                 app.state.setup_state = setup_steps.setup_state(
                     root, config, runner=app.state.setup_runner,
-                    platform=app.state.setup_platform)
+                    platform=app.state.setup_platform, home=app.state.schedule_home)
             except Exception:
                 logger.exception("setup state failed")
                 app.state.setup_state = {"you": True, "bcc": True, "backup": True,
-                                         "calendar": True}
+                                         "calendar": True, "remote": True}
         return app.state.setup_state
 
     def refresh_config() -> None:
@@ -2216,7 +2216,8 @@ def create_app(root: Path, config: dict | None = None,
             return backup.status(root, config, home=app.state.schedule_home)
         except Exception as exc:
             logger.warning("backup status failed: %s", exc)
-            return {"level": "warn", "summary": f"could not check: {exc}", "lines": []}
+            return {"level": "warn", "summary": f"could not check: {exc}", "lines": [],
+                    "dest": "", "last_ok": None, "age_minutes": None, "size": ""}
 
     def access_facts() -> dict:
         """The two front doors the Settings page cannot switch on for you.
@@ -2393,6 +2394,48 @@ def create_app(root: Path, config: dict | None = None,
         if result.errors.get("url"):
             return setup_invalid(request, result, "backup")
         return setup_done(result, "backup")
+
+    @app.post("/settings/backup/local")
+    def settings_backup_local(request: Request, csrf_token: str = Form("")):
+        """Run the first local backup and schedule it every 5 minutes.
+
+        Only the backup job: the daily sync stays whatever it was. The job has
+        one slot per machine, so one that belongs to another folder is left
+        alone rather than quietly moved here.
+        """
+        from . import backup
+
+        check_csrf(csrf_token)
+        sched = schedule_status()
+        if sched.get("backup_elsewhere"):
+            return flashed("/settings", (
+                f"Not started: this computer already backs up {sched['backup_elsewhere']} "
+                "every few minutes, and there is one backup job per computer. Run "
+                f"hermitcrm --data {root} schedule install to move it here; that "
+                "folder is then no longer backed up."),
+                anchor="backup")
+        outcome = backup.run(root, config, home=app.state.schedule_home, push_remote=False)
+        if outcome.code == 2:
+            return flashed("/settings", "The first backup failed: "
+                           + " ".join(outcome.lines)[:300], anchor="backup")
+        try:
+            ctx = schedule.Context(data_dir=root, home=app.state.schedule_home or Path.home(),
+                                   platform=app.state.setup_platform,
+                                   runner=app.state.setup_runner)
+            lines = schedule.install(ctx, backup=True, sync=False)
+        except Exception as exc:  # ScheduleError, launchctl missing, ...
+            logger.warning("backup schedule install failed: %s", exc)
+            current_setup_state(refresh=True)
+            return flashed("/settings", "The first backup is made, but the job that repeats "
+                           f"it could not be installed: {str(exc)[:300]}", anchor="backup")
+        current_setup_state(refresh=True)
+        if app.state.setup_platform.startswith("win"):
+            return flashed("/settings", "The first backup is made. To repeat it every 5 "
+                           "minutes, run this in a terminal: "
+                           + " ".join(l for l in lines if l.startswith("schtasks")),
+                           anchor="backup")
+        return flashed("/settings", "Local backups started: one now, then every 5 minutes.",
+                       anchor="backup")
 
     @app.post("/settings/calendar")
     @app.post("/setup/calendar")
@@ -2624,7 +2667,8 @@ def create_app(root: Path, config: dict | None = None,
             features={
                 "BCC import": "on" if state.get("bcc") else "off",
                 "Calendar import": "on" if state.get("calendar") else "off",
-                "Git remote": "yes" if state.get("backup") else "no",
+                "Local backup": "yes" if state.get("backup") else "no",
+                "Git remote": "yes" if state.get("remote") else "no",
                 "Enrichment": (app.state.enricher.provider_name
                                if app.state.enricher.available else "unavailable"),
                 "Daily schedule": ("installed" if schedule_status().get("installed")

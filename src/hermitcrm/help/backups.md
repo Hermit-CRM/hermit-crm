@@ -56,6 +56,9 @@ set up so that nothing in it is ever lost:
 
 ## What each run does
 
+To start it, click **Start local backups** in Settings, Backup, or run
+`hermitcrm schedule install`.
+
 `hermitcrm backup` (the scheduled job runs it every 5 minutes):
 
 1. **Uncommitted edits.** If a file differs from the last commit -- a hand edit,
