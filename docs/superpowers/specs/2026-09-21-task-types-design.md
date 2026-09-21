@@ -85,7 +85,7 @@ save, and there is **no data-format bump and no migration**. `Task` gets
 Validation reuses the Outcomes rule (`store.py`): a type must be empty, one of
 the configured names, or **unchanged** (a legacy value from a deleted type
 survives any save). Unknown types from a hand edit load fine and show as grey
-chips. The running app picks up a Settings change at once (`refresh_config`
+chips. The running app picks up a Settings change at once (`config_saved`
 updates `store.task_types`).
 
 ## 3. Where you set and see it

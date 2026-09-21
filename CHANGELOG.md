@@ -296,6 +296,14 @@ history-rewriting git commands. All migrate automatically in one commit.
   Disqualify menu spans the header instead of running off the left edge, an
   open "Fetch from URL" field fills its row, and Compare in the merge form moves
   under the field when both do not fit. Unchanged above 760px.
+- **Companies and Settings fit a phone too**, and the company page again: at
+  390px Companies was ~1250px wide and Settings 413px. The companies table and
+  the Settings fields table scroll inside their own box; a long data-folder path
+  in Settings, About breaks instead of pushing the page. The new task row (task,
+  for, due, Add task) had made every company page 508px wide; it wraps now, like
+  every row of fields. A closed Disqualify menu no longer leaves its fields
+  sitting past the right edge, and the filter help ("what does !text mean?")
+  opens under the filter line within the screen. Unchanged above 760px.
 - **`hermitcrm serve --host`** (config key `host`). `--host 0.0.0.0` puts the
   web app on your phone over the local network, and prints the address to type
   rather than `0.0.0.0`. Hermit CRM has no password, so it also prints a warning
