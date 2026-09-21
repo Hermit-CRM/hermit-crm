@@ -749,8 +749,15 @@ def create_app(root: Path, config: dict | None = None,
                                          "calendar": True, "remote": True}
         return app.state.setup_state
 
-    def refresh_config() -> None:
-        """Re-read config.toml after a settings save and rebuild derived settings."""
+    def config_saved() -> None:
+        """After any write to config.toml: re-read it, rebuild derived settings,
+        and commit it.
+
+        The commit lives here because every save has to come through here for
+        the change to take effect at all, so a new setting cannot forget it.
+        Re-reading first means the commit's push already uses a push_enabled or
+        remote the save just changed.
+        """
         nonlocal message_window
         fresh = load_config(root)
         keep = {k: config[k] for k in ("start_update_check",) if k in config}
@@ -766,6 +773,7 @@ def create_app(root: Path, config: dict | None = None,
         app.state.custom_fields = load_custom_fields()
         cal_url_cache.clear()
         current_setup_state(refresh=True)
+        setup_steps.commit_config(root, store.notify)
 
     def calendar_alert() -> str:
         last = inbox.last_run(calendar_sync.LAST_RUN_FILE)
@@ -1030,7 +1038,7 @@ def create_app(root: Path, config: dict | None = None,
         if done:
             ticked.append(key)
         setup_steps.set_config_values(root / "config.toml", {"welcome_done": ticked})
-        refresh_config()
+        config_saved()
         return goto("/welcome#" + key)
 
     @app.post("/welcome/dismiss")
@@ -1042,7 +1050,7 @@ def create_app(root: Path, config: dict | None = None,
         check_csrf(csrf_token)
         setup_steps.set_config_values(root / "config.toml",
                                       {"welcome_dismissed": bool(dismissed)})
-        refresh_config()
+        config_saved()
         return flashed("/" if dismissed else "/welcome",
                        "Getting started stays under Help" if dismissed
                        else "Getting started is the home page again")
@@ -1083,7 +1091,7 @@ def create_app(root: Path, config: dict | None = None,
             return goto(safe_page(back))
         setup_steps.set_config_values(root / "config.toml",
                                       {disclaimer.KEY: disclaimer.stamp()})
-        refresh_config()
+        config_saved()
         # The box is ticked once per data folder, which makes this the first
         # start: a new user goes straight into the walkthrough with the tour
         # running, without having to find the "Show me around" button.
@@ -2457,7 +2465,7 @@ def create_app(root: Path, config: dict | None = None,
                                 "reload the settings page and try again")
 
     def setup_done(result, anchor: str) -> RedirectResponse:
-        refresh_config()
+        config_saved()
         return flashed("/settings", result.text() or "Saved", anchor=anchor)
 
     def setup_invalid(request: Request, result, step: str, **extra):
@@ -2576,6 +2584,12 @@ def create_app(root: Path, config: dict | None = None,
             return setup_invalid(request, result, "calendar")
         return setup_done(result, "calendar")
 
+    def fields_saved(result) -> None:
+        """Reload and commit fields.toml ("settings: field acv added")."""
+        app.state.custom_fields = load_custom_fields()
+        what = result.messages[0].rstrip(".")
+        store.notify("settings: " + what[:1].lower() + what[1:], [custom.FILENAME])
+
     @app.post("/settings/fields")
     async def settings_fields(request: Request, csrf_token: str = Form(""),
                               fields_toml: str = Form("")):
@@ -2584,7 +2598,7 @@ def create_app(root: Path, config: dict | None = None,
         if not result.ok:
             return setup_invalid(request, result, "fields",
                                  fields_form={"toml": fields_toml})
-        app.state.custom_fields = load_custom_fields()
+        fields_saved(result)
         return flashed("/settings", result.text(), anchor="fields")
 
     @app.post("/settings/fields/add")
@@ -2601,7 +2615,7 @@ def create_app(root: Path, config: dict | None = None,
                                        help=help, messaging=bool(messaging))
         if not result.ok:
             return setup_invalid(request, result, "fields")
-        app.state.custom_fields = load_custom_fields()
+        fields_saved(result)
         return flashed("/settings", result.text(), anchor="fields")
 
     @app.post("/settings/messaging")
@@ -2611,7 +2625,7 @@ def create_app(root: Path, config: dict | None = None,
         result = setup_steps.save_messaging_fields(root, size_field, team_field)
         if not result.ok:
             return setup_invalid(request, result, "messaging")
-        refresh_config()
+        config_saved()
         return flashed("/settings", result.text(), anchor="messaging")
 
     @app.post("/settings/enrichment")
@@ -2630,7 +2644,7 @@ def create_app(root: Path, config: dict | None = None,
                                               "model": model, "timeout": timeout,
                                               "model_strong": model_strong, "tier": tier,
                                               "account": account})
-        refresh_config()
+        config_saved()
         enricher = app.state.enricher
         note = (f" In use: {enricher.provider_name}." if enricher.available
                 else f" Unavailable: {enricher.unavailable_reason()}")
