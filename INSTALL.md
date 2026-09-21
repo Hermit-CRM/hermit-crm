@@ -243,6 +243,13 @@ running, through launchd on a Mac or a systemd user unit on Linux. On Windows
 it prints `schtasks` commands for them to run. Only do this if they say yes,
 and only if they set up step 6.
 
+On Linux, systemd user units stop when the user logs out and do not start at
+boot unless lingering is on. `schedule install` runs `loginctl enable-linger`
+for them and says whether it worked. If it prints a `WARNING` about lingering,
+they need to run `sudo loginctl enable-linger $USER` themselves (it asks for
+their password; do not type it for them). `hermitcrm doctor` warns while it is
+off.
+
 ### 9. Offer to connect it to the AI tool they are already in
 
 `hermitcrm mcp` serves the folder over MCP, so the assistant they use every day

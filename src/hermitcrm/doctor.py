@@ -139,7 +139,11 @@ def run_checks(root: Path, *, online: bool = False, env: dict | None = None,
         ctx = schedule.Context(data_dir=root, home=home or Path.home(), platform=platform,
                                runner=runner, env=env)
         state = schedule.status(ctx)
-        if state["installed"]:
+        if state["installed"] and state.get("linger") is False:
+            add("schedule", WARN,
+                "the daily sync is installed, but systemd lingering is off: it stops when "
+                "you log out and does not start at boot; run sudo loginctl enable-linger $USER")
+        elif state["installed"]:
             add("schedule", OK, "; ".join(state["lines"][:1]))
         elif state.get("elsewhere"):
             add("schedule", WARN,

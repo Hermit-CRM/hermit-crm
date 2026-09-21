@@ -49,7 +49,8 @@ def ctx(tmp_path, platform, runner=None, env=None):
     data = tmp_path / "my crm"
     data.mkdir(exist_ok=True)
     return schedule.Context(data_dir=data, home=tmp_path / "home", platform=platform,
-                            runner=runner or Recorder(), env=env or {}, exe=EXE, uid=501)
+                            runner=runner or Recorder(), env=env or {}, exe=EXE, uid=501,
+                            linger_dir=tmp_path / "linger")
 
 
 def test_parse_time():
@@ -149,12 +150,92 @@ def test_linux_units(tmp_path):
     assert schedule.status(c)["installed"] is False
 
 
+class Logind(Recorder):
+    """A recording runner whose loginctl answers like systemd-logind would.
+
+    `show-user` fails while the user has no session and no lingering; that is
+    the case the /var/lib/systemd/linger fallback is for.
+    """
+
+    def __init__(self, linger=False, session=True, can_enable=True):
+        super().__init__()
+        self.linger, self.session, self.can_enable = linger, session, can_enable
+
+    def __call__(self, argv, **kw):
+        self.calls.append(argv)
+        if argv[:2] == ["loginctl", "show-user"]:
+            if not (self.session or self.linger):
+                return subprocess.CompletedProcess(argv, 1, "", "not logged in or lingering")
+            return subprocess.CompletedProcess(argv, 0, "yes\n" if self.linger else "no\n", "")
+        if argv == ["loginctl", "--no-ask-password", "enable-linger"]:
+            if self.can_enable:
+                self.linger = True
+                return subprocess.CompletedProcess(argv, 0, "", "")
+            return subprocess.CompletedProcess(argv, 1, "", "Interactive authentication required.")
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+
+def test_linux_install_turns_on_lingering(tmp_path):
+    rec = Logind(linger=False)
+    lines = schedule.install(ctx(tmp_path, "linux", rec, env={"USER": "jane"}), at="07:00")
+    enables = [i for i, a in enumerate(rec.calls) if a[:3] == ["systemctl", "--user", "enable"]]
+    linger = rec.calls.index(["loginctl", "--no-ask-password", "enable-linger"])
+    assert linger > max(enables)  # after the units, so a failure cannot skip them
+    assert any(line.startswith("turned on lingering") for line in lines)
+    st = schedule.status(ctx(tmp_path, "linux", rec))
+    assert st["linger"] is True and "lingering: on" in st["lines"]
+
+
+def test_linux_install_leaves_lingering_alone_when_on(tmp_path):
+    rec = Logind(linger=True)
+    lines = schedule.install(ctx(tmp_path, "linux", rec), at="07:00")
+    assert ["loginctl", "--no-ask-password", "enable-linger"] not in rec.calls
+    assert any(line.startswith("lingering is on") for line in lines)
+
+
+def test_linux_install_says_how_when_lingering_cannot_be_turned_on(tmp_path):
+    rec = Logind(linger=False, can_enable=False)
+    lines = schedule.install(ctx(tmp_path, "linux", rec, env={"USER": "jane"}), at="07:00")
+    warning = [line for line in lines if line.startswith("WARNING")]
+    assert warning and "sudo loginctl enable-linger jane" in warning[0]
+    st = schedule.status(ctx(tmp_path, "linux", rec))
+    assert st["installed"] and st["linger"] is False
+    assert any(line.startswith("lingering: off") for line in st["lines"])
+
+
+def test_linger_falls_back_to_the_file_logind_reads(tmp_path):
+    """No session and no lingering: show-user fails, the linger dir answers."""
+    rec = Logind(linger=False, session=False)
+    c = ctx(tmp_path, "linux", rec, env={"USER": "jane"})
+    assert schedule.linger_enabled(c) is None  # no linger dir: cannot tell
+    (tmp_path / "linger").mkdir()
+    assert schedule.linger_enabled(c) is False
+    (tmp_path / "linger" / "jane").touch()
+    assert schedule.linger_enabled(c) is True
+
+
+def test_linux_dry_run_runs_no_loginctl(tmp_path):
+    rec = Logind(linger=False)
+    c = ctx(tmp_path, "linux", rec, env={schedule.DRY_ENV: "1"})
+    lines = schedule.install(c, at="07:00")
+    assert rec.calls == []
+    assert "dry run, not running: loginctl --no-ask-password enable-linger" in lines
+    assert schedule.status(c)["linger"] is None
+
+
+def test_status_does_not_check_lingering_with_nothing_installed(tmp_path):
+    rec = Logind(linger=False)
+    st = schedule.status(ctx(tmp_path, "linux", rec))
+    assert st["linger"] is None and rec.calls == []
+
+
 def other_ctx(tmp_path, platform, runner):
     """A second data folder on the same machine, which has one schedule slot."""
     data = tmp_path / "another crm"
     data.mkdir(exist_ok=True)
     return schedule.Context(data_dir=data, home=tmp_path / "home", platform=platform,
-                            runner=runner, env={}, exe=EXE, uid=501)
+                            runner=runner, env={}, exe=EXE, uid=501,
+                            linger_dir=tmp_path / "linger")
 
 
 @pytest.mark.parametrize("platform", ["darwin", "linux"])
