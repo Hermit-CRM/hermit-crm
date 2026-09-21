@@ -43,8 +43,23 @@ migration 3 folded it into `outcome`.
   its description.
 
 Imports carry a `message_id` so a rerun never logs the same mail or meeting
-twice. Mail and meetings that match no company wait in the review queue on the
-Settings page.
+twice. Mail and meetings that match no company wait on Home under **To file**.
+
+## To file (the review queue)
+
+Home shows a **To file (N)** list under *What needs doing* whenever the imports
+left something they could not place (while the walkthrough is still your home
+page, it shows there). Each item has the date, kind, direction, person and
+subject, the reason (personal address, unknown domain, several matching
+companies), the text collapsed, and a form to **Log at company** (a company slug
+or name, legal suffixes like GmbH ignored, else the company that has the mail's
+domain; a name that finds neither creates a new company, with the mail's domain
+as its website unless it is a personal address; the contact is found by email,
+else a same-named contact gets the email, else it is created) or **Discard**
+(remembered in `inbox/discarded.tsv`). The count shows on Home in the nav. The
+import status and the **Import now** buttons are under Settings, BCC capture and
+Calendar; the red `!` on Settings means the last import failed or is two days
+old, and jumps to the one that did.
 
 ## Files and ids
 

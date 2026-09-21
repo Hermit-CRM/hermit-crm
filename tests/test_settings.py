@@ -30,7 +30,7 @@ from hermitcrm.datafolder import init_folder
 from hermitcrm.store import load_config
 from hermitcrm.web import create_app
 
-SECTIONS = ("you", "bcc", "calendar", "backup", "appearance", "enrichment", "outcomes", "inbox",
+SECTIONS = ("you", "bcc", "calendar", "backup", "appearance", "enrichment", "outcomes",
             "schedule", "about")
 
 
@@ -96,8 +96,9 @@ def test_settings_page_renders_every_section(demo, tmp_path):
     assert ">successful\nunsuccessful</textarea>" in page
     assert 'name="message_window_days" value="14"' in page
     assert 'name="silent_days" value="14"' in page
-    # Review queue, schedule and about.
-    assert "Nothing to review." in page and "Import meetings now" in page
+    # Import status under BCC capture and Calendar (the queue itself is on Home), schedule, about.
+    assert "No import has run yet." in page and "Import meetings now" in page
+    assert "Nothing to review." not in page and 'href="#inbox"' not in page
     assert "hermitcrm-sync.timer: not installed" in page
     assert f"hermitcrm --data {demo} schedule install --serve" in page
     assert f"<code>{demo}</code>" in page and "hermitcrm --data" in page
@@ -123,7 +124,7 @@ def test_old_urls_redirect_permanently(demo, tmp_path):
     r = client.get("/setup")
     assert r.status_code == 301 and r.headers["location"] == "/settings"
     r = client.get("/inbox")
-    assert r.status_code == 301 and r.headers["location"] == "/settings#inbox"
+    assert r.status_code == 301 and r.headers["location"] == "/#to-file"
 
 
 def test_setup_post_paths_work_under_both_prefixes(demo, tmp_path):
@@ -141,7 +142,7 @@ def test_setup_post_paths_work_under_both_prefixes(demo, tmp_path):
                        ).status_code == 403
     bad = client.post("/settings/you", data={"csrf_token": t, "name": "", "addresses": "nope"})
     assert bad.status_code == 400 and "Give your name." in bad.text
-    assert 'id="inbox"' in bad.text  # the whole page re-renders, values kept
+    assert 'id="schedule"' in bad.text  # the whole page re-renders, values kept
 
 
 # ---------------------------------------------------------------- enrichment
@@ -297,7 +298,7 @@ def test_plan_outcomes_function():
 # -------------------------------------------------------------- review queue
 
 
-def test_review_queue_actions_redirect_to_settings_inbox(demo, tmp_path, monkeypatch):
+def test_to_file_lives_on_home_and_import_status_in_settings(demo, tmp_path, monkeypatch):
     from hermitcrm import bcc
 
     class Box:
@@ -320,25 +321,38 @@ def test_review_queue_actions_redirect_to_settings_inbox(demo, tmp_path, monkeyp
     r = client.post("/bcc/import")
     assert r.status_code == 303
     assert r.headers["location"].startswith("/settings?flash=BCC%20import")
-    assert r.headers["location"].endswith("#inbox")
+    assert r.headers["location"].endswith("#bcc")
     items = app.state.inbox.items()
     assert len(items) == 1
+    # The count rides on Home in the nav; Settings carries no count any more.
     page = client.get("/settings").text
-    assert '<span class="badge">1</span>' in page.split("</nav>")[0]
-    assert 'href="/settings#inbox"' in page.split("</nav>")[0]
-    assert "Review queue (1)" in page and "someone@nowhere.example" in page
+    nav = page.split("</nav>")[0]
+    assert 'href="/#to-file"' in nav and '<span class="badge" title="To file">1</span>' in nav
+    assert "#inbox" not in nav and "someone@nowhere.example" not in page
+    # While the walkthrough is Home, / lands on it, and it carries the list too.
+    assert client.get("/").headers["location"] == "/welcome"
+    welcome_page = client.get("/welcome").text
+    assert "To file (1)" in welcome_page and "someone@nowhere.example" in welcome_page
+    client.post("/welcome/dismiss", data={"csrf_token": token(client), "dismissed": "1"})
+    home = client.get("/")
+    assert home.status_code == 200
+    assert "To file (1)" in home.text and "someone@nowhere.example" in home.text
+    assert home.text.index('id="doing"') < home.text.index('id="to-file"')
     r = client.post(f"/inbox/{items[0].id}/assign", data={"company": ""})
-    assert r.status_code == 400 and "pick a company" in r.text and 'id="inbox"' in r.text
+    assert r.status_code == 400 and "pick a company" in r.text and 'id="to-file"' in r.text
     r = client.post(f"/inbox/{items[0].id}/discard")
-    assert r.status_code == 303 and r.headers["location"].endswith("#inbox")
-    assert r.headers["location"].startswith("/settings?flash=Discarded")
+    assert r.status_code == 303 and r.headers["location"].endswith("#to-file")
+    assert r.headers["location"].startswith("/?flash=Discarded")
     assert app.state.inbox.items() == []
+    home = client.get("/").text
+    assert 'id="to-file"' not in home  # shown only while there is something to file
+    assert '<span class="badge"' not in home.split("</nav>")[0]
     r = client.post("/calendar/import", data={"back": "/settings"})
     assert r.headers["location"].startswith("/settings?flash=Calendar%20import%20failed")
-    assert r.headers["location"].endswith("#inbox")
+    assert r.headers["location"].endswith("#calendar")
     r = client.post("/calendar/import", data={"back": "/inbox"})  # the old name still works
     assert r.headers["location"].startswith("/settings?flash=") and \
-        r.headers["location"].endswith("#inbox")
+        r.headers["location"].endswith("#calendar")
 
 
 RAW_MAIL = b"""From: me@example.com

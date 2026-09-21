@@ -20,7 +20,7 @@
 {%- endmacro %}
 <nav class="sidebar" aria-label="Main">
   <a class="brand" href="/"><svg class="brand-mark" viewBox="0 0 64 64" width="22" height="22" aria-hidden="true"><rect x="7" y="13" width="50" height="38" rx="7" fill="none" stroke="currentColor" stroke-width="5"/><circle cx="24" cy="27" r="5.5" class="brand-fill"/><path d="M16 43 a8 8 0 0 1 16 0 z" class="brand-fill"/><rect x="38" y="25" width="12" height="4" rx="2" fill="currentColor"/><rect x="38" y="34" width="8" height="4" rx="2" fill="currentColor"/></svg><span>Hermit CRM</span></a>
-  {{ navlink('/', 'Home', 'home', path in ('/', '/welcome')) }}
+  {% call navlink('/#to-file' if inbox_count else '/', 'Home', 'home', path in ('/', '/welcome')) %}{% if inbox_count %} <span class="badge" title="To file">{{ inbox_count }}</span>{% endif %}{% endcall %}
   {{ navlink('/pipeline', 'Pipeline', 'pipeline', path.startswith('/pipeline')) }}
   {{ navlink('/calendar', 'Calendar', 'calendar', path.startswith('/calendar')) }}
   {{ navlink('/tasks', 'Tasks', 'tasks', path.startswith('/tasks')) }}
@@ -30,7 +30,7 @@
   {{ navlink('/messages', 'Messages', 'messages', path.startswith('/messages')) }}
   {{ navlink('/extension', 'Extension', 'capture', path.startswith('/extension') or path.startswith('/capture')) }}
   {{ navlink('/reports', 'Reports', 'reports', path.startswith('/reports')) }}
-  {% call navlink('/settings#inbox' if (inbox_count or inbox_alert) else '/settings', 'Settings', 'settings', path.startswith('/settings')) %}{% if inbox_count %} <span class="badge">{{ inbox_count }}</span>{% endif %}{% if inbox_alert %} <span class="alert" title="{{ inbox_alert }}">!</span>{% endif %}{% endcall %}
+  {% call navlink('/settings#' ~ inbox_alert_anchor if inbox_alert else '/settings', 'Settings', 'settings', path.startswith('/settings')) %}{% if inbox_alert %} <span class="alert" title="{{ inbox_alert }}">!</span>{% endif %}{% endcall %}
   {{ navlink('/help/' ~ help_topic, 'Help', 'help', path.startswith('/help')) }}
   <div class="sidebar-foot">
     <form method="post" action="/reload"><button type="submit" class="nav-button" title="Re-read the data folder">{{ icon('reload') }}<span>Reload</span></button></form>

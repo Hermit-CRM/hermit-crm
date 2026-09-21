@@ -166,8 +166,7 @@ file per conversation. Everything below is convenience on top of it.
 - **Reports**: activity per week, funnel and conversion, time in stage,
   outcomes, message results by language and channel, data hygiene.
 - **BCC import**: BCC or forward mail to a Gmail address and it is logged on
-  the right contact; unmatched mail waits in the review queue on the Settings
-  page.
+  the right contact; unmatched mail waits on Home under **To file**.
 - **Calendar import**: past meetings from a secret ICS feed (no OAuth).
 - **Import** companies or contacts from CSV, TSV or `.xlsx`.
 - **Ask Hermit**: a question box on every page. The AI answers from the page
@@ -212,7 +211,7 @@ Uncomment what you want to change.
 | `bcc_imap_host` | `"imap.gmail.com"` | IMAP server of that mailbox. |
 | `bcc_keychain_service` | `"crm-bcc"` | macOS Keychain service holding the app password (account = IMAP user). |
 | `bcc_lookback_days` | `30` | How far back the BCC import searches. |
-| `bcc_create_companies` | `true` | Create the company when mail you send or forward reaches a domain no company has (named after the domain); false sends it to the review queue instead. |
+| `bcc_create_companies` | `true` | Create the company when mail you send or forward reaches a domain no company has (named after the domain); false sends it to To file on Home instead. |
 | `my_addresses` | `[]` | Mail from these addresses is yours (outbound). |
 | `bcc_ignore_domains` | `[]` | Recipients at these domains (colleagues) are never logged. |
 | `calendar_keychain_service` | `"crm-calendar"` | macOS Keychain service holding the secret ICS URL. |
@@ -323,7 +322,7 @@ By hand: set `bcc_address`, `my_addresses` and optionally `bcc_ignore_domains`
 in `config.toml` and store `bcc_password` as a secret (see [Secrets](#secrets)).
 Then BCC that address on mail you send, or forward a thread to it, and run
 `hermitcrm bcc` (dry run) and `hermitcrm bcc --apply`. Mail that matches no contact or
-company waits in the review queue on the Settings page (`/settings#inbox`).
+company waits on Home under **To file** (`/#to-file`).
 `hermitcrm schedule install` runs it daily.
 
 ## Calendar import setup
@@ -339,7 +338,7 @@ company waits in the review queue on the Settings page (`/settings#inbox`).
    `.secrets.toml` and tested with a dry run. By hand, see [Secrets](#secrets).
 3. `hermitcrm calendar`, then `hermitcrm calendar --apply` (or let `hermitcrm schedule
    install` run `sync` daily). Meetings with a known contact are logged as
-   `meeting` interactions; the rest wait in the review queue on the Settings page.
+   `meeting` interactions; the rest wait on Home under **To file**.
 
 ## Updating
 

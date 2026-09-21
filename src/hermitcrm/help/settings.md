@@ -1,6 +1,6 @@
 # Settings
 
-`/settings`: who you are, mail and calendar capture, backup, appearance, fields of your own, AI (Enrich and Ask the Hermit), outcomes, the review queue, the daily schedule, access from a phone or an AI client, and About.
+`/settings`: who you are, mail and calendar capture, backup, appearance, fields of your own, AI (Enrich and Ask the Hermit), outcomes, the daily schedule, access from a phone or an AI client, and About.
 
 Every section writes `config.toml` in the data folder, keeping its comments;
 secrets (the mail app password, the calendar URL) go to `.secrets.toml`
@@ -32,15 +32,18 @@ same commit -- but only for mail you sent or forwarded yourself, never for a
 no-reply sender, and not when a company of that name already exists. Set
 `bcc_create_companies = false` in `config.toml` to send those to the review
 queue instead. Everything else (personal addresses, a domain that fits several
-companies) goes to the review queue. Dedup is by Message-ID.
+companies) goes to the review queue, which is **To file** on Home. Dedup is by
+Message-ID. Below the form: the last import (time and summary, or the error)
+and **Import now**, which runs the import on the spot.
 
 ## Calendar
 
 The secret ICS address of your calendar (Google: Settings, your calendar,
 Integrate calendar, secret address in iCal format; `webcal://` is fine).
 It is tested with a dry run and never shown again. Past meetings with an
-external attendee become `meeting` interactions; unmatched ones wait in the
-review queue; events in the next 7 days show on the Calendar page.
+external attendee become `meeting` interactions; unmatched ones wait under
+**To file** on Home; events in the next 7 days show on the Calendar page. Below
+the form: the last meeting import and **Import meetings now**.
 
 ## Backup
 
@@ -195,20 +198,6 @@ what a detected reply counts as, the last what silence past the message
 window counts as. Also here: `message_window_days` (default 14) and
 `silent_days` (default 14, the Calendar's silent list and `PIPELINE.md`).
 Duplicates and an empty list are refused.
-
-## Review queue
-
-Mail and meetings the imports could not place: the date, kind, direction,
-person and subject, the reason (personal address, unknown domain, several
-matching companies), the text collapsed, and a form to **Log at company**
-(a company slug or name, legal suffixes like GmbH ignored, else the company
-that has the mail's domain; a name that finds neither creates a new company,
-with the mail's domain as its website unless it is a personal address; the
-contact is found by email, else a same-named contact gets the email, else it
-is created) or **Discard** (remembered in
-`inbox/discarded.tsv`). **Import now** and **Import meetings now** run the
-imports on the spot. The nav shows the count on the Settings link and a red
-`!` when the last import failed or is two days old.
 
 ## Schedule
 
