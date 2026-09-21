@@ -28,8 +28,9 @@ Build (5-9 Oct):
       Export everything (`GET /export.zip`); round-trip test export → import.
 - [ ] Linux: CI on ubuntu-latest green; one real Ubuntu 24.04 VM (install
       with uv, init, serve, BCC import, `schedule install --serve`, reboot);
-      `doctor` warns when systemd linger is off; INSTALL.md Linux section;
-      extension in Chromium. Cut this first if the week runs over.
+      `doctor` warns when systemd linger is off; INSTALL.md Linux section.
+      Cut this first if the week runs over.
+- [x] Linux: extension in Chromium (there is no browser extension in the repo).
 - [ ] Verify Codex, Cursor, Claude Desktop, ChatGPT and Gemini CLI end to end
       (install, read pipeline, log a call, draft); name only verified tools.
 - [ ] Fix GitHub Actions billing; run the workflows once.

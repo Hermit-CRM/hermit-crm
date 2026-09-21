@@ -43,6 +43,7 @@ import logging
 import os
 import re
 import subprocess
+import sys
 import tomllib
 import urllib.error
 import urllib.request
@@ -128,9 +129,14 @@ def resolve_url(settings: Settings, root: Path, env: dict | None = None,
                        platform=platform)
 
 
-def setup_hint(settings: Settings) -> str:
-    return ("Calendar import is not set up: no calendar URL configured. Set "
-            "HERMITCRM_CALENDAR_ICS_URL, add calendar_ics_url to .secrets.toml, or add it to the macOS Keychain with: security "
+def setup_hint(settings: Settings, platform: str | None = None) -> str:
+    """How to configure the ICS URL. The Keychain route is offered on macOS only,
+    because secrets.get() reads the Keychain nowhere else."""
+    hint = ("Calendar import is not set up: no calendar URL configured. Set "
+            "HERMITCRM_CALENDAR_ICS_URL or add calendar_ics_url to .secrets.toml")
+    if (platform or sys.platform) != "darwin":
+        return hint + " (chmod 600)."
+    return (hint + ", or add it to the macOS Keychain with: security "
             f"add-generic-password -s {settings.keychain_service} "
             f"-a {settings.keychain_account} -w '<url>'")
 
