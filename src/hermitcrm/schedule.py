@@ -27,6 +27,11 @@ systemd user units only outlive a login session when lingering is on
 (``loginctl enable-linger``). Without it the timers stop at logout and do not
 start at boot, while the unit files still look installed; ``install`` turns it
 on (or says how) and ``status`` reports it, so ``doctor`` can warn.
+
+``systemctl --user`` needs the user's D-Bus session, found through
+``XDG_RUNTIME_DIR``. Plain SSH without pam_systemd, ``su`` and ``sudo -u`` leave
+it unset, and every systemctl call then fails. ``install`` checks that first
+and stops with the fix rather than writing units that nothing enables.
 """
 
 from __future__ import annotations
@@ -54,6 +59,10 @@ WIN_SERVE_TASK = r"Hermit CRM\serve"
 WIN_BACKUP_TASK = r"Hermit CRM\backup"
 DRY_ENV = "HERMITCRM_DRY_SCHEDULE"
 LINGER_DIR = Path("/var/lib/systemd/linger")  # one empty file per lingering user
+RUNTIME_ROOT = Path("/run/user")  # /run/user/<uid> exists while the user manager runs
+# "Failed to connect to bus: ..." / "... $DBUS_SESSION_BUS_ADDRESS and
+# $XDG_RUNTIME_DIR not defined"
+NO_USER_BUS = re.compile(r"connect to (user scope )?bus|XDG_RUNTIME_DIR|DBUS_SESSION_BUS", re.I)
 
 
 class ScheduleError(Exception):
@@ -100,6 +109,7 @@ class Context:
     exe: list[str] | None = None
     uid: int | None = None
     linger_dir: Path = LINGER_DIR
+    runtime_root: Path = RUNTIME_ROOT
 
     def __post_init__(self) -> None:
         self.data_dir = Path(self.data_dir).expanduser().resolve()
@@ -361,6 +371,45 @@ def _enable_linger(ctx: Context, lines: list[str]) -> None:
                      f"not start at boot. Run: {fix}")
 
 
+def _user_bus_problem(ctx: Context) -> str | None:
+    """Why `systemctl --user` cannot reach this user's manager, or None if it can.
+
+    Runs the `daemon-reload` install needs anyway, with stderr kept: a missing
+    user bus is the one failure worth its own message, since every enable after
+    it fails the same way.
+    """
+    try:
+        proc = ctx.runner(["systemctl", "--user", "daemon-reload"], capture_output=True,
+                          text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return None  # no systemctl at all: the enable calls below say so
+    if proc.returncode == 0:
+        return None
+    err = (proc.stderr or "").strip()
+    if NO_USER_BUS.search(err) or not ctx.env.get("XDG_RUNTIME_DIR"):
+        return err or f"systemctl --user daemon-reload exited {proc.returncode}"
+    return None
+
+
+def _no_user_bus_message(ctx: Context, problem: str) -> str:
+    runtime = ctx.runtime_root / str(ctx.uid)
+    current = ctx.env.get("XDG_RUNTIME_DIR")
+    why = (f"XDG_RUNTIME_DIR is {current}, but nothing answers there." if current else
+           "XDG_RUNTIME_DIR is not set. That is normal over plain SSH, su or sudo -u.")
+    lines = ["ERROR: could not reach your systemd user manager, so nothing is enabled and "
+             "nothing will run.",
+             f"  systemctl said: {problem.splitlines()[0] if problem else '(nothing)'}",
+             "  There is no user D-Bus session: " + why,
+             "  Fix:"]
+    if not runtime.is_dir():
+        lines.append(f"    sudo loginctl enable-linger {_user_name(ctx) or '$USER'}"
+                     f"   # starts your user manager; {runtime} does not exist yet")
+    lines += [f"    export XDG_RUNTIME_DIR={runtime}",
+              "    hermitcrm schedule install   # again, with the same options",
+              "  The unit files above are written; running install again enables them."]
+    return "\n".join(lines)
+
+
 def backup_timer(every: int) -> str:
     return ("[Unit]\nDescription=Run Hermit CRM backup every few minutes\n\n"
             f"[Timer]\nOnBootSec=2min\nOnUnitActiveSec={every}min\nPersistent=true\n\n"
@@ -434,7 +483,11 @@ def install(ctx: Context, at: str = "07:00", serve: bool = False, backup: bool =
         for name, text in files.items():
             (units_dir(ctx) / name).write_text(text, encoding="utf-8")
             lines.append(f"wrote {units_dir(ctx) / name}")
-        ctx.run(["systemctl", "--user", "daemon-reload"], lines)
+        problem = None if ctx.dry else _user_bus_problem(ctx)
+        if problem is not None:
+            raise ScheduleError("\n".join([*lines, _no_user_bus_message(ctx, problem)]))
+        if ctx.dry:
+            ctx.run(["systemctl", "--user", "daemon-reload"], lines)
         enable = ([f"{SYNC_UNIT}.timer"] + ([f"{BACKUP_UNIT}.timer"] if every else [])
                   + ([f"{SERVE_UNIT}.service"] if serve else []))
         for unit in enable:

@@ -55,6 +55,14 @@ history-rewriting git commands. All migrate automatically in one commit.
   whether it worked (or prints the `sudo` line); `schedule status` shows
   `lingering: on/off`; `doctor` warns while it is off.
 
+- **`schedule install` on Linux says so when systemd cannot be reached.** Over
+  plain SSH, `su` or `sudo -u` there is no user D-Bus session, so every
+  `systemctl --user` call fails. Install used to write the unit files, print
+  `could not enable hermitcrm-sync.timer` among lines that read like success,
+  and exit 0. It now stops with an `ERROR`, the `export
+  XDG_RUNTIME_DIR=/run/user/<uid>` fix (and `loginctl enable-linger` first when
+  the user manager is not running), and exit code 2.
+
 - **BCC import creates the companies it does not know.** Mail you send or
   forward to someone at a domain no company has used to wait in the review
   queue; now the import creates the company (named after the domain, website
