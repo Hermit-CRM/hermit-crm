@@ -25,6 +25,9 @@
   {{ startup_switch(false) }}
 </div>
 
+{# Until the walkthrough is finished it is Home, so the To file list shows here too. #}
+{% if items %}{% include "to_file.html" %}{% endif %}
+
 {% if samples %}
 <p class="small">The sample account <a href="/companies/{{ samples[0].slug }}">{{ samples[0].name }}</a> is loaded. It is there to look at: the steps below count only your own records.</p>
 {% else %}

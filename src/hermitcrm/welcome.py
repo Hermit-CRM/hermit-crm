@@ -90,7 +90,7 @@ def steps(store, config: dict, setup_state: dict, ai_available: bool) -> list[St
              "Put a tracking address in BCC when you write to a prospect, or forward "
              "a thread to it. Hermit CRM reads that mailbox, matches each message to "
              "a company by the other person's address or domain, and logs it. Mail "
-             "it cannot match waits in a review queue under Settings. Pick your mail "
+             "it cannot match waits on Home under To file. Pick your mail "
              "provider there and it fills in the server; you need an app password, "
              "not your normal one.",
              "Set up BCC capture", "/settings#bcc", bool(setup_state.get("bcc"))),

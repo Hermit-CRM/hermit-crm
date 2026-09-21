@@ -15,8 +15,8 @@
 """Calendar import: log past meetings from a secret ICS feed (no OAuth).
 
 Standard library only (urllib, zoneinfo, a small RFC 5545 parser). Once a day
-launchd runs ``hermitcrm sync --apply`` (BCC, then this); /inbox and /calendar
-have an "Import meetings now" button.
+launchd runs ``hermitcrm sync --apply`` (BCC, then this); Settings > Calendar and
+/calendar have an "Import meetings now" button.
 
 Per past event (end <= now, within ``calendar_lookback_days``), per external
 attendee (attendees plus the organizer, minus your addresses, the ignored

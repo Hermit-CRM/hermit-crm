@@ -16,10 +16,10 @@ page for the screen you are on; `hermitcrm help <topic>` prints the same text.
 - [Tasks](/help/tasks): every task in one list, with date buttons and filters.
 - [Companies](/help/companies): the table, the company page, stages, next steps, disqualify and requalify.
 - [Contacts](/help/contacts): the table, the contact page, roles, message drafts.
-- [Interactions](/help/interactions): logging email, LinkedIn, call and meeting touches; outcomes.
+- [Interactions](/help/interactions): logging email, LinkedIn, call and meeting touches; outcomes; To file.
 - [Messages](/help/messages): every sent message with its outcome.
 - [Reports](/help/reports): activity, funnel, outcomes, messages, sources, hygiene.
-- [Settings](/help/settings): you, BCC capture, calendar, backup, enrichment, outcomes, the review queue, schedule, phone and MCP access, about.
+- [Settings](/help/settings): you, BCC capture, calendar, backup, enrichment, outcomes, schedule, phone and MCP access, about.
 - [Import](/help/import): bulk import from CSV, TSV, .xlsx or a pasted table.
 - [Extension](/help/extension): turn the page you are looking at into a company, from a bookmarklet.
 - [Enrich](/help/enrich): "Fetch from URL" (no AI) and Enrich (an AI CLI).

@@ -464,7 +464,7 @@ td.bar-cell { width: 35%; }
 .update-notice { font-size: 0.85em; padding: 0 0.5em; }
 footer { margin: 2em 1em 1em; color: var(--faint); }
 
-/* settings (the former setup page + the review queue) */
+/* settings (the former setup page) */
 .start-cards { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
 .start-card { flex: 1 1 200px; color: inherit; text-decoration: none; }
 .start-card:hover { border-color: var(--info-line); }
@@ -529,7 +529,7 @@ nav a.help-link { margin-left: 4px; }
 .feedback-facts ul { margin: 8px 0; }
 @media (max-width: 800px) { .helpdoc-layout { flex-direction: column; } .helpdoc-topics { position: static; flex-basis: auto; } }
 
-/* anchor jumps (#appearance, #inbox) land below the sticky top bar */
+/* anchor jumps (#appearance, #to-file) land below the sticky top bar */
 [id] { scroll-margin-top: 64px; }
 
 /* follow-up radar (home page, above the board) */
