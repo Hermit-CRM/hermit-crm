@@ -163,6 +163,12 @@ def cmd_setup(root: Path, ask=input, ask_secret=None, say=print, runner=subproce
     ask_secret = ask_secret or getpass.getpass
     platform = platform or sys.platform
     root = Path(root)
+    # Each answer is committed as it is saved, as the web app's Settings do; a
+    # later push takes them along.
+    gitops = GitOps(root, push_enabled=False)
+
+    def saved() -> None:
+        st.commit_config(root, gitops.commit)
 
     def prompt(text: str, default: str = "") -> str:
         suffix = f" [{default}]" if default else ""
@@ -178,6 +184,7 @@ def cmd_setup(root: Path, ask=input, ask_secret=None, say=print, runner=subproce
                 config.get("owner_email") or "")
             addresses = prompt("Addresses you send mail from (comma-separated)", current)
             result = st.save_you(root, name, addresses)
+            saved()
             say(result.text())
             if result.ok:
                 break
@@ -195,6 +202,7 @@ def cmd_setup(root: Path, ask=input, ask_secret=None, say=print, runner=subproce
                 ask("Store it in the macOS Keychain? [Y/n]: "), True)
             result = st.save_bcc(root, address, host, password, use_keychain=keychain,
                                  runner=runner, platform=platform)
+            saved()
             say(result.text())
             if result.ok and _yes(ask("Test the connection now (dry run)? [Y/n]: "), True):
                 say(st.test_bcc(root, open_mailbox=open_mailbox).text())
@@ -209,6 +217,7 @@ def cmd_setup(root: Path, ask=input, ask_secret=None, say=print, runner=subproce
             if warning:
                 say("WARNING: " + warning)
             result = st.save_backup(root, url, runner=runner, push=push)
+            saved()
             say("; ".join(list(result.errors.values()) + result.messages))
         else:
             say("Skipped.")

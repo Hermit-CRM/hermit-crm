@@ -337,6 +337,13 @@ history-rewriting git commands. All migrate automatically in one commit.
   `MESSAGING.md`, a hand-added company) was swept into the next write's commit
   under that write's message. Each commit now holds exactly the files that write
   touched.
+- **Settings saves are committed.** Saving anything that lands in `config.toml`
+  (You, BCC, online copy, appearance, drafts, enrichment, outcomes, the
+  walkthrough ticks, the disclaimer) or `fields.toml`, in the web app or in
+  `hermitcrm setup`, left the file modified but never committed, so the data
+  folder stayed dirty. Each save is now its own commit, named after what
+  changed (`settings: theme light -> dark`). Only that file goes in: never
+  `.secrets.toml`, and a `config.toml` holding a password is not committed.
 - **Delete contact** on the contact page; its interactions stay on the company
   without a contact.
 - The interaction form defaults to **LinkedIn**, out.

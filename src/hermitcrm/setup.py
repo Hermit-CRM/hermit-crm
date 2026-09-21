@@ -24,6 +24,7 @@ page (``/settings``) share one implementation. Secrets are stored through
 from __future__ import annotations
 
 import json
+import logging
 import re
 import subprocess
 import tomllib
@@ -38,6 +39,9 @@ from . import bcc, calendar_sync, secrets
 from .gitops import GitOps
 from .store import DEFAULT_CONFIG, Store, load_config
 
+logger = logging.getLogger("hermitcrm.setup")
+
+CONFIG_FILE = "config.toml"
 KEYCHAIN_SERVICE = "hermitcrm-bcc"
 PRIVATE_HOSTS = ("github.com", "gitlab.com", "bitbucket.org")
 ENRICH_PROVIDERS = ("auto", "claude", "codex", "gemini", "grok", "custom")
@@ -96,6 +100,95 @@ def set_config_values(path: Path | str, values: dict) -> Path:
             lines[idx] = new
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
+
+
+def committed_config_text(data_dir: Path | str) -> str | None:
+    """config.toml as the last commit has it; None when there is none."""
+    try:
+        proc = subprocess.run(["git", "show", f"HEAD:{CONFIG_FILE}"], cwd=data_dir,
+                              capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return proc.stdout if proc.returncode == 0 else None
+
+
+def _shown(value) -> str | None:
+    """A value short and plain enough to put in a commit message, else None.
+
+    Long strings and anything with spaces (a custom enrich_command, say) are
+    named but not quoted: the message is a label, not a copy of the file."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, str):
+        if not value:
+            return '""'
+        return value if len(value) <= 40 and not re.search(r"\s", value) else None
+    if isinstance(value, list):
+        items = [_shown(v) for v in value]
+        if all(i is not None for i in items):
+            text = "[" + ", ".join(items) + "]"
+            return text if len(text) <= 40 else None
+    return None
+
+
+def describe_config_change(old: dict, new: dict, limit: int = 100) -> str:
+    """A commit message for config.toml going from `old` to `new`, e.g.
+    "settings: theme light -> dark"; '' when no value changed."""
+    keys = [k for k in new if old.get(k) != new[k]] + [k for k in old if k not in new]
+    if not keys:
+        return ""
+    parts = []
+    for key in keys:
+        before, after = _shown(old.get(key)), _shown(new.get(key))
+        if key not in new:
+            parts.append(f"{key} removed")
+        elif key not in old and after is not None:
+            parts.append(f"{key} unset -> {after}")
+        elif before is not None and after is not None:
+            parts.append(f"{key} {before} -> {after}")
+        else:
+            parts.append(f"{key} changed")
+    for message in ("settings: " + "; ".join(parts), "settings: " + ", ".join(keys)):
+        if len(message) <= limit:
+            return message
+    return f"settings: {', '.join(keys[:3])} and {len(keys) - 3} more"
+
+
+def commit_config(data_dir: Path | str,
+                  commit: Callable[[str, list[str]], object]) -> str:
+    """Commit config.toml when it differs from the last commit; the message.
+
+    Every settings save calls this after writing, through the web app's
+    config_saved() or the CLI wizard. `commit(message, paths)` is
+    Store.notify or GitOps.commit: commits are scoped to the paths named, so
+    only config.toml goes in (never .secrets.toml). A config.toml holding a
+    secret is left uncommitted, with a warning, rather than sent to a remote.
+    """
+    path = Path(data_dir) / CONFIG_FILE
+    try:
+        text = path.read_text(encoding="utf-8")
+        new = tomllib.loads(text)
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        logger.warning("config.toml not committed: %s", exc)
+        return ""
+    leaked = [name for name in secrets.NAMES if name in new]
+    if leaked:
+        logger.warning("config.toml not committed: it holds %s, which belongs in "
+                       ".secrets.toml or the Keychain", ", ".join(leaked))
+        return ""
+    head = committed_config_text(data_dir)
+    if head == text:
+        return ""
+    try:
+        old = tomllib.loads(head or "")
+    except tomllib.TOMLDecodeError:
+        old = {}
+    # Only comments or layout changed (a hand edit): still commit, plainly named.
+    message = describe_config_change(old, new) or "settings: config.toml"
+    commit(message, [CONFIG_FILE])
+    return message
 
 
 # ---------------------------------------------------------------- results
