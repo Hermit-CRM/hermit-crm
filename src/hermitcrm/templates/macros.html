@@ -190,6 +190,7 @@
         {% for t in task_statuses %}<option value="{{ t }}"{% if values.next_step_status == t %} selected{% endif %}>{{ t }}</option>{% endfor %}
       </select>
     </label>
+    {% if type_names() %}<label>type {{ type_select(values.next_step_type, name='next_step_type') }}</label>{% endif %}
   </div>
   <label>tags (comma separated) <input name="tags" value="{{ values.tags }}"></label>
   <label>notes <textarea name="notes" rows="8">{{ values.notes }}</textarea></label>
@@ -241,6 +242,31 @@
 {% endmacro %}
 
 
+{% macro type_select(current='', autosubmit=false, name='type') -%}
+{%- set options = type_names() -%}
+{%- if options -%}
+<select name="{{ name }}" aria-label="type"{% if autosubmit %} onchange="this.form.submit()"{% endif %}>
+  <option value="">{{ '(no type)' if autosubmit else '' }}</option>
+  {% for n in options %}<option value="{{ n }}"{% if n == current %} selected{% endif %}>{{ n }}</option>{% endfor %}
+</select>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro type_cell(company, t, index, contact='') -%}
+<td>{% if type_names() and not t.done %}<form method="post" action="/companies/{{ company.slug }}/todo-type" class="inline">
+  <input type="hidden" name="index" value="{{ '' if index is none else index }}">
+  <input type="hidden" name="contact" value="{{ contact }}">
+  <input type="hidden" name="text" value="{{ t.text }}">
+  {{ type_select(t.type, autosubmit=true) }}</form>{% else %}{{ type_chip(t.type) }}{% endif %}</td>
+{%- endmacro %}
+
+{% macro type_chip(name) -%}
+{%- if name -%}
+{%- set colour = type_colour(name) -%}
+<span class="type-chip type-{{ colour or 'grey' }}{% if not colour %} unknown{% endif %}"{% if not colour %} title="not in Settings"{% endif %}>{{ name }}</span>
+{%- endif -%}
+{%- endmacro %}
+
 {% macro todo_actions(company, todo, back='', delete=false) -%}
 {%- if todo.is_field -%}
 <form method="post" action="/companies/{{ company.slug }}/next-step" class="inline">
@@ -278,11 +304,12 @@
   <h2>Tasks</h2>
   <p class="small">For the company and its people. The <strong>next step</strong> is the open task due first; change a due date to change what is next. <a href="/tasks?f_company_name={{ ('=' ~ company.name) | urlencode }}">This company on the Tasks page</a>.</p>
   <div class="table-scroll"><table class="tasks">
-    <tr><th>task</th><th>for</th><th>due</th><th>status</th><th></th></tr>
+    <tr><th>task</th>{% if type_names() %}<th>type</th>{% endif %}<th>for</th><th>due</th><th>status</th><th></th></tr>
     {% for t in company.open_todos() + (company.todos() | selectattr('done') | list) %}
     {% set is_next = first and not first.done and not t.done and t.key == first.key %}
     <tr class="{% if t.overdue(today) %}overdue{% endif %}{% if t.done %} done{% endif %}{% if is_next %} next{% endif %}">
-      <td>{{ t.text or '(no text)' }}{% if is_next %} <span class="tag next-step">next step</span>{% endif %}</td>
+      <td>{{ t.text or '(no text)' }}{% if is_next %} <span class="tag next-step">next step</span>{% endif %}{% if not type_names() %} {{ type_chip(t.type) }}{% endif %}</td>
+      {% if type_names() %}{{ type_cell(company, t, t.index, t.contact.slug if t.contact else '') }}{% endif %}
       <td>{% if t.contact %}<a href="/companies/{{ company.slug }}/contacts/{{ t.contact.slug }}">{{ t.contact.name }}</a>{% else %}<span class="small">company</span>{% endif %}</td>
       <td class="due{% if t.overdue(today) %} overdue{% endif %}">{{ fmt_date(t.due) if t.due else 'no date' }}</td>
       <td>{% if t.done %}<span class="tag status-done">done</span>{% if t.done_on %} <span class="small">{{ fmt_date(t.done_on) }}</span>{% endif %}{% else %}<span class="tag status-open">open</span>{% endif %}</td>
@@ -292,7 +319,7 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="5" class="empty">No tasks yet.</td></tr>
+    <tr><td colspan="{{ 6 if type_names() else 5 }}" class="empty">No tasks yet.</td></tr>
     {% endfor %}
   </table></div>
   <form method="post" action="/companies/{{ company.slug }}/tasks" class="inline-row">
@@ -304,6 +331,7 @@
       </select>
     </label>
     <label>due <input type="date" name="due"></label>
+    {% if type_names() %}<label>type {{ type_select() }}</label>{% endif %}
     <button type="submit">Add task</button>
   </form>
 </section>
@@ -313,7 +341,8 @@
 <div class="table-scroll"><table class="tasks">
   {% for t in tasks %}
   <tr class="{% if t.overdue(today) %}overdue{% endif %}{% if t.done %} done{% endif %}">
-    <td>{{ t.text }}</td>
+    <td>{{ t.text }}{% if not type_names() %} {{ type_chip(t.type) }}{% endif %}</td>
+    {% if type_names() %}{{ type_cell(company, t, loop.index0, contact) }}{% endif %}
     <td class="{% if t.overdue(today) %}overdue{% endif %}">{{ fmt_date(t.due) if t.due else '' }}</td>
     <td>{% if t.done %}done{% if t.done_on %} {{ fmt_date(t.done_on) }}{% endif %}{% endif %}</td>
     <td class="actions">
@@ -331,7 +360,7 @@
     </td>
   </tr>
   {% else %}
-  <tr><td colspan="4" class="empty">Nothing on the list.</td></tr>
+  <tr><td colspan="{{ 5 if type_names() else 4 }}" class="empty">Nothing on the list.</td></tr>
   {% endfor %}
 </table></div>
 {% if adding %}
@@ -339,6 +368,7 @@
   <input type="hidden" name="contact" value="{{ contact }}">
   <label class="grow">task <input name="text" placeholder="e.g. send the pricing page" required></label>
   <label>due <input type="date" name="due"></label>
+  {% if type_names() %}<label>type {{ type_select() }}</label>{% endif %}
   <button type="submit">Add task</button>
 </form>
 {% endif %}

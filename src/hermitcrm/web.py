@@ -50,7 +50,7 @@ from fastapi.templating import Jinja2Templates
 from . import (bcc, brief, calendar_sync, capture, disclaimer, feedback,
                fields as custom, filters, followups, messaging, migrations,
                pipeline, reports, sample, welcome)
-from . import schedule, scrape, usertheme
+from . import schedule, scrape, task_types, usertheme
 from . import help as helpdocs
 from . import setup as setup_steps
 from .filters import Column
@@ -144,7 +144,14 @@ def custom_columns(defs: list, view: str) -> list[Column]:
     ]
 
 
-def company_columns(defs: list | None = None) -> list[Column]:
+def _next_type(company) -> str:
+    """The type of the company's open next step; "" when none or done."""
+    todo = company.next_todo()
+    return todo.type if todo and not todo.done else ""
+
+
+def company_columns(defs: list | None = None,
+                    type_options: list[str] | None = None) -> list[Column]:
     return [
         Column("name", "name"),
         Column("country", "country", "enum", COUNTRIES),
@@ -156,6 +163,9 @@ def company_columns(defs: list | None = None) -> list[Column]:
         # The next step is derived (the open to-do due first); the keys keep
         # their old names so bookmarked filters still work.
         Column("next_step", "next step", getter=lambda c: c.next_text),
+        *([Column("next_type", "next type", "enum", [*type_options, task_types.NONE],
+                  getter=lambda c: _next_type(c) or task_types.NONE)]
+          if type_options else []),
         Column("next_step_due", "due", "date", getter=lambda c: c.next_due),
     ]
 
@@ -187,7 +197,7 @@ class TodoRow:
         self.text = todo.text
         self.due = todo.due
         self.done_on = todo.done_on
-        self.kind = "next step" if is_next else "task"
+        self.type = todo.type
         self.who = todo.contact.name if todo.contact else company.name
         self.company_name = company.name
         self.stage = company.stage
@@ -214,11 +224,16 @@ def todo_rows(companies, include_done: bool = False) -> list[TodoRow]:
     return rows
 
 
-def task_columns() -> list[Column]:
-    return [
+def task_columns(type_options: list[str] | None = None) -> list[Column]:
+    """The Tasks table; a type column only once there are types to show."""
+    cols = [
         Column("due", "due", "date"),
         Column("text", "what"),
-        Column("kind", "kind", "enum", ["next step", "task"]),
+    ]
+    if type_options:
+        cols.append(Column("type", "type", "enum", [*type_options, task_types.NONE],
+                           getter=lambda r: r.type or task_types.NONE))
+    return cols + [
         Column("who", "for"),
         Column("company_name", "company"),
         Column("stage", "stage", "enum", STAGES),
@@ -477,6 +492,7 @@ def company_values(c: Company) -> dict:
         "next_step": c.next_step,
         "next_step_due": fmt_date(c.next_step_due),
         "next_step_status": c.next_step_status,
+        "next_step_type": c.next_step_type,
         "tags": ", ".join(c.tags),
         "notes": c.notes,
     }
@@ -677,11 +693,13 @@ def create_app(root: Path, config: dict | None = None,
                                       DEFAULT_CONFIG["followup_nudge_days"])),
     }
     outcomes = [str(o) for o in (config.get("outcomes") or DEFAULT_OUTCOMES)]
+    configured_types = task_types.from_config(config.get("task_types"))
     # `clock` is what makes "today" injectable: every route asks the store for
     # the date (store.today()/store.now()), so freezing it here freezes the
     # whole app. Tests pass a fixed clock; the app itself passes none.
     store = Store(root, silent_days=int(config.get("silent_days", 14)),
-                  on_write=on_write, outcomes=outcomes, clock=clock)
+                  on_write=on_write, outcomes=outcomes, clock=clock,
+                  task_types=task_types.names(configured_types))
     store.load()
 
     def load_custom_fields() -> list:
@@ -700,6 +718,7 @@ def create_app(root: Path, config: dict | None = None,
     app = FastAPI(title="Hermit CRM")
     app.state.messages = messages
     app.state.update_notice = updates.UpdateNotice()
+    app.state.task_types = configured_types  # config_saved replaces it after a save
     if config.get("start_update_check"):  # set by `hermitcrm serve`; tests stay offline
         app.state.update_notice.start(config)
     app.state.store = store
@@ -768,6 +787,8 @@ def create_app(root: Path, config: dict | None = None,
         gitops.push_enabled = bool(config.get("push_enabled", True))
         gitops.remote = str(config.get("remote", "origin"))
         store.silent_days = int(config.get("silent_days", 14))
+        app.state.task_types = task_types.from_config(config.get("task_types"))
+        store.task_types = task_types.names(app.state.task_types)
         message_window = int(config.get("message_window_days", 14))
         app.state.enricher = build_enricher(config)
         app.state.custom_fields = load_custom_fields()
@@ -856,6 +877,11 @@ def create_app(root: Path, config: dict | None = None,
     def favicon_ico() -> RedirectResponse:
         """Browsers ask for /favicon.ico regardless of the <link> tags; point them at ours."""
         return RedirectResponse("/static/favicon.svg", status_code=301)
+    def task_type_options() -> list[str]:
+        """Configured types in Settings order, then types only the data still has."""
+        configured = task_types.names(app.state.task_types)
+        return configured + [n for n in store.type_names_in_use() if n not in configured]
+
     templates = Jinja2Templates(directory=str(HERE / "templates"))
     templates.env.globals.update(
         fmt_date=fmt_date,
@@ -881,6 +907,10 @@ def create_app(root: Path, config: dict | None = None,
         render_markdown=helpdocs.render,
         record_version=lambda slug, cslug="": record_version(root, slug, cslug),
         custom_fields_for=lambda scope: custom.for_scope(app.state.custom_fields, scope),
+        task_types=lambda: app.state.task_types,
+        type_names=task_type_options,
+        type_colour=lambda name: task_types.colour_of(app.state.task_types, name),
+        palette=task_types.PALETTE,
     )
 
     templates.env.filters["slug"] = slugify  # CSS class names from outcome values
@@ -1223,7 +1253,7 @@ def create_app(root: Path, config: dict | None = None,
         """Every to-do in one table: the date chips, then one filter per column.
         `form_error` and `form` put a refused Add task back next to its form."""
         today = store.today()
-        cols = task_columns()
+        cols = task_columns(task_type_options())
         active = filters.parse(params, cols)
         if "status" not in active and "f_status" not in params:
             active["status"] = ["open"]      # open ones unless you ask for done
@@ -1234,6 +1264,10 @@ def create_app(root: Path, config: dict | None = None,
         if when:
             tests = [test for k, _, test in TASK_WHEN if k in when]
             rows = [r for r in rows if any(t(r.due, today) for t in tests)]
+        nexts = params.get("next") == "1"
+        next_count = sum(1 for r in rows if r.is_next)
+        if nexts:
+            rows = [r for r in rows if r.is_next]
         sort_key, sort_dir = filters.parse_sort(params, cols)
         rows = filters.sort_rows(rows, cols, sort_key, sort_dir)
 
@@ -1251,6 +1285,8 @@ def create_app(root: Path, config: dict | None = None,
             "today": today, "rows": rows, "filter_columns": cols, "active": active,
             "sort": sort_key, "dir": sort_dir, "chips": chips, "when": when,
             "all_url": with_params(("when",), []),
+            "nexts": nexts, "next_count": next_count,
+            "next_url": with_params(("next",), [] if nexts else [("next", "1")]),
             "here": with_params((), []),
             "companies": store.all(),
             "form_error": form_error, "form": form or {},
@@ -1265,7 +1301,8 @@ def create_app(root: Path, config: dict | None = None,
     @app.post("/tasks")
     @app.post("/calendar/task")   # the form's old home; kept for open tabs
     def task_create(request: Request, text: str = Form(""), company: str = Form(""),
-                    contact: str = Form(""), due: str = Form(""), back: str = Form("")):
+                    contact: str = Form(""), due: str = Form(""), back: str = Form(""),
+                    type: str = Form("")):
         """Create a task: pick the company, optionally the person (slug or name)."""
         back = safe_back(back, "/tasks")
 
@@ -1275,7 +1312,8 @@ def create_app(root: Path, config: dict | None = None,
             path, _, query = back.partition("?")
             if path != "/tasks":
                 return flashed(back, message, "task-list")
-            form = {"text": text, "company": company, "contact": contact, "due": due}
+            form = {"text": text, "company": company, "contact": contact, "due": due,
+                    "type": type}
             return _tasks_page(request, QueryParams(query), message, form, 400)
 
         try:
@@ -1296,7 +1334,7 @@ def create_app(root: Path, config: dict | None = None,
                                f"{contact!r}; people there: {known}")
             contact = named[0]
         try:
-            store.add_task(slug, text, due=due, contact=contact)
+            store.add_task(slug, text, due=due, contact=contact, type=type)
         except ValidationError as exc:
             return refused("; ".join(exc.errors.values()))
         return flashed(back, "Task created", "task-list")
@@ -1505,7 +1543,7 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.get("/companies", response_class=HTMLResponse)
     def companies_list(request: Request, q: str = ""):
-        cols = company_columns(app.state.custom_fields)
+        cols = company_columns(app.state.custom_fields, task_type_options())
         active = filters.parse(request.query_params, cols)
         sort_key, sort_dir = filters.parse_sort(request.query_params, cols)
         companies = filters.apply(store.search(q), cols, active)
@@ -1720,7 +1758,7 @@ def create_app(root: Path, config: dict | None = None,
             "stage": "prospect", "lost_reason": "", "requalify_on": "", "value_eur_month": "",
             "product_oneliner": "",
             "next_step": "", "next_step_due": "", "next_step_status": "open",
-            "tags": "", "notes": "",
+            "next_step_type": "", "tags": "", "notes": "",
         }
         return render(request, "company_new.html",
                       {"values": with_custom(values, None, "company")})
@@ -1753,6 +1791,9 @@ def create_app(root: Path, config: dict | None = None,
             "next_step_due": next_step_due, "next_step_status": next_step_status,
             "tags": tags, "notes": notes,
         }
+        form = await request.form()
+        if "next_step_type" in form:   # absent when no types are set up: keep the stored one
+            values["next_step_type"] = str(form["next_step_type"])
         extra, shown, custom_errors = await custom_submitted(request, "company")
         if custom_errors:
             return render(request, "company_new.html",
@@ -1813,6 +1854,9 @@ def create_app(root: Path, config: dict | None = None,
             "next_step_due": next_step_due, "next_step_status": next_step_status,
             "tags": tags, "notes": notes,
         }
+        form = await request.form()
+        if "next_step_type" in form:   # absent when no types are set up: keep the stored one
+            values["next_step_type"] = str(form["next_step_type"])
         extra, shown, custom_errors = await custom_submitted(request, "company")
         if version and version != record_version(root, slug):
             current = need_company(slug, refresh=True)
@@ -1883,13 +1927,29 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.post("/companies/{slug}/tasks")
     def task_add(request: Request, slug: str, text: str = Form(""),
-                 due: str = Form(""), contact: str = Form(""), back: str = Form("")):
+                 due: str = Form(""), contact: str = Form(""), back: str = Form(""),
+                 type: str = Form("")):
         back = _task_back(request, slug, contact, back)
         try:
-            store.add_task(slug, text, due=due, contact=contact)
+            store.add_task(slug, text, due=due, contact=contact, type=type)
         except ValidationError as exc:
             return flashed(back, "; ".join(exc.errors.values()), "tasks")
         return flashed(back, "Task added", "tasks")
+
+    @app.post("/companies/{slug}/todo-type")
+    def todo_type(request: Request, slug: str, index: str = Form(""), contact: str = Form(""),
+                  text: str = Form(""), type: str = Form(""), back: str = Form("")):
+        """Retype one to-do from its row; an empty `index` is the next-step fields."""
+        need_company(slug)
+        back = _task_back(request, slug, contact, back)
+        try:
+            store.set_todo_type(slug, int(index) if index.strip() else None, type,
+                                contact=contact, text=text)
+        except ValidationError as exc:
+            return flashed(back, "; ".join(exc.errors.values()), "tasks")
+        except ValueError:
+            return flashed(back, "that task is no longer there; reload the page", "tasks")
+        return flashed(back, "Type saved", "tasks")
 
     @app.post("/companies/{slug}/tasks/{index}/done")
     def task_done(request: Request, slug: str, index: int, done: str = Form(""),
@@ -2441,6 +2501,7 @@ def create_app(root: Path, config: dict | None = None,
                               "message_window_days": str(config.get("message_window_days")
                                                          or 14),
                               "silent_days": str(config.get("silent_days") or 14)},
+            "task_types_form": {"rows": app.state.task_types},
             "schedule": schedule_status(),
             "local_backup": local_backup_status(),
             "access": access_facts(),
@@ -2732,6 +2793,22 @@ def create_app(root: Path, config: dict | None = None,
                                                 "message_window_days": message_window_days,
                                                 "silent_days": silent_days})
         return setup_done(result, "outcomes")
+
+    @app.post("/settings/task-types")
+    def settings_task_types(request: Request, csrf_token: str = Form(""),
+                            name: list[str] = Form([]), colour: list[str] = Form([]),
+                            old: list[str] = Form([]), delete: str = Form(""),
+                            move: str = Form("")):
+        check_csrf(csrf_token)
+        types, renames, errors = task_types.plan_rows(name, colour, old, delete, move)
+        if errors:
+            result = setup_steps.StepResult(ok=False, errors=errors)
+            return setup_invalid(request, result, "task-types")
+        setup_steps.save_task_types(root, types)
+        config_saved()        # store.task_types first, so renamed values validate
+        done = [f"{o} to {n} ({store.rename_task_type(o, n)})" for o, n in renames.items()]
+        message = "Task types saved" + ("; renamed " + ", ".join(done) if done else "")
+        return flashed("/settings", message, anchor="task-types")
 
     # Review queue (the former /inbox): BCC and calendar items waiting for a company.
 

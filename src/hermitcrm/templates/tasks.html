@@ -3,23 +3,25 @@
 {% block title %}Tasks{% endblock %}
 {% block content %}
 <h1>Tasks ({{ rows | length }})</h1>
-<p class="small">Every task for a company or one of its people. A company's <strong>next step</strong> is its open task due first.</p>
+<p class="small">Every task for a company or one of its people. A company's <strong>next step</strong> is its open task due first.{% if type_names() %} Filter by type to see one kind of work.{% endif %}</p>
 
 <p class="chips" id="when">
   <a class="chip{% if not when %} on{% endif %}" href="{{ all_url }}">All dates</a>
   {% for c in chips %}<a class="chip{% if c.on %} on{% endif %}{% if c.key == 'overdue' and c.count %} overdue{% endif %}" href="{{ c.url }}"{% if c.on %} aria-current="true"{% endif %}>{{ c.label }} <span class="count">{{ c.count }}</span></a>{% endfor %}
+  <a class="chip{% if nexts %} on{% endif %}" href="{{ next_url }}"{% if nexts %} aria-current="true"{% endif %}>Next steps only <span class="count">{{ next_count }}</span></a>
 </p>
 
 {{ m.filter_form('task-filters', '/tasks', active, None, sort, dir) }}
 {% for w in when %}<input type="hidden" name="when" value="{{ w }}" form="task-filters">{% endfor %}
+{% if nexts %}<input type="hidden" name="next" value="1" form="task-filters">{% endif %}
 <div class="table-scroll"><table class="filterable tasks">
   <tr>{% for col in filter_columns %}<th>{{ col.label }} {{ m.sort_links(col, sort, dir, sort_url) }}</th>{% endfor %}<th></th></tr>
   <tr class="filters">{% for col in filter_columns %}<th>{{ m.filter_control(col, active, 'task-filters') }}</th>{% endfor %}<th></th></tr>
   {% for r in rows %}
   <tr class="{% if r.todo.overdue(today) %}overdue{% endif %}{% if r.todo.done %} done{% endif %}">
     <td class="due{% if r.todo.overdue(today) %} overdue{% endif %}">{{ fmt_date(r.due) if r.due else 'no date' }}</td>
-    <td>{{ r.text or '(no text)' }}</td>
-    <td>{% if r.is_next %}<span class="tag next-step">next step</span>{% else %}<span class="small">task</span>{% endif %}</td>
+    <td>{{ r.text or '(no text)' }}{% if r.is_next %} <span class="tag next-step">next step</span>{% endif %}</td>
+    {% if filter_columns | selectattr('key', 'equalto', 'type') | list %}<td>{{ m.type_chip(r.type) }}</td>{% endif %}
     <td><a href="{{ r.href }}">{{ r.who }}</a></td>
     <td><a href="/companies/{{ r.company.slug }}#tasks">{{ r.company_name }}</a></td>
     <td>{{ r.stage }}</td>
@@ -28,7 +30,7 @@
     <td class="actions">{{ m.todo_actions(r.company, r.todo, back=here) }}</td>
   </tr>
   {% else %}
-  <tr><td colspan="9" class="empty">No tasks match.</td></tr>
+  <tr><td colspan="{{ filter_columns | length + 1 }}" class="empty">No tasks match.</td></tr>
   {% endfor %}
 </table></div>
 
@@ -44,6 +46,7 @@
     </label>
     <label class="grow">person (optional) <input name="contact" value="{{ form.contact or '' }}"{% if form_error %} autofocus{% endif %} placeholder="first name or full name, e.g. Jane"></label>
     <label>due <input type="date" name="due" value="{{ form.due or '' }}"></label>
+    {% if type_names() %}<label>type {{ m.type_select(form.type or '') }}</label>{% endif %}
   </div>
   <button type="submit">Create task</button>
 </form>
