@@ -69,8 +69,9 @@ three lines and give you a `hermitcrm` command that works without activating the
 virtualenv.
 
 `hermitcrm init` asks three questions: **you** (your name and sending addresses),
-**BCC capture** (the tracking address and its app password) and **backup** (a
-private git remote). Skip any of them; rerun with `hermitcrm setup` or open the
+**BCC capture** (the tracking address and its app password) and an **online
+copy** (an optional private git remote; local backups start with
+`schedule install` or Settings > Backup). Skip any of them; rerun with `hermitcrm setup` or open the
 Settings page (`/settings`) in the web app. Add `--demo` for eight fictional companies,
 `--no-setup` to skip the questions. Instead of `--data` you can set
 `HERMITCRM_DATA=~/crm` or run commands from inside the folder.

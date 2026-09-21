@@ -387,13 +387,20 @@ def _human(n: int) -> str:
 
 def status(root: Path, config: dict | None = None, home: Path | None = None,
            now: datetime | None = None) -> dict:
-    """{'level': 'ok'|'warn', 'summary': str, 'lines': [...]}; never raises."""
+    """{'level': 'ok'|'warn', 'summary': str, 'lines': [...], 'dest': Path,
+    'last_ok': str|None, 'age_minutes': int|None, 'size': str}; never raises.
+
+    `summary` and `lines` are for the terminal; the rest lets the Settings page
+    say the same in plain words.
+    """
     root = Path(root).expanduser().resolve()
     now = now or datetime.now(timezone.utc)
     dest = backup_path(root, config, home)
     state = load_state(root)
     lines = [f"backup: {dest}"]
     level, summary = "ok", ""
+    age_minutes: int | None = None
+    size = ""
     if not dest.exists():
         level = "warn"
         summary = (f"{dest} is missing, although backups ran until {state['last_ok']}"
@@ -402,22 +409,24 @@ def status(root: Path, config: dict | None = None, home: Path | None = None,
     else:
         refs = _out(["for-each-ref", "--format=%(refname)"], dest) or ""
         refs = refs.splitlines()
+        size = _human(_size(dest))
         snaps = sum(1 for r in refs if r.startswith("refs/snapshots/"))
         rewrites = sorted(r for r in refs if r.startswith("refs/rewritten/"))
-        lines.append(f"size {_human(_size(dest))}; {len(refs)} refs, {snaps} snapshot(s) "
+        lines.append(f"size {size}; {len(refs)} refs, {snaps} snapshot(s) "
                      f"of uncommitted edits, {len(rewrites)} rewritten line(s)")
         last = state.get("last_ok")
         if not last:
             level, summary = "warn", "the backup exists but this folder never ran one"
         else:
             age = (now - datetime.fromisoformat(last)).total_seconds()
+            age_minutes = max(0, int(age // 60))
             lines.append(f"last good run {last} ({int(age // 60)} min ago)")
             if age > STALE_AFTER:
                 level = "warn"
                 summary = (f"last good run {last}, over an hour ago; is the job "
                            "installed (hermitcrm schedule status)?")
             else:
-                summary = f"last good run {int(age // 60)} min ago, {_human(_size(dest))}"
+                summary = f"last good run {int(age // 60)} min ago, {size}"
         if state.get("last_error"):
             level = "warn"
             summary = f"the last run failed: {state['last_error'][:200]}"
@@ -429,7 +438,9 @@ def status(root: Path, config: dict | None = None, home: Path | None = None,
                 summary = "the last run warned: " + " ".join(state["warnings"])[:300]
         if rewrites:
             lines.append("rewritten lines kept: " + ", ".join(rewrites[-5:]))
-    return {"level": level, "summary": summary, "lines": lines, "dest": dest}
+    return {"level": level, "summary": summary, "lines": lines, "dest": dest,
+            "last_ok": state.get("last_ok") if dest.exists() else None,
+            "age_minutes": age_minutes, "size": size}
 
 
 def list_versions(root: Path, config: dict | None = None, path: str = "",

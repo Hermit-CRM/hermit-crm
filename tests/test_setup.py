@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import tomllib
 from pathlib import Path
@@ -223,14 +224,25 @@ def test_save_calendar_dry_run_never_echoes_url(folder):
 
 
 def test_setup_state(folder, tmp_path):
-    state = st.setup_state(folder, env={}, platform="linux")
-    assert state == {"you": False, "bcc": False, "backup": False, "calendar": False}
+    from hermitcrm import backup
+
+    home = tmp_path / "home"
+    state = st.setup_state(folder, env={}, platform="linux", home=home)
+    assert state == {"you": False, "bcc": False, "backup": False, "calendar": False,
+                     "remote": False}
     assert st.pending(state)
     st.save_you(folder, "Jane", "jane@gmail.com")
     st.save_bcc(folder, "jane+crm@gmail.com", "", "pw", platform="linux")
     bare = tmp_path / "r.git"
     subprocess.run(["git", "init", "--bare", "-q", str(bare)], check=True)
     st.save_backup(folder, str(bare))
-    state = st.setup_state(folder, env={}, platform="linux")
-    assert state == {"you": True, "bcc": True, "backup": True, "calendar": False}
-    assert not st.pending(state)
+    state = st.setup_state(folder, env={}, platform="linux", home=home)
+    # A remote is the optional extra copy; the local backup is what setup asks for.
+    assert state == {"you": True, "bcc": True, "backup": False, "calendar": False,
+                     "remote": True}
+    assert st.pending(state)
+    assert backup.run(folder, {}, home=home, push_remote=False).code == 0
+    state = st.setup_state(folder, env={}, platform="linux", home=home)
+    assert state["backup"] is True and not st.pending(state)
+    shutil.rmtree(backup.backup_path(folder, {}, home))  # gone again: not done
+    assert st.setup_state(folder, env={}, platform="linux", home=home)["backup"] is False

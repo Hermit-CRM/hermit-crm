@@ -18,6 +18,7 @@ and outcomes forms, and the review queue (the former inbox) inside it."""
 from __future__ import annotations
 
 import re
+import subprocess
 import tomllib
 from pathlib import Path
 
@@ -392,11 +393,66 @@ def test_backup_section_shows_the_local_backup(demo, tmp_path):
 
     app, client = make_client(demo, tmp_path)
     page = client.get("/settings").text
-    assert "Local backup" in page and 'href="/help/backups"' in page
-    assert "no backup yet" in page
+    section = page.split('id="backup"')[1].split("</section>")[0]
+    assert "On this computer" in section and 'href="/help/backups"' in section
+    assert "No backup yet." in section and "Start local backups" in section
+    assert "Online copy (optional)" in section and "backup_dir" in section
     assert backup.run(demo, {}, home=tmp_path / "home").code == 0
     page = client.get("/settings").text
-    assert "last good run" in page and ".hermitcrm/backups/" in page
+    section = page.split('id="backup"')[1].split("</section>")[0]
+    assert "Last backup just now" in section and "does not repeat on its own yet" in section
+    assert "last good run" in section and ".hermitcrm/backups/" in section
+    assert "Start local backups" in section  # the job is still missing
+
+
+def fake_launchctl():
+    calls = []
+
+    def runner(argv, **kw):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 1 if argv[0] == "plutil" else 0, "", "")
+    return runner, calls
+
+
+def test_start_local_backups_runs_one_and_schedules_only_the_backup(demo, tmp_path):
+    runner, calls = fake_launchctl()
+    app, client = make_client(demo, tmp_path, setup_platform="darwin", setup_runner=runner)
+    assert not app.state.setup_state or not app.state.setup_state["backup"]
+    r = client.post("/settings/backup/local", data={"csrf_token": token(client)})
+    assert r.status_code == 303 and r.headers["location"].endswith("#backup")
+    assert "Local%20backups%20started" in r.headers["location"]
+    agents = tmp_path / "home/Library/LaunchAgents"
+    assert (agents / "io.hermitcrm.backup.plist").exists()
+    assert not (agents / "io.hermitcrm.sync.plist").exists()  # the daily sync is not touched
+    assert any(a[:2] == ["launchctl", "bootstrap"] for a in calls)
+    assert app.state.setup_state["backup"] is True
+    section = client.get("/settings").text.split('id="backup"')[1].split("</section>")[0]
+    assert "Last backup just now" in section and "Start local backups" not in section
+    assert '<span class="setup-status done">done</span>' in section.split("<h3>")[0]
+
+
+def test_start_local_backups_leaves_another_folders_job_alone(demo, tmp_path):
+    from hermitcrm import backup, schedule
+
+    runner, _ = fake_launchctl()
+    other = init_folder(tmp_path / "other")
+    schedule.install(schedule.Context(data_dir=other, home=tmp_path / "home",
+                                      platform="darwin", runner=runner, env={}),
+                     backup_every=5)
+    plist = tmp_path / "home/Library/LaunchAgents/io.hermitcrm.backup.plist"
+    before = plist.read_bytes()
+    app, client = make_client(demo, tmp_path, setup_platform="darwin", setup_runner=runner)
+    section = client.get("/settings").text.split('id="backup"')[1].split("</section>")[0]
+    assert "set up for another folder" in section and "Start local backups" not in section
+    r = client.post("/settings/backup/local", data={"csrf_token": token(client)})
+    assert r.status_code == 303 and "Not%20started" in r.headers["location"]
+    assert plist.read_bytes() == before
+    assert not backup.backup_path(demo, {}, tmp_path / "home").exists()
+
+
+def test_start_local_backups_needs_the_csrf_token(demo, tmp_path):
+    app, client = make_client(demo, tmp_path)
+    assert client.post("/settings/backup/local", data={"csrf_token": "nope"}).status_code == 403
 
 
 def test_help_backups_page_renders(demo, tmp_path):

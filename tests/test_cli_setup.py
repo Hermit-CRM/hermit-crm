@@ -83,7 +83,9 @@ def test_setup_all_steps(folder, tmp_path):
     assert "BCC address [jane+crm@gmail.com]: " in ask.asked
     assert "app pw 1234" not in text and "secret-xyz" not in text
     assert "BCC test OK" in text and "Calendar test OK" in text
-    assert "Setup: you done, bcc done, backup done, calendar done" in text
+    # The remote is the optional online copy; the local backup is not started by setup.
+    assert "Setup: you done, bcc done, backup pending, calendar done, remote done" in text
+    assert "Local backups start with `hermitcrm schedule install`" in text
     assert secrets.get("bcc_password", folder, env={}, platform="linux") == "app pw 1234"
 
 

@@ -41,15 +41,21 @@ review queue; events in the next 7 days show on the Calendar page.
 
 ## Backup
 
-A git remote (must be **private**: the folder holds your contacts and mail).
-Saving sets or updates the remote, tries a push, and turns `push_enabled` on
-when it worked. Pushes then run in the background after every commit and
-never block.
+**On this computer.** Every 5 minutes the folder is backed up to a local
+repository that can only grow, so a reset, a deleted `.git` or a force-push
+loses nothing. **Start local backups** makes the first one and schedules the
+rest (only the backup job; the daily sync stays as it is); `hermitcrm
+schedule install` does the same and more. The section is *done* once a backup
+has run. It lives in `~/.hermitcrm/backups/`, outside the folder; set
+`backup_dir` in `config.toml` to keep it elsewhere, such as another disk. A
+computer has one backup job: if it already backs up another folder, the
+button says so and leaves it alone.
 
-Separately from the remote, `hermitcrm schedule install` backs the folder up
-every 5 minutes to a local repository that can only grow, so a reset, a
-deleted `.git` or a force-push loses nothing. The remote is the copy off this
-machine; the local backup is the one nothing can rewrite. See
+**Online copy (optional).** A git remote (must be **private**: the folder
+holds your contacts and mail). Saving sets or updates the remote, tries a
+push, and turns `push_enabled` on when it worked. Pushes then run in the
+background after every commit and never block. The remote is the copy off
+this machine; the local backup is the one nothing can rewrite. See
 [Backups and undo](/help/backups).
 
 ## Appearance
