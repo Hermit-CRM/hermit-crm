@@ -44,6 +44,7 @@
     </label>
     <label class="grow">person (optional) <input name="contact" value="{{ form.contact or '' }}"{% if form_error %} autofocus{% endif %} placeholder="first name or full name, e.g. Jane"></label>
     <label>due <input type="date" name="due" value="{{ form.due or '' }}"></label>
+    {% if type_names() %}<label>type {{ m.type_select(form.type or '') }}</label>{% endif %}
   </div>
   <button type="submit">Create task</button>
 </form>

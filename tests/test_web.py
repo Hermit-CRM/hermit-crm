@@ -21,7 +21,7 @@ import re
 import subprocess
 from datetime import date, timedelta
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import pytest
 from fastapi.testclient import TestClient
@@ -2082,3 +2082,65 @@ def test_settings_appearance_shows_the_theme_file(client, repo):
     page = htmllib.unescape(client.get("/settings").text)
     assert "In use:" in page
     assert "Line 2: @import loads another file" in page
+
+
+# --- task types ------------------------------------------------------------
+
+TYPES = [{"name": "prospecting", "colour": "blue"}, {"name": "lost deals", "colour": "amber"}]
+
+
+@pytest.fixture
+def typed_client(repo: Path):
+    app = create_app(repo, config=dict(CONFIG, task_types=TYPES))
+    app.state.store.clock = lambda: FIXED_NOW
+    return TestClient(app, follow_redirects=False)
+
+
+def test_a_task_gets_a_type_when_made_and_can_be_retyped(typed_client, client):
+    c = typed_client
+    post_company(c, name="Acme", next_step="Call Jane", next_step_due="2026-09-10",
+                 next_step_type="lost deals")
+    post_contact(c, "acme", first_name="Jane", last_name="Roe")
+    c.post("/companies/acme/tasks", data={"text": "send deck", "type": "prospecting"})
+    c.post("/tasks", data={"text": "ask Jane", "company": "Acme", "contact": "Jane",
+                           "type": "prospecting", "back": "/tasks"})
+    store = c.app.state.store
+    acme = store.companies["acme"]
+    assert acme.next_step_type == "lost deals" and acme.tasks[0].type == "prospecting"
+    assert acme.contacts["jane-roe"].tasks[0].type == "prospecting"
+    page = c.get("/companies/acme").text
+    assert 'name="type"' in page and 'name="next_step_type"' in page
+    assert c.get("/companies/acme/contacts/jane-roe").text.count('name="type"') >= 2
+
+    r = c.post("/companies/acme/todo-type", data={"index": "0", "text": "send deck",
+                                                  "type": "lost deals"})
+    assert r.status_code == 303 and store.companies["acme"].tasks[0].type == "lost deals"
+    c.post("/companies/acme/todo-type", data={"index": "", "type": ""})
+    assert store.companies["acme"].next_step_type == ""
+    c.post("/companies/acme/todo-type", data={"index": "0", "contact": "jane-roe",
+                                              "text": "ask Jane", "type": ""})
+    assert store.companies["acme"].contacts["jane-roe"].tasks[0].type == ""
+    r = c.post("/companies/acme/todo-type", data={"index": "0", "text": "send deck",
+                                                  "type": "nope"})
+    assert "unknown task type" in unquote(r.headers["location"])
+    r = c.post("/companies/acme/todo-type", data={"index": "0", "text": "changed",
+                                                  "type": "prospecting"})
+    assert "reload" in unquote(r.headers["location"])
+
+
+def test_saving_the_company_form_without_a_type_field_keeps_the_type(typed_client):
+    c = typed_client
+    post_company(c, name="Acme", next_step="Call Jane", next_step_type="prospecting")
+    c.post("/companies/acme", data={**COMPANY_BLANK, "name": "Acme", "next_step": "Call Jane"})
+    assert c.app.state.store.companies["acme"].next_step_type == "prospecting"
+    c.post("/companies/acme", data={**COMPANY_BLANK, "name": "Acme", "next_step": "Call Jane",
+                                    "next_step_type": ""})
+    assert c.app.state.store.companies["acme"].next_step_type == ""
+
+
+def test_without_task_types_there_is_no_type_field(client):
+    post_company(client, name="Plain", next_step="call")
+    client.post("/companies/plain/tasks", data={"text": "send deck"})
+    page = client.get("/companies/plain").text
+    assert 'name="type"' not in page and 'name="next_step_type"' not in page
+    assert 'name="type"' not in client.get("/tasks").text

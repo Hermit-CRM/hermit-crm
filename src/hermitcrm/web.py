@@ -477,6 +477,7 @@ def company_values(c: Company) -> dict:
         "next_step": c.next_step,
         "next_step_due": fmt_date(c.next_step_due),
         "next_step_status": c.next_step_status,
+        "next_step_type": c.next_step_type,
         "tags": ", ".join(c.tags),
         "notes": c.notes,
     }
@@ -1271,7 +1272,8 @@ def create_app(root: Path, config: dict | None = None,
     @app.post("/tasks")
     @app.post("/calendar/task")   # the form's old home; kept for open tabs
     def task_create(request: Request, text: str = Form(""), company: str = Form(""),
-                    contact: str = Form(""), due: str = Form(""), back: str = Form("")):
+                    contact: str = Form(""), due: str = Form(""), back: str = Form(""),
+                    type: str = Form("")):
         """Create a task: pick the company, optionally the person (slug or name)."""
         back = safe_back(back, "/tasks")
 
@@ -1281,7 +1283,8 @@ def create_app(root: Path, config: dict | None = None,
             path, _, query = back.partition("?")
             if path != "/tasks":
                 return flashed(back, message, "task-list")
-            form = {"text": text, "company": company, "contact": contact, "due": due}
+            form = {"text": text, "company": company, "contact": contact, "due": due,
+                    "type": type}
             return _tasks_page(request, QueryParams(query), message, form, 400)
 
         try:
@@ -1302,7 +1305,7 @@ def create_app(root: Path, config: dict | None = None,
                                f"{contact!r}; people there: {known}")
             contact = named[0]
         try:
-            store.add_task(slug, text, due=due, contact=contact)
+            store.add_task(slug, text, due=due, contact=contact, type=type)
         except ValidationError as exc:
             return refused("; ".join(exc.errors.values()))
         return flashed(back, "Task created", "task-list")
@@ -1726,7 +1729,7 @@ def create_app(root: Path, config: dict | None = None,
             "stage": "prospect", "lost_reason": "", "requalify_on": "", "value_eur_month": "",
             "product_oneliner": "",
             "next_step": "", "next_step_due": "", "next_step_status": "open",
-            "tags": "", "notes": "",
+            "next_step_type": "", "tags": "", "notes": "",
         }
         return render(request, "company_new.html",
                       {"values": with_custom(values, None, "company")})
@@ -1759,6 +1762,9 @@ def create_app(root: Path, config: dict | None = None,
             "next_step_due": next_step_due, "next_step_status": next_step_status,
             "tags": tags, "notes": notes,
         }
+        form = await request.form()
+        if "next_step_type" in form:   # absent when no types are set up: keep the stored one
+            values["next_step_type"] = str(form["next_step_type"])
         extra, shown, custom_errors = await custom_submitted(request, "company")
         if custom_errors:
             return render(request, "company_new.html",
@@ -1819,6 +1825,9 @@ def create_app(root: Path, config: dict | None = None,
             "next_step_due": next_step_due, "next_step_status": next_step_status,
             "tags": tags, "notes": notes,
         }
+        form = await request.form()
+        if "next_step_type" in form:   # absent when no types are set up: keep the stored one
+            values["next_step_type"] = str(form["next_step_type"])
         extra, shown, custom_errors = await custom_submitted(request, "company")
         if version and version != record_version(root, slug):
             current = need_company(slug, refresh=True)
@@ -1889,13 +1898,29 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.post("/companies/{slug}/tasks")
     def task_add(request: Request, slug: str, text: str = Form(""),
-                 due: str = Form(""), contact: str = Form(""), back: str = Form("")):
+                 due: str = Form(""), contact: str = Form(""), back: str = Form(""),
+                 type: str = Form("")):
         back = _task_back(request, slug, contact, back)
         try:
-            store.add_task(slug, text, due=due, contact=contact)
+            store.add_task(slug, text, due=due, contact=contact, type=type)
         except ValidationError as exc:
             return flashed(back, "; ".join(exc.errors.values()), "tasks")
         return flashed(back, "Task added", "tasks")
+
+    @app.post("/companies/{slug}/todo-type")
+    def todo_type(request: Request, slug: str, index: str = Form(""), contact: str = Form(""),
+                  text: str = Form(""), type: str = Form(""), back: str = Form("")):
+        """Retype one to-do from its row; an empty `index` is the next-step fields."""
+        need_company(slug)
+        back = _task_back(request, slug, contact, back)
+        try:
+            store.set_todo_type(slug, int(index) if index.strip() else None, type,
+                                contact=contact, text=text)
+        except ValidationError as exc:
+            return flashed(back, "; ".join(exc.errors.values()), "tasks")
+        except ValueError:
+            return flashed(back, "that task is no longer there; reload the page", "tasks")
+        return flashed(back, "Type saved", "tasks")
 
     @app.post("/companies/{slug}/tasks/{index}/done")
     def task_done(request: Request, slug: str, index: int, done: str = Form(""),

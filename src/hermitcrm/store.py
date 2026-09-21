@@ -636,6 +636,7 @@ class Store:
         tags=None,
         notes="",
         custom=None,
+        next_step_type="",
     ) -> Company:
         name = (name or "").strip()
         if not name:
@@ -675,6 +676,7 @@ class Store:
             next_step_due=self._coerce_date(next_step_due, "next_step_due"),
             next_step_status=self._coerce_enum(next_step_status, TaskStatus,
                                                "next_step_status", True, "open"),
+            next_step_type=self._coerce_type(next_step_type, key="next_step_type"),
             tags=parse_tags(tags),
             created=now,
             updated=now,
