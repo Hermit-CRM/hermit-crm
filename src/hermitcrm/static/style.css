@@ -568,6 +568,10 @@ pre.bookmarklet-code { background: var(--surface-2); border: 1px solid var(--lin
 
 /* The walkthrough. */
 .progress-line { margin: 4px 0 6px; }
+/* "Show me around" on the left, the way out on the right; stacked on a phone. */
+.welcome-top { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;
+  justify-content: space-between; margin-bottom: 10px; }
+.welcome-top p { margin: 0; }
 .progress-bar { height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; max-width: 480px; margin-bottom: 16px; }
 .progress-bar span { display: block; height: 100%; background: var(--accent); }
 .welcome-steps { list-style: none; padding: 0; margin: 16px 0; max-width: 760px; }

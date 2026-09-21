@@ -1,12 +1,29 @@
 {% extends "base.html" %}
 {% block title %}Welcome{% endblock %}
 {% block content %}
+{# The same switch at the top and at the bottom, so nobody has to scroll past
+   ten steps to find the way out. #}
+{% macro startup_switch(hint) -%}
+<form method="post" action="/welcome/dismiss" class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if dismissed %}
+  <input type="hidden" name="dismissed" value="">
+  <button type="submit">Open this at startup again</button>
+  {% else %}
+  <input type="hidden" name="dismissed" value="1">
+  <button type="submit">Don't open this at startup</button>{% if hint %} <span class="small">Home becomes the dashboard. This page stays under Help either way.</span>{% endif %}
+  {% endif %}
+</form>
+{%- endmacro %}
 <h1>Getting started</h1>
 <p class="progress-line"><strong>{{ done }} of {{ total }}</strong> done.
   {% if done == total %}That is all of it. This page stays under <a href="/help">Help</a>.{% else %}Each step ticks itself when the thing it describes has happened, except the two marked <em>tick it yourself</em>.{% endif %}</p>
 <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="{{ total }}" aria-valuenow="{{ done }}"><span style="width: {{ (100 * done / total) | round | int }}%"></span></div>
 
-<p><a class="button" href="/?tour=1" data-start-tour>Show me around</a> <span class="small">A quick pass over the screen, pointing at each part.</span></p>
+<div class="welcome-top">
+  <p><a class="button" href="/?tour=1" data-start-tour>Show me around</a> <span class="small">A quick pass over the screen, pointing at each part.</span></p>
+  {{ startup_switch(false) }}
+</div>
 
 {% if samples %}
 <p class="small">The sample account <a href="/companies/{{ samples[0].slug }}">{{ samples[0].name }}</a> is loaded. It is there to look at: the steps below count only your own records.</p>
@@ -41,14 +58,5 @@
   {% endfor %}
 </ol>
 
-<form method="post" action="/welcome/dismiss" class="inline">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  {% if dismissed %}
-  <input type="hidden" name="dismissed" value="">
-  <button type="submit">Open this at startup again</button>
-  {% else %}
-  <input type="hidden" name="dismissed" value="1">
-  <button type="submit">Don't open this at startup</button> <span class="small">Home becomes the dashboard. This page stays under Help either way.</span>
-  {% endif %}
-</form>
+{{ startup_switch(true) }}
 {% endblock %}

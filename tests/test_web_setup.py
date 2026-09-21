@@ -65,6 +65,16 @@ def test_the_walkthrough_is_home_until_it_is_finished(folder):
     assert 'href="/" data-tour="home" class="active"' in page   # Home is this page
 
 
+def test_the_way_out_is_at_the_top_as_well_as_the_bottom(folder):
+    _, client = make_client(folder)
+    page = client.get("/welcome").text
+    assert page.count("Don't open this at startup") == 2
+    top = page.split('class="welcome-steps"')[0]
+    assert "Don't open this at startup" in top and 'value="1"' in top
+    assert page.count('action="/welcome/dismiss"') == 2
+    assert page.count(f'name="csrf_token" value="{client.app.state.csrf_token}"') >= 2
+
+
 def test_show_me_around_keeps_the_tour_through_the_redirect(folder):
     _, client = make_client(folder)
     assert 'href="/?tour=1" data-start-tour' in client.get("/welcome").text
