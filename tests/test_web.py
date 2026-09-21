@@ -960,15 +960,16 @@ def test_the_tasks_page_filters_every_task_in_one_table(frozen_client):
     rows = table("/tasks")
     assert rows.index("Call Jane") < rows.index("Book the demo") \
         < rows.index("send the deck") < rows.index("check the audit")
-    assert rows.count("next step</span>") == 3
+    assert rows.count('class="tag next-step"') == 3
+    assert 'Next steps only <span class="count">3</span>' in page
 
     assert "Book the demo" in table("/tasks?when=today") and "Call Jane" not in table("/tasks?when=today")
     both = table("/tasks?when=overdue&when=today")
     assert "Call Jane" in both and "Book the demo" in both and "send the deck" not in both
     assert "Ask again" not in table("/tasks?f_stage=discovery")
 
-    kind = table("/tasks?f_kind=task")
-    assert "send the deck" in kind and "Call Jane" not in kind
+    nexts = table("/tasks?next=1")
+    assert "Call Jane" in nexts and "send the deck" not in nexts
     assert "Jane Roe" in table("/tasks?f_who=jane") and "Beta" not in table("/tasks?f_who=jane")
     assert "Book the demo" not in table("/tasks?f_stage=discovery")
     assert "check the audit" in table("/tasks?f_due=-") and "Call Jane" not in table("/tasks?f_due=-")
@@ -977,8 +978,8 @@ def test_the_tasks_page_filters_every_task_in_one_table(frozen_client):
 
     # Done from the filtered view comes back to it and records the day
     r = c.post("/companies/acme/tasks/0/done",
-               data={"text": "check the audit", "done": "1", "back": "/tasks?f_kind=task"})
-    assert r.headers["location"] == "/tasks?f_kind=task&flash=Task%20done#tasks"
+               data={"text": "check the audit", "done": "1", "back": "/tasks?next=1&f_who=acme"})
+    assert r.headers["location"] == "/tasks?next=1&f_who=acme&flash=Task%20done#tasks"
     assert "check the audit" not in table("/tasks")
     done = table("/tasks?f_status=done")
     assert "check the audit" in done and "2026-09-14" in done
@@ -2144,3 +2145,24 @@ def test_without_task_types_there_is_no_type_field(client):
     page = client.get("/companies/plain").text
     assert 'name="type"' not in page and 'name="next_step_type"' not in page
     assert 'name="type"' not in client.get("/tasks").text
+
+
+def test_the_tasks_page_filters_by_type(typed_client):
+    c = typed_client
+    post_company(c, name="Acme", next_step="Call Jane", next_step_due="2026-09-10")
+    c.post("/companies/acme/tasks", data={"text": "send deck", "type": "prospecting"})
+    c.post("/companies/acme/tasks", data={"text": "untyped one"})
+    table = lambda url: c.get(url).text.split('class="filters"')[1].split("</table>")[0]
+    assert "send deck" in table("/tasks?f_type=prospecting")
+    assert "untyped one" not in table("/tasks?f_type=prospecting")
+    assert "untyped one" in table("/tasks?f_type=(none)")
+    assert "send deck" not in table("/tasks?f_type=(none)")
+    assert 'class="type-chip type-blue"' in table("/tasks")
+    assert "Call Jane" in table("/tasks?next=1&f_type=(none)")
+    assert c.get("/tasks?f_kind=task").status_code == 200     # old links still load
+
+
+def test_the_tasks_page_has_no_type_column_without_types(client):
+    post_company(client, name="Plain", next_step="call")
+    head = client.get("/tasks").text.split('class="filters"')[0]
+    assert "f_type" not in head and ">type " not in head

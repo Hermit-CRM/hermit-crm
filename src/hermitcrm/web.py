@@ -187,7 +187,7 @@ class TodoRow:
         self.text = todo.text
         self.due = todo.due
         self.done_on = todo.done_on
-        self.kind = "next step" if is_next else "task"
+        self.type = todo.type
         self.who = todo.contact.name if todo.contact else company.name
         self.company_name = company.name
         self.stage = company.stage
@@ -214,11 +214,16 @@ def todo_rows(companies, include_done: bool = False) -> list[TodoRow]:
     return rows
 
 
-def task_columns() -> list[Column]:
-    return [
+def task_columns(type_options: list[str] | None = None) -> list[Column]:
+    """The Tasks table; a type column only once there are types to show."""
+    cols = [
         Column("due", "due", "date"),
         Column("text", "what"),
-        Column("kind", "kind", "enum", ["next step", "task"]),
+    ]
+    if type_options:
+        cols.append(Column("type", "type", "enum", [*type_options, task_types.NONE],
+                           getter=lambda r: r.type or task_types.NONE))
+    return cols + [
         Column("who", "for"),
         Column("company_name", "company"),
         Column("stage", "stage", "enum", STAGES),
@@ -1230,7 +1235,7 @@ def create_app(root: Path, config: dict | None = None,
         """Every to-do in one table: the date chips, then one filter per column.
         `form_error` and `form` put a refused Add task back next to its form."""
         today = store.today()
-        cols = task_columns()
+        cols = task_columns(task_type_options())
         active = filters.parse(params, cols)
         if "status" not in active and "f_status" not in params:
             active["status"] = ["open"]      # open ones unless you ask for done
@@ -1241,6 +1246,10 @@ def create_app(root: Path, config: dict | None = None,
         if when:
             tests = [test for k, _, test in TASK_WHEN if k in when]
             rows = [r for r in rows if any(t(r.due, today) for t in tests)]
+        nexts = params.get("next") == "1"
+        next_count = sum(1 for r in rows if r.is_next)
+        if nexts:
+            rows = [r for r in rows if r.is_next]
         sort_key, sort_dir = filters.parse_sort(params, cols)
         rows = filters.sort_rows(rows, cols, sort_key, sort_dir)
 
@@ -1258,6 +1267,8 @@ def create_app(root: Path, config: dict | None = None,
             "today": today, "rows": rows, "filter_columns": cols, "active": active,
             "sort": sort_key, "dir": sort_dir, "chips": chips, "when": when,
             "all_url": with_params(("when",), []),
+            "nexts": nexts, "next_count": next_count,
+            "next_url": with_params(("next",), [] if nexts else [("next", "1")]),
             "here": with_params((), []),
             "companies": store.all(),
             "form_error": form_error, "form": form or {},
