@@ -279,3 +279,16 @@ def test_access_section_shows_the_phone_and_mcp_commands(folder):
     assert "&#34;mcpServers&#34;" in page  # the JSON to paste, escaped
     assert "Hermit CRM has no password" in page
     assert 'href="/help/ai-agents"' in page
+
+
+def test_settings_says_where_secrets_live_on_each_platform(folder):
+    """Off a Mac there is no Keychain, so the page says the secrets are plain
+    text rather than leaving it to be discovered."""
+    app, client = make_client(folder)
+    page = client.get("/settings").text
+    assert "no keyring support on this system" in page
+    assert "macOS Keychain" not in page
+    app.state.setup_platform = "darwin"
+    page = client.get("/settings").text
+    assert "or the macOS Keychain" in page
+    assert "no keyring support" not in page

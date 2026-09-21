@@ -194,6 +194,15 @@ doing. On a fresh Mac you click Install once in an Apple dialog.
 """
 
 [[questions.items]]
+q = "Does it run on Linux?"
+a = """
+Yes, but it is less tested than on a Mac. The install is the same: your AI
+tool checks for git and Python and installs what is missing, which on Linux may
+ask for your password. There is no keychain on Linux, so the mail password is
+kept in a file only your user account can read.
+"""
+
+[[questions.items]]
 q = "Which AI tools work?"
 a = """
 For the install, any AI coding tool that can read a file and run commands:

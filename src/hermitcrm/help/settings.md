@@ -4,7 +4,10 @@
 
 Every section writes `config.toml` in the data folder, keeping its comments;
 secrets (the mail app password, the calendar URL) go to `.secrets.toml`
-(mode 600) or the macOS Keychain, never to `config.toml`. The first time the
+(mode 600) or the macOS Keychain, never to `config.toml`. On Linux there is
+no Keychain: they are stored in plain text in `.secrets.toml`, readable only by
+your user account and never committed to git. Full-disk encryption protects
+them when the machine is off. The first time the
 web app starts without an owner email it opens this page once; "Skip for now"
 goes to the board. The same questions run in the terminal as `hermitcrm setup`.
 
