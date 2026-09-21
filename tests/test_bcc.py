@@ -529,7 +529,7 @@ def test_gmail_mailbox_reads_all_mail_and_marks_read():
 def test_gmail_mailbox_login_failure_is_readable():
     factory = lambda host, port, timeout=None: FakeIMAP(
         host, port, login_error=b"[AUTHENTICATIONFAILED] Invalid credentials")
-    with pytest.raises(bcc.BccError, match="Invalid credentials.*Keychain"):
+    with pytest.raises(bcc.BccError, match="Invalid credentials.*app password.*keyring, service 'crm-bcc'"):
         with bcc.GmailMailbox(SETTINGS, "pw", imap_factory=factory):
             pass
 

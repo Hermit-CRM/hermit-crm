@@ -4,10 +4,14 @@
 
 Every section writes `config.toml` in the data folder, keeping its comments;
 secrets (the mail app password, the calendar URL) go to `.secrets.toml`
-(mode 600) or the macOS Keychain, never to `config.toml`. On Linux there is
-no Keychain: they are stored in plain text in `.secrets.toml`, readable only by
-your user account and never committed to git. Full-disk encryption protects
-them when the machine is off. The first time the
+(mode 600) or the system's secret store, never to `config.toml`. The secret
+store is the Keychain on macOS and the Secret Service on Linux (GNOME Keyring,
+KWallet or KeePassXC, reached through `secret-tool` from `libsecret-tools`);
+Settings offers it only when it answers. Without one, secrets are stored in
+plain text in `.secrets.toml`, readable only by your user account and never
+committed to git. Full-disk encryption protects them when the machine is off.
+A Linux keyring is locked while you are logged out: if the daily import runs
+then (systemd lingering), keep the app password in `.secrets.toml`. The first time the
 web app starts without an owner email it opens this page once; "Skip for now"
 goes to the board. The same questions run in the terminal as `hermitcrm setup`.
 

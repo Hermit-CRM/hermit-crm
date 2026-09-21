@@ -11,7 +11,7 @@
   <a href="#inbox">Review queue{% if items %} ({{ items|length }}){% endif %}</a> &middot; <a href="#schedule">Schedule</a> &middot; <a href="#access">Access</a> &middot; <a href="#about">About</a>
   &middot; <a href="/help/settings">Help</a>
 </p>
-<p class="small">{% if is_mac %}Secrets are stored in <code>.secrets.toml</code> (mode 600) or the macOS Keychain, never in <code>config.toml</code>.{% else %}Secrets are stored in <code>.secrets.toml</code>, never in <code>config.toml</code>. There is no keyring support on this system yet, so they are plain text, readable only by your user account (mode 600) and never committed to git.{% endif %} Everything else is written to <code>config.toml</code>, comments kept.{% if setup_pending %} <a href="/">Skip for now</a>{% endif %}</p>
+<p class="small">{% if os_store %}Secrets are stored in <code>.secrets.toml</code> (mode 600) or {{ os_store_label }}, never in <code>config.toml</code>.{% if os_store == 'secret-service' %} A keyring is locked while you are logged out, so a daily import that runs then cannot read the password; keep it in <code>.secrets.toml</code> if the machine imports without you logged in.{% endif %}{% elif is_windows %}Secrets are stored in <code>.secrets.toml</code>, never in <code>config.toml</code>. They are plain text, readable only by your user account and never committed to git.{% else %}Secrets are stored in <code>.secrets.toml</code>, never in <code>config.toml</code>. No system keyring was found (install <code>libsecret-tools</code> and run a Secret Service such as GNOME Keyring or KWallet to use one), so they are plain text, readable only by your user account (mode 600) and never committed to git.{% endif %} Everything else is written to <code>config.toml</code>, comments kept.{% if setup_pending %} <a href="/">Skip for now</a>{% endif %}</p>
 
 <section class="setup-step" id="you">
   <h2>You {{ status(state.you) }}</h2>
@@ -45,7 +45,7 @@
     <label>BCC address <input name="address" value="{{ bcc_form.address }}" placeholder="you+crm@gmail.com"></label>
     <label>IMAP server <input name="imap_host" id="bcc-imap-host" value="{{ bcc_form.imap_host }}" placeholder="imap.gmail.com"></label>
     <label>App password <input type="password" name="password" value="" autocomplete="new-password" placeholder="{{ 'stored; leave empty to keep it' if state.bcc else '' }}"></label>
-    {% if is_mac %}<label class="inline"><input type="checkbox" name="keychain" value="1" checked style="display:inline;width:auto"> Store the password in the macOS Keychain</label>{% endif %}
+    {% if os_store %}<label class="inline"><input type="checkbox" name="keychain" value="1" checked style="display:inline;width:auto"> Store the password in {{ os_store_label }}</label>{% endif %}
     <button type="submit">Save</button>
   </form>
   {% if gmail_filter %}

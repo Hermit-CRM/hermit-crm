@@ -210,13 +210,13 @@ Uncomment what you want to change.
 | `fetch_timeout` | `10` | Seconds to wait when Fetch from URL reads a page. |
 | `bcc_address` | `""` | Address you BCC or forward mail to, e.g. you+crm@gmail.com; empty disables BCC import. |
 | `bcc_imap_host` | `"imap.gmail.com"` | IMAP server of that mailbox. |
-| `bcc_keychain_service` | `"crm-bcc"` | macOS Keychain service holding the app password (account = IMAP user). |
+| `bcc_keychain_service` | `"crm-bcc"` | Keychain (macOS) or Secret Service (Linux) service holding the app password (account = IMAP user). |
 | `bcc_lookback_days` | `30` | How far back the BCC import searches. |
 | `bcc_create_companies` | `true` | Create the company when mail you send or forward reaches a domain no company has (named after the domain); false sends it to the review queue instead. |
 | `my_addresses` | `[]` | Mail from these addresses is yours (outbound). |
 | `bcc_ignore_domains` | `[]` | Recipients at these domains (colleagues) are never logged. |
-| `calendar_keychain_service` | `"crm-calendar"` | macOS Keychain service holding the secret ICS URL. |
-| `calendar_keychain_account` | `"ics"` | macOS Keychain account for the ICS URL. |
+| `calendar_keychain_service` | `"crm-calendar"` | Keychain (macOS) or Secret Service (Linux) service holding the secret ICS URL. |
+| `calendar_keychain_account` | `"ics"` | Keychain (macOS) or Secret Service (Linux) account for the ICS URL. |
 | `calendar_lookback_days` | `30` | How far back the calendar import looks. |
 | `calendar_ignore_titles` | `[]` | Events whose title contains one of these are skipped. |
 | `calendar_min_attendees` | `2` | Events with fewer participants (you included) are skipped. |
@@ -296,20 +296,29 @@ Two secrets exist: `bcc_password` (a Gmail app password) and
    bcc_password = "abcd efgh ijkl mnop"
    calendar_ics_url = "https://calendar.google.com/calendar/ical/.../basic.ics"
    ```
-3. on macOS, the Keychain (service from `bcc_keychain_service` /
-   `calendar_keychain_service` in `config.toml`).
+3. the system's secret store, with the service from `bcc_keychain_service` /
+   `calendar_keychain_service` in `config.toml` (the keys keep the name
+   "keychain" on every platform):
+   - macOS: the Keychain, through `security`;
+   - Linux: the freedesktop Secret Service (GNOME Keyring, KWallet, KeePassXC),
+     through `secret-tool` from `libsecret-tools`. By hand:
+     `secret-tool store --label='Hermit CRM calendar' service crm-calendar account ics`
+     (then paste the URL). It is used only when a D-Bus session is running, so
+     a headless server simply falls back to `.secrets.toml`; `hermitcrm doctor`
+     shows a `keyring` line saying which case applies.
 
-On Linux there is no keyring support yet (GNOME Keyring, KWallet): a secret
-lives in the environment or in `.secrets.toml`, in plain text, readable only
-by your user account and never committed. Full-disk encryption protects it
-when the machine is off.
+Without a secret store a secret lives in the environment or in
+`.secrets.toml`, in plain text, readable only by your user account and never
+committed. Full-disk encryption protects it when the machine is off. A Linux
+keyring is locked while you are logged out, so if the daily import runs then
+(systemd lingering), keep the app password in `.secrets.toml`.
 
 ## BCC import setup
 
 The easy way: **Settings → BCC capture** in the web app (`/settings#bcc`) or
 `hermitcrm setup`. It suggests `you+crm@gmail.com` for Gmail, picks the IMAP server
 for Gmail, Outlook/Hotmail/Live and iCloud, stores the app password in
-`.secrets.toml` or the macOS Keychain, tests the connection with a dry run and
+`.secrets.toml` or the system keyring (macOS Keychain, Linux Secret Service), tests the connection with a dry run and
 shows the Gmail filter to add:
 
 ```text
