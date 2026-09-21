@@ -424,6 +424,6 @@ def test_calendar_import_route_upcoming_and_inbox(client):
         cal.CalendarError("example.test answered HTTP 404"))
     r = client.post("/calendar/import", data={"back": "/inbox"})
     assert "HTTP%20404" in r.headers["location"]
-    assert 'title="calendar import failed: example.test answered HTTP 404"' in client.get("/").text
+    assert 'title="calendar import failed: example.test answered HTTP 404"' in client.get("/pipeline").text
     client.app_state.calendar_url = lambda refresh=False: ""
     assert 'class="alert"' not in client.get("/").text  # not set up: no alert

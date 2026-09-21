@@ -165,7 +165,7 @@ def test_theme_setting_and_ai_tier_switch(app_client):
     assert 'id="appearance"' in page and "Night mode" in page
     assert "Medium: Opus" in page and "Strong: Fable" in page
     r = client.post("/settings/appearance", data={"csrf_token": token, "theme": "dark"})
-    assert r.status_code == 303 and 'data-theme="dark"' in client.get("/").text
+    assert r.status_code == 303 and 'data-theme="dark"' in client.get("/pipeline").text
     assert client.post("/settings/appearance",
                        data={"csrf_token": token, "theme": "pink"}).status_code == 400
     r = client.post("/settings/enrichment", data={"csrf_token": token, "provider": "claude",
