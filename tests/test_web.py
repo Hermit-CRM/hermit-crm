@@ -1880,7 +1880,37 @@ def test_the_phone_rules_that_keep_the_company_page_on_the_screen():
     assert effective(phone, ".record-actions input.url")["width"] == "auto"
     assert effective(phone, ".record-actions details.inline-edit[open]")["flex-basis"] == "100%"
     # The 260px merge field pushed Compare off a 375px screen; now Compare wraps.
-    assert effective(phone, "#merge form.inline-row")["flex-wrap"] == "wrap"
+    # The same rule holds the task row (task, for, due, Add task) on the screen.
+    assert effective(phone, "form.inline-row")["flex-wrap"] == "wrap"
+    assert "flex-wrap" not in effective(wide, "form.inline-row")
+
+
+def test_the_companies_and_settings_tables_scroll_in_a_box_of_their_own(client, repo):
+    """At 390px the companies table made the page ~1250px wide and the Settings
+    fields table 413px. Like the company page's tables, each now scrolls in its box."""
+    define_fields(client, repo, MY_SCORE)
+    post_company(client, name="Acme", country="NL", stage="prospect")
+    companies = client.get("/companies").text
+    assert '<div class="table-scroll"><table class="filterable">' in companies
+    assert companies.count('<table class="filterable">') == 1
+    settings = client.get("/settings").text
+    assert '<div class="table-scroll"><table class="fields-list small">' in settings
+
+
+def test_the_phone_rules_that_keep_companies_settings_and_the_disqualify_menu_on_the_screen():
+    """At 390px: a closed Disqualify menu still gave its reason and date fields a box
+    past the right edge, a long data-folder path pushed Settings sideways, and the
+    filter help, tapped, ran 53px past the right edge of Companies."""
+    phone, wide = phone_and_wide_css()
+    assert effective(phone, ".filter-form") == {"position": "relative"}
+    assert effective(phone, ".filter-form .help") == {"position": "static"}
+    assert effective(phone, ".filter-form .help .tip")["max-width"] == "calc(100vw - 48px)"
+    assert effective(wide, ".help .tip")["left"] == "0"  # above 760px it hangs from the "?"
+    assert effective(wide, ".filter-form .help .tip") == {}
+    assert effective(phone, "details.stage-menu:not([open]) .menu-panel") == {"display": "none"}
+    assert effective(wide, "details.stage-menu:not([open]) .menu-panel") == {}
+    assert effective(phone, "table.about td") == {"overflow-wrap": "anywhere"}
+    assert effective(wide, "table.about td") == {}
 
 
 def test_a_custom_field_goes_all_the_way_through_the_app(client, app, repo):

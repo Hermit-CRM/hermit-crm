@@ -308,8 +308,9 @@ form.merge .val { white-space: pre-wrap; word-break: break-word; }
 form.inline-row { display: flex; gap: 10px; align-items: flex-end; }
 form.inline-row label { margin: 0; }
 form.inline-row select, form.inline-row input[list] { width: auto; min-width: 260px; }
-/* The 260px merge field and Compare do not fit side by side on a small phone. */
-@media (max-width: 760px) { #merge form.inline-row { flex-wrap: wrap; } }
+/* On a phone a row of fields wraps: the 260px merge field and Compare do not fit
+   side by side, nor do a task, its contact, its due date and Add task. */
+@media (max-width: 760px) { form.inline-row { flex-wrap: wrap; } }
 
 /* import */
 textarea.import { font-size: 12px; white-space: pre; overflow-x: auto; }
@@ -337,6 +338,14 @@ table.month .task.overdue a { color: var(--danger); }
 .help .tip td { border: none; padding: 1px 8px 1px 0; font-size: 12px; }
 .help .tip code { background: var(--subtle); padding: 0 4px; border-radius: 3px; }
 .help .tip strong { display: block; margin-top: 4px; }
+/* On a phone the tip hung from the "?" and, 90vw wide, ran past the right edge when
+   tapped. There it hangs under the filter form, which starts at the page's left
+   gutter, and is never wider than the screen between the gutters. */
+@media (max-width: 760px) {
+  .filter-form { position: relative; }
+  .filter-form .help { position: static; }
+  .filter-form .help .tip { top: calc(100% + 4px); max-width: calc(100vw - 48px); }
+}
 .sort { white-space: nowrap; font-size: 9px; margin-left: 2px; }
 .sort a { color: var(--line-strong); text-decoration: none; }
 .sort a.on, .sort a:hover { color: var(--accent); }
@@ -390,6 +399,9 @@ details.stage-menu .menu-panel form.inline-form { display: flex; align-items: ce
   details.stage-menu { position: static; }
   details.stage-menu .menu-panel { left: 0; }
   details.stage-menu .menu-panel form.inline-form { flex-wrap: wrap; }
+  /* Closed, the menu still gave its fields a layout box beside the button, past the
+     right edge when the button sits far right. Nothing painted, but it is gone now. */
+  details.stage-menu:not([open]) .menu-panel { display: none; }
   /* An open "Fetch from URL" takes a row of its own, and the URL field fills it
      beside the button instead of being 320px wide. */
   .record-actions details.inline-edit[open] { flex-basis: 100%; }
@@ -471,6 +483,8 @@ code.report-key { font-size: 11px; color: var(--faint); }
 pre.copy { background: var(--surface-2); border: 1px solid var(--line); border-radius: 3px; padding: 6px 8px; font-size: 13px; overflow-x: auto; user-select: all; }
 table.about { width: auto; }
 table.about th { white-space: nowrap; width: 1%; }
+/* A long data-folder path has nowhere to break and pushed the page past a phone. */
+@media (max-width: 760px) { table.about td { overflow-wrap: anywhere; } }
 
 /* help pages (nav link + /help) */
 nav a.help-link { margin-left: 4px; }
