@@ -186,7 +186,7 @@ def build_tools(root: Path, store) -> list[Tool]:
             raise ToolError("name is required")
         fields = given(args, "website", "linkedin", "country", "source", "stage",
                        "value_eur_month", "product_oneliner", "next_step",
-                       "next_step_due", "tags", "notes")
+                       "next_step_due", "next_step_type", "tags", "notes")
         company = writable().create_company(name=name, **fields)
         return (f"Created {company.name} as {company.slug} "
                 f"(companies/{company.slug}/company.md), stage {company.stage}.")
@@ -272,6 +272,7 @@ def build_tools(root: Path, store) -> list[Tool]:
                      "value_eur_month": text(description="Whole euros per month."),
                      "product_oneliner": text(), "next_step": text(),
                      "next_step_due": text(description="YYYY-MM-DD."),
+                     "next_step_type": text(description="A task type from Settings, or empty."),
                      "tags": text(description="Comma-separated."), "notes": text()},
                     ["name"]), add_company_tool),
         Tool("add_contact",
