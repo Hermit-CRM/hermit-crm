@@ -111,3 +111,8 @@ def test_bcc_and_calendar_use_secrets(tmp_path):
     cal_settings = cal.settings_from_config({})
     assert cal.resolve_url(cal_settings, tmp_path, env={"CRM_CALENDAR_URL": "u1"}) == "u1"
     assert "not set up" in cal.setup_hint(cal_settings)
+    assert "security add-generic-password -s crm-calendar" in cal.setup_hint(
+        cal_settings, platform="darwin")
+    linux = cal.setup_hint(cal_settings, platform="linux")
+    assert "calendar_ics_url to .secrets.toml" in linux
+    assert "Keychain" not in linux and "security" not in linux
