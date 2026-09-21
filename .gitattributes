@@ -1,4 +1,6 @@
 # Not part of the download: scripts/release.sh uses git archive, which skips these.
 website/ export-ignore
 docs/superpowers/ export-ignore
+# Contributor tooling: users install with uv tool install / pip, which ignore it.
+uv.lock export-ignore
 .gitattributes export-ignore

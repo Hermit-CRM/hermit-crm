@@ -8,11 +8,17 @@ easiest to accept.
 
 ```bash
 git clone <your fork> hermitcrm && cd hermitcrm
-python3 -m venv .venv
-.venv/bin/pip install -e '.[dev]'
+uv sync --extra dev          # .venv with the versions pinned in uv.lock
 .venv/bin/hermitcrm init /tmp/hermitcrm-dev --demo
 .venv/bin/hermitcrm --data /tmp/hermitcrm-dev serve
 ```
+
+Without [uv](https://docs.astral.sh/uv/): `python3 -m venv .venv` and
+`.venv/bin/pip install -e '.[dev]'` work too, but get the newest versions of
+every dependency instead of the pinned ones.
+
+If you change dependencies in `pyproject.toml`, run `uv lock` and commit
+`uv.lock` with it; CI runs `uv sync --locked` and fails on a stale lock.
 
 Python 3.11 is the oldest supported version; avoid syntax newer than that.
 
