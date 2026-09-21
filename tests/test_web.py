@@ -2097,7 +2097,7 @@ def typed_client(repo: Path):
     return TestClient(app, follow_redirects=False)
 
 
-def test_a_task_gets_a_type_when_made_and_can_be_retyped(typed_client, client):
+def test_a_task_gets_a_type_when_made_and_can_be_retyped(typed_client):
     c = typed_client
     post_company(c, name="Acme", next_step="Call Jane", next_step_due="2026-09-10",
                  next_step_type="lost deals")
@@ -2145,6 +2145,7 @@ def test_without_task_types_there_is_no_type_field(client):
     page = client.get("/companies/plain").text
     assert 'name="type"' not in page and 'name="next_step_type"' not in page
     assert 'name="type"' not in client.get("/tasks").text
+    assert "next type" not in client.get("/companies").text
 
 
 def test_the_tasks_page_filters_by_type(typed_client):
@@ -2166,3 +2167,17 @@ def test_the_tasks_page_has_no_type_column_without_types(client):
     post_company(client, name="Plain", next_step="call")
     head = client.get("/tasks").text.split('class="filters"')[0]
     assert "f_type" not in head and ">type " not in head
+
+
+def test_the_next_step_type_shows_on_companies_and_board(typed_client):
+    c = typed_client
+    post_company(c, name="Acme", next_step="Call Jane", next_step_due="2026-09-10")
+    post_company(c, name="Beta", next_step="Book demo")
+    c.post("/companies/acme/todo-type", data={"index": "", "type": "prospecting"})
+    body = lambda url: c.get(url).text.split('class="filters"')[1].split("</table>")[0]
+    companies = c.get("/companies").text
+    assert ">next type " in companies and 'class="type-chip type-blue"' in companies
+    assert "Acme" in body("/companies?f_next_type=prospecting")
+    assert "Beta" not in body("/companies?f_next_type=prospecting")
+    assert "Beta" in body("/companies?f_next_type=(none)")
+    assert 'class="type-chip type-blue"' in c.get("/pipeline").text

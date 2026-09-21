@@ -144,7 +144,14 @@ def custom_columns(defs: list, view: str) -> list[Column]:
     ]
 
 
-def company_columns(defs: list | None = None) -> list[Column]:
+def _next_type(company) -> str:
+    """The type of the company's open next step; "" when none or done."""
+    todo = company.next_todo()
+    return todo.type if todo and not todo.done else ""
+
+
+def company_columns(defs: list | None = None,
+                    type_options: list[str] | None = None) -> list[Column]:
     return [
         Column("name", "name"),
         Column("country", "country", "enum", COUNTRIES),
@@ -156,6 +163,9 @@ def company_columns(defs: list | None = None) -> list[Column]:
         # The next step is derived (the open to-do due first); the keys keep
         # their old names so bookmarked filters still work.
         Column("next_step", "next step", getter=lambda c: c.next_text),
+        *([Column("next_type", "next type", "enum", [*type_options, task_types.NONE],
+                  getter=lambda c: _next_type(c) or task_types.NONE)]
+          if type_options else []),
         Column("next_step_due", "due", "date", getter=lambda c: c.next_due),
     ]
 
@@ -1525,7 +1535,7 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.get("/companies", response_class=HTMLResponse)
     def companies_list(request: Request, q: str = ""):
-        cols = company_columns(app.state.custom_fields)
+        cols = company_columns(app.state.custom_fields, task_type_options())
         active = filters.parse(request.query_params, cols)
         sort_key, sort_dir = filters.parse_sort(request.query_params, cols)
         companies = filters.apply(store.search(q), cols, active)
