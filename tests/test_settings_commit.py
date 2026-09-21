@@ -88,6 +88,8 @@ CONFIG_ROUTES = [
     ("/settings/appearance", {"theme": "dark"}),
     ("/settings/outcomes", {"outcomes": "Replied\nNo reply", "message_window_days": "7",
                             "silent_days": "21"}),
+    ("/settings/task-types", {"name": ["prospecting", ""], "colour": ["blue", "grey"],
+                              "old": ["", ""]}),
     ("/welcome/tick", {"key": "find", "done": "1"}),
     ("/welcome/dismiss", {"dismissed": "1"}),
     ("/disclaimer/accept", {"accepted": "1"}),
@@ -98,7 +100,8 @@ CONFIG_ROUTES = [
 def test_every_config_save_is_committed(client, folder, tmp_path, path, form):
     bare = tmp_path / "remote.git"
     subprocess.run(["git", "init", "--bare", "-q", str(bare)], check=True)
-    form = {k: v.replace("{bare}", str(bare)) for k, v in form.items()}
+    form = {k: v.replace("{bare}", str(bare)) if isinstance(v, str) else v
+            for k, v in form.items()}
     before = git(["rev-parse", "HEAD"], folder)
     post(client, path, **form)
     assert git(["rev-parse", "HEAD"], folder) != before, "nothing was committed"
