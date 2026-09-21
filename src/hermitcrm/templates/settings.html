@@ -7,7 +7,7 @@
 <h1>Settings</h1>
 <p class="small settings-toc">
   <a href="#you">You</a> &middot; <a href="#bcc">BCC capture</a> &middot; <a href="#calendar">Calendar</a> &middot;
-  <a href="#backup">Backup</a> &middot; <a href="#appearance">Appearance</a> &middot; <a href="#fields">Fields</a> &middot; <a href="#messaging">Drafts</a> &middot; <a href="#enrichment">AI</a> &middot; <a href="#outcomes">Outcomes</a> &middot;
+  <a href="#backup">Backup</a> &middot; <a href="#appearance">Appearance</a> &middot; <a href="#fields">Fields</a> &middot; <a href="#messaging">Drafts</a> &middot; <a href="#enrichment">AI</a> &middot; <a href="#task-types">Task types</a> &middot; <a href="#outcomes">Outcomes</a> &middot;
   <a href="#inbox">Review queue{% if items %} ({{ items|length }}){% endif %}</a> &middot; <a href="#schedule">Schedule</a> &middot; <a href="#access">Access</a> &middot; <a href="#about">About</a>
   &middot; <a href="/help/settings">Help</a>
 </p>
@@ -255,6 +255,35 @@
       <label>Strong model (empty: provider default) <input name="model_strong" value="{{ enrich_form.model_strong }}" placeholder="{{ tier_models.strong if not enrich_form.model_strong else '' }}"></label>
     </div>
     <button type="submit">Save</button>
+  </form>
+</section>
+
+<section class="setup-step" id="task-types">
+  <h2>Task types</h2>
+  <p class="small">Your own labels for tasks and next steps, e.g. <em>pipeline follow-up</em>, <em>prospecting</em>, <em>lost deals</em>. A type is a label and a filter; it changes no dates. Renaming a type renames it on every task that has it. Deleting one leaves it on its tasks, in grey.</p>
+  {{ step_errors('task-types') }}
+  <form method="post" action="/settings/task-types" class="record-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <table class="task-types">
+      {% for t in task_types_form.rows %}
+      <tr>
+        <td><input name="name" value="{{ t.name }}" maxlength="40" aria-label="type name"><input type="hidden" name="old" value="{{ t.name }}"></td>
+        <td><select name="colour" aria-label="colour">{% for p in palette %}<option value="{{ p }}"{% if p == t.colour %} selected{% endif %}>{{ p }}</option>{% endfor %}</select></td>
+        <td>{{ m.type_chip(t.name) }}</td>
+        <td class="actions">
+          {% if not loop.first %}<button type="submit" name="move" value="{{ loop.index0 }}-up" title="Move up">Up</button>{% endif %}
+          {% if not loop.last %}<button type="submit" name="move" value="{{ loop.index0 }}-down" title="Move down">Down</button>{% endif %}
+          <button type="submit" name="delete" value="{{ loop.index0 }}" title="Remove this type">Delete</button>
+        </td>
+      </tr>
+      {% endfor %}
+      <tr>
+        <td><input name="name" value="" maxlength="40" placeholder="new type" aria-label="new type name"><input type="hidden" name="old" value=""></td>
+        <td><select name="colour" aria-label="colour">{% for p in palette %}<option value="{{ p }}">{{ p }}</option>{% endfor %}</select></td>
+        <td></td><td></td>
+      </tr>
+    </table>
+    <button type="submit">Save task types</button>
   </form>
 </section>
 

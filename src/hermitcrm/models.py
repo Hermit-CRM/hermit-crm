@@ -397,6 +397,7 @@ class Task:
     due: date | None = None
     done: bool = False
     done_on: date | None = None  # when it was ticked off; None for older files
+    type: str = ""  # a task type from Settings; "" for none
 
     def overdue(self, today: date | None = None) -> bool:
         return bool(self.due and not self.done and self.due < (today or date.today()))
@@ -417,6 +418,7 @@ class Todo:
     done_on: date | None
     contact: "Contact | None" = None
     index: int | None = None
+    type: str = ""
 
     @property
     def key(self) -> tuple[str, int | None]:
@@ -460,6 +462,7 @@ class Company:
     next_step_due: date | None = None
     next_step_status: str = "open"
     next_step_done_on: date | None = None
+    next_step_type: str = ""
     tags: list[str] = field(default_factory=list)
     stage_history: list[StageChange] = field(default_factory=list)
     tasks: list[Task] = field(default_factory=list)
@@ -567,12 +570,12 @@ class Company:
         out = []
         if self.has_next_step:
             out.append(Todo(self.next_step, self.next_step_due, self.next_step_done,
-                            self.next_step_done_on))
+                            self.next_step_done_on, type=self.next_step_type))
         for i, t in enumerate(self.tasks):
-            out.append(Todo(t.text, t.due, t.done, t.done_on, None, i))
+            out.append(Todo(t.text, t.due, t.done, t.done_on, None, i, type=t.type))
         for person in self.contacts.values():
             for i, t in enumerate(person.tasks):
-                out.append(Todo(t.text, t.due, t.done, t.done_on, person, i))
+                out.append(Todo(t.text, t.due, t.done, t.done_on, person, i, type=t.type))
         return out
 
     def open_todos(self) -> list[Todo]:
@@ -587,7 +590,8 @@ class Company:
         if todos:
             return todos[0]
         if self.next_step_done:
-            return Todo(self.next_step, self.next_step_due, True, self.next_step_done_on)
+            return Todo(self.next_step, self.next_step_due, True, self.next_step_done_on,
+                        type=self.next_step_type)
         return None
 
     @property
@@ -780,6 +784,8 @@ def task_to_dict(t: Task) -> dict:
         item["done"] = True
         if t.done_on:
             item["done_on"] = t.done_on
+    if t.type:
+        item["type"] = t.type
     return item
 
 
@@ -809,7 +815,9 @@ def _tasks(value, errors: dict[str, str]) -> list[Task]:
             errors["tasks"] = f"task {n} has an unreadable done_on date"
             return []
         done = bool(item.get("done"))
-        out.append(Task(text=text, due=due, done=done, done_on=done_on if done else None))
+        kind = " ".join(str(item.get("type") or "").split())
+        out.append(Task(text=text, due=due, done=done, done_on=done_on if done else None,
+                        type=kind))
     return out
 
 
@@ -840,6 +848,8 @@ def company_to_frontmatter(c: Company) -> dict:
     }
     if c.next_step_done and c.next_step_done_on:  # absent unless done, so older files stay byte-identical
         meta["next_step_done_on"] = c.next_step_done_on
+    if c.next_step_type:  # absent unless set, so older files stay byte-identical
+        meta["next_step_type"] = c.next_step_type
     meta["tags"] = list(c.tags)
     if c.stage_history:  # absent until the first recorded change
         meta["stage_history"] = [stage_change_to_dict(e) for e in c.stage_history]
@@ -900,7 +910,8 @@ COMPANY_KEYS = frozenset({
     "name", "slug", "website", "linkedin", "country", "source", "stage", "stage_changed",
     "lost_reason", "requalify_on", "value_eur_month", "product_oneliner",
     "next_step", "next_step_due",
-    "next_step_status", "next_step_done_on", "tags", "stage_history", "tasks",
+    "next_step_status", "next_step_done_on", "next_step_type", "tags", "stage_history",
+    "tasks",
     "created", "updated",
 })
 CONTACT_KEYS = frozenset({
@@ -1025,6 +1036,7 @@ def company_from_dict(meta: dict, body: str, slug: str) -> Company:
                                "next_step_status", True, errors, "open"),
         next_step_done_on=_date_or_none(meta.get("next_step_done_on"),
                                         "next_step_done_on", errors),
+        next_step_type=" ".join(_str(meta, "next_step_type").split()),
         tags=parse_tags(meta.get("tags")),
         stage_history=_stage_history(meta.get("stage_history"), errors),
         tasks=_tasks(meta.get("tasks"), errors),

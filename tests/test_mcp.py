@@ -203,3 +203,12 @@ def test_nothing_but_protocol_messages_reach_stdout(store, capsys, monkeypatch):
     assert capsys.readouterr().out == ""
     assert [json.loads(line) for line in out.getvalue().splitlines()] == [
         {"jsonrpc": "2.0", "id": 1, "result": {}}]
+
+
+def test_add_company_takes_a_next_step_type_from_settings(tools, store):
+    store.task_types = ["prospecting"]
+    text, failed = call(tools, "add_company", name="Borduro", next_step="call",
+                        next_step_type="prospecting")
+    assert not failed and store.companies["borduro"].next_step_type == "prospecting"
+    text, failed = call(tools, "add_company", name="Nope", next_step_type="other")
+    assert failed and "unknown task type" in text and "nope" not in store.companies

@@ -43,7 +43,7 @@
       {% set nxt = c.next_todo() %}
       {% if nxt %}
       <div class="small{% if nxt.overdue(today) %} overdue{% endif %}{% if nxt.done %} done{% endif %}">
-        next: {{ nxt.text or '(no text)' }}{% if nxt.due %}, due {{ fmt_date(nxt.due) }}{% endif %}{% if nxt.done %} (done){% endif %}
+        next: {{ nxt.text or '(no text)' }}{% if nxt.due %}, due {{ fmt_date(nxt.due) }}{% endif %}{% if nxt.done %} (done){% else %} {{ m.type_chip(nxt.type) }}{% endif %}
       </div>
       {% endif %}
       {% if c.value_eur_month is not none %}<div class="small">{{ c.value_eur_month }} EUR/month</div>{% endif %}

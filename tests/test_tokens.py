@@ -43,6 +43,9 @@ CONTRAST = [
     ("--surface", "--accent", 4.5), ("--line-strong", "--surface", 3.0),
     ("--danger", "--surface", 4.5), ("--ok", "--surface", 4.5), ("--warn", "--warn-bg", 4.5),
 ]
+# Task type chips: each Settings colour's text on its own background.
+CONTRAST += [(f"--type-{c}-fg", f"--type-{c}-bg", 4.5)
+             for c in ("green", "blue", "amber", "red", "violet", "grey")]
 
 
 def declarations(block: str) -> dict[str, str]:

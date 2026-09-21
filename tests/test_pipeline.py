@@ -232,3 +232,11 @@ def test_parked_line_shows_requalify_date(store):
                         requalify_on="2026-12-01")
     out = pipeline.render(store)
     assert "- later | since 2026-09-14 until 2026-12-01 | freeze | next: none" in out
+
+
+def test_the_next_step_line_names_its_type():
+    from hermitcrm.models import Company
+    c = Company(name="Acme", slug="acme", next_step="send deck", next_step_type="prospecting")
+    assert pipeline._next_field(c) == "next: send deck [prospecting]"
+    c.next_step_type = ""
+    assert pipeline._next_field(c) == "next: send deck"

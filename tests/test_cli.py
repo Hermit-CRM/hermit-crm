@@ -544,3 +544,19 @@ def test_serve_keeps_what_a_capture_read_out_of_its_log(tmp_path, capsys, monkey
     finally:
         access.handlers[:], access.filters[:], access.propagate = saved
     assert "GET /extension/new" in out and "Ines" not in out
+
+
+def test_cli_add_company_with_a_next_step_type(tmp_path, capsys):
+    fixed_store(tmp_path)
+    cfg = tmp_path / "config.toml"
+    cfg.write_text((cfg.read_text() if cfg.exists() else "")
+                   + 'task_types = [{name = "prospecting", colour = "blue"}]\n')
+    assert crm.main(["add", "company", "Acme BV", "--next-step", "call",
+                     "--next-step-type", "prospecting"], root=tmp_path) == 0
+    assert "next_step_type: prospecting" in \
+        (tmp_path / "companies" / "acme" / "company.md").read_text()
+    capsys.readouterr()
+    assert crm.main(["show", "acme"], root=tmp_path) == 0
+    assert "prospecting" in capsys.readouterr().out
+    assert crm.main(["add", "company", "Beta", "--next-step-type", "nope"],
+                    root=tmp_path) != 0

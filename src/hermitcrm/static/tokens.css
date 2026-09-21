@@ -47,6 +47,19 @@
   --warn: light-dark(#8a5300, #f0c46c);
   --ok-bg: light-dark(#e6f4ea, #1b3325);
   --ok: light-dark(#1b7f3b, #6fd28f);
+  /* task type chips: one pair per Settings colour */
+  --type-green-bg: light-dark(#e3f1e8, #1d3527);
+  --type-green-fg: light-dark(#17603f, #8fdcb0);
+  --type-blue-bg: light-dark(#e3ecf7, #1d2b3d);
+  --type-blue-fg: light-dark(#1f4f8a, #9cc3f0);
+  --type-amber-bg: light-dark(#fbefd6, #3a2e14);
+  --type-amber-fg: light-dark(#7a4a00, #f0c46c);
+  --type-red-bg: light-dark(#fbe6e8, #3d1f24);
+  --type-red-fg: light-dark(#9a1b2e, #ff9aa6);
+  --type-violet-bg: light-dark(#eee6f6, #2e2340);
+  --type-violet-fg: light-dark(#5b2d8a, #c9a8f0);
+  --type-grey-bg: light-dark(#ece7dc, #302d28);
+  --type-grey-fg: light-dark(#4d493f, #c4bdae);
   --sidebar: light-dark(#efebe2, #211f1c);
   --sidebar-hover: light-dark(#e7e1d5, #2b2924);
   --sidebar-active: light-dark(#ded7c8, #35322c);
@@ -81,6 +94,18 @@
     --warn: #8a5300;
     --ok-bg: #e6f4ea;
     --ok: #1b7f3b;
+    --type-green-bg: #e3f1e8;
+    --type-green-fg: #17603f;
+    --type-blue-bg: #e3ecf7;
+    --type-blue-fg: #1f4f8a;
+    --type-amber-bg: #fbefd6;
+    --type-amber-fg: #7a4a00;
+    --type-red-bg: #fbe6e8;
+    --type-red-fg: #9a1b2e;
+    --type-violet-bg: #eee6f6;
+    --type-violet-fg: #5b2d8a;
+    --type-grey-bg: #ece7dc;
+    --type-grey-fg: #4d493f;
     --sidebar: #efebe2;
     --sidebar-hover: #e7e1d5;
     --sidebar-active: #ded7c8;
