@@ -26,9 +26,10 @@ being a column value and becomes a **next** badge on the row plus a
 
 ## 1. Settings: "Task types"
 
-A new section just before **Outcomes**, listed in the Settings contents line. One row per type: **name** and **colour**, plus an empty row to
-add one. Rows can be renamed, deleted and moved up or down; the order is the
-order of every dropdown and filter.
+A new section just before **Outcomes**, listed in the Settings contents line.
+One row per type: **name** and **colour**, with **Up**, **Down** and **Delete**
+buttons, plus an empty row to add one. Editing a name renames the type. The
+order is the order of every dropdown and filter.
 
 Colours come from a fixed palette: `green`, `blue`, `amber`, `red`, `violet`,
 `grey`. Each is defined in `tokens.css` for the light and the dark theme (a
@@ -43,12 +44,13 @@ task_types = [{name = "pipeline follow-up", colour = "green"}, {name = "prospect
 ```
 
 `toml_value` learns to write a list of inline tables. Reading accepts the same
-shape; an entry without a known colour gets `grey`, a duplicate or blank name
-is dropped with a `hermitcrm check` warning.
+shape; an entry without a known colour gets `grey`, and a duplicate or blank
+name is dropped.
 
-Validation on save: names are trimmed, must be unique (case-insensitive), at
-most 40 characters, and may not contain `,` `{` `}` `[` `]` (they would break
-the inline front-matter map). Errors show on the form like Outcomes errors.
+Validation on save: names are trimmed (inner whitespace collapsed), must be
+unique (case-insensitive) and at most 40 characters. Any other character is
+fine: tasks are written with YAML's own flow dumper, which quotes when needed.
+Errors show on the form like Outcomes errors.
 
 A new data folder starts with **no types**; the section says in one line what
 types are for. Gijs's folder gets his three when he first saves the section (or
@@ -58,7 +60,9 @@ by hand; see "Rollout").
 
 - **Rename** (same row, new name) also renames the type on every to-do that
   carries it, company tasks, contact tasks and next steps, in the same single
-  commit as the config change: `settings: task type "X" renamed to "Y" (N to-dos)`.
+  commit: `settings: task type "X" renamed to "Y" (N to-dos)`. (Settings
+  saves do not commit `config.toml` today; that is the separate
+  `fix/settings-commit-config` work, so this commit holds the data files.)
   The row's old name travels as a hidden field, so a rename is told apart from
   delete-plus-add.
 - **Delete** leaves the value on existing to-dos. They show it as a grey chip
@@ -80,7 +84,9 @@ save, and there is **no data-format bump and no migration**. `Task` gets
 
 Validation reuses the Outcomes rule (`store.py`): a type must be empty, one of
 the configured names, or **unchanged** (a legacy value from a deleted type
-survives any save). Unknown types from a hand edit load fine; `check` warns.
+survives any save). Unknown types from a hand edit load fine and show as grey
+chips. The running app picks up a Settings change at once (`refresh_config`
+updates `store.task_types`).
 
 ## 3. Where you set and see it
 
@@ -88,13 +94,13 @@ survives any save). Unknown types from a hand edit load fine; `check` warns.
 |---|---|
 | Add-task forms: company page, contact page (`task_list` macro), `/tasks` | **type** dropdown: blank + your types. Hidden when no types exist |
 | Next-step form (`macros.html`) | **type** dropdown saving `next_step_type` |
-| Open task rows on company and contact pages | small type dropdown that saves on change: `POST /companies/{slug}/tasks/{index}/type` with the same `contact`, `text` (stale-index guard) and `back` fields as `/done` and `/delete`. No need to delete and re-add |
+| Open to-do rows on company and contact pages | small type dropdown that saves on change: `POST /companies/{slug}/todo-type` with `index` (empty for the next-step fields), `contact`, `text` (stale-index guard), `type` and `back`. One route for tasks and the next step; no need to delete and re-add |
 | `/tasks` | `kind` column becomes **type**: coloured chip, enum filter with your types plus `(none)`. `next` badge in the *what* cell. **Next steps only** chip (`next=1`) beside the date chips, with a count |
 | Companies list | new **next type** column (chip, enum filter) from `next_todo().type` |
 | Board | the next step's chip on each card, after "next: ..." |
 | Company page task list | chip after the task text |
 | `PIPELINE.md` | `next: send deck [pipeline follow-up], due 2026-09-24`; nothing when untyped |
-| MCP | optional `type` on task creation, `next_step_type` on company update; same validation |
+| MCP | `next_step_type` on company update, same validation (MCP has no task tools today) |
 | CLI | `next_step_type` settable like `next_step_due` |
 
 The chip is one macro (`type_chip(name)`), so every place renders it the same.
@@ -113,8 +119,8 @@ colour shows everywhere at once and touches no data file.
 Frozen dates only (see the date-coupled-tests note); `-p no:randomly` is a no-op here.
 
 - **Model:** `type` and `next_step_type` round-trip; an untyped company and
-  contact file are byte-identical after load/save; a map with an unknown key and
-  a type keeps both.
+  contact file are byte-identical after load/save; a type with `:` or `#` in it
+  round-trips.
 - **Config:** `toml_value` writes a list of inline tables that `tomllib` reads
   back; other lines and comments survive; unknown colour → grey; duplicate and
   blank names dropped.
@@ -122,7 +128,7 @@ Frozen dates only (see the date-coupled-tests note); `-p no:randomly` is a no-op
   rename rewrites company tasks, contact tasks and `next_step_type` in **one**
   commit and counts them; delete rewrites nothing.
 - **Web:** Settings add, rename, delete, reorder, and each validation error;
-  dropdowns hidden with no types; set type on create and via the row dropdown;
+  dropdowns and the Companies column hidden with no types; set type on create and via the row dropdown;
   `/tasks` filter by type and `(none)`; `next=1` chip and count; chip on the
   Companies list and the board; grey "not in Settings" chip for a deleted type.
 - **PIPELINE.md:** the bracketed type appears when set and not otherwise.
