@@ -67,8 +67,11 @@ def toml_value(value) -> str:
         return "true" if value else "false"
     if isinstance(value, int):
         return str(value)
+    if isinstance(value, dict):
+        return "{" + ", ".join(f"{k} = {toml_value(v)}" for k, v in value.items()) + "}"
     if isinstance(value, (list, tuple)):
-        return "[" + ", ".join(toml_value(str(v)) for v in value) + "]"
+        return "[" + ", ".join(toml_value(v if isinstance(v, dict) else str(v))
+                               for v in value) + "]"
     if isinstance(value, str):
         # JSON string escapes (\" \\ \n \uXXXX) are valid TOML basic-string escapes.
         return json.dumps(value, ensure_ascii=False)
@@ -548,6 +551,13 @@ def save_outcomes(data_dir: Path, raw: str | list[str], message_window_days: str
         set_config_values(Path(data_dir) / "config.toml", result.values)
         result.messages.append("Outcomes saved: " + ", ".join(result.values["outcomes"]) + ".")
     return result
+
+
+def save_task_types(data_dir: Path, types) -> None:
+    """Write the task types (a list of task_types.TaskType) to config.toml."""
+    from hermitcrm import task_types
+    set_config_values(Path(data_dir) / "config.toml",
+                      {"task_types": task_types.to_config(types)})
 
 
 def save_theme(data_dir: Path, theme: str) -> StepResult:
