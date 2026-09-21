@@ -203,6 +203,70 @@ def test_linux_install_says_how_when_lingering_cannot_be_turned_on(tmp_path):
     assert any(line.startswith("lingering: off") for line in st["lines"])
 
 
+class NoUserBus(Recorder):
+    """systemctl --user as it answers over plain SSH, su or sudo -u."""
+
+    ERR = ("Failed to connect to user scope bus via local transport: "
+           "$DBUS_SESSION_BUS_ADDRESS and $XDG_RUNTIME_DIR not defined")
+
+    def __call__(self, argv, **kw):
+        self.calls.append(argv)
+        if argv[:2] == ["systemctl", "--user"]:
+            return subprocess.CompletedProcess(argv, 1, "", self.ERR)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+
+def test_linux_install_without_user_bus_stops_with_the_fix(tmp_path):
+    rec = NoUserBus()
+    c = ctx(tmp_path, "linux", rec, env={"USER": "jane"})
+    c.runtime_root = tmp_path / "run/user"
+    (c.runtime_root / "501").mkdir(parents=True)
+    with pytest.raises(schedule.ScheduleError) as err:
+        schedule.install(c, at="07:00")
+    text = str(err.value)
+    assert "wrote " in text  # says what is on disk
+    assert "ERROR: could not reach your systemd user manager" in text
+    assert "XDG_RUNTIME_DIR is not set" in text
+    assert f"export XDG_RUNTIME_DIR={c.runtime_root / '501'}" in text
+    assert "enable-linger" not in text  # the user manager is already running
+    assert not any(line.startswith(("enabled ", "could not enable", "sync runs"))
+                   for line in text.splitlines())
+    assert not any(a[:3] == ["systemctl", "--user", "enable"] for a in rec.calls)
+    assert not any(a[0] == "loginctl" for a in rec.calls)
+    assert (tmp_path / "home/.config/systemd/user/hermitcrm-sync.timer").exists()
+
+
+def test_linux_install_without_user_manager_says_to_linger_first(tmp_path):
+    c = ctx(tmp_path, "linux", NoUserBus(), env={"USER": "jane"})
+    c.runtime_root = tmp_path / "run/user"  # no /run/user/501: no user manager
+    with pytest.raises(schedule.ScheduleError) as err:
+        schedule.install(c, at="07:00")
+    text = str(err.value)
+    assert text.index("sudo loginctl enable-linger jane") < text.index("export XDG_RUNTIME_DIR=")
+
+
+def test_linux_install_with_a_stale_runtime_dir_names_it(tmp_path):
+    c = ctx(tmp_path, "linux", NoUserBus(), env={"XDG_RUNTIME_DIR": "/run/user/999"})
+    with pytest.raises(schedule.ScheduleError) as err:
+        schedule.install(c, at="07:00")
+    assert "XDG_RUNTIME_DIR is /run/user/999, but nothing answers there" in str(err.value)
+
+
+def test_linux_other_daemon_reload_failure_still_enables(tmp_path):
+    """Only a missing bus stops install; other failures keep the old per-unit lines."""
+    rec = Recorder(fail=[("systemctl", "--user", "daemon-reload")])
+    lines = schedule.install(ctx(tmp_path, "linux", rec, env={"XDG_RUNTIME_DIR": "/run/user/501"}),
+                             at="07:00")
+    assert "enabled hermitcrm-sync.timer" in lines
+
+
+def test_cli_schedule_install_without_user_bus_exits_nonzero(tmp_path, capsys):
+    code = cli.cmd_schedule(tmp_path / "my crm", "install", home=tmp_path / "home",
+                            runner=NoUserBus(), platform="linux", env={})
+    assert code == 2
+    assert "export XDG_RUNTIME_DIR=" in capsys.readouterr().err
+
+
 def test_linger_falls_back_to_the_file_logind_reads(tmp_path):
     """No session and no lingering: show-user fails, the linger dir answers."""
     rec = Logind(linger=False, session=False)
