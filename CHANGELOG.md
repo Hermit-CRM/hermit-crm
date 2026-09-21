@@ -48,6 +48,13 @@ and `stage_history`), the four built-in scoring fields become fields you
 define, and every folder gets a `.claude/settings.json` that blocks
 history-rewriting git commands. All migrate automatically in one commit.
 
+- **On Linux the daily sync keeps running after you log out.** systemd user
+  units stop at logout and do not start at boot unless lingering is on, so a
+  server nobody was logged in to never ran its sync while `doctor` said
+  `schedule: OK`. `schedule install` now runs `loginctl enable-linger` and says
+  whether it worked (or prints the `sudo` line); `schedule status` shows
+  `lingering: on/off`; `doctor` warns while it is off.
+
 - **BCC import creates the companies it does not know.** Mail you send or
   forward to someone at a domain no company has used to wait in the review
   queue; now the import creates the company (named after the domain, website
