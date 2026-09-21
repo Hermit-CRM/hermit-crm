@@ -250,6 +250,22 @@ they need to run `sudo loginctl enable-linger $USER` themselves (it asks for
 their password; do not type it for them). `hermitcrm doctor` warns while it is
 off.
 
+*Nobody logged in the usual way (plain SSH, `su`, `sudo -u`).* If
+`schedule install` stops with `ERROR: could not reach your systemd user
+manager`, there is no user D-Bus session: `XDG_RUNTIME_DIR` is not set, so every
+`systemctl --user` call fails. The unit files are written but nothing is
+enabled, and retrying the same command will not change that. Say so, then set
+it and run install again:
+
+```bash
+export XDG_RUNTIME_DIR=/run/user/$(id -u)
+hermitcrm --data ~/crm schedule install --serve
+```
+
+If `/run/user/$(id -u)` does not exist, their user manager is not running at
+all. `sudo loginctl enable-linger $USER` starts it (their password again; do not
+type it for them), then the two lines above.
+
 ### 9. Offer to connect it to the AI tool they are already in
 
 `hermitcrm mcp` serves the folder over MCP, so the assistant they use every day
