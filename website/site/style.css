@@ -98,6 +98,9 @@ hr.rule {
   border-top: 1px solid var(--rule);
 }
 
+/* Keeps the spacing between two sections without drawing the line. */
+hr.rule.blank { border-top-color: transparent; }
+
 /* ── Header ─────────────────────────────────────────────────────── */
 .site-header { display: flex; align-items: center; justify-content: space-between; padding: 28px 0; }
 .brand { display: flex; align-items: center; gap: 12px; color: var(--text); text-decoration: none; }

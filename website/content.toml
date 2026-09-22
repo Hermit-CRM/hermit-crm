@@ -76,9 +76,9 @@ copied_label = "Copied"
 copy_failed_label = "Press ⌘C"
 
 
-# ── What it does ─────────────────────────────────────────────────────
+# ── What you get ─────────────────────────────────────────────────────
 [features]
-label = "What it does"
+label = "What you get"
 
 [[features.items]]
 name = "Pipeline"
@@ -135,8 +135,7 @@ file_path      = "~/crm/companies/northwind-robotics/company.md"
 file_body = """
 ---
 name: Northwind Robotics
-slug: northwind-robotics
-website: https://northwind-robotics.example.com
+website: [northwind-robotics.com](https://northwind-robotics.example.com)
 country: DE
 source: referral
 stage: offer

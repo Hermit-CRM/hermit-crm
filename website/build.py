@@ -282,7 +282,7 @@ def render(c: dict) -> str:
     </div>
   </section>
 
-  <hr class="rule">
+  <hr class="rule blank">
 
   <section class="features col" aria-labelledby="features">
     <h2 class="label" id="features">{md(c["features"]["label"])}</h2>
@@ -294,7 +294,7 @@ def render(c: dict) -> str:
     </div>
   </section>
 
-  <hr class="rule">
+  <hr class="rule blank">
 
   <section class="questions col" aria-labelledby="questions">
     <h2 class="label" id="questions">{md(c["questions"]["label"])}</h2>
