@@ -344,7 +344,8 @@ def test_cmd_calendar_with_ics_file_and_unconfigured(store, messages, tmp_path):
     assert store.companies["acme"].interactions == [] and messages == []
 
     text, code = crm.cmd_calendar(store, store.root, config, resolve=lambda: "")
-    assert code == 1 and "security add-generic-password -s crm-calendar -a ics" in text
+    # the hint names this OS's secret store, so ask for the one we run under
+    assert code == 1 and cal.setup_hint(cal.settings_from_config(config)) in text
     text, code = crm.cmd_sync(store, store.root, {**config, "bcc_address": "me+bcc@gmail.com"},
                               open_mailbox=lambda: FakeBox([raw_mail()]), resolve=lambda: "")
     assert code == 0
