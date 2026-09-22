@@ -26,7 +26,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from hermitcrm import feedback
+from hermitcrm import __version__, feedback
 from hermitcrm.datafolder import init_folder
 from hermitcrm.store import load_config
 from hermitcrm.web import create_app
@@ -119,7 +119,7 @@ def test_feedback_is_a_help_topic_with_a_form(folder):
     assert "Nothing is sent anywhere" in page.text  # the topic prose renders too
     # The facts are shown before anything is written, not hidden behind a checkbox.
     assert "The facts that will be attached" in page.text
-    assert "Hermit CRM 0.3.0 on Python" in page.text
+    assert f"Hermit CRM {__version__} on Python" in page.text
 
 
 def test_saving_writes_a_file_and_commits_it(folder):

@@ -3,7 +3,10 @@
 All notable changes to Hermit CRM. Versions follow semantic versioning; a change to
 the data format always comes with an automatic migration.
 
-## 0.3.0 (unreleased)
+## 0.4.0 (2026-09-22)
+
+0.3.0 was never published as a release. Test builds went out under that
+number, and each holds part of what is listed below.
 
 **Hermit CRM is now Apache License 2.0, not MIT.** Apache 2.0 says the same
 thing about warranty and liability in far more explicit words, and it adds a
