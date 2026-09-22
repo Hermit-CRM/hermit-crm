@@ -50,7 +50,7 @@ from fastapi.templating import Jinja2Templates
 from . import (bcc, brief, calendar_sync, capture, disclaimer, feedback,
                fields as custom, filters, followups, messaging, migrations,
                pipeline, reports, sample, welcome)
-from . import schedule, scrape, task_types, usertheme
+from . import schedule, scrape, secrets, task_types, usertheme
 from . import help as helpdocs
 from . import setup as setup_steps
 from .filters import Column
@@ -744,6 +744,7 @@ def create_app(root: Path, config: dict | None = None,
     app.state.setup_platform = sys.platform
     app.state.setup_push = None
     app.state.setup_state = None
+    app.state.os_store = None  # (platform, store); probing secret-tool costs a process
     app.state.schedule_home = None  # Path.home() unless a test points elsewhere
     cal_url_cache: dict[str, str] = {}
 
@@ -755,6 +756,18 @@ def create_app(root: Path, config: dict | None = None,
 
     app.state.calendar_url = calendar_url
     app.state.fetch_calendar = lambda url: calendar_sync.fetch_ics(url)
+
+    def os_store() -> str:
+        """'keychain', 'secret-service' or '' (none usable); probed once per process."""
+        platform = app.state.setup_platform
+        if app.state.os_store is None or app.state.os_store[0] != platform:
+            try:
+                found = secrets.os_store(platform, runner=app.state.setup_runner) or ""
+            except Exception:
+                logger.exception("secret store probe failed")
+                found = ""
+            app.state.os_store = (platform, found)
+        return app.state.os_store[1]
 
     def current_setup_state(refresh: bool = False) -> dict:
         if refresh or app.state.setup_state is None:
@@ -2483,7 +2496,9 @@ def create_app(root: Path, config: dict | None = None,
                          or setup_steps.imap_host_for(bcc_address or owner)},
             "gmail_filter": (setup_steps.gmail_filter_text(bcc_address)
                              if bcc_address else ""),
-            "is_mac": app.state.setup_platform == "darwin",
+            "os_store": os_store(),
+            "os_store_label": secrets.STORE_LABELS.get(os_store() or "", ""),
+            "is_windows": app.state.setup_platform.startswith("win"),
             "remote_url": setup_steps.remote_url(root, str(config.get("remote") or "origin"),
                                                  app.state.setup_runner),
             "remote_warning": "",

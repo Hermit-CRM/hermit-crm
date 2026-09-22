@@ -104,6 +104,13 @@ def run_checks(root: Path, *, online: bool = False, env: dict | None = None,
     owner = str(config.get("owner_email") or "")
     add("owner_email", OK if owner else WARN, owner or "not set; run hermitcrm setup")
 
+    if not (platform == "darwin" or platform.startswith("win")):
+        # Informational only: a headless server without a keyring is normal, and
+        # the secrets then live in .secrets.toml.
+        usable, detail = secrets.secret_service_status(runner, env, which)
+        add("keyring", OK, detail if usable else
+            f"not available ({detail}); secrets stay in .secrets.toml")
+
     settings = bcc.settings_from_config(config)
     if not settings.address:
         add("bcc password", WARN, "BCC capture not set up (optional); run hermitcrm setup")

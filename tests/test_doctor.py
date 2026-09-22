@@ -60,7 +60,8 @@ def folder(tmp_path):
 def test_fresh_folder_warns_but_does_not_fail(folder, tmp_path):
     res = checks(folder, tmp_path)
     assert [c for c in res] == ["python", "git", "data folder", "data format", "config",
-                                "owner_email", "bcc password", "imap login", "calendar url",
+                                "owner_email", "keyring", "bcc password", "imap login",
+                                "calendar url",
                                 "schedule", "backup", "agent guard", "git remote", "enrich cli",
                                 "update"]
     assert res["owner_email"].status == "warn"
@@ -68,7 +69,7 @@ def test_fresh_folder_warns_but_does_not_fail(folder, tmp_path):
     assert res["imap login"].detail == "not checked; add --online"
     assert res["enrich cli"].detail == "claude"
     text, code = doctor.report(list(res.values()))
-    assert code == 0 and len(text.splitlines()) == 15
+    assert code == 0 and len(text.splitlines()) == 16
     assert res["backup"].status == "warn"
     assert text.splitlines()[0].startswith("ok    python: ")
 
@@ -238,3 +239,20 @@ def test_doctor_warns_when_systemd_lingering_is_off(folder, tmp_path):
 
     rec.linger = True
     assert checks(folder, tmp_path, runner=rec, home=home)["schedule"].status == "ok"
+
+
+def test_doctor_keyring_line_is_informational_and_linux_only(folder, tmp_path):
+    bus = {"DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus"}
+    silent = lambda argv, **kw: subprocess.CompletedProcess(argv, 1, "", "")  # noqa: E731
+    res = checks(folder, tmp_path, env=bus, runner=silent)
+    assert res["keyring"].status == "ok"
+    assert res["keyring"].detail == "Secret Service reachable (secret-tool)"
+    res = checks(folder, tmp_path, env={}, runner=silent)
+    assert res["keyring"].status == "ok"
+    assert "no D-Bus session bus" in res["keyring"].detail
+    assert ".secrets.toml" in res["keyring"].detail
+    res = checks(folder, tmp_path, env=bus, runner=silent, which=lambda n: None)
+    assert "not installed" in res["keyring"].detail
+    for platform in ("darwin", "win32"):
+        assert "keyring" not in checks(folder, tmp_path, platform=platform,
+                                       runner=silent)

@@ -18,7 +18,8 @@ calendar, and the plain config sections (Enrichment, Outcomes).
 Pure functions with seams (``runner``, ``platform``, ``open_mailbox``, ``push``,
 ``fetch``) so the CLI wizard (``hermitcrm init`` / ``hermitcrm setup``) and the web
 page (``/settings``) share one implementation. Secrets are stored through
-``hermitcrm.secrets`` or the macOS Keychain and are never logged or returned.
+``hermitcrm.secrets`` or the OS secret store (macOS Keychain, Linux Secret
+Service) and are never logged or returned.
 """
 
 from __future__ import annotations
@@ -179,7 +180,7 @@ def commit_config(data_dir: Path | str,
     leaked = [name for name in secrets.NAMES if name in new]
     if leaked:
         logger.warning("config.toml not committed: it holds %s, which belongs in "
-                       ".secrets.toml or the Keychain", ", ".join(leaked))
+                       ".secrets.toml or the OS secret store", ", ".join(leaked))
         return ""
     head = committed_config_text(data_dir)
     if head == text:
@@ -288,8 +289,13 @@ def gmail_filter_text(bcc_address: str) -> str:
 
 def save_bcc(data_dir: Path, address: str, imap_host: str, password: str = "",
              use_keychain: bool = False, runner=subprocess.run,
-             platform: str | None = None) -> StepResult:
-    """Save bcc_address / bcc_imap_host and the app password (never logged)."""
+             platform: str | None = None, env: dict | None = None) -> StepResult:
+    """Save bcc_address / bcc_imap_host and the app password (never logged).
+
+    use_keychain asks for the OS secret store (the macOS Keychain, or the Secret
+    Service on Linux). When there is none, the password goes to .secrets.toml
+    and the result says so. After a save to the OS store, a bcc_password left in
+    .secrets.toml is removed, because the file is read first and would win."""
     address = (address or "").strip().lower()
     imap_host = (imap_host or "").strip().lower() or imap_host_for(address)
     result = StepResult()
@@ -304,25 +310,28 @@ def save_bcc(data_dir: Path, address: str, imap_host: str, password: str = "",
     values: dict = {"bcc_address": address, "bcc_imap_host": imap_host}
     user = imap_user_for(address)
     if password:
-        if use_keychain and (platform or sys.platform) == "darwin":
-            try:
-                proc = runner(["security", "add-generic-password", "-U", "-s",
-                               KEYCHAIN_SERVICE, "-a", user, "-w", password],
-                              capture_output=True, text=True, timeout=20)
-                code = proc.returncode
-            except (OSError, subprocess.TimeoutExpired):
-                code = -1
-            if code != 0:
+        store = (secrets.os_store(platform, runner=runner, env=env)
+                 if use_keychain else None)
+        if store:
+            label = secrets.STORE_LABELS[store]
+            if not secrets.os_store_save(store, KEYCHAIN_SERVICE, user, password,
+                                         label="Hermit CRM app password", runner=runner):
                 result.ok = False
-                result.errors["password"] = ("Could not save the password in the Keychain; "
-                                             "try again without the Keychain option.")
+                result.errors["password"] = (f"Could not save the password in {label}; "
+                                             "try again without that option.")
                 return result
             values["bcc_keychain_service"] = KEYCHAIN_SERVICE
-            result.messages.append(f"App password saved in the Keychain "
+            result.messages.append(f"App password saved in {label} "
                                    f"(service {KEYCHAIN_SERVICE}, account {user}).")
+            if secrets.unset("bcc_password", data_dir):
+                result.messages.append("The old copy in .secrets.toml is removed.")
         else:
             secrets.set("bcc_password", password, data_dir)
-            result.messages.append("App password saved in .secrets.toml.")
+            if use_keychain:
+                result.messages.append("No system keyring was found, so the app password "
+                                       "is saved in .secrets.toml (mode 600).")
+            else:
+                result.messages.append("App password saved in .secrets.toml.")
     set_config_values(data_dir / "config.toml", values)
     result.values = values
     result.messages.insert(0, f"BCC address saved: {address}.")

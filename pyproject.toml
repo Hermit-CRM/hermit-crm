@@ -49,3 +49,4 @@ hermitcrm = ["templates/*.html", "static/*", "*.toml", "help/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["real_secret_service: runs the real secret-tool (CI keyring job only)"]
