@@ -271,8 +271,12 @@ feed. Both need a secret: a mail app password, and a private calendar URL.
 **Never ask for one, never accept one if they offer, and never type one into a
 command or a file.** They go through the form at
 http://127.0.0.1:8765/settings, which writes them to `.secrets.toml` (mode 600)
-or, on a Mac, the Keychain, on their machine only. On Linux it is always
-`.secrets.toml`: plain text, readable only by their user account. A secret pasted into this
+or the system keyring (the Keychain on a Mac; on Linux the Secret Service,
+when `secret-tool` is installed and a desktop keyring such as GNOME Keyring or
+KWallet runs), on their machine only. Without a keyring (a headless server, or
+`libsecret-tools` not installed) it is `.secrets.toml`: plain text, readable
+only by their user account. `hermitcrm doctor` says which case applies (its
+`keyring` line, Linux only). A secret pasted into this
 conversation leaves their machine and reaches a model provider.
 
 So: tell them those two sections exist, what each one buys them, and that they

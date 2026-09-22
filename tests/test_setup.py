@@ -246,3 +246,56 @@ def test_setup_state(folder, tmp_path):
     assert state["backup"] is True and not st.pending(state)
     shutil.rmtree(backup.backup_path(folder, {}, home))  # gone again: not done
     assert st.setup_state(folder, env={}, platform="linux", home=home)["backup"] is False
+
+
+BUS = {"DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus"}
+
+
+def fake_secret_tool(calls, store_code=0):
+    def run(argv, **kw):
+        calls.append((argv, kw.get("input")))
+        if argv[1] == "lookup":  # the probe: nothing stored, service answers
+            return subprocess.CompletedProcess(argv, 1, "", "")
+        return subprocess.CompletedProcess(argv, store_code, "", "" if store_code == 0
+                                           else "prompt dismissed")
+    return run
+
+
+def test_save_bcc_linux_secret_service(folder, monkeypatch):
+    monkeypatch.setattr(secrets, "_which", lambda n: "/usr/bin/" + n)
+    secrets.set("bcc_password", "old", folder)
+    secrets.set("calendar_ics_url", "https://x.example/a.ics", folder)
+    calls = []
+    r = st.save_bcc(folder, "jane+crm@gmail.com", "", "s3cret", use_keychain=True,
+                    runner=fake_secret_tool(calls), platform="linux", env=BUS)
+    assert r.ok and "s3cret" not in r.text()
+    assert "the system keyring (Secret Service)" in r.text()
+    assert "old copy in .secrets.toml is removed" in r.text()
+    argv, stdin = calls[-1]
+    assert argv == ["secret-tool", "store", "--label=Hermit CRM app password",
+                    "service", "hermitcrm-bcc", "account", "jane@gmail.com"]
+    assert stdin == "s3cret"
+    assert cfg(folder)["bcc_keychain_service"] == "hermitcrm-bcc"
+    left = (folder / ".secrets.toml").read_text()
+    assert "bcc_password" not in left and "calendar_ics_url" in left
+
+
+def test_save_bcc_linux_store_failure_keeps_the_file(folder, monkeypatch):
+    monkeypatch.setattr(secrets, "_which", lambda n: "/usr/bin/" + n)
+    secrets.set("bcc_password", "old", folder)
+    r = st.save_bcc(folder, "jane+crm@gmail.com", "", "s3cret", use_keychain=True,
+                    runner=fake_secret_tool([], store_code=1), platform="linux", env=BUS)
+    assert not r.ok and "system keyring" in r.errors["password"]
+    assert secrets.get("bcc_password", folder, env={}, platform="linux") == "old"
+
+
+def test_save_bcc_linux_without_keyring_falls_back_to_the_file(folder, monkeypatch):
+    calls = []
+    # secret-tool missing (conftest), then: installed but no session bus.
+    for env in (BUS, {}):
+        r = st.save_bcc(folder, "jane+crm@gmail.com", "", "s3cret", use_keychain=True,
+                        runner=fake_secret_tool(calls), platform="linux", env=env)
+        assert r.ok and "No system keyring was found" in r.text()
+        assert secrets.get("bcc_password", folder, env={}, platform="linux") == "s3cret"
+        monkeypatch.setattr(secrets, "_which", lambda n: "/usr/bin/" + n)
+    assert calls == []

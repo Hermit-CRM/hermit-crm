@@ -281,14 +281,37 @@ def test_access_section_shows_the_phone_and_mcp_commands(folder):
     assert 'href="/help/ai-agents"' in page
 
 
-def test_settings_says_where_secrets_live_on_each_platform(folder):
-    """Off a Mac there is no Keychain, so the page says the secrets are plain
-    text rather than leaving it to be discovered."""
+def test_settings_says_where_secrets_live_on_each_platform(folder, monkeypatch):
+    """Without a keyring the page says the secrets are plain text rather than
+    leaving it to be discovered, and offers the keyring only where one answers."""
     app, client = make_client(folder)
-    page = client.get("/settings").text
-    assert "no keyring support on this system" in page
-    assert "macOS Keychain" not in page
+    page = client.get("/settings").text  # Linux, secret-tool missing (conftest)
+    assert "No system keyring was found" in page and "libsecret-tools" in page
+    assert "macOS Keychain" not in page and 'name="keychain"' not in page
     app.state.setup_platform = "darwin"
     page = client.get("/settings").text
     assert "or the macOS Keychain" in page
-    assert "no keyring support" not in page
+    assert "Store the password in the macOS Keychain" in page
+    assert "No system keyring" not in page
+    app.state.setup_platform = "win32"
+    page = client.get("/settings").text
+    assert "plain text" in page and "libsecret" not in page
+    assert 'name="keychain"' not in page
+
+    monkeypatch.setattr(secrets, "_which", lambda n: "/usr/bin/" + n)
+    monkeypatch.setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1000/bus")
+    probes = []
+
+    def runner(argv, **kw):
+        probes.append(argv)
+        return subprocess.CompletedProcess(argv, 1, "", "")
+
+    app.state.setup_runner = runner
+    app.state.setup_platform = "linux"
+    for _ in range(2):
+        page = client.get("/settings").text
+    assert [p[0] for p in probes].count("secret-tool") == 1  # probed once, then cached
+    assert "or the system keyring (Secret Service)" in page
+    assert "locked while you are logged out" in page
+    assert re.search(r'name="keychain" value="1" checked[^>]*> Store the password in '
+                     r'the system keyring \(Secret Service\)', page)

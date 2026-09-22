@@ -151,3 +151,41 @@ def test_setup_command_dispatches(folder, monkeypatch):
     monkeypatch.setattr(cli, "cmd_setup", lambda root, **kw: called.append(root) or 0)
     assert cli.main(["setup"], root=folder) == 0
     assert called == [folder]
+
+
+def test_setup_offers_the_linux_keyring_only_when_it_answers(folder, monkeypatch):
+    def run_setup(runner, keyring_answer=()):
+        out, prompts = [], []
+        answers = scripted(["Jane", "jane@example.com", "y", "jane+crm@example.com",
+                            "imap.example.com", *keyring_answer, "n", "", "n"])
+
+        def ask(prompt=""):
+            prompts.append(prompt)
+            return answers(prompt)
+
+        assert cli.cmd_setup(folder, ask=ask, ask_secret=scripted(["pw"]), say=out.append,
+                             runner=runner, platform="linux") == 0
+        return prompts, "\n".join(out)
+
+    calls = []
+
+    def runner(argv, **kw):
+        calls.append((argv, kw.get("input")))
+        if argv[0] == "git":
+            return subprocess.run(argv, **kw)
+        return subprocess.CompletedProcess(argv, 1 if argv[1] == "lookup" else 0, "", "")
+
+    prompts, text = run_setup(runner)  # secret-tool missing: no question, file
+    assert not any("keyring" in p for p in prompts)
+    assert "No system keyring found" in text
+    assert secrets.get("bcc_password", folder, env={}, platform="linux") == "pw"
+
+    monkeypatch.setattr(secrets, "_which", lambda n: "/usr/bin/" + n)
+    monkeypatch.setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1000/bus")
+    prompts, text = run_setup(runner, [""])  # Enter = the default, yes
+    assert "Store it in the system keyring (Secret Service)? [Y/n]: " in prompts
+    assert (["secret-tool", "store", "--label=Hermit CRM app password", "service",
+             "hermitcrm-bcc", "account", "jane@example.com"], "pw") in calls
+    assert "pw" not in " ".join(" ".join(argv) for argv, _ in calls)
+    assert not (folder / ".secrets.toml").exists() or \
+        "bcc_password" not in (folder / ".secrets.toml").read_text()

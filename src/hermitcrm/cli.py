@@ -159,6 +159,7 @@ def cmd_setup(root: Path, ask=input, ask_secret=None, say=print, runner=subproce
     """The three setup questions (You, BCC, Backup) plus the optional calendar."""
     import getpass
 
+    from hermitcrm import secrets
     from hermitcrm import setup as st
 
     ask_secret = ask_secret or getpass.getpass
@@ -199,8 +200,14 @@ def cmd_setup(root: Path, ask=input, ask_secret=None, say=print, runner=subproce
             host = prompt("IMAP server", st.imap_host_for(address) or st.imap_host_for(owner))
             say("Create an app password (for Gmail: https://myaccount.google.com/apppasswords).")
             password = ask_secret("App password (input hidden, empty keeps the stored one): ")
-            keychain = platform == "darwin" and _yes(
-                ask("Store it in the macOS Keychain? [Y/n]: "), True)
+            keychain = False
+            store = secrets.os_store(platform, runner=runner) if password else None
+            if store:
+                keychain = _yes(ask(f"Store it in {secrets.STORE_LABELS[store]}? [Y/n]: "),
+                                True)
+            elif password and not platform.startswith("win"):
+                say("No system keyring found (on Linux: install libsecret-tools and run "
+                    "GNOME Keyring or KWallet); the password goes to .secrets.toml (mode 600).")
             result = st.save_bcc(root, address, host, password, use_keychain=keychain,
                                  runner=runner, platform=platform)
             saved()

@@ -29,6 +29,16 @@ web.EXTRA_HOST_NAMES.add("testserver")
 FIXED_NOW = datetime(2026, 9, 14, 10, 30)
 
 
+@pytest.fixture(autouse=True)
+def no_real_secret_tool(request, monkeypatch):
+    """No test reaches a real secret-tool (a developer's keyring on Linux):
+    it reads as not installed unless a test injects its own `which`. Tests
+    marked real_secret_service opt out (the CI keyring job)."""
+    if request.node.get_closest_marker("real_secret_service") is None:
+        from hermitcrm import secrets
+        monkeypatch.setattr(secrets, "_which", lambda name: None)
+
+
 @pytest.fixture
 def messages():
     return []

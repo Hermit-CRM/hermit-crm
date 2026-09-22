@@ -42,6 +42,7 @@ import logging
 import os
 import re
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from email import message_from_bytes, policy
@@ -921,21 +922,34 @@ def discard(store: Store, inbox: Inbox, item_id: str) -> InboxItem:
 # ---------------------------------------------------------------------- imap
 
 
+def password_hint(settings: Settings, platform: str | None = None) -> str:
+    """Where the app password can go, with the command for this OS's store."""
+    service, account = settings.keychain_service, settings.imap_user
+    hint = ("Set HERMITCRM_BCC_PASSWORD, add bcc_password to .secrets.toml (chmod 600), "
+            "run hermitcrm setup")
+    platform = platform or sys.platform
+    if platform == "darwin":
+        return (hint + f", or add it to the Keychain: security add-generic-password "
+                f"-s {service} -a {account} -w")
+    if platform.startswith("win"):
+        return hint + "."
+    return (hint + f", or add it to the system keyring: secret-tool store "
+            f"--label='Hermit CRM app password' service {service} account {account}")
+
+
 def keychain_password(settings: Settings, data_dir: Path | str | None = None,
                       runner=subprocess.run, env: dict | None = None,
                       platform: str | None = None) -> str:
     """The Gmail app password: $HERMITCRM_BCC_PASSWORD (or $CRM_BCC_PASSWORD),
-    .secrets.toml, then the macOS Keychain (service bcc_keychain_service,
-    account = the IMAP user). See hermitcrm/secrets.py."""
+    .secrets.toml, then the OS secret store: the macOS Keychain or the Linux
+    Secret Service (service bcc_keychain_service, account = the IMAP user). See
+    hermitcrm/secrets.py."""
     service, account = settings.keychain_service, settings.imap_user
     password = secrets.get("bcc_password", data_dir,
                            {"bcc_keychain_service": service}, account=account,
                            env=env, runner=runner, platform=platform)
     if not password:
-        raise BccError(
-            "no Gmail app password found. Set HERMITCRM_BCC_PASSWORD, add "
-            "bcc_password to .secrets.toml (chmod 600), or on macOS: "
-            f"security add-generic-password -s {service} -a {account} -w")
+        raise BccError("no Gmail app password found. " + password_hint(settings, platform))
     return password.replace(" ", "")  # Gmail shows it in groups of 4
 
 
@@ -986,8 +1000,10 @@ class GmailMailbox:
         except imaplib.IMAP4.error as exc:
             self.close()
             raise BccError(f"Gmail refused the login for {user}: {_imap_text(exc)}. "
-                           f"Check the app password in the Keychain (service "
-                           f"{self.settings.keychain_service!r}).") from exc
+                           "Check the app password (read from HERMITCRM_BCC_PASSWORD, "
+                           ".secrets.toml, or the Keychain / system keyring, service "
+                           f"{self.settings.keychain_service!r}) and save it again with "
+                           "hermitcrm setup or Settings > BCC capture.") from exc
         except OSError as exc:
             self.close()
             raise BccError(f"connection to {host} failed: {exc}") from exc
