@@ -38,19 +38,19 @@ SAMPLE = (
     "name\tLI invite\tComments\tmy score\topportunity_type\tfit_score\thq_country\t"
     "hq_city\twebsite\tfte_estimate\tsn_employees\tae_count\tfounder_name\t"
     "founder_title\tfounder_sales_nav_url\tfounder_linkedin\tproduct_oneliner\n"
-    "Fjellmark\t\t\t\tcore\t82\tSweden\tStockholm\t\t21\t\t3\tAndreas Lindqvist\t"
+    "Skarvik\t\t\t\tcore\t82\tSweden\tStockholm\t\t21\t\t3\tNils Ekdahl\t"
     "Founder / CEO\thttps://www.linkedin.com/sales/lead/ACwAAABx\t"
-    "linkedin.com/in/andreaskullberg\tAgentic AI platform for sales teams.\n"
-    "Nimbus AI (YC S23)\tno personalization\t\t\tcore\t78\tGermany\t\t"
-    "https://getnimbus.ai/\t~13\t\t2\tLucas Steinhof\tCo-Founder\t\t"
-    "linkedin.com/in/lucas-steinhof\tAI SDR for European B2B teams.\n"
-    "alvero\t\talready have VP sales\t5\tcore\t65\tFrance\tParis\t"
-    "https://www.alvero.me/\t42\t42\t2\tIvica Horvatic\tCo Founder\t\t\t"
-    "Digital assistant for hotels.\n"
+    "linkedin.com/in/nils-ekdahl\tPlanning software for ferry operators.\n"
+    "Cirrusly AI (YC S23)\tno personalization\t\t\tcore\t78\tGermany\t\t"
+    "https://getcirrusly.ai/\t~13\t\t2\tLukas Brenner\tCo-Founder\t\t"
+    "linkedin.com/in/lukas-brenner\tWeather data for event planners.\n"
+    "orvelo\t\talready have VP sales\t5\tcore\t65\tFrance\tParis\t"
+    "https://www.orvelo.example/\t42\t42\t2\tLuka Maric\tCo Founder\t\t\t"
+    "Booking tool for climbing gyms.\n"
     ", \t\topen HoS job\t6\tcore\t70\tGermany\tBerlin\thttps://hi.lumenhire.example.com/li\t32\t"
-    "32\t2\tFinn zur Mühlen\tCEO\t\t\tAI phone calls that convert\n"
-    "Quill\t\tInteresting!\t9\tcore\t72\tSweden\tStockholm\thttps://quillhq.io\t\t\t5\t"
-    "Adam Jensen\tFounder & CEO\t\t\tAI product team as a service.\n"
+    "32\t2\tJonas zur Linde\tCEO\t\t\tPhone agents for dental clinics.\n"
+    "Quill\t\tInteresting!\t9\tcore\t72\tSweden\tStockholm\thttps://quillhq.example\t\t\t5\t"
+    "Adam Jensen\tFounder & CEO\t\t\tBookkeeping for small breweries.\n"
 )
 
 
@@ -83,38 +83,38 @@ def test_country_and_linkedin_helpers():
 def test_plan_maps_columns_and_keeps_extras(store):
     plan = plan_import(store, SAMPLE, defs=DEFS)
     assert plan.count("create") == 4 and plan.count("skip") == 1
-    fjellmark = plan.rows[0]
-    assert fjellmark.action == "create" and fjellmark.slug == "fjellmark"
-    assert fjellmark.fields == {
+    skarvik = plan.rows[0]
+    assert skarvik.action == "create" and skarvik.slug == "skarvik"
+    assert skarvik.fields == {
         "country": "SE",
-        "product_oneliner": "Agentic AI platform for sales teams.",
+        "product_oneliner": "Planning software for ferry operators.",
         "source": "list",
     }
     # a column named like one of your own fields maps to it without being told
-    assert fjellmark.custom == {"fit_score": 82, "fte_estimate": "21", "ae_count": 3}
-    assert fjellmark.tags == ["core"]
-    assert "Imported fields (2026-09-14):" in fjellmark.notes
-    assert "- hq_city: Stockholm" in fjellmark.notes
-    assert fjellmark.contact == {
-        "first_name": "Andreas", "last_name": "Lindqvist", "title": "Founder / CEO",
-        "linkedin": "https://www.linkedin.com/in/andreaskullberg",
+    assert skarvik.custom == {"fit_score": 82, "fte_estimate": "21", "ae_count": 3}
+    assert skarvik.tags == ["core"]
+    assert "Imported fields (2026-09-14):" in skarvik.notes
+    assert "- hq_city: Stockholm" in skarvik.notes
+    assert skarvik.contact == {
+        "first_name": "Nils", "last_name": "Ekdahl", "title": "Founder / CEO",
+        "linkedin": "https://www.linkedin.com/in/nils-ekdahl",
         "role": "decision-maker",
         "notes": "founder_sales_nav_url: https://www.linkedin.com/sales/lead/ACwAAABx\n",
-        "slug": "andreas-lindqvist",
+        "slug": "nils-ekdahl",
     }
-    nimbus = plan.rows[1]
-    assert nimbus.slug == "nimbus-ai-yc-s23" and nimbus.custom["fte_estimate"] == "~13"
-    assert "- LI invite: no personalization" in nimbus.notes
-    alvero = plan.rows[2]
-    assert alvero.fields["country"] == "FR"  # any ISO country maps now
-    assert not any("France" in w for w in alvero.warnings)
-    assert alvero.notes.startswith("already have VP sales\n\nImported fields")
-    assert "hq_country" not in alvero.notes
+    cirrusly = plan.rows[1]
+    assert cirrusly.slug == "cirrusly-ai-yc-s23" and cirrusly.custom["fte_estimate"] == "~13"
+    assert "- LI invite: no personalization" in cirrusly.notes
+    orvelo = plan.rows[2]
+    assert orvelo.fields["country"] == "FR"  # any ISO country maps now
+    assert not any("France" in w for w in orvelo.warnings)
+    assert orvelo.notes.startswith("already have VP sales\n\nImported fields")
+    assert "hq_country" not in orvelo.notes
     assert plan.rows[3].action == "skip" and plan.rows[3].reason == "empty name"
 
 
 def test_plan_fills_only_empty_fields_of_existing_company(store):
-    store.create_company("Quill", website="https://quillhq.io", custom={"my_score": 7},
+    store.create_company("Quill", website="https://quillhq.example", custom={"my_score": 7},
                          tags=["priority"], notes="Old notes.\n")
     store.create_contact("quill", "Adam", "Jensen")
     plan = plan_import(store, SAMPLE, defs=DEFS)
@@ -141,13 +141,13 @@ def test_apply_writes_everything_in_one_commit(store, messages):
     counts = apply_import(store, plan_import(store, SAMPLE, defs=DEFS))
     assert counts == {"created": 4, "updated": 0, "contacts": 4, "skipped": 1, "failed": 0}
     assert messages == ["import: 4 companies created, 0 updated, 4 contacts created"]
-    fjellmark = store.get("fjellmark")
-    assert fjellmark.country == "SE" and fjellmark.tags == ["core"]
-    assert fjellmark.extra["fit_score"] == 82  # a custom field, written as YAML
-    contact = fjellmark.contacts["andreas-lindqvist"]
-    assert contact.name == "Andreas Lindqvist" and contact.role == "decision-maker"
-    text = (store.company_dir("fjellmark") / "contacts" / "andreas-lindqvist.md").read_text()
-    assert "first_name: Andreas\nlast_name: Lindqvist\n" in text
+    skarvik = store.get("skarvik")
+    assert skarvik.country == "SE" and skarvik.tags == ["core"]
+    assert skarvik.extra["fit_score"] == 82  # a custom field, written as YAML
+    contact = skarvik.contacts["nils-ekdahl"]
+    assert contact.name == "Nils Ekdahl" and contact.role == "decision-maker"
+    text = (store.company_dir("skarvik") / "contacts" / "nils-ekdahl.md").read_text()
+    assert "first_name: Nils\nlast_name: Ekdahl\n" in text
     assert "founder_sales_nav_url:" in text
 
     # Importing the same sheet again changes nothing and commits nothing.
@@ -172,10 +172,10 @@ APOLLO = (
     "First Name,Last Name,Title,Company,Company Name for Emails,Email,Email Status,"
     "Seniority,Departments,Person Linkedin Url,Website,Company Linkedin Url,"
     "# Employees,Country\n"
-    'Lucas,Steinhof,Co-Founder,Nimbus AI,Nimbus,lucas@getnimbus.ai,Verified,Founder,'
-    '"C-Suite, Sales",http://www.linkedin.com/in/lucas-steinhof,https://getnimbus.ai,'
-    "http://www.linkedin.com/company/nimbus-ai,13,Germany\n"
-    "Mia,Holm,VP Sales,Quill,Quill,mia@quillhq.io,Verified,VP,Sales,,http://www.quillhq.io,,5,Sweden\n"
+    'Lukas,Brenner,Co-Founder,Cirrusly AI,Cirrusly,lukas@getcirrusly.ai,Verified,Founder,'
+    '"C-Suite, Sales",http://www.linkedin.com/in/lukas-brenner,https://getcirrusly.ai,'
+    "http://www.linkedin.com/company/cirrusly-ai,13,Germany\n"
+    "Mia,Holm,VP Sales,Quill,Quill,mia@quillhq.example,Verified,VP,Sales,,http://www.quillhq.example,,5,Sweden\n"
 )
 
 
@@ -262,7 +262,7 @@ def test_contacts_mode_derives_company_from_email_domain(store):
     assert row.fields["website"] == "https://lindqvist-labs.se"
     assert any("derived from lindqvist-labs.se" in w for w in row.warnings)
     assert name_from_domain("mail.acme.co.uk") == "Acme"
-    assert name_from_domain("getnimbus.ai") == "Getnimbus"
+    assert name_from_domain("getcirrusly.ai") == "Getcirrusly"
 
 
 def test_contacts_mode_existing_company_by_slug_fills_empty_fields_only(store):
@@ -273,13 +273,13 @@ def test_contacts_mode_existing_company_by_slug_fills_empty_fields_only(store):
     """
     store.create_company("Quill", country="SE")
     plan = plan_import(store, APOLLO)
-    lucas, mia = plan.rows
-    assert lucas.action == "create" and lucas.slug == "nimbus-ai"
-    assert lucas.fields["linkedin"] == "https://www.linkedin.com/company/nimbus-ai"
-    assert "fte_estimate" not in lucas.fields
-    assert lucas.contact["title"] == "Co-Founder" and lucas.contact["role"] == "decision-maker"
+    lukas, mia = plan.rows
+    assert lukas.action == "create" and lukas.slug == "cirrusly-ai"
+    assert lukas.fields["linkedin"] == "https://www.linkedin.com/company/cirrusly-ai"
+    assert "fte_estimate" not in lukas.fields
+    assert lukas.contact["title"] == "Co-Founder" and lukas.contact["role"] == "decision-maker"
     assert mia.action == "update" and mia.slug == "quill"
-    assert mia.fields == {"website": "http://www.quillhq.io"}
+    assert mia.fields == {"website": "http://www.quillhq.example"}
     assert "- Seniority: VP" in mia.contact["notes"]
     assert plan.mapping["Company Name for Emails"] == "notes"
 
