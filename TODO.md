@@ -15,6 +15,12 @@ Now (19 Sep):
 - [ ] Send the testers a new build with the website's look (merged
       19 Sep). `rm -rf dist && ./scripts/release.sh`, then they unpack it and
       run `uv tool install --reinstall .` in it, then restart Hermit CRM.
+- [ ] Update notices for downloads: the "new version available" check asks
+      PyPI (empty `update_url`), where Hermit CRM is not listed, so people
+      who download from hermitcrm.io (0.4.1 since 23 Sep) never hear of
+      0.4.2. Publish `hermitcrm.io/version.json` (`{"version": "0.4.1"}`,
+      bumped with each download) and make it the default `update_url` until
+      PyPI is live.
 
 Use (19 Sep - 3 Oct):
 - [ ] Use it daily for two weeks for real sales work; fix what annoys.
