@@ -1,0 +1,32 @@
+{% import "macros.html" as m %}
+{# Mail and meetings the imports could not place: shown on Home only while there are any. #}
+<section class="to-file" id="to-file">
+<h2>To file ({{ items|length }})</h2>
+<p class="small">Mail and meetings the imports could not place. Pick the company (a new name creates it), or discard.
+  Import status and <em>Import now</em>: <a href="/settings#bcc">Settings &rarr; BCC capture</a> and <a href="/settings#calendar">Calendar</a>.</p>
+{{ m.errors_box(errors) }}
+<datalist id="company-slugs">
+  {% for c in companies %}<option value="{{ c.slug }}">{{ c.name }}</option>{% endfor %}
+</datalist>
+{% for it in items %}
+<section class="inbox-item" id="{{ it.id }}">
+  <p>
+    <strong>{{ it.date | string | replace('T', ' ') }}</strong>
+    <span class="tag">{{ it.kind }}</span>
+    {% if it.kind == 'meeting' %}meeting {{ it.direction }} with{% else %}email {{ it.direction }} {{ 'to' if it.direction == 'out' else 'from' }}{% endif %}
+    {{ it.name }} &lt;{{ it.address }}&gt;{% if it.subject %}: {{ it.subject }}{% endif %}
+  </p>
+  <p class="small">{{ it.reason }}</p>
+  <details><summary>{{ 'notes' if it.kind == 'meeting' else 'message' }}</summary><pre class="body">{{ it.body }}</pre></details>
+  <form method="post" action="/inbox/{{ it.id }}/assign" class="inbox-assign">
+    <label>company <input name="company" list="company-slugs" placeholder="company name or slug; a new name creates it" required></label>
+    <label>first name <input name="first_name" value="{{ it.first_name }}"></label>
+    <label>last name <input name="last_name" value="{{ it.last_name }}"></label>
+    <button type="submit">Log at company</button>
+  </form>
+  <form method="post" action="/inbox/{{ it.id }}/discard" class="inline">
+    <button type="submit">Discard</button>
+  </form>
+</section>
+{% endfor %}
+</section>

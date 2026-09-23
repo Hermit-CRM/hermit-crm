@@ -50,7 +50,7 @@ from fastapi.templating import Jinja2Templates
 from . import (bcc, brief, calendar_sync, capture, disclaimer, feedback,
                fields as custom, filters, followups, messaging, migrations,
                pipeline, reports, sample, welcome)
-from . import schedule, scrape, task_types, usertheme
+from . import schedule, scrape, secrets, task_types, usertheme
 from . import help as helpdocs
 from . import setup as setup_steps
 from .filters import Column
@@ -545,6 +545,10 @@ def build_enricher(config: dict) -> Enricher:
     )
 
 
+# Where "Support Hermit" in the sidebar and in Settings points. A plain link:
+# no widget script, so the CSP below stays as it is.
+SUPPORT_URL = "https://ko-fi.com/gijsbos"
+
 CSP = ("default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
        "script-src 'self' 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'")
 
@@ -744,6 +748,7 @@ def create_app(root: Path, config: dict | None = None,
     app.state.setup_platform = sys.platform
     app.state.setup_push = None
     app.state.setup_state = None
+    app.state.os_store = None  # (platform, store); probing secret-tool costs a process
     app.state.schedule_home = None  # Path.home() unless a test points elsewhere
     cal_url_cache: dict[str, str] = {}
 
@@ -755,6 +760,18 @@ def create_app(root: Path, config: dict | None = None,
 
     app.state.calendar_url = calendar_url
     app.state.fetch_calendar = lambda url: calendar_sync.fetch_ics(url)
+
+    def os_store() -> str:
+        """'keychain', 'secret-service' or '' (none usable); probed once per process."""
+        platform = app.state.setup_platform
+        if app.state.os_store is None or app.state.os_store[0] != platform:
+            try:
+                found = secrets.os_store(platform, runner=app.state.setup_runner) or ""
+            except Exception:
+                logger.exception("secret store probe failed")
+                found = ""
+            app.state.os_store = (platform, found)
+        return app.state.os_store[1]
 
     def current_setup_state(refresh: bool = False) -> dict:
         if refresh or app.state.setup_state is None:
@@ -907,6 +924,7 @@ def create_app(root: Path, config: dict | None = None,
         outcomes=outcomes,
         message_statuses=message_statuses(outcomes),
         hermitcrm_version=__version__,
+        support_url=SUPPORT_URL,
         asset_version=asset_version(),
         update_notice=app.state.update_notice,
         render_markdown=helpdocs.render,
@@ -922,6 +940,8 @@ def create_app(root: Path, config: dict | None = None,
     templates.env.filters["href"] = safe_href  # stored URLs: http(s) or nothing
 
     def render(request: Request, name: str, ctx: dict, status_code: int = 200):
+        bcc_alert = bcc.run_alert(inbox.last_run(), store.now())
+        inbox_alert = bcc_alert or calendar_alert()
         context = {
             "flash": request.query_params.get("flash", ""),
             "q": request.query_params.get("q", ""),
@@ -929,8 +949,9 @@ def create_app(root: Path, config: dict | None = None,
             "today": store.today(),
             "sort": "", "dir": "asc", "sort_url": sort_url_for(request),
             "inbox_count": inbox.count(),
-            "inbox_alert": (bcc.run_alert(inbox.last_run(), store.now())
-                            or calendar_alert()),
+            "inbox_alert": inbox_alert,
+            # The red "!" on Settings jumps to the section of the import that failed.
+            "inbox_alert_anchor": "bcc" if bcc_alert else "calendar",
             "enricher": app.state.enricher,
             "setup_pending": setup_steps.pending(current_setup_state()),
             "csrf_token": app.state.csrf_token,
@@ -1060,6 +1081,7 @@ def create_app(root: Path, config: dict | None = None,
         return render(request, "welcome.html", {
             "steps": all_steps, "done": done, "total": total,
             "dismissed": bool(config.get("welcome_dismissed")),
+            **inbox_context(),
         })
 
     @app.post("/welcome/tick")
@@ -1146,6 +1168,14 @@ def create_app(root: Path, config: dict | None = None,
         if intro and not app.state.setup_redirected:
             query = request.url.query
             return goto("/welcome" + ("?" + query if query else ""))
+        return home_page(request, intro=intro, all_steps=all_steps)
+
+    def home_page(request: Request, status_code: int = 200, intro=None, all_steps=None,
+                  **extra):
+        """Home; also re-rendered with a "Log at company" error for the To file list."""
+        if all_steps is None:
+            all_steps = welcome_steps()
+            intro = welcome.should_show(config, all_steps)
         today = store.today()
         week = today + timedelta(days=7)
         due_soon = [r for r in todo_rows(c for c in store.companies.values()
@@ -1170,7 +1200,10 @@ def create_app(root: Path, config: dict | None = None,
                 "interactions": sum(len(c.interactions) for c in store.companies.values()),
             },
             "no_companies": not store.companies,
-        })
+            # To file: the review queue, mail and meetings no company matched.
+            **inbox_context(),
+            **extra,
+        }, status_code=status_code)
 
     # ------------------------------------------------------------------ board
 
@@ -1346,9 +1379,10 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.post("/calendar/import")
     def calendar_import(request: Request, back: str = Form("/calendar")):
-        # "/inbox" is the old name of the review queue, now on the Settings page.
+        # "/inbox" is the old name of the review queue; its import button is under
+        # Settings > Calendar now.
         back = "/settings" if back in ("/inbox", "/settings") else "/calendar"
-        anchor = "inbox" if back == "/settings" else ""
+        anchor = "calendar" if back == "/settings" else ""
         url = app.state.calendar_url(refresh=True)
         if not url:
             return flashed(back, "Calendar import failed: "
@@ -2467,7 +2501,9 @@ def create_app(root: Path, config: dict | None = None,
                          or setup_steps.imap_host_for(bcc_address or owner)},
             "gmail_filter": (setup_steps.gmail_filter_text(bcc_address)
                              if bcc_address else ""),
-            "is_mac": app.state.setup_platform == "darwin",
+            "os_store": os_store(),
+            "os_store_label": secrets.STORE_LABELS.get(os_store() or "", ""),
+            "is_windows": app.state.setup_platform.startswith("win"),
             "remote_url": setup_steps.remote_url(root, str(config.get("remote") or "origin"),
                                                  app.state.setup_runner),
             "remote_warning": "",
@@ -2549,8 +2585,8 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.get("/inbox")
     def inbox_redirect(request: Request):
-        """The old Inbox page is the review queue on the Settings page now."""
-        return RedirectResponse("/settings#inbox", status_code=301)
+        """The old Inbox page is the To file list on Home now."""
+        return RedirectResponse("/#to-file", status_code=301)
 
     # The POST paths keep their /setup/... names and also answer under /settings/...
 
@@ -2815,7 +2851,8 @@ def create_app(root: Path, config: dict | None = None,
         message = "Task types saved" + ("; renamed " + ", ".join(done) if done else "")
         return flashed("/settings", message, anchor="task-types")
 
-    # Review queue (the former /inbox): BCC and calendar items waiting for a company.
+    # Review queue (the former /inbox, "To file" on Home): BCC and calendar items
+    # waiting for a company. Import now lives under Settings > BCC capture.
 
     @app.post("/bcc/import")
     def bcc_import(request: Request):
@@ -2824,12 +2861,12 @@ def create_app(root: Path, config: dict | None = None,
                                  app.state.open_mailbox)
         except bcc.BccError as exc:
             logger.warning("BCC import failed: %s", exc)
-            return flashed("/settings", f"BCC import failed: {exc}", anchor="inbox")
+            return flashed("/settings", f"BCC import failed: {exc}", anchor="bcc")
         except Exception as exc:
             logger.exception("BCC import crashed")
             return flashed("/settings", f"BCC import failed: {type(exc).__name__}: {exc}",
-                           anchor="inbox")
-        return flashed("/settings", "BCC import: " + result.summary(), anchor="inbox")
+                           anchor="bcc")
+        return flashed("/settings", "BCC import: " + result.summary(), anchor="bcc")
 
     @app.post("/inbox/{item_id}/assign")
     def inbox_assign(request: Request, item_id: str, company: str = Form(""),
@@ -2840,9 +2877,9 @@ def create_app(root: Path, config: dict | None = None,
         try:
             slug, it = bcc.assign(store, inbox, item_id, company, first_name, last_name)
         except ValidationError as exc:
-            return settings_page(request, status_code=400, errors=exc.errors)
+            return home_page(request, status_code=400, errors=exc.errors)
         note = "" if slug in existed else f" (new company {store.get(slug).name})"
-        return flashed("/settings", f"Logged at {slug}/{it.contact}{note}", anchor="inbox")
+        return flashed("/", f"Logged at {slug}/{it.contact}{note}", anchor="to-file")
 
     @app.post("/inbox/{item_id}/discard")
     def inbox_discard(request: Request, item_id: str):
@@ -2850,7 +2887,7 @@ def create_app(root: Path, config: dict | None = None,
             item = bcc.discard(store, inbox, item_id)
         except ValidationError:
             raise HTTPException(status_code=404, detail=f"unknown inbox item {item_id!r}")
-        return flashed("/settings", f"Discarded {item.address}", anchor="inbox")
+        return flashed("/", f"Discarded {item.address}", anchor="to-file")
 
     # ------------------------------------------------------------------- help
 

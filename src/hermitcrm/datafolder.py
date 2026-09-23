@@ -92,13 +92,13 @@ CONFIG_DOCS = {
     "outcomes": "Outcome choices for an interaction; first = what a reply counts as, last = what silence counts as.",
     "bcc_address": "Address you BCC or forward mail to, e.g. you+crm@gmail.com; empty disables BCC import.",
     "bcc_imap_host": "IMAP server of that mailbox.",
-    "bcc_keychain_service": "macOS Keychain service holding the app password (account = IMAP user).",
+    "bcc_keychain_service": "Keychain (macOS) or Secret Service (Linux) service holding the app password (account = IMAP user).",
     "bcc_lookback_days": "How far back the BCC import searches.",
-    "bcc_create_companies": "Create the company when mail you send or forward reaches a domain no company has (named after the domain); false sends it to the review queue instead.",
+    "bcc_create_companies": "Create the company when mail you send or forward reaches a domain no company has (named after the domain); false sends it to To file on Home instead.",
     "my_addresses": "Mail from these addresses is yours (outbound).",
     "bcc_ignore_domains": "Recipients at these domains (colleagues) are never logged.",
-    "calendar_keychain_service": "macOS Keychain service holding the secret ICS URL.",
-    "calendar_keychain_account": "macOS Keychain account for the ICS URL.",
+    "calendar_keychain_service": "Keychain (macOS) or Secret Service (Linux) service holding the secret ICS URL.",
+    "calendar_keychain_account": "Keychain (macOS) or Secret Service (Linux) account for the ICS URL.",
     "calendar_lookback_days": "How far back the calendar import looks.",
     "calendar_ignore_titles": "Events whose title contains one of these are skipped.",
     "calendar_min_attendees": "Events with fewer participants (you included) are skipped.",
@@ -121,7 +121,7 @@ def _toml_value(value) -> str:
 def render_config() -> str:
     lines = ["# Hermit CRM configuration. Every key is optional and shown with its default.",
              "# Uncomment a line to change it. Secrets (app password, calendar URL) never",
-             "# go here: use HERMITCRM_* environment variables, .secrets.toml or the Keychain.",
+             "# go here: use HERMITCRM_* environment variables, .secrets.toml or the OS keyring.",
              ""]
     for key, default in DEFAULT_CONFIG.items():
         lines.append(f"# {CONFIG_DOCS[key]}")

@@ -15,8 +15,8 @@
 """Calendar import: log past meetings from a secret ICS feed (no OAuth).
 
 Standard library only (urllib, zoneinfo, a small RFC 5545 parser). Once a day
-launchd runs ``hermitcrm sync --apply`` (BCC, then this); /inbox and /calendar
-have an "Import meetings now" button.
+launchd runs ``hermitcrm sync --apply`` (BCC, then this); Settings > Calendar and
+/calendar have an "Import meetings now" button.
 
 Per past event (end <= now, within ``calendar_lookback_days``), per external
 attendee (attendees plus the organizer, minus your addresses, the ignored
@@ -32,8 +32,9 @@ ordinary events. Cancelled events are skipped. Matched events in the next
 seven days are written to inbox/upcoming.json for the Calendar page.
 
 The feed URL is a secret and never lives in config.toml: $HERMITCRM_CALENDAR_ICS_URL,
-then ``calendar_ics_url`` in .secrets.toml, then the macOS Keychain (service
-``calendar_keychain_service``, account ``calendar_keychain_account``).
+then ``calendar_ics_url`` in .secrets.toml, then the OS secret store: the macOS
+Keychain or the Linux Secret Service (service ``calendar_keychain_service``,
+account ``calendar_keychain_account``).
 """
 
 from __future__ import annotations
@@ -43,6 +44,7 @@ import logging
 import os
 import re
 import subprocess
+import sys
 import tomllib
 import urllib.error
 import urllib.request
@@ -121,16 +123,26 @@ def settings_from_config(config: dict) -> Settings:
 def resolve_url(settings: Settings, root: Path, env: dict | None = None,
                 runner=subprocess.run, platform: str | None = None) -> str:
     """The ICS URL via hermitcrm/secrets.py: $HERMITCRM_CALENDAR_ICS_URL (or
-    $CRM_CALENDAR_URL), .secrets.toml, then the macOS Keychain; '' if none."""
+    $CRM_CALENDAR_URL), .secrets.toml, then the OS secret store; '' if none."""
     config = {"calendar_keychain_service": settings.keychain_service,
               "calendar_keychain_account": settings.keychain_account}
     return secrets.get("calendar_ics_url", root, config, env=env, runner=runner,
                        platform=platform)
 
 
-def setup_hint(settings: Settings) -> str:
-    return ("Calendar import is not set up: no calendar URL configured. Set "
-            "HERMITCRM_CALENDAR_ICS_URL, add calendar_ics_url to .secrets.toml, or add it to the macOS Keychain with: security "
+def setup_hint(settings: Settings, platform: str | None = None) -> str:
+    """How to configure the ICS URL, with the command for this OS's secret
+    store (secrets.get() reads none on Windows)."""
+    hint = ("Calendar import is not set up: no calendar URL configured. Set "
+            "HERMITCRM_CALENDAR_ICS_URL or add calendar_ics_url to .secrets.toml")
+    platform = platform or sys.platform
+    if platform.startswith("win"):
+        return hint + " (chmod 600)."
+    if platform != "darwin":
+        return (hint + ", or add it to the system keyring with: secret-tool store "
+                f"--label='Hermit CRM calendar' service {settings.keychain_service} "
+                f"account {settings.keychain_account} (then paste the URL)")
+    return (hint + ", or add it to the macOS Keychain with: security "
             f"add-generic-password -s {settings.keychain_service} "
             f"-a {settings.keychain_account} -w '<url>'")
 

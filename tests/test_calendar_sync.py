@@ -344,7 +344,8 @@ def test_cmd_calendar_with_ics_file_and_unconfigured(store, messages, tmp_path):
     assert store.companies["acme"].interactions == [] and messages == []
 
     text, code = crm.cmd_calendar(store, store.root, config, resolve=lambda: "")
-    assert code == 1 and "security add-generic-password -s crm-calendar -a ics" in text
+    # the hint names this OS's secret store, so ask for the one we run under
+    assert code == 1 and cal.setup_hint(cal.settings_from_config(config)) in text
     text, code = crm.cmd_sync(store, store.root, {**config, "bcc_address": "me+bcc@gmail.com"},
                               open_mailbox=lambda: FakeBox([raw_mail()]), resolve=lambda: "")
     assert code == 0
@@ -416,8 +417,9 @@ def test_calendar_import_route_upcoming_and_inbox(client):
     assert "brief-timeline" in page and "meeting out (jane-doe)" in page
     assert "engaged &middot; 0d in stage" in page
 
-    page = client.get("/settings").text
+    page = client.get("/welcome").text  # Home while the walkthrough is unfinished
     assert 'class="tag">meeting</span>' in page and "ann@lee.com" in page
+    page = client.get("/settings").text
     assert "Import meetings now" in page and "Last meeting import" in page
 
     client.app_state.fetch_calendar = lambda url: (_ for _ in ()).throw(

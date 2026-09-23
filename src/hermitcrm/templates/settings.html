@@ -8,10 +8,10 @@
 <p class="small settings-toc">
   <a href="#you">You</a> &middot; <a href="#bcc">BCC capture</a> &middot; <a href="#calendar">Calendar</a> &middot;
   <a href="#backup">Backup</a> &middot; <a href="#appearance">Appearance</a> &middot; <a href="#fields">Fields</a> &middot; <a href="#messaging">Drafts</a> &middot; <a href="#enrichment">AI</a> &middot; <a href="#task-types">Task types</a> &middot; <a href="#outcomes">Outcomes</a> &middot;
-  <a href="#inbox">Review queue{% if items %} ({{ items|length }}){% endif %}</a> &middot; <a href="#schedule">Schedule</a> &middot; <a href="#access">Access</a> &middot; <a href="#about">About</a>
+  <a href="#schedule">Schedule</a> &middot; <a href="#access">Access</a> &middot; <a href="#support">Support Hermit</a> &middot; <a href="#about">About</a>
   &middot; <a href="/help/settings">Help</a>
 </p>
-<p class="small">{% if is_mac %}Secrets are stored in <code>.secrets.toml</code> (mode 600) or the macOS Keychain, never in <code>config.toml</code>.{% else %}Secrets are stored in <code>.secrets.toml</code>, never in <code>config.toml</code>. There is no keyring support on this system yet, so they are plain text, readable only by your user account (mode 600) and never committed to git.{% endif %} Everything else is written to <code>config.toml</code>, comments kept.{% if setup_pending %} <a href="/">Skip for now</a>{% endif %}</p>
+<p class="small">{% if os_store %}Secrets are stored in <code>.secrets.toml</code> (mode 600) or {{ os_store_label }}, never in <code>config.toml</code>.{% if os_store == 'secret-service' %} A keyring is locked while you are logged out, so a daily import that runs then cannot read the password; keep it in <code>.secrets.toml</code> if the machine imports without you logged in.{% endif %}{% elif is_windows %}Secrets are stored in <code>.secrets.toml</code>, never in <code>config.toml</code>. They are plain text, readable only by your user account and never committed to git.{% else %}Secrets are stored in <code>.secrets.toml</code>, never in <code>config.toml</code>. No system keyring was found (install <code>libsecret-tools</code> and run a Secret Service such as GNOME Keyring or KWallet to use one), so they are plain text, readable only by your user account (mode 600) and never committed to git.{% endif %} Everything else is written to <code>config.toml</code>, comments kept.{% if setup_pending %} <a href="/">Skip for now</a>{% endif %}</p>
 
 <section class="setup-step" id="you">
   <h2>You {{ status(state.you) }}</h2>
@@ -27,7 +27,7 @@
 
 <section class="setup-step" id="bcc">
   <h2>BCC capture {{ status(state.bcc) }}</h2>
-  <p class="small">How it works: when you write to a prospect, put a tracking address in BCC (or forward the thread to it later). Hermit CRM reads that mailbox over IMAP, matches each message to a company by the other person's address or domain, and logs it as an interaction. Mail you send or forward to someone at a domain no company has creates that company, named after the domain. Personal addresses and domains that fit more than one company wait in the review queue below. With Gmail, <code>you+crm@gmail.com</code> reaches your own inbox, so no second account is needed; a filter can file those messages out of the way.</p>
+  <p class="small">How it works: when you write to a prospect, put a tracking address in BCC (or forward the thread to it later). Hermit CRM reads that mailbox over IMAP, matches each message to a company by the other person's address or domain, and logs it as an interaction. Mail you send or forward to someone at a domain no company has creates that company, named after the domain. Personal addresses and domains that fit more than one company wait on <a href="/#to-file">Home, under To file</a>. With Gmail, <code>you+crm@gmail.com</code> reaches your own inbox, so no second account is needed; a filter can file those messages out of the way.</p>
   {{ step_errors('bcc') }}
   <form method="post" action="/settings/bcc" class="record-form" id="bcc-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -45,7 +45,7 @@
     <label>BCC address <input name="address" value="{{ bcc_form.address }}" placeholder="you+crm@gmail.com"></label>
     <label>IMAP server <input name="imap_host" id="bcc-imap-host" value="{{ bcc_form.imap_host }}" placeholder="imap.gmail.com"></label>
     <label>App password <input type="password" name="password" value="" autocomplete="new-password" placeholder="{{ 'stored; leave empty to keep it' if state.bcc else '' }}"></label>
-    {% if is_mac %}<label class="inline"><input type="checkbox" name="keychain" value="1" checked style="display:inline;width:auto"> Store the password in the macOS Keychain</label>{% endif %}
+    {% if os_store %}<label class="inline"><input type="checkbox" name="keychain" value="1" checked style="display:inline;width:auto"> Store the password in {{ os_store_label }}</label>{% endif %}
     <button type="submit">Save</button>
   </form>
   {% if gmail_filter %}
@@ -55,6 +55,20 @@
     <button type="submit">Test connection (dry run)</button>
   </form>
   {% endif %}
+  <div class="bcc-status">
+    <p class="small">Mail it cannot place waits on <a href="/#to-file">Home, under To file</a>.</p>
+    {% if last_run %}
+      {% if last_run.ok %}
+        <p>Last import {{ last_run.at | replace('T', ' ') }}: {{ last_run.summary }}</p>
+      {% else %}
+        <p class="error">Last import {{ last_run.at | replace('T', ' ') }} failed: {{ last_run.error }}</p>
+      {% endif %}
+    {% else %}
+      <p class="small">No import has run yet.</p>
+    {% endif %}
+    {% if inbox_alert and last_run and last_run.ok %}<p class="error">{{ inbox_alert }}</p>{% endif %}
+    <form method="post" action="/bcc/import" class="inline"><button type="submit">Import now</button></form>
+  </div>
 </section>
 
 <section class="setup-step" id="calendar">
@@ -66,6 +80,18 @@
     <label>Secret ICS address <input type="password" name="url" value="" autocomplete="off"></label>
     <button type="submit">Save and test (dry run)</button>
   </form>
+  <div class="bcc-status">
+    {% if calendar_last_run %}
+      {% if calendar_last_run.ok %}
+        <p>Last meeting import {{ calendar_last_run.at | replace('T', ' ') }}: {{ calendar_last_run.summary }}</p>
+      {% else %}
+        <p class="error">Last meeting import {{ calendar_last_run.at | replace('T', ' ') }} failed: {{ calendar_last_run.error }}</p>
+      {% endif %}
+    {% else %}
+      <p class="small">No meeting import has run yet. Past meetings whose attendees match no company wait on <a href="/#to-file">Home, under To file</a>.</p>
+    {% endif %}
+    <form method="post" action="/calendar/import" class="inline"><input type="hidden" name="back" value="/settings"><button type="submit">Import meetings now</button></form>
+  </div>
 </section>
 
 <section class="setup-step" id="backup">
@@ -302,67 +328,6 @@
   </form>
 </section>
 
-<section class="setup-step" id="inbox">
-  <h2>Review queue{% if items %} ({{ items|length }}){% endif %}</h2>
-  <p class="small">
-    {% if bcc_address %}BCC <code>{{ bcc_address }}</code> on the mails you send, or forward a reply to it.{% else %}No BCC address yet: set one under <a href="#bcc">BCC capture</a>.{% endif %}
-    The daily import logs each mail at the contact with that email address; a new person at a company whose domain it knows becomes a new contact, and a domain it does not know becomes a new company.
-    Everything else waits here for you to pick the company.
-  </p>
-  <div class="bcc-status">
-    {% if last_run %}
-      {% if last_run.ok %}
-        <p>Last import {{ last_run.at | replace('T', ' ') }}: {{ last_run.summary }}</p>
-      {% else %}
-        <p class="error">Last import {{ last_run.at | replace('T', ' ') }} failed: {{ last_run.error }}</p>
-      {% endif %}
-    {% else %}
-      <p class="small">No import has run yet.</p>
-    {% endif %}
-    {% if inbox_alert and last_run and last_run.ok %}<p class="error">{{ inbox_alert }}</p>{% endif %}
-    <form method="post" action="/bcc/import" class="inline"><button type="submit">Import now</button></form>
-  </div>
-  <div class="bcc-status">
-    {% if calendar_last_run %}
-      {% if calendar_last_run.ok %}
-        <p>Last meeting import {{ calendar_last_run.at | replace('T', ' ') }}: {{ calendar_last_run.summary }}</p>
-      {% else %}
-        <p class="error">Last meeting import {{ calendar_last_run.at | replace('T', ' ') }} failed: {{ calendar_last_run.error }}</p>
-      {% endif %}
-    {% else %}
-      <p class="small">No meeting import has run yet. Past meetings from your calendar feed land here when an attendee matches no company.</p>
-    {% endif %}
-    <form method="post" action="/calendar/import" class="inline"><input type="hidden" name="back" value="/settings"><button type="submit">Import meetings now</button></form>
-  </div>
-  {{ m.errors_box(errors) }}
-  <h3>To review ({{ items|length }})</h3>
-  {% if not items %}<p class="small">Nothing to review.</p>{% endif %}
-  <datalist id="company-slugs">
-    {% for c in companies %}<option value="{{ c.slug }}">{{ c.name }}</option>{% endfor %}
-  </datalist>
-  {% for it in items %}
-  <section class="inbox-item" id="{{ it.id }}">
-    <p>
-      <strong>{{ it.date | string | replace('T', ' ') }}</strong>
-      <span class="tag">{{ it.kind }}</span>
-      {% if it.kind == 'meeting' %}meeting {{ it.direction }} with{% else %}email {{ it.direction }} {{ 'to' if it.direction == 'out' else 'from' }}{% endif %}
-      {{ it.name }} &lt;{{ it.address }}&gt;{% if it.subject %}: {{ it.subject }}{% endif %}
-    </p>
-    <p class="small">{{ it.reason }}</p>
-    <details><summary>{{ 'notes' if it.kind == 'meeting' else 'message' }}</summary><pre class="body">{{ it.body }}</pre></details>
-    <form method="post" action="/inbox/{{ it.id }}/assign" class="inbox-assign">
-      <label>company <input name="company" list="company-slugs" placeholder="company name or slug; a new name creates it" required></label>
-      <label>first name <input name="first_name" value="{{ it.first_name }}"></label>
-      <label>last name <input name="last_name" value="{{ it.last_name }}"></label>
-      <button type="submit">Log at company</button>
-    </form>
-    <form method="post" action="/inbox/{{ it.id }}/discard" class="inline">
-      <button type="submit">Discard</button>
-    </form>
-  </section>
-  {% endfor %}
-</section>
-
 <section class="setup-step" id="schedule">
   <h2>Schedule {{ status(schedule.installed) }}</h2>
   <p class="small">The daily job runs <code>hermitcrm sync --apply</code> (BCC, then calendar import). Read-only here; install or remove it from a terminal.</p>
@@ -389,6 +354,13 @@
   <p>It speaks on stdin and stdout, so you do not run it yourself: paste this into your client's MCP config and it starts it for you. That also means the client must run on this machine &mdash; a phone app cannot reach it. For the phone, use the section above.</p>
   <pre class="copy"><code>{{ access.mcp_config }}</code></pre>
   <p class="small">Details and the full tool list: <a href="/help/ai-agents">AI agents</a>.</p>
+</section>
+
+<section class="setup-step" id="support">
+  <h2>Support Hermit</h2>
+  <p>Hermit CRM is free and open source, and stays that way. If it earns its place in your week, you can support its development with a tip on Ko-fi.</p>
+  <p><a class="button" href="{{ support_url }}" target="_blank" rel="noopener">Support Hermit on Ko-fi</a></p>
+  <p class="small">Opens <code>{{ support_url | replace('https://', '') }}</code> in your browser. Nothing in the app depends on it, and Hermit CRM sends nothing to Ko-fi.</p>
 </section>
 
 <section class="setup-step" id="about">

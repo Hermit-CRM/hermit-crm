@@ -1,13 +1,17 @@
 # Settings
 
-`/settings`: who you are, mail and calendar capture, backup, appearance, fields of your own, AI (Enrich and Ask the Hermit), outcomes, the review queue, the daily schedule, access from a phone or an AI client, and About.
+`/settings`: who you are, mail and calendar capture, backup, appearance, fields of your own, AI (Enrich and Ask the Hermit), outcomes, the daily schedule, access from a phone or an AI client, Support Hermit, and About.
 
 Every section writes `config.toml` in the data folder, keeping its comments;
 secrets (the mail app password, the calendar URL) go to `.secrets.toml`
-(mode 600) or the macOS Keychain, never to `config.toml`. On Linux there is
-no Keychain: they are stored in plain text in `.secrets.toml`, readable only by
-your user account and never committed to git. Full-disk encryption protects
-them when the machine is off. The first time the
+(mode 600) or the system's secret store, never to `config.toml`. The secret
+store is the Keychain on macOS and the Secret Service on Linux (GNOME Keyring,
+KWallet or KeePassXC, reached through `secret-tool` from `libsecret-tools`);
+Settings offers it only when it answers. Without one, secrets are stored in
+plain text in `.secrets.toml`, readable only by your user account and never
+committed to git. Full-disk encryption protects them when the machine is off.
+A Linux keyring is locked while you are logged out: if the daily import runs
+then (systemd lingering), keep the app password in `.secrets.toml`. The first time the
 web app starts without an owner email it opens this page once; "Skip for now"
 goes to the board. The same questions run in the terminal as `hermitcrm setup`.
 
@@ -32,15 +36,18 @@ same commit -- but only for mail you sent or forwarded yourself, never for a
 no-reply sender, and not when a company of that name already exists. Set
 `bcc_create_companies = false` in `config.toml` to send those to the review
 queue instead. Everything else (personal addresses, a domain that fits several
-companies) goes to the review queue. Dedup is by Message-ID.
+companies) goes to the review queue, which is **To file** on Home. Dedup is by
+Message-ID. Below the form: the last import (time and summary, or the error)
+and **Import now**, which runs the import on the spot.
 
 ## Calendar
 
 The secret ICS address of your calendar (Google: Settings, your calendar,
 Integrate calendar, secret address in iCal format; `webcal://` is fine).
 It is tested with a dry run and never shown again. Past meetings with an
-external attendee become `meeting` interactions; unmatched ones wait in the
-review queue; events in the next 7 days show on the Calendar page.
+external attendee become `meeting` interactions; unmatched ones wait under
+**To file** on Home; events in the next 7 days show on the Calendar page. Below
+the form: the last meeting import and **Import meetings now**.
 
 ## Backup
 
@@ -196,20 +203,6 @@ window counts as. Also here: `message_window_days` (default 14) and
 `silent_days` (default 14, the Calendar's silent list and `PIPELINE.md`).
 Duplicates and an empty list are refused.
 
-## Review queue
-
-Mail and meetings the imports could not place: the date, kind, direction,
-person and subject, the reason (personal address, unknown domain, several
-matching companies), the text collapsed, and a form to **Log at company**
-(a company slug or name, legal suffixes like GmbH ignored, else the company
-that has the mail's domain; a name that finds neither creates a new company,
-with the mail's domain as its website unless it is a personal address; the
-contact is found by email, else a same-named contact gets the email, else it
-is created) or **Discard** (remembered in
-`inbox/discarded.tsv`). **Import now** and **Import meetings now** run the
-imports on the spot. The nav shows the count on the Settings link and a red
-`!` when the last import failed or is two days old.
-
 ## Schedule
 
 Read-only status of the daily job (`hermitcrm sync --apply`: BCC, then calendar)
@@ -237,6 +230,14 @@ starts it. Because it is a local process talking over a pipe, the client has to
 run on this machine: a phone app cannot reach it, and the phone route is the
 web app above. Seven read tools and three writes, the writes committing exactly
 as the web form does. [AI agents](/help/ai-agents) has the tool list.
+
+## Support Hermit
+
+Hermit CRM is free and open source. The Support Hermit link in Settings and at
+the bottom of the sidebar opens its
+[Ko-fi page](https://ko-fi.com/gijsbos) in your browser, where you can leave
+a tip. It is a plain link: the app loads nothing from Ko-fi and sends it
+nothing, and nothing in the app changes whether you give or not.
 
 ## About
 

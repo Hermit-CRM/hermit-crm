@@ -15,6 +15,12 @@ Now (19 Sep):
 - [ ] Send the testers a new build with the website's look (merged
       19 Sep). `rm -rf dist && ./scripts/release.sh`, then they unpack it and
       run `uv tool install --reinstall .` in it, then restart Hermit CRM.
+- [ ] Update notices for downloads: the "new version available" check asks
+      PyPI (empty `update_url`), where Hermit CRM is not listed, so people
+      who download from hermitcrm.io (0.4.1 since 23 Sep) never hear of
+      0.4.2. Publish `hermitcrm.io/version.json` (`{"version": "0.4.1"}`,
+      bumped with each download) and make it the default `update_url` until
+      PyPI is live.
 
 Use (19 Sep - 3 Oct):
 - [ ] Use it daily for two weeks for real sales work; fix what annoys.
@@ -28,8 +34,9 @@ Build (5-9 Oct):
       Export everything (`GET /export.zip`); round-trip test export → import.
 - [ ] Linux: CI on ubuntu-latest green; one real Ubuntu 24.04 VM (install
       with uv, init, serve, BCC import, `schedule install --serve`, reboot);
-      `doctor` warns when systemd linger is off; INSTALL.md Linux section;
-      extension in Chromium. Cut this first if the week runs over.
+      `doctor` warns when systemd linger is off; INSTALL.md Linux section.
+      Cut this first if the week runs over.
+- [x] Linux: the Extension bookmarklet in Chromium (dropped as a separate test item).
 - [ ] Verify Codex, Cursor, Claude Desktop, ChatGPT and Gemini CLI end to end
       (install, read pipeline, log a call, draft); name only verified tools.
 - [ ] Fix GitHub Actions billing; run the workflows once.

@@ -28,9 +28,9 @@ SITE = """<html lang="de"><head><title>Acme – Procurement AI</title>
 </head><body><a href="/about">About</a><a href="https://www.linkedin.com/company/acme-gmbh/">LI</a></body></html>"""
 
 LINKEDIN = """<html><head><title>Quill | LinkedIn</title>
-<meta property="og:description" content="Quill | 1,234 followers on LinkedIn. AI product team as a service. | Long text">
+<meta property="og:description" content="Quill | 1,234 followers on LinkedIn. Bookkeeping for small breweries. | Long text">
 <script type="application/ld+json">{"@graph":[{"@type":"Organization","numberOfEmployees":{"value":45},
- "sameAs":"https://quillhq.io","address":{"addressCountry":"SE"}}]}</script></head><body></body></html>"""
+ "sameAs":"https://quillhq.example","address":{"addressCountry":"SE"}}]}</script></head><body></body></html>"""
 
 BARE = "<html><head><title>Foo Ltd - Home</title></head><body>We employ 11-50 employees.</body></html>"
 
@@ -64,11 +64,11 @@ def test_propose_from_linkedin_page():
                                 custom_keys={"fte_estimate"},
                                 fetcher=lambda url: LINKEDIN)
     assert proposal.fields == {
-        "website": "https://quillhq.io",
+        "website": "https://quillhq.example",
         "linkedin": "https://www.linkedin.com/company/quill",
         "country": "SE",
         "fte_estimate": "~45",
-        "product_oneliner": "AI product team as a service.",
+        "product_oneliner": "Bookkeeping for small breweries.",
     }
 
 
