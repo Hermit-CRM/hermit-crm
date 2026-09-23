@@ -996,7 +996,7 @@ def test_board_unused_columns_are_marked(client):
 
 SHEET = (
     "name\thq_country\twebsite\tfounder_name\tfounder_title\tfit_score\n"
-    "Fjellmark\tSweden\t\tAndreas Lindqvist\tFounder / CEO\t82\n"
+    "Skarvik\tSweden\t\tNils Ekdahl\tFounder / CEO\t82\n"
     "\t\t\t\t\t\n"
     "Acme\tGermany\thttps://acme.de\tJane Doe\tCEO\t70\n"
 )
@@ -1014,24 +1014,24 @@ def test_import_preview_and_apply(client, app, repo):
     assert preview.status_code == 200
     assert "1 companies to create, 1 to update, 0 rows skipped, 2 contacts to create" in preview.text
     assert "fills country, fit_score, website" in preview.text
-    assert "Andreas Lindqvist (Founder / CEO) &middot; create" in preview.text
+    assert "Nils Ekdahl (Founder / CEO) &middot; create" in preview.text
 
     bad = client.post("/import/preview", data={"text": "foo\tbar\n1\t2\n"})
     assert bad.status_code == 400 and "needs a &#39;name&#39; column" in bad.text
 
     upload = client.post("/import/preview", files={"file": ("x.tsv", SHEET.encode(), "text/tab-separated-values")})
-    assert upload.status_code == 200 and "Fjellmark" in upload.text
+    assert upload.status_code == 200 and "Skarvik" in upload.text
 
     r = client.post("/import", data={"text": SHEET})
     assert r.status_code == 303
     assert "1%20companies%20created%2C%201%20updated%2C%202%20contacts%20created" in r.headers["location"]
     assert last_commit(repo) == "import: 1 companies created, 1 updated, 2 contacts created"
     store = app.state.store
-    assert store.get("fjellmark").country == "SE"
+    assert store.get("skarvik").country == "SE"
     assert store.get("acme").extra["fit_score"] == 70  # mapped to a custom field
-    assert "andreas-lindqvist" in store.get("fjellmark").contacts
+    assert "nils-ekdahl" in store.get("skarvik").contacts
     assert store.get("acme").contacts["jane-doe"].title == "CEO"
-    assert "fjellmark" in (repo / "PIPELINE.md").read_text()
+    assert "skarvik" in (repo / "PIPELINE.md").read_text()
 
 
 def _preview_mapping(page: str) -> dict:

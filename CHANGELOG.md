@@ -3,6 +3,16 @@
 All notable changes to Hermit CRM. Versions follow semantic versioning; a change to
 the data format always comes with an automatic migration.
 
+## 0.4.1 (2026-09-23)
+
+The first build offered for download on hermitcrm.io.
+
+- **Support Hermit.** A Ko-fi link at the foot of the sidebar, in Settings
+  and in Help. It opens in a new tab; the app loads nothing from Ko-fi.
+- **Test data is made up.** A few importer test rows held names and websites
+  of real people and companies. They are now invented ones; the tests check
+  the same things.
+
 ## 0.4.0 (2026-09-22)
 
 0.3.0 was never published as a release. Test builds went out under that

@@ -427,15 +427,15 @@ def test_cli_add_rejects_bad_input_without_writing(tmp_path, capsys):
 def test_cli_import_dry_run_and_apply(tmp_path, capsys):
     root = git_root(tmp_path) if "git_root" in globals() else tmp_path
     sheet = tmp_path / "sheet.tsv"
-    sheet.write_text("name\thq_country\tfounder_name\nFjellmark\tSweden\tAndreas Lindqvist\n")
+    sheet.write_text("name\thq_country\tfounder_name\nSkarvik\tSweden\tNils Ekdahl\n")
     assert crm.main(["import", str(sheet)], root=root) == 0
     out = capsys.readouterr().out
     assert "1 companies to create" in out and "Dry run" in out
-    assert not (root / "companies" / "fjellmark").exists()
+    assert not (root / "companies" / "skarvik").exists()
     assert crm.main(["import", str(sheet), "--apply"], root=root) == 0
     out = capsys.readouterr().out
     assert "Imported: 1 created, 0 updated, 1 contacts" in out
-    assert (root / "companies" / "fjellmark" / "contacts" / "andreas-lindqvist.md").exists()
+    assert (root / "companies" / "skarvik" / "contacts" / "nils-ekdahl.md").exists()
 
 
 def test_cli_import_mode_and_map_flags(tmp_path, capsys):
