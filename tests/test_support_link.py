@@ -49,6 +49,14 @@ def test_settings_has_a_support_section(demo, tmp_path):  # noqa: F811
     assert len(links_to_support(page)) == 2
 
 
+def test_help_settings_links_to_ko_fi(demo, tmp_path):  # noqa: F811
+    app, client = make_client(demo, tmp_path)
+    page = client.get("/help/settings").text
+    section = page.split("Support Hermit</h2>", 1)[1].split("<h2", 1)[0]
+    [tag] = links_to_support(section)
+    assert 'target="_blank"' in tag and 'rel="noopener"' in tag
+
+
 def test_the_link_needs_no_csp_exception():
     assert SUPPORT_URL == "https://ko-fi.com/gijsbos"
     assert "ko-fi" not in CSP

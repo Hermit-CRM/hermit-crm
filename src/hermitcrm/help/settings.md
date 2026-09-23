@@ -233,8 +233,9 @@ as the web form does. [AI agents](/help/ai-agents) has the tool list.
 
 ## Support Hermit
 
-Hermit CRM is free and open source. The Support Hermit link here and at the
-bottom of the sidebar opens its Ko-fi page in your browser, where you can leave
+Hermit CRM is free and open source. The Support Hermit link in Settings and at
+the bottom of the sidebar opens its
+[Ko-fi page](https://ko-fi.com/gijsbos) in your browser, where you can leave
 a tip. It is a plain link: the app loads nothing from Ko-fi and sends it
 nothing, and nothing in the app changes whether you give or not.
 

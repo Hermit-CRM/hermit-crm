@@ -76,6 +76,12 @@ def test_render_blocks_and_inline():
     assert "<tr><td>1</td><td><code>2</code></td></tr>" in html
 
 
+def test_render_opens_links_out_of_the_app_in_a_new_tab():
+    html = helpdocs.render("[in](/help/cli) and [out](https://ko-fi.com/gijsbos)")
+    assert '<a href="/help/cli">in</a>' in html
+    assert '<a href="https://ko-fi.com/gijsbos" target="_blank" rel="noopener">out</a>' in html
+
+
 def test_render_escapes_and_refuses_unsafe_links():
     html = helpdocs.render("[x](javascript:alert(1)) and `**not bold**` <script>")
     assert "javascript:" not in html or 'href="javascript' not in html
