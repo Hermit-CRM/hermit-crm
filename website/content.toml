@@ -21,13 +21,13 @@
 
 # ── Values used in several places ────────────────────────────────────
 [release]
-version  = "0.4"
+version  = "0.4.1"
 license  = "Apache 2.0"
 
 [links]
-download       = "#"   # [TBC] URL of the .tar.gz
-sha256         = "#"   # [TBC] URL of the .sha256 file
-github         = "#"   # [TBC] repository URL
+download       = "download/hermitcrm-0.4.1.tar.gz"   # served by the site, see README
+sha256         = "download/hermitcrm-0.4.1.tar.gz.sha256"
+github         = ""    # empty hides the GitHub links; fill in when the repo is public
 
 
 # ── Browser tab, search results and link previews ────────────────────
@@ -44,7 +44,7 @@ site_url    = "https://hermitcrm.io"
 # ── Top bar ──────────────────────────────────────────────────────────
 [header]
 name         = "Hermit CRM"
-github_label = "GitHub [TBC]"
+github_label = "GitHub"
 
 
 # ── First screen ─────────────────────────────────────────────────────

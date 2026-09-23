@@ -194,7 +194,10 @@ def render(c: dict) -> str:
         og = (f'<link rel="canonical" href="{attr(site_url)}/">\n'
               f'<meta property="og:url" content="{attr(site_url)}/">\n'
               f'<meta property="og:image" content="{attr(site_url)}/img/og.png">\n')
-    github = f'<a href="{attr(c["links"]["github"])}">{md(c["header"]["github_label"])}</a>'
+    # An empty [links].github hides both GitHub links (header and footer), for
+    # as long as the repository is private.
+    github = (f'<a href="{attr(c["links"]["github"])}">{md(c["header"]["github_label"])}</a>'
+              if c["links"]["github"] else "")
 
     steps = "\n".join(f"      <li><span>{md(s)}</span></li>" for s in i["steps"])
     features = "\n".join(f"      <dt>{md(x['name'])}</dt><dd>{md(x['text'])}</dd>"
@@ -212,7 +215,10 @@ def render(c: dict) -> str:
         visual = mock()
     file_body = html.escape(f["file_body"].strip("\n"))
     sha256 = f'<a href="{attr(c["links"]["sha256"])}">{md(h["sha256_label"])}</a>'
-    footer = (md(c["footer"]["text"].replace("{github}", "\x01").replace("{sha256}", "\x02"))
+    footer_text = c["footer"]["text"]
+    if not github:
+        footer_text = footer_text.replace("{github} · ", "").replace(" · {github}", "")
+    footer = (md(footer_text.replace("{github}", "\x01").replace("{sha256}", "\x02"))
               .replace("\x01", github).replace("\x02", sha256))
 
     return f"""<!doctype html>
@@ -384,6 +390,13 @@ def check(c: dict) -> tuple[list[str], list[str]]:
         print(f"  warning  {p}")
     if tbc:
         print(f"  {len(tbc)} values still [TBC]: " + ", ".join(tbc))
+    # A download served by the site itself must be in site/ when the site is
+    # built; the release files are not in git (see README, "Publishing a build").
+    for key in ("download", "sha256"):
+        link = c["links"][key]
+        if link not in ("", "#") and "://" not in link and not (SITE / link).is_file():
+            problems.append(f"links.{key}: site/{link} does not exist")
+            print(f"  warning  {problems[-1]}")
     if c["file"]["screenshot"] and not (SITE / "img" / c["file"]["screenshot"]).exists():
         problems.append(f"site/img/{c['file']['screenshot']} does not exist")
         print(f"  warning  {problems[-1]}")

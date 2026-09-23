@@ -45,6 +45,22 @@ Cloudflare Pages), including the generated `app-tokens.css`. It makes no request
 analytics, no cookies, no trackers. Set `[page].site_url` first so
 link previews find the share image.
 
+### Publishing a build
+
+The download is served by the site itself, from `site/download/`. The files
+are not in git (`site/download/` is ignored), so copy them in before you
+deploy:
+
+1. Build the release from a clean worktree of the release commit
+   (`./scripts/release.sh` in the repo root; it writes `dist/`).
+2. Copy `dist/hermitcrm-<version>.tar.gz` and its `.sha256` to `site/download/`.
+3. Point `[links].download` and `[links].sha256` at them and set
+   `[release].version`.
+4. `python3 build.py` warns when a linked file is missing, and
+   `--release` refuses to finish. Then `flyctl deploy --remote-only`.
+
+Keep older files in `site/download/` if people may still link to them.
+
 ## Fonts
 
 None are downloaded, from Google or anywhere else. The page uses fonts that are
