@@ -21,27 +21,24 @@
 
 # ── Values used in several places ────────────────────────────────────
 [release]
-version  = "[TBC]"
-file     = "hermitcrm-[TBC version].tar.gz"
-size     = "[TBC size]"
-license  = "Free, Apache 2.0"
+version  = "0.4"
+license  = "Apache 2.0"
 
 [links]
 download       = "#"   # [TBC] URL of the .tar.gz
 sha256         = "#"   # [TBC] URL of the .sha256 file
 github         = "#"   # [TBC] repository URL
-install_manual = "#"   # [TBC] INSTALL.md on GitHub
 
 
 # ── Browser tab, search results and link previews ────────────────────
 [page]
-title       = "Hermit CRM: a local CRM for one person, for Mac"
+title       = "Hermit CRM: a local CRM for one person, for Mac and Linux"
 # Meta description: the brief says to use the hero subline. Leave empty
 # to reuse [hero].subline automatically.
 description = ""
-# Full address of the live site, e.g. "https://hermitcrm.com". Needed so
+# Full address of the live site, e.g. "https://hermitcrm.io". Needed so
 # link previews (LinkedIn, Slack) can find the share image.
-site_url    = ""       # [TBC]
+site_url    = "https://hermitcrm.io"
 
 
 # ── Top bar ──────────────────────────────────────────────────────────
@@ -54,11 +51,12 @@ github_label = "GitHub [TBC]"
 [hero]
 h1 = "A CRM for one."
 subline = """
-Hermit CRM keeps every company, contact and conversation as a plain text
-file on your Mac. A local web app gives you a pipeline, a calendar, message
-drafts and dashboards. Your AI tools can work in it too.
+A free, open-source CRM for founders, freelancers and anyone doing their own
+sales. It keeps your companies, contacts and conversations as plain text files
+on your laptop, made to work with your AI tools. With a pipeline, a calendar,
+dashboards and enrichment from a company's website.
 """
-download_button = "Download for Mac"
+download_button = "Download for Mac and Linux"
 sha256_label    = "SHA-256"
 
 
@@ -66,8 +64,7 @@ sha256_label    = "SHA-256"
 [install]
 label = "Install with your AI"
 steps = [
-  "**Download and unpack it.** Double-click the file in Finder.",
-  "**Open the folder in your [AI coding tool](#requirements):** Claude Code, Codex, Cursor, Gemini CLI or another.",
+  "**Unpack and open the folder in your AI coding tool:** Claude Code, Codex, Cursor, Gemini CLI, Grok Build or another.",
   "**Send it this message:**",
 ]
 # The sentence people copy. The Copy button copies exactly this.
@@ -77,17 +74,11 @@ copied_label = "Copied"
 # Shown for 4 seconds when the browser refuses to copy; the message is then
 # selected, so the visitor can copy it with the keyboard.
 copy_failed_label = "Press ⌘C"
-note = """
-It checks your Mac, installs what is missing, asks your name and email
-addresses, and starts the app. Passwords and calendar links you type into
-the app's Settings page yourself, so they stay on your Mac.
-"""
-manual_link = "Prefer the terminal? Install by hand."
 
 
-# ── What it does ─────────────────────────────────────────────────────
+# ── What you get ─────────────────────────────────────────────────────
 [features]
-label = "What it does"
+label = "What you get"
 
 [[features.items]]
 name = "Pipeline"
@@ -98,8 +89,8 @@ name = "Calendar"
 text = "Overdue and due-today next steps, a month view, and a brief before each meeting."
 
 [[features.items]]
-name = "Contacts"
-text = "Companies and people in sortable tables, and one timeline per company of every email, call and meeting."
+name = "Companies and contacts"
+text = "Sortable tables of companies and people, and one timeline per company of every email, call and meeting."
 
 [[features.items]]
 name = "Messages"
@@ -113,7 +104,7 @@ text = "Weekly activity, funnel and conversion, time in stage, and which message
 # ── The three principles (bold word, then the sentence) ──────────────
 [[principles]]
 name = "Local."
-text = "It runs on your Mac. Your data is a folder of Markdown files in git, on your own disk."
+text = "It runs on your computer. Your data is a folder of Markdown files in git, on your own disk."
 
 [[principles]]
 name = "AI-native."
@@ -125,43 +116,34 @@ on every page.
 
 [[principles]]
 name = "Configurable."
-text = "One commented settings file, your own message wording, and any fields you add are kept."
+text = "Change the look, add fields and features, or ask your AI tool to change anything else. It is all open source."
 
 
 # ── One company, one file ────────────────────────────────────────────
 [file]
 label   = "The idea"
-heading = "One company, one file, one commit."
+heading = "One company, one file."
 # Screenshot of the app. Put the image in site/img/ and write its file
-# name here, e.g. "pipeline.png" (1600 x 1000 works well). While empty,
+# name here, e.g. "pipeline.png" (1600 x 800, or 3200 x 1600 for sharp screens). While empty,
 # the page shows a drawn placeholder of the pipeline board.
-screenshot     = ""
-screenshot_alt = "The Hermit CRM pipeline board in the browser, with the Acme card highlighted."
+screenshot     = "pipeline.png"
+screenshot_alt = "The Hermit CRM pipeline board in the browser, filled with made-up demo companies, Northwind Robotics among them."
 address_bar    = "127.0.0.1:8765"
-file_caption   = "The file behind the Acme card:"
-file_path      = "~/crm/companies/acme/company.md"
+file_caption   = "The file behind the Northwind Robotics card:"
+file_path      = "~/crm/companies/northwind-robotics/company.md"
 # Shown exactly as written, line by line.
 file_body = """
 ---
-name: Acme BV
-slug: acme
-website: https://acme.example.com
-country: NL
-source: other
-stage: prospect
-stage_changed: 2026-09-17
+name: Northwind Robotics
+website: northwind-robotics.com
+country: DE
+source: referral
+stage: offer
+stage_changed: 2026-09-15
+value_eur_month: 4000
+next_step: Follow up on the proposal
+next_step_due: 2026-09-24
 ..."""
-after = "Add a company in the app or from the terminal. Either way it becomes this file, and one commit records it."
-
-
-# ── Requirements ─────────────────────────────────────────────────────
-[requirements]
-label = "Requirements"
-items = [
-  "macOS [TBC: minimum version], Apple Silicon [TBC: and Intel]",
-  "An AI coding tool: Claude Code, Codex, Cursor, Gemini CLI or similar",
-  "Python 3.11 or newer and git. If they are missing, your AI tool installs them. On a Mac that has never been used for programming, you click Install once in an Apple dialog.",
-]
 
 
 # ── Questions (open = true shows the answer when the page loads) ─────
@@ -206,7 +188,7 @@ kept in a file only your user account can read.
 q = "Which AI tools work?"
 a = """
 For the install, any AI coding tool that can read a file and run commands:
-Claude Code, Codex, Cursor, Gemini CLI and others. Afterwards, Claude
+Claude Code, Codex, Cursor, Gemini CLI, Grok Build and others. Afterwards, Claude
 Desktop, ChatGPT, Cursor or any other MCP client can read your pipeline and
 log interactions.
 """
@@ -226,6 +208,10 @@ q = "Can my team use it?"
 a = "No. Hermit CRM is built for one person. If you need a team CRM, use one of the others."
 
 [[questions.items]]
+q = "Does it run on Windows?"
+a = "Not yet. Hermit CRM runs on macOS and Linux."
+
+[[questions.items]]
 q = "What does it cost?"
 a = "Nothing. It is free and open source under the Apache License 2.0. It is alpha software with no warranty and no support; see DISCLAIMER.md in the download."
 
@@ -233,11 +219,11 @@ a = "Nothing. It is free and open source under the Apache License 2.0. It is alp
 # ── Bottom of the page ───────────────────────────────────────────────
 [footer]
 # {github} is replaced by a link to [links].github labelled with
-# [header].github_label.
-text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · {github} · Built by Gijs Bos"
+# [header].github_label, {sha256} by a link to [links].sha256.
+text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · {github} · {sha256} · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
 
 
 # ── Share image (og.png, 1200 x 630) ─────────────────────────────────
 # Regenerate with: python3 build.py --share   (needs Playwright)
 [share]
-tagline = "Free for Mac · Apache 2.0"
+tagline = "Free for Mac and Linux · Apache 2.0"

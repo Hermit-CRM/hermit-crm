@@ -152,10 +152,8 @@ def attr(text: str) -> str:
 
 # ── Page parts ───────────────────────────────────────────────────────
 def meta_line(c: dict) -> str:
-    r, l = c["release"], c["links"]
-    return (f'<p class="meta">Version {md(r["version"])} · <code>{html.escape(r["file"])}</code>'
-            f' · {md(r["size"])} · <a href="{attr(l["sha256"])}">{md(c["hero"]["sha256_label"])}</a>'
-            f' · {md(r["license"])}</p>')
+    r = c["release"]
+    return f'<p class="meta">Version {md(r["version"])} · {md(r["license"])}</p>'
 
 
 def download_block(c: dict) -> str:
@@ -193,7 +191,8 @@ def render(c: dict) -> str:
     site_url = p["site_url"].rstrip("/")
     og = ""
     if site_url:
-        og = (f'<meta property="og:url" content="{attr(site_url)}/">\n'
+        og = (f'<link rel="canonical" href="{attr(site_url)}/">\n'
+              f'<meta property="og:url" content="{attr(site_url)}/">\n'
               f'<meta property="og:image" content="{attr(site_url)}/img/og.png">\n')
     github = f'<a href="{attr(c["links"]["github"])}">{md(c["header"]["github_label"])}</a>'
 
@@ -202,18 +201,19 @@ def render(c: dict) -> str:
                          for x in c["features"]["items"])
     principles = "\n".join(f"      <p><strong>{md(x['name'])}</strong> {md(x['text'])}</p>"
                            for x in c["principles"])
-    reqs = "\n".join(f"      <li>{md(x)}</li>" for x in c["requirements"]["items"])
     faqs = "\n".join(
         f'      <details{" open" if q.get("open") else ""}><summary>{md(q["q"])}</summary>'
         f'<p>{md(q["a"])}</p></details>' for q in c["questions"]["items"])
 
     if f["screenshot"]:
         visual = (f'<img src="img/{attr(f["screenshot"])}" alt="{attr(f["screenshot_alt"])}" '
-                  f'width="1600" height="1000" loading="lazy">')
+                  f'width="1600" height="800" loading="lazy">')
     else:
         visual = mock()
     file_body = html.escape(f["file_body"].strip("\n"))
-    footer = md(c["footer"]["text"].replace("{github}", "\x01")).replace("\x01", github)
+    sha256 = f'<a href="{attr(c["links"]["sha256"])}">{md(h["sha256_label"])}</a>'
+    footer = (md(c["footer"]["text"].replace("{github}", "\x01").replace("{sha256}", "\x02"))
+              .replace("\x01", github).replace("\x02", sha256))
 
     return f"""<!doctype html>
 <html lang="en">
@@ -260,8 +260,6 @@ def render(c: dict) -> str:
                 data-failed="{attr(i["copy_failed_label"])}"
                 aria-label="Copy the install message"><span aria-live="polite">{md(i["copy_button"])}</span></button>
       </div>
-      <p class="note indent">{md(i["note"])}</p>
-      <p class="manual indent"><a href="{attr(c["links"]["install_manual"])}">{md(i["manual_link"])}</a></p>
     </div>
   </section>
 
@@ -283,10 +281,9 @@ def render(c: dict) -> str:
 {file_body}</pre>
       </div>
     </div>
-    <p class="after narrow">{md(f["after"])}</p>
   </section>
 
-  <hr class="rule">
+  <hr class="rule blank">
 
   <section class="features col" aria-labelledby="features">
     <h2 class="label" id="features">{md(c["features"]["label"])}</h2>
@@ -298,28 +295,13 @@ def render(c: dict) -> str:
     </div>
   </section>
 
-  <hr class="rule">
-
-  <section class="requirements col" aria-labelledby="requirements">
-    <h2 class="label" id="requirements">{md(c["requirements"]["label"])}</h2>
-    <ul>
-{reqs}
-    </ul>
-  </section>
-
-  <hr class="rule">
+  <hr class="rule blank">
 
   <section class="questions col" aria-labelledby="questions">
     <h2 class="label" id="questions">{md(c["questions"]["label"])}</h2>
     <div>
 {faqs}
     </div>
-  </section>
-
-  <hr class="rule">
-
-  <section class="col" aria-label="Download">
-    {download_block(c)}
   </section>
 </main>
 
@@ -418,8 +400,26 @@ def build() -> tuple[dict, list[str], list[str]]:
     APP_TOKENS.write_text(app_css, encoding="utf-8")
     OUT.write_text(render(c), encoding="utf-8")
     print(f"built {OUT.relative_to(ROOT)} and {APP_TOKENS.relative_to(ROOT)}")
+    crawl(c["page"]["site_url"].rstrip("/"))
     problems, tbc = check(c)
     return c, problems, tbc
+
+
+def crawl(site_url: str) -> None:
+    """Write robots.txt and sitemap.xml for search engines, or drop them while
+    the site has no address yet (a sitemap needs absolute URLs)."""
+    robots, sitemap = SITE / "robots.txt", SITE / "sitemap.xml"
+    if not site_url:
+        robots.unlink(missing_ok=True)
+        sitemap.unlink(missing_ok=True)
+        return
+    robots.write_text(f"User-agent: *\nAllow: /\n\nSitemap: {site_url}/sitemap.xml\n",
+                      encoding="utf-8")
+    sitemap.write_text('<?xml version="1.0" encoding="UTF-8"?>\n'
+                       '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+                       f'  <url><loc>{html.escape(site_url)}/</loc></url>\n'
+                       '</urlset>\n', encoding="utf-8")
+    print("built site/robots.txt and site/sitemap.xml")
 
 
 def share(c: dict) -> None:
