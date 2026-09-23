@@ -1,0 +1,101 @@
+# Hermit CRM vs HubSpot  ->  /compare/hubspot/
+# Shared rows, labels and the Hermit CRM side are in index.toml.
+
+name    = "HubSpot"
+order   = 1        # position on the overview and in "Other comparisons"
+checked = 2026-09-23
+
+title = "Hermit CRM vs HubSpot: a free local CRM or a team platform"
+description = """
+Hermit CRM vs HubSpot on price, data, AI access and team use: when HubSpot fits better, and when a free local CRM for one person does.
+"""
+
+# Overview table on /compare/
+best_for = "Teams that want marketing, sales and service from one vendor"
+price    = "Free for up to 2 users; paid from $7 a seat a month"
+
+short_answer = """
+Choose **HubSpot** if a team shares the CRM, or if you want marketing, sales and
+service in one hosted platform. Choose **Hermit CRM** if you sell on your own,
+want your pipeline as plain files on your own computer, and want AI tools such
+as Claude Code to work on it directly. Hermit CRM is free; HubSpot is free for
+up to 2 users, and its paid plans are priced per seat.
+"""
+
+choose_other = [
+  "More than one person works the pipeline.",
+  "You want marketing email, forms, landing pages and the CRM from one vendor.",
+  "You want inbox sync, email tracking and a mobile app without setting anything up.",
+  "You need a vendor that supports you when something breaks.",
+  "You work on Windows.",
+]
+
+choose_hermit = [
+  "You do your own sales, as a founder or freelancer, and nobody else needs access.",
+  "You want your companies, contacts and conversations in files you can open, search and back up yourself.",
+  "You work with Claude Code, Codex or another AI agent and want it to read and update your pipeline without an API key.",
+  "You want every change recorded and reversible.",
+  "You would rather not pay per seat, or move up a plan to keep a feature.",
+]
+
+switch = [
+  "In HubSpot, export your companies and contacts as CSV or Excel files.",
+  "In Hermit CRM, choose **Import a spreadsheet** on the home page and upload each file. It recognises HubSpot's column names, shows a preview, and writes nothing until you confirm.",
+  "Set up BCC capture in Settings, so new mail is logged from then on. Email history and notes stay in HubSpot.",
+]
+
+# One cell per row of the table; the keys are the rows in index.toml.
+[cells]
+price     = "Free for up to 2 users. Sales Hub Starter from $7 a seat a month billed yearly, or $20 billed monthly. Professional from $90 a seat a month billed yearly, plus a one-time $1,500 onboarding fee."
+data      = "In HubSpot's cloud."
+format    = "Records in HubSpot's database. Export to CSV or Excel."
+offline   = "No. It is a hosted service."
+team      = "Yes. Seats, teams, roles and permissions."
+ai        = "An API and an official MCP server. Built-in AI features use HubSpot Credits, a monthly allowance per plan."
+email     = "Gmail and Outlook inbox connection, email tracking and BCC logging."
+history   = "Property history on each record."
+code      = "Closed source."
+platforms = "Browser, iOS and Android."
+setup     = "Sign up in the browser."
+support   = "A mature product. Support depends on the plan."
+
+[[faq]]
+q = "Is Hermit CRM a free alternative to HubSpot?"
+a = """
+For one person, yes. Hermit CRM is free and open source and has no seats to
+count. It does not replace HubSpot's marketing tools, and it is not built for
+teams.
+"""
+
+[[faq]]
+q = "Can I move my data from HubSpot to Hermit CRM?"
+a = """
+Companies and contacts, yes: export them from HubSpot as CSV or Excel and
+import the files in Hermit CRM, which recognises HubSpot's column names. Email
+history does not come across.
+"""
+
+[[faq]]
+q = "Does Hermit CRM have AI like HubSpot?"
+a = """
+Hermit CRM has no AI of its own and no credits. It uses the AI tool you already
+have: Ask Hermit sends your question to Claude, Codex, Gemini or another
+command line tool on your computer, and agents can read the files or use the
+MCP server.
+"""
+
+[[faq]]
+q = "Is HubSpot's free CRM enough for a solo founder?"
+a = """
+Often, yes, if you are happy with your data in HubSpot's cloud. The free plan
+covers up to 2 users. Hermit CRM is the choice when you want the data on your
+own computer, in plain files your AI tools can read.
+"""
+
+[[sources]]
+label = "HubSpot Sales Hub pricing"
+url   = "https://www.hubspot.com/pricing/sales"
+
+[[sources]]
+label = "HubSpot MCP server"
+url   = "https://developers.hubspot.com/mcp"

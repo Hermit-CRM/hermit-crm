@@ -1,0 +1,96 @@
+# Hermit CRM vs Attio  ->  /compare/attio/
+# Shared rows, labels and the Hermit CRM side are in index.toml.
+
+name    = "Attio"
+order   = 2
+checked = 2026-09-23
+
+title = "Hermit CRM vs Attio: local files or a flexible cloud CRM"
+description = """
+Hermit CRM vs Attio on price, data model, AI access and team use: when Attio fits better, and when a free local CRM in plain files does.
+"""
+
+best_for = "Start-up teams that want a flexible data model and automatic mail sync"
+price    = "Free for up to 3 seats; paid from €31 a seat a month"
+
+short_answer = """
+Choose **Attio** if a small team shares the CRM, or you want your own objects
+and records built automatically from your mailbox and calendar. Choose
+**Hermit CRM** if you work alone and want your pipeline as plain files on your
+own computer, readable by any AI tool without an API key. Hermit CRM is free;
+Attio is free for up to 3 seats, and paid plans start at €31 a seat a month.
+"""
+
+choose_other = [
+  "Two or more people share the pipeline.",
+  "You want the CRM to fill itself from your mailbox and calendar.",
+  "You need custom objects, lists and views beyond companies, contacts and deals.",
+  "You want a mobile app and a vendor that supports you.",
+  "You work on Windows.",
+]
+
+choose_hermit = [
+  "You are the only one who sells, and you want no seats, plans or credits to manage.",
+  "You want every company, contact and conversation as a file on your own disk.",
+  "You want an AI agent to read and update the pipeline through files and a CLI, not through an API.",
+  "You would rather log the mail that matters, by BCC, than sync your whole inbox to a vendor.",
+  "You want every change kept in git, so you can see and undo it.",
+]
+
+switch = [
+  "In Attio, export the companies and people lists you want as CSV.",
+  "In Hermit CRM, choose **Import a spreadsheet** on the home page and upload each file. It recognises Attio's column names, shows a preview, and writes nothing until you confirm.",
+  "Custom fields you need can be added in Settings. Columns without a field are kept in the notes, so nothing is lost.",
+]
+
+# One cell per row of the table; the keys are the rows in index.toml.
+[cells]
+price     = "Free for up to 3 seats and 50,000 records. Plus €31 a seat a month billed yearly, or €39 monthly. Pro €74 a seat a month billed yearly, or €93 monthly."
+data      = "In Attio's cloud."
+format    = "Records in Attio's database, with objects and attributes you define. Export to CSV."
+offline   = "No. It is a hosted service."
+team      = "Yes. Workspaces, seats and permissions."
+ai        = "Built-in AI with monthly credits per seat, an API and an official MCP server."
+email     = "Gmail and Outlook sync. Contacts and companies are created from your mail and calendar."
+history   = "Activity history on each record."
+code      = "Closed source."
+platforms = "Browser, iOS and Android."
+setup     = "Sign up in the browser and connect your mailbox."
+support   = "A mature product. Support depends on the plan."
+
+[[faq]]
+q = "Is Hermit CRM an alternative to Attio?"
+a = """
+For one person, yes. Both give you companies, contacts and a pipeline. Attio
+is a hosted CRM for teams with automatic mail sync; Hermit CRM is a free
+local app for one person, with the data in plain files.
+"""
+
+[[faq]]
+q = "Can I import my Attio data into Hermit CRM?"
+a = """
+Companies and people, yes. Export them from Attio as CSV and import them in
+Hermit CRM, which recognises Attio's column names. Columns it has no field
+for are kept as notes.
+"""
+
+[[faq]]
+q = "Which works better with AI tools?"
+a = """
+Both work with Claude and other assistants. Attio does it through its hosted
+MCP server and API, with your account and OAuth. Hermit CRM does it on your
+computer: an agent reads the Markdown files directly, or uses the CLI or the
+local MCP server, and every change it makes is a git commit you can undo.
+"""
+
+[[sources]]
+label = "Attio pricing"
+url   = "https://attio.com/pricing"
+
+[[sources]]
+label = "Attio MCP documentation"
+url   = "https://docs.attio.com/mcp/overview"
+
+[[sources]]
+label = "Attio on mobile"
+url   = "https://attio.com/help/reference/tools-and-extensions/attio-on-mobile"

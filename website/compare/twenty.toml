@@ -1,0 +1,91 @@
+# Hermit CRM vs Twenty  ->  /compare/twenty/
+# Shared rows, labels and the Hermit CRM side are in index.toml.
+
+name    = "Twenty"
+order   = 5
+checked = 2026-09-23
+
+title = "Hermit CRM vs Twenty: two open-source CRMs compared"
+description = """
+Hermit CRM vs Twenty, two open-source CRMs, on licence, hosting, data format and team use: when each one is the better choice.
+"""
+
+best_for = "Teams that want an open-source CRM they can self-host or buy as a service"
+price    = "Self-hosting is free; cloud from $9 a user a month billed yearly"
+
+short_answer = """
+Both are open source. Choose **Twenty** if a team shares the CRM and you can
+run a server with Docker, or want its hosted cloud. Choose **Hermit CRM** if
+you work alone and want the CRM on your own laptop, with no server and no
+database: every record is a Markdown file in git that you and your AI tools
+can read.
+"""
+
+choose_other = [
+  "A team shares the CRM.",
+  "You want custom objects and a data model you design.",
+  "You want full mailbox and calendar sync.",
+  "You are comfortable running a server with Docker and PostgreSQL, or want a hosted service.",
+  "You work on Windows, or want a CRM in the browser from any device.",
+]
+
+choose_hermit = [
+  "You work alone and want nothing to host: no server, no Docker, no database.",
+  "You want every record as a Markdown file you can open in any editor, grep and diff.",
+  "You want every change kept as a git commit.",
+  "You want an AI agent to work on the files directly, or through the CLI and the MCP server.",
+  "You prefer the Apache License 2.0 to the AGPL.",
+]
+
+switch = [
+  "In Twenty, export your companies and people as CSV.",
+  "In Hermit CRM, choose **Import a spreadsheet** on the home page and upload each file. It shows a preview and writes nothing until you confirm.",
+  "Columns Hermit CRM has no field for are kept in the notes. Add fields in Settings if you want them as columns.",
+]
+
+# One cell per row of the table; the keys are the rows in index.toml.
+[cells]
+price     = "Self-hosting is free. Cloud: Pro $9 a user a month billed yearly, Organization $19. A 30-day trial."
+data      = "On your own server, or in Twenty's cloud."
+format    = "A PostgreSQL database, with objects and fields you define. Export to CSV."
+offline   = "Only if you run the server on your own computer."
+team      = "Yes. Workspaces, members, roles and permissions."
+ai        = "REST and GraphQL APIs, and workflows."
+email     = "Gmail and Outlook mailbox and calendar sync."
+history   = "A timeline of changes on each record."
+code      = "Open source, AGPL-3.0. Some enterprise files are under a commercial licence."
+platforms = "Browser, on any system. Self-hosting runs in Docker."
+setup     = "Sign up for the cloud, or run it with Docker Compose and PostgreSQL."
+support   = "Actively developed with a large community. Support on the cloud plans."
+
+[[faq]]
+q = "What is the difference between Hermit CRM and Twenty?"
+a = """
+Both are open source. Twenty is a CRM for teams that runs as a server with
+PostgreSQL, self-hosted or in its cloud. Hermit CRM is a CRM for one person
+that runs on your laptop and keeps every record as a Markdown file in git.
+"""
+
+[[faq]]
+q = "Do I need Docker to run Hermit CRM?"
+a = """
+No. Hermit CRM needs Python 3.11 and git, and your AI coding tool installs
+both when they are missing. There is no database: the data is a folder of
+files.
+"""
+
+[[faq]]
+q = "Which licence do they use?"
+a = """
+Hermit CRM uses the Apache License 2.0. Twenty is mostly under the GNU Affero
+General Public License 3.0, with some enterprise files under a commercial
+licence.
+"""
+
+[[sources]]
+label = "Twenty pricing"
+url   = "https://twenty.com/pricing"
+
+[[sources]]
+label = "Twenty licence (GitHub)"
+url   = "https://github.com/twentyhq/twenty/blob/main/LICENSE"

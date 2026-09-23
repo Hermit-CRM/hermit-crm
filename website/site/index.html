@@ -4,13 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hermit CRM: a local CRM for one person, for Mac and Linux</title>
-<meta name="description" content="A free, open-source CRM for founders, freelancers and anyone doing their own sales. It keeps your companies, contacts and conversations as plain text files on your laptop, made to work with your AI tools. With a pipeline, a calendar, dashboards and enrichment from a company&#x27;s website.">
+<meta name="description" content="A free, open-source CRM for founders and freelancers. Your companies, contacts and conversations as plain files on your laptop, made for your AI tools.">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Hermit CRM: a local CRM for one person, for Mac and Linux">
-<meta property="og:description" content="A free, open-source CRM for founders, freelancers and anyone doing their own sales. It keeps your companies, contacts and conversations as plain text files on your laptop, made to work with your AI tools. With a pipeline, a calendar, dashboards and enrichment from a company&#x27;s website.">
+<meta property="og:description" content="A free, open-source CRM for founders and freelancers. Your companies, contacts and conversations as plain files on your laptop, made for your AI tools.">
 <link rel="canonical" href="https://hermitcrm.io/">
 <meta property="og:url" content="https://hermitcrm.io/">
 <meta property="og:image" content="https://hermitcrm.io/img/og.png">
+<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
+<meta property="og:site_name" content="Hermit CRM">
+<meta property="og:locale" content="en_GB">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Hermit CRM: A CRM for one. Free for Mac and Linux, Apache 2.0.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#F5F1E8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#1C1B18" media="(prefers-color-scheme: dark)">
@@ -19,6 +25,37 @@
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
 <link rel="stylesheet" href="app-tokens.css">
 <link rel="stylesheet" href="style.css">
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@graph": [
+  {
+   "@type": "WebSite",
+   "@id": "https://hermitcrm.io/#website",
+   "url": "https://hermitcrm.io/",
+   "name": "Hermit CRM",
+   "inLanguage": "en"
+  },
+  {
+   "@type": "SoftwareApplication",
+   "@id": "https://hermitcrm.io/#software",
+   "name": "Hermit CRM",
+   "url": "https://hermitcrm.io/",
+   "description": "Hermit CRM is a free, open-source CRM for founders, freelancers and anyone doing their own sales. It runs on your Mac or Linux computer and keeps every company, contact and conversation as a Markdown file in a git folder on your own disk. A local web app gives you a pipeline board, a calendar of next steps, message drafts and reports. AI tools such as Claude Code, Codex or Claude Desktop can read and update the pipeline through the files, a small CLI or the built-in MCP server. It is alpha software under the Apache License 2.0, with no warranty and no support.",
+   "applicationCategory": "BusinessApplication",
+   "operatingSystem": "macOS, Linux",
+   "softwareVersion": "0.4.1",
+   "license": "https://www.apache.org/licenses/LICENSE-2.0",
+   "isAccessibleForFree": true,
+   "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "EUR"
+   }
+  }
+ ]
+}
+</script>
 </head>
 <body>
 <!-- Built from content.toml by build.py. Edit the text there, not here. -->
@@ -26,7 +63,7 @@
 
 <header class="site-header wide">
   <a class="brand" href="./" aria-label="Hermit CRM home"><svg viewBox="4.5 10.5 55 43" aria-hidden="true" focusable="false"><rect x="7" y="13" width="50" height="38" rx="7" fill="none" stroke="currentColor" stroke-width="5"/><circle cx="24" cy="27" r="5.5" fill="#1E8A60"/><path d="M16 43 a8 8 0 0 1 16 0 z" fill="#1E8A60"/><rect x="38" y="25" width="12" height="4" rx="2" fill="currentColor"/><rect x="38" y="34" width="8" height="4" rx="2" fill="currentColor"/></svg><span>Hermit CRM</span></a>
-  <a href="#">GitHub [TBC]</a>
+  
 </header>
 
 <main id="main">
@@ -34,8 +71,8 @@
     <h1>A CRM for one.</h1>
     <p class="subline">A free, open-source CRM for founders, freelancers and anyone doing their own sales. It keeps your companies, contacts and conversations as plain text files on your laptop, made to work with your AI tools. With a pipeline, a calendar, dashboards and enrichment from a company's website.</p>
     <div class="download">
-  <a class="btn" href="#">Download for Mac and Linux</a>
-  <p class="meta">Version 0.4 · Apache 2.0</p>
+  <a class="btn" href="download/hermitcrm-0.4.1.tar.gz">Download for Mac and Linux</a>
+  <p class="meta">Version 0.4.1 · Apache 2.0</p>
 </div>
 
     <div class="install">
@@ -113,13 +150,14 @@ next_step_due: 2026-09-24
       <details><summary>Which AI tools work?</summary><p>For the install, any AI coding tool that can read a file and run commands: Claude Code, Codex, Cursor, Gemini CLI, Grok Build and others. Afterwards, Claude Desktop, ChatGPT, Cursor or any other MCP client can read your pipeline and log interactions.</p></details>
       <details><summary>Does it work with my email and calendar?</summary><p>Yes, without OAuth. BCC or forward mail to an address such as you+crm@gmail.com and it is logged on the right contact. Past meetings come in from your calendar's secret ICS link (Google, Outlook or iCloud). You type the app password and the link into the Settings page yourself, so they never pass through an AI chat.</p></details>
       <details><summary>Can my team use it?</summary><p>No. Hermit CRM is built for one person. If you need a team CRM, use one of the others.</p></details>
+      <details><summary>How does it compare with HubSpot, Attio or Pipedrive?</summary><p>Those are hosted CRMs for teams, priced per seat, with your data in their cloud. Hermit CRM is free, for one person, and keeps your data on your own computer. <a href="compare/">Hermit CRM compared</a> puts it side by side with HubSpot, Attio, Pipedrive, folk, Twenty and Notion, and says when each one is the better choice.</p></details>
       <details><summary>Does it run on Windows?</summary><p>Not yet. Hermit CRM runs on macOS and Linux.</p></details>
       <details><summary>What does it cost?</summary><p>Nothing. It is free and open source under the Apache License 2.0. It is alpha software with no warranty and no support; see DISCLAIMER.md in the download.</p></details>
     </div>
   </section>
 </main>
 
-<footer class="site-footer col">Hermit CRM · Apache License 2.0 · alpha, no warranty · <a href="#">GitHub [TBC]</a> · <a href="#">SHA-256</a> · Built by <a href="https://www.linkedin.com/in/gijsbos">Gijs Bos</a></footer>
+<footer class="site-footer col">Hermit CRM · Apache License 2.0 · alpha, no warranty · <a href="download/hermitcrm-0.4.1.tar.gz.sha256">SHA-256</a> · <a href="compare/">Compare</a> · Built by <a href="https://www.linkedin.com/in/gijsbos">Gijs Bos</a></footer>
 
 <script>
 // Copy button: shown only when scripts run. "Copied" only when the copy

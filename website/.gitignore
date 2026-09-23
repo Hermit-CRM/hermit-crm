@@ -1,3 +1,5 @@
 .DS_Store
 site/_share.html
 __pycache__/
+# Release files are copied in before a deploy; see README, Publishing a build.
+site/download/

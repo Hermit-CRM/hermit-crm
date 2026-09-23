@@ -1,0 +1,92 @@
+# Hermit CRM vs folk  ->  /compare/folk/
+# Shared rows, labels and the Hermit CRM side are in index.toml.
+
+name    = "folk"
+order   = 4
+checked = 2026-09-23
+
+title = "Hermit CRM vs folk: a free local CRM or a relationship CRM"
+description = """
+Hermit CRM vs folk on price, data, AI access and team use: when folk's relationship CRM fits better, and when a free local CRM does.
+"""
+
+best_for = "Small teams that manage relationships and outreach from LinkedIn and mail"
+price    = "No free plan; from €22 a member a month billed yearly"
+
+short_answer = """
+Choose **folk** if you work with a small team, manage many relationships and
+want contacts enriched and captured from LinkedIn and your mailbox for you.
+Choose **Hermit CRM** if you work alone and want your companies, contacts and
+conversations as plain files on your own computer, with AI tools reading them
+directly. Hermit CRM is free; folk has a 14-day trial and starts at €22 a
+member a month billed yearly.
+"""
+
+choose_other = [
+  "A few people share the same contacts and pipelines.",
+  "You want contacts enriched with emails and company data for you.",
+  "You want mail campaigns and follow-ups sent from the CRM.",
+  "You want a mobile app and a vendor that supports you.",
+  "You work on Windows.",
+]
+
+choose_hermit = [
+  "You work alone and want no subscription.",
+  "You want your contacts and conversations as files on your own disk.",
+  "You want an AI agent to read and update your CRM through files and a CLI, and every change it makes kept in git.",
+  "You want to add a contact from a LinkedIn profile without installing an extension: Hermit CRM uses a bookmarklet that reads the page in your own tab.",
+  "You want message drafts in your own wording, in English, German, Dutch or French.",
+]
+
+switch = [
+  "In folk, export your contacts and companies as CSV.",
+  "In Hermit CRM, choose **Import a spreadsheet** on the home page and upload each file. It shows a preview and writes nothing until you confirm.",
+  "Columns Hermit CRM has no field for are kept in the notes. Add fields in Settings if you want them as columns.",
+]
+
+# One cell per row of the table; the keys are the rows in index.toml.
+[cells]
+price     = "No free plan; a 14-day trial. Standard €22 a member a month billed yearly, or €27 monthly. Premium €43 billed yearly, or €54 monthly."
+data      = "In folk's cloud."
+format    = "Records in folk's database. Export to CSV."
+offline   = "No. It is a hosted service."
+team      = "Yes. Members share groups, contacts and pipelines."
+ai        = "Built-in AI assistants, an API and an MCP server."
+email     = "Gmail and Outlook sync: one mailbox per member on Standard, five on Premium."
+history   = "Notes and interactions on each contact."
+code      = "Closed source."
+platforms = "Browser, a Chrome extension, iOS and Android."
+setup     = "Sign up in the browser and connect your mailbox."
+support   = "A mature product with a support team."
+
+[[faq]]
+q = "Is Hermit CRM an alternative to folk?"
+a = """
+For one person, yes. folk is a hosted relationship CRM for small teams, with
+enrichment and mail sync. Hermit CRM is a free local CRM for one person that
+keeps the data in plain files on your computer.
+"""
+
+[[faq]]
+q = "Can Hermit CRM add contacts from LinkedIn like folk?"
+a = """
+Yes, one at a time. Its bookmarklet turns a LinkedIn profile you are looking
+at into a filled-in contact form, read in your own browser tab. It does not
+look up email addresses for you.
+"""
+
+[[faq]]
+q = "Does Hermit CRM enrich contacts?"
+a = """
+It fills in company details from a company's website for free, or through an
+AI command line tool you already use, such as Claude or Codex. It has no
+database of contact data of its own.
+"""
+
+[[sources]]
+label = "folk pricing"
+url   = "https://www.folk.app/pricing"
+
+[[sources]]
+label = "folk mobile app"
+url   = "https://help.folk.app/en/articles/15178507-download-the-folk-mobile-app"
