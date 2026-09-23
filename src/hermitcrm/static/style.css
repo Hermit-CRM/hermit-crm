@@ -109,7 +109,7 @@ input, select, textarea, button { color: inherit; }
     border-right: 0; border-bottom: 1px solid var(--line); }
   nav.sidebar .brand { width: 100%; padding-bottom: 6px; }
   nav.sidebar a:not(.brand), nav.sidebar .nav-button { width: auto; }
-  .sidebar-foot { margin: 0; padding: 0; border: 0; }
+  .sidebar-foot { margin: 0; padding: 0; border: 0; display: flex; flex-wrap: wrap; }
   /* Too narrow to centre anything: search takes the room, Ask keeps its corner. */
   .topbar { padding: 8px 16px; grid-template-columns: 1fr auto; }
   .topbar .search { grid-column: 1; justify-self: stretch; }

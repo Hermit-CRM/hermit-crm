@@ -545,6 +545,10 @@ def build_enricher(config: dict) -> Enricher:
     )
 
 
+# Where "Support Hermit" in the sidebar and in Settings points. A plain link:
+# no widget script, so the CSP below stays as it is.
+SUPPORT_URL = "https://ko-fi.com/gijsbos"
+
 CSP = ("default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
        "script-src 'self' 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'")
 
@@ -920,6 +924,7 @@ def create_app(root: Path, config: dict | None = None,
         outcomes=outcomes,
         message_statuses=message_statuses(outcomes),
         hermitcrm_version=__version__,
+        support_url=SUPPORT_URL,
         asset_version=asset_version(),
         update_notice=app.state.update_notice,
         render_markdown=helpdocs.render,

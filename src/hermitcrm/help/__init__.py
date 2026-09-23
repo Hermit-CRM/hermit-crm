@@ -155,7 +155,10 @@ def inline(text: str) -> str:
             href = _safe_href(html.unescape(m.group(2)))
             if not href:
                 return m.group(0)
-            return f'<a href="{html.escape(href, quote=True)}">{m.group(1)}</a>'
+            # Links out of the app open in a new tab, as they do elsewhere in
+            # the app, so the page you were reading stays where it was.
+            new_tab = ' target="_blank" rel="noopener"' if href.startswith(("http://", "https://")) else ""
+            return f'<a href="{html.escape(href, quote=True)}"{new_tab}>{m.group(1)}</a>'
 
         out.append(_LINK.sub(link, part))
     return "".join(out)

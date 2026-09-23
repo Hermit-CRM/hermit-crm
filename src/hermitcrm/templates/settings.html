@@ -8,7 +8,7 @@
 <p class="small settings-toc">
   <a href="#you">You</a> &middot; <a href="#bcc">BCC capture</a> &middot; <a href="#calendar">Calendar</a> &middot;
   <a href="#backup">Backup</a> &middot; <a href="#appearance">Appearance</a> &middot; <a href="#fields">Fields</a> &middot; <a href="#messaging">Drafts</a> &middot; <a href="#enrichment">AI</a> &middot; <a href="#task-types">Task types</a> &middot; <a href="#outcomes">Outcomes</a> &middot;
-  <a href="#schedule">Schedule</a> &middot; <a href="#access">Access</a> &middot; <a href="#about">About</a>
+  <a href="#schedule">Schedule</a> &middot; <a href="#access">Access</a> &middot; <a href="#support">Support Hermit</a> &middot; <a href="#about">About</a>
   &middot; <a href="/help/settings">Help</a>
 </p>
 <p class="small">{% if os_store %}Secrets are stored in <code>.secrets.toml</code> (mode 600) or {{ os_store_label }}, never in <code>config.toml</code>.{% if os_store == 'secret-service' %} A keyring is locked while you are logged out, so a daily import that runs then cannot read the password; keep it in <code>.secrets.toml</code> if the machine imports without you logged in.{% endif %}{% elif is_windows %}Secrets are stored in <code>.secrets.toml</code>, never in <code>config.toml</code>. They are plain text, readable only by your user account and never committed to git.{% else %}Secrets are stored in <code>.secrets.toml</code>, never in <code>config.toml</code>. No system keyring was found (install <code>libsecret-tools</code> and run a Secret Service such as GNOME Keyring or KWallet to use one), so they are plain text, readable only by your user account (mode 600) and never committed to git.{% endif %} Everything else is written to <code>config.toml</code>, comments kept.{% if setup_pending %} <a href="/">Skip for now</a>{% endif %}</p>
@@ -354,6 +354,13 @@
   <p>It speaks on stdin and stdout, so you do not run it yourself: paste this into your client's MCP config and it starts it for you. That also means the client must run on this machine &mdash; a phone app cannot reach it. For the phone, use the section above.</p>
   <pre class="copy"><code>{{ access.mcp_config }}</code></pre>
   <p class="small">Details and the full tool list: <a href="/help/ai-agents">AI agents</a>.</p>
+</section>
+
+<section class="setup-step" id="support">
+  <h2>Support Hermit</h2>
+  <p>Hermit CRM is free and open source, and stays that way. If it earns its place in your week, you can support its development with a tip on Ko-fi.</p>
+  <p><a class="button" href="{{ support_url }}" target="_blank" rel="noopener">Support Hermit on Ko-fi</a></p>
+  <p class="small">Opens <code>{{ support_url | replace('https://', '') }}</code> in your browser. Nothing in the app depends on it, and Hermit CRM sends nothing to Ko-fi.</p>
 </section>
 
 <section class="setup-step" id="about">
