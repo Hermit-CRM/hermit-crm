@@ -1,6 +1,6 @@
 # Settings
 
-`/settings`: who you are, mail and calendar capture, backup, appearance, fields of your own, AI (Enrich and Ask the Hermit), outcomes, the daily schedule, access from a phone or an AI client, and About.
+`/settings`: who you are, mail and calendar capture, backup, appearance, fields of your own, AI (Enrich and Ask the Hermit), outcomes, the daily schedule, access from a phone or an AI client, Support Hermit, and About.
 
 Every section writes `config.toml` in the data folder, keeping its comments;
 secrets (the mail app password, the calendar URL) go to `.secrets.toml`
@@ -230,6 +230,13 @@ starts it. Because it is a local process talking over a pipe, the client has to
 run on this machine: a phone app cannot reach it, and the phone route is the
 web app above. Seven read tools and three writes, the writes committing exactly
 as the web form does. [AI agents](/help/ai-agents) has the tool list.
+
+## Support Hermit
+
+Hermit CRM is free and open source. The Support Hermit link here and at the
+bottom of the sidebar opens its Ko-fi page in your browser, where you can leave
+a tip. It is a plain link: the app loads nothing from Ko-fi and sends it
+nothing, and nothing in the app changes whether you give or not.
 
 ## About
 
