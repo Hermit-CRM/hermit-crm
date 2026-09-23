@@ -1,0 +1,89 @@
+# Hermit CRM vs Notion  ->  /compare/notion/
+# Shared rows, labels and the Hermit CRM side are in index.toml.
+
+name    = "Notion"
+order   = 6
+checked = 2026-09-23
+
+title = "Hermit CRM vs Notion as a CRM: files or a template"
+description = """
+Hermit CRM vs a Notion CRM template on price, data, mail logging and follow-ups: when Notion is enough, and when a local CRM does more.
+"""
+
+best_for = "People who already run their work in Notion and want a simple sales list"
+price    = "Free for one person; Plus €9.50 a member a month"
+
+short_answer = """
+Choose **Notion** if you already work in Notion, share it with others, and a
+database with a board view is all the CRM you need. Choose **Hermit CRM** if you
+want a CRM that does CRM work for you: mail logged on the right contact by BCC,
+a follow-up radar for unanswered threads, meeting briefs and reports, with the
+data as plain files on your own computer. Both are free for one person.
+"""
+
+choose_other = [
+  "You already run your notes, docs and projects in Notion and want sales next to them.",
+  "Others work in the same workspace.",
+  "A list of leads with a status column is all you need.",
+  "You want apps on Windows and on your phone.",
+]
+
+choose_hermit = [
+  "You want mail and meetings logged on the right company without copying them by hand.",
+  "You want to see which threads wait for your answer, and which went quiet.",
+  "You want a brief before each meeting, reports on your funnel and which messages get answers.",
+  "You want the data on your own disk, as Markdown files in git, not in a workspace in the cloud.",
+  "You want an AI agent to read and update your pipeline from your own computer.",
+]
+
+switch = [
+  "In Notion, export your CRM database as CSV.",
+  "In Hermit CRM, choose **Import a spreadsheet** on the home page and upload the file. It shows a preview and writes nothing until you confirm.",
+  "Columns Hermit CRM has no field for are kept in the notes. Add fields in Settings if you want them as columns.",
+]
+
+# One cell per row of the table; the keys are the rows in index.toml.
+[cells]
+price     = "Free for one person. Plus €9.50 a member a month, Business €19.50."
+data      = "In Notion's cloud, with offline access to pages you choose."
+format    = "Notion pages and databases. Export to Markdown and CSV."
+offline   = "Partly. Pages you download for offline use."
+team      = "Yes. Workspaces, members and guests."
+ai        = "Notion AI, an API and an official MCP server."
+email     = "Not built into a CRM database. People connect mail through integrations."
+history   = "Page history: 7 days on the Free plan, longer on paid plans."
+code      = "Closed source."
+platforms = "Browser, Mac, Windows, iOS and Android."
+setup     = "Sign up and build or copy a CRM template."
+support   = "A mature product. Support depends on the plan."
+
+[[faq]]
+q = "Is Notion good enough as a CRM?"
+a = """
+For a short list of leads, often yes. It becomes work when you want mail
+logged on contacts, reminders for follow-ups, and reports: in Notion you build
+and maintain those yourself. Hermit CRM has them built in.
+"""
+
+[[faq]]
+q = "Both keep Markdown. What is the difference?"
+a = """
+Notion stores your pages in its cloud and can export them as Markdown. Hermit
+CRM stores them as Markdown from the start, in a folder on your computer, and
+commits every change to git.
+"""
+
+[[faq]]
+q = "Can I move my Notion CRM to Hermit CRM?"
+a = """
+Yes. Export the Notion database as CSV and import it in Hermit CRM. It shows a
+preview first, and columns it has no field for are kept as notes.
+"""
+
+[[sources]]
+label = "Notion pricing"
+url   = "https://www.notion.com/pricing"
+
+[[sources]]
+label = "Notion MCP documentation"
+url   = "https://developers.notion.com/guides/mcp/overview"

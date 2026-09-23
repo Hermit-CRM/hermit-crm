@@ -1,0 +1,149 @@
+# ─────────────────────────────────────────────────────────────────────
+#  Comparison pages: the overview at /compare/ and the shared parts of
+#  every /compare/<name>/ page. One file per other CRM sits beside this
+#  one (hubspot.toml, attio.toml, ...); its file name is its address.
+#
+#  Same rules as content.toml: no em dashes, no exclamation marks, none
+#  of the banned words, and `python3 build.py --release` checks them.
+#
+#  Every claim about another product needs a source in its file and the
+#  date you checked it (`checked`). Prices change often: check them again
+#  before you change `checked`.
+# ─────────────────────────────────────────────────────────────────────
+
+[page]
+title       = "Hermit CRM vs HubSpot, Attio, Pipedrive, folk, Twenty, Notion"
+description = """
+How Hermit CRM, a free local CRM for one person, compares with HubSpot, Attio,
+Pipedrive, folk, Twenty and Notion on price, data and AI access.
+"""
+h1    = "Hermit CRM compared with other CRMs"
+intro = """
+Hermit CRM is for one person doing their own sales. Most CRMs are built for
+teams, run in the vendor's cloud and charge per seat. That makes them the
+better choice for many people, and the pages below say when. This overview
+lists what is different, with prices from each vendor's own pricing page.
+"""
+# Column headings of the overview table.
+table_caption = "Hermit CRM and six other CRMs at a glance"
+col_crm       = "CRM"
+col_best_for  = "Best for"
+col_price     = "Price for one person"
+col_data      = "Where your data lives"
+col_code      = "Source code"
+
+
+# ── Hermit CRM in one paragraph ──────────────────────────────────────
+# Shown on every comparison page, so each page explains Hermit CRM on its own
+# to a reader (or an AI search engine) that lands there first.
+[hermit]
+name     = "Hermit CRM"
+best_for = "One person doing their own sales, who wants the data on their own computer"
+price    = "Free"
+about = """
+**Hermit CRM** is a free, open-source CRM for founders, freelancers and anyone
+doing their own sales. It runs on your Mac or Linux computer and keeps every
+company, contact and conversation as a Markdown file in a git folder on your
+own disk. A local web app gives you a pipeline board, a calendar of next steps,
+message drafts and reports. AI tools such as Claude Code, Codex or Claude
+Desktop can read and update the pipeline through the files, a small CLI or the
+built-in MCP server. It is alpha software under the Apache License 2.0, with no
+warranty and no support.
+"""
+
+
+# ── The rows of every comparison table, in this order ────────────────
+# `hermit` is Hermit CRM's side. Each other CRM's file fills the same keys
+# under [cells].
+[[rows]]
+key    = "price"
+label  = "Price for one person"
+hermit = "Free and open source. There is no paid plan."
+
+[[rows]]
+key    = "data"
+label  = "Where your data lives"
+hermit = "In a folder on your own computer."
+
+[[rows]]
+key    = "format"
+label  = "Data format"
+hermit = "Markdown files with YAML front matter: one per company, contact and conversation. Readable without the app."
+
+[[rows]]
+key    = "offline"
+label  = "Works offline"
+hermit = "Yes. It runs on your computer. Mail import, enrichment and Ask Hermit need the internet."
+
+[[rows]]
+key    = "team"
+label  = "Team use"
+hermit = "No. It is built for one person."
+
+[[rows]]
+key    = "ai"
+label  = "AI tools"
+hermit = "Your AI tool reads the files, runs the CLI or connects to the local MCP server. No API key, no OAuth. Ask Hermit uses the AI command line tool you already have."
+
+[[rows]]
+key    = "email"
+label  = "Email and calendar"
+hermit = "BCC or forward mail to a Gmail address you choose, and it is logged on the right contact. Past meetings come from your calendar's ICS link. No inbox sync."
+
+[[rows]]
+key    = "history"
+label  = "History and undo"
+hermit = "Every change is a git commit, so every earlier version is kept and can be restored."
+
+[[rows]]
+key    = "code"
+label  = "Source code"
+hermit = "Open source, Apache License 2.0."
+
+[[rows]]
+key    = "platforms"
+label  = "Runs on"
+hermit = "macOS and Linux, in your browser. No Windows and no mobile app."
+
+[[rows]]
+key    = "setup"
+label  = "Setup"
+hermit = "Download it and let your AI coding tool install it. It needs Python 3.11 and git and installs them when they are missing."
+
+[[rows]]
+key    = "support"
+label  = "Maturity and support"
+hermit = "Alpha software. No warranty and no support."
+
+
+# ── Headings used on every comparison page ───────────────────────────
+# {name} is replaced by the other CRM's name.
+[labels]
+header_link        = "Download"   # top right, links to the home page
+breadcrumb_home    = "Hermit CRM"
+breadcrumb_compare = "Compare"
+short_answer       = "The short answer"
+checked            = "Prices and features checked on"
+table              = "Side by side"
+choose_other       = "When {name} is the better choice"
+choose_hermit      = "When Hermit CRM is the better choice"
+switch             = "Moving from {name} to Hermit CRM"
+questions          = "Questions"
+sources            = "Sources"
+others             = "Other comparisons"
+download           = "Download Hermit CRM"
+download_note      = "Free for Mac and Linux · Apache 2.0"
+
+
+# ── Bottom of every comparison page ──────────────────────────────────
+[notice]
+text = """
+Product names are trademarks of their owners. Hermit CRM is not affiliated with
+any of them. Prices come from each vendor's public pricing page on the date
+shown, per seat and usually before VAT; they change often, so check the vendor's page
+before you decide. Found a mistake? Message
+[Gijs Bos](https://www.linkedin.com/in/gijsbos) and it will be corrected.
+"""
+
+[footer]
+text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · [All comparisons]({compare}) · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
