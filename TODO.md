@@ -9,7 +9,7 @@ Target: public on Mon 19 Oct 2026, Show HN Wed 21 Oct, Product Hunt Tue 27 Oct
 Fallback if the build week slips: everything one week later (PH Tue 3 Nov).
 
 Now (19 Sep):
-- [ ] Register hermitcrm.com and hermitcrm.io (.io redirects to .com).
+- [x] Register hermitcrm.io (main domain, at Cloudflare; site on Fly).
 - [ ] Apply for GitHub Sponsors on the `Hermit-CRM` org (payout to
       CompoundGTM) and open a Ko-fi account for CompoundGTM; both take days.
 - [ ] Send the testers a new build with the website's look (merged
@@ -59,7 +59,7 @@ Beta (12-16 Oct):
 - [ ] Submit to AlternativeTo and OpenAlternative.
 
 Public (19-27 Oct):
-- [ ] Mon 19 Oct: repo public, PyPI release, hermitcrm.com live.
+- [ ] Mon 19 Oct: repo public, PyPI release, hermitcrm.io live (drop the noindex blocks in website/nginx.conf).
 - [ ] Soft launch: LinkedIn post, r/selfhosted.
 - [ ] Wed 21 Oct: Show HN, 14:00-16:00 CEST; stay in the thread all day.
 - [ ] Tue 27 Oct: Product Hunt; answer every comment within the hour.

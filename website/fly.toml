@@ -1,7 +1,11 @@
 # fly.toml — Hermit CRM website (static)
 # See https://fly.io/docs/reference/configuration/
 #
-# STAGING: reachable at https://hermitcrm.fly.dev, noindex, no custom domain.
+# STAGING: reachable at https://hermitcrm.io (and hermitcrm.fly.dev), noindex.
+# DNS for hermitcrm.io is at Cloudflare, "DNS only" (grey cloud) so Fly can
+# issue the certificates: A @ -> the app's IPv4, AAAA @ -> its IPv6, CNAME www
+# -> hermitcrm.fly.dev. Certificates: `flyctl certs list`. nginx sends www to
+# the bare domain.
 
 app = 'hermitcrm'
 primary_region = 'fra'
