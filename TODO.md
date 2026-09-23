@@ -59,7 +59,7 @@ Beta (12-16 Oct):
 - [ ] Submit to AlternativeTo and OpenAlternative.
 
 Public (19-27 Oct):
-- [ ] Mon 19 Oct: repo public, PyPI release, hermitcrm.io live (drop the noindex blocks in website/nginx.conf).
+- [ ] Mon 19 Oct: repo public, PyPI release, hermitcrm.io already live and indexable since 23 Sep.
 - [ ] Soft launch: LinkedIn post, r/selfhosted.
 - [ ] Wed 21 Oct: Show HN, 14:00-16:00 CEST; stay in the thread all day.
 - [ ] Tue 27 Oct: Product Hunt; answer every comment within the hour.

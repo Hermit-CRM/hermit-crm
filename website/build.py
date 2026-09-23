@@ -191,7 +191,8 @@ def render(c: dict) -> str:
     site_url = p["site_url"].rstrip("/")
     og = ""
     if site_url:
-        og = (f'<meta property="og:url" content="{attr(site_url)}/">\n'
+        og = (f'<link rel="canonical" href="{attr(site_url)}/">\n'
+              f'<meta property="og:url" content="{attr(site_url)}/">\n'
               f'<meta property="og:image" content="{attr(site_url)}/img/og.png">\n')
     github = f'<a href="{attr(c["links"]["github"])}">{md(c["header"]["github_label"])}</a>'
 
@@ -399,8 +400,26 @@ def build() -> tuple[dict, list[str], list[str]]:
     APP_TOKENS.write_text(app_css, encoding="utf-8")
     OUT.write_text(render(c), encoding="utf-8")
     print(f"built {OUT.relative_to(ROOT)} and {APP_TOKENS.relative_to(ROOT)}")
+    crawl(c["page"]["site_url"].rstrip("/"))
     problems, tbc = check(c)
     return c, problems, tbc
+
+
+def crawl(site_url: str) -> None:
+    """Write robots.txt and sitemap.xml for search engines, or drop them while
+    the site has no address yet (a sitemap needs absolute URLs)."""
+    robots, sitemap = SITE / "robots.txt", SITE / "sitemap.xml"
+    if not site_url:
+        robots.unlink(missing_ok=True)
+        sitemap.unlink(missing_ok=True)
+        return
+    robots.write_text(f"User-agent: *\nAllow: /\n\nSitemap: {site_url}/sitemap.xml\n",
+                      encoding="utf-8")
+    sitemap.write_text('<?xml version="1.0" encoding="UTF-8"?>\n'
+                       '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+                       f'  <url><loc>{html.escape(site_url)}/</loc></url>\n'
+                       '</urlset>\n', encoding="utf-8")
+    print("built site/robots.txt and site/sitemap.xml")
 
 
 def share(c: dict) -> None:
