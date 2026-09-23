@@ -21,21 +21,24 @@
 
 # ── Values used in several places ────────────────────────────────────
 [release]
-version  = "0.4"
+version  = "0.4.1"
 license  = "Apache 2.0"
 
 [links]
-download       = "#"   # [TBC] URL of the .tar.gz
-sha256         = "#"   # [TBC] URL of the .sha256 file
-github         = "#"   # [TBC] repository URL
+download       = "download/hermitcrm-0.4.1.tar.gz"   # served by the site, see README
+sha256         = "download/hermitcrm-0.4.1.tar.gz.sha256"
+github         = ""    # empty hides the GitHub links; fill in when the repo is public
 
 
 # ── Browser tab, search results and link previews ────────────────────
 [page]
 title       = "Hermit CRM: a local CRM for one person, for Mac and Linux"
-# Meta description: the brief says to use the hero subline. Leave empty
-# to reuse [hero].subline automatically.
-description = ""
+# Meta description for search results, at most 155 characters (longer ones
+# are cut off). Leave empty to reuse [hero].subline.
+description = """
+A free, open-source CRM for founders and freelancers. Your companies, contacts
+and conversations as plain files on your laptop, made for your AI tools.
+"""
 # Full address of the live site, e.g. "https://hermitcrm.io". Needed so
 # link previews (LinkedIn, Slack) can find the share image.
 site_url    = "https://hermitcrm.io"
@@ -44,7 +47,7 @@ site_url    = "https://hermitcrm.io"
 # ── Top bar ──────────────────────────────────────────────────────────
 [header]
 name         = "Hermit CRM"
-github_label = "GitHub [TBC]"
+github_label = "GitHub"
 
 
 # ── First screen ─────────────────────────────────────────────────────
@@ -208,6 +211,16 @@ q = "Can my team use it?"
 a = "No. Hermit CRM is built for one person. If you need a team CRM, use one of the others."
 
 [[questions.items]]
+q = "How does it compare with HubSpot, Attio or Pipedrive?"
+a = """
+Those are hosted CRMs for teams, priced per seat, with your data in their
+cloud. Hermit CRM is free, for one person, and keeps your data on your own
+computer. [Hermit CRM compared](compare/) puts it side by side with HubSpot,
+Attio, Pipedrive, folk, Twenty and Notion, and says when each one is the
+better choice.
+"""
+
+[[questions.items]]
 q = "Does it run on Windows?"
 a = "Not yet. Hermit CRM runs on macOS and Linux."
 
@@ -220,10 +233,12 @@ a = "Nothing. It is free and open source under the Apache License 2.0. It is alp
 [footer]
 # {github} is replaced by a link to [links].github labelled with
 # [header].github_label, {sha256} by a link to [links].sha256.
-text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · {github} · {sha256} · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
+text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · {github} · {sha256} · [Compare](compare/) · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
 
 
 # ── Share image (og.png, 1200 x 630) ─────────────────────────────────
 # Regenerate with: python3 build.py --share   (needs Playwright)
 [share]
 tagline = "Free for Mac and Linux · Apache 2.0"
+# Describes og.png for people who cannot see it (og:image:alt).
+image_alt = "Hermit CRM: A CRM for one. Free for Mac and Linux, Apache 2.0."

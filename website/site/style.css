@@ -203,6 +203,46 @@ summary::after { content: "+"; color: var(--muted); font-weight: 400; }
 details[open] summary::after { content: "\2212"; }
 details p { margin: 0 0 24px; }
 
+/* ── Comparison pages (/compare/) ───────────────────────────────── */
+.page-top { padding-top: 40px; }
+.crumbs ol { margin: 0 0 28px; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; font-size: 15px; color: var(--muted); }
+.crumbs li + li::before { content: "/"; margin-right: 6px; color: var(--rule); }
+.page-h1 { font-size: 56px; line-height: 1.08; }
+.lead { margin: 20px 0 0; font-size: 20px; line-height: 1.55; }
+.checked { margin: 16px 0 0; font-size: 15px; color: var(--muted); }
+.part { margin-top: 72px; }
+.part > h2 { margin-bottom: 16px; }
+.part > .lead { margin-top: 0; }
+.part p { margin: 0 0 16px; }
+
+.versus { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 16px; line-height: 1.5; }
+.versus caption { text-align: left; font-size: 15px; color: var(--muted); padding-bottom: 12px; }
+.versus th, .versus td { text-align: left; vertical-align: top; padding: 14px 16px 14px 0; border-top: 1px solid var(--rule); }
+.versus tbody tr:last-child > * { border-bottom: 1px solid var(--rule); }
+.versus thead > tr > * { border-top: 0; }
+.versus thead > tr > :first-child { width: 26%; }
+.versus thead th { font-weight: 600; font-variant-caps: all-small-caps; letter-spacing: .09em; font-size: 18px; border-top: 0; }
+.versus tbody th { font-weight: 500; width: 26%; }
+.versus td { width: 37%; }
+.overview { table-layout: auto; }
+.overview tbody th, .overview td { width: auto; }
+
+.points { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 10px; }
+.part .steps { gap: 12px; }
+.faq h3 { margin: 28px 0 8px; font-size: 21px; font-weight: 500; line-height: 1.35; }
+.faq h3:first-of-type { margin-top: 8px; }
+.sources, .others { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; }
+.about { margin-top: 72px; padding-top: 32px; border-top: 1px solid var(--rule); }
+.about .download { margin-top: 24px; }
+
+.cards { margin: 0; padding: 0; list-style: none; }
+.cards li { padding: 24px 0; border-top: 1px solid var(--rule); }
+.cards h2 { margin: 0 0 8px; font-size: 26px; font-weight: 500; line-height: 1.25; }
+.cards p { margin: 0; }
+
+.site-footer .notice { margin: 0 0 12px; }
+.site-footer p:last-child { margin: 0; }
+
 /* ── End ────────────────────────────────────────────────────────── */
 .site-footer { margin-top: 120px; padding: 28px 0 64px; border-top: 1px solid var(--rule); font-size: 15px; color: var(--muted); }
 
@@ -269,6 +309,20 @@ details p { margin: 0 0 24px; }
   .mock-side { display: none; }
   .mock-cols { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .mock-col:nth-child(n+4) { display: none; }
+  /* comparison pages: each table row becomes a small block, every cell named */
+  .page-top { padding-top: 20px; }
+  .page-h1 { font-size: 38px; }
+  .lead { font-size: 19px; }
+  .part, .about { margin-top: 56px; }
+  .versus thead { position: absolute; left: -9999px; }
+  .versus, .versus caption, .versus tbody, .versus tr, .versus th, .versus td { display: block; width: auto; }
+  .versus tbody tr { padding: 14px 0; border-top: 1px solid var(--rule); }
+  .versus tbody tr:last-child { border-bottom: 1px solid var(--rule); }
+  .versus th, .versus td, .versus tbody tr:last-child > * { border: 0; padding: 0; }
+  .versus tbody th { width: auto; margin-bottom: 6px; }
+  .versus td + td { margin-top: 8px; }
+  .versus td::before { content: attr(data-label) ": "; font-weight: 600; }
+  .cards h2 { font-size: 22px; }
 }
 
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }

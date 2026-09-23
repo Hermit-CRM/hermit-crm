@@ -1,0 +1,92 @@
+# Hermit CRM vs Pipedrive  ->  /compare/pipedrive/
+# Shared rows, labels and the Hermit CRM side are in index.toml.
+
+name    = "Pipedrive"
+order   = 3
+checked = 2026-09-23
+
+title = "Hermit CRM vs Pipedrive: free for one, or a CRM for teams"
+description = """
+Hermit CRM vs Pipedrive on price, data, AI access and team use: when Pipedrive fits better, and when a free local CRM for one person does.
+"""
+
+best_for = "Sales teams that live in a deal pipeline and want automations"
+price    = "No free plan; from €14 a seat a month billed yearly"
+
+short_answer = """
+Choose **Pipedrive** if you run a sales team, want automations and email
+sequences, or need a mobile app. Choose **Hermit CRM** if you sell on your own,
+want a pipeline board without a subscription, and want the data as plain files
+on your own computer that AI tools can read. Hermit CRM is free; Pipedrive has
+a 14-day trial and starts at €14 a seat a month billed yearly.
+"""
+
+choose_other = [
+  "A team works the same pipeline and you want goals and reports per person.",
+  "You want automations and email sequences built in.",
+  "You need a mobile app for calls and meetings on the road.",
+  "You want a vendor that supports you when something breaks.",
+  "You work on Windows.",
+]
+
+choose_hermit = [
+  "You sell on your own and a subscription per seat is hard to justify.",
+  "You want the pipeline in files on your own disk, not in a vendor's cloud.",
+  "You work with Claude Code, Codex or another AI agent and want it to read and update deals without an API key.",
+  "You want a follow-up radar, message drafts in four languages and reports, without paying for a higher plan.",
+  "You want every change kept in git, so you can see and undo it.",
+]
+
+switch = [
+  "In Pipedrive, export your organisations and people as CSV or Excel files.",
+  "In Hermit CRM, choose **Import a spreadsheet** on the home page and upload each file. It recognises Pipedrive's column names, shows a preview, and writes nothing until you confirm.",
+  "Set the stage of each company on the pipeline board. Email history and activities stay in Pipedrive.",
+]
+
+# One cell per row of the table; the keys are the rows in index.toml.
+[cells]
+price     = "No free plan; a 14-day trial. Lite €14 a seat a month billed yearly, Growth €39, Premium €59, Ultimate €79. Monthly billing costs more."
+data      = "In Pipedrive's cloud."
+format    = "Records in Pipedrive's database. Export to CSV or Excel."
+offline   = "No. It is a hosted service."
+team      = "Yes. Seats, teams, visibility rules and goals."
+ai        = "An API and an official MCP server on every plan, plus built-in AI features."
+email     = "Gmail and Outlook sync, a BCC address for logging, and tracking."
+history   = "A change log on each deal, person and organisation."
+code      = "Closed source."
+platforms = "Browser, iOS and Android."
+setup     = "Sign up in the browser."
+support   = "A mature product with a support team."
+
+[[faq]]
+q = "Is there a free alternative to Pipedrive for one person?"
+a = """
+Yes. Hermit CRM is free and open source and has a pipeline board from
+prospect to won, a follow-up radar, tasks and reports. It is for one person on
+a Mac or Linux computer; Pipedrive is for teams, has no free plan and runs in
+the cloud.
+"""
+
+[[faq]]
+q = "Can I import my Pipedrive data into Hermit CRM?"
+a = """
+Organisations and people, yes. Export them from Pipedrive as CSV or Excel and
+import the files in Hermit CRM, which recognises Pipedrive's column names.
+Deals, activities and mail history do not come across.
+"""
+
+[[faq]]
+q = "Does Hermit CRM send email sequences like Pipedrive?"
+a = """
+No. Hermit CRM drafts messages in your wording, in English, German, Dutch or
+French, and you send them yourself from your own mail. It logs what you send
+and whether you got an answer.
+"""
+
+[[sources]]
+label = "Pipedrive pricing"
+url   = "https://www.pipedrive.com/en/pricing"
+
+[[sources]]
+label = "Pipedrive MCP server"
+url   = "https://www.pipedrive.com/en/features/mcp-server"
