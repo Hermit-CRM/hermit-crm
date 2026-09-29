@@ -24,6 +24,7 @@
 //   (no <h1>: top is the page's whole text, and the app takes the name
 //   from the tab's title)
 //   co    "href|label" for each link to a company page in those two
+//   (no <h1>: each one from the Experience heading on)
 //   lab   aria-labels in the top card that say something ("Current company: X")
 //   mail  the address in an open Contact info dialog
 // Each piece is cut to a budget of encoded characters, because the app
@@ -51,18 +52,32 @@
     var at = all.search(/(^|\n) *(Experience|Ervaring|Berufserfahrung|Erfahrung|Exp\u00e9rience) *\n/i);
     var topText = top ? text(top) : all;
     var expText = exp ? text(exp) : (at < 0 ? '' : all.slice(at));
+    // Company links, there: from the Experience heading on, since Activity,
+    // Featured and Interests come first and link other companies. The
+    // heading is a text node with only that word, in an h2 or h3 if one is.
+    var xh = [];
+    if (!top) {
+      var w = d.createTreeWalker(main, NodeFilter.SHOW_TEXT);
+      while (w.nextNode()) {
+        if (/^\s*(Experience|Ervaring|Berufserfahrung|Erfahrung|Exp\u00e9rience)\s*$/i.test(w.currentNode.nodeValue)) { xh.push(w.currentNode.parentElement); }
+      }
+      xh = xh.filter(function (e) { return e.closest('h2,h3'); }).concat(xh);
+    }
     var co = [], lab = [];
     (top ? [top, exp] : [main]).forEach(function (s) {
       if (!s) { return; }
       s.querySelectorAll('a[href*="/company/"]').forEach(function (a) {
+        if (!top && !(xh[0] && xh[0].compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING)) { return; }
         var img = a.querySelector('img');
         var t = (a.innerText || '').trim() || (img ? img.alt : '') || a.getAttribute('aria-label') || '';
         if (co.length < 8) { co.push(a.href.split('?')[0] + '|' + t.replace(/\s+/g, ' ')); }
       });
     });
+    // Only "Label: value" (the app reads nothing else), so the rest of a
+    // whole page cannot use up the six places.
     (top || main).querySelectorAll('[aria-label]').forEach(function (b) {
       var t = b.getAttribute('aria-label') || '';
-      if (t.indexOf(':') > 0 && lab.length < 6) { lab.push(t); }
+      if (/^[^:\n]{2,40}:/.test(t) && lab.length < 6) { lab.push(t); }
     });
     var m = d.querySelector('[role=dialog] a[href^="mailto:"]');
     q += '&v=2&h1=' + cut(text(h), 300) + '&title=' + cut(d.title, 300);
