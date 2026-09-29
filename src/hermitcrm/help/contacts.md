@@ -38,8 +38,11 @@ of them is the company's task due first, it is the company's next step.
 
 ## Message drafts
 
-Three deliberately different drafts, written from CRM data alone, no AI, in
-the language of the company's country:
+Three deliberately different drafts, written from CRM data alone, no AI. They
+are in the contact's **draft language** when you have set one on the contact
+(say, a German speaker at a Dutch company), else in the language of the
+company's country. The language picker above the drafts changes it for that
+page only, without saving it. The drafts are:
 
 1. **scale** (they are growing; offer help to keep the pace), or **bridge**
    when the signal is hiring (help while the role is open), or **decline** when
@@ -50,7 +53,8 @@ the language of the company's country:
 
 Two inputs are yours: the **signal** (growing, stalled, headcount decline, hiring, read off
 LinkedIn company insights; the link is right there) and one **observation**
-sentence from their website or team. Whatever the CRM cannot know is left in
+sentence from their website or team, which goes word for word into draft 3
+(it is not read as an instruction: set the language on the contact). Whatever the CRM cannot know is left in
 square brackets. Edit in place, copy, or **log as sent**, which opens the
 quick-add form with the draft as body and channel LinkedIn. The wording lives
 in the package's `default_messages.toml`; a `messages.toml` in the data folder

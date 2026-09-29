@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """Outreach drafts without AI: three distinct angles per contact, written in
-the language of the company's country, from what the CRM already knows plus
+the contact's own draft language or else the company's country's, from what the CRM already knows plus
 two things you check by hand on LinkedIn insights and the website.
 
 The wording lives in TOML, not in code. The package ships
@@ -47,7 +47,7 @@ from functools import lru_cache
 from importlib import resources
 from pathlib import Path
 
-from .models import Company, Contact, language_for, normalise_country
+from .models import Company, Contact, language_for, normalise_country, normalise_language
 
 SIGNALS = ["", "growing", "stalled", "declining", "hiring"]
 # Slot names the templates already use. A field of your own cannot take one of
@@ -258,24 +258,37 @@ def field_slots(company: Company, defs: list | None) -> dict:
     return slots
 
 
+def draft_language(company: Company, contact: Contact | None = None,
+                   override: str = "", messages: dict | None = None) -> str:
+    """The language drafts are written in, first match wins: the page's own
+    choice (`override`), the contact's language, then the company's country
+    (Belgium by its evidence). A code without templates is skipped, so a
+    hand-typed "sv" falls through until messages.toml has a [languages.sv]."""
+    languages = (messages if messages is not None else default_messages())["languages"]
+    for code in (override, contact.language if contact else ""):
+        code = normalise_language(code)
+        if code in languages:
+            return code
+    lang = (belgian_language(company) if normalise_country(company.country) == "BE"
+            else language_for(company.country))
+    return lang if lang in languages else "en"
+
+
 def drafts(company: Company, contact: Contact | None = None, signal: str = "",
            observation: str = "", messages: dict | None = None,
            owner_name: str = "", defs: list | None = None,
            size_field: str = DEFAULT_SIZE_FIELD,
-           team_field: str = DEFAULT_TEAM_FIELD) -> list[Draft]:
+           team_field: str = DEFAULT_TEAM_FIELD, language: str = "") -> list[Draft]:
     """Three distinct drafts for one contact (company-level when None).
 
     `defs` are the folder's own field definitions; each becomes a slot the
     templates may use. `size_field` and `team_field` name which of them play
-    the two roles the shipped playbook has wording for.
+    the two roles the shipped playbook has wording for. `language` overrides
+    the contact's and the country's language for this one call.
     """
     messages = messages if messages is not None else default_messages()
-    languages = messages["languages"]
-    lang = (belgian_language(company) if normalise_country(company.country) == "BE"
-            else language_for(company.country))
-    if lang not in languages:
-        lang = "en"
-    t = languages[lang]
+    lang = draft_language(company, contact, language, messages)
+    t = messages["languages"][lang]
     labels = messages.get("labels", {})
     signal = signal if signal in SIGNALS else ""
     extra = company.extra or {}
