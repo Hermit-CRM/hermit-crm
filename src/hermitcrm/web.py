@@ -507,6 +507,7 @@ def contact_values(c) -> dict:
         "email": c.email,
         "phone": c.phone,
         "role": c.role,
+        "language": c.language,
         "notes": c.notes,
     }
 
@@ -1028,12 +1029,14 @@ def create_app(root: Path, config: dict | None = None,
         }
 
     def draft_context(request: Request, company: Company, contact=None) -> dict:
-        """Message drafts for a page, driven by two hand-checked signals."""
+        """Message drafts for a page, driven by two hand-checked signals and,
+        with ?lang=, a language picked for this page only (never saved)."""
         signal = request.query_params.get("signal", "")
         observation = request.query_params.get("observation", "")
         return {
             "drafts": messaging.drafts(
                 company, contact, signal, observation,
+                language=request.query_params.get("lang", ""),
                 messages=app.state.messages,
                 owner_name=str(config.get("owner_name", "")),
                 defs=custom_defs("company"),
@@ -2191,7 +2194,7 @@ def create_app(root: Path, config: dict | None = None,
     def contact_new(request: Request, slug: str):
         company = need_company(slug)
         values = {"first_name": "", "last_name": "", "title": "", "linkedin": "",
-                  "email": "", "phone": "", "role": "", "notes": ""}
+                  "email": "", "phone": "", "role": "", "language": "", "notes": ""}
         return render(request, "contact_new.html",
                       {"company": company, "values": values})
 
@@ -2206,13 +2209,14 @@ def create_app(root: Path, config: dict | None = None,
         email: str = Form(""),
         phone: str = Form(""),
         role: str = Form(""),
+        language: str = Form(""),
         notes: str = Form(""),
         force: str = Form(""),
     ):
         company = need_company(slug)
         values = {"first_name": first_name, "last_name": last_name, "title": title,
                   "linkedin": linkedin, "email": email, "phone": phone, "role": role,
-                  "notes": notes}
+                  "language": language, "notes": notes}
         extra, shown, custom_errors = await custom_submitted(request, "contact")
         values.update(shown)
         duplicates = duplicate_links(store, f"{first_name} {last_name}", email, slug)
@@ -2259,6 +2263,7 @@ def create_app(root: Path, config: dict | None = None,
         email: str = Form(""),
         phone: str = Form(""),
         role: str = Form(""),
+        language: str = Form(""),
         notes: str = Form(""),
         version: str = Form(""),
     ):
@@ -2268,7 +2273,7 @@ def create_app(root: Path, config: dict | None = None,
             raise HTTPException(status_code=404, detail=f"unknown contact {cslug!r}")
         values = {"first_name": first_name, "last_name": last_name, "title": title,
                   "linkedin": linkedin, "email": email, "phone": phone, "role": role,
-                  "notes": notes}
+                  "language": language, "notes": notes}
         extra, shown, custom_errors = await custom_submitted(request, "contact")
         if version and version != record_version(root, slug, cslug):
             current = need_company(slug, refresh=True)

@@ -112,6 +112,11 @@ def language_for(country: str) -> str:
     return LANGUAGE_BY_COUNTRY.get(normalise_country(country), "en")
 
 
+def normalise_language(value) -> str:
+    """A language code as messages.toml keys it ("de"); "" when unset."""
+    return str(value or "").strip().lower()
+
+
 class Role(str, Enum):
     CHAMPION = "champion"
     DECISION_MAKER = "decision-maker"
@@ -334,6 +339,7 @@ class Contact:
     email: str = ""
     phone: str = ""
     role: str = ""
+    language: str = ""  # draft language code; "" = from the company's country
     tasks: list["Task"] = field(default_factory=list)
     created: datetime | None = None
     updated: datetime | None = None
@@ -883,6 +889,8 @@ def contact_to_frontmatter(c: Contact) -> dict:
         "phone": c.phone,
         "role": c.role,
     }
+    if c.language:   # absent until one is set
+        meta["language"] = c.language
     if c.tasks:      # absent until there is one
         meta["tasks"] = [task_to_dict(t) for t in c.tasks]
     meta["created"] = c.created
@@ -916,7 +924,7 @@ COMPANY_KEYS = frozenset({
 })
 CONTACT_KEYS = frozenset({
     "first_name", "last_name", "name", "slug", "title", "linkedin", "email", "phone",
-    "role", "tasks", "created", "updated",
+    "role", "language", "tasks", "created", "updated",
 })
 INTERACTION_KEYS = frozenset({
     "date", "channel", "direction", "contact", "subject", "outcome", "source",
@@ -1070,6 +1078,7 @@ def contact_from_dict(meta: dict, body: str, slug: str) -> Contact:
         email=normalise_email(_str(meta, "email")),
         phone=_str(meta, "phone").strip(),
         role=_enum(_str(meta, "role"), Role, "role", True, errors, ""),
+        language=normalise_language(_str(meta, "language")),
         tasks=_tasks(meta.get("tasks"), errors),
         created=_datetime_or_none(meta.get("created"), "created", errors),
         updated=_datetime_or_none(meta.get("updated"), "updated", errors),
