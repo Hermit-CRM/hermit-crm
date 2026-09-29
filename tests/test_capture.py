@@ -477,6 +477,40 @@ def test_the_whole_page_text_reads_like_the_top_card():
     assert person.position == "Head of Compliance"
 
 
+def test_without_a_heading_the_employer_is_the_company_experience_starts_with():
+    """Seen on a real profile: with no <h1> the links come from the whole
+    page, and a company in Activity or Interests precedes Experience's."""
+    co = ("https://www.linkedin.com/company/5550001/|Sunfield Games logo\n"
+          "https://www.linkedin.com/company/1234567/|Harbour Light Labs logo")
+    person = read(h1="", title="Ines Vega | LinkedIn", top=WHOLE, exp="", lab="", co=co)
+    assert person.employer == "Harbour Light Labs"
+    assert person.company_linkedin == "https://www.linkedin.com/company/1234567"
+    assert person.position == "Head of Compliance"
+
+
+def test_without_a_heading_the_first_company_is_the_one_in_the_group_heading():
+    whole = WHOLE.replace(EXP_SINGLE, EXP_GROUPED)
+    co = ("https://www.linkedin.com/company/5550001/|Sunfield Games\n"
+          "https://www.linkedin.com/company/1234567/|Harbour Light Labs")
+    person = read(h1="", title="Ines Vega | LinkedIn", top=whole, exp="", lab="", co=co)
+    assert person.employer == "Harbour Light Labs"
+    assert person.position == "Head of Compliance"
+
+
+@pytest.mark.parametrize("exp", [EXP_SINGLE, ""], ids=["other-roles", "no-experience"])
+def test_without_a_heading_no_company_in_experience_leaves_the_employer_empty(exp):
+    """Only other companies' links: better no company than a wrong one."""
+    person = read(h1="", title="Ines Vega | LinkedIn", top=WHOLE.replace(EXP_SINGLE, exp),
+                  exp="", lab="", co="https://www.linkedin.com/company/5550001/|Sunfield Games logo")
+    assert (person.employer, person.company_linkedin, person.position) == ("", "", "")
+
+
+def test_the_company_experience_starts_with_wins_over_the_first_link():
+    co = ("https://www.linkedin.com/company/7654321/|Old Bank logo\n"
+          "https://www.linkedin.com/company/1234567/|Harbour Light Labs logo")
+    assert read(lab="", co=co).employer == "Harbour Light Labs"
+
+
 def test_a_title_alone_gives_the_name_but_says_nothing_was_read(store):
     found = capture.from_page(store, "https://www.linkedin.com/in/ines-vega-8a1b2c3d/",
                               {"v": "2", "title": "Ines Vega | LinkedIn"})
