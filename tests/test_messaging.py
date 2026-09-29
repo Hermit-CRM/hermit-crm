@@ -242,3 +242,46 @@ def test_which_field_plays_the_size_role_is_configurable():
                  size_field="", team_field="")
     bodies = "\n".join(d.body for d in out)
     assert "people now" not in bodies and "you're at N people" in bodies
+
+
+# ---------------------------------------------------------- per-person language
+
+
+def test_contact_language_beats_the_country():
+    anna = Contact("Anna", "B", "ab", language="de")
+    out = drafts(company(country="NL"), anna)
+    assert all(d.language == "de" and d.body.startswith("Hallo Anna,") for d in out)
+
+
+def test_page_override_beats_the_contact_language():
+    anna = Contact("Anna", "B", "ab", language="de")
+    out = drafts(company(country="NL"), anna, language="fr")
+    assert all(d.language == "fr" for d in out)
+
+
+def test_company_page_override_without_a_contact():
+    out = drafts(company(country=""), None, language="de")
+    assert all(d.language == "de" for d in out)
+
+
+def test_unknown_or_blank_codes_fall_through_to_the_country():
+    ghost = Contact("Ann", "B", "ab", language="xx")
+    assert messaging.draft_language(company(country="NL"), ghost, "zz") == "nl"
+    assert messaging.draft_language(company(country="NL"), Contact("A", "B", "ab")) == "nl"
+    assert messaging.draft_language(company(country=""), None) == "en"
+    # Codes are matched case-insensitively, as a hand edit might write them.
+    assert messaging.draft_language(company(country="NL"), None, " DE ") == "de"
+
+
+def test_contact_language_still_wins_in_belgium():
+    c = company(country="BE", website="https://acme.be/nl/")
+    assert messaging.draft_language(c, Contact("Luc", "D", "ld", language="fr")) == "fr"
+    assert messaging.draft_language(c, Contact("Luc", "D", "ld")) == "nl"
+
+
+def test_a_language_added_in_messages_toml_can_be_chosen():
+    messages = deep_merge(load_messages(), {"languages": {"sv": {
+        **load_messages()["languages"]["en"], "name": "Swedish", "greeting": "Hej {first},"}}})
+    out = drafts(company(country="DE"), Contact("Ann", "B", "ab", language="sv"),
+                 messages=messages)
+    assert out[0].language == "sv" and out[0].body.startswith("Hej Ann,")

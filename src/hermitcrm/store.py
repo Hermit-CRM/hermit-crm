@@ -66,6 +66,7 @@ from .models import (
     interaction_to_frontmatter,
     normalise_country,
     normalise_email,
+    normalise_language,
     normalise_linkedin,
     normalise_website,
     parse_date,
@@ -233,7 +234,7 @@ COMPANY_MERGE_FIELDS = tuple(
                  "next_step_done_on"))
 CONTACT_COPY_FIELDS = (
     "first_name", "last_name", "slug", "title", "linkedin", "email", "phone",
-    "role", "tasks", "created", "updated", "notes",
+    "role", "language", "tasks", "created", "updated", "notes",
 )
 CONTACT_MERGE_FIELDS = tuple(
     f for f in CONTACT_COPY_FIELDS if f not in ("slug", "created", "updated", "tasks"))
@@ -1154,7 +1155,7 @@ class Store:
     @_locked
     def create_contact(self, company_slug: str, first_name, last_name="", title="",
                        linkedin="", email="", phone="", role="", notes="",
-                       custom=None) -> Contact:
+                       custom=None, language="") -> Contact:
         company = self._current(company_slug)
         if company is None:
             raise ValidationError({"company": f"unknown company {company_slug!r}"})
@@ -1177,6 +1178,7 @@ class Store:
             email=normalise_email(email),
             phone=(phone or "").strip(),
             role=self._coerce_enum(role, Role, "role", True, ""),
+            language=normalise_language(language),
             created=now,
             updated=now,
             notes=normalise_body(notes),
@@ -1198,7 +1200,7 @@ class Store:
             raise ValidationError({"contact": f"unknown contact {cslug!r}"})
         new = Contact(**{k: getattr(contact, k) for k in (
             "first_name", "last_name", "slug", "title", "linkedin", "email", "phone",
-            "role", "created", "updated", "notes")})
+            "role", "language", "created", "updated", "notes")})
         new.extra = dict(contact.extra)
         if "custom" in fields:
             new.extra = fields_mod.apply(new.extra, fields.pop("custom") or {})
@@ -1218,6 +1220,8 @@ class Store:
             new.phone = (fields["phone"] or "").strip()
         if "role" in fields:
             new.role = self._coerce_enum(fields["role"], Role, "role", True, "")
+        if "language" in fields:
+            new.language = normalise_language(fields["language"])
         if "notes" in fields:
             new.notes = normalise_body(fields["notes"])
         new.updated = self.now()

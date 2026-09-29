@@ -66,12 +66,17 @@
         {% for s in signals %}<option value="{{ s }}"{% if s == signal %} selected{% endif %}>{{ signal_labels[s] }}</option>{% endfor %}
       </select>
     </label>
-    <label class="grow">observation (one sentence from {% if company.website %}<a href="{{ company.website | href }}" target="_blank" rel="noopener">their site</a>{% else %}their site{% endif %} or team)
+    <label>language
+      <select name="lang">
+        {% for code, name in language_names.items() %}<option value="{{ code }}"{% if code == drafts[0].language %} selected{% endif %}>{{ name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="grow">observation (one sentence from {% if company.website %}<a href="{{ company.website | href }}" target="_blank" rel="noopener">their site</a>{% else %}their site{% endif %} or team; it goes word for word into draft 3)
       <input name="observation" value="{{ observation }}" placeholder="e.g. Great to see your growth; I just tried your product-led demo.">
     </label>
     <button type="submit">Refresh drafts</button>
   </form>
-  <p class="small">Three deliberately different angles, no AI. Square brackets are yours to fill. Edit in place, copy, or open it in the log form.</p>
+  <p class="small">Three deliberately different angles, no AI. Square brackets are yours to fill. Edit in place, copy, or open it in the log form. The language is the contact's draft language, else the company's country; the picker here changes it for this page only.</p>
   <div class="drafts">
     {% for d in drafts %}
     <div class="draft">
@@ -205,6 +210,15 @@
       <select name="role">
         <option value=""{% if not values.role %} selected{% endif %}>-</option>
         {% for r in roles %}<option value="{{ r }}"{% if values.role == r %} selected{% endif %}>{{ r }}</option>{% endfor %}
+      </select>
+    </label>
+    {% set lang = (values.language or '') | trim | lower %}
+    <label>draft language
+      <select name="language">
+        <option value=""{% if not lang %} selected{% endif %}>from country</option>
+        {% for code, name in language_names.items() %}<option value="{{ code }}"{% if lang == code %} selected{% endif %}>{{ name }}</option>{% endfor %}
+        {# A hand-typed code without templates stays selected, so saving the form keeps it. #}
+        {% if lang and lang not in language_names %}<option value="{{ lang }}" selected>{{ lang }} (no templates)</option>{% endif %}
       </select>
     </label>
   </div>
