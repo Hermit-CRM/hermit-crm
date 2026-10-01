@@ -129,6 +129,7 @@ class Channel(str, Enum):
     LINKEDIN = "linkedin"
     CALL = "call"
     MEETING = "meeting"
+    NOTE = "note"  # a memo about a person: no direction, never a touch
 
 
 class Direction(str, Enum):
@@ -140,6 +141,7 @@ class InteractionSource(str, Enum):
     MANUAL = "manual"
     BCC_IMPORT = "bcc-import"
     CALENDAR_IMPORT = "calendar-import"
+    MIGRATION = "migration"  # contact notes ported to note interactions (format 7)
 
 
 OPEN_STAGES = ["offer", "discovery", "engaged", "prospect"]
@@ -374,16 +376,29 @@ class Interaction:
     extra: dict = field(default_factory=dict)  # unknown front-matter keys, round-tripped
 
     @property
+    def is_note(self) -> bool:
+        return self.channel == Channel.NOTE.value
+
+    @property
+    def is_touch(self) -> bool:
+        """Contact actually made. A note is a memo: it shows in the timeline
+        but never moves last touch, outcomes or activity counts."""
+        return not self.is_note
+
+    @property
+    def label(self) -> str:
+        """'email out', or just 'note' (a note has no direction)."""
+        return f"{self.channel} {self.direction}".strip()
+
+    @property
     def is_message(self) -> bool:
         """An outbound interaction with a body is a message you sent (a meeting is not)."""
         return (self.direction == Direction.OUT.value and bool(self.body.strip())
-                and self.channel != Channel.MEETING.value)
+                and self.channel not in (Channel.MEETING.value, Channel.NOTE.value))
 
     def base_id(self) -> str:
-        return (
-            f"{self.date:%Y-%m-%dT%H%M}-{self.channel}-{self.direction}-"
-            f"{self.contact or 'company'}"
-        )
+        middle = self.channel if self.is_note else f"{self.channel}-{self.direction}"
+        return f"{self.date:%Y-%m-%dT%H%M}-{middle}-{self.contact or 'company'}"
 
     @property
     def contact_label(self) -> str:
@@ -482,7 +497,7 @@ class Company:
     # --- derived, never written to file
     @property
     def last_touch(self) -> datetime | None:
-        dates = [i.date for i in self.interactions if i.date]
+        dates = [i.date for i in self.interactions if i.date and i.is_touch]
         return max(dates) if dates else None
 
     @property
@@ -490,14 +505,14 @@ class Company:
         if not self.interactions:
             return "none"
         it = max(
-            (i for i in self.interactions if i.date),
+            (i for i in self.interactions if i.date and i.is_touch),
             key=lambda i: i.date,
             default=None,
         )
         if it is None:
             return "none"
         return (
-            f"{it.channel} {it.direction} {fmt_date(it.date)} ({it.contact_label})"
+            f"{it.label} {fmt_date(it.date)} ({it.contact_label})"
         )
 
     @property
@@ -680,14 +695,23 @@ class Company:
     def website_url(self) -> str:
         return self.website
 
+    def contact_notes(self, cslug: str) -> str:
+        """Everything noted about one contact: a legacy notes body (folders
+        before format 7) plus the bodies of their note interactions."""
+        contact = self.contacts.get(cslug)
+        parts = [contact.notes] if contact and contact.notes else []
+        parts += [i.body for i in self.interactions if i.is_note and i.contact == cslug]
+        return "\n".join(parts)
+
     def contact_last_touch(self, cslug: str) -> datetime | None:
-        dates = [i.date for i in self.interactions if i.date and i.contact == cslug]
+        dates = [i.date for i in self.interactions
+                 if i.date and i.is_touch and i.contact == cslug]
         return max(dates) if dates else None
 
     @property
     def latest_contact_slug(self) -> str:
         for it in sorted(
-            (i for i in self.interactions if i.date),
+            (i for i in self.interactions if i.date and i.is_touch),
             key=lambda i: i.date,
             reverse=True,
         ):
@@ -1101,7 +1125,8 @@ def interaction_from_dict(meta: dict, body: str, id: str) -> Interaction:
         id=id,
         date=when,
         channel=_enum(_str(meta, "channel"), Channel, "channel", False, errors),
-        direction=_enum(_str(meta, "direction"), Direction, "direction", False, errors),
+        direction=("" if _str(meta, "channel").strip() == Channel.NOTE.value
+                   else _enum(_str(meta, "direction"), Direction, "direction", False, errors)),
         contact=_str(meta, "contact").strip(),
         subject=_str(meta, "subject").strip(),
         outcome=_str(meta, "outcome").strip(),

@@ -40,20 +40,20 @@ CRM has no other way to delete a company: you disqualify it instead.
   "until" date); **Requalify** brings a disqualified company back to prospect.
 - The next step (the open task due first) with its status tag, **Done** /
   **Reopen**, the Google Calendar link and a link down to all tasks.
-- **Log an interaction**: the quick-add form with the most recently touched
-  contact preselected.
 - **Company**: every field in an edit form. Setting the stage to lost needs a
   reason; leaving lost, disqualified or temp-disqualified clears it. Below the
   form: slug, created, updated, stage changed, and the stage history collapsed.
-- **Contacts** with title, role, email and LinkedIn, and a New contact link.
-- **Message drafts** for the preselected contact (see [Contacts](/help/contacts)).
+- **Contacts** with title, role, email and LinkedIn, a **log** link to each
+  person's Log an interaction form (an interaction is always with a person, so
+  the company page has no form of its own), and a New contact link.
 - **Tasks**: one list for the company and its people, open ones by due date
   (the first is labelled **next step**), then the done ones with the day they
   were done. **Done** / **Reopen** / **Delete** on each, and **Add task** with a
   "for" list: the company or one of its people.
+- **Message drafts** for the most recently touched contact (see [Contacts](/help/contacts)).
 - **Merge**: pick another company to compare and merge into this one.
 - **Timeline**: every interaction across all contacts, newest first, bodies
-  collapsed.
+  collapsed (a note shows its text).
 
 Edits made outside the app (by hand or by an agent) show up on the next page
 view: the company's folder is re-read for every request.

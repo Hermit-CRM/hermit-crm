@@ -211,6 +211,8 @@ form.record-form .row > label.grow, form.interaction-form .row > label.grow { mi
 .radios { display: inline-flex; gap: 10px; margin-bottom: 8px; }
 .radios label { display: inline-flex; align-items: center; gap: 4px; margin: 0; }
 .radios input { display: inline-block; width: auto; }
+/* A note has no direction and no outcome. */
+form.interaction-form.is-note .directions, form.interaction-form.is-note .outcome-field { display: none; }
 nav input { display: inline-block; width: auto; }
 button {
   font: inherit;
@@ -243,6 +245,8 @@ button:hover { background: var(--subtle); }
 form.danger { margin-top: 10px; }
 form.danger button { color: var(--danger); }
 .interaction .subject { font-weight: 600; }
+.interaction.note { border-style: dashed; }
+.interaction.note pre { margin: 4px 0 0; white-space: pre-wrap; }
 .interaction .subject.empty { font-weight: normal; color: var(--muted); font-style: italic; }
 details.inline-edit { display: inline-block; margin-left: 8px; }
 details.inline-edit summary { cursor: pointer; list-style: none; }

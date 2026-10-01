@@ -3,6 +3,21 @@
 All notable changes to Hermit CRM. Versions follow semantic versioning; a change to
 the data format always comes with an automatic migration.
 
+## Unreleased
+
+- **Notes are interactions.** `note` is a new interaction channel: a memo
+  about a person, with no direction, on their timeline. It never counts as
+  contact made (last touch, a prospect's stage, follow-ups, outcomes and
+  reports ignore it). The contact form has no notes field any more;
+  `add contact --notes`, the agent tool and the importer log a note instead.
+- **Data format 7.** The migration moves each contact's notes into note
+  interactions (a line starting `DD/MM/YYYY:` dated that day, the rest dated
+  the contact's creation) in one commit; contact front matter is unchanged.
+- **Interactions are with a person.** The company page no longer has a log
+  form; each contact has a **log** link in the company's contact list, and
+  the standalone form asks for a contact. Message drafts moved below tasks on
+  the company and contact pages.
+
 ## 0.4.1 (2026-09-23)
 
 The first build offered for download on hermitcrm.io.

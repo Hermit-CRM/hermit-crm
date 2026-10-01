@@ -69,7 +69,7 @@ class Followup:
     @property
     def summary(self) -> str:
         subject = self.interaction.subject or first_line(self.interaction.body)
-        return subject or f"{self.interaction.channel} {self.interaction.direction}"
+        return subject or self.interaction.label
 
     @property
     def reason(self) -> str:
@@ -101,8 +101,8 @@ def first_line(body: str, limit: int = 90) -> str:
 
 
 def latest(company) -> Interaction | None:
-    """The most recent dated interaction, or None when there are none."""
-    dated = [i for i in company.interactions if i.date]
+    """The most recent dated touch (notes are memos, not contact), or None."""
+    dated = [i for i in company.interactions if i.date and i.is_touch]
     return max(dated, key=lambda i: i.date) if dated else None
 
 

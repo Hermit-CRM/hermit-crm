@@ -204,6 +204,8 @@ def belgian_language_scores(company: Company) -> dict[str, list[str]]:
             evidence[lang] += [reason] * weight
 
     for it in company.interactions:
+        if it.is_note:  # your own memo, not a message in their language
+            continue
         lang = text_language(f"{it.subject}\n{it.body}")
         if lang:
             inbound = it.direction == "in"
