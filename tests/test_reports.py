@@ -336,6 +336,19 @@ def test_activity(seeded):
     assert weeks["2026-W37"]["linkedin out"] == 2 and weeks["2026-W37"]["email in"] == 1
 
 
+def test_activity_leaves_notes_out(store):
+    """A note is a memo: no column, no count, no company touched."""
+    clocked(store, "2026-09-08T09:00")
+    store.create_company("Delta Ltd", source="referral")
+    store.create_contact("delta", "Dana", "Delta")
+    store.create_interaction("delta", channel="note", direction="", contact="dana-delta",
+                             date="2026-09-09T14:00", body="Prefers mornings")
+    a = reports.activity(store, reports.period_for("7d", TODAY))
+    assert not any(col.startswith("note") for col in a["columns"])
+    assert a["totals"]["interactions"] == 0 and a["totals"]["companies_touched"] == 0
+    assert all(r["total"] == 0 for r in a["weeks"])
+
+
 def test_activity_counts_meetings(store):
     """Calendar-imported meetings show up in the week table like any other channel."""
     clocked(store, "2026-09-08T09:00")

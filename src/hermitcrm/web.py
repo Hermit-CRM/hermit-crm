@@ -508,7 +508,6 @@ def contact_values(c) -> dict:
         "phone": c.phone,
         "role": c.role,
         "language": c.language,
-        "notes": c.notes,
     }
 
 
@@ -2194,7 +2193,7 @@ def create_app(root: Path, config: dict | None = None,
     def contact_new(request: Request, slug: str):
         company = need_company(slug)
         values = {"first_name": "", "last_name": "", "title": "", "linkedin": "",
-                  "email": "", "phone": "", "role": "", "language": "", "notes": ""}
+                  "email": "", "phone": "", "role": "", "language": ""}
         return render(request, "contact_new.html",
                       {"company": company, "values": values})
 
@@ -2210,13 +2209,12 @@ def create_app(root: Path, config: dict | None = None,
         phone: str = Form(""),
         role: str = Form(""),
         language: str = Form(""),
-        notes: str = Form(""),
         force: str = Form(""),
     ):
         company = need_company(slug)
         values = {"first_name": first_name, "last_name": last_name, "title": title,
                   "linkedin": linkedin, "email": email, "phone": phone, "role": role,
-                  "language": language, "notes": notes}
+                  "language": language}
         extra, shown, custom_errors = await custom_submitted(request, "contact")
         values.update(shown)
         duplicates = duplicate_links(store, f"{first_name} {last_name}", email, slug)
@@ -2264,7 +2262,6 @@ def create_app(root: Path, config: dict | None = None,
         phone: str = Form(""),
         role: str = Form(""),
         language: str = Form(""),
-        notes: str = Form(""),
         version: str = Form(""),
     ):
         company = need_company(slug)
@@ -2273,7 +2270,7 @@ def create_app(root: Path, config: dict | None = None,
             raise HTTPException(status_code=404, detail=f"unknown contact {cslug!r}")
         values = {"first_name": first_name, "last_name": last_name, "title": title,
                   "linkedin": linkedin, "email": email, "phone": phone, "role": role,
-                  "language": language, "notes": notes}
+                  "language": language}
         extra, shown, custom_errors = await custom_submitted(request, "contact")
         if version and version != record_version(root, slug, cslug):
             current = need_company(slug, refresh=True)
@@ -2351,8 +2348,11 @@ def create_app(root: Path, config: dict | None = None,
                   "body": body}
         extra, shown, custom_errors = await custom_submitted(request, "interaction")
         try:
-            if custom_errors:
-                raise ValidationError(custom_errors)
+            errors = dict(custom_errors)
+            if not contact.strip():
+                errors["contact"] = "pick a contact: an interaction is always with a person"
+            if errors:
+                raise ValidationError(errors)
             created = store.create_interaction(slug, custom=extra, **values)
         except ValidationError as exc:
             values.update(shown)
@@ -2361,7 +2361,8 @@ def create_app(root: Path, config: dict | None = None,
                 "interaction": values,
                 "errors": exc.errors,
             }, status_code=400)
-        return flashed(f"/companies/{slug}", "Interaction logged",
+        return flashed(f"/companies/{slug}/contacts/{created.contact}",
+                       "Note added" if created.is_note else "Interaction logged",
                        anchor=f"i-{created.id}")
 
     @app.get("/companies/{slug}/interactions/{id}/edit", response_class=HTMLResponse)

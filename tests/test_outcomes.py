@@ -67,7 +67,7 @@ def last_commit(repo: Path) -> str:
 
 
 def interaction_form(**fields) -> dict:
-    return {"channel": "email", "direction": "out", "contact": "", "date": "",
+    return {"channel": "email", "direction": "out", "contact": "jane-doe", "date": "",
             "subject": "", "outcome": "", "body": "", **fields}
 
 
@@ -120,14 +120,15 @@ def test_m3_before_after(old_folder):
     folder = old_folder / "companies" / "acme" / "interactions"
     before = {name: (folder / f"{name}.md").read_text() for name in CASES}
     text = migrations.dry_run(old_folder)
-    assert "Data format 2 → 6" in text
+    assert "Data format 2 → 7" in text
     assert "3. interaction result folded into outcome: 9 file(s)" in text
 
     summary = migrations.ensure_current(old_folder)
-    assert summary.startswith("migrate: data format 2 → 6 (interaction result folded into "
+    assert summary.startswith("migrate: data format 2 → 7 (interaction result folded into "
                               "outcome; stage reached-out renamed to engaged; scores and "
                               "team size become fields you define; agents may not "
-                              "rewrite history (.claude/settings.json))")
+                              "rewrite history (.claude/settings.json); contact notes "
+                              "become note interactions)")
     for name, (_, after) in CASES.items():
         meta, body = split_file((folder / f"{name}.md").read_text())
         assert str(meta.get("outcome") or "") == after, name
@@ -138,7 +139,7 @@ def test_m3_before_after(old_folder):
     meta, _ = split_file((folder / "no-outcome-key.md").read_text())
     assert meta["outcome"] == "successful" and "result" not in meta
     assert list(meta).index("outcome") == list(meta).index("subject") + 1
-    assert (old_folder / ".hermitcrm-format").read_text() == "6\n"
+    assert (old_folder / ".hermitcrm-format").read_text() == "7\n"
     store = Store(old_folder)
     assert store.load() == []
     assert {i.id: i.outcome for i in store.get("acme").interactions}["f"] == "Wants a proposal"
@@ -191,6 +192,7 @@ def test_store_takes_outcomes_from_config(tmp_path):
 
 def test_form_dropdown_lists_outcomes_and_keeps_a_stray_value(client, app, repo):
     client.post("/companies", data={"name": "Acme"})
+    client.post("/companies/acme/contacts", data={"first_name": "Jane", "last_name": "Doe"})
     form = client.get("/companies/acme/interactions/new").text
     select = form.split('<select name="outcome">')[1].split("</select>")[0]
     assert '<option value="" selected>not yet known</option>' in select
@@ -214,6 +216,7 @@ def test_form_dropdown_lists_outcomes_and_keeps_a_stray_value(client, app, repo)
 
 def test_outcome_propagates_between_messages_page_and_edit_form(client, app, repo):
     client.post("/companies", data={"name": "Acme"})
+    client.post("/companies/acme/contacts", data={"first_name": "Jane", "last_name": "Doe"})
     client.post("/companies/acme/interactions", data=interaction_form(
         channel="linkedin", body="Hi there", date=f"{TODAY - timedelta(days=1)}T09:00"))
     it = app.state.store.get("acme").interactions[0]
@@ -259,6 +262,7 @@ def test_messages_page_follows_configured_outcomes(repo):
     app = create_app(repo, config={**CONFIG, "outcomes": ["replied", "no reply"]})
     client = TestClient(app, follow_redirects=False)
     client.post("/companies", data={"name": "Acme"})
+    client.post("/companies/acme/contacts", data={"first_name": "Jane", "last_name": "Doe"})
     client.post("/companies/acme/interactions", data=interaction_form(
         channel="linkedin", body="Hi", date=f"{TODAY - timedelta(days=30)}T09:00"))
     page = client.get("/messages").text
@@ -277,6 +281,7 @@ def test_messages_page_follows_configured_outcomes(repo):
 
 def test_message_cell_shows_preview_or_body_not_both(client, app):
     client.post("/companies", data={"name": "Acme"})
+    client.post("/companies/acme/contacts", data={"first_name": "Jane", "last_name": "Doe"})
     body = "Hello there, " + "this sentence is long enough to be cut in the preview. " * 3
     client.post("/companies/acme/interactions", data=interaction_form(
         channel="linkedin", body=body, date=f"{TODAY - timedelta(days=1)}T09:00"))

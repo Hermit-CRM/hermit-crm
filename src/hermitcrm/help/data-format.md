@@ -104,20 +104,23 @@ The body is free Markdown notes.
 
 `first_name`, `last_name` (at least one), `slug`, `title`, `linkedin`, `email`
 (lower case), `phone`, `role` (champion, decision-maker, influencer,
-gatekeeper or empty), `created`, `updated`. Body: notes. A file that still has
+gatekeeper or empty), `created`, `updated`. No body since format 7: notes on a
+person are note interactions (`hermitcrm check` lists a body written by hand). A file that still has
 a single `name` key is read by splitting on the first space and rewritten with
 both keys on its next save.
 
 ## Interaction (`interactions/<id>.md`)
 
-`date` (datetime), `channel` (email, linkedin, call, meeting), `direction`
-(out, in), `contact` (contact slug, or empty for company-level), `subject`,
+`date` (datetime), `channel` (email, linkedin, call, meeting, note), `direction`
+(out, in; empty for a note), `contact` (contact slug; empty only in older or
+imported files), `subject`,
 `outcome` (one line; see the configured outcomes), `result` (legacy: success,
-unsuccessful or empty), `source` (manual, bcc-import, calendar-import),
+unsuccessful or empty), `source` (manual, bcc-import, calendar-import, migration),
 `message_id` (imports only: the mail's Message-ID, or
 `ical:<UID>:<RECURRENCE-ID>:<attendee>` for a meeting). Body: the message or
-notes verbatim. Id: `YYYY-MM-DDTHHMM-<channel>-<direction>-<contact or company>`,
-`-2`, `-3` on collision.
+notes verbatim. Id: `YYYY-MM-DDTHHMM-<channel>-<direction>-<contact or company>`
+(a note: `YYYY-MM-DDTHHMM-note-<contact>`), `-2`, `-3` on collision. A note is a
+memo, not a touch: it never moves last touch, outcomes, follow-ups or reports.
 
 ## Stage history
 
@@ -139,8 +142,10 @@ collision.
 
 `.hermitcrm-format` holds one integer. When a release changes the format, the
 next command migrates the folder in one commit named
-`migrate: data format N → M (...)`, never touching a body (format 6 adds
-`.claude/settings.json` and the backup rules in `CLAUDE.md` / `AGENTS.md`);
+`migrate: data format N → M (...)`, never touching an interaction body (format 6 adds
+`.claude/settings.json` and the backup rules in `CLAUDE.md` / `AGENTS.md`; format 7
+moves each contact's notes body into note interactions, a line starting
+`DD/MM/YYYY:` dated that day, the rest dated the contact's `created`);
 `hermitcrm migrate --dry-run` lists the files first and `git revert` undoes it. A
 folder written by a newer Hermit CRM is refused until you upgrade.
 

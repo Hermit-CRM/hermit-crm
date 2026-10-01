@@ -89,33 +89,40 @@
 </section>
 {% endmacro %}
 
-{% macro interaction_form(action, company, values, errors=None, submit='Log interaction') %}
-<form method="post" action="{{ action }}" class="interaction-form">
+{# An interaction is always with a person. With `contact` (the contact page)
+   the person is fixed; elsewhere you pick one. A note has no direction. #}
+{% macro interaction_form(action, company, values, errors=None, submit='Log interaction', contact=None) %}
+<form method="post" action="{{ action }}" class="interaction-form{% if values.channel == 'note' %} is-note{% endif %}">
   {{ errors_box(errors) }}
   <div class="row">
     <span class="radios">
       {% for ch in channels %}
-      <label><input type="radio" name="channel" value="{{ ch }}"{% if values.channel == ch %} checked{% endif %}> {{ ch }}</label>
+      <label><input type="radio" name="channel" value="{{ ch }}"{% if values.channel == ch %} checked{% endif %} onchange="this.form.classList.toggle('is-note', this.value === 'note')"> {{ ch }}</label>
       {% endfor %}
     </span>
-    <span class="radios">
+    <span class="radios directions">
       {% for d in directions %}
-      <label><input type="radio" name="direction" value="{{ d }}"{% if values.direction == d %} checked{% endif %}> {{ d }}</label>
+      <label><input type="radio" name="direction" value="{{ d }}"{% if values.direction == d or (not values.direction and loop.first) %} checked{% endif %}> {{ d }}</label>
       {% endfor %}
     </span>
+    {% if contact %}
+    <input type="hidden" name="contact" value="{{ contact.slug }}">
+    {% else %}
     <label>contact
       <select name="contact">
-        <option value=""{% if not values.contact %} selected{% endif %}>company only</option>
-        {% for slug, contact in company.contacts.items() %}
-        <option value="{{ slug }}"{% if values.contact == slug %} selected{% endif %}>{{ contact.name }}</option>
+        {% if not values.contact %}<option value="" selected>pick a contact</option>{% endif %}
+        {% for slug, person in company.contacts.items() %}
+        <option value="{{ slug }}"{% if values.contact == slug %} selected{% endif %}>{{ person.name }}</option>
         {% endfor %}
       </select>
+      {{ err(errors, 'contact') }}
     </label>
+    {% endif %}
     <label>date <input type="datetime-local" name="date" value="{{ values.date }}"></label>
   </div>
   <div class="row">
     <label class="grow">subject <input name="subject" value="{{ values.subject }}"></label>
-    <label>outcome
+    <label class="outcome-field">outcome
       <select name="outcome">
         <option value=""{% if not values.outcome %} selected{% endif %}>not yet known</option>
         {% for o in outcomes %}<option value="{{ o }}"{% if values.outcome == o %} selected{% endif %}>{{ o }}</option>{% endfor %}
@@ -228,26 +235,26 @@
     <label class="grow">linkedin <input name="linkedin" value="{{ values.linkedin }}"></label>
   </div>
   {{ custom_fields(custom_fields_for('contact'), values, errors) }}
-  <label>notes <textarea name="notes" rows="6">{{ values.notes }}</textarea></label>
 {% endmacro %}
 
 {% macro timeline(company, interactions) %}
 <ul class="timeline">
   {% for i in interactions %}
-  <li class="interaction" id="i-{{ i.id }}">
+  <li class="interaction{% if i.is_note %} note{% endif %}" id="i-{{ i.id }}">
     <div class="meta">
       <span class="when">{{ fmt_datetime(i.date).replace('T', ' ') }}</span>
       <span class="tag">{{ i.channel }}</span>
-      <span class="tag">{{ i.direction }}</span>
+      {% if i.direction %}<span class="tag">{{ i.direction }}</span>{% endif %}
       <span class="who">{{ contact_label(company, i.contact) }}</span>
       <a class="edit" href="/companies/{{ company.slug }}/interactions/{{ i.id }}/edit">edit</a>
       <form method="post" action="/companies/{{ company.slug }}/interactions/{{ i.id }}/delete" class="inline delete">
         <button type="submit" onclick="return confirm('Delete this interaction?')">delete</button>
       </form>
     </div>
-    <div class="subject{% if not i.subject %} empty{% endif %}">{{ i.subject or '(no subject)' }}</div>
+    {% if i.subject or not i.is_note %}<div class="subject{% if not i.subject %} empty{% endif %}">{{ i.subject or '(no subject)' }}</div>{% endif %}
     {% if i.outcome %}<div class="outcome">outcome: {{ i.outcome }}</div>{% endif %}
-    {% if i.body %}<details><summary>body</summary><pre>{{ i.body }}</pre></details>{% endif %}
+    {% if i.body and i.is_note %}<pre>{{ i.body }}</pre>
+    {% elif i.body %}<details><summary>body</summary><pre>{{ i.body }}</pre></details>{% endif %}
   </li>
   {% else %}
   <li class="empty">No interactions yet.</li>

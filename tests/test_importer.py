@@ -148,7 +148,9 @@ def test_apply_writes_everything_in_one_commit(store, messages):
     assert contact.name == "Nils Ekdahl" and contact.role == "decision-maker"
     text = (store.company_dir("skarvik") / "contacts" / "nils-ekdahl.md").read_text()
     assert "first_name: Nils\nlast_name: Ekdahl\n" in text
-    assert "founder_sales_nav_url:" in text
+    assert "founder_sales_nav_url:" not in text  # contact notes are note interactions
+    note, = [i for i in skarvik.interactions if i.contact == "nils-ekdahl"]
+    assert note.channel == "note" and "founder_sales_nav_url:" in note.body
 
     # Importing the same sheet again changes nothing and commits nothing.
     plan = plan_import(store, SAMPLE, defs=DEFS)

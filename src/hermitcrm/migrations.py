@@ -26,8 +26,10 @@ than this code is refused with an upgrade hint.
 
 from __future__ import annotations
 
+import re
 import subprocess
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
@@ -214,6 +216,94 @@ def m6_agent_guard(data_dir: Path, meta_by_path: dict, write: bool) -> list[str]
     return changed
 
 
+# "01/10/2026: didn't accept invite" -- day first, as a European writes it.
+_DATED_NOTE = re.compile(r"^(\d{1,2})/(\d{1,2})/(\d{4}):")
+
+
+def _note_date(meta: dict, key: str) -> datetime | None:
+    value = meta.get(key)
+    if isinstance(value, datetime):
+        return value
+    try:
+        return datetime.fromisoformat(str(value)) if value else None
+    except ValueError:
+        return None
+
+
+def _split_notes(body: str, fallback: datetime) -> list[tuple[datetime, str]]:
+    """A contact's notes body as (date, text) notes. A line that starts with a
+    day/month/year date is its own note on that day; the lines between those
+    are one note dated `fallback`. Text is kept verbatim."""
+    notes: list[tuple[datetime, list[str]]] = []
+    undated: list[str] = []
+
+    def flush() -> None:
+        if any(line.strip() for line in undated):
+            notes.append((fallback, list(undated)))
+        undated.clear()
+
+    for line in body.replace("\r\n", "\n").split("\n"):
+        m = _DATED_NOTE.match(line)
+        when = None
+        if m:
+            day, month, year = (int(g) for g in m.groups())
+            try:
+                when = datetime(year, month, day)
+            except ValueError:
+                when = None  # not a real date: an ordinary line
+        if when is None:
+            undated.append(line)
+            continue
+        flush()
+        notes.append((when, [line]))
+    flush()
+    return [(when, "\n".join(lines).strip("\n") + "\n") for when, lines in notes]
+
+
+def m7_contact_notes(data_dir: Path, meta_by_path: dict, write: bool) -> list[str]:
+    """Contact notes become note interactions; the contact file loses its body.
+
+    A note is an interaction like any other (channel `note`, no direction,
+    `source: migration`), on the contact's timeline. The contact's front matter
+    is kept byte for byte; only the text after it goes. Running it again finds
+    no body and does nothing.
+    """
+    from .models import Interaction, interaction_to_frontmatter
+
+    changed: list[str] = []
+    claimed: set[Path] = set()  # names taken in this run (a dry run writes none)
+    for rel, meta in sorted(meta_by_path.items()):
+        if "/contacts/" not in rel:
+            continue
+        path = data_dir / rel
+        text = path.read_text(encoding="utf-8")
+        _, body = split_file(text)
+        if not body.strip():
+            continue
+        company_dir, cslug = path.parent.parent, path.stem
+        fallback = (_note_date(meta, "created") or _note_date(meta, "updated")
+                    or datetime.now().replace(second=0, microsecond=0))
+        folder = company_dir / "interactions"
+        for when, note in _split_notes(body, fallback):
+            it = Interaction(id="", date=when, channel="note", contact=cslug,
+                             source="migration", body=note)
+            base, n = it.base_id(), 1
+            target = folder / f"{base}.md"
+            while target.exists() or target in claimed:
+                n += 1
+                target = folder / f"{base}-{n}.md"
+            claimed.add(target)
+            if write:
+                folder.mkdir(exist_ok=True)
+                target.write_text(build_file(interaction_to_frontmatter(it), note),
+                                  encoding="utf-8")
+            changed.append(target.relative_to(data_dir).as_posix())
+        if write:
+            path.write_text(text[:len(text) - len(body)], encoding="utf-8")
+        changed.append(rel)
+    return changed
+
+
 MIGRATIONS = [
     Migration(1, "rename gijs_score to my_score", "companies/*/company.md", m1_my_score),
     Migration(2, "country UK→GB, USA→US", "companies/*/company.md", m2_country_codes),
@@ -225,6 +315,8 @@ MIGRATIONS = [
               "companies/*/company.md", folder=m5_custom_fields),
     Migration(6, "agents may not rewrite history (.claude/settings.json)", "CLAUDE.md",
               folder=m6_agent_guard),
+    Migration(7, "contact notes become note interactions", "companies/*/contacts/*.md",
+              folder=m7_contact_notes),
 ]
 LATEST = MIGRATIONS[-1].version
 
