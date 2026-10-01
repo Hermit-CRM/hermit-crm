@@ -800,9 +800,12 @@ class _ContactPlanner:
                 fill = {k: v for k, v in contact.items()
                         if k in ("title", "linkedin", "email", "phone", "role")
                         and getattr(current, k) in ("", None)}
-                new_lines = [line for line in extras if line not in current.notes]
+                # Contact notes are note interactions (format 7): a line already
+                # in one of them, or in a legacy body, is not imported again.
+                known = existing.contact_notes(match)
+                new_lines = [line for line in extras if line not in known]
                 if new_lines:
-                    fill["notes"] = _imported_block(current.notes, new_lines, self.stamp)
+                    fill["notes"] = _imported_block("", new_lines, self.stamp)
                 plan.contact_slug = match
                 plan.contact_fields = fill
                 plan.contact_action = "update" if fill else "exists"

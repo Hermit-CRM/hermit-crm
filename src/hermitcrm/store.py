@@ -1181,12 +1181,18 @@ class Store:
             language=normalise_language(language),
             created=now,
             updated=now,
-            notes=normalise_body(notes),
         )
         contact.extra = fields_mod.apply({}, custom or {})
-        self.write_contact(company_slug, contact)
-        company.contacts[contact.slug] = contact
-        self._notify(f"contact: {company_slug}/{contact.slug} created")
+        message = f"contact: {company_slug}/{contact.slug} created"
+        with self.batch(message):
+            self.write_contact(company_slug, contact)
+            company.contacts[contact.slug] = contact
+            self._notify(message)
+            # A contact has no notes body any more (format 7): what you know
+            # about a person is a note on their timeline.
+            if normalise_body(notes):
+                self.create_interaction(company_slug, Channel.NOTE.value, "",
+                                        contact=contact.slug, body=notes, date=now)
         return contact
 
     @_locked
@@ -1222,12 +1228,17 @@ class Store:
             new.role = self._coerce_enum(fields["role"], Role, "role", True, "")
         if "language" in fields:
             new.language = normalise_language(fields["language"])
-        if "notes" in fields:
-            new.notes = normalise_body(fields["notes"])
+        note = normalise_body(fields.get("notes") or "")
         new.updated = self.now()
-        self.write_contact(company_slug, new)
-        company.contacts[new.slug] = new
-        self._notify(message or f"contact: {company_slug}/{new.slug} updated")
+        message = message or f"contact: {company_slug}/{new.slug} updated"
+        with self.batch(message):
+            self.write_contact(company_slug, new)
+            company.contacts[new.slug] = new
+            self._notify(message)
+            # `notes` adds a note interaction; it never rewrites a legacy body.
+            if note:
+                self.create_interaction(company_slug, Channel.NOTE.value, "",
+                                        contact=new.slug, body=note)
         return new
 
     @_locked
@@ -1278,7 +1289,8 @@ class Store:
             raise ValidationError({"company": f"unknown company {company_slug!r}"})
         subject = (subject or "").strip()
         channel = self._coerce_enum(channel, Channel, "channel", False)
-        direction = self._coerce_enum(direction, Direction, "direction", False)
+        direction = ("" if channel == Channel.NOTE.value
+                     else self._coerce_enum(direction, Direction, "direction", False))
         contact = (contact or "").strip()
         if contact and contact not in company.contacts:
             raise ValidationError(
@@ -1299,11 +1311,11 @@ class Store:
         )
         it.extra = fields_mod.apply({}, custom or {})
         it.id = self._interaction_id(company_slug, it)
-        message = (f"interaction: {company_slug} {channel} {direction} "
+        message = (f"interaction: {company_slug} {it.label} "
                    f"{it.contact_label} {when:%Y-%m-%dT%H:%M}")
         # A logged interaction means contact was made: a prospect becomes
-        # engaged, in the same commit as the interaction.
-        advance = company.stage == Stage.PROSPECT.value
+        # engaged, in the same commit as the interaction. A note is not contact.
+        advance = company.stage == Stage.PROSPECT.value and it.is_touch
         if advance:
             message += f"; stage {Stage.PROSPECT.value} -> {Stage.ENGAGED.value}"
         with self.batch(message):
@@ -1335,9 +1347,13 @@ class Store:
             new.date = when
         if "channel" in fields:
             new.channel = self._coerce_enum(fields["channel"], Channel, "channel", False)
-        if "direction" in fields:
+        if new.channel == Channel.NOTE.value:
+            new.direction = ""
+        elif "direction" in fields:
             new.direction = self._coerce_enum(fields["direction"], Direction,
                                               "direction", False)
+        elif not new.direction:
+            raise ValidationError({"direction": "direction is required"})
         if "contact" in fields:
             contact = (fields["contact"] or "").strip()
             if contact and contact not in company.contacts:

@@ -14,14 +14,17 @@ box matches name, email, title and company.
 
 - Header: company, title, role, email, phone, LinkedIn, and **Enrich** when an
   AI CLI is available.
-- **Log an interaction** with this contact preselected.
 - **Contact**: first name, last name (at least one required), title, role
   (`champion`, `decision-maker`, `influencer`, `gatekeeper` or none), email
-  (stored lower case), phone, LinkedIn, notes.
+  (stored lower case), phone, LinkedIn. There is no notes field: what you
+  know about a person is a **note** on their timeline.
+- **Interactions** of this contact, newest first, notes included.
+- **Log an interaction** for this contact: an email, LinkedIn message, call,
+  meeting or note.
+- **Tasks** you owe this person.
 - **Message drafts** (below).
 - **Merge** another contact of the same company into this one (only shown when
   the company has more than one contact).
-- **Interactions** of this contact, newest first.
 - **Delete contact** (asks first). Their interactions stay on the company
   with the contact cleared, so the record survives; git keeps the file's
   history.

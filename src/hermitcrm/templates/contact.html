@@ -31,12 +31,19 @@
   {{ m.timeline(company, interactions) }}
 </section>
 
-{{ m.drafts_section(company, contact, drafts, signal, observation, '/companies/' ~ company.slug ~ '/contacts/' ~ contact.slug) }}
-
 <section id="quick-add">
   <h2>Log an interaction</h2>
-  {{ m.interaction_form('/companies/' ~ company.slug ~ '/interactions', company, interaction) }}
+  {{ m.interaction_form('/companies/' ~ company.slug ~ '/interactions', company, interaction, contact=contact) }}
 </section>
+
+
+<section id="tasks">
+  <h2>Tasks for {{ contact.name }}</h2>
+  <p class="small">Things you owe this person. {{ company.name }}'s <a href="/companies/{{ company.slug }}#tasks">next step</a> is its open task due first, which can be one of these.</p>
+  {{ m.task_list(company, contact.tasks, today, contact=contact.slug) }}
+</section>
+
+{{ m.drafts_section(company, contact, drafts, signal, observation, '/companies/' ~ company.slug ~ '/contacts/' ~ contact.slug) }}
 
 {% if company.contacts | length > 1 %}
 <section id="merge">
@@ -50,12 +57,6 @@
   </form>
 </section>
 {% endif %}
-
-<section id="tasks">
-  <h2>Tasks for {{ contact.name }}</h2>
-  <p class="small">Things you owe this person. {{ company.name }}'s <a href="/companies/{{ company.slug }}#tasks">next step</a> is its open task due first, which can be one of these.</p>
-  {{ m.task_list(company, contact.tasks, today, contact=contact.slug) }}
-</section>
 
 <section id="delete">
   <h2>Delete</h2>

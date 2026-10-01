@@ -217,7 +217,7 @@ def build_tools(root: Path, store) -> list[Tool]:
         moved = ""
         if after is not None and after.stage != stage_before:
             moved = f" {slug} moved {stage_before} -> {after.stage}."
-        return (f"Logged {it.channel} {it.direction} on {slug} as {it.id} "
+        return (f"Logged {it.label} on {slug} as {it.id} "
                 f"(companies/{slug}/interactions/{it.id}.md).{moved}")
 
     days_field = text("integer", "How many days to cover.")
@@ -280,15 +280,20 @@ def build_tools(root: Path, store) -> list[Tool]:
              schema({"company": text(description="The company's slug."),
                      "name": text(description='Full name, e.g. "Jane van Doe".'),
                      "title": text(), "email": text(), "phone": text(),
-                     "linkedin": text(), "role": text(), "notes": text()},
+                     "linkedin": text(), "role": text(),
+                     "notes": text(description="Logged as a note interaction on "
+                                               "the new contact.")},
                     ["company", "name"]), add_contact_tool),
         Tool("add_interaction",
-             "Log an email, LinkedIn message, call or meeting. Writes the file and "
-             "commits it. Logging one on a prospect moves it to engaged.",
+             "Log an email, LinkedIn message, call or meeting, or a note about a "
+             "person. Writes the file and commits it. Logging one on a prospect "
+             "moves it to engaged (a note does not).",
              schema({"company": text(description="The company's slug."),
-                     "channel": text(description="email, linkedin, call or meeting.",
-                                     enum=["email", "linkedin", "call", "meeting"]),
-                     "direction": text(description="in (they contacted you) or out.",
+                     "channel": text(description="email, linkedin, call, meeting or "
+                                                 "note (a memo: no direction).",
+                                     enum=["email", "linkedin", "call", "meeting", "note"]),
+                     "direction": text(description="in (they contacted you) or out. "
+                                                   "Required except for a note.",
                                        enum=["in", "out"]),
                      "body": text(description="The message itself, kept byte for byte."),
                      "contact": text(description="The contact's slug, when it was "
@@ -296,7 +301,7 @@ def build_tools(root: Path, store) -> list[Tool]:
                      "subject": text(), "date": text(description="YYYY-MM-DD or "
                                                                  "YYYY-MM-DDTHH:MM."),
                      "outcome": text()},
-                    ["company", "channel", "direction"]), add_interaction_tool),
+                    ["company", "channel"]), add_interaction_tool),
     ]
 
 

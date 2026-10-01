@@ -68,7 +68,7 @@ def test_format_detection(tmp_path, old_folder):
 def test_dry_run_lists_files_and_writes_nothing(old_folder):
     before = {p: p.read_bytes() for p in old_folder.rglob("company.md")}
     text = migrations.dry_run(old_folder)
-    assert "Data format 0 → 6" in text
+    assert "Data format 0 → 7" in text
     assert "1. rename gijs_score to my_score: 3 file(s)" in text  # bolt has an empty key
     assert "2. country UK→GB, USA→US: 2 file(s)" in text
     assert "3. interaction result folded into outcome: 0 file(s)" in text
@@ -89,17 +89,18 @@ def test_migrate_before_after_in_one_commit(old_folder):
 
     summary = migrations.ensure_current(old_folder)
 
-    assert summary.startswith("migrate: data format 0 → 6 (rename gijs_score to my_score; "
+    assert summary.startswith("migrate: data format 0 → 7 (rename gijs_score to my_score; "
                               "country UK→GB, USA→US; interaction result folded into "
                               "outcome; stage reached-out renamed to engaged; scores and "
                               "team size become fields you define; agents may not rewrite "
-                              "history (.claude/settings.json))")
+                              "history (.claude/settings.json); contact notes become "
+                              "note interactions)")
     assert acme.read_text() == expected and acme.read_text().endswith(BODY)
     bolt = (old_folder / "companies/bolt/company.md").read_text()
     assert "country: US\n" in bolt and "my_score:\n" in bolt and "gijs_score" not in bolt.split("---")[1]
-    assert (old_folder / ".hermitcrm-format").read_text() == "6\n"
+    assert (old_folder / ".hermitcrm-format").read_text() == "7\n"
     assert int(git(["rev-list", "--count", "HEAD"], old_folder)) == commits_before + 1
-    assert git(["log", "-1", "--format=%s|%an"], old_folder).startswith("migrate: data format 0 → 6")
+    assert git(["log", "-1", "--format=%s|%an"], old_folder).startswith("migrate: data format 0 → 7")
     assert "hermitcrm" in git(["log", "-1", "--format=%an"], old_folder)
     changed = git(["show", "--name-only", "--format=", "HEAD"], old_folder).split()
     assert sorted(changed) == [".claude/settings.json", ".hermitcrm-format",
@@ -198,3 +199,78 @@ def test_m4_renames_reached_out_in_stage_and_history(tmp_path):
     assert path.read_text().endswith(BODY) and "reached-out" not in path.read_text()
     meta = {"stage": "offer"}
     assert migrations.m4_stage_engaged(meta) is meta
+
+
+# ------------------------------------------------- 7: contact notes -> notes
+
+
+CONTACT_FM = ("---\nfirst_name: Jan\nlast_name: Jansen\nslug: jan\ntitle: CEO\n"
+              "created: 2026-09-14T17:02\nupdated: 2026-09-15T21:36\n---\n")
+
+
+def contact_folder(tmp_path, bodies: dict) -> Path:
+    for slug, body in bodies.items():
+        path = tmp_path / f"companies/acme/contacts/{slug}.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(CONTACT_FM.replace("slug: jan", f"slug: {slug}") + body)
+    (tmp_path / "companies/acme/company.md").write_text(
+        old_company_file("Acme", "acme", "GB", 1).replace("gijs_score", "my_score"))
+    migrations.write_format(tmp_path, 6)
+    return tmp_path
+
+
+def test_m7_ports_contact_notes_to_note_interactions(tmp_path):
+    root = contact_folder(tmp_path, {
+        "jan": "01/10/2026: didn't accept invite\n"
+                 "founder_sales_nav_url: https://www.linkedin.com/sales/lead/X\n",
+        "anna": "founder_sales_nav_url: https://www.linkedin.com/sales/lead/Y\n",
+        "jo": "Met at a fair.\nLikes detail.\n\n31/02/2026: not a date, an ordinary line\n",
+        "empty": "",
+    })
+    before = {slug: (root / f"companies/acme/contacts/{slug}.md").read_text()
+              for slug in ("jan", "anna", "jo", "empty")}
+
+    dry = migrations.dry_run(root)
+    assert "7. contact notes become note interactions: 7 file(s)" in dry
+    assert not (root / "companies/acme/interactions").exists()  # a dry run writes nothing
+
+    migrations.ensure_current(root)
+    folder = root / "companies/acme/interactions"
+    assert sorted(p.name for p in folder.glob("*.md")) == [
+        "2026-09-14T1702-note-anna.md",
+        "2026-09-14T1702-note-jan.md",
+        "2026-09-14T1702-note-jo.md",
+        "2026-10-01T0000-note-jan.md",
+    ]
+    # Each contact keeps its front matter byte for byte and loses only the body.
+    for slug in ("jan", "anna", "jo", "empty"):
+        text = (root / f"companies/acme/contacts/{slug}.md").read_text()
+        assert text == before[slug][:before[slug].index("---\n", 4) + 4]
+
+    store = Store(root)
+    assert store.load() == []
+    acme = store.get("acme")
+    by_id = {i.id: i for i in acme.interactions}
+    dated = by_id["2026-10-01T0000-note-jan"]
+    assert (dated.channel, dated.direction, dated.contact, dated.source) == (
+        "note", "", "jan", "migration")
+    assert dated.body == "01/10/2026: didn't accept invite\n"
+    assert by_id["2026-09-14T1702-note-jan"].body.startswith("founder_sales_nav_url:")
+    assert by_id["2026-09-14T1702-note-jo"].body == (
+        "Met at a fair.\nLikes detail.\n\n31/02/2026: not a date, an ordinary line\n")
+    assert acme.last_touch is None  # notes are memos, not contact made
+
+    # Idempotent: the bodies are gone, so a second run has nothing to port.
+    assert migrations.current_format(root) == migrations.LATEST
+    assert migrations.m7_contact_notes(root, {"companies/acme/contacts/jan.md": {}},
+                                       write=True) == []
+
+
+def test_m7_does_not_overwrite_an_existing_interaction(tmp_path):
+    root = contact_folder(tmp_path, {"jan": "01/10/2026: one\n"})
+    folder = root / "companies/acme/interactions"
+    folder.mkdir()
+    (folder / "2026-10-01T0000-note-jan.md").write_text("---\nchannel: note\n---\nmine\n")
+    migrations.ensure_current(root)
+    assert (folder / "2026-10-01T0000-note-jan.md").read_text().endswith("mine\n")
+    assert (folder / "2026-10-01T0000-note-jan-2.md").read_text().endswith("01/10/2026: one\n")

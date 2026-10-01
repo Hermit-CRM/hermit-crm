@@ -55,8 +55,9 @@ See [Backups and undo](/help/backups).
 hermitcrm add company NAME [--country NL] [--website URL] [--stage S] [--set FIELD=VALUE ...]
                                         create a company; prints its slug. Writes and commits at once (no --apply)
 hermitcrm add contact SLUG NAME [--title T] [--email E] [--phone P] [--role R] [--notes N]
-                                        create a contact under a company; the name is split into first and last
-hermitcrm add interaction SLUG --channel email|linkedin|call|meeting --direction in|out
+                                        create a contact under a company; the name is split into first and last;
+                                        --notes is logged as a note interaction on them
+hermitcrm add interaction SLUG --channel email|linkedin|call|meeting|note --direction in|out (not for a note)
                                         [--contact CSLUG] [--subject S] [--date D] [--body TEXT|-]
                                         log an interaction; --body - reads it from stdin, and a prospect becomes engaged
 hermitcrm rebuild                          rebuild the index and PIPELINE.md, commit "pipeline: rebuild"

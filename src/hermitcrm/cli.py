@@ -390,7 +390,7 @@ def cmd_digest(store: Store, days: int, now: datetime | None = None) -> str:
 
     for company, it in pairs:
         header = (
-            f"{it.date:%Y-%m-%d %H:%M} | {it.channel} {it.direction} | "
+            f"{it.date:%Y-%m-%d %H:%M} | {it.label} | "
             f"{company.slug} / {it.contact_label} | {it.subject or '-'} | "
             f"outcome: {it.outcome or '-'}"
         )
@@ -398,9 +398,11 @@ def cmd_digest(store: Store, days: int, now: datetime | None = None) -> str:
         blocks.append(f"{header}\n{preview}")
         if it.channel in counts and it.direction in ("out", "in"):
             counts[it.channel][it.direction] += 1
-        companies_touched.add(company.slug)
+        if it.is_touch:  # a note is listed, but it is not contact made
+            companies_touched.add(company.slug)
 
-    n = len(pairs)
+    notes = sum(1 for _, it in pairs if it.is_note)
+    n = len(pairs) - notes
     if n == 0:
         summary = "Summary: 0 interactions | companies touched: 0"
     else:
@@ -413,6 +415,8 @@ def cmd_digest(store: Store, days: int, now: datetime | None = None) -> str:
         if chan_parts:
             summary += " | " + " | ".join(chan_parts)
         summary += f" | companies touched: {len(companies_touched)}"
+    if notes:
+        summary += f" | notes: {notes}"
 
     if blocks:
         return "\n\n".join(blocks) + "\n\n" + summary
@@ -437,7 +441,7 @@ def _company_field_text(company, key: str) -> str:
 
 def _interaction_header(it, contact_label: str) -> str:
     return (
-        f"{it.date:%Y-%m-%d %H:%M} | {it.channel} {it.direction} | "
+        f"{it.date:%Y-%m-%d %H:%M} | {it.label} | "
         f"{contact_label} | {it.subject or '-'} | {it.outcome or '-'}"
     )
 
@@ -505,13 +509,20 @@ def cmd_rebuild(store: Store, gitops: GitOps) -> str:
 
 def cmd_check(store: Store) -> tuple[str, int]:
     store.load()
+    # Since format 7 a contact has no notes body: what you know about a person
+    # is a note interaction. A body written by hand is shown, not lost.
+    stray = [f"companies/{c.slug}/contacts/{cs}.md: has a notes body; the app no longer "
+             f"shows it (log it as a note on the contact instead)"
+             for c in store.companies.values() for cs, ct in c.contacts.items()
+             if ct.notes.strip()]
     if not store.problems:
         n_companies = len(store.companies)
         n_contacts = sum(len(c.contacts) for c in store.companies.values())
         n_interactions = sum(len(c.interactions) for c in store.companies.values())
         return (
-            f"OK: {n_companies} companies, {n_contacts} contacts, "
-            f"{n_interactions} interactions, no problems",
+            "\n".join(stray + [
+                f"OK: {n_companies} companies, {n_contacts} contacts, "
+                f"{n_interactions} interactions, no problems"]),
             0,
         )
     lines = [f"{p.path}: {p.message}" for p in store.problems]
@@ -1065,16 +1076,19 @@ def _build_parser() -> argparse.ArgumentParser:
     p_add_ct = add_sub.add_parser("contact", help="create a contact under a company")
     p_add_ct.add_argument("company", help="the company slug")
     p_add_ct.add_argument("name", help='the full name, e.g. "Jane van Doe"')
-    for flag in ("--title", "--email", "--phone", "--linkedin", "--role", "--notes"):
+    for flag in ("--title", "--email", "--phone", "--linkedin", "--role"):
         p_add_ct.add_argument(flag, default=None)
+    p_add_ct.add_argument("--notes", default=None,
+                          help="logged as a note interaction on the new contact")
 
     p_add_in = add_sub.add_parser("interaction", help="log an interaction (advances a "
                                                      "prospect to engaged)")
     p_add_in.add_argument("company", help="the company slug")
     p_add_in.add_argument("--channel", required=True,
                           choices=[c.value for c in Channel])
-    p_add_in.add_argument("--direction", required=True,
-                          choices=[d.value for d in Direction])
+    p_add_in.add_argument("--direction", default="",
+                          choices=["", *[d.value for d in Direction]],
+                          help="required, except for --channel note")
     p_add_in.add_argument("--body", default="",
                           help="the message itself; - reads it from stdin")
     for flag in ("--contact", "--subject", "--date", "--outcome"):

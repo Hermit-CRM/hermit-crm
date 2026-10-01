@@ -560,3 +560,34 @@ def test_cli_add_company_with_a_next_step_type(tmp_path, capsys):
     assert "prospecting" in capsys.readouterr().out
     assert crm.main(["add", "company", "Beta", "--next-step-type", "nope"],
                     root=tmp_path) != 0
+
+
+def test_digest_lists_notes_but_does_not_count_them(tmp_path):
+    store = fixed_store(tmp_path)
+    store.create_company("Acme GmbH")
+    store.create_contact("acme", "Jane", "Doe")
+    store.create_interaction("acme", channel="note", direction="", contact="jane-doe",
+                             date="2026-09-13T09:00", body="Prefers email")
+    text = crm.cmd_digest(store, days=7, now=FIXED_NOW)
+    assert "2026-09-13 09:00 | note | acme / jane-doe" in text
+    assert text.endswith("Summary: 0 interactions | companies touched: 0 | notes: 1")
+
+
+def test_cli_contact_notes_and_note_interactions(tmp_path, capsys):
+    fixed_store(tmp_path)
+    crm.main(["add", "company", "Acme BV"], root=tmp_path)
+    assert crm.main(["add", "contact", "acme", "Jane Doe", "--notes", "Met at a fair"],
+                    root=tmp_path) == 0
+    folder = tmp_path / "companies" / "acme"
+    assert "Met at a fair" not in (folder / "contacts" / "jane-doe.md").read_text()
+    note, = folder.glob("interactions/*-note-jane-doe.md")
+    assert "channel: note" in note.read_text() and note.read_text().endswith("Met at a fair\n")
+    # A note needs no --direction, and it does not engage the prospect.
+    assert crm.main(["add", "interaction", "acme", "--channel", "note",
+                     "--contact", "jane-doe", "--body", "Prefers email"], root=tmp_path) == 0
+    assert "stage: prospect" in (folder / "company.md").read_text()
+    # Every other channel still needs one.
+    capsys.readouterr()
+    assert crm.main(["add", "interaction", "acme", "--channel", "email",
+                     "--contact", "jane-doe"], root=tmp_path) == 2
+    assert "direction is required" in capsys.readouterr().err
