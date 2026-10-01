@@ -126,7 +126,7 @@ def render_one(brief: Brief, today=None) -> str:
             lines.append(f"Last {len(interactions)}:")
             for it in interactions:
                 preview = it.subject or first_line(it.body, 70)
-                lines.append(f"- {it.date:%Y-%m-%d} {it.channel} {it.direction} "
+                lines.append(f"- {it.date:%Y-%m-%d} {it.label} "
                              f"({it.contact_label}){': ' + preview if preview else ''}")
         else:
             lines.append("No interactions logged yet.")

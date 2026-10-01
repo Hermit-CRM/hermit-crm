@@ -284,9 +284,13 @@ def test_update_contact(store, messages):
     messages.clear()
     c = store.update_contact("acme", "anna-mueller", title="CTO",
                              email="A@B.COM", notes="hi\r\n")
-    assert (c.title, c.email, c.notes) == ("CTO", "a@b.com", "hi\n")
+    assert (c.title, c.email, c.notes) == ("CTO", "a@b.com", "")
     assert c.slug == "anna-mueller"
+    # `notes` logs a note on the contact, in the same commit as the update.
     assert messages == ["contact: acme/anna-mueller updated"]
+    note, = store.get("acme").interactions
+    assert (note.channel, note.direction, note.contact, note.body) == (
+        "note", "", "anna-mueller", "hi\n")
 
 
 def test_contact_bad_role(store):
@@ -429,8 +433,7 @@ def make_full_company(store):
     )
     store.create_contact("mueller-soehne", "Anna", "Müller", title="CEO",
                          email="Anna@Mueller.DE", role="decision-maker",
-                         phone="+49 30 1234", linkedin="https://li/anna",
-                         notes="likes detail\n")
+                         phone="+49 30 1234", linkedin="https://li/anna")
     store.create_contact("mueller-soehne", "Jonas", "Berg")
     store.create_interaction("mueller-soehne", subject="Intro on LinkedIn",
                              channel="linkedin", direction="out",
@@ -470,7 +473,7 @@ def test_round_trip_preserves_every_field(store):
     anna = c.contacts["anna-mueller"]
     assert (anna.name, anna.title, anna.email, anna.role, anna.phone) == (
         "Anna Müller", "CEO", "anna@mueller.de", "decision-maker", "+49 30 1234")
-    assert anna.notes == "likes detail\n"
+    assert anna.notes == ""  # contact notes are note interactions (format 7)
     assert set(c.contacts) == {"anna-mueller", "jonas-berg"}
 
 
@@ -1134,3 +1137,47 @@ def test_rename_rewrites_every_todo_in_one_commit(store):
     assert s2.get("acme").contacts["jane-roe"].tasks[0].type == "lost deal revival"
     written.clear()
     assert store.rename_task_type("nobody", "x") == 0 and written == []
+
+
+# ------------------------------------------------------------- note interactions
+
+
+def test_a_note_is_an_interaction_without_direction_and_not_a_touch(store, messages):
+    store.create_company("Acme")
+    store.create_contact("acme", "Jane", "Doe")
+    store.create_interaction("acme", channel="linkedin", direction="out",
+                             contact="jane-doe", date="2026-09-10T09:00", body="Hi")
+    acme = store.get("acme")
+    assert acme.stage == "engaged"
+    messages.clear()
+    note = store.create_interaction("acme", channel="note", direction="out",
+                                    contact="jane-doe", date="2026-09-12T08:00",
+                                    body="Prefers email.\n")
+    assert (note.id, note.direction, note.label) == (
+        "2026-09-12T0800-note-jane-doe", "", "note")
+    assert not note.is_touch and not note.is_message
+    assert messages == ["interaction: acme note jane-doe 2026-09-12T08:00"]
+    acme = store.get("acme")
+    # The note is on the timeline but last touch is still the LinkedIn message.
+    assert [i.channel for i in acme.interactions] == ["note", "linkedin"]
+    assert acme.last_touch == datetime(2026, 9, 10, 9, 0)
+    assert acme.last_touch_summary == "linkedin out 2026-09-10 (jane-doe)"
+    assert acme.contact_last_touch("jane-doe") == datetime(2026, 9, 10, 9, 0)
+    assert "Prefers email." in acme.contact_notes("jane-doe")
+    # Round trip: an empty direction is valid for a note, required otherwise.
+    reloaded = Store(store.root)
+    assert reloaded.load() == []
+    assert reloaded.get("acme").interactions[0].direction == ""
+    with pytest.raises(ValidationError):
+        store.create_interaction("acme", channel="call", direction="", contact="jane-doe")
+
+
+def test_a_note_does_not_engage_a_prospect(store):
+    store.create_company("Acme")
+    store.create_contact("acme", "Jane", "Doe", notes="Met at a fair.")
+    acme = store.get("acme")
+    assert acme.stage == "prospect"
+    note, = acme.interactions
+    assert (note.channel, note.contact, note.body) == ("note", "jane-doe", "Met at a fair.\n")
+    assert acme.contacts["jane-doe"].notes == ""
+    assert acme.last_touch is None

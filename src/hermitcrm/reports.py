@@ -40,7 +40,9 @@ PERIODS = ["7d", "30d", "90d", "quarter", "ytd", "custom"]
 PIPELINE_STAGES = ["prospect", "engaged", "discovery", "offer"]
 FUNNEL_STAGES = PIPELINE_STAGES + ["won"]
 STAGE_ORDER = [s.value for s in Stage]
-CHANNELS = [c.value for c in Channel]  # every channel, including calendar "meeting"
+# Every channel you make contact on, including calendar "meeting". A note is a
+# memo, not activity, so it has no column and no count anywhere in the reports.
+CHANNELS = [c.value for c in Channel if c is not Channel.NOTE]
 DIRECTIONS = ["out", "in"]
 UNKNOWN = "unknown"
 OTHER = "other"  # a message status outside the configured outcomes
@@ -260,7 +262,7 @@ def activity(store: Store, period: Period, rows: Rows | None = None) -> dict:
 
     def totals(p: Period, suffix: str, when: str) -> tuple[dict, dict]:
         its = [(c, i) for c in store.companies.values() for i in c.interactions
-               if i.date in p]
+               if i.date in p and i.is_touch]
         touched = Counter(c.slug for c, _ in its)
         new_companies = [c for c in store.companies.values() if c.created in p]
         new_contacts = [(c, ct) for c in store.companies.values()
@@ -296,7 +298,7 @@ def activity(store: Store, period: Period, rows: Rows | None = None) -> dict:
         day += timedelta(days=7)
     for c in store.companies.values():
         for i in c.interactions:
-            if i.date in period:
+            if i.date in period and i.is_touch:
                 year, week, _ = i.date.isocalendar()
                 col = f"{i.channel} {i.direction}"
                 weeks[f"{year}-W{week:02d}"].setdefault(col, []).append(interaction_row(c, i))

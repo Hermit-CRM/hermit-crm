@@ -1,22 +1,25 @@
 # Interactions
 
-An interaction is one touch with a company: an email, LinkedIn message, call or meeting, in or out, with the text kept verbatim.
+An interaction is one touch with a person: an email, LinkedIn message, call or meeting, in or out, with the text kept verbatim. A **note** is an interaction too: a memo about the person, with no direction, that shows on their timeline but never counts as contact made (it does not move last touch, a prospect's stage, follow-ups, outcomes or reports).
 
 ## Logging one
 
-The **Log an interaction** form sits on every company and contact page, and
-on its own at `/companies/<slug>/interactions/new` (the "log interaction"
-links on the Calendar open it). Fields: channel (`email`, `linkedin`, `call`,
-`meeting`, default linkedin), direction (`out` or `in`, default out), contact (or "company
-only"), date and time (default now, editable), subject, outcome and the body.
+An interaction is always with a person, so the **Log an interaction** form
+sits on every contact page (the "log" link in a company's contact list goes
+there), and on its own at `/companies/<slug>/interactions/new` where you pick
+the contact (the "log interaction" links on the Calendar open it). Fields:
+channel (`email`, `linkedin`, `call`, `meeting`, `note`, default linkedin),
+direction (`out` or `in`, default out; hidden for a note), date and time
+(default now, editable), subject, outcome and the body.
 The body is the pasted message or the call notes; it is stored byte for byte
 and never rewritten.
 
 Logging an interaction (by hand or from the BCC and calendar imports) on a
-company in **prospect** moves it to **engaged**, in the same commit. Other
+company in **prospect** moves it to **engaged**, in the same commit; a note
+does not. Other
 stages are left alone.
 
-Saving redirects to the company page with the timeline scrolled to the new
+Saving redirects to the contact's page with the timeline scrolled to the new
 entry. Each entry has an edit link (`/companies/<slug>/interactions/<id>/edit`)
 where every field including the date can change; a date change renames the
 file.

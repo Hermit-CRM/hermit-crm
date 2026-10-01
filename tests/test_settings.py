@@ -249,10 +249,11 @@ def test_new_outcomes_usable_without_restart(demo, tmp_path):
         "message_window_days": "14", "silent_days": "14"})
     assert r.status_code == 303
     assert app.state.store.outcomes == ["positive", "meeting booked", "silent"]
-    page = client.get(f"/companies/{slug}").text
+    page = client.get(f"/companies/{slug}/interactions/new").text
     assert '<option value="meeting booked"' in page
+    person = next(iter(app.state.store.companies[slug].contacts))
     r = client.post(f"/companies/{slug}/interactions", data={
-        "channel": "email", "direction": "out", "contact": "", "date": "2026-09-01",
+        "channel": "email", "direction": "out", "contact": person, "date": "2026-09-01",
         "subject": "Intro", "outcome": "meeting booked", "body": "Hello"})
     assert r.status_code == 303, r.text
     logged = [i for i in app.state.store.companies[slug].interactions
@@ -261,7 +262,7 @@ def test_new_outcomes_usable_without_restart(demo, tmp_path):
     assert "1 meeting booked" in client.get("/messages").text
     # And the old list is gone from validation too.
     r = client.post(f"/companies/{slug}/interactions", data={
-        "channel": "email", "direction": "out", "contact": "", "date": "2026-09-02",
+        "channel": "email", "direction": "out", "contact": person, "date": "2026-09-02",
         "subject": "Old", "outcome": "successful", "body": "Hi"})
     assert r.status_code != 303
 

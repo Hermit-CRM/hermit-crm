@@ -62,11 +62,6 @@
   <a class="small" href="#tasks">all tasks</a>
 </div>
 
-<section id="quick-add">
-  <h2>Log an interaction</h2>
-  {{ m.interaction_form('/companies/' ~ company.slug ~ '/interactions', company, interaction, errors if 'subject' in errors or 'channel' in errors or 'direction' in errors else None) }}
-</section>
-
 <section id="details">
   <h2>Company</h2>
   {{ m.errors_box(errors) }}
@@ -100,18 +95,18 @@
       <td>{{ c.role }}</td>
       <td>{% if c.email %}<a href="mailto:{{ c.email }}">{{ c.email }}</a>{% endif %}</td>
       <td>{% if c.linkedin %}<a href="{{ c.linkedin | href }}" target="_blank" rel="noopener">profile</a>{% endif %}</td>
-      <td><a href="/companies/{{ company.slug }}/contacts/{{ slug }}#drafts">drafts</a></td>
+      <td><a href="/companies/{{ company.slug }}/contacts/{{ slug }}#quick-add">log</a> &middot; <a href="/companies/{{ company.slug }}/contacts/{{ slug }}#drafts">drafts</a></td>
     </tr>
     {% else %}
     <tr><td colspan="6" class="empty">No contacts yet.</td></tr>
     {% endfor %}
   </table></div>
-  <p><a href="/companies/{{ company.slug }}/contacts/new">New contact</a></p>
+  <p><a href="/companies/{{ company.slug }}/contacts/new">New contact</a> <span class="small">&middot; an interaction is always with a person: log it, or a note, on their page.</span></p>
 </section>
 
-{{ m.drafts_section(company, draft_contact, drafts, signal, observation, '/companies/' ~ company.slug) }}
-
 {{ m.task_section(company, today) }}
+
+{{ m.drafts_section(company, draft_contact, drafts, signal, observation, '/companies/' ~ company.slug) }}
 
 <section id="merge">
   <h2>Merge</h2>

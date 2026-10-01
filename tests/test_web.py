@@ -103,7 +103,7 @@ COMPANY_BLANK = {
     "tags": "", "notes": "",
 }
 CONTACT_BLANK = {"first_name": "", "last_name": "", "title": "", "linkedin": "", "email": "",
-                 "phone": "", "role": "", "notes": ""}
+                 "phone": "", "role": ""}
 INTERACTION_BLANK = {"channel": "email", "direction": "out", "contact": "",
                      "date": "", "subject": "", "outcome": "", "body": ""}
 
@@ -496,12 +496,17 @@ def test_interaction_standalone_form_and_validation(client):
 
     # Subject is optional; the timeline shows a placeholder instead.
     ok = post_interaction(client, "acme", channel="call", direction="in",
-                          subject="", body="kept body")
+                          contact="jane-doe", subject="", body="kept body")
     assert ok.status_code == 303
     assert "(no subject)" in client.get("/companies/acme").text
 
+    # An interaction is always with a person: no contact, no interaction.
+    nobody = post_interaction(client, "acme", channel="call", direction="in",
+                              subject="", body="kept body")
+    assert nobody.status_code == 400 and "pick a contact" in nobody.text
+
     bad = post_interaction(client, "acme", channel="", direction="in",
-                           subject="", body="kept body")
+                           contact="jane-doe", subject="", body="kept body")
     assert bad.status_code == 400
     assert "channel is required" in bad.text
     assert "kept body" in bad.text
@@ -509,9 +514,10 @@ def test_interaction_standalone_form_and_validation(client):
 
 def test_interaction_edit_renames_file_on_date_change(client, repo):
     post_company(client, name="Acme GmbH")
-    post_interaction(client, "acme", channel="email", direction="out",
+    post_contact(client, "acme", first_name="Jane", last_name="Doe")
+    post_interaction(client, "acme", channel="email", direction="out", contact="jane-doe",
                      date="2026-09-01T08:00", subject="Intro", body="hello")
-    old_id = "2026-09-01T0800-email-out-company"
+    old_id = "2026-09-01T0800-email-out-jane-doe"
     old_path = repo / "companies/acme/interactions" / f"{old_id}.md"
     assert old_path.exists()
 
@@ -521,8 +527,8 @@ def test_interaction_edit_renames_file_on_date_change(client, repo):
     resp = client.post(f"/companies/acme/interactions/{old_id}/edit",
                        data={**INTERACTION_BLANK, "channel": "email",
                              "direction": "out", "date": "2026-09-02T09:30",
-                             "subject": "Intro", "body": "hello"})
-    new_id = "2026-09-02T0930-email-out-company"
+                             "contact": "jane-doe", "subject": "Intro", "body": "hello"})
+    new_id = "2026-09-02T0930-email-out-jane-doe"
     assert resp.status_code == 303
     assert resp.headers["location"].endswith(f"#i-{new_id}")
     assert (repo / "companies/acme/interactions" / f"{new_id}.md").exists()
@@ -530,15 +536,19 @@ def test_interaction_edit_renames_file_on_date_change(client, repo):
     assert last_commit(repo) == f"interaction: acme {new_id} updated"
 
 
-def test_company_page_quick_add_preselects_latest_contact(client):
+def test_log_form_preselects_latest_contact(client):
     post_company(client, name="Acme GmbH")
     post_contact(client, "acme", first_name="Jane", last_name="Doe")
     post_contact(client, "acme", first_name="John", last_name="Roe")
     post_interaction(client, "acme", channel="email", direction="out",
                      contact="john-roe", date="2026-09-02T09:00", subject="Hi")
 
-    page = client.get("/companies/acme").text
+    # The company page has no log form any more: you log on the person's page,
+    # or on the standalone form, which preselects the latest contact.
+    assert 'id="quick-add"' not in client.get("/companies/acme").text
+    page = client.get("/companies/acme/interactions/new").text
     assert '<option value="john-roe" selected>' in page
+    assert "company only" not in page
     assert '<option value="out" checked>' not in page  # direction is a radio
     assert 'name="direction" value="out" checked' in page
 
@@ -588,12 +598,12 @@ def test_acceptance_flow(client, app, repo):
                      contact="anna-mueller", date="2026-09-11T16:40",
                      subject="Re: intro")
     resp = post_interaction(client, "mueller-soehne", channel="call",
-                            direction="out", contact="", date="2026-09-14T10:30",
+                            direction="out", contact="jonas-berg", date="2026-09-14T10:30",
                             subject="Intro call", body="Spoke about DORA scope.")
     ids = [
         "2026-09-08T0912-linkedin-out-anna-mueller",
         "2026-09-11T1640-email-in-anna-mueller",
-        "2026-09-14T1030-call-out-company",
+        "2026-09-14T1030-call-out-jonas-berg",
     ]
     for iid in ids:
         assert (folder / "interactions" / f"{iid}.md").exists()
@@ -602,7 +612,7 @@ def test_acceptance_flow(client, app, repo):
     page = client.get("/companies/mueller-soehne").text
     positions = [page.index(f'id="i-{iid}"') for iid in ids]
     assert positions == sorted(positions, reverse=True)  # newest first
-    assert "Anna Müller" in page and ">company<" in page
+    assert "Anna Müller" in page and "Jonas Berg" in page
     assert "Spoke about DORA scope." in page
 
     # 5. stage change from the board dropdown
@@ -1496,14 +1506,15 @@ def test_messages_tab_lists_results_and_marking(client, app, repo):
     fresh = f"{TODAY - timedelta(days=2)}T09:00"
     post_interaction(client, "acme", contact="jane-doe", channel="linkedin",
                      date=old, body="Hi Jane, fractional?")
-    post_interaction(client, "acme", contact="", channel="linkedin", date=fresh,
+    post_contact(client, "acme", first_name="Henrik", last_name="Lund")
+    post_interaction(client, "acme", contact="henrik-lund", channel="linkedin", date=fresh,
                      body="Hi Henrik, growing nicely.")
     post_interaction(client, "acme", contact="jane-doe", channel="linkedin", date=fresh,
                      body="Hi Jane, fractional?")
     post_interaction(client, "acme", contact="jane-doe", channel="email", direction="in",
                      date=f"{TODAY}T10:00", body="Sure, let's talk")
-    post_interaction(client, "acme", channel="call", direction="out", date=fresh,
-                     subject="no body")  # not a message
+    post_interaction(client, "acme", contact="jane-doe", channel="call", direction="out",
+                     date=fresh, subject="no body")  # not a message
 
     page = client.get("/messages").text
     assert "Messages (3)" in page and "no body" not in page
@@ -1517,7 +1528,7 @@ def test_messages_tab_lists_results_and_marking(client, app, repo):
     assert "2 successful" in page and "1 unknown" in page
 
     ids = re.findall(r'action="/companies/acme/interactions/([^/"]+)/outcome"', page)
-    henrik = next(i for i in ids if "company" in i)
+    henrik = next(i for i in ids if "henrik" in i)
     r = client.post(f"/companies/acme/interactions/{henrik}/outcome",
                     data={"outcome": "unsuccessful"},
                     headers={"referer": "http://testserver/messages?f_channel=linkedin"})
@@ -1527,11 +1538,13 @@ def test_messages_tab_lists_results_and_marking(client, app, repo):
     assert '<td class="outcome-unsuccessful">unsuccessful</td>' in page
     assert "Messages (1)" in client.get("/messages?f_status=unsuccessful").text
     assert "Messages (2)" in client.get("/messages?q=jane").text
-    assert "Messages (1)" in client.get("/messages?f_contact=company").text
+    assert "Messages (1)" in client.get("/messages?f_contact=henrik").text
 
     # age: a message with no reply and no verdict flips to unsuccessful after 14 days
     post_company(client, name="Beta")
-    post_interaction(client, "beta", channel="email", date=old, body="Hello Beta")
+    post_contact(client, "beta", first_name="Bo", last_name="Beta")
+    post_interaction(client, "beta", contact="bo-beta", channel="email", date=old,
+                     body="Hello Beta")
     beta = client.get("/messages?f_company_name=beta").text
     assert "outcome-unsuccessful" in beta and "(auto)" in beta
 
@@ -1587,10 +1600,15 @@ def test_log_interaction_defaults_to_linkedin_out(client, app):
 
 def test_logging_an_interaction_makes_a_prospect_engaged(client, app, repo):
     post_company(client, name="Acme")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe")
+    # A note is not contact made: the prospect stays a prospect.
+    post_interaction(client, "acme", channel="note", direction="", contact="jane-doe",
+                     date="2026-09-09T09:00", body="met at a fair")
+    assert app.state.store.get("acme").stage == "prospect"
     post_interaction(client, "acme", channel="linkedin", direction="out",
-                     date="2026-09-10T09:00")
+                     contact="jane-doe", date="2026-09-10T09:00")
     assert app.state.store.get("acme").stage == "engaged"
-    assert last_commit(repo) == ("interaction: acme linkedin out company 2026-09-10T09:00; "
+    assert last_commit(repo) == ("interaction: acme linkedin out jane-doe 2026-09-10T09:00; "
                                  "stage prospect -> engaged")
     assert "stage: engaged" in company_file(repo, "acme").read_text(encoding="utf-8")
 
@@ -1616,7 +1634,8 @@ def test_contact_page_sections_in_order_and_nav_marks_contacts(client, app):
     post_company(client, name="Acme")
     post_contact(client, "acme", first_name="Jane", last_name="Doe")
     page = client.get("/companies/acme/contacts/jane-doe").text
-    ids = ['id="details"', 'id="timeline"', 'id="drafts"', 'id="quick-add"', 'id="delete"']
+    ids = ['id="details"', 'id="timeline"', 'id="quick-add"', 'id="tasks"', 'id="drafts"',
+           'id="delete"']
     positions = [page.index(i) for i in ids]
     assert positions == sorted(positions)
     active = re.findall(r'<a href="([^"]+)"[^>]*class="active"', page)
@@ -1667,7 +1686,7 @@ def test_capturing_a_profile_you_already_saved_goes_to_the_contact(client, app):
     client.post("/companies/harbour-light-labs/contacts",
                 data={"first_name": "Ines", "last_name": "Vega", "title": "",
                       "linkedin": "https://www.linkedin.com/in/ines-vega/",
-                      "email": "", "phone": "", "role": "", "notes": ""})
+                      "email": "", "phone": "", "role": ""})
     r = client.get("/extension/new",
                    params={"url": "https://www.linkedin.com/in/ines-vega/"},
                    follow_redirects=False)
@@ -2212,3 +2231,47 @@ def test_the_next_step_type_shows_on_companies_and_board(typed_client):
     assert "Beta" not in body("/companies?f_next_type=prospecting")
     assert "Beta" in body("/companies?f_next_type=(none)")
     assert 'class="type-chip type-blue"' in c.get("/pipeline").text
+
+
+# ------------------------------------------------------- notes as interactions
+
+
+def test_contact_page_logs_notes_and_has_no_notes_field(client, app, repo):
+    post_company(client, name="Acme")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe")
+    page = client.get("/companies/acme/contacts/jane-doe").text
+    form = page.split('<section id="quick-add">')[1].split("</section>")[0]
+    assert '<input type="hidden" name="contact" value="jane-doe">' in form
+    assert 'name="channel" value="note"' in form and "<select name=\"contact\">" not in form
+    details = page.split('<section id="details">')[1].split("</section>")[0]
+    assert 'name="notes"' not in details
+    assert 'name="notes"' not in client.get("/companies/acme/contacts/new").text
+
+    r = post_interaction(client, "acme", channel="note", direction="", contact="jane-doe",
+                         date="2026-09-12T08:00", body="Prefers email.")
+    assert r.status_code == 303
+    assert r.headers["location"].startswith("/companies/acme/contacts/jane-doe?flash=")
+    assert r.headers["location"].endswith("#i-2026-09-12T0800-note-jane-doe")
+    page = client.get("/companies/acme/contacts/jane-doe").text
+    item = page.split('id="i-2026-09-12T0800-note-jane-doe"')[1].split("</li>")[0]
+    assert "Prefers email." in item and "(no subject)" not in item
+    assert app.state.store.get("acme").stage == "prospect"  # a note is not contact made
+
+    # Saving the contact form (which has no notes field) keeps a legacy body.
+    path = repo / "companies/acme/contacts/jane-doe.md"
+    path.write_text(path.read_text() + "old note\n")
+    app.state.store.load()
+    r = client.post("/companies/acme/contacts/jane-doe",
+                    data={**CONTACT_BLANK, "first_name": "Jane", "last_name": "Doe",
+                          "title": "CEO"})
+    assert r.status_code == 303
+    assert path.read_text().endswith("old note\n") and "title: CEO" in path.read_text()
+
+
+def test_company_page_has_no_log_form_and_drafts_follow_tasks(client):
+    post_company(client, name="Acme")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe")
+    page = client.get("/companies/acme").text
+    assert 'id="quick-add"' not in page and 'class="interaction-form' not in page
+    assert '/companies/acme/contacts/jane-doe#quick-add">log</a>' in page
+    assert page.index('id="tasks"') < page.index('id="drafts"')
