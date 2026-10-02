@@ -104,7 +104,7 @@ def test_footer_version_and_nav_notice(tmp_path):
     assert f"Hermit CRM v{__version__}" in page and "available:" not in page
     app.state.update_notice.available = "9.9.9"
     page = client.get("/companies").text
-    assert "v9.9.9 available: <code>pipx upgrade hermitcrm</code>" in page
+    assert f"v9.9.9 available: <code>{updates.UPGRADE_HINT}</code>" in page
 
 
 # ---------------------------------------------------------- what the check knows
@@ -153,6 +153,19 @@ def test_a_custom_url_is_asked_and_changes_the_upgrade_hint(tmp_path):
     assert result.state == updates.NEWER and result.newer == "0.4.0"
     assert result.hint == "download it from hermitcrm.example"
     assert updates.upgrade_hint(updates.PYPI_URL) == updates.UPGRADE_HINT
+
+
+def test_the_upgrade_command_fits_how_it_was_installed(tmp_path):
+    """`uv tool upgrade` and `pipx upgrade` never leave the unpacked download they
+    were installed from, so the hint names the commands that switch to PyPI."""
+    uv, pipx, venv = tmp_path / "uv", tmp_path / "pipx", tmp_path / "venv"
+    for env in (uv, pipx, venv):
+        env.mkdir()
+    (uv / "uv-receipt.toml").write_text("[tool]\n", encoding="utf-8")
+    (pipx / "pipx_metadata.json").write_text("{}", encoding="utf-8")
+    assert updates.upgrade_command(uv) == "uv tool install hermitcrm@latest"
+    assert updates.upgrade_command(pipx) == "pipx install --force hermitcrm"
+    assert updates.upgrade_command(venv) == "pip install --upgrade hermitcrm"
 
 
 def test_changing_the_url_invalidates_a_fresh_cache(tmp_path):

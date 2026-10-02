@@ -36,6 +36,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 import threading
 import time
 import urllib.error
@@ -54,7 +55,26 @@ INTERVAL = 24 * 60 * 60
 # the network is up: one unlucky second at boot should not leave "could not reach
 # pypi.org" on the Settings page until tomorrow.
 RETRY_INTERVAL = 60 * 60
-UPGRADE_HINT = "pipx upgrade hermitcrm"
+
+
+def upgrade_command(prefix: str | Path | None = None) -> str:
+    """The command that moves *this* install to the latest release on PyPI.
+
+    `uv tool upgrade` and `pipx upgrade` keep a tool on the source it was installed
+    from, and for a download that is the unpacked folder, so they say "nothing to
+    upgrade" for ever. `uv tool install hermitcrm@latest` and `pipx install --force`
+    switch it to PyPI from wherever it came. Each tool leaves a file in the
+    environment it made, which says which one this is.
+    """
+    env = Path(sys.prefix if prefix is None else prefix)
+    if (env / "uv-receipt.toml").exists():
+        return "uv tool install hermitcrm@latest"
+    if (env / "pipx_metadata.json").exists():
+        return "pipx install --force hermitcrm"
+    return "pip install --upgrade hermitcrm"
+
+
+UPGRADE_HINT = upgrade_command()
 
 # Result.state
 PENDING = "pending"          # nobody has asked yet (a fresh UpdateNotice)
@@ -102,7 +122,7 @@ def host_of(url: str) -> str:
 
 
 def upgrade_hint(url: str = PYPI_URL) -> str:
-    """`pipx upgrade` only helps if that is where it came from; otherwise, download it."""
+    """The upgrade command only helps if PyPI is where the check looked; otherwise, download it."""
     if not url or host_of(url) == "pypi.org":
         return UPGRADE_HINT
     return f"download it from {host_of(url)}"

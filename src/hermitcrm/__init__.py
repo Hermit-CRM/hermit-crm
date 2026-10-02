@@ -14,4 +14,4 @@
 
 """Hermit CRM: your CRM is a folder of Markdown files in git."""
 
-__version__ = "0.4.1"
+__version__ = "0.5.0"
