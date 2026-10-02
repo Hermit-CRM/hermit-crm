@@ -3,7 +3,19 @@
 All notable changes to Hermit CRM. Versions follow semantic versioning; a change to
 the data format always comes with an automatic migration.
 
-## Unreleased
+## 0.5.0 (2026-10-02)
+
+The first release on PyPI: `uv tool install hermitcrm`. The download on
+hermitcrm.io is the same code.
+
+**Upgrading from 0.4.1.** Run `uv tool install hermitcrm@latest`, or unpack the
+new download and run `uv tool install --reinstall .` in it, then restart the
+app. 0.4.1's update notice says `pipx upgrade hermitcrm`, which does nothing
+for an install made from a download. The data format goes from 6 to 7: the
+first command after the upgrade (restarting the app counts) moves each
+contact's notes into note interactions, in one commit. `hermitcrm migrate
+--dry-run` shows it first; to go back, `git revert` that commit and reinstall
+0.4.1, which refuses a format-7 folder.
 
 - **Notes are interactions.** `note` is a new interaction channel: a memo
   about a person, with no direction, on their timeline. It never counts as
@@ -17,6 +29,24 @@ the data format always comes with an automatic migration.
   form; each contact has a **log** link in the company's contact list, and
   the standalone form asks for a contact. Message drafts moved below tasks on
   the company and contact pages.
+- **A contact's own draft language.** A contact can have a draft language
+  (`language` in front matter, absent until set) and the drafts have a
+  language picker that holds for that page only. Drafts follow the picker,
+  then the contact's language, then the company's country (Belgium by its
+  evidence), then English. Before, a German speaker at a Dutch company got
+  Dutch drafts and there was nowhere to say otherwise.
+- **LinkedIn capture names the right employer on the newer profile layout.**
+  Without an `<h1>` on the page, the employer is the company Experience
+  starts with, not the first company linked anywhere (Activity, Featured and
+  Interests come earlier on the page). With no match it stays empty rather
+  than wrong. Drag the bookmarklet from Extension again for the new one; an
+  old one already in the bookmarks bar benefits too.
+- **The update notice names a command that works.** It said `pipx upgrade
+  hermitcrm` to everyone. It now says `uv tool install hermitcrm@latest` for
+  an install made with uv, `pipx install --force hermitcrm` for pipx and
+  `pip install --upgrade hermitcrm` otherwise, and the error for a folder
+  written by a newer version says the same. The first two also move an
+  install from a download over to PyPI.
 
 ## 0.4.1 (2026-09-23)
 

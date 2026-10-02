@@ -195,6 +195,14 @@ pipx install .
 requirement when the system Python is too old, so it works on a machine where
 `python3 --version` still says 3.9.6.
 
+If `hermitcrm --version` already answers, this is an update, not an install:
+run `uv tool install --reinstall .` (or `pipx install --force .`) from this
+folder, restart the app (`launchctl kickstart -k gui/$(id -u)/io.hermitcrm.serve`
+on a Mac, `systemctl --user restart hermitcrm-serve` on Linux), and skip steps
+3 to 6: their data folder and settings stay as they are. If the new version
+changes the data format, the next command migrates their folder in one git
+commit; say so, and that `hermitcrm migrate --dry-run` shows it first.
+
 If neither tool exists, fall back to a virtualenv and put the command on their
 PATH:
 

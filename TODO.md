@@ -15,12 +15,10 @@ Now (19 Sep):
 - [ ] Send the testers a new build with the website's look (merged
       19 Sep). `rm -rf dist && ./scripts/release.sh`, then they unpack it and
       run `uv tool install --reinstall .` in it, then restart Hermit CRM.
-- [ ] Update notices for downloads: the "new version available" check asks
-      PyPI (empty `update_url`), where Hermit CRM is not listed, so people
-      who download from hermitcrm.io (0.4.1 since 23 Sep) never hear of
-      0.4.2. Publish `hermitcrm.io/version.json` (`{"version": "0.4.1"}`,
-      bumped with each download) and make it the default `update_url` until
-      PyPI is live.
+- [x] Update notices for downloads: solved by publishing to PyPI early
+      (0.5.0, 2 Oct), which is where the check asks, so 0.4.1 hears of it
+      too. No `version.json`. The notice names `uv tool install
+      hermitcrm@latest`, which also moves a download install to PyPI.
 
 Use (19 Sep - 3 Oct):
 - [ ] Use it daily for two weeks for real sales work; fix what annoys.
@@ -39,9 +37,11 @@ Build (5-9 Oct):
 - [x] Linux: the Extension bookmarklet in Chromium (dropped as a separate test item).
 - [ ] Verify Codex, Cursor, Claude Desktop, ChatGPT and Gemini CLI end to end
       (install, read pipeline, log a call, draft); name only verified tools.
-- [ ] Fix GitHub Actions billing; run the workflows once.
-- [ ] PyPI: trusted publishing from the release workflow; verify the update
-      check against the real index.
+- [x] Fix GitHub Actions billing; run the workflows once (test since 22 Sep,
+      release with 0.5.0 on 2 Oct).
+- [x] PyPI: trusted publishing from the release workflow (environment
+      `pypi`, `v*` tags only); verify the update check against the real index.
+      0.5.0 on 2 Oct. Before the fresh public repo: add it as a publisher too.
 - [ ] Fresh public repo (new history, not the private repo flipped public:
       old PR refs keep pre-rewrite commits). Leak scan right before.
 - [ ] Website: five benefits (Free and open source / Built for your AI / On
@@ -56,8 +56,8 @@ Build (5-9 Oct):
       /ai-crm hub + /crm-for-claude-code, /crm-for-codex, /crm-for-cursor,
       /crm-for-claude-desktop, /crm-for-chatgpt, /crm-for-gemini-cli (each
       only once that tool is verified).
-- [ ] Donations: `.github/FUNDING.yml`, README "Support", `Funding` URL in
-      pyproject.toml, plain links on the site (no widget scripts).
+- [ ] Donations: plain links on the site (no widget scripts). Done:
+      `.github/FUNDING.yml`, README "Support", `Funding` URL in pyproject.toml.
 - [ ] Real screenshot, 60-90 s video, 6 PH gallery images, maker comment.
 
 Beta (12-16 Oct):
@@ -67,6 +67,8 @@ Beta (12-16 Oct):
 
 Public (19-27 Oct):
 - [ ] Mon 19 Oct: repo public, PyPI release, hermitcrm.io already live and indexable since 23 Sep.
+      Put `Source` and `Issues` back in pyproject's `[project.urls]` (taken
+      out for 0.5.0: they pointed at the private repo).
 - [ ] Soft launch: LinkedIn post, r/selfhosted.
 - [ ] Wed 21 Oct: Show HN, 14:00-16:00 CEST; stay in the thread all day.
 - [ ] Tue 27 Oct: Product Hunt; answer every comment within the hour.

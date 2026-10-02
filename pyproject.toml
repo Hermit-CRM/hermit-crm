@@ -31,8 +31,8 @@ dependencies = [
 dev = ["pytest", "httpx"]
 
 [project.urls]
-Homepage = "https://github.com/Hermit-CRM/hermit-crm"
-Issues = "https://github.com/Hermit-CRM/hermit-crm/issues"
+Homepage = "https://hermitcrm.io"
+Funding = "https://ko-fi.com/gijsbos"
 
 [project.scripts]
 hermitcrm = "hermitcrm.cli:main"

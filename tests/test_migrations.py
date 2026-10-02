@@ -14,6 +14,7 @@
 
 """Data format migrations: fixtures before/after, dry run, idempotence, one commit."""
 
+import re
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -23,6 +24,7 @@ import pytest
 from hermitcrm import fields, migrations
 from hermitcrm.models import Company, company_to_frontmatter
 from hermitcrm.store import Store, build_file
+from hermitcrm.updates import UPGRADE_HINT
 
 BODY = "Notes stay byte for byte.  \n\ngijs_score: 3 in a body is not front matter\n"
 
@@ -129,7 +131,7 @@ def test_migrations_are_idempotent(old_folder):
 
 def test_refuses_data_newer_than_code(old_folder):
     migrations.write_format(old_folder, migrations.LATEST + 1)
-    with pytest.raises(migrations.FormatTooNew, match="pipx upgrade hermitcrm"):
+    with pytest.raises(migrations.FormatTooNew, match=re.escape(UPGRADE_HINT)):
         migrations.ensure_current(old_folder)
     with pytest.raises(migrations.FormatTooNew):
         migrations.dry_run(old_folder)
