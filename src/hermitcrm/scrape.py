@@ -476,14 +476,22 @@ def person_from_page(page: dict) -> PersonFacts:
         exp = exp[1:]
 
     # The employer: the label the page gives the current company, else the
-    # first company in Experience (it lists the current role first).
+    # company linked that Experience starts with (it lists the current role
+    # first): "title, company · Full-time" or, for several roles at one
+    # company, "company, Full-time · 5 yrs". Without an <h1> the links come
+    # from the whole page, Activity and Interests before Experience, so the
+    # first link is only taken when the top card and Experience sent them.
     labelled = {}
     for label in (page.get("lab") or "").splitlines():
         m = LABELLED.match(" ".join(label.split()))
         if m:
             labelled[m.group(2).strip()] = bool(CURRENT_COMPANY.match(m.group(1).strip()))
     person.employer = next((name for name, current in labelled.items() if current), "")
-    if not person.employer and links:
+    first_role = exp[:1] + [line.split(" · ")[0].strip() for line in exp[1:2]]
+    if not person.employer:
+        person.employer = next((label for _, label in links
+                                if any(_same(label, line) for line in first_role)), "")
+    if not person.employer and links and (page.get("h1") or "").strip():
         person.employer = links[0][1]
     person.company_linkedin = next(
         (url for url, label in links if _same(label, person.employer)), "")
