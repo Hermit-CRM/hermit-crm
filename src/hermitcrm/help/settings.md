@@ -252,4 +252,8 @@ are. It asks PyPI unless `update_url` in `config.toml` points somewhere else;
 any URL answering `{"version": "0.4.0"}` works, so a static file on a download
 page is enough. Turn it off with `update_check = false`.
 
+A newer version comes with the command that upgrades your install: `uv tool
+install hermitcrm@latest` when uv installed it, also from a download. Restart
+the app afterwards.
+
 Related: [Interactions](/help/interactions), [Enrich](/help/enrich), [CLI](/help/cli), [Data format](/help/data-format)

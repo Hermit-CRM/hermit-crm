@@ -73,10 +73,9 @@ shasum -a 256 -c hermitcrm-<version>.tar.gz.sha256   # macOS
 sha256sum -c hermitcrm-<version>.tar.gz.sha256       # Linux
 ```
 
-Hermit CRM is not on PyPI yet, so install it from a clone. When it is published,
-`pipx install hermitcrm` (or `uv tool install hermitcrm`) will replace the first
-three lines and give you a `hermitcrm` command that works without activating the
-virtualenv.
+Hermit CRM is also on PyPI: `uv tool install hermitcrm` (or `pipx install
+hermitcrm`) replaces the first three lines and gives you a `hermitcrm` command
+that works without activating the virtualenv.
 
 `hermitcrm init` asks three questions: **you** (your name and sending addresses),
 **BCC capture** (the tracking address and its app password) and an **online
@@ -352,8 +351,15 @@ company waits on Home under **To file** (`/#to-file`).
 ## Updating
 
 ```bash
-pipx upgrade hermitcrm   # or: uv tool upgrade hermitcrm
+uv tool install hermitcrm@latest   # or: pipx install --force hermitcrm
 ```
+
+Both also move an install made from a download or a clone over to PyPI;
+`uv tool upgrade` and `pipx upgrade` stay with the folder it came from and find
+nothing new there. The update notice names the command that fits your install.
+Restart the app afterwards: `launchctl kickstart -k gui/$(id -u)/io.hermitcrm.serve`
+on a Mac, `systemctl --user restart hermitcrm-serve` on Linux, or stop and start
+`hermitcrm serve` yourself.
 
 The web app checks at most once a day (no identifiers sent; turn it off with
 `update_check = false` or `HERMITCRM_NO_UPDATE_CHECK=1`) and shows a notice in
@@ -469,6 +475,12 @@ the web form does. `hermitcrm help ai-agents` has the details.
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 Commits need a DCO sign-off (`git commit -s`). Security reports go to the
 address in [SECURITY.md](SECURITY.md), which promises a reading and not a fix.
+
+## Support
+
+Hermit CRM is free and open source, and stays that way. If it earns its place
+in your week, you can support its development with a tip on
+[Ko-fi](https://ko-fi.com/gijsbos). Nothing in the app depends on it.
 
 ## Licence
 
