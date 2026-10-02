@@ -35,6 +35,7 @@ from typing import Callable
 
 from .models import COUNTRY_CODE_ALIASES, DEFAULT_OUTCOMES
 from .store import build_file, split_file
+from .updates import UPGRADE_HINT
 
 FORMAT_FILE = ".hermitcrm-format"
 LEGACY_FORMAT_FILE = ".owncrm-format"  # before the rename to Hermit CRM
@@ -346,7 +347,7 @@ def pending(data_dir: Path | str) -> list[Migration]:
     if current > LATEST:
         raise FormatTooNew(
             f"This data folder is format {current}, but Hermit CRM understands up to "
-            f"format {LATEST}. Upgrade Hermit CRM first: pipx upgrade hermitcrm")
+            f"format {LATEST}. Upgrade Hermit CRM first: {UPGRADE_HINT}")
     return [m for m in MIGRATIONS if m.version > current]
 
 
