@@ -136,6 +136,7 @@ GITIGNORE = """.secrets.toml
 inbox/.last-run.json
 inbox/.last-calendar-run.json
 inbox/upcoming.json
+inbox/.last-routines.json
 .DS_Store
 """
 

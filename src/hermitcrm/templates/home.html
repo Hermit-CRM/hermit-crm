@@ -17,6 +17,7 @@
 </div>
 {% if items %}{% include "to_file.html" %}{% endif %}
 {% else %}
+{% if routine_briefs %}{% include "routine_brief.html" %}{% endif %}
 
 <h2 id="doing">What needs doing</h2>
 <table>
@@ -35,6 +36,7 @@
 <p class="small"><a href="/tasks">All tasks, with filters</a> &middot; <a href="/calendar">the calendar</a>.</p>
 
 {% if items %}{% include "to_file.html" %}{% endif %}
+{% if routine_drafts %}{% include "routine_drafts.html" %}{% endif %}
 
 {% if followups %}
 <h2 id="owed">Replies you owe ({{ followups | length }})</h2>
