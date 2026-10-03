@@ -82,6 +82,10 @@
 </header>
 <main>
   {% if samples %}<p class="sample-bar">Sample data: <strong>{{ samples | map(attribute='name') | join(', ') }}</strong> is made up, to show what a worked account looks like. <a href="/sample/remove">Remove it</a> when you are done looking.</p>{% endif %}
+  {% if file_problems %}<div class="warning-box file-problems">
+    <strong>A file your agent writes has a problem.</strong> Where Hermit cannot use a file it keeps what it read before. Paste these lines to your agent, or run <code>hermitcrm check</code>:
+    <ul>{% for p in file_problems %}<li><code>{{ p }}</code></li>{% endfor %}</ul>
+  </div>{% endif %}
   {% if flash %}<p class="flash">{{ flash }}</p>{% endif %}
   {% block content %}{% endblock %}
 </main>
