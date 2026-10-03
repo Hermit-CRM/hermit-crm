@@ -1,4 +1,5 @@
 {% from "icons.html" import icon %}
+{% from "macros.html" import handoff as handoff_box %}
 <!doctype html>
 <html lang="en" data-theme="{{ theme or 'light' }}">
 <head>
@@ -12,6 +13,7 @@
   <link rel="stylesheet" href="/static/style.css?v={{ asset_version }}">
   {% if user_theme %}<link rel="stylesheet" href="/theme.css">{% endif %}
   <script src="/static/tour.js?v={{ asset_version }}" defer></script>
+  <script src="/static/adjust.js?v={{ asset_version }}" defer></script>
 </head>
 <body>
 {% set path = request.url.path %}
@@ -30,7 +32,11 @@
   {{ navlink('/messages', 'Messages', 'messages', path.startswith('/messages')) }}
   {{ navlink('/extension', 'Extension', 'capture', path.startswith('/extension') or path.startswith('/capture')) }}
   {{ navlink('/reports', 'Reports', 'reports', path.startswith('/reports')) }}
-  {% for pin in yours_pins() %}{{ navlink(pin.url, pin.title, 'dashboard', path == pin.url) }}{% endfor %}
+  <div class="nav-group" aria-hidden="true">Yours</div>
+  <a href="/yours" data-tour="yours" class="hub{% if path.startswith('/yours') %} active" aria-current="page{% endif %}">{{ icon('yours') }}<span>Make it yours</span></a>
+  {% for pin in yours_pins() %}<a href="{{ pin.url }}"{% if path == pin.url %} class="active" aria-current="page"{% endif %}>{{ icon('dashboard') }}<span>{{ pin.title }}</span></a>
+  {% endfor %}
+  <div class="nav-gap"></div>
   {% call navlink('/settings#' ~ inbox_alert_anchor if inbox_alert else '/settings', 'Settings', 'settings', path.startswith('/settings')) %}{% if inbox_alert %} <span class="alert" title="{{ inbox_alert }}">!</span>{% endif %}{% endcall %}
   {{ navlink('/help/' ~ help_topic, 'Help', 'help', path.startswith('/help')) }}
   <div class="sidebar-foot">
@@ -43,19 +49,36 @@
   <form class="search" action="/companies" role="search" data-tour="search">
     {{ icon('search') }}<input name="q" value="{{ q }}" placeholder="Search companies, tags, contacts" aria-label="Search">
   </form>
-  <details class="ask">
-    <summary class="ask-button" data-tour="ask">{{ icon('ask') }} Ask the Hermit</summary>
-    <form class="ask-panel" method="post" action="/ask">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <input type="hidden" name="page" value="{{ ask_page }}">
-      <label>Ask about this page (Hermit searches the whole CRM if the page is not enough)
-        <textarea name="question" rows="3" required placeholder="Which of these companies should I follow up this week?"></textarea>
-      </label>
-      <div class="ask-actions">
-        <button type="submit">Ask</button>
-        <span class="small">Takes up to a few minutes; the page waits for the answer.</span>
+  {#- One button, two tabs: Ask (read) and Adjust (change, by the user's own
+      agent). adjust.js switches the tabs and remembers the last one; without
+      it the Ask form works as it always did. -#}
+  <details class="ask" data-ask>
+    <summary class="ask-button" data-tour="ask">{{ icon('ask') }} Ask &middot; Adjust</summary>
+    <div class="ask-panel">
+      <div class="ask-tabs" role="tablist" aria-label="Ask or adjust" hidden>
+        <button type="button" role="tab" id="ask-tab-ask" data-tab="ask" aria-controls="ask-form" aria-selected="true" class="on">Ask about this page</button>
+        <button type="button" role="tab" id="ask-tab-adjust" data-tab="adjust" aria-controls="adjust-form" aria-selected="false">Adjust {{ 'Hermit' if path == '/yours' else 'this page' }}</button>
       </div>
-    </form>
+      <form id="ask-form" role="tabpanel" aria-labelledby="ask-tab-ask" method="post" action="/ask">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="page" value="{{ ask_page }}">
+        <label>Ask about this page (Hermit searches the whole CRM if the page is not enough)
+          <textarea name="question" rows="3" required placeholder="Which of these companies should I follow up this week?"></textarea>
+        </label>
+        <div class="ask-actions">
+          <button type="submit">Ask</button>
+          <span class="small">Takes up to a few minutes; the page waits for the answer.</span>
+        </div>
+      </form>
+      <div id="adjust-form" class="adjust-tab" role="tabpanel" aria-labelledby="ask-tab-adjust" hidden>
+        <p class="lead">Describe a change. Your own agent{% if handoff.label %} ({{ handoff.label }}){% endif %} builds it in your data folder; every change is one commit you can undo.</p>
+        {% if page_starters %}<div class="starters">
+          {% for s in page_starters %}<button type="button" class="starter" data-starter="{{ s.text }}" data-target="adjust-request" title="Put this in the box, then change the marked parts">{{ s.text | placeholders }}</button>
+          {% endfor %}
+        </div>{% endif %}
+        {{ handoff_box(handoff, 'adjust-request', self.title() | trim, adjust_path, 'Your request (edit freely)', more=true) }}
+      </div>
+    </div>
   </details>
 </header>
 <main>
