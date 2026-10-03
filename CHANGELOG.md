@@ -38,8 +38,10 @@ commit and reinstall 0.5.0, which refuses a format-8 folder.
 - **Routines** (`routines.toml`). Python picks the records (quiet threads,
   replies owed, or any filter), your AI drafts one message for each, and the
   drafts wait on Home as "Drafts from routines". Routines start paused, run
-  after the daily sync when on, and never send anything. `hermitcrm routines`
-  lists, previews, runs, turns on and off.
+  after the daily sync when on, and never send anything. The AI step runs
+  without tools, which today means Claude or Codex; a routine on another AI
+  command is refused with a reason. `hermitcrm routines` lists, previews, runs,
+  turns on and off.
 - **`hermitcrm undo <commit>`.** Reverts one change as a new commit.
 - **Recipes your agent reads.** `hermitcrm help adjust` and nine topics
   (fields, look, messages, connect, feature, dashboards, bulk, layout,
