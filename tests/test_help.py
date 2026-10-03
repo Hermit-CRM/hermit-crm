@@ -66,7 +66,7 @@ def test_render_blocks_and_inline():
           "plus <b>tags</b>.\ncontinued line\n\n## Sub\n\n- one\n- two\n  more\n\n"
           "1. first\n2. second\n\n```\nx = \"<y>\"\n```\n\n| a | b |\n|---|---|\n| 1 | `2` |\n")
     html = helpdocs.render(md)
-    assert "<h1>Title</h1>" in html and "<h2>Sub</h2>" in html
+    assert "<h1>Title</h1>" in html and '<h2 id="sub">Sub</h2>' in html
     assert ("<p>A para with <code>code</code>, <strong>bold</strong> and a "
             '<a href="/help/cli">link</a> plus &lt;b&gt;tags&lt;/b&gt;. continued line</p>') in html
     assert "<ul><li>one</li><li>two more</li></ul>" in html
@@ -177,3 +177,13 @@ def test_cli_help_needs_no_data_folder(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("HERMITCRM_DATA", raising=False)
     assert cli.main(["help", "ai-agents"]) == 0
+
+
+def test_sub_headings_get_ids_that_pages_can_link_to():
+    html = helpdocs.render("# T\n\n## AI: Enrich and `Ask`\n\n## Notes\n\n### Notes\n")
+    assert '<h2 id="ai-enrich-and-ask">AI: Enrich and <code>Ask</code></h2>' in html
+    assert '<h2 id="notes">' in html and '<h3 id="notes-">' in html   # never twice
+    settings = helpdocs.render(helpdocs.read("settings"))
+    for anchor in ("bcc-capture", "calendar", "backup", "fields", "outcomes",
+                   "ai-enrich-and-ask-the-hermit", "schedule", "access"):
+        assert f'id="{anchor}"' in settings, anchor
