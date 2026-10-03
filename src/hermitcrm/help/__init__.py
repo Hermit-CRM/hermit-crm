@@ -33,7 +33,7 @@ HERE = Path(__file__).resolve().parent
 TOPICS = [
     "index", "pipeline", "calendar", "tasks", "companies", "contacts", "interactions",
     "messages", "reports", "settings", "import", "extension", "enrich", "ask", "merge", "cli",
-    "backups", "data-format", "ai-agents", "feedback", "disclaimer",
+    "backups", "data-format", "ai-agents", "adjust-dashboards", "feedback", "disclaimer",
 ]
 
 
@@ -105,6 +105,8 @@ def topic_for(path: str) -> str:
         return "settings"
     if head == "capture":  # the old path; the page is /extension now
         return "extension"
+    if head == "d":  # a dashboard: how they are made
+        return "adjust-dashboards"
     if head in ("calendar", "tasks", "messages", "reports", "import", "extension",
                 "contacts"):
         return head

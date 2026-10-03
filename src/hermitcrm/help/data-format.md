@@ -12,6 +12,7 @@ Every record is a Markdown file with YAML front matter in a fixed key order; the
   CLAUDE.md, AGENTS.md        rules for AI agents
   .claude/settings.json       git commands Claude Code may not run (see Backups and undo)
   MESSAGING.md                your outreach playbook
+  dashboards/<name>.toml      optional pages of your own at /d/<name> (see Dashboards)
   inbox/                      BCC and calendar items waiting for a decision
   companies/<slug>/company.md
   companies/<slug>/contacts/<contact-slug>.md
@@ -99,6 +100,16 @@ working rather than a CRM's. An existing folder that used them gets a
 company file being touched.
 
 The body is free Markdown notes.
+
+## Dashboards (`dashboards/<name>.toml`)
+
+Optional, one file per dashboard, shown at `/d/<name>`: a `title`, an
+optional `pin = true` (a link in the sidebar) and `description`, and one
+`[[widget]]` table per widget (a list, a count, bars per value, or a
+section of Reports). Widgets use the list pages' own filter keys and filter
+syntax, so they never need a migration. Nothing else reads the folder;
+`hermitcrm check` validates it line by line. The full reference is
+[Dashboards](/help/adjust-dashboards).
 
 ## Contact (`contacts/<slug>.md`)
 
