@@ -1919,6 +1919,17 @@ def test_the_companies_and_settings_tables_scroll_in_a_box_of_their_own(client, 
     assert '<div class="table-scroll"><table class="fields-list small">' in settings
 
 
+def test_contacts_messages_and_report_tables_scroll_in_a_box_of_their_own(client):
+    """At 390px Contacts (580px), Messages (733px) and Reports (727px) pushed the
+    whole page sideways; Companies had been fixed and these three had not."""
+    post_company(client, name="Acme", country="NL", stage="prospect")
+    assert '<div class="table-scroll"><table class="filterable">' in client.get("/contacts").text
+    assert ('<div class="table-scroll"><table class="filterable messages">'
+            in client.get("/messages").text)
+    css = (Path(usertheme.__file__).parent / "static" / "style.css").read_text(encoding="utf-8")
+    assert re.search(r"\.report-grid > div \{[^}]*overflow-x: auto", css)
+
+
 def test_the_phone_rules_that_keep_companies_settings_and_the_disqualify_menu_on_the_screen():
     """At 390px: a closed Disqualify menu still gave its reason and date fields a box
     past the right edge, a long data-folder path pushed Settings sideways, and the
