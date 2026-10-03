@@ -28,6 +28,7 @@ page for the screen you are on; `hermitcrm help <topic>` prints the same text.
 - [Backups and undo](/help/backups): a backup every few minutes that nothing can rewrite, and putting any version back.
 - [CLI](/help/cli): every `hermitcrm` command.
 - [Data format](/help/data-format): the files, their front-matter keys, stage history, migrations.
+- [Dashboards](/help/adjust-dashboards): pages of your own (lists, counts, bars and report sections) that your AI agent writes as `dashboards/<name>.toml`, pinned in the sidebar if you like.
 - [AI agents](/help/ai-agents): how an AI session should read and write the folder, and the MCP server (`hermitcrm mcp`) that lets a client with no shell do it.
 - [Adjust: bulk changes](/help/adjust-bulk): `hermitcrm set`, a dry run first and then one commit you can undo; the recipe an AI agent follows.
 - [Page layout](/help/adjust-layout): a recipe for your AI agent to reorder or hide page sections, hide fields and choose list columns, in `layout.toml`.

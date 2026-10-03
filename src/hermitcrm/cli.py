@@ -517,7 +517,8 @@ def cmd_check(store: Store) -> tuple[str, int]:
              if ct.notes.strip()]
     # The files an agent may write to adjust Hermit: a problem in one fails
     # the check like a broken record does, with a line saying where.
-    extension = layout.validate(store.root)
+    from hermitcrm import dashboards
+    extension = layout.validate(store.root) + dashboards.validate(store.root, store=store)
     if not store.problems and not extension:
         n_companies = len(store.companies)
         n_contacts = sum(len(c.contacts) for c in store.companies.values())

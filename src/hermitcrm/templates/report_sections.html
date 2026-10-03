@@ -1,0 +1,104 @@
+{# The sections of the Reports page, one macro each, so a dashboard's report
+   widget draws exactly what /reports draws. Import "with context" (the
+   macros use `delta` and `fmt_date`). `q` is the period's query string, which
+   every number's link to /reports/rows carries. #}
+{% macro pct(r) %}{{ '-' if r is none else '%d%%' % (r * 100) | round }}{% endmacro %}
+{% macro d(cur, prev) %}{% set t = delta(cur, prev) %}<span class="delta {{ 'up' if t.startswith('+') else ('down' if t.startswith('−') else '') }}">{{ t }}</span>{% endmacro %}
+{% macro bar(n, max) %}<div class="bar" style="width: {{ (100 * n / max) | round(1) if max else 0 }}%"></div>{% endmacro %}
+{# A count that links to the rows behind it (zero stays plain text). #}
+{% macro n(count, key, q) %}{% if count and key %}<a class="rows" href="/reports/rows?key={{ key | urlencode }}&amp;{{ q }}">{{ count }}</a>{% else %}{{ count }}{% endif %}{% endmacro %}
+{% macro money(value, key, q) %}{% if value and key %}<a class="rows" href="/reports/rows?key={{ key | urlencode }}&amp;{{ q }}">{{ '{:,}'.format(value) }}</a>{% else %}{{ '{:,}'.format(value) }}{% endif %}{% endmacro %}
+
+{% macro section_activity(report, q) %}{% set a = report.activity %}
+<div class="report-grid">
+<div><table class="report">
+  <tr><th>metric</th><th class="num">period</th><th class="num">previous</th></tr>
+  {% for key, label in [('interactions', 'interactions'), ('companies_touched', 'companies touched'), ('new_companies', 'new companies'), ('new_contacts', 'new contacts')] %}
+  <tr><td>{{ label }}</td><td class="num">{{ n(a.totals[key], a.row_keys[key], q) }} {{ d(a.totals[key], a.previous[key]) }}</td><td class="num">{{ n(a.previous[key], a.previous_row_keys[key], q) }}</td></tr>
+  {% endfor %}
+</table></div>
+<div><table class="report">
+  <tr><th>week</th>{% for col in a.columns %}<th class="num">{{ col }}</th>{% endfor %}<th class="num">total</th><th></th></tr>
+  {% for r in a.weeks %}
+  <tr><td>{{ r.week }}</td>{% for col in a.columns %}<td class="num">{{ n(r[col], r.row_keys[col], q) }}</td>{% endfor %}<td class="num">{{ n(r.total, r.row_keys.total, q) }}</td><td class="bar-cell">{{ bar(r.total, a.max_week) }}</td></tr>
+  {% endfor %}
+</table></div>
+</div>
+{% endmacro %}
+
+{% macro section_funnel(report, q) %}{% set f = report.funnel %}
+<div class="report-grid">
+<div><table class="report">
+  <tr><th>stage</th><th class="num">entered</th><th class="num">previous</th></tr>
+  {% for r in f.entered %}<tr><td>{{ r.stage }}</td><td class="num">{{ n(r.count, r.key, q) }} {{ d(r.count, r.previous) }}</td><td class="num">{{ n(r.previous, r.previous_key, q) }}</td></tr>{% endfor %}
+</table></div>
+<div><table class="report">
+  <tr><th>conversion</th><th class="num">reached from</th><th class="num">reached to</th><th class="num">rate</th><th></th></tr>
+  {% for r in f.conversion %}<tr><td>{{ r.from }} &rarr; {{ r.to }}</td><td class="num">{{ n(r.base, r.base_key, q) }}</td><td class="num">{{ n(r.reached, r.reached_key, q) }}</td><td class="num">{{ pct(r.rate) }}</td><td class="bar-cell">{{ bar(r.rate or 0, 1) }}</td></tr>{% endfor %}
+</table>
+<p class="small">Of the companies that reached a stage (or later) by the period end, the share that also reached the next one.</p></div>
+<div><table class="report">
+  <tr><th>stage</th><th class="num">companies</th><th class="num">median days</th></tr>
+  {% for r in f.median_days %}<tr><td>{{ r.stage }}</td><td class="num">{{ n(r.companies, r.key, q) }}</td><td class="num">{{ '%g' % r.median }}</td></tr>{% endfor %}
+</table></div>
+<div><table class="report">
+  <tr><th>pipeline now</th><th class="num">companies</th><th class="num">EUR/month</th><th></th></tr>
+  {% for r in f.pipeline %}<tr><td>{{ r.stage }}</td><td class="num">{{ n(r.count, r.key, q) }}</td><td class="num">{{ money(r.value, r.key, q) }}</td><td class="bar-cell">{{ bar(r.count, f.max_pipeline) }}</td></tr>{% endfor %}
+</table></div>
+</div>
+{% endmacro %}
+
+{% macro section_outcomes(report, q) %}{% set o = report.outcomes %}
+<div class="report-grid">
+<div><table class="report">
+  <tr><th>stage</th><th class="num">count</th><th class="num">EUR/month</th><th class="num">previous</th></tr>
+  {% for r in o.rows %}<tr><td>{{ r.stage }}</td><td class="num">{{ n(r.count, r.key, q) }} {{ d(r.count, r.previous) }}</td><td class="num">{{ money(r.value, r.key, q) }}</td><td class="num">{{ n(r.previous, r.previous_key, q) }}</td></tr>{% endfor %}
+</table>
+<p class="small">Win rate {{ pct(o.win_rate) }} (previous {{ pct(o.previous_win_rate) }}): won / (won + lost).</p></div>
+<div><table class="report">
+  <tr><th>lost reason</th><th class="num">count</th></tr>
+  {% for r in o.lost_reasons %}<tr><td>{{ r.reason }}</td><td class="num">{{ n(r.count, r.key, q) }}</td></tr>{% else %}<tr><td colspan="2" class="empty">none</td></tr>{% endfor %}
+</table></div>
+</div>
+{% endmacro %}
+
+{% macro section_messages(report, q) %}{% set msg = report.messages %}
+<p class="small">Sent {{ n(msg.total.sent, msg.total.sent_key, q) }} {{ d(msg.total.sent, msg.previous_sent) }} (previous {{ n(msg.previous_sent, msg.previous_sent_key, q) }}){% for s in msg.statuses %} &middot; {{ s }} {{ n(msg.total.counts[s], msg.total.status_keys[s], q) }}{% endfor %} &middot; {{ msg.outcomes[0] }} rate {{ pct(msg.total.rate) }} (no reply after {{ msg.window }}d counts as {{ msg.outcomes[-1] }})</p>
+{% if msg.total.other %}<p class="small warning">{{ n(msg.total.other, msg.total.status_keys.other, q) }} message{{ '' if msg.total.other == 1 else 's' }} with an outcome outside the configured list ({{ msg.total.other_statuses | join(', ') }}) count in sent only.</p>{% endif %}
+<div class="report-grid">
+{% for title, rows in [('language', msg.by_language), ('channel', msg.by_channel)] %}
+<div><table class="report">
+  <tr><th>{{ title }}</th><th class="num">sent</th>{% for s in msg.statuses %}<th class="num">{{ s }}</th>{% endfor %}<th class="num">rate</th></tr>
+  {% for r in rows %}<tr><td>{{ r.key }}</td><td class="num">{{ n(r.sent, r.sent_key, q) }}</td>{% for s in msg.statuses %}<td class="num">{{ n(r.counts[s], r.status_keys[s], q) }}</td>{% endfor %}<td class="num">{{ pct(r.rate) }}</td></tr>{% else %}<tr><td colspan="{{ 3 + msg.statuses | length }}" class="empty">none</td></tr>{% endfor %}
+</table></div>
+{% endfor %}
+<div><table class="report">
+  <tr><th>reused text</th><th class="num">uses</th><th class="num">rate</th></tr>
+  {% for r in msg.reused %}<tr><td>{{ r.preview }}</td><td class="num">{{ n(r.uses, r.sent_key, q) }}</td><td class="num">{{ pct(r.rate) }}</td></tr>{% else %}<tr><td colspan="3" class="empty">no text used twice</td></tr>{% endfor %}
+</table></div>
+</div>
+{% endmacro %}
+
+{% macro section_sources(report, q) %}
+<table class="report" style="max-width: 700px">
+  <tr><th>source</th><th class="num">created</th><th class="num">won</th><th></th></tr>
+  {% for r in report.sources.rows %}<tr><td>{{ r.source }}</td><td class="num">{{ n(r.created, r.created_key, q) }}</td><td class="num">{{ n(r.won, r.won_key, q) }}</td><td class="bar-cell">{{ bar(r.created, report.sources.max_created) }}</td></tr>{% else %}<tr><td colspan="4" class="empty">none</td></tr>{% endfor %}
+</table>
+{% endmacro %}
+
+{% macro section_hygiene(report, q) %}{% set hy = report.hygiene %}
+<div class="report-grid">
+<div><table class="report">
+  <tr><th>overdue next steps ({{ n(hy.overdue | length, hy.row_keys.overdue, q) }})</th><th>due</th><th>next step</th></tr>
+  {% for r in hy.overdue %}<tr><td><a href="/companies/{{ r.slug }}">{{ r.name }}</a></td><td class="overdue">{{ fmt_date(r.due) }}</td><td>{{ r.next_step }}</td></tr>{% else %}<tr><td colspan="3" class="empty">none</td></tr>{% endfor %}
+</table></div>
+<div><table class="report">
+  <tr><th>silent {{ hy.silent_days }}+ days ({{ n(hy.silent | length, hy.row_keys.silent, q) }})</th><th>stage</th><th class="num">days</th></tr>
+  {% for r in hy.silent %}<tr><td><a href="/companies/{{ r.slug }}">{{ r.name }}</a></td><td>{{ r.stage }}</td><td class="num">{{ r.days }}</td></tr>{% else %}<tr><td colspan="3" class="empty">none</td></tr>{% endfor %}
+</table></div>
+<div><table class="report">
+  <tr><th>contacts without email ({{ n(hy.no_email | length, hy.row_keys.no_email, q) }})</th><th>company</th></tr>
+  {% for r in hy.no_email %}<tr><td><a href="/companies/{{ r.slug }}/contacts/{{ r.contact }}">{{ r.name }}</a></td><td>{{ r.company }}</td></tr>{% else %}<tr><td colspan="2" class="empty">none</td></tr>{% endfor %}
+</table></div>
+</div>
+{% endmacro %}

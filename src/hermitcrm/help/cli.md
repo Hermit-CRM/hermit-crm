@@ -33,7 +33,7 @@ hermitcrm brief [--days 7]                 each upcoming meeting with its stage,
 hermitcrm mcp                              serve this folder to AI clients over MCP (stdio); see the AI agents topic
 hermitcrm report [--days N | --from D --to D] [--md]
                                         the Reports page as text tables (Markdown with --md)
-hermitcrm check                            validate every file; exit 1 and the file paths on problems
+hermitcrm check                            validate every file, dashboards/*.toml too; exit 1 and the problems
 ```
 
 ## Backups
