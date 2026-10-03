@@ -36,12 +36,19 @@ on. The tokens worth changing, with their defaults:
 | `--line` | borders | `light-dark(#d2c8b4, #3f3a33)` |
 | `--line-strong` | borders of fields you type in | `light-dark(#8f8778, #7a7264)` |
 | `--sidebar` | the menu on the left | `light-dark(#efebe2, #211f1c)` |
+| `--sidebar-hover` | a menu item under the mouse | `light-dark(#e7e1d5, #2b2924)` |
+| `--sidebar-active` | the menu item you are on | `light-dark(#ded7c8, #35322c)` |
 | `--sans` | the main font | the system's sans-serif |
 | `--title-font` | page titles, the name in the menu, the numbers on Home | `var(--serif)` |
 | `--mono` | code and text boxes | the system's monospace |
 
 The full list is `static/tokens.css` in the installed package: read it there,
 never change it.
+
+A warmer or cooler look means every grey moves together: `--bg`, `--surface`,
+`--surface-2`, `--subtle`, `--line`, `--sidebar`, `--sidebar-hover` and
+`--sidebar-active`. Change one and leave the rest, and the old colour shows as
+a beige menu item or a brown border.
 
 ## Worked example
 
@@ -58,6 +65,8 @@ Write `theme.css`:
   --subtle: light-dark(#f2f2f5, #2a2b32);
   --line: light-dark(#d9d9de, #34353d);
   --sidebar: light-dark(#eeeef1, #1b1c21);
+  --sidebar-hover: light-dark(#e4e4e8, #25262c);
+  --sidebar-active: light-dark(#dadae0, #2f3037);
   --title-font: var(--sans);
 }
 /* tighter tables */
