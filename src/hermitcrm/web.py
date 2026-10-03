@@ -50,6 +50,7 @@ from fastapi.templating import Jinja2Templates
 from . import (bcc, brief, calendar_sync, capture, disclaimer, feedback,
                fields as custom, filters, followups, messaging, migrations,
                pipeline, reports, sample, welcome)
+from . import layout
 from . import schedule, scrape, secrets, task_types, usertheme
 from . import help as helpdocs
 from . import setup as setup_steps
@@ -135,13 +136,24 @@ def custom_columns(defs: list, view: str) -> list[Column]:
     filter engine at all: it reads out of `extra` and the whole operator
     syntax (`!foo`, `>5`, `-`, `*`) works on it unmodified.
     """
+    return [_custom_column(d) for d in defs if d.shows_in(view)]
+
+
+def _custom_column(d) -> Column:
     kinds = {"number": "number", "date": "date", "select": "enum", "text": "text"}
-    return [
-        Column(d.key, d.label, kinds.get(d.type, "text"),
-               options=list(d.options),
-               getter=(lambda key: lambda obj: (getattr(obj, "extra", None) or {}).get(key))(d.key))
-        for d in defs if d.shows_in(view)
-    ]
+    return Column(d.key, d.label, kinds.get(d.type, "text"), options=list(d.options),
+                  getter=lambda obj: (getattr(obj, "extra", None) or {}).get(d.key))
+
+
+def scope_columns(defs: list, scope: str) -> list[Column]:
+    """Every custom field of one record type as a column, whatever its
+    `show_in`: what layout.toml's `columns` may pick from."""
+    return [_custom_column(d) for d in defs if d.applies_to == scope]
+
+
+# The Companies list's last column: the website and LinkedIn links. It is not
+# a filter, but layout.toml can move or drop it like any other column.
+LINKS = Column("links", "links")
 
 
 def _next_type(company) -> str:
@@ -659,6 +671,16 @@ def changed_fields(submitted: dict, current: dict) -> list[str]:
     return [k for k in submitted if k in current and norm(submitted[k]) != norm(current[k])]
 
 
+def submitted_only(values: dict, form) -> dict:
+    """The values a form actually carried.
+
+    A field the page does not show (layout.toml's hide_fields) is not in the
+    form at all; leaving its key out keeps the stored value, where an empty
+    default would clear it. Every field a page shows is always sent.
+    """
+    return {k: v for k, v in values.items() if k in form}
+
+
 def stale_form_text(what: str, differ: list[str]) -> str:
     fields = f" It now differs from what you typed in: {', '.join(differ)}." if differ else ""
     return (f"Not saved: this {what} changed after you opened the page (another tab, "
@@ -930,6 +952,10 @@ def create_app(root: Path, config: dict | None = None,
         render_markdown=helpdocs.render,
         record_version=lambda slug, cslug="": record_version(root, slug, cslug),
         custom_fields_for=lambda scope: custom.for_scope(app.state.custom_fields, scope),
+        # layout.toml, re-read when it changes: a page's sections in order, and
+        # the fields a record page hides (a field with an error always shows).
+        layout_sections=lambda page: layout.load(root).sections(page),
+        layout_hidden=lambda page, errors=None: layout.load(root).hidden(page, errors),
         task_types=lambda: app.state.task_types,
         type_names=task_type_options,
         type_colour=lambda name: task_types.colour_of(app.state.task_types, name),
@@ -979,6 +1005,17 @@ def create_app(root: Path, config: dict | None = None,
     def custom_defs(scope: str) -> list:
         return custom.for_scope(app.state.custom_fields, scope)
 
+    def list_columns(view: str, default: list[Column]) -> tuple[list[Column], list[Column]]:
+        """(the columns filters and sorting accept, the columns shown) for the
+        Companies or Contacts list, with layout.toml applied. Filters keep
+        working on every default column, shown or not, so a bookmark does too."""
+        known = {c.key for c in default}
+        extra = [c for c in scope_columns(app.state.custom_fields, layout.LIST_SCOPE[view])
+                 if c.key not in known]
+        shown = layout.pick_columns(layout.load(root), view, default, extra)
+        usable = [c for c in default if c is not LINKS]
+        return usable + [c for c in shown if c.key not in known], shown
+
     def _task_back(request: Request, slug: str, contact: str, back: str = "") -> str:
         """Back to the page the task was ticked on, not always the company; a
         posted `back` keeps the Tasks page's filters."""
@@ -1002,7 +1039,8 @@ def create_app(root: Path, config: dict | None = None,
         if not defs:
             return {}, {}, {}
         form = await request.form()
-        raw = {d.key: form.get(f"custom_{d.key}", "") for d in defs}
+        # Only the fields the form carried: a hidden one keeps its value.
+        raw = {d.key: form[f"custom_{d.key}"] for d in defs if f"custom_{d.key}" in form}
         values, errors = custom.coerce_all(defs, raw)
         return (values,
                 {f"custom_{k}": v for k, v in raw.items()},
@@ -1231,10 +1269,11 @@ def create_app(root: Path, config: dict | None = None,
             stage: ordered(c for c in companies if c.stage == stage)
             for stage in BOARD_CLOSED
         }
+        hidden = layout.load(root).hidden_columns("companies")
         return render(request, "board.html", {
             "columns": columns, "closed": closed, "today": today,
             "followups": followups.radar(store, today, **followup_days),
-            "filter_columns": cols, "active": active,
+            "filter_columns": [c for c in cols if c.key not in hidden], "active": active,
             "sort": sort_key, "dir": sort_dir,
             "no_companies": not store.companies,
         })
@@ -1584,7 +1623,8 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.get("/companies", response_class=HTMLResponse)
     def companies_list(request: Request, q: str = ""):
-        cols = company_columns(app.state.custom_fields, task_type_options())
+        cols, shown = list_columns(
+            "companies", [*company_columns(app.state.custom_fields, task_type_options()), LINKS])
         active = filters.parse(request.query_params, cols)
         sort_key, sort_dir = filters.parse_sort(request.query_params, cols)
         companies = filters.apply(store.search(q), cols, active)
@@ -1600,7 +1640,7 @@ def create_app(root: Path, config: dict | None = None,
         if not show_parked:
             toggle.append(("parked", "1"))
         return render(request, "companies.html", {
-            "companies": companies, "q": q, "filter_columns": cols, "active": active,
+            "companies": companies, "q": q, "filter_columns": shown, "active": active,
             "sort": sort_key, "dir": sort_dir, "show_parked": show_parked,
             "hidden_parked": hidden,
             "toggle_url": "/companies" + ("?" + urlencode(toggle) if toggle else ""),
@@ -1608,7 +1648,7 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.get("/contacts", response_class=HTMLResponse)
     def contacts_list(request: Request, q: str = ""):
-        cols = contact_columns(app.state.custom_fields)
+        cols, shown = list_columns("contacts", contact_columns(app.state.custom_fields))
         active = filters.parse(request.query_params, cols)
         sort_key, sort_dir = filters.parse_sort(request.query_params, cols)
         needle = (q or "").strip().lower()
@@ -1624,7 +1664,7 @@ def create_app(root: Path, config: dict | None = None,
         rows.sort(key=lambda r: (r.name.lower(), r.company_name.lower()))
         rows = filters.sort_rows(rows, cols, sort_key, sort_dir)
         return render(request, "contacts.html", {
-            "rows": rows, "q": q, "filter_columns": cols, "active": active,
+            "rows": rows, "q": q, "filter_columns": shown, "active": active,
             "sort": sort_key, "dir": sort_dir,
         })
 
@@ -1898,12 +1938,14 @@ def create_app(root: Path, config: dict | None = None,
         form = await request.form()
         if "next_step_type" in form:   # absent when no types are set up: keep the stored one
             values["next_step_type"] = str(form["next_step_type"])
+        values = submitted_only(values, form)  # a hidden field keeps its value
         extra, shown, custom_errors = await custom_submitted(request, "company")
         if version and version != record_version(root, slug):
             current = need_company(slug, refresh=True)
             return render(request, "company.html", {
                 "company": current,
-                "values": {**values, **shown},
+                "values": {**with_custom(company_values(current), current, "company"),
+                           **values, **shown},
                 "flash": stale_form_text("company",
                                          changed_fields(values, company_values(current))),
                 "interaction": interaction_values(current),
@@ -1919,7 +1961,8 @@ def create_app(root: Path, config: dict | None = None,
         except ValidationError as exc:
             return render(request, "company.html", {
                 "company": company,
-                "values": {**values, **shown},
+                "values": {**with_custom(company_values(company), company, "company"),
+                           **values, **shown},
                 "errors": exc.errors,
                 "interaction": interaction_values(company),
                 "focus": "lost_reason" if "lost_reason" in exc.errors else "",
@@ -2243,7 +2286,7 @@ def create_app(root: Path, config: dict | None = None,
         return render(request, "contact.html", {
             "company": company,
             "contact": contact,
-            "values": contact_values(contact),
+            "values": with_custom(contact_values(contact), contact, "contact"),
             "interactions": [i for i in company.interactions if i.contact == cslug],
             "interaction": interaction_values(company, contact=cslug),
             **draft_context(request, company, contact),
@@ -2271,6 +2314,7 @@ def create_app(root: Path, config: dict | None = None,
         values = {"first_name": first_name, "last_name": last_name, "title": title,
                   "linkedin": linkedin, "email": email, "phone": phone, "role": role,
                   "language": language}
+        values = submitted_only(values, await request.form())  # a hidden field keeps its value
         extra, shown, custom_errors = await custom_submitted(request, "contact")
         if version and version != record_version(root, slug, cslug):
             current = need_company(slug, refresh=True)
@@ -2280,7 +2324,8 @@ def create_app(root: Path, config: dict | None = None,
             return render(request, "contact.html", {
                 "company": current,
                 "contact": person,
-                "values": {**values, **shown},
+                "values": {**with_custom(contact_values(person), person, "contact"),
+                           **values, **shown},
                 "flash": stale_form_text("contact",
                                          changed_fields(values, contact_values(person))),
                 "interactions": [i for i in current.interactions if i.contact == cslug],
@@ -2292,11 +2337,11 @@ def create_app(root: Path, config: dict | None = None,
                 raise ValidationError(custom_errors)
             store.update_contact(slug, cslug, custom=extra, **values)
         except ValidationError as exc:
-            values.update(shown)
             return render(request, "contact.html", {
                 "company": company,
                 "contact": contact,
-                "values": values,
+                "values": {**with_custom(contact_values(contact), contact, "contact"),
+                           **values, **shown},
                 "errors": exc.errors,
                 "interactions": [i for i in company.interactions
                                  if i.contact == cslug],
