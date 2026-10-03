@@ -244,8 +244,8 @@ Cursor -- can read and write the CRM with no terminal. You do not run it
 yourself; the page shows the JSON to paste into the client's MCP config, which
 starts it. Because it is a local process talking over a pipe, the client has to
 run on this machine: a phone app cannot reach it, and the phone route is the
-web app above. Seven read tools and three writes, the writes committing exactly
-as the web form does. [AI agents](/help/ai-agents) has the tool list.
+web app above. Ten read tools and seven writes, each write one commit you can
+undo. [AI agents](/help/ai-agents) has the tool list.
 
 ## Support Hermit
 

@@ -141,4 +141,22 @@ you a prompt to copy.
 A link longer than 500 bytes fails without a word on macOS, so a longer request
 gets Copy prompt instead of Open, with a line saying why.
 
+## Without a shell (Claude Desktop, ChatGPT)
+
+An AI app connected over MCP (`hermitcrm mcp`, see [AI agents](/help/ai-agents))
+cannot run commands, so it has tools for the same steps, and they keep the
+rules above for it:
+
+| With a shell | Over MCP |
+|---|---|
+| `hermitcrm help adjust`, `hermitcrm help adjust-<topic>` | `adjust_help` |
+| read a file you may change | `adjust_read` |
+| edit it, `hermitcrm check`, commit | `adjust_write`: refused, with the problems, until check passes; then one commit |
+| the `config.toml` keys | `adjust_config` |
+| `hermitcrm set` (dry run), then `--apply` | `bulk_preview`, then `bulk_apply` with its `preview_id` |
+| `hermitcrm undo <commit>` | `undo` |
+
+A routine written over MCP arrives paused. A prompt copied from Make it yours
+says to run `hermitcrm help adjust`; over MCP, call `adjust_help` instead.
+
 Related: [AI agents](/help/ai-agents), [CLI](/help/cli), [Settings](/help/settings), [Backups and undo](/help/backups)

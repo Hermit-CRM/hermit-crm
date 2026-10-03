@@ -9,7 +9,7 @@ pasted into an AI session.
 ## Set up and run
 
 ```text
-hermitcrm init DIR [--demo] [--no-setup]   new data folder (git repo, config, agent rules); asks the setup questions
+hermitcrm init DIR [--demo] [--no-setup]   new data folder (git repo, config, agent rules, /hermit skill); asks the setup questions
 hermitcrm sample add|remove                the made-up sample account in this folder: load it, or delete it again
 hermitcrm setup                            the setup questions again (you, BCC, backup, calendar)
 hermitcrm serve [--port N]                 the web app on 127.0.0.1 (port from config.toml, default 8765)
@@ -18,7 +18,8 @@ hermitcrm schedule install [--at HH:MM] [--serve] [--backup-every MIN | --no-bac
                                         daily sync --apply and a backup every 5 minutes, via launchd
                                         or systemd (schtasks printed on Windows)
 hermitcrm schedule remove|status
-hermitcrm migrate [--dry-run]              upgrade the data format (every command does this automatically)
+hermitcrm migrate [--dry-run]              upgrade the data format (every command does this automatically);
+                                        also puts back a missing /hermit skill (.claude/skills/hermit/)
 hermitcrm help [TOPIC]                     these pages; no topic prints the index and the topic list
 ```
 
