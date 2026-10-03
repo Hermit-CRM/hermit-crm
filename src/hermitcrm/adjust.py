@@ -323,8 +323,8 @@ STARTERS = [
             "Change my message outcomes to [replied, meeting booked, no reply].",
             "config.toml (outcomes)", UNDO, ("messages", "settings")),
     Starter("routine-replies", "Routines", "Reply drafts",
-            "Every morning, for each reply I owe, draft an answer for me to check on Home. "
-            "Use my playbook. Never send anything.",
+            "Every morning, for each reply I owe, draft [a short answer] for me to check on "
+            "Home. Use my playbook. Never send anything.",
             "routines.toml; drafts wait on Home", PAUSED, ("messages", "reports")),
     Starter("dashboard-report", "Dashboards", "Your own report",
             "Make a dashboard called [Pipeline health] with the [funnel] for the last [30] "
