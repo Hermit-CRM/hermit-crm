@@ -630,6 +630,9 @@ def select(store: Store, routine: Routine, config: dict | None = None,
             picks.append(Pick(company, contact, company.slug, latest.id if latest else "",
                               _touch_reason(latest, today), _channel(routine, contact)))
 
+    # The sample account is made up: a routine must never draft to it.
+    picks = [p for p in picks if not p.company.is_sample]
+
     waiting = {(d.routine, d.record) for d in drafts(root)}
     done = handled(root)
     fresh = 0
