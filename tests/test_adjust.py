@@ -322,6 +322,28 @@ def test_the_app_works_with_a_toml_typo_in_fields_toml(empty):
     assert any(p.startswith("fields.toml: line 1:") for p in adjust.all_problems(empty))
 
 
+def test_messages_with_languages_that_is_not_a_table_never_reach_the_pages(demo):
+    """`languages = 3` merged fine and then failed every page that writes a
+    draft (a 500 on each company and contact). It is refused like a TOML error:
+    the app keeps the wording it has, and check says why."""
+    app, client = make(demo)
+    assert client.get("/companies/northwind-robotics").status_code == 200
+    shipped = app.state.messages
+    (demo / "messages.toml").write_text("languages = 3\n", encoding="utf-8")
+    assert client.get("/companies/northwind-robotics").status_code == 200   # picked up, refused
+    assert client.get("/companies/northwind-robotics/contacts/lena-vogt").status_code == 200
+    assert app.state.messages == shipped
+    assert "messages.toml: languages: must be a table of languages" in "\n".join(
+        adjust.all_problems(demo))
+    (demo / "messages.toml").write_text("[languages]\nen = 3\n", encoding="utf-8")
+    assert client.get("/companies/northwind-robotics").status_code == 200
+    assert any(p.startswith("messages.toml: languages:") for p in adjust.all_problems(demo))
+    # and at start-up
+    app2, client2 = make(demo)
+    assert client2.get("/companies/northwind-robotics").status_code == 200
+    assert app2.state.messages == adjust.messaging.default_messages()
+
+
 def test_the_app_starts_with_a_broken_messages_file(empty):
     """messages.toml was read once at start-up without a guard, so one typo from
     an agent kept the app from starting at all, with a traceback. It starts on
