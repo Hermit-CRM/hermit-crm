@@ -19,7 +19,10 @@
   </form>
 </div>
 {% if items %}{% include "to_file.html" %}{% endif %}
+{% if routine_drafts %}{% include "routine_drafts.html" %}{% endif %}
 {% else %}
+{% if routine_briefs %}{% include "routine_brief.html" %}{% endif %}
+
 {% for section in layout_sections('home') %}{% if section == 'doing' %}
 <h2 id="doing">What needs doing</h2>
 <table>
@@ -38,6 +41,7 @@
 <p class="small"><a href="/tasks">All tasks, with filters</a> &middot; <a href="/calendar">the calendar</a>.</p>
 {% elif section == 'to-file' %}
 {% if items %}{% include "to_file.html" %}{% endif %}
+{% if routine_drafts %}{% include "routine_drafts.html" %}{% endif %}
 {% elif section == 'owed' %}
 {% if followups %}
 <h2 id="owed">Replies you owe ({{ followups | length }})</h2>

@@ -15,6 +15,8 @@ Every record is a Markdown file with YAML front matter in a fixed key order; the
   MESSAGING.md                your outreach playbook
   dashboards/<name>.toml      optional pages of your own at /d/<name> (see Dashboards)
   inbox/                      BCC and calendar items waiting for a decision
+  routines.toml               optional routines: a morning brief, AI drafts (see Routines)
+  drafts/                     drafts the routines wrote, waiting on Home; handled.tsv remembers closed ones
   companies/<slug>/company.md
   companies/<slug>/contacts/<contact-slug>.md
   companies/<slug>/interactions/<id>.md
@@ -173,6 +175,17 @@ umlauts and accents transliterated (`ä` to `ae`, `é` to `e`); legal suffixes
 (gmbh, ag, bv, ltd, inc, sas, ...) dropped from the slug only; `-2`, `-3` on
 collision.
 
+## Routine drafts (`drafts/<id>.md`)
+
+Written by a routine run (`routines.toml`, see [Routines](/help/adjust-routines)),
+removed when you click *I sent it* (which logs an outbound interaction) or
+*Discard*. Front matter: `routine`, `made`, `record` (company slug, or
+`company/contact` for a contact routine), `company`, `contact`, `channel`,
+`subject`, `basis` (the interaction it follows up), `reason`; the body is the
+message. `drafts/handled.tsv` has one line per closed or skipped draft
+(routine, record, basis, what, when), so a routine does not write the same one
+twice. Last runs are in `inbox/.last-routines.json`, which is not in git.
+
 ## Format version and migrations
 
 `.hermitcrm-format` holds one integer. When a release changes the format, the
@@ -190,7 +203,7 @@ One commit per write, with a fixed message shape: `company: <slug> created`,
 `company: <slug> stage <old> -> <new>`, `contact: <company>/<slug> updated`,
 `interaction: <company> <channel> <direction> <contact> <date>`,
 `import: ...`, `bcc: ...`, `calendar: ...`, `bulk: <summary>` for one `hermitcrm set`
-(many records, one commit, with its own undo), `ai: ...` for enrichment and
+(many records, one commit, with its own undo), `routine: <name>: ...`, `ai: ...` for enrichment and
 agent-made changes, `pipeline: rebuild`. Rolling back is plain git:
 `git checkout <sha> -- <path>` or `git revert <sha>`, then `hermitcrm rebuild`.
 

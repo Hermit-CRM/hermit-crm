@@ -34,7 +34,7 @@ TOPICS = [
     "index", "pipeline", "calendar", "tasks", "companies", "contacts", "interactions",
     "messages", "reports", "settings", "import", "extension", "enrich", "ask", "merge", "cli",
     "backups", "data-format", "ai-agents", "feedback", "disclaimer",
-    "adjust-dashboards", "adjust-bulk", "adjust-layout",
+    "adjust-dashboards", "adjust-bulk", "adjust-layout", "adjust-routines",
 ]
 
 
@@ -100,6 +100,8 @@ def topic_for(path: str) -> str:
     head = parts[0]
     if head == "help":
         return "index"
+    if head == "yours" and len(parts) > 1 and parts[1] == "routines":
+        return "adjust-routines"
     if head == "ask":
         return "ask"
     if head in ("settings", "setup", "inbox", "bcc"):
