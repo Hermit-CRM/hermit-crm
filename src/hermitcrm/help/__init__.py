@@ -34,6 +34,7 @@ TOPICS = [
     "index", "pipeline", "calendar", "tasks", "companies", "contacts", "interactions",
     "messages", "reports", "settings", "import", "extension", "enrich", "ask", "merge", "cli",
     "backups", "data-format", "ai-agents", "feedback", "disclaimer",
+    "adjust-bulk",
 ]
 
 
