@@ -6,6 +6,7 @@ Every record is a Markdown file with YAML front matter in a fixed key order; the
 <data>/
   config.toml                 settings, every key optional and commented with its default
   messages.toml               optional draft wording, merged over the package defaults
+  layout.toml                 optional page layout: section order, hidden fields, list columns
   .secrets.toml               optional secrets (gitignored, mode 600)
   .hermitcrm-format              data format version, one integer, committed
   PIPELINE.md                 generated, never edit by hand
@@ -99,6 +100,29 @@ working rather than a CRM's. An existing folder that used them gets a
 company file being touched.
 
 The body is free Markdown notes.
+
+## Page layout
+
+`layout.toml`, beside your data, changes how the pages are laid out and
+nothing else: the order of the sections on the company, contact and home
+pages and which are hidden, the fields a record page hides, and the columns of
+the Companies and Contacts lists.
+
+```toml
+[company]
+sections = ["timeline"]              # first; the other sections follow in their usual order
+hide_sections = ["merge"]
+hide_fields = ["value_eur_month"]    # built-in or your own; the value stays in the file
+
+[companies]
+columns = ["name", "stage", "fit_score", "country", "next_step"]
+```
+
+The file is optional and so is every key; without it the pages are as they
+ship. A hidden field keeps its value, also when you save a form that does not
+show it. `hermitcrm check` reports unknown names and syntax errors; the app
+skips them meanwhile. Every section name, field and column key is in
+[Page layout](/help/adjust-layout).
 
 ## Contact (`contacts/<slug>.md`)
 

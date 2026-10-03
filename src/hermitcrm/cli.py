@@ -30,7 +30,7 @@ import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from hermitcrm import __version__, migrations, task_types
+from hermitcrm import __version__, layout, migrations, task_types
 from hermitcrm.datafolder import InitError, NotDataFolder, init_folder, resolve_data_dir
 from hermitcrm.enrich import EnrichError, Enricher
 from hermitcrm.gitops import GitOps
@@ -515,7 +515,10 @@ def cmd_check(store: Store) -> tuple[str, int]:
              f"shows it (log it as a note on the contact instead)"
              for c in store.companies.values() for cs, ct in c.contacts.items()
              if ct.notes.strip()]
-    if not store.problems:
+    # The files an agent may write to adjust Hermit: a problem in one fails
+    # the check like a broken record does, with a line saying where.
+    extension = layout.validate(store.root)
+    if not store.problems and not extension:
         n_companies = len(store.companies)
         n_contacts = sum(len(c.contacts) for c in store.companies.values())
         n_interactions = sum(len(c.interactions) for c in store.companies.values())
@@ -525,7 +528,7 @@ def cmd_check(store: Store) -> tuple[str, int]:
                 f"{n_interactions} interactions, no problems"]),
             0,
         )
-    lines = [f"{p.path}: {p.message}" for p in store.problems]
+    lines = [f"{p.path}: {p.message}" for p in store.problems] + extension
     return ("\n".join(lines), 1)
 
 
