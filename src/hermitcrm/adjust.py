@@ -530,7 +530,7 @@ Provider = Callable[[Path], list]
 
 def built_items(root: Path) -> list[dict]:
     """What the core knows the user made: their fields, their look, their
-    draft wording, a page layout (until the layout module lists its own)."""
+    draft wording. Layouts, dashboards and routines list themselves."""
     root = Path(root)
     items = []
     try:
@@ -567,10 +567,6 @@ def built_items(root: Path) -> list[dict]:
                                                    if languages else ""),
                       "adjust": "Change my draft templates in messages.toml: "
                                 "[what to change]."})
-    if (root / "layout.toml").is_file():
-        items.append({"kind": "layout", "title": "Your page layout", "url": "",
-                      "detail": "layout.toml",
-                      "adjust": "Change my page layout: [what to change]."})
     return items
 
 
@@ -589,17 +585,13 @@ BUILT_PROVIDERS: list[Provider] = [built_items, _late("dashboards", "built_items
 
 
 def all_built(root: Path) -> list[dict]:
-    """Every provider's items; a provider that fails costs its own rows only.
-    The core's layout row gives way once another module lists layouts."""
+    """Every provider's items; a provider that fails costs its own rows only."""
     items = []
     for provider in BUILT_PROVIDERS:
         try:
             items.extend(provider(Path(root)) or [])
         except Exception:
             logger.exception("built items failed in %r", provider)
-    if any(i.get("kind") == "layout" and i.get("detail") != "layout.toml" for i in items):
-        items = [i for i in items if not (i.get("kind") == "layout"
-                                          and i.get("detail") == "layout.toml")]
     return items
 
 
