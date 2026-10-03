@@ -573,7 +573,13 @@ nav a.help-link { margin-left: 4px; }
 .feedback-facts { margin-bottom: 24px; font-size: 13px; color: var(--muted); }
 .feedback-facts summary { cursor: pointer; }
 .feedback-facts ul { margin: 8px 0; }
-@media (max-width: 800px) { .helpdoc-layout { flex-direction: column; } .helpdoc-topics { position: static; flex-basis: auto; } }
+/* Stacked, the article must take the column's width (stretch, not flex-start's
+   fit-content), or a wide table or code block widens the whole page past a phone. */
+@media (max-width: 800px) {
+  .helpdoc-layout { flex-direction: column; align-items: stretch; }
+  .helpdoc-topics { position: static; flex-basis: auto; }
+  .helpdoc table { display: block; max-width: 100%; overflow-x: auto; }
+}
 
 /* anchor jumps (#appearance, #to-file) land below the sticky top bar */
 [id] { scroll-margin-top: 64px; }

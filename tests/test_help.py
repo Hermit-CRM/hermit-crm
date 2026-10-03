@@ -187,3 +187,15 @@ def test_sub_headings_get_ids_that_pages_can_link_to():
     for anchor in ("bcc-capture", "calendar", "backup", "fields", "outcomes",
                    "ai-enrich-and-ask-the-hermit", "schedule", "access"):
         assert f'id="{anchor}"' in settings, anchor
+
+
+def test_stacked_help_layout_keeps_wide_content_inside_the_column():
+    """Under 800px the topic list and the article stack. With the desktop
+    `align-items: flex-start` the article sized to its widest table or code
+    block and pushed every help page past a phone's width."""
+    css = (Path(helpdocs.HERE).parent / "static" / "style.css").read_text(encoding="utf-8")
+    stacked = re.search(r"@media \(max-width: 800px\) \{(.*?)\n\}", css, re.S)
+    assert stacked and ".helpdoc-layout" in stacked.group(1)
+    rules = stacked.group(1)
+    assert re.search(r"\.helpdoc-layout \{[^}]*flex-direction: column;[^}]*align-items: stretch", rules)
+    assert re.search(r"\.helpdoc table \{[^}]*overflow-x: auto", rules)
