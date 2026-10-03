@@ -346,6 +346,21 @@ def test_adjust_config_refuses_bad_values_and_changes_nothing(tools, folder, key
     assert (folder / "config.toml").read_bytes() == config and head(folder) == before
 
 
+def test_adjust_config_leaves_a_hand_edited_config_alone(tools, folder):
+    mine = (folder / "config.toml").read_text() + "\nowner_name = \"Jane Roe\"\n"
+    (folder / "config.toml").write_text(mine)
+    before = head(folder)
+    text, failed = call(tools, "adjust_config", key="silent_days", value=21)
+    assert failed and "config.toml has changes that are not committed yet" in text
+    assert "(the user may be editing it)" in text
+    assert (folder / "config.toml").read_text() == mine and head(folder) == before
+    # once the user has saved it, the same call goes through, in a commit of its own
+    git(folder, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-qam", "mine")
+    text, failed = call(tools, "adjust_config", key="silent_days", value=21)
+    assert not failed, text
+    assert load_config(folder)["silent_days"] == 21 and touched(folder) == ["config.toml"]
+
+
 def test_adjust_config_outcomes_and_task_types(tools, folder):
     text, failed = call(tools, "adjust_config", key="outcomes", value=["replied", "no reply"])
     assert not failed and load_config(folder)["outcomes"] == ["replied", "no reply"]

@@ -356,6 +356,10 @@ def build_tools(root: Path, store) -> list[Tool]:
                 raise ToolError("; ".join(planned.errors.values()))
             new_values = {key: planned.values[key]}
         with store.lock:
+            if dirty("config.toml"):
+                raise ToolError("Not saved: config.toml has changes that are not committed "
+                                "yet (the user may be editing it). Ask the user to save or "
+                                "discard them, then try again.")
             if new_values[key] == load_config(root).get(key):
                 return f"No change: {key} already is {json.dumps(new_values[key])}."
             # Tried on a scratch copy first, so a value check would fault never
