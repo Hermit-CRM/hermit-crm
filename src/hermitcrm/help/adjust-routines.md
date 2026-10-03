@@ -184,6 +184,10 @@ prompt = "Draft a short first message using the playbook's hook angle."
 
 - Drafts only. No routine, prompt or command sends a message.
 - New routines start paused; preview first; the user turns them on.
+- A routine that is on and that you change (its select, filters, prompt,
+  action, channel, days or limit) goes back to `paused = true`: the user turned
+  on the old version, not yours. Only the title may change without that. Over
+  MCP, `adjust_write` does this for you and says so.
 - Write only `routines.toml`. Never write into `drafts/`, never edit
   `inbox/.last-routines.json`, never run `hermitcrm routines run --apply` unless
   the user asks for a run now.

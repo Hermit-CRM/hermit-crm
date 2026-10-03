@@ -650,10 +650,11 @@ def build_tools(root: Path, store) -> list[Tool]:
              "MESSAGING.md) with new text, following the recipe from adjust_help. The "
              "text is checked as `hermitcrm check` would first: if it has a problem, "
              "nothing is written and the problems come back to fix. A new routine "
-             "always arrives paused; the user turns it on. If it passes, it is ONE "
-             "git commit, 'ai: adjust: <summary>', touching only that file, and the "
-             "answer gives the commit id for undo. Never put a password or token in "
-             "a file.",
+             "always arrives paused, and so does one that was on but whose selector, "
+             "filters, prompt or other settings you changed; the user turns it on. If "
+             "it passes, it is ONE git commit, 'ai: adjust: <summary>', touching only "
+             "that file, and the answer gives the commit id for undo. Never put a "
+             "password or token in a file.",
              schema({"path": text(description="Relative to the data folder, e.g. "
                                               "fields.toml or dashboards/monday.toml."),
                      "content": text(description="The whole new text of the file."),
@@ -828,20 +829,28 @@ def task_type_rows(value, current: list) -> tuple[list[str], list[str]]:
 
 
 def arrive_paused(content: str, old: bytes | None) -> tuple[str, list[str]]:
-    """routines.toml as it may be written: a routine that was not on before is
-    set to `paused = true`, with a line saying so. Turning one on is the
-    user's, after a preview."""
+    """routines.toml as it may be written: a routine that was not on before, or
+    that was on but now does something else, is set to `paused = true`, with a
+    line saying so. Turning one on is the user's, after a preview.
+
+    "Does something else" is any key but `paused` and `title` (the selector,
+    filters, prompt, action, channel, days, limit ...) with a different value:
+    what the user turned on was that definition, not the name."""
     from . import routines
 
     try:
         entries = tomllib.loads(content).get("routine", [])
     except tomllib.TOMLDecodeError:
         return content, []  # check reports it, so it is refused anyway
-    was_on = set()
+
+    def definition(entry: dict) -> dict:
+        return {k: v for k, v in entry.items() if k not in ("paused", "title")}
+
+    was_on = {}  # name -> the definition the user had turned on
     try:
         for entry in tomllib.loads((old or b"").decode("utf-8")).get("routine", []):
             if isinstance(entry, dict) and entry.get("paused", True) is False:
-                was_on.add(entry.get("name"))
+                was_on[entry.get("name")] = definition(entry)
     except (tomllib.TOMLDecodeError, UnicodeDecodeError, AttributeError):
         pass
     notes = []
@@ -849,16 +858,28 @@ def arrive_paused(content: str, old: bytes | None) -> tuple[str, list[str]]:
         if not isinstance(entry, dict) or entry.get("paused", True) is not False:
             continue
         name = entry.get("name")
-        if name in was_on or not isinstance(name, str) or not name.strip():
-            continue  # already on, or no name (check refuses that)
+        if not isinstance(name, str) or not name.strip():
+            continue  # no name (check refuses that)
+        now, before = definition(entry), was_on.get(name)
+        if before == now:
+            continue  # on already, and doing what the user turned on
+        changed = sorted(k for k in {*before, *now} if before.get(k) != now.get(k)) \
+            if before is not None else []
         try:
             content = routines.with_paused(content, name, True)
         except routines.RoutineError:
             raise ToolError(f"Not written: routine {name} would start on. A new routine "
                             "starts paused: write paused = true for it.") from None
-        notes.append(f"Routine {name} arrived paused (paused = true): a new routine "
-                     "starts paused. The user previews it and turns it on under Make it "
-                     f"yours, or with `hermitcrm routines on {name}`.")
+        if changed:
+            notes.append(f"Routine {name} was on, but you changed what it does "
+                         f"({', '.join(changed)}), so it was paused again "
+                         "(paused = true): the user turned on the old version. The "
+                         "user previews it and turns it on again under Make it yours, "
+                         f"or with `hermitcrm routines on {name}`.")
+        else:
+            notes.append(f"Routine {name} arrived paused (paused = true): a new routine "
+                         "starts paused. The user previews it and turns it on under Make it "
+                         f"yours, or with `hermitcrm routines on {name}`.")
     return content, notes
 
 
