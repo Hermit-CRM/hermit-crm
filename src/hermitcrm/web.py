@@ -2715,7 +2715,9 @@ def create_app(root: Path, config: dict | None = None,
                                   type: str = Form("text"),
                                   applies_to: str = Form("company"),
                                   options: str = Form(""), help: str = Form(""),
-                                  messaging: str = Form("on")):
+                                  messaging: str = Form("")):
+        # An unticked checkbox sends nothing, so absent means "no"; a default of
+        # "on" made the box impossible to untick.
         check_csrf(csrf_token)
         form = await request.form()
         result = setup_steps.add_field(root, key, label, type, applies_to, options,
