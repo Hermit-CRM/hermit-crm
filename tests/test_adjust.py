@@ -292,6 +292,22 @@ def test_the_hub_on_a_demo_folder(demo):
     assert 'data-path=""' in page
 
 
+def test_every_suggestion_opens_a_starter_that_exists(demo, monkeypatch):
+    """The hub's "Suggested for you" button links to a starter by id; an id with
+    no starter opened the hub with an empty box (the unknown-outcomes rule did)."""
+    store = Store(demo)
+    store.load()
+    company_class = type(next(iter(store.companies.values())))
+    monkeypatch.setattr(company_class, "message_status", lambda self, *args: "unknown")
+    values = adjust.prefill(store, custom.load(demo), load_config(demo))
+    found = adjust.suggestions(store, custom.load(demo), load_config(demo), values,
+                               store.today(), 14, ["replied", "no reply"], limit=10)
+    assert any("outcome **unknown**" in s["text"] for s in found)     # the rule fired
+    assert found
+    for suggestion in found:
+        assert adjust.starter(suggestion["starter"], values), suggestion
+
+
 def test_recent_changes_lists_the_right_commits(empty):
     app, client = make(empty)
     commit_file(empty, "fields.toml", '[[field]]\nkey = "segment"\n', "settings: field segment added")
