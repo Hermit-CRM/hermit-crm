@@ -731,3 +731,34 @@ def test_no_starter_or_suggestion_text_calls_a_routine_weekly():
     for s in adjust.STARTERS:
         if s.family == "Routines":
             assert "weekly" not in (s.text + s.title).lower(), s.id
+
+
+# ----------------------------------- which config.toml keys an agent may write
+
+
+def test_every_list_of_agent_writable_config_keys_names_the_same_three(demo):
+    from hermitcrm import mcp
+    from hermitcrm.datafolder import AGENT_ADJUST_RULES
+    three = ("task_types", "outcomes", "silent_days")
+    assert adjust.AGENT_CONFIG_KEYS == mcp.CONFIG_KEYS == three
+    rules = " ".join(AGENT_ADJUST_RULES.split())
+    assert "the task_types, outcomes and silent_days keys of config.toml" in rules
+    recipe = " ".join(helpdocs.read("adjust").split())
+    assert "in `config.toml`, only the keys `task_types`, `outcomes` and `silent_days`" in recipe
+    assert "In `config.toml`: `task_types`, `outcomes`, `silent_days` only." in helpdocs.read(
+        "adjust-fields")
+    for text in (rules, recipe, helpdocs.read("adjust-fields")):
+        assert "message_window_days" not in text
+    assert "message_window_days" not in adjust.AGENT_CONFIG_KEYS
+    # `check` still names a wrong value for the user's own keys, stays quiet
+    # about the user's other keys, and still helps with a typo of them
+    st.set_config_values(demo / "config.toml", {
+        "owner_name": "Jane Roe", "theme": "dark", "port": 9000, "message_window_days": 30})
+    assert adjust.validate_config(demo) == []
+    st.set_config_values(demo / "config.toml", {"message_window_days": 0})
+    assert adjust.validate_config(demo) == [
+        "config.toml: message_window_days: must be a whole number of days, 1 or more"]
+    st.set_config_values(demo / "config.toml", {"message_window_days": 30, "message_windw_days": 7})
+    assert adjust.validate_config(demo) == [
+        "config.toml: message_windw_days: not a setting Hermit reads "
+        "(did you mean message_window_days?)"]
