@@ -156,6 +156,11 @@ radar, `serve --host`, capture bookmarklet, pre-meeting brief). What is left:
       but you can control the actions that close deals". Hermit's next step plus
       calendar *is* activity-based selling and the README never says so.
 
-Deliberate non-goals from the same scan: workflow/agent builders (a folder of
-files that you point your own agent at is the better answer), waterfall
-enrichment and contact databases, and anything multi-user.
+Deliberate non-goals from the same scan: waterfall enrichment and contact
+databases, and anything multi-user.
+
+Reversed on 2026-10-03: "workflow/agent builders" was a non-goal here. It is
+now a goal: Hermit makes adjusting and automating it prominent, and the
+user's own agent does the building (a folder you point your agent at, with
+everything around it built). See
+`docs/superpowers/specs/2026-10-03-ai-adjustability-design.md`.
