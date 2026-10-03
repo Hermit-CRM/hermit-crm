@@ -12,6 +12,7 @@ Every record is a Markdown file with YAML front matter in a fixed key order; the
   PIPELINE.md                 generated, never edit by hand
   CLAUDE.md, AGENTS.md        rules for AI agents
   .claude/settings.json       git commands Claude Code may not run (see Backups and undo)
+  .claude/skills/hermit/SKILL.md  the /hermit skill: Claude Code runs `hermitcrm help adjust` (Make it yours)
   MESSAGING.md                your outreach playbook
   dashboards/<name>.toml      optional pages of your own at /d/<name> (see Dashboards)
   inbox/                      BCC and calendar items waiting for a decision
@@ -193,7 +194,10 @@ next command migrates the folder in one commit named
 `migrate: data format N → M (...)`, never touching an interaction body (format 6 adds
 `.claude/settings.json` and the backup rules in `CLAUDE.md` / `AGENTS.md`; format 7
 moves each contact's notes body into note interactions, a line starting
-`DD/MM/YYYY:` dated that day, the rest dated the contact's `created`);
+`DD/MM/YYYY:` dated that day, the rest dated the contact's `created`; format 8
+adds the `/hermit` skill (a skill file of your own is kept), the "Adjusting
+Hermit" rules in `CLAUDE.md` / `AGENTS.md` when they do not mention
+`hermitcrm help adjust` yet, and `inbox/.last-routines.json` to `.gitignore`);
 `hermitcrm migrate --dry-run` lists the files first and `git revert` undoes it. A
 folder written by a newer Hermit CRM is refused until you upgrade.
 

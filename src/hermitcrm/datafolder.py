@@ -210,6 +210,66 @@ AGENT_BACKUP_RULES = """Backups and undo (`hermitcrm help backups`):
 # Its own constant so migration 6 can add it to CLAUDE.md files written before it.
 AGENT_RULES += AGENT_BACKUP_RULES
 
+# Make it yours (`hermitcrm help adjust`). Its own constant so migration 8 can
+# add it to CLAUDE.md and AGENTS.md files written before it.
+AGENT_ADJUST_RULES = """Adjusting Hermit (`hermitcrm help adjust`, or `/hermit` in Claude Code):
+- Asked to change Hermit itself (a field, a dashboard, a page layout, templates,
+  a routine, the look)? Run `hermitcrm help adjust` first and follow it.
+- Write without asking only fields.toml, layout.toml, dashboards/*.toml,
+  routines.toml, theme.css, messages.toml, MESSAGING.md, and the task_types,
+  outcomes and silent_days keys of config.toml.
+- Records change only through `hermitcrm add` and `hermitcrm set`. `set` shows a
+  dry run first: show it to the user and wait for a yes before `--apply`.
+- Run `hermitcrm check` after every change and fix what it reports.
+- One commit per change, with only its files: `ai: adjust: <what>`.
+- Undo a change with `hermitcrm undo <sha>` (a new commit). Never send anything:
+  messages and routines only write drafts.
+"""
+
+AGENT_RULES += "\n" + AGENT_ADJUST_RULES
+
+# The Claude Code skill behind `/hermit <request>`, which the Adjust handoff
+# types in. Only a pointer: the recipes live in the package's help topics, so
+# the skill never goes stale when Hermit is upgraded.
+SKILL = ".claude/skills/hermit/SKILL.md"
+
+AGENT_SKILL = """---
+name: hermit
+description: "Change, adjust, automate or customise this CRM: fields, dashboards, page layout, bulk changes, routines, messages, the look. Use it when the user asks to change how Hermit CRM works or looks, to automate something in it, or to change many records at once."
+---
+
+Run `hermitcrm help adjust` in this folder and follow it. It says which files
+you may write, which recipe fits the request (`hermitcrm help adjust-<topic>`)
+and the rules: a dry run first, `hermitcrm check`, one commit per change, and
+never sending anything.
+
+The request may start with `Asked on <title> (<path>)`: the page the user was
+on. Look at that page's records first (for `/companies/<slug>`, run
+`hermitcrm show <slug>`), so the change fits what they were looking at.
+"""
+
+# Every earlier text of the skill that Hermit wrote. A file still holding one
+# of them is Hermit's own and may be replaced; any other text is the user's.
+AGENT_SKILL_PREVIOUS: tuple[str, ...] = ()
+
+
+def write_skill(root: Path, apply: bool = True) -> bool:
+    """Write the /hermit skill unless the folder has it; True if it was (or
+    would be) written. A file of that name with text of the user's own is
+    kept as it is."""
+    path = Path(root) / SKILL
+    if path.is_symlink() or path.exists():
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return False  # not ours to judge, so not ours to replace
+        if text == AGENT_SKILL or text not in AGENT_SKILL_PREVIOUS:
+            return False
+    if apply:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(AGENT_SKILL, encoding="utf-8")
+    return True
+
 MESSAGING = """# Messaging playbook
 
 Hermit CRM writes three outreach drafts per contact without AI (the Messages part
@@ -322,6 +382,7 @@ def init_folder(target: str | Path, demo: bool = False, now: datetime | None = N
     for name in ("CLAUDE.md", "AGENTS.md"):
         (path / name).write_text(AGENT_RULES, encoding="utf-8")
     guard.write(path)
+    write_skill(path)
     if not (path / "MESSAGING.md").exists():
         (path / "MESSAGING.md").write_text(MESSAGING, encoding="utf-8")
     migrations.write_format(path, migrations.LATEST)

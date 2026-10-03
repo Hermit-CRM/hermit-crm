@@ -109,10 +109,13 @@ def test_migration_6_adds_the_list_and_the_rules_in_one_commit(tmp_path):
     # before the user's own heading, not after it
     assert claude.index("Backups and undo") < claude.index("## Personal")
     assert claude.endswith("## Personal\n\n- mine\n")
-    assert (root / "AGENTS.md").read_text().endswith(datafolder.AGENT_BACKUP_RULES)
+    # format 8 adds the Make it yours rules after them, in the same commit
+    agents = (root / "AGENTS.md").read_text()
+    assert agents.endswith(datafolder.AGENT_BACKUP_RULES + "\n" + datafolder.AGENT_ADJUST_RULES)
     assert git(root, "rev-list", "--count", f"{before}..HEAD") == "1"
     committed = git(root, "show", "--name-only", "--format=", "HEAD").splitlines()
-    assert set(committed) == {".hermitcrm-format", guard.SETTINGS, "CLAUDE.md", "AGENTS.md"}
+    assert set(committed) == {".hermitcrm-format", guard.SETTINGS, "CLAUDE.md", "AGENTS.md",
+                              datafolder.SKILL}
     assert git(root, "status", "--porcelain") == ""
     assert migrations.ensure_current(root) == ""  # once
 
@@ -122,7 +125,9 @@ def test_migration_6_leaves_rules_that_already_cover_backups(tmp_path):
     (root / "AGENTS.md").unlink()
     git(root, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-qam", "rm")
     migrations.ensure_current(root)
-    assert (root / "CLAUDE.md").read_text() == "see hermitcrm backup list\n"
+    claude = (root / "CLAUDE.md").read_text()
+    assert claude.startswith("see hermitcrm backup list\n")
+    assert "Backups and undo" not in claude  # format 8 adds only its own section
     assert not (root / "AGENTS.md").exists()  # not recreated
 
 
@@ -131,7 +136,7 @@ def test_migration_6_with_claude_folder_gitignored(tmp_path):
     (root / ".claude").mkdir()
     (root / guard.SETTINGS).write_text('{"permissions": {"allow": ["Bash(ls:*)"]}}')
     note = migrations.ensure_current(root)
-    assert "3 file(s) changed" in note
+    assert "4 file(s) changed" in note  # settings.json, the /hermit skill, CLAUDE/AGENTS.md
     assert guard.missing(root) == []  # on disk ...
     assert settings(root)["permissions"]["allow"] == ["Bash(ls:*)"]
     assert guard.SETTINGS not in git(root, "ls-files").splitlines()  # ... not in git
