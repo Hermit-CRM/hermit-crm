@@ -117,7 +117,8 @@ def recent_changes(root: Path, limit: int = 20, scan: int = 500) -> list[Change]
             continue
         undone.update(_REVERTS.findall(body))
         files = [n.strip() for n in names.splitlines() if n.strip()]
-        if not counts(subject, files):
+        # The first commit is the folder being made, not a change to it.
+        if not parents.split() or not counts(subject, files):
             continue
         changes.append(Change(sha=sha, when=datetime.fromtimestamp(int(stamp)),
                               subject=subject, files=files, merge=len(parents.split()) > 1))

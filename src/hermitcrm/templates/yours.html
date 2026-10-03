@@ -77,6 +77,7 @@
 {% endif %}
 
 <h2 id="changes">Recent changes</h2>
+{% if undo_note %}<p class="flash">{{ undo_note }}</p>{% endif %}
 {% if changes %}
 <div class="table-scroll"><table class="built changes">
   <thead><tr><th>When</th><th>Change</th><th>Touched</th><th></th></tr></thead>
