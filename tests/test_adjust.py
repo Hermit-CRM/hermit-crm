@@ -647,8 +647,7 @@ def test_feature_recipe_does_not_hand_a_generator_to_the_template_row():
     partial cover is asked about before anything is written."""
     text = helpdocs.read("adjust-feature")
     assert "The wording of a quote" in text and "| A quote, a proposal" not in text
-    assert "ask before you
-build the partial version" in text
+    assert "ask before you\nbuild the partial version" in text
     assert "change nothing in the data folder until they say yes" in text
 
 
