@@ -292,6 +292,21 @@ def test_the_hub_on_a_demo_folder(demo):
     assert 'data-path=""' in page
 
 
+def test_the_app_starts_with_a_broken_messages_file(empty):
+    """messages.toml was read once at start-up without a guard, so one typo from
+    an agent kept the app from starting at all, with a traceback. It starts on
+    the shipped wording, and the hub and `check` say what is wrong."""
+    (empty / "messages.toml").write_text("[[template\n", encoding="utf-8")
+    app, client = make(empty)
+    assert client.get("/").status_code in (200, 303)
+    page = client.get("/yours")
+    assert page.status_code == 200
+    assert "messages.toml" in page.text and 'id="problems"' in page.text
+    assert client.get("/companies").status_code == 200
+    assert any(p.startswith("messages.toml") for p in adjust.all_problems(empty))
+    assert app.state.messages == adjust.messaging.default_messages()
+
+
 def test_every_suggestion_opens_a_starter_that_exists(demo, monkeypatch):
     """The hub's "Suggested for you" button links to a starter by id; an id with
     no starter opened the hub with an empty box (the unknown-outcomes rule did)."""

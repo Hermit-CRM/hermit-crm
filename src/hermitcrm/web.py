@@ -866,7 +866,14 @@ def create_app(root: Path, config: dict | None = None,
         except custom.FieldError:
             return []
 
-    messages = messaging.load_messages(root)
+    try:
+        messages = messaging.load_messages(root)
+    except Exception as exc:
+        # A broken messages.toml (an agent's typo) must not stop the app from
+        # starting: the shipped wording stands in, and the Make it yours page and
+        # `hermitcrm check` name the problem. A later fix is picked up as usual.
+        logger.warning("messages.toml not read, using the shipped wording: %s", exc)
+        messages = messaging.default_messages()
     app = FastAPI(title="Hermit CRM")
     app.state.messages = messages
     app.state.update_notice = updates.UpdateNotice()
