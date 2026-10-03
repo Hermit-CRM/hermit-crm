@@ -25,10 +25,20 @@ meeting, a deal at offer with its stage history, a next step and tasks. Its
 `company.md` carries `sample: true`, and a bar at the top of every page says
 it is there. The Getting started steps do not count it.
 
+It comes with two things from [Make it yours](/help/adjust), so you see what
+you can build before you ask for anything: the dashboard **Monday review**,
+pinned in the sidebar (`dashboards/monday-review.toml`), and the routine
+**Nudge quiet threads** in `routines.toml`, paused, so it does nothing until
+you turn it on. Neither replaces a file or a routine of the same name you
+already have. `hermitcrm init --demo` writes the same two.
+
 **Remove it** in that bar (or `hermitcrm sample remove`) lists what goes and
-deletes it in one commit. Only companies with `sample: true` can be removed
-this way; delete that line by hand and the company is yours to keep. Hermit
-CRM has no other way to delete a company: you disqualify it instead.
+deletes it in one commit, the dashboard and the routine included. Whatever
+you changed stays: a dashboard you edited, the routine once you edited or
+turned it on, and your own routines next to it. Only companies with
+`sample: true` can be removed this way; delete that line by hand and the
+company is yours to keep. Hermit CRM has no other way to delete a company:
+you disqualify it instead.
 
 ## The company page
 

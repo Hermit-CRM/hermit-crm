@@ -15,7 +15,7 @@
   <a class="card start-card" href="/settings#bcc"><h3>Set up BCC capture</h3><div class="small">Log the mail you send without typing it twice.</div></a>
   <form class="card start-card sample-card" method="post" action="/sample">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <button type="submit"><h3>Look at a sample account</h3><div class="small">One made-up company with a full history. Remove it in one click when you are done.</div></button>
+    <button type="submit"><h3>Look at a sample account</h3><div class="small">One made-up company with a full history, a dashboard and a paused routine. Remove it in one click when you are done.</div></button>
   </form>
 </div>
 {% if items %}{% include "to_file.html" %}{% endif %}
@@ -78,7 +78,7 @@
   {% if not samples %}
   <form method="post" action="/sample" class="inline sample-offer">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <button type="submit">Load a sample account</button> <span class="small">One made-up company with its people, messages, a deal and tasks. You remove it in one click.</span>
+    <button type="submit">Load a sample account</button> <span class="small">One made-up company with its people, messages, a deal and tasks, plus a dashboard and a paused routine to show what you can build. You remove it in one click.</span>
   </form>
   {% endif %}
   {% endif %}

@@ -20,6 +20,7 @@ from __future__ import annotations
 import html
 import os
 import re
+import shutil
 import subprocess
 from datetime import timedelta
 from pathlib import Path
@@ -647,6 +648,7 @@ def test_an_edit_shows_on_the_next_request_without_a_restart(client, folder):
 
 
 def test_no_dashboards_folder_is_todays_behaviour(client, folder, capsys):
+    shutil.rmtree(folder / "dashboards")  # the demo has the sample account's dashboard
     assert not (folder / "dashboards").exists()
     for path in ("/", "/companies", "/reports"):
         page = client.get(path)

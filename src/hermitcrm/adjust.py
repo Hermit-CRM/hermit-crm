@@ -586,13 +586,20 @@ BUILT_PROVIDERS: list[Provider] = [built_items, _late("dashboards", "built_items
 
 
 def all_built(root: Path) -> list[dict]:
-    """Every provider's items; a provider that fails costs its own rows only."""
+    """Every provider's items; a provider that fails costs its own rows only.
+    The sample account's dashboard and routine say so while they are unchanged."""
+    from . import sample
+
     items = []
     for provider in BUILT_PROVIDERS:
         try:
             items.extend(provider(Path(root)) or [])
         except Exception:
             logger.exception("built items failed in %r", provider)
+    marked = sample.untouched_urls(root)
+    for item in items:
+        if item.get("url") in marked:
+            item["detail"] = f"{item.get('detail') or ''} · sample".lstrip(" ·")
     return items
 
 
@@ -606,11 +613,17 @@ def has_adjusted(root: Path) -> bool:
 
 
 def has_adjusted_files(root: Path) -> bool:
-    """A few stats: a theme.css, layout.toml, routines.toml or a dashboard."""
+    """A few stats: a theme.css, layout.toml, routines.toml or a dashboard,
+    not counting the sample account's while they are as it wrote them."""
+    from . import sample
+
     root = Path(root)
-    if any((root / name).is_file() for name in ADJUSTED_FILES):
+    sample_files = sample.untouched(root)
+    if any((root / name).is_file() and name not in sample_files for name in ADJUSTED_FILES):
         return True
-    return (root / "dashboards").is_dir() and any((root / "dashboards").glob("*.toml"))
+    folder = root / "dashboards"
+    return folder.is_dir() and any(f"dashboards/{p.name}" not in sample_files
+                                   for p in folder.glob("*.toml"))
 
 
 def has_adjust_commit(root: Path) -> bool:

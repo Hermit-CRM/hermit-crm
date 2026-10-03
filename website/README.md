@@ -69,10 +69,24 @@ through the pages locally, serve the folder: `python3 -m http.server -d site 800
 | Download, SHA-256, GitHub and install-by-hand links | `[links]` in `content.toml` |
 | Version, file name, size | `[release]` in `content.toml` |
 | App screenshot instead of the drawn placeholder | put the image in `site/img/`, set `[file].screenshot` |
+| The "Make it yours" examples (what you type, what changes, the screenshot) | `[yours]` in `content.toml`; images `site/img/make-it-yours-*.png` |
 | Colours, sizes, spacing | `site/style.css` (tokens at the top, light and dark) |
 | Brand green, font stacks, the drawn app's colours | `src/hermitcrm/static/tokens.css` (shared with the app; see `DESIGN.md`) |
 | Page structure | `render()` in `build.py` |
 | Share image (`site/img/og.png`) | `python3 build.py --share` (needs Playwright) |
+
+## The Make it yours screenshots
+
+`site/img/make-it-yours-*.png` are real screenshots of the app, taken with
+Playwright at 2x on a demo folder (`hermitcrm init --demo`, which comes with
+the sample's Monday review dashboard and paused routine) served on its own
+port: the dashboard at a 900 px wide window; a company page after adding the
+`contract_renewal` field exactly as `hermitcrm help adjust-fields` shows, and
+filling it with `hermitcrm set`; and Home after turning the routine on and
+running it once (with the draft's wording typed in place of an AI CLI's
+answer; who it picked, the draft and the page are the app's own). Crop each to
+the part that shows the change and keep it under about 400 KB. The build reads
+their sizes and warns when one is missing.
 
 ## Publish
 
