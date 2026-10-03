@@ -691,3 +691,43 @@ def test_check_prints_the_problem_instead_of_a_traceback(demo, capsys):
         fh.write("silent_days = [\n")
     assert cli.main(["--data", str(demo), "check"]) == 1
     assert capsys.readouterr().out.startswith("config.toml: ")
+
+
+# ------------------------------------------------- the suggestions' starters
+
+
+def test_every_suggestion_opens_a_starter_that_exists_and_says_what_it_promises(
+        empty, tmp_path):
+    import inspect
+    # whatever the code can suggest, not only what this folder happens to produce
+    source = inspect.getsource(adjust.suggestions)
+    named = set(re.findall(r'"starter": "([\w-]+)"', source))
+    assert named and named <= set(adjust.BY_ID), named - set(adjust.BY_ID)
+    # a folder that produces the "outcome unknown" suggestion
+    store = Store(empty)
+    store.load()
+    store.create_company("Acme GmbH", country="DE")
+    store.create_contact("acme", "Jane", "Doe")
+    when = store.now().strftime("%Y-%m-%dT10:00")
+    for n in range(6):
+        store.create_interaction("acme", channel="linkedin", direction="out",
+                                 contact="jane-doe", date=when, body=f"Hi {n}")
+    found = adjust.suggestions(store, [], {}, adjust.DEFAULTS, store.today(), 14,
+                               ["replied", "no reply"], limit=10)
+    assert {s["starter"] for s in found} >= {"dashboard-messages"}
+    for s in found:
+        card = adjust.starter(s["starter"], adjust.DEFAULTS)
+        assert card and card["text"].strip(), s
+        assert "weekly" not in (s["text"] + s["action"]).lower(), s    # routines run daily
+    # and the hub's link for each one shows a request in the box
+    app, client = make(empty)
+    for s in found:
+        page = client.get(f"/yours?starter={s['starter']}").text
+        box = re.search(r'id="describe-request"[^>]*>(.*?)</textarea>', page, re.S).group(1)
+        assert box.strip(), s
+
+
+def test_no_starter_or_suggestion_text_calls_a_routine_weekly():
+    for s in adjust.STARTERS:
+        if s.family == "Routines":
+            assert "weekly" not in (s.text + s.title).lower(), s.id
