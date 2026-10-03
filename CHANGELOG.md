@@ -3,6 +3,61 @@
 All notable changes to Hermit CRM. Versions follow semantic versioning; a change to
 the data format always comes with an automatic migration.
 
+## Unreleased
+
+**Make it yours, with your own AI.** Hermit now has one place for changing it
+to fit how you work, and your own AI agent does the building. Nothing is sent
+anywhere new: the agent is the one you already use (Claude Code, Cursor, Codex,
+Gemini), working on the files in your folder, and every change is a git commit
+you can undo.
+
+**Upgrading from 0.5.0.** The data format goes from 7 to 8: the first command
+after the upgrade (restarting the app counts) adds an agent skill and a short
+"Adjusting Hermit" section to the folder's agent files, and one line to
+`.gitignore`, in one commit. It touches no company, contact or interaction.
+`hermitcrm migrate --dry-run` shows it first; to go back, `git revert` that
+commit and reinstall 0.5.0, which refuses a format-8 folder.
+
+- **Ask · Adjust.** One button on every page opens a panel: Ask a question
+  about the page, or Adjust it by describing the change. The request goes to
+  your own agent with the page it was asked on (Claude Code opens in the data
+  folder through a deep link; Cursor too; Codex and Gemini get a copy-ready
+  command). Settings > AI picks the agent.
+- **Make it yours** (`/yours`). Everything you changed, in one list with Undo,
+  plus starters to begin from, filled in from your own data.
+- **Dashboards.** One TOML file per dashboard in `dashboards/`, built from the
+  same filters the list pages use: counts, tables and groups. Pin one and it
+  shows in the sidebar.
+- **Page layout** (`layout.toml`). Order or hide the sections of the company,
+  contact and Home pages, hide fields, choose the columns of the company and
+  contact lists. Hidden fields keep their values. Sections you do not list
+  keep their place after the ones you do, so a section added by a later
+  release never disappears.
+- **Bulk changes.** `hermitcrm set` changes a field on many records at once:
+  a dry run first, `--apply` to do it, one commit.
+- **Routines** (`routines.toml`). Python picks the records (quiet threads,
+  replies owed, or any filter), your AI drafts one message for each, and the
+  drafts wait on Home as "Drafts from routines". Routines start paused, run
+  after the daily sync when on, and never send anything. `hermitcrm routines`
+  lists, previews, runs, turns on and off.
+- **`hermitcrm undo <commit>`.** Reverts one change as a new commit.
+- **Recipes your agent reads.** `hermitcrm help adjust` and nine topics
+  (fields, look, messages, connect, feature, dashboards, bulk, layout,
+  routines) hold the rules, so the agent's instructions never go stale. New
+  folders get a `/hermit` skill for Claude Code and an "Adjusting Hermit"
+  section in `CLAUDE.md` and `AGENTS.md`.
+- **MCP write tools.** Seven new tools for clients without a shell (Claude
+  Desktop, ChatGPT): read the recipes, read and write the allowed extension
+  files (validated before they are kept), change three settings, preview and
+  apply a bulk change (apply refuses without a fresh preview), and undo. 17
+  tools in all.
+- **The sample account** also brings a pinned Monday review dashboard and a
+  paused routine, so you can see both before you ask for your own.
+- **`hermitcrm check`** also checks the new files and says what is wrong in
+  each, with the line.
+- Fixed: saving a contact removed its tasks. Saving a contact form cleared its
+  custom fields.
+
 ## 0.5.0 (2026-10-02)
 
 The first release on PyPI: `uv tool install hermitcrm`. The download on
