@@ -417,3 +417,43 @@ def test_failed_claude_run_reports_the_envelope_message(monkeypatch):
     with pytest.raises(EnrichError) as exc:
         Enricher(provider="claude", which=ALL).runner("p", {})
     assert str(exc.value).endswith("API Error: 400 this model needs a newer CLI")
+
+
+# ------------------------------------------- a run that must have no tools
+
+
+def test_claude_with_no_tools_gets_tools_empty_not_only_allowedtools(monkeypatch):
+    """--allowedTools "" leaves Claude's read-only tools on; --tools "" removes them."""
+    run = FakeRun(CLAUDE_STDOUT)
+    monkeypatch.setattr(subprocess, "run", run)
+    Enricher(provider="claude", which=ALL).runner("p", {}, tools="")
+    argv = run.seen["argv"]
+    assert argv[argv.index("--allowedTools") + 1] == "" and argv[argv.index("--tools") + 1] == ""
+    Enricher(provider="claude", which=ALL).runner("p", {})                # the default run
+    assert "--tools" not in run.seen["argv"]
+    Enricher(provider="claude", which=ALL).runner("p", {}, tools="Read,Grep")
+    assert "--tools" not in run.seen["argv"]
+
+
+def test_codex_with_no_tools_runs_in_its_read_only_sandbox(monkeypatch):
+    run = FakeRun(stdout="", out_file_text=CODEX_LAST_MESSAGE)
+    monkeypatch.setattr(subprocess, "run", run)
+    Enricher(provider="codex", which=ALL).runner("p", {}, tools="")
+    argv = run.seen["argv"]
+    assert argv[argv.index("--sandbox") + 1] == "read-only" and argv[-1] == "-"
+    Enricher(provider="codex", which=ALL).runner("p", {})
+    assert "--sandbox" not in run.seen["argv"]
+
+
+@pytest.mark.parametrize("provider,command,who", [
+    ("gemini", "", "gemini"), ("grok", "", "grok"), ("custom", "my-llm --json", "your custom command")])
+def test_a_cli_with_no_switch_cannot_be_held_to_no_tools(provider, command, who):
+    problem = Enricher(provider=provider, command=command, which=ALL).no_tools_problem()
+    assert problem.startswith(f"{who} can't run without tools, so routines that draft need ")
+    assert "Claude Code or Codex" in problem and "\n" not in problem
+
+
+def test_claude_and_codex_and_a_missing_cli_have_no_such_problem():
+    assert Enricher(provider="claude", which=ALL).no_tools_problem() == ""
+    assert Enricher(provider="codex", which=ALL).no_tools_problem() == ""
+    assert Enricher(provider="auto", which=lambda name: None).no_tools_problem() == ""

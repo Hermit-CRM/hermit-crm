@@ -6,13 +6,18 @@ Every record is a Markdown file with YAML front matter in a fixed key order; the
 <data>/
   config.toml                 settings, every key optional and commented with its default
   messages.toml               optional draft wording, merged over the package defaults
+  layout.toml                 optional page layout: section order, hidden fields, list columns
   .secrets.toml               optional secrets (gitignored, mode 600)
   .hermitcrm-format              data format version, one integer, committed
   PIPELINE.md                 generated, never edit by hand
   CLAUDE.md, AGENTS.md        rules for AI agents
   .claude/settings.json       git commands Claude Code may not run (see Backups and undo)
+  .claude/skills/hermit/SKILL.md  the /hermit skill: Claude Code runs `hermitcrm help adjust` (Make it yours)
   MESSAGING.md                your outreach playbook
+  dashboards/<name>.toml      optional pages of your own at /d/<name> (see Dashboards)
   inbox/                      BCC and calendar items waiting for a decision
+  routines.toml               optional routines: a morning brief, AI drafts (see Routines)
+  drafts/                     drafts the routines wrote, waiting on Home; handled.tsv remembers closed ones
   companies/<slug>/company.md
   companies/<slug>/contacts/<contact-slug>.md
   companies/<slug>/interactions/<id>.md
@@ -100,6 +105,39 @@ company file being touched.
 
 The body is free Markdown notes.
 
+## Page layout
+
+`layout.toml`, beside your data, changes how the pages are laid out and
+nothing else: the order of the sections on the company, contact and home
+pages and which are hidden, the fields a record page hides, and the columns of
+the Companies and Contacts lists.
+
+```toml
+[company]
+sections = ["timeline"]              # first; the other sections follow in their usual order
+hide_sections = ["merge"]
+hide_fields = ["value_eur_month"]    # built-in or your own; the value stays in the file
+
+[companies]
+columns = ["name", "stage", "fit_score", "country", "next_step"]
+```
+
+The file is optional and so is every key; without it the pages are as they
+ship. A hidden field keeps its value, also when you save a form that does not
+show it. `hermitcrm check` reports unknown names and syntax errors; the app
+skips them meanwhile. Every section name, field and column key is in
+[Page layout](/help/adjust-layout).
+
+## Dashboards (`dashboards/<name>.toml`)
+
+Optional, one file per dashboard, shown at `/d/<name>`: a `title`, an
+optional `pin = true` (a link in the sidebar) and `description`, and one
+`[[widget]]` table per widget (a list, a count, bars per value, or a
+section of Reports). Widgets use the list pages' own filter keys and filter
+syntax, so they never need a migration. Nothing else reads the folder;
+`hermitcrm check` validates it line by line. The full reference is
+[Dashboards](/help/adjust-dashboards).
+
 ## Contact (`contacts/<slug>.md`)
 
 `first_name`, `last_name` (at least one), `slug`, `title`, `linkedin`, `email`
@@ -138,6 +176,17 @@ umlauts and accents transliterated (`ä` to `ae`, `é` to `e`); legal suffixes
 (gmbh, ag, bv, ltd, inc, sas, ...) dropped from the slug only; `-2`, `-3` on
 collision.
 
+## Routine drafts (`drafts/<id>.md`)
+
+Written by a routine run (`routines.toml`, see [Routines](/help/adjust-routines)),
+removed when you click *I sent it* (which logs an outbound interaction) or
+*Discard*. Front matter: `routine`, `made`, `record` (company slug, or
+`company/contact` for a contact routine), `company`, `contact`, `channel`,
+`subject`, `basis` (the interaction it follows up), `reason`; the body is the
+message. `drafts/handled.tsv` has one line per closed or skipped draft
+(routine, record, basis, what, when), so a routine does not write the same one
+twice. Last runs are in `inbox/.last-routines.json`, which is not in git.
+
 ## Format version and migrations
 
 `.hermitcrm-format` holds one integer. When a release changes the format, the
@@ -145,7 +194,10 @@ next command migrates the folder in one commit named
 `migrate: data format N → M (...)`, never touching an interaction body (format 6 adds
 `.claude/settings.json` and the backup rules in `CLAUDE.md` / `AGENTS.md`; format 7
 moves each contact's notes body into note interactions, a line starting
-`DD/MM/YYYY:` dated that day, the rest dated the contact's `created`);
+`DD/MM/YYYY:` dated that day, the rest dated the contact's `created`; format 8
+adds the `/hermit` skill (a skill file of your own is kept), the "Adjusting
+Hermit" rules in `CLAUDE.md` / `AGENTS.md` when they do not mention
+`hermitcrm help adjust` yet, and `inbox/.last-routines.json` to `.gitignore`);
 `hermitcrm migrate --dry-run` lists the files first and `git revert` undoes it. A
 folder written by a newer Hermit CRM is refused until you upgrade.
 
@@ -154,8 +206,11 @@ folder written by a newer Hermit CRM is refused until you upgrade.
 One commit per write, with a fixed message shape: `company: <slug> created`,
 `company: <slug> stage <old> -> <new>`, `contact: <company>/<slug> updated`,
 `interaction: <company> <channel> <direction> <contact> <date>`,
-`import: ...`, `bcc: ...`, `calendar: ...`, `ai: ...` for enrichment and
-agent-made changes, `pipeline: rebuild`. Rolling back is plain git:
-`git checkout <sha> -- <path>` or `git revert <sha>`, then `hermitcrm rebuild`.
+`import: ...`, `bcc: ...`, `calendar: ...`, `bulk: <summary>` for one `hermitcrm set`
+(many records, one commit, with its own undo), `routine: <name>: ...`, `ai: ...` for
+enrichment and agent-made changes (`ai: adjust: <what>` for a change made through
+[Make it yours](/help/adjust)), `pipeline: rebuild`. Rolling back is
+`hermitcrm undo <sha>`, a new commit named `Revert "<subject>"` (git's own
+revert), or plain git: `git checkout <sha> -- <path>`, then `hermitcrm rebuild`.
 
 Related: [Companies](/help/companies), [Interactions](/help/interactions), [AI agents](/help/ai-agents), [CLI](/help/cli)

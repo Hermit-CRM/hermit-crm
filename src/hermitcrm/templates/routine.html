@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}{{ routine.title if routine else name }}{% endblock %}
+{% block content %}
+<h1>{{ routine.title if routine else name }}{% if routine %} <span class="tag state-{{ routine.state }}">{{ routine.state }}</span>{% endif %}</h1>
+<p class="small"><a href="/yours/routines">All routines</a> &middot; <a href="/help/adjust-routines">How routines work</a> &middot; <code>routines.toml</code>, name <code>{{ name }}</code></p>
+
+{% if problems %}
+<div class="errors routine-problems">
+  <strong>{{ 'This routine has problems' if not routine else 'routines.toml has problems' }}, so it does not run.</strong> Paste these to your agent, or fix the file and reload:
+  <ul>{% for p in problems %}<li><code>{{ p }}</code></li>{% endfor %}</ul>
+</div>
+{% endif %}
+{% if try_error %}<p class="errors routine-problems">{{ try_error }}</p>{% endif %}
+
+{% if routine %}
+<p>{{ description }}</p>
+{% if ai_problem %}<p class="errors routine-problems"><strong>The AI step will not run.</strong> {{ ai_problem }}.</p>{% endif %}
+<div class="routine-switch">
+  <form method="post" action="/yours/routines/{{ name }}/{{ 'on' if routine.paused else 'off' }}" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">{{ 'Turn on' if routine.paused else 'Pause' }}</button>
+  </form>
+  <span class="small">{% if routine.paused %}Paused: new routines start this way. Check the preview below, then turn it on; it runs every morning after the daily sync.{% else %}On: it runs every morning after the daily sync.{% endif %} {{ last_run[:1] | upper }}{{ last_run[1:] }}.</span>
+</div>
+
+{% if routine.prompt %}
+<details class="routine-prompt"><summary>Instructions for the AI</summary><pre class="body">{{ routine.prompt }}</pre></details>
+{% endif %}
+
+{% if brief %}
+<h2>What it would show on Home now</h2>
+<p class="small">A preview: nothing is written. When it runs, Home shows this for the rest of the day.</p>
+{% include "routine_brief.html" %}
+{% else %}
+{% set fresh = picks | selectattr('status', 'equalto', '') | list %}
+<h2>Who it would pick now ({{ fresh | length }})</h2>
+<p class="small">The preview runs no AI and writes nothing.{% if waiting %} {{ waiting | length }} draft{{ 's' if waiting | length != 1 }} from this routine {{ 'are' if waiting | length != 1 else 'is' }} waiting <a href="/#routine-drafts">on Home</a>.{% endif %}</p>
+<div class="table-scroll">
+<table class="routine-picks">
+  <tr><th>who</th><th>why</th><th>channel</th><th>this run</th></tr>
+  {% for p in picks %}
+  <tr{% if p.status %} class="muted-row"{% endif %}>
+    <td><a href="{{ p.url }}">{{ p.who }}</a></td>
+    <td>{{ p.reason }}</td>
+    <td>{{ p.channel }}</td>
+    <td>{{ p.status or 'gets a draft' }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="4" class="empty">Nobody matches right now.</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% if fresh and not ai_problem %}
+<form method="post" action="/yours/routines/{{ name }}/try" class="inline routine-try">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit">Try the AI on the first one</button>
+  <span class="small">Shows one draft for {{ fresh[0].who }}. Nothing is saved. Takes up to a minute and uses your AI CLI.</span>
+</form>
+{% endif %}
+{% if tried %}
+<section class="draft routine-tried" id="tried">
+  <p class="draft-head">Draft for <a href="{{ tried_pick.url }}">{{ tried_pick.who }}</a> <span class="tag">{{ tried.channel }}</span> <span class="small">not saved</span></p>
+  {% if tried.skip %}
+  <p>The AI would skip this one: {{ tried.skip }}</p>
+  {% else %}
+  {% if tried.subject %}<p class="small">Subject: {{ tried.subject }}</p>{% endif %}
+  <textarea rows="9" readonly aria-label="Draft, not saved">{{ tried.body }}</textarea>
+  <p class="small">Not right? Change the prompt in <code>routines.toml</code> (or ask your agent to) and try again.</p>
+  {% endif %}
+</section>
+{% endif %}
+{% endif %}
+{% endif %}
+{% endblock %}

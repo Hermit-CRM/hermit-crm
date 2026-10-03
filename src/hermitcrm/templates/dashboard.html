@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% import "report_sections.html" as rs with context %}
+{% block title %}{{ dashboard.title if dashboard else 'No such dashboard' }}{% endblock %}
+{% block content %}
+{% if missing %}
+<h1>No dashboard called &ldquo;{{ missing }}&rdquo;</h1>
+<p>There is no <code>dashboards/{{ missing }}.toml</code> in the data folder.{% if others %} These dashboards are:{% endif %}</p>
+{% if others %}<ul>{% for d in others %}<li><a href="{{ d.url }}">{{ d.title }}</a></li>{% endfor %}</ul>{% endif %}
+<p><a href="/yours">Make it yours</a>: describe a dashboard and your own AI agent builds it.</p>
+{% else %}
+<h1>{{ dashboard.title }}</h1>
+{% if dashboard.description %}<p class="oneliner">{{ dashboard.description }}</p>{% endif %}
+<p class="page-actions"><a class="button" href="/yours">Adjust</a></p>
+{% if problems %}
+<div class="errors dashboard-problems">
+  <strong>{{ problems | length }} problem{{ '' if problems | length == 1 else 's' }} in <code>{{ dashboard.file }}</code>.</strong>
+  Paste these lines to your agent, or run <code>hermitcrm check</code>.{% if widgets %} The widgets without a problem are below.{% endif %}
+  <ul>{% for p in problems %}<li><code>{{ p }}</code></li>{% endfor %}</ul>
+</div>
+{% endif %}
+<div class="dashboard-grid">
+{% for w in widgets %}
+<section class="widget widget-{{ w.type }}{% if w.type in ('list', 'report') %} wide{% endif %}">
+  <h2><a href="{{ w.url }}">{{ w.title }}</a></h2>
+  {% if w.type == 'count' %}
+  <p class="widget-count"><a href="{{ w.url }}" title="open these in {{ w.scope }}">{{ w.count }}</a></p>
+  {% elif w.type == 'list' %}
+  <div class="table-scroll"><table class="report">
+    <tr>{% for c in w.columns %}<th>{{ c.label }}</th>{% endfor %}</tr>
+    {% for r in w.rows %}
+    <tr>{% for v in r.cells %}<td>{% if loop.first %}<a href="{{ r.href }}">{{ v or '(empty)' }}</a>{% else %}{{ v }}{% endif %}</td>{% endfor %}</tr>
+    {% else %}
+    <tr><td colspan="{{ w.columns | length }}" class="empty">none</td></tr>
+    {% endfor %}
+  </table></div>
+  <p class="small">{% if w.total > w.rows | length %}{{ w.rows | length }} of {{ w.total }} &middot; {% endif %}<a href="{{ w.url }}">open in {{ w.scope | capitalize }}</a></p>
+  {% elif w.type == 'group' %}
+  <table class="report">
+    {% for b in w.bars %}
+    <tr><td>{% if b.url %}<a href="{{ b.url }}">{{ b.label }}</a>{% else %}<span title="the list page cannot filter on an empty value">{{ b.label }}</span>{% endif %}</td><td class="num">{% if b.url and b.count %}<a class="rows" href="{{ b.url }}">{{ b.count }}</a>{% else %}{{ b.count }}{% endif %}</td><td class="bar-cell">{{ rs.bar(b.count, w.max) }}</td></tr>
+    {% else %}
+    <tr><td class="empty">none</td></tr>
+    {% endfor %}
+  </table>
+  <p class="small"><a href="{{ w.url }}">{{ w.total }} in all</a>{% if w.more %} &middot; {{ w.more }} more value{{ '' if w.more == 1 else 's' }} not shown{% endif %}</p>
+  {% elif w.type == 'report' %}
+  {% set p = w.report.period %}
+  <p class="small">{{ fmt_date(p.start) }} to {{ fmt_date(p.end) }} ({{ p.days }}d). Click a number for the rows behind it.</p>
+  {{ rs['section_' ~ w.section](w.report, w.rows_query) }}
+  {% endif %}
+</section>
+{% endfor %}
+</div>
+{% if not widgets and not problems %}<p class="empty">No widgets yet.</p>{% endif %}
+{% endif %}
+{% endblock %}

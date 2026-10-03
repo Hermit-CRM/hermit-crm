@@ -22,12 +22,14 @@ the single source of truth.
 from __future__ import annotations
 
 import calendar
+import dataclasses
 import hashlib
 import hmac
 import ipaddress
 import json
 import logging
 import platform as platform_info
+import re
 import socket
 import subprocess
 import sys
@@ -41,16 +43,19 @@ from urllib.parse import parse_qsl as _parse_qsl, quote, urlencode, urlparse
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from markupsafe import Markup, escape
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import QueryParams
 
 from . import __version__, updates
 from fastapi.templating import Jinja2Templates
 
-from . import (bcc, brief, calendar_sync, capture, disclaimer, feedback,
-               fields as custom, filters, followups, messaging, migrations,
+from . import (adjust, bcc, brief, calendar_sync, capture, dashboards, disclaimer, feedback,
+               fields as custom, filters, followups, history, messaging, migrations,
                pipeline, reports, sample, welcome)
+from . import layout
 from . import schedule, scrape, secrets, task_types, usertheme
+from . import routines
 from . import help as helpdocs
 from . import setup as setup_steps
 from .filters import Column
@@ -135,13 +140,24 @@ def custom_columns(defs: list, view: str) -> list[Column]:
     filter engine at all: it reads out of `extra` and the whole operator
     syntax (`!foo`, `>5`, `-`, `*`) works on it unmodified.
     """
+    return [_custom_column(d) for d in defs if d.shows_in(view)]
+
+
+def _custom_column(d) -> Column:
     kinds = {"number": "number", "date": "date", "select": "enum", "text": "text"}
-    return [
-        Column(d.key, d.label, kinds.get(d.type, "text"),
-               options=list(d.options),
-               getter=(lambda key: lambda obj: (getattr(obj, "extra", None) or {}).get(key))(d.key))
-        for d in defs if d.shows_in(view)
-    ]
+    return Column(d.key, d.label, kinds.get(d.type, "text"), options=list(d.options),
+                  getter=lambda obj: (getattr(obj, "extra", None) or {}).get(d.key))
+
+
+def scope_columns(defs: list, scope: str) -> list[Column]:
+    """Every custom field of one record type as a column, whatever its
+    `show_in`: what layout.toml's `columns` may pick from."""
+    return [_custom_column(d) for d in defs if d.applies_to == scope]
+
+
+# The Companies list's last column: the website and LinkedIn links. It is not
+# a filter, but layout.toml can move or drop it like any other column.
+LINKS = Column("links", "links")
 
 
 def _next_type(company) -> str:
@@ -338,6 +354,119 @@ def message_columns(statuses: list[str], defs: list | None = None) -> list[Colum
 
 def normalised_body(text: str) -> str:
     return " ".join((text or "").split()).lower()
+
+
+# -------------------------------------------------------------------- listings
+#
+# What a list page shows for one query string, outside its route, so that a
+# dashboard widget (dashboards.py) gets exactly the rows the page would: the
+# widget's link opens the same query on the page.
+
+
+@dataclasses.dataclass
+class Listing:
+    columns: list[Column]
+    active: dict
+    sort: str
+    dir: str
+    rows: list
+    extra: dict = dataclasses.field(default_factory=dict)
+
+
+def company_listing(store: Store, params, defs: list | None = None,
+                    type_options: list[str] | None = None, q: str = "",
+                    cols: list[Column] | None = None) -> Listing:
+    """The Companies tab: search, filters, then the parked ones out unless
+    asked for (`parked=1`) or filtered on, then the sort. `cols` overrides
+    the default columns (the app passes layout.toml's)."""
+    cols = cols or company_columns(defs, type_options)
+    active = filters.parse(params, cols)
+    sort_key, sort_dir = filters.parse_sort(params, cols)
+    companies = filters.apply(store.search(q), cols, active)
+    show_parked = (params.get("parked") == "1"
+                   or "temp-disqualified" in active.get("stage", []))
+    hidden = 0
+    if not show_parked:
+        hidden = sum(1 for c in companies if c.is_parked)
+        companies = [c for c in companies if not c.is_parked]
+    companies = filters.sort_rows(companies, cols, sort_key, sort_dir)
+    return Listing(cols, active, sort_key, sort_dir, companies,
+                   {"show_parked": show_parked, "hidden_parked": hidden})
+
+
+def contact_listing(store: Store, params, defs: list | None = None, q: str = "",
+                    cols: list[Column] | None = None) -> Listing:
+    """The Contacts tab: every contact with its company, A to Z by default."""
+    cols = cols or contact_columns(defs)
+    active = filters.parse(params, cols)
+    sort_key, sort_dir = filters.parse_sort(params, cols)
+    needle = (q or "").strip().lower()
+    rows = []
+    for company in store.companies.values():
+        for contact in company.contacts.values():
+            row = ContactRow(company, contact)
+            haystack = (row.name, row.email, row.title, row.company_name)
+            if needle and not any(needle in (h or "").lower() for h in haystack):
+                continue
+            rows.append(row)
+    rows = filters.apply(rows, cols, active)
+    rows.sort(key=lambda r: (r.name.lower(), r.company_name.lower()))
+    rows = filters.sort_rows(rows, cols, sort_key, sort_dir)
+    return Listing(cols, active, sort_key, sort_dir, rows)
+
+
+def message_listing(store: Store, params, today: date, window: int, outcomes: list[str],
+                    defs: list | None = None, q: str = "") -> Listing:
+    """The Messages tab: every message sent, newest first, with its outcome.
+    `extra["counts"]` counts the outcomes before search and filters."""
+    cols = message_columns(message_statuses(outcomes), defs)
+    active = filters.parse(params, cols)
+    sort_key, sort_dir = filters.parse_sort(params, cols)
+    needle = (q or "").strip().lower()
+    uses = Counter(
+        normalised_body(i.body) for c in store.companies.values()
+        for i in c.interactions if i.is_message)
+    rows = []
+    for company in store.companies.values():
+        for it in company.interactions:
+            if not it.is_message:
+                continue
+            status = company.message_status(it, today, window, outcomes)
+            rows.append(MessageRow(company, it, status, uses[normalised_body(it.body)]))
+    counts = Counter(r.status for r in rows)
+    if needle:
+        rows = [r for r in rows if needle in r.preview.lower()
+                or needle in r.company_name.lower() or needle in r.contact.lower()]
+    rows = filters.apply(rows, cols, active)
+    rows.sort(key=lambda r: (r.date or datetime.min), reverse=True)
+    rows = filters.sort_rows(rows, cols, sort_key, sort_dir)
+    return Listing(cols, active, sort_key, sort_dir, rows, {"counts": counts})
+
+
+def task_listing(store: Store, params, type_options: list[str] | None,
+                 today: date) -> Listing:
+    """The Tasks tab: open tasks unless `f_status` says otherwise, then the
+    date chips (`when`) and "next steps only" (`next=1`), then the sort.
+    `extra` carries the chip counts the page shows."""
+    cols = task_columns(type_options)
+    active = filters.parse(params, cols)
+    if "status" not in active and "f_status" not in params:
+        active["status"] = ["open"]      # open ones unless you ask for done
+    rows = filters.apply(todo_rows(store.companies.values(), include_done=True),
+                         cols, active)
+    when = [w for w in params.getlist("when") if w in {k for k, _, _ in TASK_WHEN}]
+    counts = {k: sum(1 for r in rows if test(r.due, today)) for k, _, test in TASK_WHEN}
+    if when:
+        tests = [test for k, _, test in TASK_WHEN if k in when]
+        rows = [r for r in rows if any(t(r.due, today) for t in tests)]
+    nexts = params.get("next") == "1"
+    next_count = sum(1 for r in rows if r.is_next)
+    if nexts:
+        rows = [r for r in rows if r.is_next]
+    sort_key, sort_dir = filters.parse_sort(params, cols)
+    rows = filters.sort_rows(rows, cols, sort_key, sort_dir)
+    return Listing(cols, active, sort_key, sort_dir, rows,
+                   {"when": when, "counts": counts, "nexts": nexts, "next_count": next_count})
 
 
 def sort_url_for(request: Request):
@@ -553,6 +682,15 @@ CSP = ("default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inlin
        "script-src 'self' 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'")
 
 
+_PLACEHOLDER = re.compile(r"\[([^\[\]]+)\]")
+
+
+def placeholders(text: str) -> Markup:
+    """A starter's text as HTML: escaped, each [placeholder] marked as the part
+    to change (the request box keeps the brackets)."""
+    return Markup(_PLACEHOLDER.sub(r'<span class="ph">\1</span>', str(escape(text))))
+
+
 def safe_page(page: str) -> str:
     """A local path to answer questions about; anything else becomes /."""
     page = (page or "").strip()
@@ -659,6 +797,16 @@ def changed_fields(submitted: dict, current: dict) -> list[str]:
     return [k for k in submitted if k in current and norm(submitted[k]) != norm(current[k])]
 
 
+def submitted_only(values: dict, form) -> dict:
+    """The values a form actually carried.
+
+    A field the page does not show (layout.toml's hide_fields) is not in the
+    form at all; leaving its key out keeps the stored value, where an empty
+    default would clear it. Every field a page shows is always sent.
+    """
+    return {k: v for k, v in values.items() if k in form}
+
+
 def stale_form_text(what: str, differ: list[str]) -> str:
     fields = f" It now differs from what you typed in: {', '.join(differ)}." if differ else ""
     return (f"Not saved: this {what} changed after you opened the page (another tab, "
@@ -718,7 +866,14 @@ def create_app(root: Path, config: dict | None = None,
         except custom.FieldError:
             return []
 
-    messages = messaging.load_messages(root)
+    try:
+        messages = messaging.load_messages(root)
+    except Exception as exc:
+        # A broken messages.toml (an agent's typo) must not stop the app from
+        # starting: the shipped wording stands in, and the Make it yours page and
+        # `hermitcrm check` name the problem. A later fix is picked up as usual.
+        logger.warning("messages.toml not read, using the shipped wording: %s", exc)
+        messages = messaging.default_messages()
     app = FastAPI(title="Hermit CRM")
     app.state.messages = messages
     app.state.update_notice = updates.UpdateNotice()
@@ -794,29 +949,157 @@ def create_app(root: Path, config: dict | None = None,
         Re-reading first means the commit's push already uses a push_enabled or
         remote the save just changed.
         """
+        config_reloaded()
+        setup_steps.commit_config(root, store.notify)
+
+    # What is wrong with a file the app re-reads while it runs, by file name:
+    # the banner on every page, until the file is fixed.
+    file_problems: dict[str, list[str]] = {}
+
+    def derived_settings(cfg: dict) -> dict:
+        """Everything the app works out from config.toml, built into one dict
+        before any of it is used: a value of the wrong kind raises here, while
+        the app still holds the settings it had."""
+        outcome_names = [str(o) for o in (cfg.get("outcomes") or DEFAULT_OUTCOMES)]
+        types = task_types.from_config(cfg.get("task_types"))
+        return {
+            "bcc": bcc.settings_from_config(cfg),
+            "calendar": calendar_sync.settings_from_config(cfg),
+            "push_enabled": bool(cfg.get("push_enabled", True)),
+            "remote": str(cfg.get("remote", "origin")),
+            "silent_days": int(cfg.get("silent_days", 14)),
+            "outcomes": outcome_names,
+            "statuses": message_statuses(outcome_names),
+            "types": types,
+            "type_names": task_types.names(types),
+            "message_window": int(cfg.get("message_window_days", 14)),
+            "enricher": build_enricher(cfg),
+            "custom_fields": load_custom_fields(),
+            "followups": {
+                "reply_after": int(cfg.get("followup_reply_days",
+                                           DEFAULT_CONFIG["followup_reply_days"])),
+                "nudge_after": int(cfg.get("followup_nudge_days",
+                                           DEFAULT_CONFIG["followup_nudge_days"]))},
+        }
+
+    def config_reloaded() -> None:
+        """Re-read config.toml and rebuild everything derived from it, without
+        committing: a Settings save commits after this (config_saved), and an
+        agent's edit is the agent's to commit.
+
+        Nothing is replaced until the whole new file has been checked and every
+        derived value built. A config.toml that does not parse, or holds a value
+        of the wrong kind (`outcomes = 5`), keeps the settings the app had and
+        puts the reason in the banner; `hermitcrm check` names the same line."""
         nonlocal message_window
-        fresh = load_config(root)
-        keep = {k: config[k] for k in ("start_update_check",) if k in config}
+        # The stamp first, whatever happens: a file that cannot be used is read
+        # once, not again on every page.
+        watched["config.toml"] = file_stamp("config.toml")
+        problems = adjust.validate_config(root)
+        # A near-miss key name (`silent_dayz`) is shown, but the rest still loads.
+        derived = None
+        if not [p for p in problems if adjust.UNKNOWN_KEY not in p]:
+            try:
+                fresh = load_config(root)
+                keep = {k: config[k] for k in ("start_update_check",) if k in config}
+                derived = derived_settings({**fresh, **keep})
+            except Exception as exc:  # OSError, ValueError, TypeError ...
+                logger.warning("config.toml not used: %s", exc)
+                problems.append(f"config.toml: a setting has a value of the wrong kind "
+                                f"({type(exc).__name__}: {exc})")
+        if problems:
+            file_problems["config.toml"] = problems
+        else:
+            file_problems.pop("config.toml", None)
+        if derived is None:
+            return
         config.clear()
         config.update(fresh, **keep)
-        app.state.bcc_settings = bcc.settings_from_config(config)
-        app.state.calendar_settings = calendar_sync.settings_from_config(config)
-        gitops.push_enabled = bool(config.get("push_enabled", True))
-        gitops.remote = str(config.get("remote", "origin"))
-        store.silent_days = int(config.get("silent_days", 14))
+        app.state.bcc_settings = derived["bcc"]
+        app.state.calendar_settings = derived["calendar"]
+        gitops.push_enabled = derived["push_enabled"]
+        gitops.remote = derived["remote"]
+        store.silent_days = derived["silent_days"]
         # In place, so the routes and the template global that hold this list
         # see the new outcomes; the store keeps its own copy.
-        outcomes[:] = [str(o) for o in (config.get("outcomes") or DEFAULT_OUTCOMES)]
+        outcomes[:] = derived["outcomes"]
         store.outcomes = list(outcomes)
-        templates.env.globals["message_statuses"] = message_statuses(outcomes)
-        app.state.task_types = task_types.from_config(config.get("task_types"))
-        store.task_types = task_types.names(app.state.task_types)
-        message_window = int(config.get("message_window_days", 14))
-        app.state.enricher = build_enricher(config)
-        app.state.custom_fields = load_custom_fields()
+        templates.env.globals["message_statuses"][:] = derived["statuses"]
+        app.state.task_types = derived["types"]
+        store.task_types = derived["type_names"]
+        message_window = derived["message_window"]
+        app.state.enricher = derived["enricher"]
+        app.state.custom_fields = derived["custom_fields"]
+        followup_days.update(derived["followups"])
         cal_url_cache.clear()
         current_setup_state(refresh=True)
-        setup_steps.commit_config(root, store.notify)
+        watched[custom.FILENAME] = file_stamp(custom.FILENAME)
+
+    def messages_reloaded() -> None:
+        """Re-read messages.toml: the drafts and the labels the pages show. A
+        file that does not read, or does not write a draft, keeps the wording
+        the app had and puts the reason in the banner."""
+        watched[messaging.MESSAGES_FILE] = file_stamp(messaging.MESSAGES_FILE)
+        problems = adjust.validate_messages(root)
+        fresh = None
+        if not problems:
+            try:
+                fresh = messaging.load_messages(root)
+                labels = (("signal_labels", messaging.signal_labels(fresh)),
+                          ("language_names", messaging.language_names(fresh)))
+            except Exception as exc:
+                logger.warning("messages.toml not used: %s", exc)
+                fresh = None
+                problems.append(f"{messaging.MESSAGES_FILE}: file: cannot be used "
+                                f"({type(exc).__name__}: {exc})")
+        if problems:
+            file_problems[messaging.MESSAGES_FILE] = problems
+        else:
+            file_problems.pop(messaging.MESSAGES_FILE, None)
+        if fresh is None:
+            return
+        app.state.messages = fresh
+        # In place: an imported macro module (macros.html) keeps the dicts it
+        # was first given, so a new dict would never reach the drafts section.
+        for name, value in labels:
+            templates.env.globals[name].clear()
+            templates.env.globals[name].update(value)
+
+    def fields_reloaded() -> None:
+        app.state.custom_fields = load_custom_fields()
+        watched[custom.FILENAME] = file_stamp(custom.FILENAME)
+
+    # Pickup without a restart: the files an agent may edit while the app runs,
+    # with the (mtime, size) the app last read them at. A few stats per page.
+    def file_stamp(name: str):
+        try:
+            st = (root / name).stat()
+        except OSError:
+            return None
+        return (st.st_mtime_ns, st.st_size)
+
+    watched = {name: file_stamp(name)
+               for name in ("config.toml", messaging.MESSAGES_FILE, custom.FILENAME)}
+
+    def pick_up_edits() -> None:
+        """Re-read whichever watched file changed on disk since the app read it."""
+        changed = [n for n in watched if file_stamp(n) != watched[n]]
+        if "config.toml" in changed:
+            config_reloaded()          # re-reads fields.toml too
+        if messaging.MESSAGES_FILE in changed:
+            messages_reloaded()
+        if custom.FILENAME in changed and file_stamp(custom.FILENAME) != watched[custom.FILENAME]:
+            fields_reloaded()
+
+    def reload_everything() -> None:
+        """What Reload does: the records, fields.toml and messages.toml again,
+        and config.toml when it changed on disk (the config the app was started
+        with may hold keys that are not in the file)."""
+        pick_up_edits()
+        store.load()
+        fields_reloaded()
+        messages_reloaded()
+        app.state.index_head = gitops.last_commit_sha()
 
     def calendar_alert() -> str:
         last = inbox.last_run(calendar_sync.LAST_RUN_FILE)
@@ -847,6 +1130,10 @@ def create_app(root: Path, config: dict | None = None,
         # prospect the next time any page is opened (idempotent, one commit).
         if request.method == "GET" and not request.url.path.startswith("/static") \
                 and request.url.path != "/theme.css":
+            try:
+                pick_up_edits()
+            except Exception:
+                logger.exception("picking up edited files failed")
             try:
                 refresh_if_moved()
             except Exception:
@@ -904,7 +1191,29 @@ def create_app(root: Path, config: dict | None = None,
         configured = task_types.names(app.state.task_types)
         return configured + [n for n in store.type_names_in_use() if n not in configured]
 
+    def listing(scope: str, params, q: str = "") -> Listing:
+        """What the list page for `scope` shows for the query `params`: the
+        pages and the dashboard widgets both ask here."""
+        # Companies and Contacts filter on every column layout.toml can show;
+        # "shown" is what the page draws as columns.
+        if scope == "companies":
+            cols, shown = list_columns("companies", [
+                *company_columns(app.state.custom_fields, task_type_options()), LINKS])
+            found = company_listing(store, params, q=q, cols=cols)
+            found.extra["shown"] = shown
+            return found
+        if scope == "contacts":
+            cols, shown = list_columns("contacts", contact_columns(app.state.custom_fields))
+            found = contact_listing(store, params, q=q, cols=cols)
+            found.extra["shown"] = shown
+            return found
+        if scope == "messages":
+            return message_listing(store, params, store.today(), message_window, outcomes,
+                                   app.state.custom_fields, q)
+        return task_listing(store, params, task_type_options(), store.today())
+
     templates = Jinja2Templates(directory=str(HERE / "templates"))
+    app.state.templates = templates  # modules that add page globals (yours_pins) reach it here
     templates.env.globals.update(
         fmt_date=fmt_date,
         fmt_datetime=fmt_datetime,
@@ -930,14 +1239,56 @@ def create_app(root: Path, config: dict | None = None,
         render_markdown=helpdocs.render,
         record_version=lambda slug, cslug="": record_version(root, slug, cslug),
         custom_fields_for=lambda scope: custom.for_scope(app.state.custom_fields, scope),
+        # layout.toml, re-read when it changes: a page's sections in order, and
+        # the fields a record page hides (a field with an error always shows).
+        layout_sections=lambda page: layout.load(root).sections(page),
+        layout_hidden=lambda page, errors=None: layout.load(root).hidden(page, errors),
         task_types=lambda: app.state.task_types,
         type_names=task_type_options,
         type_colour=lambda name: task_types.colour_of(app.state.task_types, name),
         palette=task_types.PALETTE,
+        # The sidebar's pinned dashboards (dashboards/*.toml with pin = true).
+        yours_pins=lambda: dashboards.pins(root),
     )
 
     templates.env.filters["slug"] = slugify  # CSS class names from outcome values
     templates.env.filters["href"] = safe_href  # stored URLs: http(s) or nothing
+    templates.env.filters["placeholders"] = placeholders  # a starter's [placeholders]
+    templates.env.filters["inline"] = lambda text: Markup(helpdocs.inline(str(text or "")))
+    # The sidebar's pinned dashboards (contract 6): the dashboards module
+    # registers the real one under the same name.
+    templates.env.globals.setdefault("yours_pins", lambda: [])
+    # Where "or describe it" links open the hub: /yours?starter=<id>#describe.
+    templates.env.globals["starter_link"] = (
+        lambda starter_id: f"/yours?starter={quote(starter_id)}#describe")
+    templates.env.globals["settings_starters"] = adjust.SETTINGS_STARTERS
+    templates.env.globals["reports_starter"] = adjust.REPORTS_STARTER
+
+    def starter_values(company=None) -> dict:
+        """The starters' {slots} from this folder's data, worked out once per
+        commit (the data only changes with one), plus the company on screen."""
+        key = (app.state.index_head, id(app.state.custom_fields),
+               config.get("followup_nudge_days"), config.get("message_window_days"))
+        if starter_cache.get("key") != key:
+            starter_cache.update(key=key, values=adjust.prefill(
+                store, app.state.custom_fields, config))
+        values = starter_cache["values"]
+        return {**values, **adjust.company_values(company)} if company is not None else values
+
+    starter_cache: dict = {}
+
+    def adjust_context(request: Request, ctx: dict) -> dict:
+        """The Adjust tab: who gets the request, the page it is about, and the
+        starters that fit the page."""
+        kind = adjust.page_kind(request.url.path)
+        company = ctx.get("company") if kind in ("company", "contact") else None
+        on_hub = request.url.path == "/yours"
+        return {
+            "handoff": adjust.agent_info(config, root),
+            "adjust_path": "" if on_hub else adjust.page_path(request.url.path,
+                                                               request.url.query),
+            "page_starters": adjust.starters_for(kind, starter_values(company)),
+        }
 
     def render(request: Request, name: str, ctx: dict, status_code: int = 200):
         bcc_alert = bcc.run_alert(inbox.last_run(), store.now())
@@ -965,8 +1316,10 @@ def create_app(root: Path, config: dict | None = None,
                                                       if request.url.query else "")),
             "model_label": model_label,
             "samples": sample.samples(store),
+            "file_problems": [line for lines in file_problems.values() for line in lines],
         }
         context.update(ctx)
+        context.update(adjust_context(request, context))
         return templates.TemplateResponse(request, name, context,
                                           status_code=status_code)
 
@@ -978,6 +1331,17 @@ def create_app(root: Path, config: dict | None = None,
 
     def custom_defs(scope: str) -> list:
         return custom.for_scope(app.state.custom_fields, scope)
+
+    def list_columns(view: str, default: list[Column]) -> tuple[list[Column], list[Column]]:
+        """(the columns filters and sorting accept, the columns shown) for the
+        Companies or Contacts list, with layout.toml applied. Filters keep
+        working on every default column, shown or not, so a bookmark does too."""
+        known = {c.key for c in default}
+        extra = [c for c in scope_columns(app.state.custom_fields, layout.LIST_SCOPE[view])
+                 if c.key not in known]
+        shown = layout.pick_columns(layout.load(root), view, default, extra)
+        usable = [c for c in default if c is not LINKS]
+        return usable + [c for c in shown if c.key not in known], shown
 
     def _task_back(request: Request, slug: str, contact: str, back: str = "") -> str:
         """Back to the page the task was ticked on, not always the company; a
@@ -1002,7 +1366,8 @@ def create_app(root: Path, config: dict | None = None,
         if not defs:
             return {}, {}, {}
         form = await request.form()
-        raw = {d.key: form.get(f"custom_{d.key}", "") for d in defs}
+        # Only the fields the form carried: a hidden one keeps its value.
+        raw = {d.key: form[f"custom_{d.key}"] for d in defs if f"custom_{d.key}" in form}
         values, errors = custom.coerce_all(defs, raw)
         return (values,
                 {f"custom_{k}": v for k, v in raw.items()},
@@ -1070,11 +1435,26 @@ def create_app(root: Path, config: dict | None = None,
          "Activity, funnel and outcomes over a period you choose."),
         ("/ask", "Ask the Hermit", "ask",
          "A question about the page you are on, or the whole CRM."),
+        ("/yours", "Make it yours", "yours",
+         "Describe a change and your own AI agent builds it: a field, a look, a dashboard."),
     ]
+
+    adjusted_cache: dict = {}
+
+    def adjusted() -> bool:
+        """Whether the folder has something made with Make it yours (the
+        welcome step). The files are a few stats; the git log for an
+        "ai: adjust:" commit runs again only after a commit."""
+        if adjust.has_adjusted_files(root):
+            return True
+        head = app.state.index_head
+        if adjusted_cache.get("head") != head or "value" not in adjusted_cache:
+            adjusted_cache.update(head=head, value=adjust.has_adjust_commit(root))
+        return adjusted_cache["value"]
 
     def welcome_steps() -> list:
         return welcome.steps(store, config, current_setup_state(),
-                             app.state.enricher.available)
+                             app.state.enricher.available, adjusted=adjusted())
 
     @app.get("/welcome", response_class=HTMLResponse)
     def welcome_page(request: Request):
@@ -1120,26 +1500,34 @@ def create_app(root: Path, config: dict | None = None,
     def sample_add(request: Request, csrf_token: str = Form("")):
         check_csrf(csrf_token)
         try:
-            company = sample.add(store)
+            done = sample.add(store)
         except sample.SampleError as exc:
             return flashed("/", str(exc))
-        return flashed(f"/companies/{company.slug}",
-                       "The sample account is loaded. Look around; the bar at the top "
-                       "removes it when you are done.")
+        extras = [sample.LABELS[f] + (", pinned in the sidebar" if f == sample.DASHBOARD
+                                      else ", paused")
+                  for f in done.files]
+        return flashed(f"/companies/{done.companies[0].slug}",
+                       "The sample account is loaded"
+                       + (f", with {sample.and_list(extras)}" if extras else "")
+                       + ". Look around; the bar at the top removes it when you are done.")
 
     @app.get("/sample/remove", response_class=HTMLResponse)
     def sample_remove_page(request: Request):
-        return render(request, "sample_remove.html", {})
+        plan = sample.plan_removal(root)
+        return render(request, "sample_remove.html", {
+            "extras": [{"label": sample.LABELS[f], "file": f,
+                        "url": sample.DASHBOARD_URL if f == sample.DASHBOARD
+                        else sample.ROUTINE_URL} for f in plan.files],
+            "kept": plan.kept})
 
     @app.post("/sample/remove")
     def sample_remove(request: Request, csrf_token: str = Form("")):
         check_csrf(csrf_token)
-        removed = sample.remove(store)
-        if not removed:
+        done = sample.remove(store)
+        if not done.what:
             return flashed("/", "There is no sample account to remove")
-        return flashed("/", "Removed the sample account: "
-                       + ", ".join(c.name for c in removed)
-                       + ". You can load it again from Getting started.")
+        return flashed("/", f"Removed the sample: {sample.and_list(done.what)}. "
+                       + " ".join(done.kept + ["You can load it again from Getting started."]))
 
     @app.post("/disclaimer/accept")
     def disclaimer_accept(request: Request, csrf_token: str = Form(""),
@@ -1204,8 +1592,18 @@ def create_app(root: Path, config: dict | None = None,
             "no_companies": not store.companies,
             # To file: the review queue, mail and meetings no company matched.
             **inbox_context(),
+            # Drafts from routines and today's brief, next to To file.
+            **routines_home(),
             **extra,
         }, status_code=status_code)
+
+    def routines_home() -> dict:
+        """Home's routine parts; a broken routines.toml or draft never breaks Home."""
+        try:
+            return routines.home_context(store, config)
+        except Exception:
+            logger.exception("routines on Home failed")
+            return {"routine_drafts": [], "routine_briefs": []}
 
     # ------------------------------------------------------------------ board
 
@@ -1231,10 +1629,11 @@ def create_app(root: Path, config: dict | None = None,
             stage: ordered(c for c in companies if c.stage == stage)
             for stage in BOARD_CLOSED
         }
+        hidden = layout.load(root).hidden_columns("companies")
         return render(request, "board.html", {
             "columns": columns, "closed": closed, "today": today,
             "followups": followups.radar(store, today, **followup_days),
-            "filter_columns": cols, "active": active,
+            "filter_columns": [c for c in cols if c.key not in hidden], "active": active,
             "sort": sort_key, "dir": sort_dir,
             "no_companies": not store.companies,
         })
@@ -1293,23 +1692,11 @@ def create_app(root: Path, config: dict | None = None,
         """Every to-do in one table: the date chips, then one filter per column.
         `form_error` and `form` put a refused Add task back next to its form."""
         today = store.today()
-        cols = task_columns(task_type_options())
-        active = filters.parse(params, cols)
-        if "status" not in active and "f_status" not in params:
-            active["status"] = ["open"]      # open ones unless you ask for done
-        rows = filters.apply(todo_rows(store.companies.values(), include_done=True),
-                             cols, active)
-        when = [w for w in params.getlist("when") if w in {k for k, _, _ in TASK_WHEN}]
-        counts = {k: sum(1 for r in rows if test(r.due, today)) for k, _, test in TASK_WHEN}
-        if when:
-            tests = [test for k, _, test in TASK_WHEN if k in when]
-            rows = [r for r in rows if any(t(r.due, today) for t in tests)]
-        nexts = params.get("next") == "1"
-        next_count = sum(1 for r in rows if r.is_next)
-        if nexts:
-            rows = [r for r in rows if r.is_next]
-        sort_key, sort_dir = filters.parse_sort(params, cols)
-        rows = filters.sort_rows(rows, cols, sort_key, sort_dir)
+        found = listing("tasks", params)
+        cols, active, rows = found.columns, found.active, found.rows
+        sort_key, sort_dir = found.sort, found.dir
+        when, counts = found.extra["when"], found.extra["counts"]
+        nexts, next_count = found.extra["nexts"], found.extra["next_count"]
 
         def with_params(drop: tuple, add: list) -> str:
             kept = [(k, v) for k, v in params.multi_items()
@@ -1584,23 +1971,16 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.get("/companies", response_class=HTMLResponse)
     def companies_list(request: Request, q: str = ""):
-        cols = company_columns(app.state.custom_fields, task_type_options())
-        active = filters.parse(request.query_params, cols)
-        sort_key, sort_dir = filters.parse_sort(request.query_params, cols)
-        companies = filters.apply(store.search(q), cols, active)
-        show_parked = (request.query_params.get("parked") == "1"
-                       or "temp-disqualified" in active.get("stage", []))
-        hidden = 0
-        if not show_parked:
-            hidden = sum(1 for c in companies if c.is_parked)
-            companies = [c for c in companies if not c.is_parked]
-        companies = filters.sort_rows(companies, cols, sort_key, sort_dir)
+        found = listing("companies", request.query_params, q)
+        cols, active, companies = found.columns, found.active, found.rows
+        sort_key, sort_dir, shown = found.sort, found.dir, found.extra["shown"]
+        show_parked, hidden = found.extra["show_parked"], found.extra["hidden_parked"]
         toggle = [(k, v) for k, v in request.query_params.multi_items()
                   if k not in ("parked", "flash")]
         if not show_parked:
             toggle.append(("parked", "1"))
         return render(request, "companies.html", {
-            "companies": companies, "q": q, "filter_columns": cols, "active": active,
+            "companies": companies, "q": q, "filter_columns": shown, "active": active,
             "sort": sort_key, "dir": sort_dir, "show_parked": show_parked,
             "hidden_parked": hidden,
             "toggle_url": "/companies" + ("?" + urlencode(toggle) if toggle else ""),
@@ -1608,56 +1988,21 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.get("/contacts", response_class=HTMLResponse)
     def contacts_list(request: Request, q: str = ""):
-        cols = contact_columns(app.state.custom_fields)
-        active = filters.parse(request.query_params, cols)
-        sort_key, sort_dir = filters.parse_sort(request.query_params, cols)
-        needle = (q or "").strip().lower()
-        rows = []
-        for company in store.companies.values():
-            for contact in company.contacts.values():
-                row = ContactRow(company, contact)
-                haystack = (row.name, row.email, row.title, row.company_name)
-                if needle and not any(needle in (h or "").lower() for h in haystack):
-                    continue
-                rows.append(row)
-        rows = filters.apply(rows, cols, active)
-        rows.sort(key=lambda r: (r.name.lower(), r.company_name.lower()))
-        rows = filters.sort_rows(rows, cols, sort_key, sort_dir)
+        found = listing("contacts", request.query_params, q)
         return render(request, "contacts.html", {
-            "rows": rows, "q": q, "filter_columns": cols, "active": active,
-            "sort": sort_key, "dir": sort_dir,
+            "rows": found.rows, "q": q, "filter_columns": found.extra["shown"],
+            "active": found.active, "sort": found.sort, "dir": found.dir,
         })
 
     # --------------------------------------------------------------- messages
 
     @app.get("/messages", response_class=HTMLResponse)
     def messages_list(request: Request, q: str = ""):
-        today = store.today()
-        cols = message_columns(message_statuses(outcomes), app.state.custom_fields)
-        active = filters.parse(request.query_params, cols)
-        sort_key, sort_dir = filters.parse_sort(request.query_params, cols)
-        needle = (q or "").strip().lower()
-        uses = Counter(
-            normalised_body(i.body) for c in store.companies.values()
-            for i in c.interactions if i.is_message)
-        rows = []
-        for company in store.companies.values():
-            for it in company.interactions:
-                if not it.is_message:
-                    continue
-                status = company.message_status(it, today, message_window, outcomes)
-                rows.append(MessageRow(company, it, status, uses[normalised_body(it.body)]))
-        counts = Counter(r.status for r in rows)
-        if needle:
-            rows = [r for r in rows if needle in r.preview.lower()
-                    or needle in r.company_name.lower() or needle in r.contact.lower()]
-        rows = filters.apply(rows, cols, active)
-        rows.sort(key=lambda r: (r.date or datetime.min), reverse=True)
-        rows = filters.sort_rows(rows, cols, sort_key, sort_dir)
+        found = listing("messages", request.query_params, q)
         return render(request, "messages.html", {
-            "rows": rows, "q": q, "filter_columns": cols, "active": active,
-            "sort": sort_key, "dir": sort_dir, "counts": counts,
-            "window": message_window,
+            "rows": found.rows, "q": q, "filter_columns": found.columns,
+            "active": found.active, "sort": found.sort, "dir": found.dir,
+            "counts": found.extra["counts"], "window": message_window,
         })
 
     def report_span(period: str, params, today) -> reports.Period:
@@ -1715,6 +2060,42 @@ def create_app(root: Path, config: dict | None = None,
             "back": "/reports?" + reports.period_query(period, params.get("from", ""),
                                                       params.get("to", "")),
         })
+
+    # ------------------------------------------------------------ dashboards
+
+    def dashboard_report(period: str) -> tuple[dict, str]:
+        """The report behind a dashboard's report widget, and the query its
+        numbers carry to /reports/rows. `all` is a custom period from the
+        first day in the data."""
+        today = store.today()
+        if period == "all":
+            start = min(dashboards.first_day(store) or today, today)
+            span = reports.Period(start, today)
+            query = reports.period_query("custom", fmt_date(start), fmt_date(today))
+        else:
+            span = reports.period_for(period, today)
+            query = reports.period_query(period)
+        return build_report(span, today), query
+
+    @app.get("/d/{slug}", response_class=HTMLResponse)
+    def dashboard_page(request: Request, slug: str):
+        """A dashboard from dashboards/<slug>.toml: its widgets that work, and
+        a list of what is wrong with the rest (never a 500)."""
+        dash = dashboards.get(root, slug)
+        if dash is None:
+            return render(request, "dashboard.html", {
+                "missing": slug, "others": dashboards.load_all(root)}, status_code=404)
+        columns = dashboards.columns_for(app.state.custom_fields, task_type_options(),
+                                         message_statuses(outcomes))
+        built: dict[str, tuple[dict, str]] = {}
+
+        def report_for(period: str) -> tuple[dict, str]:
+            if period not in built:  # two widgets on one period build it once
+                built[period] = dashboard_report(period)
+            return built[period]
+
+        shown = dashboards.view(dash, columns, app.state.custom_fields, listing, report_for)
+        return render(request, "dashboard.html", {**shown, "delta": reports.delta})
 
     @app.post("/companies/{slug}/interactions/{id}/outcome")
     def interaction_outcome(request: Request, slug: str, id: str,
@@ -1898,12 +2279,14 @@ def create_app(root: Path, config: dict | None = None,
         form = await request.form()
         if "next_step_type" in form:   # absent when no types are set up: keep the stored one
             values["next_step_type"] = str(form["next_step_type"])
+        values = submitted_only(values, form)  # a hidden field keeps its value
         extra, shown, custom_errors = await custom_submitted(request, "company")
         if version and version != record_version(root, slug):
             current = need_company(slug, refresh=True)
             return render(request, "company.html", {
                 "company": current,
-                "values": {**values, **shown},
+                "values": {**with_custom(company_values(current), current, "company"),
+                           **values, **shown},
                 "flash": stale_form_text("company",
                                          changed_fields(values, company_values(current))),
                 "interaction": interaction_values(current),
@@ -1919,7 +2302,8 @@ def create_app(root: Path, config: dict | None = None,
         except ValidationError as exc:
             return render(request, "company.html", {
                 "company": company,
-                "values": {**values, **shown},
+                "values": {**with_custom(company_values(company), company, "company"),
+                           **values, **shown},
                 "errors": exc.errors,
                 "interaction": interaction_values(company),
                 "focus": "lost_reason" if "lost_reason" in exc.errors else "",
@@ -2243,7 +2627,7 @@ def create_app(root: Path, config: dict | None = None,
         return render(request, "contact.html", {
             "company": company,
             "contact": contact,
-            "values": contact_values(contact),
+            "values": with_custom(contact_values(contact), contact, "contact"),
             "interactions": [i for i in company.interactions if i.contact == cslug],
             "interaction": interaction_values(company, contact=cslug),
             **draft_context(request, company, contact),
@@ -2271,6 +2655,7 @@ def create_app(root: Path, config: dict | None = None,
         values = {"first_name": first_name, "last_name": last_name, "title": title,
                   "linkedin": linkedin, "email": email, "phone": phone, "role": role,
                   "language": language}
+        values = submitted_only(values, await request.form())  # a hidden field keeps its value
         extra, shown, custom_errors = await custom_submitted(request, "contact")
         if version and version != record_version(root, slug, cslug):
             current = need_company(slug, refresh=True)
@@ -2280,7 +2665,8 @@ def create_app(root: Path, config: dict | None = None,
             return render(request, "contact.html", {
                 "company": current,
                 "contact": person,
-                "values": {**values, **shown},
+                "values": {**with_custom(contact_values(person), person, "contact"),
+                           **values, **shown},
                 "flash": stale_form_text("contact",
                                          changed_fields(values, contact_values(person))),
                 "interactions": [i for i in current.interactions if i.contact == cslug],
@@ -2292,11 +2678,11 @@ def create_app(root: Path, config: dict | None = None,
                 raise ValidationError(custom_errors)
             store.update_contact(slug, cslug, custom=extra, **values)
         except ValidationError as exc:
-            values.update(shown)
             return render(request, "contact.html", {
                 "company": company,
                 "contact": contact,
-                "values": values,
+                "values": {**with_custom(contact_values(contact), contact, "contact"),
+                           **values, **shown},
                 "errors": exc.errors,
                 "interactions": [i for i in company.interactions
                                  if i.contact == cslug],
@@ -2549,6 +2935,11 @@ def create_app(root: Path, config: dict | None = None,
                                                          or 14),
                               "silent_days": str(config.get("silent_days") or 14)},
             "task_types_form": {"rows": app.state.task_types},
+            "agent_choices": [("", "the tool above ("
+                               + (adjust.AGENTS[adjust.agent_for({**config, adjust.AGENT_KEY: ""})]
+                                  ["label"] or "copy the prompt") + ")"),
+                              *((k, v["label"] or "none: copy the prompt")
+                                for k, v in adjust.AGENTS.items())],
             "schedule": schedule_status(),
             "local_backup": local_backup_status(),
             "access": access_facts(),
@@ -2760,6 +3151,24 @@ def create_app(root: Path, config: dict | None = None,
                 else f" Unavailable: {enricher.unavailable_reason()}")
         return flashed("/settings", result.text() + note, anchor="enrichment")
 
+    @app.post("/settings/adjust-agent")
+    def settings_adjust_agent(request: Request, csrf_token: str = Form(""),
+                              agent: str = Form("")):
+        """Which agent Make it yours hands requests to (adjust_agent)."""
+        check_csrf(csrf_token)
+        agent = agent.strip().lower()
+        if agent and agent not in adjust.AGENTS:
+            result = setup_steps.StepResult(ok=False, errors={
+                "agent": "Pick one of " + ", ".join(adjust.AGENTS) + ", or follow the tool."})
+            return setup_invalid(request, result, "enrichment")
+        setup_steps.set_config_values(root / "config.toml", {adjust.AGENT_KEY: agent})
+        config_saved()
+        info = adjust.agent_info(config, root)
+        return flashed("/settings", "Make it yours now " + (
+            f"opens {info['label']}." if info["how"] == "link" else
+            f"gives you a command for {info['label']}." if info["how"] == "command" else
+            "gives you a prompt to copy."), anchor="enrichment")
+
     @app.post("/settings/appearance")
     def settings_appearance(request: Request, csrf_token: str = Form(""),
                             theme: str = Form("")):
@@ -2897,6 +3306,189 @@ def create_app(root: Path, config: dict | None = None,
             raise HTTPException(status_code=404, detail=f"unknown inbox item {item_id!r}")
         return flashed("/", f"Discarded {item.address}", anchor="to-file")
 
+    # --------------------------------------------------------------- routines
+    # routines.toml (hermitcrm/routines.py): a preview page per routine, on/off,
+    # "Try the AI on the first one", and closing the drafts shown on Home. The
+    # hub at /yours lists them; these pages are where its links go.
+
+    def need_routine(name: str):
+        loaded = routines.load(root, config)
+        if name not in loaded.names:
+            raise HTTPException(status_code=404, detail=f"unknown routine {name!r}")
+        return loaded, loaded.get(name)
+
+    def routine_page(request: Request, name: str, status_code: int = 200, **extra):
+        loaded, routine = need_routine(name)
+        state = routines.read_state(root).get(name)
+        ctx = {"name": name, "routine": routine,
+               "problems": routines.problems_for(loaded, name),
+               "last_run": routines.last_run_text(state),
+               "waiting": [d for d in routines.drafts(root) if d.routine == name],
+               "picks": [], "brief": None, "tried": None, "tried_pick": None,
+               "try_error": "", "ai_problem": ""}
+        if routine is not None:
+            ctx["description"] = routines.describe(routine, config)
+            if routine.action == "draft":
+                ctx["ai_problem"] = routines.ai_problem(app.state.enricher)
+            try:
+                if routine.action == "brief":
+                    ctx["brief"] = routines.make_brief(store, config, store.now())
+                    ctx["routine_briefs"] = [{"title": routine.title, "name": name,
+                                              **ctx["brief"]}]
+                else:
+                    ctx["picks"] = routines.select(store, routine, config)
+            except Exception as exc:  # the page still says what the routine is
+                logger.exception("routine preview %s failed", name)
+                ctx["try_error"] = f"Preview failed: {type(exc).__name__}: {exc}"
+        ctx.update(extra)
+        return render(request, "routine.html", ctx, status_code=status_code)
+
+    @app.get("/yours/routines", response_class=HTMLResponse)
+    def routines_index(request: Request):
+        loaded = routines.load(root, config)
+        state = routines.read_state(root)
+        valid = {r.name: r for r in loaded.routines}
+        rows = [{"name": n, "routine": valid.get(n),
+                 "last_run": routines.last_run_text(state.get(n))} for n in loaded.names]
+        drafting = any(r.action == "draft" for r in loaded.routines)
+        return render(request, "routines.html", {
+            "present": loaded.present, "rows": rows, "problems": loaded.errors,
+            "ai_problem": routines.ai_problem(app.state.enricher) if drafting else "",
+            "waiting": len(routines.drafts(root))})
+
+    @app.get("/yours/routines/{name}", response_class=HTMLResponse)
+    def routine_preview(request: Request, name: str):
+        return routine_page(request, name)
+
+    @app.post("/yours/routines/{name}/on")
+    def routine_on(request: Request, name: str, csrf_token: str = Form("")):
+        return routine_switch(request, name, "on", csrf_token)
+
+    @app.post("/yours/routines/{name}/off")
+    def routine_off(request: Request, name: str, csrf_token: str = Form("")):
+        return routine_switch(request, name, "off", csrf_token)
+
+    def routine_switch(request: Request, name: str, switch: str, csrf_token: str):
+        """Flip `paused` in routines.toml (that one line), one commit."""
+        check_csrf(csrf_token)
+        need_routine(name)
+        try:
+            changed = routines.set_paused(store, name, switch == "off", config)
+        except routines.RoutineError as exc:
+            return routine_page(request, name, status_code=400, try_error=str(exc))
+        if switch == "on":
+            text = ("On: it runs every morning after the daily sync. Drafts appear on "
+                    "Home; nothing is sent.") if changed else "Already on."
+        else:
+            text = "Paused: it no longer runs." if changed else "Already paused."
+        return flashed(f"/yours/routines/{name}", text)
+
+    @app.post("/yours/routines/{name}/try", response_class=HTMLResponse)
+    async def routine_try(request: Request, name: str, csrf_token: str = Form("")):
+        check_csrf(csrf_token)
+        loaded, routine = need_routine(name)
+        if routine is None or routine.action != "draft":
+            return routine_page(request, name, status_code=400,
+                                try_error="Only a routine that drafts, with no problems, "
+                                          "can try the AI.")
+        enricher = app.state.enricher.with_tier("medium")
+        try:
+            pick, answer = await run_in_threadpool(routines.try_first, store, routine,
+                                                   enricher, config)
+        except routines.RoutineError as exc:  # no AI CLI set up
+            return routine_page(request, name, status_code=400,
+                                try_error=f"Cannot try the AI: {exc}")
+        except (routines.Rejected, EnrichError) as exc:
+            return routine_page(request, name, status_code=502,
+                                try_error=f"The AI did not give a usable draft: {exc}")
+        if pick is None:
+            return routine_page(request, name,
+                                try_error="Nothing to try: nobody would get a draft now.")
+        return routine_page(request, name, tried=answer, tried_pick=pick)
+
+    @app.post("/yours/routines/{name}/drafts/{draft_id}/{what}")
+    def routine_draft_close(request: Request, name: str, draft_id: str, what: str,
+                            csrf_token: str = Form(""), subject: str = Form(""),
+                            body: str = Form(""), back: str = Form("")):
+        """"I sent it" logs the draft (as edited) as an outbound message; Discard
+        drops it. Either way one commit, and the routine will not write it again."""
+        check_csrf(csrf_token)
+        if what not in ("sent", "discard"):
+            raise HTTPException(status_code=404, detail=f"unknown action {what!r}")
+        draft = routines.get_draft(root, draft_id)
+        if draft is None or draft.routine != name:
+            raise HTTPException(status_code=404, detail=f"unknown draft {draft_id!r}")
+        back = safe_back(back, "/")
+        sent = what == "sent"
+        if sent and not body.strip():
+            return flashed(back, "Not logged: the message is empty.", anchor="routine-drafts")
+        try:
+            routines.close_draft(store, draft_id, sent=sent,
+                                 subject=subject if sent else None,
+                                 body=body if sent else None)
+        except ValidationError as exc:
+            return flashed(back, "Not logged: " + "; ".join(exc.errors.values()),
+                           anchor="routine-drafts")
+        company = store.get(draft.company)
+        contact = company.contacts.get(draft.contact) if company else None
+        who = contact.name if contact else (company.name if company else draft.record)
+        return flashed(back, f"Logged the message to {who} as sent" if sent
+                       else f"Draft for {who} discarded", anchor="routine-drafts")
+
+    # ---------------------------------------------------------- make it yours
+
+    HUB_CHANGES = "changes"   # the hub's Recent changes, where an undo lands
+
+    def hub_page(request: Request, status_code: int = 200):
+        """/yours: describe a change, start from an idea, what you have built,
+        recent changes with Undo."""
+        values = starter_values()
+        params = request.query_params
+        chosen = adjust.starter(params.get("starter", ""), values)
+        family = params.get("family", "")
+        cards = adjust.gallery(values)
+        now = datetime.now()   # commit times are real times, whatever the store's clock
+        # An undo's result shows by the table it came from, not out of sight at the top.
+        undo_note = request.query_params.get("flash", "") if params.get("undo") else ""
+        return render(request, "yours.html", {
+            "undo_note": undo_note,
+            **({"flash": ""} if undo_note else {}),
+            "describe_text": params.get("request", "") or (chosen["text"] if chosen else ""),
+            "picked": chosen["id"] if chosen else "",
+            "families": [(f, sum(1 for c in cards if c["family"] == f))
+                         for f in adjust.FAMILIES],
+            "family": family if family in adjust.FAMILIES else "",
+            "cards": cards,
+            "suggested": adjust.suggestions(store, app.state.custom_fields, config, values,
+                                            store.today(), message_window, outcomes),
+            "built": adjust.all_built(root),
+            "changes": [(c, history.when_text(c.when, now))
+                        for c in history.recent_changes(root)],
+            "problems": adjust.all_problems(root),
+            "feature": adjust.starter("feature", values),
+            "recipe_topics": {t for t in adjust.RECIPES.values() if helpdocs.read(t)},
+        }, status_code=status_code)
+
+    @app.get("/yours", response_class=HTMLResponse)
+    def yours(request: Request):
+        return hub_page(request)
+
+    @app.post("/yours/undo")
+    def yours_undo(request: Request, csrf_token: str = Form(""), sha: str = Form("")):
+        """Undo one change: a new commit that reverses it (hermitcrm undo)."""
+        check_csrf(csrf_token)
+        try:
+            new, subject = history.undo(store, sha)
+        except history.UndoError as exc:
+            if exc.prompt:   # a conflict: hand it to the agent, prefilled
+                return goto(f"/yours?request={quote(exc.prompt)}"
+                            f"&flash={quote(str(exc), safe='')}#describe")
+            return flashed("/yours?undo=1", str(exc), anchor=HUB_CHANGES)
+        reload_everything()
+        gitops.push_async()
+        return flashed("/yours?undo=1", f"Undone in a new commit {new}: {subject}. Undo that one "
+                       "to bring the change back.", anchor=HUB_CHANGES)
+
     # ------------------------------------------------------------------- help
 
     def help_page(request: Request, topic: str, **extra):
@@ -3001,9 +3593,9 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.post("/reload")
     def reload_index(request: Request):
-        """Re-read the data folder: the records and the fields that describe them."""
-        store.load()
-        app.state.custom_fields = load_custom_fields()
+        """Re-read the data folder: the records, the fields that describe them,
+        the draft wording and config.toml (see reload_everything)."""
+        reload_everything()
         return goto(request.headers.get("referer") or "/")
 
     @app.get("/health")

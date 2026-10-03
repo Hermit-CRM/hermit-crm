@@ -9,8 +9,9 @@ pasted into an AI session.
 ## Set up and run
 
 ```text
-hermitcrm init DIR [--demo] [--no-setup]   new data folder (git repo, config, agent rules); asks the setup questions
-hermitcrm sample add|remove                the made-up sample account in this folder: load it, or delete it again
+hermitcrm init DIR [--demo] [--no-setup]   new data folder (git repo, config, agent rules, /hermit skill); asks the setup questions
+hermitcrm sample add|remove                the made-up sample account in this folder, with a dashboard and a paused
+                                        routine: load it, or delete it again (what you changed stays)
 hermitcrm setup                            the setup questions again (you, BCC, backup, calendar)
 hermitcrm serve [--port N]                 the web app on 127.0.0.1 (port from config.toml, default 8765)
 hermitcrm doctor [--online]                one ok/warn/fail line per check; exit 1 on a failure
@@ -18,7 +19,8 @@ hermitcrm schedule install [--at HH:MM] [--serve] [--backup-every MIN | --no-bac
                                         daily sync --apply and a backup every 5 minutes, via launchd
                                         or systemd (schtasks printed on Windows)
 hermitcrm schedule remove|status
-hermitcrm migrate [--dry-run]              upgrade the data format (every command does this automatically)
+hermitcrm migrate [--dry-run]              upgrade the data format (every command does this automatically);
+                                        also puts back a missing /hermit skill (.claude/skills/hermit/)
 hermitcrm help [TOPIC]                     these pages; no topic prints the index and the topic list
 ```
 
@@ -33,7 +35,9 @@ hermitcrm brief [--days 7]                 each upcoming meeting with its stage,
 hermitcrm mcp                              serve this folder to AI clients over MCP (stdio); see the AI agents topic
 hermitcrm report [--days N | --from D --to D] [--md]
                                         the Reports page as text tables (Markdown with --md)
-hermitcrm check                            validate every file; exit 1 and the file paths on problems
+hermitcrm check                            validate every file (records, fields.toml, layout.toml, dashboards/,
+                                        routines.toml, theme.css, messages.toml, config.toml); exit 1 and
+                                        one "file: where: what" line per problem
 ```
 
 ## Backups
@@ -60,6 +64,13 @@ hermitcrm add contact SLUG NAME [--title T] [--email E] [--phone P] [--role R] [
 hermitcrm add interaction SLUG --channel email|linkedin|call|meeting|note --direction in|out (not for a note)
                                         [--contact CSLUG] [--subject S] [--date D] [--body TEXT|-]
                                         log an interaction; --body - reads it from stdin, and a prospect becomes engaged
+hermitcrm set companies|contacts|interactions --where KEY=VALUE ... [--all]
+        [--set FIELD=VALUE ...] [--unset FIELD ...] [--add-tag T ...] [--remove-tag T ...]
+        [--stage S] [--apply] [--message TEXT]
+                                        change many records at once. A dry run unless --apply (count, five
+                                        before -> after samples), then ONE commit `bulk: <summary>` and its
+                                        undo command. --where is the list pages' filter syntax; no --where
+                                        needs --all. Bodies and names are never touched. See Make it yours: bulk changes
 hermitcrm rebuild                          rebuild the index and PIPELINE.md, commit "pipeline: rebuild"
 hermitcrm import FILE [--mode companies|contacts] [--map HEADER=FIELD ...] [--apply]
 hermitcrm fetch SLUG [--url URL] [--apply] fields from the website or LinkedIn page (no AI)
@@ -68,11 +79,31 @@ hermitcrm enrich SLUG [--contact CSLUG] [--apply]
 hermitcrm bcc [--apply] [--eml FILE ...]   import BCC'd or forwarded mail (or .eml files)
 hermitcrm calendar [--apply] [--ics FILE ...]
                                         import past meetings from the ICS feed (or .ics files)
-hermitcrm sync [--apply]                   bcc, then calendar; what the daily job runs
+hermitcrm sync [--apply]                   bcc, then calendar, then every routine that is on; what the daily job runs
 hermitcrm backfill-history [--apply]       stage_history from git for companies without one
+hermitcrm undo COMMIT                      reverse one commit with a new one (git revert); refuses a merge,
+                                        an unknown commit or uncommitted changes, and stops on a conflict
 ```
 
-`bcc`, `calendar` and `sync` with `--apply` tell a running web app to reload
+`bcc`, `calendar`, `sync` and `set` with `--apply` tell a running web app to reload
 its index afterwards.
 
-Related: [Settings](/help/settings), [AI agents](/help/ai-agents), [Data format](/help/data-format)
+`set` exits 0 for a dry run, a finished change and "nothing matches"; 2 when it
+refused the request before writing anything; 1 when a write was tried and rolled
+back (every file is as it was, nothing committed).
+
+## Routines
+
+```text
+hermitcrm routines [list]                  every routine in routines.toml, on or paused, and its last run
+hermitcrm routines preview NAME [--try]    who it would pick now, no AI and no writes; --try shows one AI draft, not saved
+hermitcrm routines run [NAME] [--apply]    one routine (even a paused one) or all that are on; one commit per routine
+hermitcrm routines on NAME                 turn it on: it runs after each daily sync (commit "routine: NAME: turned on")
+hermitcrm routines off NAME                pause it
+```
+
+Drafts go to Home, never out. See [Routines](/help/adjust-routines).
+`undo` is what the Undo buttons on the Make it yours page run; see
+[Make it yours](/help/adjust).
+
+Related: [Settings](/help/settings), [AI agents](/help/ai-agents), [Data format](/help/data-format), [Make it yours: bulk changes](/help/adjust-bulk)

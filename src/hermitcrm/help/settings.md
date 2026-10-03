@@ -202,6 +202,15 @@ CLI is in use, or why none is. Under launchd or systemd the process starts
 with a bare PATH, so the CLI must be in `/usr/local/bin`, `/opt/homebrew/bin`
 or `~/.local/bin`, or the command must be a full path. See [Enrich](/help/enrich).
 
+**Make it yours hands requests to** (`adjust_agent`): the agent that builds what
+you describe on the [Make it yours](/help/adjust) page. Claude Code and Cursor
+open with one click, Codex and Gemini CLI get a command to paste in a terminal,
+and *none* gives you the prompt to paste into any agent. Left on *the tool
+above*, it follows the tool Enrich uses when that is Claude Code, Codex or
+Gemini CLI. The General tab's first card, **Make it yours with your AI**, opens
+the same page, and each section of the Your CRM tab has an *or describe it*
+link that starts it with a matching request.
+
 ## Outcomes
 
 The outcome choices for interactions, one per line, in order: the first is
@@ -235,8 +244,8 @@ Cursor -- can read and write the CRM with no terminal. You do not run it
 yourself; the page shows the JSON to paste into the client's MCP config, which
 starts it. Because it is a local process talking over a pipe, the client has to
 run on this machine: a phone app cannot reach it, and the phone route is the
-web app above. Seven read tools and three writes, the writes committing exactly
-as the web form does. [AI agents](/help/ai-agents) has the tool list.
+web app above. Ten read tools and seven writes, each write one commit you can
+undo. [AI agents](/help/ai-agents) has the tool list.
 
 ## Support Hermit
 

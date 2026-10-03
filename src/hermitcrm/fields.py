@@ -31,6 +31,7 @@ cannot express an array of tables.
 
 from __future__ import annotations
 
+import difflib
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -132,6 +133,12 @@ def _clean_key(raw: str) -> str:
     return slugify(text, default="").replace("-", "_") if text else ""
 
 
+def _near(value: str, choices) -> str:
+    """" (did you mean X?)" for a near miss, so an agent's typo names its fix."""
+    match = difflib.get_close_matches(value, list(choices), n=1, cutoff=0.6)
+    return f" (did you mean {match[0]}?)" if match else ""
+
+
 def parse(data: dict) -> list[FieldDef]:
     """Definitions from a loaded `fields.toml`. Raises FieldError on anything
     it cannot honour, because a field it silently drops is a field whose values
@@ -151,7 +158,8 @@ def parse(data: dict) -> list[FieldDef]:
             continue
         scope = str(entry.get("applies_to", "company")).strip().lower()
         if scope not in SCOPES:
-            errors[key] = f"applies_to must be one of {', '.join(SCOPES)}"
+            errors[key] = (f"applies_to must be one of {', '.join(SCOPES)}"
+                           + _near(scope, SCOPES))
             continue
         if key in RESERVED[scope]:
             errors[key] = (f"{key!r} is already a built-in {scope} field; "
@@ -163,7 +171,7 @@ def parse(data: dict) -> list[FieldDef]:
         seen.add((scope, key))
         kind = str(entry.get("type", "text")).strip().lower()
         if kind not in TYPES:
-            errors[key] = f"type must be one of {', '.join(TYPES)}"
+            errors[key] = f"type must be one of {', '.join(TYPES)}" + _near(kind, TYPES)
             continue
         options = [str(o) for o in (entry.get("options") or [])]
         if kind == "select" and not options:
@@ -174,7 +182,7 @@ def parse(data: dict) -> list[FieldDef]:
         bad = [v for v in show_in if v not in allowed]
         if bad:
             errors[key] = (f"show_in {', '.join(bad)} is not a place a {scope} field "
-                           f"can appear; use {', '.join(allowed)}")
+                           f"can appear; use {', '.join(allowed)}" + _near(bad[0], allowed))
             continue
         defs.append(FieldDef(
             key=key, label=str(entry.get("label", "")).strip(), type=kind,
@@ -193,8 +201,14 @@ def load(root: Path | str) -> list[FieldDef]:
     path = Path(root) / FILENAME
     if not path.exists():
         return []
-    with open(path, "rb") as fh:
-        return parse(tomllib.load(fh))
+    try:
+        with open(path, "rb") as fh:
+            data = tomllib.load(fh)
+    except tomllib.TOMLDecodeError as exc:
+        # Callers already treat a FieldError as "fields.toml cannot be read";
+        # a typo in the TOML itself is the same thing and must not be a crash.
+        raise FieldError({FILENAME: f"is not valid TOML: {exc}"}) from exc
+    return parse(data)
 
 
 def _toml(value) -> str:

@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}Make it yours{% endblock %}
+{% block content %}
+<h1>Make Hermit yours</h1>
+<p class="oneliner">Describe what you want and your own AI agent builds it in your data folder: fields, pages, dashboards, routines, bulk clean-ups, templates. Every change is one commit you can undo below.</p>
+<p class="agent-line">
+  {% if handoff.how == 'copy' %}
+  <span>Your agent: <strong>not named yet</strong>. You get a prompt to paste into any agent started in <code>{{ handoff.folder_shown }}</code>.</span>
+  <a href="/settings#enrichment">Name your agent</a>
+  {% else %}
+  <span>Your agent: <strong class="ok">{{ handoff.label }}</strong>, {{ 'opens' if handoff.how == 'link' else 'starts' }} in <code>{{ handoff.folder_shown }}</code></span>
+  <a href="/settings#enrichment">Change</a>
+  {% endif %}
+  <span aria-hidden="true">&middot;</span> <a href="/help/adjust">How it works</a>
+</p>
+
+{% if problems %}
+<div class="warning-box" id="problems">
+  <strong>hermitcrm check found {{ problems | length }} problem{{ '' if problems | length == 1 else 's' }}</strong> in files your agent writes. Hermit keeps working with what it could read; paste this to your agent to fix it:
+  <pre class="copy">{{ problems | join('\n') }}</pre>
+</div>
+{% endif %}
+
+<section class="describe" id="describe">
+  {{ m.handoff(handoff, 'describe-request', '', '', 'Describe a change', text=describe_text) }}
+</section>
+
+<h2 id="ideas">Start from an idea</h2>
+<div class="chips" data-chips>
+  <a class="chip{% if not family %} on{% endif %}" href="/yours#ideas" data-family="">All</a>
+  {% for f, n in families if n %}<a class="chip{% if f == family %} on{% endif %}" href="/yours?family={{ f | urlencode }}#ideas" data-family="{{ f }}">{{ f }} <span class="count">{{ n }}</span></a>
+  {% endfor %}
+</div>
+<div class="hub-grid">
+  {% for c in cards %}
+  <article class="recipe{% if c.id == picked %} picked{% endif %}" data-family="{{ c.family }}"{% if family and c.family != family %} hidden{% endif %}>
+    <div class="kind">{{ c.family }}</div>
+    <h3>{{ c.title }}</h3>
+    <p class="prompt">{{ c.text | placeholders }}</p>
+    <p class="changes">Changes: {% if c.changes_file %}<code>{{ c.changes_file }}</code>{% endif %}{{ c.changes_note }} <span class="safety {{ c.safety_class }}">{{ c.safety }}</span></p>
+    <div class="actions">
+      <a class="button primary" href="{{ starter_link(c.id) }}" data-use="{{ c.text }}">Use this</a>
+      {% if c.recipe in recipe_topics %}<a class="small" href="/help/{{ c.recipe }}">What your agent reads</a>{% endif %}
+    </div>
+  </article>
+  {% endfor %}
+</div>
+
+<h2 id="suggested">Suggested for you</h2>
+{% if suggested %}
+<ul class="suggest">
+  {% for s in suggested %}<li><span>{{ s.text | inline }}</span><a class="button" href="{{ starter_link(s.starter) }}">{{ s.action }}</a></li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="empty-state">Nothing stands out in your data right now. Suggestions come from a few plain rules, such as a score that no list ranks by; no AI reads your data for them.</p>
+{% endif %}
+
+<h2 id="built">What you've built</h2>
+{% if built %}
+<div class="table-scroll"><table class="built">
+  <thead><tr><th>Kind</th><th>What</th><th>State</th><th></th></tr></thead>
+  <tbody>
+  {% for b in built %}
+  <tr>
+    <td>{{ b.kind | capitalize }}</td>
+    <td>{% if b.url %}<a href="{{ b.url }}">{{ b.title }}</a>{% else %}{{ b.title }}{% endif %}</td>
+    <td>{{ b.detail }}</td>
+    <td><a href="/yours?request={{ b.adjust | urlencode }}#describe" data-use="{{ b.adjust }}">Adjust</a></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}
+<p class="empty-state">Nothing yet. Your dashboards, routines, fields and look show up here once your agent builds them, each with an Adjust link.</p>
+{% endif %}
+
+<h2 id="changes">Recent changes</h2>
+{% if undo_note %}<p class="flash">{{ undo_note }}</p>{% endif %}
+{% if changes %}
+<div class="table-scroll"><table class="built changes">
+  <thead><tr><th>When</th><th>Change</th><th>Touched</th><th></th></tr></thead>
+  <tbody>
+  {% for c, when in changes %}
+  <tr>
+    <td class="nowrap" title="{{ c.when.strftime('%Y-%m-%d %H:%M') }}">{{ when }}</td>
+    <td>{{ c.subject }} <code class="sha">{{ c.sha7 }}</code></td>
+    <td>{{ c.touched }}</td>
+    <td class="actions">
+      {% if c.can_undo %}
+      <form method="post" action="/yours/undo" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="sha" value="{{ c.sha }}">
+        <button type="submit" title="A new commit that reverses this one">Undo</button>
+      </form>
+      {% elif c.undone %}<span class="small">undone</span>
+      {% else %}<span class="small" title="A merge joins two lines of history; undo the commits it brought in">merge</span>{% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+<p class="small">Undo makes a new commit that reverses the change; nothing is deleted from your history. In a terminal: <code>hermitcrm undo &lt;commit&gt;</code>.</p>
+{% else %}
+<p class="empty-state">No changes yet. When your agent changes a field, the look, a dashboard or a routine, or makes a bulk change, it is listed here with an Undo button.</p>
+{% endif %}
+
+<div class="cant" id="feature">
+  <strong>Something Hermit can't do yet?</strong> Describe it anyway. Your agent first checks whether a field, page layout, dashboard or routine covers it (it usually does). If it really needs new code, it writes the feature request for you to send, or builds it in your own copy of Hermit if you are a developer.
+  <div class="actions"><a class="button" href="{{ starter_link('feature') }}" data-use="{{ feature.text }}">Describe it</a></div>
+</div>
+{% endblock %}

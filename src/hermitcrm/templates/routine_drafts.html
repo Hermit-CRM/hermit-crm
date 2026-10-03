@@ -1,0 +1,22 @@
+{# Drafts written by routines (hermitcrm/routines.py): shown on Home while there are any.
+   Nothing here is ever sent: the user sends it, then logs it with "I sent it". #}
+<section class="routine-drafts" id="routine-drafts">
+<h2>Drafts from routines ({{ routine_drafts|length }})</h2>
+<p class="small">Written by your routines with your AI CLI. Nothing has been sent. Check and edit a draft, send it yourself, then click <em>I sent it</em> to log it. <em>Discard</em> drops it; the routine will not write it again for the same thread.</p>
+<div class="drafts">
+{% for row in routine_drafts %}{% set d = row.draft %}
+<form class="draft routine-draft" id="draft-{{ d.id }}" method="post" action="/yours/routines/{{ d.routine }}/drafts/{{ d.id }}/sent">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="back" value="/">
+  <p class="draft-head"><a href="{{ d.url }}">{{ row.contact_name or row.company_name }}</a>{% if row.contact_name %} <span class="small">{{ row.company_name }}</span>{% endif %} <span class="tag">{{ d.channel }}</span></p>
+  <p class="small">{{ d.reason }} &middot; <a href="/yours/routines/{{ d.routine }}">{{ row.routine_title }}</a>, {{ fmt_datetime(d.made) | replace('T', ' ') }}</p>
+  {% if d.channel == 'email' %}<label>subject <input name="subject" value="{{ d.subject }}"></label>{% endif %}
+  <textarea name="body" rows="8" spellcheck="true" aria-label="Draft for {{ row.contact_name or row.company_name }}">{{ d.body }}</textarea>
+  <div class="draft-actions">
+    <button type="submit">I sent it</button>
+    <button type="submit" formaction="/yours/routines/{{ d.routine }}/drafts/{{ d.id }}/discard" class="secondary">Discard</button>
+  </div>
+</form>
+{% endfor %}
+</div>
+</section>

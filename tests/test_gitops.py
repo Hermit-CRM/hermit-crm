@@ -216,3 +216,28 @@ def test_commit_with_paths_and_nothing_staged_returns_none(tmp_path):
 
     assert GitOps(root=repo).commit("company: acme created", ["absent.txt"]) is None
     assert run(["ls-files", "stray.txt"], cwd=repo) == ""
+
+
+def test_push_async_without_a_remote_does_nothing(tmp_path, caplog):
+    """A new folder has no remote. Pushing anyway made every `hermitcrm set
+    --apply` end with a scary "fatal: 'origin' does not appear to be a git
+    repository", which agents then reported to the user as a failure."""
+    repo = init_repo(tmp_path / "repo")
+    gitops = GitOps(root=repo, push_enabled=True, push_timeout=5.0)
+    calls = []
+    gitops.push_sync = lambda: calls.append("push") or True
+    assert gitops.has_remote() is False
+    with caplog.at_level("WARNING"):
+        gitops.push_async()
+        time.sleep(0.3)
+    assert calls == [] and gitops.last_push is None and not caplog.records
+
+    run(["remote", "add", "origin", "https://127.0.0.1:9/none.git"], cwd=repo)
+    assert gitops.has_remote() is True
+    gitops.push_async()
+    deadline = time.monotonic() + 5
+    while not calls and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert calls == ["push"]
+    # a remote under another name is not the one this folder pushes to
+    assert GitOps(root=repo, remote="backup").has_remote() is False

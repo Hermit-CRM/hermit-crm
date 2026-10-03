@@ -113,6 +113,11 @@ def deep_merge(base: dict, override: dict) -> dict:
     return out
 
 
+class MessagesShapeError(ValueError):
+    """messages.toml replaced `languages` with something that is not a table of
+    languages; every draft would fail on it."""
+
+
 def load_messages(data_dir: Path | str | None = None) -> dict:
     """The shipped defaults with ``<data>/messages.toml`` merged over them."""
     messages = default_messages()
@@ -121,6 +126,11 @@ def load_messages(data_dir: Path | str | None = None) -> dict:
         if path.exists():
             with open(path, "rb") as fh:
                 messages = deep_merge(messages, tomllib.load(fh))
+            languages = messages.get("languages")
+            if not isinstance(languages, dict) or not all(
+                    isinstance(v, dict) for v in languages.values()):
+                raise MessagesShapeError("must be a table of languages, each a table "
+                                         "of wording, as in the shipped messages")
     return messages
 
 

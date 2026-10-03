@@ -27,10 +27,11 @@ import os
 import re
 import subprocess
 import sys
+import tomllib
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from hermitcrm import __version__, migrations, task_types
+from hermitcrm import __version__, layout, migrations, task_types
 from hermitcrm.datafolder import InitError, NotDataFolder, init_folder, resolve_data_dir
 from hermitcrm.enrich import EnrichError, Enricher
 from hermitcrm.gitops import GitOps
@@ -131,16 +132,25 @@ def cmd_sample(store: Store, action: str) -> tuple[str, int]:
 
     if action == "add":
         try:
-            company = sample.add(store)
+            done = sample.add(store)
         except sample.SampleError as exc:
             return (str(exc), 1)
-        return (f"Added the sample account {company.name} (companies/{company.slug}). "
-                "It is made up; `hermitcrm sample remove` deletes it again.", 0)
-    removed = sample.remove(store)
-    if not removed:
-        return ("No sample account to remove.", 0)
-    return ("Removed the sample account: " + ", ".join(c.name for c in removed)
-            + ". It stays in the git history.", 0)
+        company = done.companies[0]
+        lines = [f"Added the sample account {company.name} (companies/{company.slug})."]
+        if sample.DASHBOARD in done.files:
+            lines.append(f"With it: the dashboard {sample.DASHBOARD_TITLE}, pinned in the "
+                         f"sidebar ({sample.DASHBOARD}).")
+        if sample.ROUTINES in done.files:
+            lines.append(f"With it: the routine {sample.ROUTINE_TITLE}, paused "
+                         f"({sample.ROUTINES}). It only drafts; nothing is sent.")
+        lines += done.kept
+        lines.append("It is all made up; `hermitcrm sample remove` deletes it again.")
+        return ("\n".join(lines), 0)
+    done = sample.remove(store)
+    if not done.what:
+        return ("\n".join(["No sample account to remove.", *done.kept]), 0)
+    return ("\n".join([f"Removed the sample: {sample.and_list(done.what)}. "
+                       "It stays in the git history.", *done.kept]), 0)
 
 
 # -------------------------------------------------------------------- setup
@@ -508,14 +518,20 @@ def cmd_rebuild(store: Store, gitops: GitOps) -> str:
 
 
 def cmd_check(store: Store) -> tuple[str, int]:
+    from hermitcrm import adjust
+
     store.load()
+    # The files an agent may write (fields.toml, layout.toml, dashboards/,
+    # routines.toml, theme.css, messages.toml and config.toml's keys): one
+    # "<file>: <where>: <what>" line each.
+    extension = adjust.all_problems(store.root)
     # Since format 7 a contact has no notes body: what you know about a person
     # is a note interaction. A body written by hand is shown, not lost.
     stray = [f"companies/{c.slug}/contacts/{cs}.md: has a notes body; the app no longer "
              f"shows it (log it as a note on the contact instead)"
              for c in store.companies.values() for cs, ct in c.contacts.items()
              if ct.notes.strip()]
-    if not store.problems:
+    if not store.problems and not extension:
         n_companies = len(store.companies)
         n_contacts = sum(len(c.contacts) for c in store.companies.values())
         n_interactions = sum(len(c.interactions) for c in store.companies.values())
@@ -525,8 +541,23 @@ def cmd_check(store: Store) -> tuple[str, int]:
                 f"{n_interactions} interactions, no problems"]),
             0,
         )
-    lines = [f"{p.path}: {p.message}" for p in store.problems]
+    lines = [f"{p.path}: {p.message}" for p in store.problems] + extension
     return ("\n".join(lines), 1)
+
+
+# --------------------------------------------------------------------- undo
+
+
+def cmd_undo(store: Store, sha: str) -> tuple[str, int]:
+    """`git revert` of one commit, as a new commit (the hub's Undo button)."""
+    from hermitcrm import history
+
+    try:
+        new, subject = history.undo(store, sha)
+    except history.UndoError as exc:
+        return (str(exc), 1)
+    return (f"Undone in a new commit {new}: {subject}\n"
+            f"To bring the change back: hermitcrm undo {new}", 0)
 
 
 # ------------------------------------------------------------------- import
@@ -658,6 +689,44 @@ def cmd_add(store: Store, args, stdin=None) -> tuple[str, int]:
                 "; ".join(f"{k}: {v}" for k, v in exc.errors.items()), 2)
     except ValueError as exc:  # a bad --set pair
         return (str(exc), 2)
+
+
+def _arrow() -> str:
+    """The arrow of a before -> after line, unless the terminal cannot print it."""
+    try:
+        "\u2192".encode(sys.stdout.encoding or "ascii")
+        return "\u2192"
+    except (UnicodeEncodeError, LookupError):
+        return "->"
+
+
+def cmd_set(store: Store, args) -> tuple[str, int]:
+    """`hermitcrm set`: bulk changes with a dry run (hermitcrm/bulk.py).
+
+    Exit 0 for a dry run or a finished change (and for "nothing matches"), 2 for a
+    request that was refused before anything was written, 1 for a write that was
+    tried and rolled back.
+    """
+    from hermitcrm import bulk
+
+    try:
+        ops = bulk.Ops(set=bulk.parse_pairs(args.set), unset=list(args.unset),
+                       add_tags=list(args.add_tag), remove_tags=list(args.remove_tag),
+                       stage=args.stage)
+        plan = bulk.plan(store, args.scope, args.where, ops, everything=args.all)
+        if plan.matched == 0:
+            return (f"No {plan.nouns} match {plan.describe_where()}. Nothing to change.", 0)
+        if plan.changed == 0:
+            which = "it already looks" if plan.matched == 1 else "every one already looks"
+            return (f"{plan.count(plan.matched).capitalize()} "
+                    f"{'matches' if plan.matched == 1 else 'match'} {plan.describe_where()}, "
+                    f"and {which} like this. Nothing to change.", 0)
+        if not args.apply:
+            return (plan.render(arrow=_arrow()), 0)
+        sha = bulk.apply(store, plan, message=args.message)
+        return (plan.result(sha), 0)
+    except bulk.BulkError as exc:
+        return (str(exc), exc.code)
 
 
 def cmd_import(store: Store, path: Path, apply: bool = False, mode: str | None = None,
@@ -952,12 +1021,124 @@ def cmd_calendar(store: Store, root: Path, config: dict, apply: bool = False,
 
 
 def cmd_sync(store: Store, root: Path, config: dict, apply: bool = False,
-             open_mailbox=None, fetch=None, resolve=None) -> tuple[str, int]:
-    """BCC import, then calendar import (skipped quietly when not set up)."""
+             open_mailbox=None, fetch=None, resolve=None, enricher=None) -> tuple[str, int]:
+    """BCC import, then calendar import (skipped quietly when not set up), then
+    every routine that is on. A routine that fails is one line, never the exit code."""
     bcc_text, bcc_code = cmd_bcc(store, root, config, apply=apply, open_mailbox=open_mailbox)
     cal_text, cal_code = cmd_calendar(store, root, config, apply=apply, fetch=fetch,
                                       resolve=resolve, quiet_if_unconfigured=True)
-    return (f"== BCC ==\n{bcc_text}\n\n== Calendar ==\n{cal_text}", max(bcc_code, cal_code))
+    text = f"== BCC ==\n{bcc_text}\n\n== Calendar ==\n{cal_text}"
+    routine_lines = _sync_routines(store, config, apply, enricher)
+    if routine_lines:
+        text += "\n\n== Routines ==\n" + "\n".join(routine_lines)
+    return (text, max(bcc_code, cal_code))
+
+
+def _sync_routines(store: Store, config: dict, apply: bool, enricher=None) -> list[str]:
+    from hermitcrm import routines
+
+    try:
+        return routines.run_all(store, config, apply=apply, enricher=enricher)
+    except Exception as exc:  # the imports above already ran; keep their result
+        return [f"Routines failed: {type(exc).__name__}: {exc}"]
+
+
+# ----------------------------------------------------------------- routines
+
+
+def cmd_routines(store: Store, root: Path, config: dict, action: str = "list",
+                 name: str = "", apply: bool = False, try_ai: bool = False,
+                 enricher=None) -> tuple[str, int]:
+    """routines.toml by hand: list, preview (--try), run (--apply), on, off."""
+    from hermitcrm import routines
+
+    loaded = routines.load(root, config)
+    if not loaded.present:
+        return ("No routines.toml in this folder, so no routines. "
+                "See: hermitcrm help adjust-routines", 0 if action == "list" else 1)
+    if action == "list":
+        state = routines.read_state(root)
+        valid = {r.name: r for r in loaded.routines}
+        lines = []
+        for n in loaded.names:
+            r = valid.get(n)
+            if r is None:
+                lines.append(f"{n} | has a problem (see below)")
+                continue
+            what = r.action if r.action == "brief" else f"{r.select} -> draft"
+            lines.append(f"{n} | {r.state} | {r.title} | {what} | "
+                         f"{routines.last_run_text(state.get(n))}")
+        blocked = routines.ai_problem(enricher if enricher is not None
+                                      else routines.default_enricher(config)) \
+            if any(r.action == "draft" for r in loaded.routines) else ""
+        if blocked:
+            lines.append(f"Drafting is refused: {blocked}")
+        waiting = len(routines.drafts(root))
+        lines.append(f"Drafts waiting on Home: {waiting}")
+        lines += loaded.errors
+        return ("\n".join(lines), 1 if loaded.errors else 0)
+    if name and name not in loaded.names:
+        return (f"no routine named {name!r} in routines.toml"
+                + routines.did_you_mean(name, loaded.names), 1)
+    if action in ("on", "off"):
+        try:
+            changed = routines.set_paused(store, name, action == "off", config)
+        except routines.RoutineError as exc:
+            return (str(exc), 1)
+        state = "off (paused)" if action == "off" else "on"
+        return (f"{name} is {state}" + ("" if changed else " already") + ".", 0)
+    routine = loaded.get(name) if name else None
+    if name and routine is None:
+        return ("\n".join([f"{name} has problems; fix them first:"]
+                          + routines.problems_for(loaded, name)), 1)
+    if action == "preview":
+        lines = [f"{routine.title} ({routine.name}), {routine.state}",
+                 routines.describe(routine, config)]
+        if routine.action == "brief":
+            brief = routines.make_brief(store, config, store.now())
+            lines += ["", routines.render_brief(brief), "",
+                      "Preview only: nothing was written."]
+            return ("\n".join(lines), 0)
+        picks = routines.select(store, routine, config)
+        fresh = [p for p in picks if not p.status]
+        lines.append("")
+        lines.append(f"Would draft for {len(fresh)}:" if fresh else "Would draft for nobody now.")
+        lines += [f"- {p.who} | {p.reason} | {p.channel}" for p in fresh]
+        rest = [p for p in picks if p.status]
+        if rest:
+            lines.append("Not this time:")
+            lines += [f"- {p.who} | {p.status}" for p in rest]
+        if try_ai:
+            try:
+                pick, answer = routines.try_first(store, routine, enricher, config)
+            except (routines.RoutineError, routines.Rejected, EnrichError) as exc:
+                lines += ["", f"Try failed: {exc}"]
+                return ("\n".join(lines), 1)
+            if pick is None:
+                lines += ["", "Nothing to try: nobody would get a draft now."]
+            elif answer.skip:
+                lines += ["", f"The AI would skip {pick.who}: {answer.skip}"]
+            else:
+                lines += ["", f"Draft for {pick.who} ({answer.channel}), not saved:"]
+                if answer.subject:
+                    lines.append(f"Subject: {answer.subject}")
+                lines.append(answer.body.rstrip("\n"))
+        else:
+            blocked = routines.ai_problem(enricher if enricher is not None
+                                          else routines.default_enricher(config))
+            lines += ["", f"The AI step is refused: {blocked}" if blocked else
+                      "No AI was run and nothing was written. To see one draft: "
+                      f"hermitcrm routines preview {routine.name} --try"]
+        return ("\n".join(lines), 0)
+    # run: one routine by name (even a paused one: you asked for it), else all that are on
+    lines = routines.run_all(store, config, apply=apply, enricher=enricher,
+                             names=[name] if name else None)
+    if routine is not None and routine.paused:
+        lines.insert(0, f"{name} is paused; running it once because you asked.")
+    if not apply:
+        lines.append("Dry run: no AI, nothing written. Add --apply to draft and save.")
+    failed = any(": failed: " in line for line in lines)
+    return ("\n".join(lines), 1 if failed else 0)
 
 
 def _reload_server(config: dict) -> None:
@@ -1058,6 +1239,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("rebuild", help="rebuild the index and PIPELINE.md")
     sub.add_parser("check", help="validate every file")
+    p_undo = sub.add_parser("undo", help="reverse one commit with a new commit (git revert)")
+    p_undo.add_argument("sha", help="the commit to undo, as git log or the Make it yours "
+                                    "page shows it")
 
     p_sample = sub.add_parser("sample", help="add or remove the made-up sample account")
     p_sample.add_argument("action", choices=["add", "remove"])
@@ -1097,6 +1281,31 @@ def _build_parser() -> argparse.ArgumentParser:
     for parser_ in (p_add_co, p_add_ct, p_add_in):
         parser_.add_argument("--set", action="append", default=[], metavar="FIELD=VALUE",
                              help="any other front-matter field (repeatable)")
+
+    p_set = sub.add_parser("set", help="change many records at once; a dry run unless "
+                                       "--apply (one commit, undoable)")
+    p_set.add_argument("scope", choices=["companies", "contacts", "interactions"],
+                       help="which records; interactions are the rows of the Messages page")
+    p_set.add_argument("--where", action="append", default=[], metavar="KEY=VALUE",
+                       help="pick records with the list filters' syntax, e.g. 'country=DE' or "
+                            "'fit_score=>70' (repeatable, every one has to match)")
+    p_set.add_argument("--all", action="store_true",
+                       help="every record (needed when there is no --where)")
+    p_set.add_argument("--set", action="append", default=[], metavar="FIELD=VALUE",
+                       help="set a field; an empty value clears it (repeatable)")
+    p_set.add_argument("--unset", action="append", default=[], metavar="FIELD",
+                       help="clear a field (repeatable)")
+    p_set.add_argument("--add-tag", action="append", default=[], metavar="TAG",
+                       help="add a tag to companies (repeatable)")
+    p_set.add_argument("--remove-tag", action="append", default=[], metavar="TAG",
+                       help="remove a tag from companies (repeatable)")
+    p_set.add_argument("--stage", default=None, metavar="STAGE",
+                       help="move companies to a stage (recorded in their stage history)")
+    p_set.add_argument("--apply", action="store_true",
+                       help="make the change: one commit. Without it, only a dry run")
+    p_set.add_argument("--message", default=None, metavar="TEXT",
+                       help="the commit summary (after 'bulk: '); default is made from "
+                            "the operations")
 
     p_import = sub.add_parser("import", help="import companies/contacts from a TSV, CSV "
                                              "or .xlsx file")
@@ -1141,8 +1350,26 @@ def _build_parser() -> argparse.ArgumentParser:
     p_cal.add_argument("--ics", nargs="+", type=Path, default=[],
                        help="read these .ics files instead of the feed")
 
-    p_sync = sub.add_parser("sync", help="bcc, then calendar (the daily launchd run)")
+    p_sync = sub.add_parser("sync", help="bcc, then calendar, then routines that are on "
+                                         "(the daily launchd run)")
     p_sync.add_argument("--apply", action="store_true")
+
+    p_routines = sub.add_parser("routines", help="routines.toml: list, preview, run, "
+                                                 "turn on or off (drafts only, never sent)")
+    r_sub = p_routines.add_subparsers(dest="action")
+    r_sub.add_parser("list", help="every routine, on or paused, and its last run")
+    r_preview = r_sub.add_parser("preview", help="who it would pick now; no AI, no writes")
+    r_preview.add_argument("name")
+    r_preview.add_argument("--try", dest="try_ai", action="store_true",
+                           help="also show one AI draft for the first record, not saved")
+    r_run = r_sub.add_parser("run", help="run one routine (even a paused one), or all "
+                                         "that are on")
+    r_run.add_argument("name", nargs="?", default="")
+    r_run.add_argument("--apply", action="store_true")
+    for verb, text in (("on", "turn a routine on (it runs after each daily sync)"),
+                       ("off", "pause a routine")):
+        r_sub.add_parser(verb, help=text).add_argument("name")
+    p_routines.set_defaults(action="list", name="", apply=False, try_ai=False)
 
     p_help = sub.add_parser("help", help="how a feature works (the web app's /help pages)")
     p_help.add_argument("topic", nargs="?", default="",
@@ -1198,6 +1425,18 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
     if args.command == "backup":  # before migrations: a backup never changes the data
         return cmd_backup(root, args)
 
+    if args.command != "doctor":
+        # An agent may write keys into config.toml (task types, outcomes). A typo
+        # there stopped every command, `check` included, with a traceback.
+        try:
+            load_config(root)
+        except tomllib.TOMLDecodeError as exc:
+            from hermitcrm import adjust
+            print(adjust._toml_problem("config.toml", exc), file=sys.stderr)
+            print("Fix that line (or ask your agent to), then run the command again.",
+                  file=sys.stderr)
+            return 1 if args.command == "check" else 2
+
     if args.command == "doctor":  # before migrations: report, never change the folder
         from hermitcrm import doctor
         text, code = doctor.report(doctor.run_checks(root, online=args.online))
@@ -1209,11 +1448,14 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
             print(migrations.dry_run(root))
             return 0
         note = migrations.ensure_current(root)
+        # Only when asked: a /hermit skill deleted on purpose stays deleted otherwise.
+        fixed = migrations.repair(root) if args.command == "migrate" else ""
     except migrations.FormatTooNew as exc:
         print(exc, file=sys.stderr)
         return 2
     if args.command == "migrate":
-        print(note or f"Data format {migrations.current_format(root)} is current.")
+        print("\n".join(line for line in (note, fixed) if line)
+              or f"Data format {migrations.current_format(root)} is current.")
         return 0
     if note:
         print(note, file=sys.stderr)
@@ -1229,7 +1471,20 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
         return cmd_schedule(root, args.action, at=args.at, serve=args.serve,
                             backup=not args.no_backup, backup_every=args.backup_every)
 
-    store = build_store(root)
+    if args.command == "check":
+        # config.toml first: a value of the wrong kind (`outcomes = 5`) or a
+        # file that does not parse stops the store being built, and a line
+        # that names the problem is worth more than a traceback.
+        try:
+            store = build_store(root)
+        except Exception as exc:
+            from hermitcrm import adjust
+            lines = adjust.validate_config(root) or [
+                f"config.toml: file: cannot be used ({type(exc).__name__}: {exc})"]
+            print("\n".join(lines))
+            return 1
+    else:
+        store = build_store(root)
 
     if args.command == "mcp":
         return cmd_mcp(root, store, stdin=stdin)
@@ -1263,6 +1518,15 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
     if args.command == "check":
         text, code = cmd_check(store)
         print(text)
+        return code
+
+    if args.command == "undo":
+        text, code = cmd_undo(store, args.sha)
+        print(text, file=sys.stderr if code else sys.stdout)
+        if code == 0:
+            config = load_config(root)
+            GitOps(root, push_enabled=config["push_enabled"],
+                   remote=config.get("remote", "origin")).push_async()
         return code
 
     if args.command == "report":
@@ -1308,6 +1572,18 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
             _reload_server(config)
         return code
 
+    if args.command == "routines":
+        config = load_config(root)
+        writes = args.action in ("on", "off") or (args.action == "run" and args.apply)
+        if writes:
+            store.on_write = _writer(store, root, config)
+        text, code = cmd_routines(store, root, config, action=args.action or "list",
+                                  name=args.name, apply=args.apply, try_ai=args.try_ai)
+        print(text)
+        if writes:
+            _reload_server(config)
+        return code
+
     if args.command == "sample":
         store.on_write = _writer(store, root, load_config(root))
         text, code = cmd_sample(store, args.action)
@@ -1318,6 +1594,13 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
         store.on_write = _writer(store, root, load_config(root))
         text, code = cmd_add(store, args, stdin=stdin)
         print(text, file=sys.stderr if code else sys.stdout)
+        return code
+
+    if args.command == "set":
+        text, code = cmd_set(store, args)
+        print(text, file=sys.stderr if code else sys.stdout)
+        if code == 0 and args.apply:
+            _reload_server(load_config(root))
         return code
 
     if args.command in ("import", "enrich", "fetch"):

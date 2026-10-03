@@ -305,6 +305,51 @@ def m7_contact_notes(data_dir: Path, meta_by_path: dict, write: bool) -> list[st
     return changed
 
 
+# Run state of the routines; new folders ignore it from `init` (datafolder.GITIGNORE).
+ROUTINES_STATE = "inbox/.last-routines.json"
+
+
+def _ignore_line(data_dir: Path, line: str, write: bool) -> bool:
+    """Add one line to .gitignore (made if absent), keeping every other byte."""
+    path = data_dir / ".gitignore"
+    existing = path.read_text(encoding="utf-8") if path.is_file() else ""
+    if line in (entry.strip() for entry in existing.splitlines()):
+        return False
+    if write:
+        sep = "" if not existing or existing.endswith("\n") else "\n"
+        path.write_text(existing + sep + line + "\n", encoding="utf-8")
+    return True
+
+
+def m8_adjust_skill(data_dir: Path, meta_by_path: dict, write: bool) -> list[str]:
+    """Teach the folder's agents to adjust Hermit (Make it yours).
+
+    The /hermit skill for Claude Code is written unless the folder has one
+    (a file of that name with the user's own text is kept). CLAUDE.md and
+    AGENTS.md get the "Adjusting Hermit" rules unless they already mention
+    `hermitcrm help adjust`; a folder without them does not get them. And the
+    routines' run state is kept out of git, as new folders already do.
+    """
+    from .datafolder import AGENT_ADJUST_RULES, SKILL, write_skill
+
+    changed = []
+    if write_skill(data_dir, apply=write):
+        changed.append(SKILL)
+    for name in ("CLAUDE.md", "AGENTS.md"):
+        path = data_dir / name
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "hermitcrm help adjust" in text:
+            continue
+        if write:
+            path.write_text(_insert_section(text, AGENT_ADJUST_RULES), encoding="utf-8")
+        changed.append(name)
+    if _ignore_line(data_dir, ROUTINES_STATE, write):
+        changed.append(".gitignore")
+    return changed
+
+
 MIGRATIONS = [
     Migration(1, "rename gijs_score to my_score", "companies/*/company.md", m1_my_score),
     Migration(2, "country UK→GB, USA→US", "companies/*/company.md", m2_country_codes),
@@ -318,6 +363,8 @@ MIGRATIONS = [
               folder=m6_agent_guard),
     Migration(7, "contact notes become note interactions", "companies/*/contacts/*.md",
               folder=m7_contact_notes),
+    Migration(8, "agents learn to adjust Hermit (/hermit skill)", "CLAUDE.md",
+              folder=m8_adjust_skill),
 ]
 LATEST = MIGRATIONS[-1].version
 
@@ -399,7 +446,10 @@ def dry_run(data_dir: Path | str) -> str:
     todo = pending(data_dir)
     current = current_format(data_dir)
     if not todo:
-        return f"Data format {current} is current; nothing to migrate."
+        gone = missing_agent_files(data_dir)
+        return (f"Data format {current} is current; nothing to migrate."
+                + (f"\nMissing, and put back by `hermitcrm migrate`: {', '.join(gone)}"
+                   if gone else ""))
     lines = [f"Data format {current} → {LATEST}:"]
     for version, files in _run(todo, data_dir, write=False).items():
         title = next(m.title for m in todo if m.version == version)
@@ -444,18 +494,58 @@ def ensure_current(data_dir: Path | str) -> str:
     titles = "; ".join(m.title for m in todo)
     message = f"migrate: data format {before} → {LATEST} ({titles})"
     files = sorted({f for fs in changed.values() for f in fs} | {FORMAT_FILE})
-    count = len(files) - 1
-    if _is_git_repo(data_dir):
-        # A folder may keep a file a migration wrote out of git (.claude/ in its
-        # .gitignore, say); that file is changed on disk, just not committed.
-        ignored = subprocess.run(["git", "check-ignore", "--", *files], cwd=data_dir,
-                                 capture_output=True, text=True).stdout.splitlines()
-        files = [f for f in files if f not in ignored]
-        subprocess.run(["git", "add", "--", *files], cwd=data_dir, check=True,
-                       capture_output=True)
-        staged = subprocess.run(["git", "diff", "--cached", "--quiet", "--", *files],
-                                cwd=data_dir, capture_output=True)
-        if staged.returncode != 0:  # nothing staged means the data was already current
-            subprocess.run(["git", *GIT_AUTHOR, "commit", "-q", "-m", message, "--", *files],
-                           cwd=data_dir, check=True, capture_output=True)
-    return f"{message}: {count} file(s) changed"
+    _commit(data_dir, files, message)
+    return f"{message}: {len(files) - 1} file(s) changed"
+
+
+def _commit(data_dir: Path, files: list[str], message: str) -> None:
+    """Commit exactly these files, if the folder is a git repo and they changed."""
+    if not _is_git_repo(data_dir):
+        return
+    # A folder may keep a file a migration wrote out of git (.claude/ in its
+    # .gitignore, say); that file is changed on disk, just not committed.
+    ignored = subprocess.run(["git", "check-ignore", "--", *files], cwd=data_dir,
+                             capture_output=True, text=True).stdout.splitlines()
+    files = [f for f in files if f not in ignored]
+    if not files:
+        return
+    subprocess.run(["git", "add", "--", *files], cwd=data_dir, check=True,
+                   capture_output=True)
+    staged = subprocess.run(["git", "diff", "--cached", "--quiet", "--", *files],
+                            cwd=data_dir, capture_output=True)
+    if staged.returncode != 0:  # nothing staged means the data was already current
+        subprocess.run(["git", *GIT_AUTHOR, "commit", "-q", "-m", message, "--", *files],
+                       cwd=data_dir, check=True, capture_output=True)
+
+
+def missing_agent_files(data_dir: Path | str) -> list[str]:
+    """Files the current format gives a folder that are gone from this one.
+
+    Today that is the /hermit skill: a clone of a folder that keeps `.claude/`
+    out of git never had it, and a person may have deleted it.
+    """
+    from .datafolder import SKILL
+
+    data_dir = Path(data_dir)
+    if current_format(data_dir) < 8:
+        return []  # migration 8 writes it; `pending` already says so
+    path = data_dir / SKILL
+    return [] if path.exists() or path.is_symlink() else [SKILL]
+
+
+def repair(data_dir: Path | str) -> str:
+    """Put back what `missing_agent_files` lists, in one commit; '' if nothing was.
+
+    Only `hermitcrm migrate` calls this, never the run before every command,
+    so a skill deleted on purpose stays deleted until you ask for it back.
+    """
+    from .datafolder import write_skill
+
+    data_dir = Path(data_dir)
+    files = missing_agent_files(data_dir)
+    if not files:
+        return ""
+    write_skill(data_dir)
+    message = "migrate: put back the /hermit skill"
+    _commit(data_dir, files, message)
+    return f"{message} ({', '.join(files)})"

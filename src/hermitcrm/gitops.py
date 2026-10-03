@@ -118,8 +118,20 @@ class GitOps:
             logger.error("git commit raised an exception", exc_info=True)
             return None
 
+    def has_remote(self) -> bool:
+        """Whether the remote this folder pushes to exists. A new folder has
+        none, and pushing anyway only prints "fatal: 'origin' does not appear to
+        be a git repository" after every command that commits. If git cannot
+        say, assume it does and push as before."""
+        try:
+            listed = subprocess.run(["git", "remote"], cwd=self.root, capture_output=True,
+                                    text=True, timeout=10).stdout
+        except Exception:
+            return True
+        return self.remote in listed.split()
+
     def push_async(self) -> None:
-        if not self.push_enabled:
+        if not self.push_enabled or not self.has_remote():
             return
         try:
             thread = threading.Thread(target=self.push_sync, daemon=True)

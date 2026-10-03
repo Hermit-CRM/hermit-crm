@@ -92,9 +92,10 @@ web app has a Help link; `hermitcrm help [topic]` prints the same pages.
 
 Want to see a worked account first? The empty home page offers **Look at a
 sample account** (or run `hermitcrm sample add`): one made-up company with its
-people, messages, a deal on the pipeline and tasks. A bar on every page says it
-is there; **Remove it** deletes it again in one commit (`hermitcrm sample
-remove`), and never touches your own companies.
+people, messages, a deal on the pipeline and tasks, plus a pinned dashboard and a
+paused routine to show what you can build. A bar on every page says it is there;
+**Remove it** deletes it again in one commit (`hermitcrm sample remove`), and
+never touches your own companies.
 
 With the app running at http://127.0.0.1:8765, click **New company**, type a
 name and a country, and save. Or do the same from the terminal:
@@ -179,8 +180,9 @@ file per conversation. Everything below is convenience on top of it.
   CLI you already use (claude, codex, gemini, grok or a custom command).
 - **Stage history** per company, reconstructable from git.
 - **MCP server** (`hermitcrm mcp`): read and write the CRM from Claude Desktop,
-  ChatGPT, Cursor or anything else that speaks MCP, with no terminal. Seven read
-  tools and three write tools, over stdio, with no extra dependency.
+  ChatGPT, Cursor or anything else that speaks MCP, with no terminal. Ten read
+  tools and seven write tools (records, Make it yours, bulk changes, undo), over
+  stdio, with no extra dependency.
 - **Feedback form** at `/help/feedback`: writes a report into your folder with the
   version, counts and feature flags attached, and shows it to you to send. Nothing
   leaves your machine on its own, and no names or paths go in the report.
@@ -458,10 +460,13 @@ Claude Desktop, Settings → Developer → Edit Config:
 }
 ```
 
-It exposes seven read tools (`list_pipeline`, `search_companies`,
-`show_company`, `digest`, `report`, `followups`, `brief`) and three writes
-(`add_company`, `add_contact`, `add_interaction`). The writes commit, exactly as
-the web form does. `hermitcrm help ai-agents` has the details.
+It exposes ten read tools (`list_pipeline`, `search_companies`,
+`show_company`, `digest`, `report`, `followups`, `brief`, `adjust_help`,
+`adjust_read`, `bulk_preview`) and seven writes (`add_company`, `add_contact`,
+`add_interaction`, `adjust_write`, `adjust_config`, `bulk_apply`, `undo`). Each
+write is one git commit, like a save in the web app; `adjust_write` checks a file
+before it keeps it, and `bulk_apply` only runs after a `bulk_preview`.
+`hermitcrm help ai-agents` has the details.
 
 ## Roadmap
 

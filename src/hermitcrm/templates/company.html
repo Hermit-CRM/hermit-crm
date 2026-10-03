@@ -1,15 +1,20 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
+{# The header (name, the line under it, Disqualify) stays on top. Below it the
+   sections come in layout.toml's order (help: adjust-layout); their names, in
+   the default order: enrich, next-step, details, contacts, tasks, drafts,
+   merge, timeline. `hide` is the fields layout.toml hides on this page. #}
 {% block title %}{{ company.name }}{% endblock %}
 {% block content %}
+{%- set hide = layout_hidden('company') %}
 <h1>{{ company.name }}</h1>
-{% if company.product_oneliner %}<p class="oneliner">{{ company.product_oneliner }}</p>{% endif %}
+{% if company.product_oneliner and 'product_oneliner' not in hide %}<p class="oneliner">{{ company.product_oneliner }}</p>{% endif %}
 <div class="small record-meta">
-  {% if company.website %}<a href="{{ company.website | href }}" target="_blank" rel="noopener">{{ company.website | replace('https://', '') | replace('http://', '') }}</a>{% endif %}
-  {% if company.linkedin %}<a href="{{ company.linkedin | href }}" target="_blank" rel="noopener">linkedin</a>{% endif %}
-  <span>{{ company.stage }}{% if company.lost_reason %} ({{ company.lost_reason }}){% endif %}{% if company.requalify_on %}, requalifies on {{ fmt_date(company.requalify_on) }}{% endif %} &middot; {{ company.days_in_stage(today) }}d in stage</span>
+  {% if company.website and 'website' not in hide %}<a href="{{ company.website | href }}" target="_blank" rel="noopener">{{ company.website | replace('https://', '') | replace('http://', '') }}</a>{% endif %}
+  {% if company.linkedin and 'linkedin' not in hide %}<a href="{{ company.linkedin | href }}" target="_blank" rel="noopener">linkedin</a>{% endif %}
+  <span>{{ company.stage }}{% if company.lost_reason and 'lost_reason' not in hide %} ({{ company.lost_reason }}){% endif %}{% if company.requalify_on and 'requalify_on' not in hide %}, requalifies on {{ fmt_date(company.requalify_on) }}{% endif %} &middot; {{ company.days_in_stage(today) }}d in stage</span>
   <span>last touch: {{ company.last_touch_summary }}</span>
-  {% for f in custom_fields_for('company') if f.shows_in('detail') and company.extra.get(f.key) not in (none, '') %}
+  {% for f in custom_fields_for('company') if f.shows_in('detail') and f.key not in hide and company.extra.get(f.key) not in (none, '') %}
   <span>{{ f.label }} {{ f.display(company.extra.get(f.key)) }}</span>
   {% endfor %}
   {% if company.stage in ['disqualified', 'temp-disqualified'] %}
@@ -35,6 +40,7 @@
   </details>
   {% endif %}
 </div>
+{%- for section in layout_sections('company') %}{% if section == 'enrich' %}
 <div class="small record-actions">
   {% if enricher and enricher.available %}
   <form method="post" action="/companies/{{ company.slug }}/enrich" class="inline enrich">
@@ -49,7 +55,7 @@
     </form>
   </details>
 </div>
-{% set nxt = company.next_todo() %}
+{% elif section == 'next-step' %}{% set nxt = company.next_todo() %}
 <div class="small next-step-line{% if nxt and nxt.overdue(today) %} overdue{% endif %}{% if nxt and nxt.done %} done{% endif %}">
   next step: <span class="next-step-text">{{ (nxt.text or '(no text)') if nxt else 'none' }}{% if nxt and nxt.contact %} ({{ nxt.contact.name }}){% endif %}{% if nxt and nxt.due %}, due {{ fmt_date(nxt.due) }}{% endif %}</span>
   {% if nxt %}
@@ -61,7 +67,7 @@
   {% endif %}
   <a class="small" href="#tasks">all tasks</a>
 </div>
-
+{% elif section == 'details' %}
 <section id="details">
   <h2>Company</h2>
   {{ m.errors_box(errors) }}
@@ -83,7 +89,7 @@
   </details>
   {% endif %}
 </section>
-
+{% elif section == 'contacts' %}
 <section id="contacts">
   <h2>Contacts ({{ company.contacts | length }})</h2>
   <div class="table-scroll"><table>
@@ -103,11 +109,11 @@
   </table></div>
   <p><a href="/companies/{{ company.slug }}/contacts/new">New contact</a> <span class="small">&middot; an interaction is always with a person: log it, or a note, on their page.</span></p>
 </section>
-
+{% elif section == 'tasks' %}
 {{ m.task_section(company, today) }}
-
+{% elif section == 'drafts' %}
 {{ m.drafts_section(company, draft_contact, drafts, signal, observation, '/companies/' ~ company.slug) }}
-
+{% elif section == 'merge' %}
 <section id="merge">
   <h2>Merge</h2>
   <form method="get" action="/companies/{{ company.slug }}/merge" class="inline-row">
@@ -118,12 +124,12 @@
     <button type="submit">Compare</button>
   </form>
 </section>
-
+{% elif section == 'timeline' %}
 <section id="timeline">
   <h2>Timeline ({{ company.interactions | length }})</h2>
   {{ m.timeline(company, company.interactions) }}
 </section>
-
+{% endif %}{% endfor %}
 {% if focus == 'lost_reason' %}
 <script>
 (function () {

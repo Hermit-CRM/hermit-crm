@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Routines{% endblock %}
+{% block content %}
+<h1>Routines</h1>
+<p class="small">Small jobs that run every morning after the daily sync: a morning brief, or one AI draft per quiet thread. Drafts wait on Home; nothing is ever sent. <a href="/help/adjust-routines">How routines work</a>.</p>
+
+{% if problems %}
+<div class="errors routine-problems">
+  <strong>routines.toml has problems.</strong> Routines with problems do not run. Paste these to your agent:
+  <ul>{% for p in problems %}<li><code>{{ p }}</code></li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+{% if ai_problem %}
+<div class="errors routine-problems">
+  <strong>Routines that draft will not run.</strong> {{ ai_problem }}.
+</div>
+{% endif %}
+
+{% if not present %}
+<p class="empty">No routines yet. Ask your agent for one, for example: "Every morning, for people I messaged on LinkedIn 7 days ago without a reply, draft a short follow-up. Never send anything." It writes <code>routines.toml</code>; the routine starts paused so you can preview it first.</p>
+{% else %}
+<div class="table-scroll">
+<table>
+  <tr><th>routine</th><th>state</th><th>does</th><th>last run</th></tr>
+  {% for row in rows %}{% set r = row.routine %}
+  <tr>
+    <td><a href="/yours/routines/{{ row.name }}">{{ r.title if r else row.name }}</a></td>
+    <td>{% if r %}<span class="tag state-{{ r.state }}">{{ r.state }}</span>{% else %}<span class="error">has a problem</span>{% endif %}</td>
+    <td>{% if r %}{{ 'morning brief, no AI' if r.action == 'brief' else r.select | replace('_', ' ') ~ ', AI drafts' }}{% endif %}</td>
+    <td class="small">{{ row.last_run }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="4" class="empty">routines.toml lists no routines.</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% endif %}
+{% if waiting %}<p><a href="/#routine-drafts">{{ waiting }} draft{{ 's' if waiting != 1 }} waiting on Home</a>.</p>{% endif %}
+{% endblock %}
