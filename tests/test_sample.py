@@ -315,6 +315,22 @@ def test_a_routines_file_that_does_not_parse_gets_nothing_added(folder, capsys):
     assert (folder / sample.DASHBOARD).exists()
 
 
+def test_a_routines_file_the_block_cannot_join_is_left_alone(folder, capsys):
+    """`routine = [{ ... }]` reads as one routine, but a [[routine]] block after
+    it makes the file unreadable, and then no routine runs."""
+    mine = 'routine = [{ name = "mine", action = "brief" }]\n'
+    (folder / sample.ROUTINES).write_text(mine)
+    commit_all(folder)
+    assert routines.load(folder).names == ["mine"]
+    cli_add(folder)
+    out = capsys.readouterr().out
+    assert "lists its routines in a way the sample routine cannot be added to" in out
+    assert (folder / sample.ROUTINES).read_text() == mine
+    assert routines.load(folder).names == ["mine"] and routines.validate(folder) == []
+    assert (folder / sample.DASHBOARD).exists()      # the rest of the sample still loads
+    assert cli.main(["--data", str(folder), "check"]) == 0
+
+
 def test_remove_keeps_a_dashboard_you_changed(folder, capsys):
     cli_add(folder)
     path = folder / sample.DASHBOARD
