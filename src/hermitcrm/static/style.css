@@ -99,6 +99,11 @@ details.ask[open] .ask-button { filter: brightness(.92); }
 fieldset.switch { border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px 10px; margin: 8px 0; }
 fieldset.switch label { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 13px; color: var(--text); }
 fieldset.switch input { width: auto; margin: 0; }
+fieldset.switch.across label { display: inline-flex; margin: 4px 16px 4px 0; }
+fieldset.switch.across label[hidden] { display: none; }
+/* A checkbox and its words on one line: inputs are full-width blocks by default. */
+label.check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); }
+label.check input { display: inline-block; width: auto; margin: 0; flex: none; }
 main, footer { grid-column: 2; }
 
 input, select, textarea, button { color: inherit; }
@@ -491,6 +496,8 @@ code.report-key { font-size: 11px; color: var(--faint); }
 .settings-toc a { margin: 0 2px; }
 .setup-step textarea { min-height: 84px; }
 .setup-step .row > label input[size] { width: auto; }
+/* A lone name or address field need not run 950px wide. */
+.setup-step form.record-form > label:not(.grow):not(.check) { max-width: 560px; }
 .schedule-lines { margin: 6px 0; padding-left: 18px; }
 .schedule-lines li { margin: 2px 0; overflow-wrap: anywhere; }
 pre.copy { background: var(--surface-2); border: 1px solid var(--line); border-radius: 3px; padding: 6px 8px; font-size: 13px; overflow-x: auto; user-select: all; }
