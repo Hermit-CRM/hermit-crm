@@ -799,7 +799,8 @@ def test_check_prints_the_problem_instead_of_a_traceback(demo, capsys):
     with open(demo / "config.toml", "a") as fh:
         fh.write("silent_days = [\n")
     assert cli.main(["--data", str(demo), "check"]) == 1
-    assert capsys.readouterr().out.startswith("config.toml: ")
+    # a file that does not parse stops every command alike, on stderr
+    assert capsys.readouterr().err.startswith("config.toml: ")
 
 
 # ------------------------------------------------- the suggestions' starters
