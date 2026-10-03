@@ -660,6 +660,44 @@ def cmd_add(store: Store, args, stdin=None) -> tuple[str, int]:
         return (str(exc), 2)
 
 
+def _arrow() -> str:
+    """The arrow of a before -> after line, unless the terminal cannot print it."""
+    try:
+        "\u2192".encode(sys.stdout.encoding or "ascii")
+        return "\u2192"
+    except (UnicodeEncodeError, LookupError):
+        return "->"
+
+
+def cmd_set(store: Store, args) -> tuple[str, int]:
+    """`hermitcrm set`: bulk changes with a dry run (hermitcrm/bulk.py).
+
+    Exit 0 for a dry run or a finished change (and for "nothing matches"), 2 for a
+    request that was refused before anything was written, 1 for a write that was
+    tried and rolled back.
+    """
+    from hermitcrm import bulk
+
+    try:
+        ops = bulk.Ops(set=bulk.parse_pairs(args.set), unset=list(args.unset),
+                       add_tags=list(args.add_tag), remove_tags=list(args.remove_tag),
+                       stage=args.stage)
+        plan = bulk.plan(store, args.scope, args.where, ops, everything=args.all)
+        if plan.matched == 0:
+            return (f"No {plan.nouns} match {plan.describe_where()}. Nothing to change.", 0)
+        if plan.changed == 0:
+            which = "it already looks" if plan.matched == 1 else "every one already looks"
+            return (f"{plan.count(plan.matched).capitalize()} "
+                    f"{'matches' if plan.matched == 1 else 'match'} {plan.describe_where()}, "
+                    f"and {which} like this. Nothing to change.", 0)
+        if not args.apply:
+            return (plan.render(arrow=_arrow()), 0)
+        sha = bulk.apply(store, plan, message=args.message)
+        return (plan.result(sha), 0)
+    except bulk.BulkError as exc:
+        return (str(exc), exc.code)
+
+
 def cmd_import(store: Store, path: Path, apply: bool = False, mode: str | None = None,
                mapping: dict | None = None) -> str:
     from hermitcrm.importer import apply_import, decode_upload, plan_import
@@ -1098,6 +1136,31 @@ def _build_parser() -> argparse.ArgumentParser:
         parser_.add_argument("--set", action="append", default=[], metavar="FIELD=VALUE",
                              help="any other front-matter field (repeatable)")
 
+    p_set = sub.add_parser("set", help="change many records at once; a dry run unless "
+                                       "--apply (one commit, undoable)")
+    p_set.add_argument("scope", choices=["companies", "contacts", "interactions"],
+                       help="which records; interactions are the rows of the Messages page")
+    p_set.add_argument("--where", action="append", default=[], metavar="KEY=VALUE",
+                       help="pick records with the list filters' syntax, e.g. 'country=DE' or "
+                            "'fit_score=>70' (repeatable, every one has to match)")
+    p_set.add_argument("--all", action="store_true",
+                       help="every record (needed when there is no --where)")
+    p_set.add_argument("--set", action="append", default=[], metavar="FIELD=VALUE",
+                       help="set a field; an empty value clears it (repeatable)")
+    p_set.add_argument("--unset", action="append", default=[], metavar="FIELD",
+                       help="clear a field (repeatable)")
+    p_set.add_argument("--add-tag", action="append", default=[], metavar="TAG",
+                       help="add a tag to companies (repeatable)")
+    p_set.add_argument("--remove-tag", action="append", default=[], metavar="TAG",
+                       help="remove a tag from companies (repeatable)")
+    p_set.add_argument("--stage", default=None, metavar="STAGE",
+                       help="move companies to a stage (recorded in their stage history)")
+    p_set.add_argument("--apply", action="store_true",
+                       help="make the change: one commit. Without it, only a dry run")
+    p_set.add_argument("--message", default=None, metavar="TEXT",
+                       help="the commit summary (after 'bulk: '); default is made from "
+                            "the operations")
+
     p_import = sub.add_parser("import", help="import companies/contacts from a TSV, CSV "
                                              "or .xlsx file")
     p_import.add_argument("file", type=Path)
@@ -1318,6 +1381,13 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
         store.on_write = _writer(store, root, load_config(root))
         text, code = cmd_add(store, args, stdin=stdin)
         print(text, file=sys.stderr if code else sys.stdout)
+        return code
+
+    if args.command == "set":
+        text, code = cmd_set(store, args)
+        print(text, file=sys.stderr if code else sys.stdout)
+        if code == 0 and args.apply:
+            _reload_server(load_config(root))
         return code
 
     if args.command in ("import", "enrich", "fetch"):
