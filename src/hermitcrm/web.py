@@ -53,6 +53,7 @@ from . import (bcc, brief, calendar_sync, capture, dashboards, disclaimer, feedb
                pipeline, reports, sample, welcome)
 from . import layout
 from . import schedule, scrape, secrets, task_types, usertheme
+from . import routines
 from . import help as helpdocs
 from . import setup as setup_steps
 from .filters import Column
@@ -1379,8 +1380,18 @@ def create_app(root: Path, config: dict | None = None,
             "no_companies": not store.companies,
             # To file: the review queue, mail and meetings no company matched.
             **inbox_context(),
+            # Drafts from routines and today's brief, next to To file.
+            **routines_home(),
             **extra,
         }, status_code=status_code)
+
+    def routines_home() -> dict:
+        """Home's routine parts; a broken routines.toml or draft never breaks Home."""
+        try:
+            return routines.home_context(store, config)
+        except Exception:
+            logger.exception("routines on Home failed")
+            return {"routine_drafts": [], "routine_briefs": []}
 
     # ------------------------------------------------------------------ board
 
@@ -3059,6 +3070,131 @@ def create_app(root: Path, config: dict | None = None,
         except ValidationError:
             raise HTTPException(status_code=404, detail=f"unknown inbox item {item_id!r}")
         return flashed("/", f"Discarded {item.address}", anchor="to-file")
+
+    # --------------------------------------------------------------- routines
+    # routines.toml (hermitcrm/routines.py): a preview page per routine, on/off,
+    # "Try the AI on the first one", and closing the drafts shown on Home. The
+    # hub at /yours lists them; these pages are where its links go.
+
+    def need_routine(name: str):
+        loaded = routines.load(root, config)
+        if name not in loaded.names:
+            raise HTTPException(status_code=404, detail=f"unknown routine {name!r}")
+        return loaded, loaded.get(name)
+
+    def routine_page(request: Request, name: str, status_code: int = 200, **extra):
+        loaded, routine = need_routine(name)
+        state = routines.read_state(root).get(name)
+        ctx = {"name": name, "routine": routine,
+               "problems": routines.problems_for(loaded, name),
+               "last_run": routines.last_run_text(state),
+               "waiting": [d for d in routines.drafts(root) if d.routine == name],
+               "picks": [], "brief": None, "tried": None, "tried_pick": None,
+               "try_error": ""}
+        if routine is not None:
+            ctx["description"] = routines.describe(routine, config)
+            try:
+                if routine.action == "brief":
+                    ctx["brief"] = routines.make_brief(store, config, store.now())
+                    ctx["routine_briefs"] = [{"title": routine.title, "name": name,
+                                              **ctx["brief"]}]
+                else:
+                    ctx["picks"] = routines.select(store, routine, config)
+            except Exception as exc:  # the page still says what the routine is
+                logger.exception("routine preview %s failed", name)
+                ctx["try_error"] = f"Preview failed: {type(exc).__name__}: {exc}"
+        ctx.update(extra)
+        return render(request, "routine.html", ctx, status_code=status_code)
+
+    @app.get("/yours/routines", response_class=HTMLResponse)
+    def routines_index(request: Request):
+        loaded = routines.load(root, config)
+        state = routines.read_state(root)
+        valid = {r.name: r for r in loaded.routines}
+        rows = [{"name": n, "routine": valid.get(n),
+                 "last_run": routines.last_run_text(state.get(n))} for n in loaded.names]
+        return render(request, "routines.html", {
+            "present": loaded.present, "rows": rows, "problems": loaded.errors,
+            "waiting": len(routines.drafts(root))})
+
+    @app.get("/yours/routines/{name}", response_class=HTMLResponse)
+    def routine_preview(request: Request, name: str):
+        return routine_page(request, name)
+
+    @app.post("/yours/routines/{name}/on")
+    def routine_on(request: Request, name: str, csrf_token: str = Form("")):
+        return routine_switch(request, name, "on", csrf_token)
+
+    @app.post("/yours/routines/{name}/off")
+    def routine_off(request: Request, name: str, csrf_token: str = Form("")):
+        return routine_switch(request, name, "off", csrf_token)
+
+    def routine_switch(request: Request, name: str, switch: str, csrf_token: str):
+        """Flip `paused` in routines.toml (that one line), one commit."""
+        check_csrf(csrf_token)
+        need_routine(name)
+        try:
+            changed = routines.set_paused(store, name, switch == "off", config)
+        except routines.RoutineError as exc:
+            return routine_page(request, name, status_code=400, try_error=str(exc))
+        if switch == "on":
+            text = ("On: it runs every morning after the daily sync. Drafts appear on "
+                    "Home; nothing is sent.") if changed else "Already on."
+        else:
+            text = "Paused: it no longer runs." if changed else "Already paused."
+        return flashed(f"/yours/routines/{name}", text)
+
+    @app.post("/yours/routines/{name}/try", response_class=HTMLResponse)
+    async def routine_try(request: Request, name: str, csrf_token: str = Form("")):
+        check_csrf(csrf_token)
+        loaded, routine = need_routine(name)
+        if routine is None or routine.action != "draft":
+            return routine_page(request, name, status_code=400,
+                                try_error="Only a routine that drafts, with no problems, "
+                                          "can try the AI.")
+        enricher = app.state.enricher.with_tier("medium")
+        try:
+            pick, answer = await run_in_threadpool(routines.try_first, store, routine,
+                                                   enricher, config)
+        except routines.RoutineError as exc:  # no AI CLI set up
+            return routine_page(request, name, status_code=400,
+                                try_error=f"Cannot try the AI: {exc}")
+        except (routines.Rejected, EnrichError) as exc:
+            return routine_page(request, name, status_code=502,
+                                try_error=f"The AI did not give a usable draft: {exc}")
+        if pick is None:
+            return routine_page(request, name,
+                                try_error="Nothing to try: nobody would get a draft now.")
+        return routine_page(request, name, tried=answer, tried_pick=pick)
+
+    @app.post("/yours/routines/{name}/drafts/{draft_id}/{what}")
+    def routine_draft_close(request: Request, name: str, draft_id: str, what: str,
+                            csrf_token: str = Form(""), subject: str = Form(""),
+                            body: str = Form(""), back: str = Form("")):
+        """"I sent it" logs the draft (as edited) as an outbound message; Discard
+        drops it. Either way one commit, and the routine will not write it again."""
+        check_csrf(csrf_token)
+        if what not in ("sent", "discard"):
+            raise HTTPException(status_code=404, detail=f"unknown action {what!r}")
+        draft = routines.get_draft(root, draft_id)
+        if draft is None or draft.routine != name:
+            raise HTTPException(status_code=404, detail=f"unknown draft {draft_id!r}")
+        back = safe_back(back, "/")
+        sent = what == "sent"
+        if sent and not body.strip():
+            return flashed(back, "Not logged: the message is empty.", anchor="routine-drafts")
+        try:
+            routines.close_draft(store, draft_id, sent=sent,
+                                 subject=subject if sent else None,
+                                 body=body if sent else None)
+        except ValidationError as exc:
+            return flashed(back, "Not logged: " + "; ".join(exc.errors.values()),
+                           anchor="routine-drafts")
+        company = store.get(draft.company)
+        contact = company.contacts.get(draft.contact) if company else None
+        who = contact.name if contact else (company.name if company else draft.record)
+        return flashed(back, f"Logged the message to {who} as sent" if sent
+                       else f"Draft for {who} discarded", anchor="routine-drafts")
 
     # ------------------------------------------------------------------- help
 

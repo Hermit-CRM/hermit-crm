@@ -508,6 +508,8 @@ def cmd_rebuild(store: Store, gitops: GitOps) -> str:
 
 
 def cmd_check(store: Store) -> tuple[str, int]:
+    from hermitcrm import routines
+
     store.load()
     # Since format 7 a contact has no notes body: what you know about a person
     # is a note interaction. A body written by hand is shown, not lost.
@@ -518,7 +520,9 @@ def cmd_check(store: Store) -> tuple[str, int]:
     # The files an agent may write to adjust Hermit: a problem in one fails
     # the check like a broken record does, with a line saying where.
     from hermitcrm import dashboards
-    extension = layout.validate(store.root) + dashboards.validate(store.root, store=store)
+    extension = (layout.validate(store.root)
+                 + dashboards.validate(store.root, store=store)
+                 + routines.validate(store.root))
     if not store.problems and not extension:
         n_companies = len(store.companies)
         n_contacts = sum(len(c.contacts) for c in store.companies.values())
@@ -994,12 +998,116 @@ def cmd_calendar(store: Store, root: Path, config: dict, apply: bool = False,
 
 
 def cmd_sync(store: Store, root: Path, config: dict, apply: bool = False,
-             open_mailbox=None, fetch=None, resolve=None) -> tuple[str, int]:
-    """BCC import, then calendar import (skipped quietly when not set up)."""
+             open_mailbox=None, fetch=None, resolve=None, enricher=None) -> tuple[str, int]:
+    """BCC import, then calendar import (skipped quietly when not set up), then
+    every routine that is on. A routine that fails is one line, never the exit code."""
     bcc_text, bcc_code = cmd_bcc(store, root, config, apply=apply, open_mailbox=open_mailbox)
     cal_text, cal_code = cmd_calendar(store, root, config, apply=apply, fetch=fetch,
                                       resolve=resolve, quiet_if_unconfigured=True)
-    return (f"== BCC ==\n{bcc_text}\n\n== Calendar ==\n{cal_text}", max(bcc_code, cal_code))
+    text = f"== BCC ==\n{bcc_text}\n\n== Calendar ==\n{cal_text}"
+    routine_lines = _sync_routines(store, config, apply, enricher)
+    if routine_lines:
+        text += "\n\n== Routines ==\n" + "\n".join(routine_lines)
+    return (text, max(bcc_code, cal_code))
+
+
+def _sync_routines(store: Store, config: dict, apply: bool, enricher=None) -> list[str]:
+    from hermitcrm import routines
+
+    try:
+        return routines.run_all(store, config, apply=apply, enricher=enricher)
+    except Exception as exc:  # the imports above already ran; keep their result
+        return [f"Routines failed: {type(exc).__name__}: {exc}"]
+
+
+# ----------------------------------------------------------------- routines
+
+
+def cmd_routines(store: Store, root: Path, config: dict, action: str = "list",
+                 name: str = "", apply: bool = False, try_ai: bool = False,
+                 enricher=None) -> tuple[str, int]:
+    """routines.toml by hand: list, preview (--try), run (--apply), on, off."""
+    from hermitcrm import routines
+
+    loaded = routines.load(root, config)
+    if not loaded.present:
+        return ("No routines.toml in this folder, so no routines. "
+                "See: hermitcrm help adjust-routines", 0 if action == "list" else 1)
+    if action == "list":
+        state = routines.read_state(root)
+        valid = {r.name: r for r in loaded.routines}
+        lines = []
+        for n in loaded.names:
+            r = valid.get(n)
+            if r is None:
+                lines.append(f"{n} | has a problem (see below)")
+                continue
+            what = r.action if r.action == "brief" else f"{r.select} -> draft"
+            lines.append(f"{n} | {r.state} | {r.title} | {what} | "
+                         f"{routines.last_run_text(state.get(n))}")
+        waiting = len(routines.drafts(root))
+        lines.append(f"Drafts waiting on Home: {waiting}")
+        lines += loaded.errors
+        return ("\n".join(lines), 1 if loaded.errors else 0)
+    if name and name not in loaded.names:
+        return (f"no routine named {name!r} in routines.toml"
+                + routines.did_you_mean(name, loaded.names), 1)
+    if action in ("on", "off"):
+        try:
+            changed = routines.set_paused(store, name, action == "off", config)
+        except routines.RoutineError as exc:
+            return (str(exc), 1)
+        state = "off (paused)" if action == "off" else "on"
+        return (f"{name} is {state}" + ("" if changed else " already") + ".", 0)
+    routine = loaded.get(name) if name else None
+    if name and routine is None:
+        return ("\n".join([f"{name} has problems; fix them first:"]
+                          + routines.problems_for(loaded, name)), 1)
+    if action == "preview":
+        lines = [f"{routine.title} ({routine.name}), {routine.state}",
+                 routines.describe(routine, config)]
+        if routine.action == "brief":
+            brief = routines.make_brief(store, config, store.now())
+            lines += ["", routines.render_brief(brief), "",
+                      "Preview only: nothing was written."]
+            return ("\n".join(lines), 0)
+        picks = routines.select(store, routine, config)
+        fresh = [p for p in picks if not p.status]
+        lines.append("")
+        lines.append(f"Would draft for {len(fresh)}:" if fresh else "Would draft for nobody now.")
+        lines += [f"- {p.who} | {p.reason} | {p.channel}" for p in fresh]
+        rest = [p for p in picks if p.status]
+        if rest:
+            lines.append("Not this time:")
+            lines += [f"- {p.who} | {p.status}" for p in rest]
+        if try_ai:
+            try:
+                pick, answer = routines.try_first(store, routine, enricher, config)
+            except (routines.RoutineError, routines.Rejected, EnrichError) as exc:
+                lines += ["", f"Try failed: {exc}"]
+                return ("\n".join(lines), 1)
+            if pick is None:
+                lines += ["", "Nothing to try: nobody would get a draft now."]
+            elif answer.skip:
+                lines += ["", f"The AI would skip {pick.who}: {answer.skip}"]
+            else:
+                lines += ["", f"Draft for {pick.who} ({answer.channel}), not saved:"]
+                if answer.subject:
+                    lines.append(f"Subject: {answer.subject}")
+                lines.append(answer.body.rstrip("\n"))
+        else:
+            lines += ["", "No AI was run and nothing was written. To see one draft: "
+                      f"hermitcrm routines preview {routine.name} --try"]
+        return ("\n".join(lines), 0)
+    # run: one routine by name (even a paused one: you asked for it), else all that are on
+    lines = routines.run_all(store, config, apply=apply, enricher=enricher,
+                             names=[name] if name else None)
+    if routine is not None and routine.paused:
+        lines.insert(0, f"{name} is paused; running it once because you asked.")
+    if not apply:
+        lines.append("Dry run: no AI, nothing written. Add --apply to draft and save.")
+    failed = any(": failed: " in line for line in lines)
+    return ("\n".join(lines), 1 if failed else 0)
 
 
 def _reload_server(config: dict) -> None:
@@ -1208,8 +1316,26 @@ def _build_parser() -> argparse.ArgumentParser:
     p_cal.add_argument("--ics", nargs="+", type=Path, default=[],
                        help="read these .ics files instead of the feed")
 
-    p_sync = sub.add_parser("sync", help="bcc, then calendar (the daily launchd run)")
+    p_sync = sub.add_parser("sync", help="bcc, then calendar, then routines that are on "
+                                         "(the daily launchd run)")
     p_sync.add_argument("--apply", action="store_true")
+
+    p_routines = sub.add_parser("routines", help="routines.toml: list, preview, run, "
+                                                 "turn on or off (drafts only, never sent)")
+    r_sub = p_routines.add_subparsers(dest="action")
+    r_sub.add_parser("list", help="every routine, on or paused, and its last run")
+    r_preview = r_sub.add_parser("preview", help="who it would pick now; no AI, no writes")
+    r_preview.add_argument("name")
+    r_preview.add_argument("--try", dest="try_ai", action="store_true",
+                           help="also show one AI draft for the first record, not saved")
+    r_run = r_sub.add_parser("run", help="run one routine (even a paused one), or all "
+                                         "that are on")
+    r_run.add_argument("name", nargs="?", default="")
+    r_run.add_argument("--apply", action="store_true")
+    for verb, text in (("on", "turn a routine on (it runs after each daily sync)"),
+                       ("off", "pause a routine")):
+        r_sub.add_parser(verb, help=text).add_argument("name")
+    p_routines.set_defaults(action="list", name="", apply=False, try_ai=False)
 
     p_help = sub.add_parser("help", help="how a feature works (the web app's /help pages)")
     p_help.add_argument("topic", nargs="?", default="",
@@ -1372,6 +1498,18 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
             text, code = cmd_sync(store, root, config, apply=args.apply)
         print(text)
         if code == 0 and args.apply:
+            _reload_server(config)
+        return code
+
+    if args.command == "routines":
+        config = load_config(root)
+        writes = args.action in ("on", "off") or (args.action == "run" and args.apply)
+        if writes:
+            store.on_write = _writer(store, root, config)
+        text, code = cmd_routines(store, root, config, action=args.action or "list",
+                                  name=args.name, apply=args.apply, try_ai=args.try_ai)
+        print(text)
+        if writes:
             _reload_server(config)
         return code
 

@@ -722,3 +722,23 @@ pre.theme-example { background: var(--surface-2); border: 1px solid var(--line);
 .disclaimer-tick input[type="checkbox"] { display: inline-block; width: auto; flex: none;
                                           margin-top: 3px; }
 .disclaimer-tick span { color: var(--text); font-size: 14px; line-height: 1.45; }
+
+/* Routines (routines.toml): drafts on Home, the morning brief, the preview page */
+.routine-drafts .drafts { align-items: flex-start; }
+.routine-draft p { margin: 2px 0; }
+.routine-draft label { margin: 6px 0 0; }
+.routine-draft .draft-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.routine-draft button.secondary { color: var(--muted); background: none; }
+.routine-drafts .tag, .routine-tried .tag, .tag.state-paused, .tag.state-on {
+  background: var(--subtle); border-radius: 3px; padding: 0 5px; font-size: 12px; font-weight: normal; }
+.tag.state-on { background: var(--ok-bg); }
+.routine-brief { max-width: 760px; }
+.routine-brief h2 { margin-top: 0; }
+.routine-brief h3 { margin: 10px 0 2px; font-size: 13px; }
+.routine-brief ul { margin: 0; padding-left: 18px; }
+.routine-problems { margin: 10px 0; }
+.routine-switch { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 12px; }
+.routine-prompt pre.body { white-space: pre-wrap; }
+table.routine-picks tr.muted-row td { color: var(--muted); }
+.routine-try { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; }
+.routine-tried { max-width: 760px; margin-top: 10px; }

@@ -75,7 +75,7 @@ hermitcrm enrich SLUG [--contact CSLUG] [--apply]
 hermitcrm bcc [--apply] [--eml FILE ...]   import BCC'd or forwarded mail (or .eml files)
 hermitcrm calendar [--apply] [--ics FILE ...]
                                         import past meetings from the ICS feed (or .ics files)
-hermitcrm sync [--apply]                   bcc, then calendar; what the daily job runs
+hermitcrm sync [--apply]                   bcc, then calendar, then every routine that is on; what the daily job runs
 hermitcrm backfill-history [--apply]       stage_history from git for companies without one
 ```
 
@@ -85,5 +85,17 @@ its index afterwards.
 `set` exits 0 for a dry run, a finished change and "nothing matches"; 2 when it
 refused the request before writing anything; 1 when a write was tried and rolled
 back (every file is as it was, nothing committed).
+
+## Routines
+
+```text
+hermitcrm routines [list]                  every routine in routines.toml, on or paused, and its last run
+hermitcrm routines preview NAME [--try]    who it would pick now, no AI and no writes; --try shows one AI draft, not saved
+hermitcrm routines run [NAME] [--apply]    one routine (even a paused one) or all that are on; one commit per routine
+hermitcrm routines on NAME                 turn it on: it runs after each daily sync (commit "routine: NAME: turned on")
+hermitcrm routines off NAME                pause it
+```
+
+Drafts go to Home, never out. See [Routines](/help/adjust-routines).
 
 Related: [Settings](/help/settings), [AI agents](/help/ai-agents), [Data format](/help/data-format), [Adjust: bulk changes](/help/adjust-bulk)

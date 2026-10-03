@@ -24,6 +24,7 @@ page for the screen you are on; `hermitcrm help <topic>` prints the same text.
 - [Extension](/help/extension): turn the page you are looking at into a company, from a bookmarklet.
 - [Enrich](/help/enrich): "Fetch from URL" (no AI) and Enrich (an AI CLI).
 - [Ask the Hermit](/help/ask): ask a question about the page you are on or the whole CRM.
+- [Routines](/help/adjust-routines): a morning brief, or AI drafts for quiet threads and replies you owe, after the daily sync (`routines.toml`). Drafts only; nothing is sent.
 - [Merge](/help/merge): merging two companies or two contacts.
 - [Backups and undo](/help/backups): a backup every few minutes that nothing can rewrite, and putting any version back.
 - [CLI](/help/cli): every `hermitcrm` command.
