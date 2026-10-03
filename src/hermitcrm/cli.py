@@ -1418,11 +1418,14 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
             print(migrations.dry_run(root))
             return 0
         note = migrations.ensure_current(root)
+        # Only when asked: a /hermit skill deleted on purpose stays deleted otherwise.
+        fixed = migrations.repair(root) if args.command == "migrate" else ""
     except migrations.FormatTooNew as exc:
         print(exc, file=sys.stderr)
         return 2
     if args.command == "migrate":
-        print(note or f"Data format {migrations.current_format(root)} is current.")
+        print("\n".join(line for line in (note, fixed) if line)
+              or f"Data format {migrations.current_format(root)} is current.")
         return 0
     if note:
         print(note, file=sys.stderr)

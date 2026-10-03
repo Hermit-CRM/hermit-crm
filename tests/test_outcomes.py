@@ -120,15 +120,16 @@ def test_m3_before_after(old_folder):
     folder = old_folder / "companies" / "acme" / "interactions"
     before = {name: (folder / f"{name}.md").read_text() for name in CASES}
     text = migrations.dry_run(old_folder)
-    assert "Data format 2 → 7" in text
+    assert "Data format 2 → 8" in text
     assert "3. interaction result folded into outcome: 9 file(s)" in text
 
     summary = migrations.ensure_current(old_folder)
-    assert summary.startswith("migrate: data format 2 → 7 (interaction result folded into "
+    assert summary.startswith("migrate: data format 2 → 8 (interaction result folded into "
                               "outcome; stage reached-out renamed to engaged; scores and "
                               "team size become fields you define; agents may not "
                               "rewrite history (.claude/settings.json); contact notes "
-                              "become note interactions)")
+                              "become note interactions; agents learn to adjust Hermit "
+                              "(/hermit skill))")
     for name, (_, after) in CASES.items():
         meta, body = split_file((folder / f"{name}.md").read_text())
         assert str(meta.get("outcome") or "") == after, name
@@ -139,7 +140,7 @@ def test_m3_before_after(old_folder):
     meta, _ = split_file((folder / "no-outcome-key.md").read_text())
     assert meta["outcome"] == "successful" and "result" not in meta
     assert list(meta).index("outcome") == list(meta).index("subject") + 1
-    assert (old_folder / ".hermitcrm-format").read_text() == "7\n"
+    assert (old_folder / ".hermitcrm-format").read_text() == "8\n"
     store = Store(old_folder)
     assert store.load() == []
     assert {i.id: i.outcome for i in store.get("acme").interactions}["f"] == "Wants a proposal"
