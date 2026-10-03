@@ -233,7 +233,7 @@ def test_the_home_page_only_shows_the_next_seven_days(client, app):
 
 def test_the_walkthrough_ticks_itself_from_the_data(client, app, repo):
     page = client.get("/welcome").text
-    assert "of 10</strong> done" in page
+    assert "of 11</strong> done" in page
     before = int(page.split("<strong>")[1].split(" of")[0])
 
     post_company(client, name="Acme")
@@ -1838,7 +1838,8 @@ def test_the_old_capture_paths_still_work(client, app):
 def test_the_nav_and_the_ask_button_carry_the_new_names(client):
     page = client.get("/").text
     assert ">Extension<" in page and ">Capture<" not in page
-    assert "Ask the Hermit" in page and ">Ask Hermit" not in page
+    # the Ask button became Ask · Adjust (Make it yours): one button, two tabs
+    assert "Ask &middot; Adjust" in page and ">Ask Hermit" not in page
 
 
 def test_the_company_header_lost_four_of_its_six_rows(client, app):
@@ -1916,6 +1917,17 @@ def test_the_companies_and_settings_tables_scroll_in_a_box_of_their_own(client, 
     assert companies.count('<table class="filterable">') == 1
     settings = client.get("/settings").text
     assert '<div class="table-scroll"><table class="fields-list small">' in settings
+
+
+def test_contacts_messages_and_report_tables_scroll_in_a_box_of_their_own(client):
+    """At 390px Contacts (580px), Messages (733px) and Reports (727px) pushed the
+    whole page sideways; Companies had been fixed and these three had not."""
+    post_company(client, name="Acme", country="NL", stage="prospect")
+    assert '<div class="table-scroll"><table class="filterable">' in client.get("/contacts").text
+    assert ('<div class="table-scroll"><table class="filterable messages">'
+            in client.get("/messages").text)
+    css = (Path(usertheme.__file__).parent / "static" / "style.css").read_text(encoding="utf-8")
+    assert re.search(r"\.report-grid > div \{[^}]*overflow-x: auto", css)
 
 
 def test_the_phone_rules_that_keep_companies_settings_and_the_disqualify_menu_on_the_screen():

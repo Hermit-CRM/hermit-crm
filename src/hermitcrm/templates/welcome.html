@@ -2,7 +2,7 @@
 {% block title %}Welcome{% endblock %}
 {% block content %}
 {# The same switch at the top and at the bottom, so nobody has to scroll past
-   ten steps to find the way out. #}
+   eleven steps to find the way out. #}
 {% macro startup_switch(hint) -%}
 <form method="post" action="/welcome/dismiss" class="inline">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -33,7 +33,7 @@
 {% else %}
 <form method="post" action="/sample" class="inline sample-offer">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <button type="submit">Load a sample account</button> <span class="small">Want to see a filled-in account first? One made-up company with its people, messages, a deal and tasks. You remove it in one click.</span>
+  <button type="submit">Load a sample account</button> <span class="small">Want to see a filled-in account first? One made-up company with its people, messages, a deal and tasks, plus a dashboard and a paused routine to show what you can build. You remove it in one click.</span>
 </form>
 {% endif %}
 

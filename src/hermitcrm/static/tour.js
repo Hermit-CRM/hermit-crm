@@ -36,7 +36,8 @@
     ["messages", "Messages", "What you sent, and whether it was answered."],
     ["capture", "Extension", "The bookmarklet: save the page you are on as a company, or a LinkedIn profile as a contact."],
     ["search", "Search", "Names, tags and people, from any page."],
-    ["ask", "Ask the Hermit", "A question in plain words, about this page or the whole CRM."],
+    ["ask", "Ask \u00b7 Adjust", "Ask: a question in plain words, about this page or the whole CRM. Adjust: a change to Hermit itself, built by your own AI agent."],
+    ["yours", "Make it yours", "Ideas to start from, what you have built, and every change with an Undo button."],
     ["settings", "Settings", "Mail and calendar capture, fields of your own, and the AI."]
   ];
 

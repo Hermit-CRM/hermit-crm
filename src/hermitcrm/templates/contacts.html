@@ -1,28 +1,40 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
+{# filter_columns are the columns shown, in order: the defaults, or
+   layout.toml's [contacts] columns (help: adjust-layout). #}
 {% block title %}Contacts{% endblock %}
 {% block content %}
 <h1>Contacts ({{ rows | length }}){% if q %} matching &ldquo;{{ q }}&rdquo;{% endif %}</h1>
 <p class="page-actions"><a class="button" href="/contacts/new">New contact</a> <a class="button" href="/import?mode=contacts">Import</a></p>
 {{ m.filter_form('contact-filters', '/contacts', active, q, sort, dir) }}
-<table class="filterable">
+<div class="table-scroll"><table class="filterable">
   <tr>{% for col in filter_columns %}<th>{{ col.label }} {{ m.sort_links(col, sort, dir, sort_url) }}</th>{% endfor %}</tr>
   <tr class="filters">{% for col in filter_columns %}<th>{{ m.filter_control(col, active, 'contact-filters') }}</th>{% endfor %}</tr>
+  {%- set custom = custom_fields_for('contact') %}
   {% for r in rows %}
   <tr>
+    {%- for col in filter_columns %}
+    {%- if col.key == 'name' %}
     <td><a href="/companies/{{ r.company_slug }}/contacts/{{ r.slug }}">{{ r.name }}</a></td>
+    {%- elif col.key == 'company_name' %}
     <td><a href="/companies/{{ r.company_slug }}">{{ r.company_name }}</a></td>
+    {%- elif col.key == 'title' %}
     <td>{{ r.title }}</td>
+    {%- elif col.key == 'email' %}
     <td>{% if r.email %}<a href="mailto:{{ r.email }}">{{ r.email }}</a>{% endif %}</td>
+    {%- elif col.key == 'linkedin' %}
     <td>{% if r.linkedin %}<a href="{{ r.linkedin | href }}" target="_blank" rel="noopener">{{ r.linkedin | replace('https://www.linkedin.com/in/', '') | replace('https://', '') }}</a>{% endif %}</td>
+    {%- elif col.key == 'last_touch' %}
     <td>{{ fmt_datetime(r.last_touch).replace('T', ' ') if r.last_touch else 'none' }}</td>
+    {%- elif col.key == 'interaction_count' %}
     <td>{{ r.interaction_count }}</td>
-    {% for f in custom_fields_for('contact') if f.shows_in('contacts') %}
-    <td>{{ f.display(r.extra.get(f.key)) }}</td>
-    {% endfor %}
+    {%- else %}
+    <td>{% for f in custom if f.key == col.key %}{{ f.display(r.extra.get(f.key)) }}{% endfor %}</td>
+    {%- endif %}
+    {%- endfor %}
   </tr>
   {% else %}
   <tr><td colspan="{{ filter_columns | length }}" class="empty">No contacts.</td></tr>
   {% endfor %}
-</table>
+</table></div>
 {% endblock %}

@@ -1,8 +1,18 @@
 # Hermit CRM
 
-> A free, open-source CRM for founders, freelancers and anyone doing their own sales. It keeps your companies, contacts and conversations as plain text files on your laptop, made to work with your AI tools. With a pipeline, a calendar, dashboards and enrichment from a company's website.
+> A free, open-source CRM for founders, freelancers and anyone doing their own sales. It keeps your companies, contacts and conversations as plain text files on your laptop, and your own AI agent can reshape it to fit how you work. With a pipeline, a calendar, dashboards and enrichment from a company's website.
 
 Hermit CRM is a free, open-source CRM for founders, freelancers and anyone doing their own sales. It runs on your Mac or Linux computer and keeps every company, contact and conversation as a Markdown file in a git folder on your own disk. A local web app gives you a pipeline board, a calendar of next steps, message drafts and reports. AI tools such as Claude Code, Codex or Claude Desktop can read and update the pipeline through the files, a small CLI or the built-in MCP server. It is alpha software under the Apache License 2.0, with no warranty and no support.
+
+## Make it yours, with your own AI
+
+Say what you want in one sentence. Your own AI agent (Claude Code, Codex, Cursor or Gemini CLI) builds it in your data folder, following recipes that come with Hermit, and you see it on the next page load.
+
+- A dashboard from one sentence: "Make a dashboard called Monday review with my open deals, what is due this week and the deals by stage with their value. Pin it to the sidebar." One new file, dashboards/monday-review.toml. The page is pinned in the sidebar, and every number opens the records behind it.
+- A new field: "Add a date field contract renewal to companies, shown on the company page and in the companies list." Seven lines in fields.toml. The field shows on every company page, and as a column you can sort and filter in the companies list.
+- A routine that drafts follow-ups: "Every morning, for people I messaged 7 days ago without a reply, draft a short follow-up. Never send anything." A routine in routines.toml. It starts paused, so you see first who it would pick. Once you turn it on, its drafts wait on Home for you to edit and send yourself.
+
+Safe to try. Every change is a git commit you can undo in one click. Routines only write drafts: they start paused, and Hermit never sends a message.
 
 ## Pages
 

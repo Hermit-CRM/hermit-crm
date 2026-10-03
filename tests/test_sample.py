@@ -24,7 +24,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from hermitcrm import cli, welcome
+from hermitcrm import adjust, cli, dashboards, routines, sample, welcome
 from hermitcrm.datafolder import init_folder
 from hermitcrm.models import ValidationError
 from hermitcrm.store import Store, load_config
@@ -198,7 +198,7 @@ def test_load_and_remove_from_the_web(folder):
         page = client.get(url)
         assert page.status_code == 200, url
         assert "sample-bar" in page.text and 'href="/sample/remove"' in page.text, url
-    assert "0 of 10" in client.get("/welcome").text   # the sample ticks nothing
+    assert "0 of 11" in client.get("/welcome").text   # the sample ticks nothing
     # a second load is refused with a message, not a second company
     r = client.post("/sample", data={"csrf_token": csrf})
     assert "already" in r.headers["location"].lower()
@@ -213,3 +213,236 @@ def test_load_and_remove_from_the_web(folder):
     assert log(folder)[0] == "sample: removed"
     home = client.get("/").text
     assert "sample-bar" not in home and 'action="/sample"' in home
+
+
+# ------------------------------------------------- the dashboard and the routine
+# Show before you ask (design 7.2): the sample comes with a pinned dashboard and
+# a paused routine, and takes back only what is still exactly as it wrote it.
+
+USER_DASHBOARD = 'title = "My own Monday"\n\n[[widget]]\ntype = "count"\nscope = "companies"\n'
+USER_ROUTINES = '''# my own routines
+[[routine]]
+name = "morning-brief"
+title = "Morning brief"
+action = "brief"
+'''
+
+
+def commit_all(folder: Path, message: str = "ai: adjust: by hand") -> None:
+    git(["add", "-A"], folder)
+    git(["-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", message],
+        folder)
+
+
+def dashboard_page(folder: Path) -> str:
+    _, client = make_client(folder)
+    page = client.get(sample.DASHBOARD_URL)
+    assert page.status_code == 200
+    return page.text
+
+
+def assert_every_widget_has_rows(page: str) -> None:
+    assert page.count('<section class="widget') == 5
+    assert 'class="empty"' not in page
+    counts = re.findall(r'<p class="widget-count"><a [^>]*>(\d+)</a>', page)
+    assert len(counts) == 2 and all(int(n) > 0 for n in counts)
+
+
+def test_add_writes_a_pinned_dashboard_and_a_paused_routine(folder, capsys):
+    cli_add(folder)
+    out = capsys.readouterr().out
+    assert "Monday review" in out and "Nudge quiet threads, paused" in out
+    assert (folder / sample.DASHBOARD).read_text() == sample.DASHBOARD_TEXT
+    assert (folder / sample.ROUTINES).read_text() == sample.ROUTINE_BLOCK
+    assert dashboards.pins(folder) == [{"title": "Monday review", "url": "/d/monday-review"}]
+    routine = routines.load(folder).get(sample.ROUTINE)
+    assert routine.paused and routine.title == "Nudge quiet threads"
+    assert dashboards.validate(folder) == [] and routines.validate(folder) == []
+    # one commit for the company and both files, nothing left over
+    assert log(folder)[0] == "sample: added" and len(log(folder)) == 2
+    changed = git(["show", "--name-only", "--format=", "HEAD"], folder).split()
+    assert {sample.DASHBOARD, sample.ROUTINES} <= set(changed)
+    assert git(["status", "--porcelain"], folder) == ""
+
+
+def test_every_widget_shows_rows_with_the_sample_alone(folder):
+    cli_add(folder)
+    assert_every_widget_has_rows(dashboard_page(folder))
+
+
+def test_add_overwrites_nothing(folder, capsys):
+    (folder / "dashboards").mkdir()
+    (folder / sample.DASHBOARD).write_text(USER_DASHBOARD)
+    mine = USER_ROUTINES.replace("morning-brief", sample.ROUTINE)
+    (folder / sample.ROUTINES).write_text(mine)
+    commit_all(folder)
+    cli_add(folder)
+    out = capsys.readouterr().out
+    assert "already exists" in out and f"already has a routine called {sample.ROUTINE}" in out
+    assert (folder / sample.DASHBOARD).read_text() == USER_DASHBOARD
+    assert (folder / sample.ROUTINES).read_text() == mine
+    # and remove leaves them alone too: they were never the sample's
+    assert cli.main(["--data", str(folder), "sample", "remove"]) == 0
+    out = capsys.readouterr().out
+    assert "Removed the sample: Northwind Robotics." in out and "Kept" not in out
+    assert (folder / sample.DASHBOARD).read_text() == USER_DASHBOARD
+    assert (folder / sample.ROUTINES).read_text() == mine
+
+
+def test_the_routine_joins_routines_already_there_and_leaves_them(folder, capsys):
+    (folder / sample.ROUTINES).write_text(USER_ROUTINES)
+    commit_all(folder)
+    cli_add(folder)
+    names = routines.load(folder).names
+    assert names == ["morning-brief", sample.ROUTINE]
+    assert routines.validate(folder) == []
+    capsys.readouterr()
+    assert cli.main(["--data", str(folder), "sample", "remove"]) == 0
+    out = capsys.readouterr().out
+    assert "the routine Nudge quiet threads" in out
+    assert "Kept your other routine in routines.toml: morning-brief." in out
+    assert (folder / sample.ROUTINES).read_text() == USER_ROUTINES  # byte for byte
+    assert not (folder / sample.DASHBOARD).exists()
+    assert git(["status", "--porcelain"], folder) == ""
+
+
+def test_a_routines_file_that_does_not_parse_gets_nothing_added(folder, capsys):
+    (folder / sample.ROUTINES).write_text("[[routine]\nname = 'x'\n")
+    commit_all(folder)
+    cli_add(folder)
+    assert "has a problem" in capsys.readouterr().out
+    assert (folder / sample.ROUTINES).read_text() == "[[routine]\nname = 'x'\n"
+    assert (folder / sample.DASHBOARD).exists()
+
+
+def test_a_routines_file_the_block_cannot_join_is_left_alone(folder, capsys):
+    """`routine = [{ ... }]` reads as one routine, but a [[routine]] block after
+    it makes the file unreadable, and then no routine runs."""
+    mine = 'routine = [{ name = "mine", action = "brief" }]\n'
+    (folder / sample.ROUTINES).write_text(mine)
+    commit_all(folder)
+    assert routines.load(folder).names == ["mine"]
+    cli_add(folder)
+    out = capsys.readouterr().out
+    assert "lists its routines in a way the sample routine cannot be added to" in out
+    assert (folder / sample.ROUTINES).read_text() == mine
+    assert routines.load(folder).names == ["mine"] and routines.validate(folder) == []
+    assert (folder / sample.DASHBOARD).exists()      # the rest of the sample still loads
+    assert cli.main(["--data", str(folder), "check"]) == 0
+
+
+def test_remove_keeps_a_dashboard_you_changed(folder, capsys):
+    cli_add(folder)
+    path = folder / sample.DASHBOARD
+    path.write_text(path.read_text().replace('period = "30d"', 'period = "90d"'))
+    commit_all(folder, "ai: adjust: dashboard Monday review, 90 days")
+    capsys.readouterr()
+    assert cli.main(["--data", str(folder), "sample", "remove"]) == 0
+    out = capsys.readouterr().out
+    assert "Kept dashboards/monday-review.toml" in out
+    assert "the routine Nudge quiet threads" in out and "the dashboard" not in out
+    assert path.exists() and not (folder / sample.ROUTINES).exists()
+    assert log(folder)[0] == "sample: removed"
+    assert git(["status", "--porcelain"], folder) == ""
+
+
+def test_a_routine_turned_on_is_yours_and_off_again_is_the_samples(folder, capsys):
+    cli_add(folder)
+    store = Store(folder)
+    store.load()
+    assert routines.set_paused(store, sample.ROUTINE, False)
+    assert sample.plan_removal(folder).files == [sample.DASHBOARD]
+    kept = sample.plan_removal(folder).kept
+    assert any("changed since the sample wrote it" in k for k in kept)
+    assert routines.set_paused(store, sample.ROUTINE, True)
+    assert (folder / sample.ROUTINES).read_text() == sample.ROUTINE_BLOCK
+    assert sample.plan_removal(folder).files == [sample.DASHBOARD, sample.ROUTINES]
+
+
+def test_remove_leaves_a_routine_you_changed(folder, capsys):
+    cli_add(folder)
+    path = folder / sample.ROUTINES
+    path.write_text(path.read_text().replace("days = 7", "days = 10"))
+    commit_all(folder)
+    capsys.readouterr()
+    assert cli.main(["--data", str(folder), "sample", "remove"]) == 0
+    out = capsys.readouterr().out
+    assert f"Kept the routine {sample.ROUTINE}" in out
+    assert "days = 10" in path.read_text()
+    assert not (folder / "dashboards").exists()
+
+
+def test_the_walkthrough_does_not_count_the_samples_files(folder):
+    cli_add(folder)
+    assert not adjust.has_adjusted_files(folder)
+    path = folder / sample.DASHBOARD
+    path.write_text(path.read_text().replace("pin = true", "pin = false"))
+    assert adjust.has_adjusted_files(folder)
+
+
+# ------------------------------------------------------------------ the demo folder
+
+
+@pytest.fixture
+def demo(tmp_path: Path) -> Path:
+    return init_folder(tmp_path / "demo", demo=True)
+
+
+def test_the_demo_folder_has_both_and_checks_clean(demo, capsys):
+    assert (demo / sample.DASHBOARD).read_text() == sample.DASHBOARD_TEXT
+    assert (demo / sample.ROUTINES).read_text() == sample.ROUTINE_BLOCK
+    assert cli.main(["--data", str(demo), "check"]) == 0
+    assert git(["status", "--porcelain"], demo) == ""
+    # the routine has someone to pick in the demo, so its preview is not empty
+    store = Store(demo)
+    store.load()
+    picks = routines.select(store, routines.load(demo).get(sample.ROUTINE))
+    assert [p for p in picks if not p.status]
+
+
+def test_the_demo_hub_sidebar_and_pages_show_them(demo):
+    _, client = make_client(demo)
+    hub = client.get("/yours").text
+    built = hub.split('id="built"', 1)[1].split('id="changes"', 1)[0]
+    assert 'href="/d/monday-review">Monday review</a>' in built
+    assert 'href="/yours/routines/nudge-quiet-threads">Nudge quiet threads</a>' in built
+    assert built.count("· sample") == 2 and "paused" in built
+    home = client.get("/").text
+    assert 'href="/d/monday-review"' in home  # pinned in the sidebar
+    assert_every_widget_has_rows(dashboard_page(demo))
+    page = client.get(sample.ROUTINE_URL)
+    assert page.status_code == 200 and "paused" in page.text and "Turn on" in page.text
+
+
+def test_sample_remove_in_the_demo_takes_the_two_files(demo, capsys):
+    assert cli.main(["--data", str(demo), "sample", "remove"]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("Removed the sample: the dashboard Monday review and the routine "
+                          "Nudge quiet threads.")
+    assert not (demo / "dashboards").exists() and not (demo / sample.ROUTINES).exists()
+    assert log(demo)[0] == "sample: removed"
+    assert git(["status", "--porcelain"], demo) == ""
+    assert cli.main(["--data", str(demo), "sample", "remove"]) == 0
+    assert "No sample account" in capsys.readouterr().out
+
+
+# ------------------------------------------------------------------ web
+
+
+def test_the_web_remove_page_lists_and_keeps(folder):
+    _, client = make_client(folder)
+    csrf = token(client)
+    r = client.post("/sample", data={"csrf_token": csrf})
+    assert "Monday review" in r.headers["location"].replace("%20", " ")
+    path = folder / sample.DASHBOARD
+    path.write_text(path.read_text().replace("pin = true", "pin = false"))
+    commit_all(folder)
+    page = client.get("/sample/remove").text
+    assert "Northwind Robotics" in page and "Nudge quiet threads" in page
+    assert 'href="/yours/routines/nudge-quiet-threads"' in page
+    assert "Kept dashboards/monday-review.toml" in page
+    made = page.split("Made with it", 1)[1].split("</div>", 1)[0]
+    assert "Nudge quiet threads" in made and "Monday review" not in made
+    r = client.post("/sample/remove", data={"csrf_token": csrf})
+    assert "Kept" in r.headers["location"].replace("%20", " ")
+    assert path.exists() and not (folder / sample.ROUTINES).exists()

@@ -4,10 +4,12 @@
 {% macro status(done, yes='done', no='pending') %}<span class="setup-status {{ 'done' if done else 'pending' }}">{{ yes if done else no }}</span>{% endmacro %}
 {% macro step_errors(step) %}{% set errs = form_errors.get(step, {}) %}{% if errs %}<div class="errors"><ul>{% for msg in errs.values() %}<li>{{ msg }}</li>{% endfor %}</ul></div>{% endif %}{% endmacro %}
 {% macro how(href) %}<a class="how" href="{{ href }}">How it works</a>{% endmacro %}
+{#- "or describe it": the same change, built by your own agent (Make it yours). -#}
+{% macro describe(section) %}<a class="describe-it" href="{{ starter_link(settings_starters[section]) }}">or describe it</a>{% endmacro %}
 {#- The page is five tabs. Each lists the section ids it holds, so a link or a
     redirect to a section (/settings#bcc) opens the tab it is on. -#}
 {% set groups = [
-  ('general', 'General', ['you', 'enrichment', 'appearance', 'support', 'about']),
+  ('general', 'General', ['make-it-yours', 'you', 'enrichment', 'appearance', 'support', 'about']),
   ('mail', 'Email & calendar', ['bcc', 'calendar']),
   ('crm', 'Your CRM', ['fields', 'messaging', 'task-types', 'outcomes']),
   ('backup', 'Backup', ['backup']),
@@ -32,6 +34,13 @@
 
 {# ================================================================= General #}
 {{ group_start('general') }}
+<section class="setup-step" id="make-it-yours">
+  <div class="setting-head"><h2>Make it yours with your AI</h2>{{ how('/help/adjust') }}</div>
+  <p class="summary">Describe a change, such as a field, a dashboard, a new look or a routine, and your own AI agent builds it in your data folder. Every change is one commit you can undo.</p>
+  <p class="meta">{% if handoff.how == 'copy' %}You get a prompt to paste into your agent; name the agent under AI below for a one-click button.{% else %}Requests go to {{ handoff.label }}; change that under AI below.{% endif %}</p>
+  <div class="actions"><a class="button primary" href="/yours">Open Make it yours</a></div>
+</section>
+
 <section class="setup-step" id="you">
   <div class="setting-head"><h2>You</h2>{{ status(state.you) }}</div>
   {% if state.you %}
@@ -93,6 +102,17 @@
       </div>
       <p class="small">Only for a CLI that names a model differently; an id set here is used on any account. A subscription is not entitled to every API model id, so on one Hermit CRM asks for no particular model where that matters.</p>
     </details>
+    <button type="submit">Save</button>
+  </form>
+  <h3>Make it yours hands requests to</h3>
+  <form method="post" action="/settings/adjust-agent" class="record-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Agent
+      <select name="agent">
+        {% for value, label in agent_choices %}<option value="{{ value }}"{% if value == handoff.chosen %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </label>
+    <p class="small">The agent that builds what you describe under <a href="/yours">Make it yours</a>, in <code>{{ handoff.folder_shown }}</code>. Claude Code and Cursor open with one click; Codex and Gemini CLI get a command to paste in a terminal; with none you copy the prompt into any agent.</p>
     <button type="submit">Save</button>
   </form>
 </section>
@@ -241,7 +261,7 @@
 {# ================================================================ Your CRM #}
 {{ group_start('crm') }}
 <section class="setup-step" id="fields">
-  <div class="setting-head"><h2>Fields</h2>{{ how('/help/settings#fields') }}</div>
+  <div class="setting-head"><h2>Fields</h2>{{ how('/help/settings#fields') }}{{ describe('fields') }}</div>
   <p class="summary">Fields of your own, on top of the ones Hermit CRM has. Their values live in your records' front matter; <code>fields.toml</code> describes them.</p>
   {{ step_errors('fields') }}
   {% if custom_field_defs %}
@@ -298,7 +318,7 @@
 </section>
 
 <section class="setup-step" id="messaging">
-  <div class="setting-head"><h2>Drafts</h2>{{ how('/help/messages') }}</div>
+  <div class="setting-head"><h2>Drafts</h2>{{ how('/help/messages') }}{{ describe('messaging') }}</div>
   <p class="summary">Outreach drafts can use any field of your own as <code>{{ '{' }}key{{ '}' }}</code>. These two also fill the sentences about team size; with neither set, those sentences leave a line for you to fill in.</p>
   {{ step_errors('messaging') }}
   <form method="post" action="/settings/messaging" class="record-form">
@@ -322,7 +342,7 @@
 </section>
 
 <section class="setup-step" id="task-types">
-  <div class="setting-head"><h2>Task types</h2></div>
+  <div class="setting-head"><h2>Task types</h2>{{ describe('task-types') }}</div>
   <p class="summary">Your own labels for tasks and next steps, used as filters. Renaming one renames it on every task; deleting one leaves it on its tasks, in grey.</p>
   {{ step_errors('task-types') }}
   <form method="post" action="/settings/task-types" class="record-form">
@@ -351,7 +371,7 @@
 </section>
 
 <section class="setup-step" id="outcomes">
-  <div class="setting-head"><h2>Outcomes</h2>{{ how('/help/settings#outcomes') }}</div>
+  <div class="setting-head"><h2>Outcomes</h2>{{ how('/help/settings#outcomes') }}{{ describe('outcomes') }}</div>
   <p class="summary">One per line, in order. The <strong>first</strong> is what a detected reply counts as; the <strong>last</strong> is what silence past the message window counts as.</p>
   {{ step_errors('outcomes') }}
   <form method="post" action="/settings/outcomes" class="record-form">
@@ -452,7 +472,7 @@
 
 <section class="setup-step" id="mcp">
   <div class="setting-head"><h2>Access from an AI app (MCP)</h2>{{ how('/help/ai-agents') }}</div>
-  <p class="summary">Lets Claude Desktop, ChatGPT desktop or Cursor on this computer read and write this CRM: your pipeline, the replies you owe, a brief before a meeting, and logging the call afterwards.</p>
+  <p class="summary">Lets Claude Desktop, ChatGPT desktop or Cursor on this computer read and write this CRM: your pipeline, the replies you owe, a brief before a meeting, and logging the call afterwards. It can also make Hermit yours (fields, dashboards, routines, the look), each change one commit you can undo.</p>
   <details class="edit">
     <summary>The config to paste</summary>
     <p class="small">Your AI app starts it for you: paste this into its MCP config. It talks over stdin and stdout, so the app must run on this computer.</p>

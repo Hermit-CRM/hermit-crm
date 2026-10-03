@@ -32,6 +32,7 @@ from __future__ import annotations
 import html
 import json
 import re
+import struct
 import sys
 import time
 import tomllib
@@ -203,6 +204,54 @@ def mock() -> str:
             f'<div class="mock-cols">{board}</div></div></div></div>')
 
 
+def png_size(path: Path) -> tuple[int, int]:
+    """Width and height of a PNG, from its header; (0, 0) when it is not one."""
+    try:
+        head = path.read_bytes()[:24]
+    except OSError:
+        return 0, 0
+    if head[:8] != b"\x89PNG\r\n\x1a\n" or head[12:16] != b"IHDR":
+        return 0, 0
+    return struct.unpack(">II", head[16:24])
+
+
+def yours_section(c: dict) -> str:
+    """Make it yours: the promise, three examples (what you type, what changes,
+    a screenshot of the result) and the safety line."""
+    y = c["yours"]
+    items = []
+    for e in y["examples"]:
+        w, h = png_size(SITE / "img" / e["image"])
+        size = f' width="{w}" height="{h}"' if w else ""
+        items.append(
+            f'      <li class="example">\n'
+            f'        <div class="example-text">\n'
+            f'          <h3>{md(e["name"])}</h3>\n'
+            f'          <p class="small-label">{md(y["prompt_label"])}</p>\n'
+            f'          <p class="said">{md(e["prompt"])}</p>\n'
+            f'          <p class="small-label">{md(y["change_label"])}</p>\n'
+            f'          <p class="change">{md(e["change"])}</p>\n'
+            f'        </div>\n'
+            f'        <figure class="window">\n'
+            f'          <div class="window-bar"><i></i><i></i><i></i><span>{md(e["address"])}</span></div>\n'
+            f'          <img src="img/{attr(e["image"])}" alt="{attr(e["alt"])}"{size} loading="lazy">\n'
+            f'        </figure>\n'
+            f'      </li>')
+    examples = "\n".join(items)
+    return f"""  <section class="yours wide" aria-labelledby="yours">
+    <div class="narrow">
+      <p class="label">{md(y["label"])}</p>
+      <h2 class="big" id="yours">{md(y["heading"])}</h2>
+      <p class="lead">{md(y["promise"])}</p>
+    </div>
+    <ol class="examples">
+{examples}
+    </ol>
+    <p class="safety narrow">{md(y["safety"])}</p>
+  </section>
+"""
+
+
 def render(c: dict, ld: str = "") -> str:
     p, h, i, f = c["page"], c["hero"], c["install"], c["file"]
     description = flat(p["description"] or h["subline"])
@@ -307,6 +356,9 @@ def render(c: dict, ld: str = "") -> str:
     </div>
   </section>
 
+  <hr class="rule blank">
+
+{yours_section(c)}
   <hr class="rule blank">
 
   <section class="features col" aria-labelledby="features">
@@ -648,9 +700,14 @@ def render_hub(c: dict, hub: dict, pages: list[dict]) -> str:
 def llms_txt(c: dict, hub: dict, pages: list[dict]) -> str:
     """llms.txt (llmstxt.org): a plain summary with links, for AI tools that read a site."""
     site = c["page"]["site_url"].rstrip("/")
+    y = c["yours"]
     lines = [f"# {c['header']['name']}", "", f"> {plain(c['hero']['subline'])}", "",
              plain(hub["hermit"]["about"]), "",
-             "## Pages", "", f"- [Home]({site}/): what it is, how to install it, questions and answers",
+             f"## {plain(y['heading']).rstrip('.')}", "", plain(y["promise"]), ""]
+    lines += [f'- {plain(e["name"])}: "{plain(e["prompt"])}" {plain(e["change"])}'
+              for e in y["examples"]]
+    lines += ["", plain(y["safety"]), "",
+              "## Pages", "", f"- [Home]({site}/): what it is, how to install it, questions and answers",
              f"- [Hermit CRM compared]({site}/compare/): {plain(hub['page']['description'])}", "",
              "## Comparisons", ""]
     lines += [f"- [Hermit CRM vs {p['name']}]({site}/compare/{p['slug']}/): {plain(p['short_answer'])}"
@@ -737,6 +794,10 @@ def check(c: dict, pages: list[dict] | None = None, hub: dict | None = None) -> 
     if c["file"]["screenshot"] and not (SITE / "img" / c["file"]["screenshot"]).exists():
         problems.append(f"site/img/{c['file']['screenshot']} does not exist")
         print(f"  warning  {problems[-1]}")
+    for e in c["yours"]["examples"]:
+        if png_size(SITE / "img" / e["image"]) == (0, 0):
+            problems.append(f"yours.examples: site/img/{e['image']} is missing or not a PNG")
+            print(f"  warning  {problems[-1]}")
     return problems, tbc
 
 

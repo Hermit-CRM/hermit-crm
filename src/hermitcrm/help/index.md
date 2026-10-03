@@ -9,7 +9,8 @@ page for the screen you are on; `hermitcrm help <topic>` prints the same text.
 
 ## Topics
 
-- **[Getting started](/welcome)**: ten steps, each ticked when it has actually happened, and a tour that points at each part of the screen.
+- **[Getting started](/welcome)**: eleven steps, each ticked when it has actually happened, and a tour that points at each part of the screen.
+- **[Make it yours](/help/adjust)**: describe a change and your own AI agent builds it in your data folder: fields, the look, dashboards, page layouts, routines, bulk changes. Every change can be undone in one click. The recipes your agent follows: [fields](/help/adjust-fields), [dashboards](/help/adjust-dashboards), [page layout](/help/adjust-layout), [bulk changes](/help/adjust-bulk), [routines](/help/adjust-routines), [messages](/help/adjust-messages), [the look](/help/adjust-look), [bringing data in](/help/adjust-connect), [something Hermit can't do yet](/help/adjust-feature).
 - **The home page** (`/`, the logo): Getting started, until every step is ticked or you click *Don't open this at startup*. After that: what is due in the next seven days, replies you owe and last month's numbers.
 - [Pipeline](/help/pipeline): the board, stages, filters and the closed lists.
 - [Calendar](/help/calendar): the month grid, meetings this week, silent accounts.

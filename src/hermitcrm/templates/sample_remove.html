@@ -2,7 +2,7 @@
 {% block title %}Remove the sample account{% endblock %}
 {% block content %}
 <h1>Remove the sample account</h1>
-{% if samples %}
+{% if samples or extras %}
 <p>This deletes the made-up records below in one commit. Anything you added to them goes too. Your own companies are not touched. The sample stays in the git history, and you can load it again from <a href="/welcome">Getting started</a>.</p>
 {% for c in samples %}
 <div class="card">
@@ -14,11 +14,24 @@
   </ul>
 </div>
 {% endfor %}
+{% if extras %}
+<div class="card">
+  <h3>Made with it</h3>
+  <ul class="small">
+    {% for x in extras %}<li><a href="{{ x.url }}">{{ x.label[:1] | upper }}{{ x.label[1:] }}</a> (<code>{{ x.file }}</code>)</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% if kept %}
+<p class="small">Stays: {{ kept | join(' ') }}</p>
+{% endif %}
 <form method="post" action="/sample/remove" class="inline">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <button type="submit">Remove the sample account</button> <a href="/">Keep it for now</a>
 </form>
 {% else %}
 <p>There is no sample account in this folder. <a href="/">Back to Home</a></p>
+{% if kept %}<p class="small">{{ kept | join(' ') }}</p>{% endif %}
 {% endif %}
 {% endblock %}

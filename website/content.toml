@@ -56,8 +56,8 @@ h1 = "A CRM for one."
 subline = """
 A free, open-source CRM for founders, freelancers and anyone doing their own
 sales. It keeps your companies, contacts and conversations as plain text files
-on your laptop, made to work with your AI tools. With a pipeline, a calendar,
-dashboards and enrichment from a company's website.
+on your laptop, and your own AI agent can reshape it to fit how you work. With a
+pipeline, a calendar, dashboards and enrichment from a company's website.
 """
 download_button = "Download for Mac and Linux"
 sha256_label    = "SHA-256"
@@ -100,8 +100,12 @@ name = "Messages"
 text = "Outreach drafts in English, German, Dutch or French, in your wording, and the outcome of every message."
 
 [[features.items]]
-name = "Dashboards"
+name = "Reports"
 text = "Weekly activity, funnel and conversion, time in stage, and which messages get answers."
+
+[[features.items]]
+name = "Dashboards"
+text = "Pages of your own with lists, counts and bar charts. Describe one in a sentence, your AI builds it, and you pin it to the sidebar."
 
 
 # ── The three principles (bold word, then the sentence) ──────────────
@@ -110,16 +114,65 @@ name = "Local."
 text = "It runs on your computer. Your data is a folder of Markdown files in git, on your own disk."
 
 [[principles]]
-name = "AI-native."
+name = "Your AI is the admin."
 text = """
-Plain files, a small CLI and an MCP server, so Claude Code, Codex or Claude
-Desktop can read your pipeline and log a call. Ask Hermit answers questions
-on every page.
+Plain files, a small CLI and an MCP server, so the agent you already use can
+read your pipeline, log a call and change how Hermit works. Ask Hermit answers
+questions on every page.
 """
 
 [[principles]]
-name = "Configurable."
-text = "Change the look, add fields and features, or ask your AI tool to change anything else. It is all open source."
+name = "Yours to change."
+text = """
+Press Adjust on any page and describe what you want: a dashboard, a field, a
+page layout, a routine. Your agent builds it, every change can be undone, and
+the code is open source.
+"""
+
+
+# ── Make it yours, with your own AI ──────────────────────────────────
+# Shown between "One company, one file" and "What you get". Each example is
+# the sentence you type, what changes in the data folder, and a screenshot of
+# the result in site/img/ (taken on a demo folder at 2x; see the README).
+[yours]
+label   = "Adjust"
+heading = "Make it yours, with your own AI."
+promise = """
+Say what you want in one sentence. Your own AI agent (Claude Code, Codex,
+Cursor or Gemini CLI) builds it in your data folder, following recipes that
+come with Hermit, and you see it on the next page load.
+"""
+prompt_label = "You type"
+change_label = "What changes"
+safety = """
+**Safe to try.** Every change is a git commit you can undo in one click.
+Routines only write drafts: they start paused, and Hermit never sends a
+message.
+"""
+
+[[yours.examples]]
+name    = "A dashboard from one sentence"
+prompt  = "Make a dashboard called Monday review with my open deals, what is due this week and the deals by stage with their value. Pin it to the sidebar."
+change  = "One new file, `dashboards/monday-review.toml`. The page is pinned in the sidebar, and every number opens the records behind it."
+image   = "make-it-yours-dashboard.png"
+alt     = "The Monday review dashboard in Hermit CRM, pinned in the sidebar: 3 open deals, 5 tasks due this week, the deals by stage and the open deals with their next step."
+address = "127.0.0.1:8765/d/monday-review"
+
+[[yours.examples]]
+name    = "A new field"
+prompt  = "Add a date field contract renewal to companies, shown on the company page and in the companies list."
+change  = "Seven lines in `fields.toml`. The field shows on every company page, and as a column you can sort and filter in the companies list."
+image   = "make-it-yours-field.png"
+alt     = "A company page in Hermit CRM with the new contract renewal field: its date in the header, and its input with a line of help in the form."
+address = "127.0.0.1:8765/companies/northwind-robotics"
+
+[[yours.examples]]
+name    = "A routine that drafts follow-ups"
+prompt  = "Every morning, for people I messaged 7 days ago without a reply, draft a short follow-up. Never send anything."
+change  = "A routine in `routines.toml`. It starts paused, so you see first who it would pick. Once you turn it on, its drafts wait on Home for you to edit and send yourself."
+image   = "make-it-yours-routine.png"
+alt     = "Home in Hermit CRM with a draft from the Nudge quiet threads routine: a short follow-up to a contact who has not replied in 20 days, with I sent it and Discard buttons."
+address = "127.0.0.1:8765"
 
 
 # ── One company, one file ────────────────────────────────────────────

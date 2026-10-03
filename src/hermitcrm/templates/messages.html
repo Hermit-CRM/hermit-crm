@@ -10,7 +10,7 @@
   <button type="submit">Search</button>
 </form>
 {{ m.filter_form('message-filters', '/messages', active, q, sort, dir) }}
-<table class="filterable messages">
+<div class="table-scroll"><table class="filterable messages">
   <tr>{% for col in filter_columns %}<th>{{ col.label }} {{ m.sort_links(col, sort, dir, sort_url) }}</th>{% endfor %}<th></th></tr>
   <tr class="filters">{% for col in filter_columns %}<th>{{ m.filter_control(col, active, 'message-filters') }}</th>{% endfor %}<th></th></tr>
   {% for r in rows %}
@@ -40,5 +40,5 @@
   {% else %}
   <tr><td colspan="{{ filter_columns | length }}" class="empty">No messages logged yet. Log an outbound interaction with a body and it shows up here.</td></tr>
   {% endfor %}
-</table>
+</table></div>
 {% endblock %}

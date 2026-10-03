@@ -163,78 +163,82 @@
 {%- endif %}
 {% endmacro %}
 
+{# `hide`: the fields layout.toml hides on the record page. A form leaves them
+   out entirely, so saving keeps their values (web.submitted_only). #}
 {% macro company_fields(values, errors) %}
+  {%- set hide = layout_hidden('company', errors) %}
   <div class="row">
     <label class="grow">name <input name="name" value="{{ values.name }}" required> {{ err(errors, 'name') }}</label>
-    <label>source
+    {% if 'source' not in hide %}<label>source
       <select name="source">
         {% for s in sources %}<option value="{{ s }}"{% if values.source == s %} selected{% endif %}>{{ s }}</option>{% endfor %}
       </select>
-    </label>
+    </label>{% endif %}
     <label>stage
       <select name="stage" id="stage">
         {% for s in stages %}<option value="{{ s }}"{% if values.stage == s %} selected{% endif %}>{{ s }}</option>{% endfor %}
       </select>
     </label>
   </div>
-  <div class="row">
-    <label class="grow">website <input name="website" value="{{ values.website }}"></label>
-    <label class="grow">linkedin <input name="linkedin" value="{{ values.linkedin }}"></label>
-    <label>country
+  {% if 'website' not in hide or 'linkedin' not in hide or 'country' not in hide %}<div class="row">
+    {% if 'website' not in hide %}<label class="grow">website <input name="website" value="{{ values.website }}"></label>{% endif %}
+    {% if 'linkedin' not in hide %}<label class="grow">linkedin <input name="linkedin" value="{{ values.linkedin }}"></label>{% endif %}
+    {% if 'country' not in hide %}<label>country
       <input name="country" value="{{ values.country }}" list="country-codes" size="4" maxlength="3" placeholder="DE" title="ISO 3166-1 alpha-2 code">
       <datalist id="country-codes">{% for c in countries %}<option value="{{ c }}">{% endfor %}</datalist>
-    </label>
-  </div>
-  <div class="row">
-    <label class="grow">reason (lost / disqualified) <input name="lost_reason" id="lost_reason" value="{{ values.lost_reason }}"> {{ err(errors, 'lost_reason') }}</label>
-    <label>requalify on (temp disqualified) <input type="date" name="requalify_on" value="{{ values.requalify_on }}"> {{ err(errors, 'requalify_on') }}</label>
-    <label>value EUR/month <input name="value_eur_month" value="{{ values.value_eur_month }}"> {{ err(errors, 'value_eur_month') }}</label>
-  </div>
-  <div class="row">
+    </label>{% endif %}
+  </div>{% endif %}
+  {% if 'lost_reason' not in hide or 'requalify_on' not in hide or 'value_eur_month' not in hide %}<div class="row">
+    {% if 'lost_reason' not in hide %}<label class="grow">reason (lost / disqualified) <input name="lost_reason" id="lost_reason" value="{{ values.lost_reason }}"> {{ err(errors, 'lost_reason') }}</label>{% endif %}
+    {% if 'requalify_on' not in hide %}<label>requalify on (temp disqualified) <input type="date" name="requalify_on" value="{{ values.requalify_on }}"> {{ err(errors, 'requalify_on') }}</label>{% endif %}
+    {% if 'value_eur_month' not in hide %}<label>value EUR/month <input name="value_eur_month" value="{{ values.value_eur_month }}"> {{ err(errors, 'value_eur_month') }}</label>{% endif %}
+  </div>{% endif %}
+  {% if 'product_oneliner' not in hide %}<div class="row">
     <label class="grow">product oneliner <input name="product_oneliner" value="{{ values.product_oneliner }}"></label>
-  </div>
-  {{ custom_fields(custom_fields_for('company'), values, errors) }}
-  <div class="row">
-    <label class="grow">next step <input name="next_step" value="{{ values.next_step }}"></label>
-    <label>due <input type="date" name="next_step_due" value="{{ values.next_step_due }}"> {{ err(errors, 'next_step_due') }}</label>
-    <label>status
+  </div>{% endif %}
+  {{ custom_fields(custom_fields_for('company') | rejectattr('key', 'in', hide) | list, values, errors) }}
+  {% if 'next_step' not in hide or 'next_step_due' not in hide or 'next_step_status' not in hide or (type_names() and 'next_step_type' not in hide) %}<div class="row">
+    {% if 'next_step' not in hide %}<label class="grow">next step <input name="next_step" value="{{ values.next_step }}"></label>{% endif %}
+    {% if 'next_step_due' not in hide %}<label>due <input type="date" name="next_step_due" value="{{ values.next_step_due }}"> {{ err(errors, 'next_step_due') }}</label>{% endif %}
+    {% if 'next_step_status' not in hide %}<label>status
       <select name="next_step_status">
         {% for t in task_statuses %}<option value="{{ t }}"{% if values.next_step_status == t %} selected{% endif %}>{{ t }}</option>{% endfor %}
       </select>
-    </label>
-    {% if type_names() %}<label>type {{ type_select(values.next_step_type, name='next_step_type') }}</label>{% endif %}
-  </div>
-  <label>tags (comma separated) <input name="tags" value="{{ values.tags }}"></label>
-  <label>notes <textarea name="notes" rows="8">{{ values.notes }}</textarea></label>
+    </label>{% endif %}
+    {% if type_names() and 'next_step_type' not in hide %}<label>type {{ type_select(values.next_step_type, name='next_step_type') }}</label>{% endif %}
+  </div>{% endif %}
+  {% if 'tags' not in hide %}<label>tags (comma separated) <input name="tags" value="{{ values.tags }}"></label>{% endif %}
+  {% if 'notes' not in hide %}<label>notes <textarea name="notes" rows="8">{{ values.notes }}</textarea></label>{% endif %}
 {% endmacro %}
 
 {% macro contact_fields(values, errors) %}
+  {%- set hide = layout_hidden('contact', errors) %}
   <div class="row">
     <label class="grow">first name <input name="first_name" value="{{ values.first_name }}"> {{ err(errors, 'first_name') }}</label>
     <label class="grow">last name <input name="last_name" value="{{ values.last_name }}"></label>
-    <label class="grow">title <input name="title" value="{{ values.title }}"></label>
-    <label>role
+    {% if 'title' not in hide %}<label class="grow">title <input name="title" value="{{ values.title }}"></label>{% endif %}
+    {% if 'role' not in hide %}<label>role
       <select name="role">
         <option value=""{% if not values.role %} selected{% endif %}>-</option>
         {% for r in roles %}<option value="{{ r }}"{% if values.role == r %} selected{% endif %}>{{ r }}</option>{% endfor %}
       </select>
-    </label>
+    </label>{% endif %}
     {% set lang = (values.language or '') | trim | lower %}
-    <label>draft language
+    {% if 'language' not in hide %}<label>draft language
       <select name="language">
         <option value=""{% if not lang %} selected{% endif %}>from country</option>
         {% for code, name in language_names.items() %}<option value="{{ code }}"{% if lang == code %} selected{% endif %}>{{ name }}</option>{% endfor %}
         {# A hand-typed code without templates stays selected, so saving the form keeps it. #}
         {% if lang and lang not in language_names %}<option value="{{ lang }}" selected>{{ lang }} (no templates)</option>{% endif %}
       </select>
-    </label>
+    </label>{% endif %}
   </div>
-  <div class="row">
-    <label class="grow">email <input name="email" value="{{ values.email }}"></label>
-    <label class="grow">phone <input name="phone" value="{{ values.phone }}"></label>
-    <label class="grow">linkedin <input name="linkedin" value="{{ values.linkedin }}"></label>
-  </div>
-  {{ custom_fields(custom_fields_for('contact'), values, errors) }}
+  {% if 'email' not in hide or 'phone' not in hide or 'linkedin' not in hide %}<div class="row">
+    {% if 'email' not in hide %}<label class="grow">email <input name="email" value="{{ values.email }}"></label>{% endif %}
+    {% if 'phone' not in hide %}<label class="grow">phone <input name="phone" value="{{ values.phone }}"></label>{% endif %}
+    {% if 'linkedin' not in hide %}<label class="grow">linkedin <input name="linkedin" value="{{ values.linkedin }}"></label>{% endif %}
+  </div>{% endif %}
+  {{ custom_fields(custom_fields_for('contact') | rejectattr('key', 'in', hide) | list, values, errors) }}
 {% endmacro %}
 
 {% macro timeline(company, interactions) %}
@@ -394,3 +398,27 @@
 </form>
 {% endif %}
 {%- endmacro %}
+
+{# The handoff to the user's own agent (Make it yours): a request box and the
+   buttons for the agent config.toml names. static/adjust.js builds the prompt,
+   the link and the command from these data attributes as the user types, the
+   same way adjust.handoff() does; the hint lines below say what each one does. #}
+{% macro handoff(h, id, page_title='', path='', label='Describe a change', text='', more=false) %}
+<div class="handoff" data-agent="{{ h.agent }}" data-folder="{{ h.folder }}" data-page-title="{{ page_title }}" data-path="{{ path }}" data-limit="{{ h.limit }}">
+  <label class="small" for="{{ id }}">{{ label }}</label>
+  <textarea id="{{ id }}" class="request" data-request rows="3" placeholder="e.g. a list of everyone I met in September who has no next step">{{ text }}</textarea>
+  <div class="ask-actions wrap">
+    {% if h.how == 'link' %}<a class="button primary" data-open href="#" aria-disabled="true">{{ h.button }}</a>{% endif %}
+    {% if h.how == 'command' %}<button type="button" class="primary" data-copy="command">{{ h.button }}</button>{% endif %}
+    <button type="button" data-copy="prompt"{% if h.how == 'copy' %} class="primary"{% endif %}>Copy prompt</button>
+    <span class="small" data-copied role="status"></span>
+    {% if more %}<a class="small more-ideas" href="/yours">More ideas</a>{% endif %}
+  </div>
+  {% if h.how == 'link' %}<p class="small warning" data-too-long hidden>Too long for a link: over {{ h.limit }} bytes, and longer links fail without a word on macOS. Copy the prompt and paste it into {{ h.label }} instead.</p>{% endif %}
+  {% if h.agent == 'claude' %}<p class="small" data-link-hint>Opens a terminal in your data folder with the request typed in. Nothing runs until you press Enter. Nothing opened? Run <code>claude</code> once in a terminal, then try again.</p>
+  {% elif h.agent == 'cursor' %}<p class="small" data-link-hint>Open your data folder (<code>{{ h.folder_shown }}</code>) in Cursor first: the request goes to the Cursor window in front. Nothing runs until you press Enter.</p>
+  {% elif h.how == 'command' %}<p class="small">Paste the command in a terminal and press Enter: {{ h.label }} starts in your data folder with the request.</p>
+  {% else %}<p class="small">Paste the prompt into your AI agent, started in your data folder (<code>{{ h.folder_shown }}</code>). <a href="/settings#enrichment">Name your agent</a> to get a one-click button.</p>{% endif %}
+  <details class="sent-as-box"><summary class="small">What your agent receives</summary><p class="sent-as" data-sent-as></p></details>
+</div>
+{% endmacro %}
