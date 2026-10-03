@@ -1068,6 +1068,11 @@ def cmd_routines(store: Store, root: Path, config: dict, action: str = "list",
             what = r.action if r.action == "brief" else f"{r.select} -> draft"
             lines.append(f"{n} | {r.state} | {r.title} | {what} | "
                          f"{routines.last_run_text(state.get(n))}")
+        blocked = routines.ai_problem(enricher if enricher is not None
+                                      else routines.default_enricher(config)) \
+            if any(r.action == "draft" for r in loaded.routines) else ""
+        if blocked:
+            lines.append(f"Drafting is refused: {blocked}")
         waiting = len(routines.drafts(root))
         lines.append(f"Drafts waiting on Home: {waiting}")
         lines += loaded.errors
@@ -1119,7 +1124,10 @@ def cmd_routines(store: Store, root: Path, config: dict, action: str = "list",
                     lines.append(f"Subject: {answer.subject}")
                 lines.append(answer.body.rstrip("\n"))
         else:
-            lines += ["", "No AI was run and nothing was written. To see one draft: "
+            blocked = routines.ai_problem(enricher if enricher is not None
+                                          else routines.default_enricher(config))
+            lines += ["", f"The AI step is refused: {blocked}" if blocked else
+                      "No AI was run and nothing was written. To see one draft: "
                       f"hermitcrm routines preview {routine.name} --try"]
         return ("\n".join(lines), 0)
     # run: one routine by name (even a paused one: you asked for it), else all that are on
@@ -1463,7 +1471,20 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
         return cmd_schedule(root, args.action, at=args.at, serve=args.serve,
                             backup=not args.no_backup, backup_every=args.backup_every)
 
-    store = build_store(root)
+    if args.command == "check":
+        # config.toml first: a value of the wrong kind (`outcomes = 5`) or a
+        # file that does not parse stops the store being built, and a line
+        # that names the problem is worth more than a traceback.
+        try:
+            store = build_store(root)
+        except Exception as exc:
+            from hermitcrm import adjust
+            lines = adjust.validate_config(root) or [
+                f"config.toml: file: cannot be used ({type(exc).__name__}: {exc})"]
+            print("\n".join(lines))
+            return 1
+    else:
+        store = build_store(root)
 
     if args.command == "mcp":
         return cmd_mcp(root, store, stdin=stdin)

@@ -14,6 +14,7 @@
 
 {% if routine %}
 <p>{{ description }}</p>
+{% if ai_problem %}<p class="errors routine-problems"><strong>The AI step will not run.</strong> {{ ai_problem }}.</p>{% endif %}
 <div class="routine-switch">
   <form method="post" action="/yours/routines/{{ name }}/{{ 'on' if routine.paused else 'off' }}" class="inline">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -49,7 +50,7 @@
   {% endfor %}
 </table>
 </div>
-{% if fresh %}
+{% if fresh and not ai_problem %}
 <form method="post" action="/yours/routines/{{ name }}/try" class="inline routine-try">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <button type="submit">Try the AI on the first one</button>

@@ -11,6 +11,12 @@
 </div>
 {% endif %}
 
+{% if ai_problem %}
+<div class="errors routine-problems">
+  <strong>Routines that draft will not run.</strong> {{ ai_problem }}.
+</div>
+{% endif %}
+
 {% if not present %}
 <p class="empty">No routines yet. Ask your agent for one, for example: "Every morning, for people I messaged on LinkedIn 7 days ago without a reply, draft a short follow-up. Never send anything." It writes <code>routines.toml</code>; the routine starts paused so you can preview it first.</p>
 {% else %}

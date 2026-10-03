@@ -205,9 +205,18 @@ def write_extras(root: Path | str) -> tuple[list[str], list[str]]:
     else:
         if text and not text.endswith("\n"):
             text += "\n"
+        new_text = text + ("\n" if text.strip() else "") + ROUTINE_BLOCK
+        # routines.toml may list its routines in a form a `[[routine]]` block
+        # cannot join (`routine = [{ ... }]`): then the file would stop parsing
+        # and no routine would run. Only write what reads back with one more.
+        after = _routine_names(new_text)
+        if after is None or len(after) != len(names) + 1 or ROUTINE not in after:
+            kept.append(f"{ROUTINES} lists its routines in a way the sample routine cannot "
+                        "be added to (a routine = [...] list on one line?), so it was "
+                        "not added.")
+            return wrote, kept
         try:
-            file.write_text(text + ("\n" if text.strip() else "") + ROUTINE_BLOCK,
-                            encoding="utf-8")
+            file.write_text(new_text, encoding="utf-8")
             wrote.append(ROUTINES)
         except OSError as exc:
             kept.append(f"{ROUTINES} could not be written ({exc.strerror or exc}).")

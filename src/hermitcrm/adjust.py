@@ -670,9 +670,19 @@ def _load_toml(path: Path, problems: list[str]) -> dict | None:
     return None
 
 
-# config.toml keys an agent may write (design 6.3), plus the agent choice.
-EXTENSION_KEYS = ("task_types", "outcomes", "silent_days", "message_window_days",
-                  AGENT_KEY)
+# The config.toml keys an agent may write without asking (design 6.3). The agent
+# rules (datafolder.AGENT_ADJUST_RULES), help/adjust.md and the MCP adjust_config
+# tool name exactly these three.
+AGENT_CONFIG_KEYS = ("task_types", "outcomes", "silent_days")
+# What `check` suggests for a key written almost like one of these ("did you
+# mean"). Not a list of what an agent may write: message_window_days and the
+# choice of agent are the user's, checked here only so a wrong value is named.
+HINT_KEYS = (*AGENT_CONFIG_KEYS, "message_window_days", AGENT_KEY)
+
+
+# The one config.toml problem that is only a warning: the app still reads the
+# rest of the file (web.py shows it in the banner and loads on).
+UNKNOWN_KEY = "not a setting Hermit reads"
 
 
 def validate_config(root: Path) -> list[str]:
@@ -685,12 +695,12 @@ def validate_config(root: Path) -> list[str]:
         return problems
     from .store import DEFAULT_CONFIG
 
-    known = set(DEFAULT_CONFIG) | set(EXTENSION_KEYS)
+    known = set(DEFAULT_CONFIG) | set(HINT_KEYS)
     for key in data:
         if key not in known:
-            hint = near(key, EXTENSION_KEYS)
+            hint = near(key, HINT_KEYS)
             if hint:
-                problems.append(f"config.toml: {key}: not a setting Hermit reads{hint}")
+                problems.append(f"config.toml: {key}: {UNKNOWN_KEY}{hint}")
     if AGENT_KEY in data:
         value = str(data[AGENT_KEY]).strip().lower()
         if value and value not in AGENTS:
@@ -729,6 +739,12 @@ def validate_config(root: Path) -> list[str]:
         if key in data and (not isinstance(data[key], int) or isinstance(data[key], bool)
                             or data[key] < 1):
             problems.append(f"config.toml: {key}: must be a whole number of days, 1 or more")
+    # The follow-up thresholds are not for an agent to change, but the app reads
+    # them as whole numbers, so a word there is named instead of crashing a page.
+    for key in ("followup_reply_days", "followup_nudge_days"):
+        if key in data and (not isinstance(data[key], int) or isinstance(data[key], bool)
+                            or data[key] < 0):
+            problems.append(f"config.toml: {key}: must be a whole number of days, 0 or more")
     return problems
 
 

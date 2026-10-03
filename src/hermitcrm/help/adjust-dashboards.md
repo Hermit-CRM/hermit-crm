@@ -60,7 +60,7 @@ on exactly the records you counted.
   put `-` in front for Z to A: `sort = "-fit_score"`. Empty values go last.
   Without it, rows come in the list page's own order.
 - `limit`: how many rows a list shows (default 20; the rest are one click
-  away), or how many bars a group draws (default 20).
+  away), or how many bars a group draws (default 20). At most 50.
 - `by` (group only): the column to count per value. A list value such as
   `tags` counts once per tag.
 - `when` (tasks only): the Tasks page's date buttons, one or a list of

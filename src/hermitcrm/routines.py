@@ -16,8 +16,12 @@
 
 Python decides who a routine is about: the follow-up radar (quiet threads,
 replies owed) or the list filters. Only then, for `action = "draft"`, the AI
-CLI that Enrich uses writes one message per record, with no tools, and returns
-JSON that is checked like an Enrich proposal. A draft is a file in `drafts/`,
+CLI that Enrich uses writes one message per record, and returns JSON that is
+checked like an Enrich proposal. The text it reads includes messages from other
+people, so it runs with no tools (Claude Code), or in a read-only sandbox
+(Codex: it can read files, not change anything). A CLI with no such switch
+(Gemini, Grok, a custom command) is refused with a one-line reason, never run
+unrestricted. A draft is a file in `drafts/`,
 shown on Home under "Drafts from routines". Nothing is ever sent: the user
 sends it, then clicks "I sent it" to log it, or discards it.
 `action = "brief"` uses no AI: a short morning summary shown on Home that day.
@@ -882,8 +886,16 @@ def clean_answer(data, routine: Routine, pick: Pick) -> Answer:
     return Answer(channel=channel, subject=subject, body=body + "\n")
 
 
+def ai_problem(enricher) -> str:
+    """Why the AI step of a draft routine would be refused with this CLI, or "":
+    a CLI that cannot be held to "no tools" (see Enricher.no_tools_problem)."""
+    check = getattr(enricher, "no_tools_problem", None)
+    return check() if check else ""
+
+
 def ask_ai(store: Store, routine: Routine, pick: Pick, enricher, config: dict) -> Answer:
-    """One AI run for one record, with no tools. Raises Rejected or EnrichError."""
+    """One AI run for one record, with no tools (see the module docstring for what
+    that means per CLI). Raises Rejected or EnrichError."""
     data = enricher.runner(draft_prompt(store, routine, pick, config), DRAFT_SCHEMA,
                            tools="")
     return clean_answer(data, routine, pick)
@@ -980,6 +992,8 @@ def run(store: Store, routine: Routine, apply: bool = False, enricher=None,
         enricher = enricher if enricher is not None else default_enricher(config)
         if not enricher.available:
             raise RoutineError(enricher.unavailable_reason())
+        if ai_problem(enricher):
+            raise RoutineError(ai_problem(enricher))
     wrote = False
     try:
         for pick in picks:
@@ -1025,6 +1039,8 @@ def try_first(store: Store, routine: Routine, enricher=None, config: dict | None
     enricher = enricher if enricher is not None else default_enricher(config)
     if not enricher.available:
         raise RoutineError(enricher.unavailable_reason())
+    if ai_problem(enricher):
+        raise RoutineError(ai_problem(enricher))
     return pick, ask_ai(store, routine, pick, enricher, config)
 
 
@@ -1073,6 +1089,9 @@ def run_all(store: Store, config: dict | None = None, apply: bool = False, enric
             n = sum(1 for line in result.lines if line.startswith("would draft"))
             out.append(f"{routine.name}: would draft for {n} record{'s' if n != 1 else ''} "
                        "(dry run, no AI)")
+            blocked = ai_problem(ai())
+            if blocked:
+                out.append(f"  but a real run would be refused: {blocked}")
         else:
             out.append(f"{routine.name}: {result.summary()}")
         out += [f"  {line}" for line in result.lines]
