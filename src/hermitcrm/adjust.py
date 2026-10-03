@@ -507,7 +507,7 @@ def suggestions(store, defs: list, config: dict, values: dict, today, window: in
     if unknown >= 5:
         out.append({"text": f"{unknown} messages from the last {window} days still have "
                             "outcome **unknown**.",
-                    "starter": "routine-outcomes", "action": "Add a weekly reminder routine"})
+                    "starter": "dashboard-messages", "action": "Make a dashboard of them"})
     unused = unused_fields(companies)
     if unused:
         out.append({"text": f"No company uses **{OPTIONAL_FIELDS[unused[0]]}**.",
