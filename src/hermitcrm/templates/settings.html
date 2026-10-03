@@ -45,7 +45,7 @@
     <label>BCC address <input name="address" value="{{ bcc_form.address }}" placeholder="you+crm@gmail.com"></label>
     <label>IMAP server <input name="imap_host" id="bcc-imap-host" value="{{ bcc_form.imap_host }}" placeholder="imap.gmail.com"></label>
     <label>App password <input type="password" name="password" value="" autocomplete="new-password" placeholder="{{ 'stored; leave empty to keep it' if state.bcc else '' }}"></label>
-    {% if os_store %}<label class="inline"><input type="checkbox" name="keychain" value="1" checked style="display:inline;width:auto"> Store the password in {{ os_store_label }}</label>{% endif %}
+    {% if os_store %}<label class="check"><input type="checkbox" name="keychain" value="1" checked> Store the password in {{ os_store_label }}</label>{% endif %}
     <button type="submit">Save</button>
   </form>
   {% if gmail_filter %}
@@ -77,7 +77,7 @@
   {{ step_errors('calendar') }}
   <form method="post" action="/settings/calendar" class="record-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label>Secret ICS address <input type="password" name="url" value="" autocomplete="off"></label>
+    <label>Secret ICS address <input type="password" name="url" value="" autocomplete="off" placeholder="{{ 'stored; leave empty to keep it' if state.calendar else '' }}"></label>
     <button type="submit">Save and test (dry run)</button>
   </form>
   <div class="bcc-status">
@@ -126,8 +126,8 @@
   </details>
   <h3>Online copy (optional){% if state.remote %} {{ status(true) }}{% endif %}</h3>
   <p class="small">The backup above lives on the same disk as your data. For a copy that survives a lost laptop, push the folder to a git remote after every change.</p>
-  <p class="warning"><strong>The repository must be PRIVATE</strong> on GitHub, GitLab or Bitbucket: it holds your contacts and mail.</p>
-  {% if remote_warning %}<p class="warning">{{ remote_warning }}</p>{% endif %}
+  {% if remote_warning %}<p class="warning">{{ remote_warning }}</p>
+  {% else %}<p class="warning"><strong>The repository must be PRIVATE</strong> on GitHub, GitLab or Bitbucket: it holds your contacts and mail.</p>{% endif %}
   <form method="post" action="/settings/backup" class="record-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label>Git remote URL <input name="url" value="{{ remote_url }}" placeholder="git@github.com:you/crm.git"></label>
@@ -191,18 +191,18 @@
         <select name="type">{% for t in field_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select>
       </label>
       <label>on
-        <select name="applies_to">{% for sc in field_scopes %}<option value="{{ sc }}">{{ sc }}</option>{% endfor %}</select>
+        <select name="applies_to" id="field-applies-to">{% for sc in field_scopes %}<option value="{{ sc }}">{{ sc }}</option>{% endfor %}</select>
       </label>
     </div>
     <div class="row">
       <label class="grow">options, comma separated (select only) <input name="options" placeholder="smb, mid-market, enterprise"></label>
       <label class="grow">help text under the input <input name="help"></label>
     </div>
-    <label class="inline"><input type="checkbox" name="messaging" value="on" checked> Outreach templates may use it as <code>{key}</code></label>
-    <fieldset class="switch">
+    <label class="check"><input type="checkbox" name="messaging" value="on" checked> Outreach templates may use it as <code>{key}</code></label>
+    <fieldset class="switch across" id="field-show-in">
       <legend>Shown in</legend>
       {% for view in ['detail', 'board', 'companies', 'contacts', 'messages'] %}
-      <label class="inline"><input type="checkbox" name="show_in" value="{{ view }}"{% if view == 'detail' %} checked{% endif %}> {{ view }}</label>
+      <label data-scopes="{% for sc in field_scopes if view in field_views[sc] %}{{ sc }} {% endfor %}"><input type="checkbox" name="show_in" value="{{ view }}"{% if view == 'detail' %} checked{% endif %}> {{ view }}</label>
       {% endfor %}
     </fieldset>
     <p class="small">A field only appears where its record does: <code>board</code> and <code>companies</code> for a company field, <code>contacts</code> for a contact, <code>messages</code> for an interaction. Wherever it appears as a column it can be filtered and sorted like any other.</p>
@@ -387,6 +387,22 @@
       n.hidden = n.dataset.provider !== select.value;
     });
   });
+})();
+// "Shown in" offers only the places a field of the chosen record can appear;
+// without this script all five show and the server names a wrong one.
+(function () {
+  var scope = document.getElementById("field-applies-to");
+  var places = document.getElementById("field-show-in");
+  if (!scope || !places) return;
+  function offer() {
+    places.querySelectorAll("label[data-scopes]").forEach(function (label) {
+      var fits = label.dataset.scopes.split(" ").indexOf(scope.value) !== -1;
+      label.hidden = !fits;
+      if (!fits) label.querySelector("input").checked = false;
+    });
+  }
+  scope.addEventListener("change", offer);
+  offer();
 })();
 </script>
 {% endblock %}
