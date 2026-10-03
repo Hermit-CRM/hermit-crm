@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
+{# With companies in the folder, the sections come in layout.toml's order
+   (help: adjust-layout); their names, in the default order: doing, to-file,
+   owed, going. The empty-folder start and Getting started do not move. #}
 {% block title %}Hermit CRM{% endblock %}
 {% block content %}
 <h1>Hermit CRM</h1>
@@ -17,7 +20,7 @@
 </div>
 {% if items %}{% include "to_file.html" %}{% endif %}
 {% else %}
-
+{% for section in layout_sections('home') %}{% if section == 'doing' %}
 <h2 id="doing">What needs doing</h2>
 <table>
   <tr><th>due</th><th>for</th><th>what</th><th></th></tr>
@@ -33,9 +36,9 @@
   {% endfor %}
 </table>
 <p class="small"><a href="/tasks">All tasks, with filters</a> &middot; <a href="/calendar">the calendar</a>.</p>
-
+{% elif section == 'to-file' %}
 {% if items %}{% include "to_file.html" %}{% endif %}
-
+{% elif section == 'owed' %}
 {% if followups %}
 <h2 id="owed">Replies you owe ({{ followups | length }})</h2>
 <table>
@@ -50,7 +53,7 @@
   {% endfor %}
 </table>
 {% endif %}
-
+{% elif section == 'going' %}
 <h2 id="going">How it is going <span class="small">last 30 days</span></h2>
 <div class="start-cards numbers">
   <a class="card start-card" href="/reports"><h3>{{ totals.interactions }}</h3><div class="small">interactions <span class="delta">{{ delta(totals.interactions, previous.interactions) }}</span></div></a>
@@ -58,7 +61,7 @@
   <a class="card start-card" href="/reports"><h3>{{ totals.new_companies }}</h3><div class="small">new companies <span class="delta">{{ delta(totals.new_companies, previous.new_companies) }}</span></div></a>
   <a class="card start-card" href="/pipeline"><h3>{{ counts.companies }}</h3><div class="small">companies in the folder</div></a>
 </div>
-{% endif %}
+{% endif %}{% endfor %}{% endif %}
 
 {# The beginner block: the walkthrough's own switch decides whether it is here. #}
 {% if intro %}
