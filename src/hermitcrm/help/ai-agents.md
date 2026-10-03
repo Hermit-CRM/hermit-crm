@@ -186,7 +186,10 @@ page asks an agent to keep are enforced rather than only written down:
   makes no commit and comes back as `<file>: <where>: <what>` lines to fix. A
   file with changes that are not committed yet is not overwritten.
 - A routine written this way arrives paused (`paused = true`, and the answer
-  says so), unless it was already on. The user previews it and turns it on.
+  says so), unless it was already on and you left what it does alone: change
+  its selector, filters, prompt, action, channel, days or limit and it is paused
+  again (only `title` and `paused` may differ). The user previews it and turns
+  it on.
 - `adjust_config` changes only `task_types`, `outcomes` and `silent_days`,
   through the same code Settings saves them with.
 - `bulk_apply` refuses unless its `preview_id` comes from a `bulk_preview` of

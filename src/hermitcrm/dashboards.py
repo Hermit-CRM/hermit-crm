@@ -47,7 +47,7 @@ from urllib.parse import urlencode
 
 from . import fields as custom
 from . import task_types
-from .filters import _text  # the text a filter compares: group values must be the same
+from .filters import _text, matches  # the text a filter compares: group values must be the same
 from .store import DEFAULT_CONFIG, load_config
 
 logger = logging.getLogger("crm.dashboards")
@@ -61,6 +61,7 @@ SECTIONS = ("activity", "funnel", "outcomes", "messages", "sources", "hygiene")
 PERIODS = ("7d", "30d", "90d", "quarter", "ytd", "all")
 DEFAULT_PERIOD = "30d"
 DEFAULT_LIMIT = 20
+MAX_LIMIT = 50   # rows of a list, bars of a group: more is a page of its own
 TOP_KEYS = ("title", "pin", "description", "widget")
 WIDGET_KEYS = {
     "list": ("type", "title", "scope", "filters", "columns", "sort", "limit", "when"),
@@ -390,6 +391,8 @@ def widget_problems(w, columns: dict, defs: list = ()) -> list[str]:
         limit = w["limit"]
         if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
             out.append(f"limit must be a whole number above 0, not {limit!r}")
+        elif limit > MAX_LIMIT:
+            out.append(f"limit may be at most {MAX_LIMIT}")
 
     if kind == "report":
         section = w.get("section")
@@ -571,7 +574,7 @@ def _list_view(w, scope, columns, listing) -> dict:
         pairs += [("sort", sort.lstrip("-")), ("dir", "desc" if sort.startswith("-") else "asc")]
     found = listing(scope, _params(pairs))
     shown = [by_key[k] for k in w.get("columns", DEFAULT_COLUMNS[scope]) if k in by_key]
-    limit = int(w.get("limit", DEFAULT_LIMIT))
+    limit = min(int(w.get("limit", DEFAULT_LIMIT)), MAX_LIMIT)
     rows = [{"href": row_href(scope, r), "cells": [cell(c.value(r)) for c in shown]}
             for r in found.rows[:limit]]
     return {"columns": shown, "rows": rows, "total": len(found.rows),
@@ -619,6 +622,16 @@ def _bar_spec(col, value: str, listed: bool):
     return value if listed else "=" + value
 
 
+def _bar_count(col, rows, spec) -> int:
+    """How many of `rows` the list page's filter `spec` on `col` keeps (the
+    page reads a text filter trimmed, and an empty one as no filter)."""
+    if not isinstance(spec, list):
+        spec = spec.strip()
+        if not spec:
+            return len(rows)
+    return sum(1 for r in rows if matches(col, col.value(r), spec))
+
+
 def _group_view(w, scope, columns, listing) -> dict:
     col = next(c for c in columns if c.key == w["by"])
     base_pairs = filter_pairs(w)
@@ -629,8 +642,13 @@ def _group_view(w, scope, columns, listing) -> dict:
         values = sorted(prelim, key=lambda v: (v == "", order.get(v, len(order)), v))
     else:
         values = sorted(prelim, key=lambda v: (v == "", -prelim[v], v.lower()))
-    limit = int(w.get("limit", DEFAULT_LIMIT))
+    limit = min(int(w.get("limit", DEFAULT_LIMIT)), MAX_LIMIT)
     others = [(k, v) for k, v in base_pairs if k != f"f_{col.key}"]
+    # A bar's rows are the widget's rows that have its value, so they are
+    # counted from `base.rows` with the list pages' own matcher. Only a widget
+    # that filters the grouped column itself is asked page by page: its bars
+    # drop that filter, so they can hold rows `base` left out.
+    own = len(others) != len(base_pairs)
     bars = []
     for value in values[:limit]:
         spec = _bar_spec(col, value, listed)
@@ -641,7 +659,10 @@ def _group_view(w, scope, columns, listing) -> dict:
         pairs = others + [(f"f_{col.key}", s) for s in specs]
         # The count is what the page shows for the bar's link, so a click
         # always lands on exactly that many records.
-        count = len(listing(scope, _params(pairs)).rows)
+        if own:
+            count = len(listing(scope, _params(pairs)).rows)
+        else:
+            count = _bar_count(col, base.rows, spec)
         bars.append({"label": value or EMPTY, "count": count, "url": page_url(scope, pairs)})
     return {"bars": bars, "max": max((b["count"] for b in bars), default=0),
             "total": len(base.rows), "url": page_url(scope, base_pairs),

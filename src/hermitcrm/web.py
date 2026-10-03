@@ -952,59 +952,116 @@ def create_app(root: Path, config: dict | None = None,
         config_reloaded()
         setup_steps.commit_config(root, store.notify)
 
+    # What is wrong with a file the app re-reads while it runs, by file name:
+    # the banner on every page, until the file is fixed.
+    file_problems: dict[str, list[str]] = {}
+
+    def derived_settings(cfg: dict) -> dict:
+        """Everything the app works out from config.toml, built into one dict
+        before any of it is used: a value of the wrong kind raises here, while
+        the app still holds the settings it had."""
+        outcome_names = [str(o) for o in (cfg.get("outcomes") or DEFAULT_OUTCOMES)]
+        types = task_types.from_config(cfg.get("task_types"))
+        return {
+            "bcc": bcc.settings_from_config(cfg),
+            "calendar": calendar_sync.settings_from_config(cfg),
+            "push_enabled": bool(cfg.get("push_enabled", True)),
+            "remote": str(cfg.get("remote", "origin")),
+            "silent_days": int(cfg.get("silent_days", 14)),
+            "outcomes": outcome_names,
+            "statuses": message_statuses(outcome_names),
+            "types": types,
+            "type_names": task_types.names(types),
+            "message_window": int(cfg.get("message_window_days", 14)),
+            "enricher": build_enricher(cfg),
+            "custom_fields": load_custom_fields(),
+            "followups": {
+                "reply_after": int(cfg.get("followup_reply_days",
+                                           DEFAULT_CONFIG["followup_reply_days"])),
+                "nudge_after": int(cfg.get("followup_nudge_days",
+                                           DEFAULT_CONFIG["followup_nudge_days"]))},
+        }
+
     def config_reloaded() -> None:
         """Re-read config.toml and rebuild everything derived from it, without
         committing: a Settings save commits after this (config_saved), and an
-        agent's edit is the agent's to commit. A config.toml that no longer
-        parses keeps the settings the app had; `hermitcrm check` names the line."""
+        agent's edit is the agent's to commit.
+
+        Nothing is replaced until the whole new file has been checked and every
+        derived value built. A config.toml that does not parse, or holds a value
+        of the wrong kind (`outcomes = 5`), keeps the settings the app had and
+        puts the reason in the banner; `hermitcrm check` names the same line."""
         nonlocal message_window
-        try:
-            fresh = load_config(root)
-        except (OSError, ValueError) as exc:  # tomllib.TOMLDecodeError is a ValueError
-            logger.warning("config.toml not re-read: %s", exc)
-            watched["config.toml"] = file_stamp("config.toml")
+        # The stamp first, whatever happens: a file that cannot be used is read
+        # once, not again on every page.
+        watched["config.toml"] = file_stamp("config.toml")
+        problems = adjust.validate_config(root)
+        # A near-miss key name (`silent_dayz`) is shown, but the rest still loads.
+        derived = None
+        if not [p for p in problems if adjust.UNKNOWN_KEY not in p]:
+            try:
+                fresh = load_config(root)
+                keep = {k: config[k] for k in ("start_update_check",) if k in config}
+                derived = derived_settings({**fresh, **keep})
+            except Exception as exc:  # OSError, ValueError, TypeError ...
+                logger.warning("config.toml not used: %s", exc)
+                problems.append(f"config.toml: a setting has a value of the wrong kind "
+                                f"({type(exc).__name__}: {exc})")
+        if problems:
+            file_problems["config.toml"] = problems
+        else:
+            file_problems.pop("config.toml", None)
+        if derived is None:
             return
-        keep = {k: config[k] for k in ("start_update_check",) if k in config}
         config.clear()
         config.update(fresh, **keep)
-        app.state.bcc_settings = bcc.settings_from_config(config)
-        app.state.calendar_settings = calendar_sync.settings_from_config(config)
-        gitops.push_enabled = bool(config.get("push_enabled", True))
-        gitops.remote = str(config.get("remote", "origin"))
-        store.silent_days = int(config.get("silent_days", 14))
+        app.state.bcc_settings = derived["bcc"]
+        app.state.calendar_settings = derived["calendar"]
+        gitops.push_enabled = derived["push_enabled"]
+        gitops.remote = derived["remote"]
+        store.silent_days = derived["silent_days"]
         # In place, so the routes and the template global that hold this list
         # see the new outcomes; the store keeps its own copy.
-        outcomes[:] = [str(o) for o in (config.get("outcomes") or DEFAULT_OUTCOMES)]
+        outcomes[:] = derived["outcomes"]
         store.outcomes = list(outcomes)
-        templates.env.globals["message_statuses"][:] = message_statuses(outcomes)
-        app.state.task_types = task_types.from_config(config.get("task_types"))
-        store.task_types = task_types.names(app.state.task_types)
-        message_window = int(config.get("message_window_days", 14))
-        app.state.enricher = build_enricher(config)
-        app.state.custom_fields = load_custom_fields()
-        followup_days.update(
-            reply_after=int(config.get("followup_reply_days",
-                                       DEFAULT_CONFIG["followup_reply_days"])),
-            nudge_after=int(config.get("followup_nudge_days",
-                                       DEFAULT_CONFIG["followup_nudge_days"])))
+        templates.env.globals["message_statuses"][:] = derived["statuses"]
+        app.state.task_types = derived["types"]
+        store.task_types = derived["type_names"]
+        message_window = derived["message_window"]
+        app.state.enricher = derived["enricher"]
+        app.state.custom_fields = derived["custom_fields"]
+        followup_days.update(derived["followups"])
         cal_url_cache.clear()
         current_setup_state(refresh=True)
-        watched["config.toml"] = file_stamp("config.toml")
         watched[custom.FILENAME] = file_stamp(custom.FILENAME)
 
     def messages_reloaded() -> None:
-        """Re-read messages.toml: the drafts and the labels the pages show."""
+        """Re-read messages.toml: the drafts and the labels the pages show. A
+        file that does not read, or does not write a draft, keeps the wording
+        the app had and puts the reason in the banner."""
         watched[messaging.MESSAGES_FILE] = file_stamp(messaging.MESSAGES_FILE)
-        try:
-            fresh = messaging.load_messages(root)
-        except Exception as exc:  # a broken file keeps the wording the app had
-            logger.warning("messages.toml not re-read: %s", exc)
+        problems = adjust.validate_messages(root)
+        fresh = None
+        if not problems:
+            try:
+                fresh = messaging.load_messages(root)
+                labels = (("signal_labels", messaging.signal_labels(fresh)),
+                          ("language_names", messaging.language_names(fresh)))
+            except Exception as exc:
+                logger.warning("messages.toml not used: %s", exc)
+                fresh = None
+                problems.append(f"{messaging.MESSAGES_FILE}: file: cannot be used "
+                                f"({type(exc).__name__}: {exc})")
+        if problems:
+            file_problems[messaging.MESSAGES_FILE] = problems
+        else:
+            file_problems.pop(messaging.MESSAGES_FILE, None)
+        if fresh is None:
             return
         app.state.messages = fresh
         # In place: an imported macro module (macros.html) keeps the dicts it
         # was first given, so a new dict would never reach the drafts section.
-        for name, value in (("signal_labels", messaging.signal_labels(fresh)),
-                            ("language_names", messaging.language_names(fresh))):
+        for name, value in labels:
             templates.env.globals[name].clear()
             templates.env.globals[name].update(value)
 
@@ -1259,6 +1316,7 @@ def create_app(root: Path, config: dict | None = None,
                                                       if request.url.query else "")),
             "model_label": model_label,
             "samples": sample.samples(store),
+            "file_problems": [line for lines in file_problems.values() for line in lines],
         }
         context.update(ctx)
         context.update(adjust_context(request, context))
@@ -3267,9 +3325,11 @@ def create_app(root: Path, config: dict | None = None,
                "last_run": routines.last_run_text(state),
                "waiting": [d for d in routines.drafts(root) if d.routine == name],
                "picks": [], "brief": None, "tried": None, "tried_pick": None,
-               "try_error": ""}
+               "try_error": "", "ai_problem": ""}
         if routine is not None:
             ctx["description"] = routines.describe(routine, config)
+            if routine.action == "draft":
+                ctx["ai_problem"] = routines.ai_problem(app.state.enricher)
             try:
                 if routine.action == "brief":
                     ctx["brief"] = routines.make_brief(store, config, store.now())
@@ -3290,8 +3350,10 @@ def create_app(root: Path, config: dict | None = None,
         valid = {r.name: r for r in loaded.routines}
         rows = [{"name": n, "routine": valid.get(n),
                  "last_run": routines.last_run_text(state.get(n))} for n in loaded.names]
+        drafting = any(r.action == "draft" for r in loaded.routines)
         return render(request, "routines.html", {
             "present": loaded.present, "rows": rows, "problems": loaded.errors,
+            "ai_problem": routines.ai_problem(app.state.enricher) if drafting else "",
             "waiting": len(routines.drafts(root))})
 
     @app.get("/yours/routines/{name}", response_class=HTMLResponse)

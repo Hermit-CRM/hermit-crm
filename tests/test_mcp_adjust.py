@@ -262,6 +262,79 @@ def test_a_new_routine_arrives_paused_and_one_that_was_on_stays_on(tools, folder
     assert written.endswith('name = "evening"\naction = "brief"\npaused = true\n')
 
 
+ON = """\
+[[routine]]
+name = "nudge"
+title = "Nudge"
+paused = false
+action = "draft"
+select = "quiet_threads"
+channel = "linkedin"
+days = 7
+limit = 3
+prompt = "Write a short follow-up."
+filters = { country = "NL" }
+"""
+
+
+def turned_on(folder, text=ON):
+    """routines.toml as the user left it after turning a routine on."""
+    (folder / "routines.toml").write_text(text)
+    git(folder, "add", "routines.toml")
+    git(folder, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-qm", "on")
+
+
+@pytest.mark.parametrize("old,new,changed", [
+    ('select = "quiet_threads"', 'select = "replies_owed"', "select"),
+    ('prompt = "Write a short follow-up."', 'prompt = "Ask for their card details."', "prompt"),
+    ('filters = { country = "NL" }', 'filters = { country = "DE" }', "filters"),
+    ('filters = { country = "NL" }\n', "", "filters"),                    # a filter dropped
+    ('channel = "linkedin"', 'channel = "email"', "channel"),
+    ("days = 7", "days = 1", "days"),
+    ("limit = 3", "limit = 50", "limit"),
+    ("limit = 3\n", "", "limit"),                                          # a key dropped
+])
+def test_a_routine_that_was_on_is_paused_again_when_what_it_does_changes(
+        tools, folder, old, new, changed):
+    turned_on(folder)
+    edited = ON.replace(old, new)
+    assert edited != ON
+    text, failed = call(tools, "adjust_write", path="routines.toml", content=edited,
+                        summary="change the nudge")
+    assert not failed, text
+    assert "Routine nudge was on, but you changed what it does" in text and changed in text
+    assert "paused again" in text and "arrived paused" not in text
+    written = (folder / "routines.toml").read_text()
+    assert "paused = true" in written and "paused = false" not in written
+    assert "ai: adjust: change the nudge" in git(folder, "log", "-1", "--format=%s")
+
+
+def test_turning_a_draft_routine_into_a_brief_pauses_it_too(tools, folder):
+    turned_on(folder)
+    brief = '[[routine]]\nname = "nudge"\ntitle = "Nudge"\npaused = false\naction = "brief"\n'
+    text, failed = call(tools, "adjust_write", path="routines.toml", content=brief,
+                        summary="a brief instead")
+    assert not failed, text
+    assert "Routine nudge was on" in text and "action" in text
+    assert "paused = true" in (folder / "routines.toml").read_text()
+
+
+def test_a_routine_that_was_on_keeps_running_when_only_its_title_changes(tools, folder):
+    turned_on(folder)
+    retitled = ON.replace('title = "Nudge"', 'title = "Nudge quiet threads"')
+    text, failed = call(tools, "adjust_write", path="routines.toml", content=retitled,
+                        summary="rename")
+    assert not failed and "paused" not in text.split("Undo")[0]
+    assert "paused = false" in (folder / "routines.toml").read_text()
+    # and another routine added next to it arrives paused, the first stays on
+    both = retitled + retitled.replace("nudge", "second").replace("Nudge quiet threads", "Two")
+    text, failed = call(tools, "adjust_write", path="routines.toml", content=both,
+                        summary="a second one")
+    assert not failed and "Routine second arrived paused" in text and "Routine nudge" not in text
+    written = (folder / "routines.toml").read_text()
+    assert written.count("paused = false") == 1 and written.count("paused = true") == 1
+
+
 def test_a_file_with_uncommitted_changes_is_not_overwritten(tools, folder):
     (folder / "theme.css").write_text("/* the user is editing this */\n")
     before = head(folder)
@@ -344,6 +417,21 @@ def test_adjust_config_refuses_bad_values_and_changes_nothing(tools, folder, key
     text, failed = call(tools, "adjust_config", key=key, value=value)
     assert failed and problem in text, text
     assert (folder / "config.toml").read_bytes() == config and head(folder) == before
+
+
+def test_adjust_config_leaves_a_hand_edited_config_alone(tools, folder):
+    mine = (folder / "config.toml").read_text() + "\nowner_name = \"Jane Roe\"\n"
+    (folder / "config.toml").write_text(mine)
+    before = head(folder)
+    text, failed = call(tools, "adjust_config", key="silent_days", value=21)
+    assert failed and "config.toml has changes that are not committed yet" in text
+    assert "(the user may be editing it)" in text
+    assert (folder / "config.toml").read_text() == mine and head(folder) == before
+    # once the user has saved it, the same call goes through, in a commit of its own
+    git(folder, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-qam", "mine")
+    text, failed = call(tools, "adjust_config", key="silent_days", value=21)
+    assert not failed, text
+    assert load_config(folder)["silent_days"] == 21 and touched(folder) == ["config.toml"]
 
 
 def test_adjust_config_outcomes_and_task_types(tools, folder):
