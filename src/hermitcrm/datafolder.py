@@ -616,8 +616,12 @@ class _Demo:
 
 
 def load_demo(path: Path, now: datetime) -> Store:
-    """Eight fictional companies spread over the last six weeks, every stage."""
+    """Eight fictional companies spread over the last six weeks, every stage,
+    and the sample account's dashboard and paused routine."""
+    from . import sample
+
     fields.write(path, DEMO_FIELDS)
+    sample.write_extras(path)
     store = Store(path)
     store.load()
     demo = _Demo(store, now.date())

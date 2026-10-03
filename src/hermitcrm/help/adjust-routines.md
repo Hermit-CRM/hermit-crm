@@ -136,6 +136,12 @@ must check or decide myself in [square brackets]. Keep my usual tone.
 """
 ```
 
+The sample account (`hermitcrm sample add`, and `init --demo`) writes a paused
+`nudge-quiet-threads` routine like the second one, for any channel, under a
+comment that starts "A sample routine". Change it in place when the user asks
+for one like it; once changed (or turned on) it is the user's, and
+`hermitcrm sample remove` leaves it.
+
 A `records` routine, for "first messages to high-score prospects never
 contacted":
 

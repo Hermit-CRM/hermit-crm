@@ -205,6 +205,12 @@ The replies you owe are worked out from who wrote last (Home's follow-up
 list, `hermitcrm followups`), not by a list page, so a dashboard cannot show
 them yet. Say so, and point to Home.
 
+The sample account (`hermitcrm sample add`, and `init --demo`) writes its own
+`dashboards/monday-review.toml`, which starts with the comment "A sample
+dashboard". When the user asks for a Monday review and that file is there,
+change it in place rather than writing a second one. Once it is changed it is
+the user's, and `hermitcrm sample remove` leaves it.
+
 ## Example: partners
 
 "Show me my partners: how many, the quietest first, and where they are."

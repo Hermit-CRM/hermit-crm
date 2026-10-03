@@ -164,7 +164,7 @@ h1 { margin: 0; font-size: 72px; font-weight: 400; line-height: 1.05; letter-spa
 .principles p { margin: 0; }
 
 /* ── One company, one file ──────────────────────────────────────── */
-.idea h2.big { margin: 12px 0 0; font-size: 48px; font-weight: 400; line-height: 1.1; letter-spacing: -.01em; }
+.idea h2.big, .yours h2.big { margin: 12px 0 0; font-size: 48px; font-weight: 400; line-height: 1.1; letter-spacing: -.01em; }
 .idea-grid { margin-top: 56px; display: grid; grid-template-columns: 620px minmax(0, 1fr); gap: 40px; align-items: start; }
 .window {
   margin: 0; border-radius: 12px; overflow: hidden;
@@ -184,6 +184,20 @@ h1 { margin: 0; font-size: 72px; font-weight: 400; line-height: 1.05; letter-spa
 }
 .file pre .path { color: var(--muted); }
 .idea .after { margin-top: 40px; }
+
+/* ── Make it yours: what you type, what changes, the result ─────── */
+.yours .lead { margin-top: 24px; }
+.examples { margin: 56px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 80px; }
+.example { display: grid; grid-template-columns: minmax(0, 1fr) 620px; gap: 40px; align-items: start; }
+.example-text { padding-top: 6px; }
+.example h3 { margin: 0 0 20px; font-size: 26px; font-weight: 500; line-height: 1.25; }
+.small-label { margin: 0 0 8px; font-size: 16px; font-weight: 600; color: var(--muted); font-variant-caps: all-small-caps; letter-spacing: .09em; }
+.said {
+  margin: 0 0 24px; background: var(--card); border: 1px solid var(--rule); border-radius: 14px;
+  padding: 18px 20px; font-family: var(--mono); font-size: 15px; line-height: 1.6;
+}
+.change { margin: 0; font-size: 17px; line-height: 1.55; }
+.yours .safety { margin-top: 64px; }
 
 /* ── Requirements ───────────────────────────────────────────────── */
 .requirements h2 { margin-bottom: 20px; }
@@ -280,6 +294,8 @@ details p { margin: 0 0 24px; }
 @media (max-width: 1100px) {
   .idea-grid { grid-template-columns: minmax(0, 1fr); gap: 28px; max-width: var(--col); margin-inline: auto; }
   .file { padding-top: 0; }
+  .example { grid-template-columns: minmax(0, 1fr); gap: 28px; max-width: var(--col); margin-inline: auto; }
+  .example-text { padding-top: 0; }
 }
 @media (max-width: 720px) {
   :root { --gap: 88px; }
@@ -298,7 +314,12 @@ details p { margin: 0 0 24px; }
   .features dl { grid-template-columns: minmax(0, 1fr); }
   .features dt { padding: 16px 0 2px; }
   .features dd { padding: 0 0 18px; border-top: 0; }
-  .idea h2.big { font-size: 34px; line-height: 1.12; }
+  .idea h2.big, .yours h2.big { font-size: 34px; line-height: 1.12; }
+  .lead { font-size: 19px; }
+  .examples { margin-top: 36px; gap: 56px; }
+  .example h3 { font-size: 22px; margin-bottom: 14px; }
+  .said { font-size: 15px; padding: 16px; }
+  .yours .safety { margin-top: 48px; }
   .idea-grid { margin-top: 32px; }
   .window { border-radius: 10px; }
   .window-bar span { margin-right: 40px; }
