@@ -198,7 +198,9 @@ def split_file(text: str) -> tuple[dict, str]:
     # text above because frontmatter strips trailing whitespace from content.
     try:
         meta = frontmatter.loads(f"---\n{meta_text}---\n").metadata if meta_text.strip() else {}
-    except yaml.YAMLError as exc:
+    except (yaml.YAMLError, ValueError) as exc:
+        # ValueError: PyYAML turns `2026-13-45` into a date and fails on the month.
+        # A field of your own (a renewal date) is exactly where that gets typed.
         raise ValidationError({"file": f"invalid YAML front matter: {exc}"})
     return meta or {}, body
 
