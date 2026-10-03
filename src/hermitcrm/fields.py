@@ -201,8 +201,14 @@ def load(root: Path | str) -> list[FieldDef]:
     path = Path(root) / FILENAME
     if not path.exists():
         return []
-    with open(path, "rb") as fh:
-        return parse(tomllib.load(fh))
+    try:
+        with open(path, "rb") as fh:
+            data = tomllib.load(fh)
+    except tomllib.TOMLDecodeError as exc:
+        # Callers already treat a FieldError as "fields.toml cannot be read";
+        # a typo in the TOML itself is the same thing and must not be a crash.
+        raise FieldError({FILENAME: f"is not valid TOML: {exc}"}) from exc
+    return parse(data)
 
 
 def _toml(value) -> str:
