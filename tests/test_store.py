@@ -642,6 +642,17 @@ def test_load_never_raises_on_invalid_yaml(tmp_path):
     assert len(s.problems) == 1
 
 
+def test_load_never_raises_on_an_impossible_date(tmp_path):
+    """`renewal: 2026-13-45` in front matter (a field of your own, typed by hand)
+    raised ValueError out of PyYAML and kept the app from starting at all."""
+    write_company_file(tmp_path, "bad", "name: Bad\nslug: bad\nrenewal: 2026-13-45\n")
+    write_company_file(tmp_path, "good", "name: Good\nslug: good\n")
+    s = Store(tmp_path)
+    s.load()
+    assert set(s.companies) == {"good"}
+    assert len(s.problems) == 1 and "invalid YAML front matter" in s.problems[0].message
+
+
 def test_load_on_empty_root(tmp_path):
     s = Store(tmp_path)
     assert s.load() == []
