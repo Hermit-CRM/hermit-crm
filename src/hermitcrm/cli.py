@@ -515,7 +515,10 @@ def cmd_check(store: Store) -> tuple[str, int]:
              f"shows it (log it as a note on the contact instead)"
              for c in store.companies.values() for cs, ct in c.contacts.items()
              if ct.notes.strip()]
-    if not store.problems:
+    # The files an agent writes to adjust Hermit are checked too, line by line.
+    from hermitcrm import dashboards
+    extension = dashboards.validate(store.root, store=store)
+    if not store.problems and not extension:
         n_companies = len(store.companies)
         n_contacts = sum(len(c.contacts) for c in store.companies.values())
         n_interactions = sum(len(c.interactions) for c in store.companies.values())
@@ -525,7 +528,7 @@ def cmd_check(store: Store) -> tuple[str, int]:
                 f"{n_interactions} interactions, no problems"]),
             0,
         )
-    lines = [f"{p.path}: {p.message}" for p in store.problems]
+    lines = [f"{p.path}: {p.message}" for p in store.problems] + extension
     return ("\n".join(lines), 1)
 
 

@@ -30,6 +30,7 @@
   {{ navlink('/messages', 'Messages', 'messages', path.startswith('/messages')) }}
   {{ navlink('/extension', 'Extension', 'capture', path.startswith('/extension') or path.startswith('/capture')) }}
   {{ navlink('/reports', 'Reports', 'reports', path.startswith('/reports')) }}
+  {% for pin in yours_pins() %}{{ navlink(pin.url, pin.title, 'dashboard', path == pin.url) }}{% endfor %}
   {% call navlink('/settings#' ~ inbox_alert_anchor if inbox_alert else '/settings', 'Settings', 'settings', path.startswith('/settings')) %}{% if inbox_alert %} <span class="alert" title="{{ inbox_alert }}">!</span>{% endif %}{% endcall %}
   {{ navlink('/help/' ~ help_topic, 'Help', 'help', path.startswith('/help')) }}
   <div class="sidebar-foot">

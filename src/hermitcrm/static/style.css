@@ -516,6 +516,19 @@ table.report-rows td, table.report-rows th { vertical-align: top; }
 table.report-rows td.nowrap { white-space: nowrap; }
 code.report-key { font-size: 11px; color: var(--faint); }
 /* --- end report rows --- */
+/* --- dashboards: /d/<slug> (dashboard.html); lists and report sections take a full row --- */
+.dashboard-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 14px; align-items: start; margin-top: 12px; }
+.widget { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; min-width: 0; overflow-x: auto; }
+.widget.wide { grid-column: 1 / -1; }
+.widget h2 { margin: 0 0 8px; }
+.widget h2 a { color: inherit; text-decoration: none; }
+.widget h2 a:hover { color: var(--accent); }
+.widget > .small { margin-top: 6px; }
+.widget-count { font-family: var(--title-font); font-size: 32px; font-weight: 500; font-variant-numeric: lining-nums; margin: 0; }
+.widget-count a { color: inherit; text-decoration: none; }
+.widget-count a:hover { color: var(--accent); }
+.dashboard-problems code { font-size: 12px; overflow-wrap: anywhere; }
+/* --- end dashboards --- */
 .setup-step textarea { min-height: 84px; }
 .setup-step .row > label input[size] { width: auto; }
 /* A lone name or address field need not run 950px wide. */

@@ -22,6 +22,7 @@ the single source of truth.
 from __future__ import annotations
 
 import calendar
+import dataclasses
 import hashlib
 import hmac
 import ipaddress
@@ -47,7 +48,7 @@ from starlette.datastructures import QueryParams
 from . import __version__, updates
 from fastapi.templating import Jinja2Templates
 
-from . import (bcc, brief, calendar_sync, capture, disclaimer, feedback,
+from . import (bcc, brief, calendar_sync, capture, dashboards, disclaimer, feedback,
                fields as custom, filters, followups, messaging, migrations,
                pipeline, reports, sample, welcome)
 from . import schedule, scrape, secrets, task_types, usertheme
@@ -338,6 +339,116 @@ def message_columns(statuses: list[str], defs: list | None = None) -> list[Colum
 
 def normalised_body(text: str) -> str:
     return " ".join((text or "").split()).lower()
+
+
+# -------------------------------------------------------------------- listings
+#
+# What a list page shows for one query string, outside its route, so that a
+# dashboard widget (dashboards.py) gets exactly the rows the page would: the
+# widget's link opens the same query on the page.
+
+
+@dataclasses.dataclass
+class Listing:
+    columns: list[Column]
+    active: dict
+    sort: str
+    dir: str
+    rows: list
+    extra: dict = dataclasses.field(default_factory=dict)
+
+
+def company_listing(store: Store, params, defs: list | None = None,
+                    type_options: list[str] | None = None, q: str = "") -> Listing:
+    """The Companies tab: search, filters, then the parked ones out unless
+    asked for (`parked=1`) or filtered on, then the sort."""
+    cols = company_columns(defs, type_options)
+    active = filters.parse(params, cols)
+    sort_key, sort_dir = filters.parse_sort(params, cols)
+    companies = filters.apply(store.search(q), cols, active)
+    show_parked = (params.get("parked") == "1"
+                   or "temp-disqualified" in active.get("stage", []))
+    hidden = 0
+    if not show_parked:
+        hidden = sum(1 for c in companies if c.is_parked)
+        companies = [c for c in companies if not c.is_parked]
+    companies = filters.sort_rows(companies, cols, sort_key, sort_dir)
+    return Listing(cols, active, sort_key, sort_dir, companies,
+                   {"show_parked": show_parked, "hidden_parked": hidden})
+
+
+def contact_listing(store: Store, params, defs: list | None = None, q: str = "") -> Listing:
+    """The Contacts tab: every contact with its company, A to Z by default."""
+    cols = contact_columns(defs)
+    active = filters.parse(params, cols)
+    sort_key, sort_dir = filters.parse_sort(params, cols)
+    needle = (q or "").strip().lower()
+    rows = []
+    for company in store.companies.values():
+        for contact in company.contacts.values():
+            row = ContactRow(company, contact)
+            haystack = (row.name, row.email, row.title, row.company_name)
+            if needle and not any(needle in (h or "").lower() for h in haystack):
+                continue
+            rows.append(row)
+    rows = filters.apply(rows, cols, active)
+    rows.sort(key=lambda r: (r.name.lower(), r.company_name.lower()))
+    rows = filters.sort_rows(rows, cols, sort_key, sort_dir)
+    return Listing(cols, active, sort_key, sort_dir, rows)
+
+
+def message_listing(store: Store, params, today: date, window: int, outcomes: list[str],
+                    defs: list | None = None, q: str = "") -> Listing:
+    """The Messages tab: every message sent, newest first, with its outcome.
+    `extra["counts"]` counts the outcomes before search and filters."""
+    cols = message_columns(message_statuses(outcomes), defs)
+    active = filters.parse(params, cols)
+    sort_key, sort_dir = filters.parse_sort(params, cols)
+    needle = (q or "").strip().lower()
+    uses = Counter(
+        normalised_body(i.body) for c in store.companies.values()
+        for i in c.interactions if i.is_message)
+    rows = []
+    for company in store.companies.values():
+        for it in company.interactions:
+            if not it.is_message:
+                continue
+            status = company.message_status(it, today, window, outcomes)
+            rows.append(MessageRow(company, it, status, uses[normalised_body(it.body)]))
+    counts = Counter(r.status for r in rows)
+    if needle:
+        rows = [r for r in rows if needle in r.preview.lower()
+                or needle in r.company_name.lower() or needle in r.contact.lower()]
+    rows = filters.apply(rows, cols, active)
+    rows.sort(key=lambda r: (r.date or datetime.min), reverse=True)
+    rows = filters.sort_rows(rows, cols, sort_key, sort_dir)
+    return Listing(cols, active, sort_key, sort_dir, rows, {"counts": counts})
+
+
+def task_listing(store: Store, params, type_options: list[str] | None,
+                 today: date) -> Listing:
+    """The Tasks tab: open tasks unless `f_status` says otherwise, then the
+    date chips (`when`) and "next steps only" (`next=1`), then the sort.
+    `extra` carries the chip counts the page shows."""
+    cols = task_columns(type_options)
+    active = filters.parse(params, cols)
+    if "status" not in active and "f_status" not in params:
+        active["status"] = ["open"]      # open ones unless you ask for done
+    rows = filters.apply(todo_rows(store.companies.values(), include_done=True),
+                         cols, active)
+    when = [w for w in params.getlist("when") if w in {k for k, _, _ in TASK_WHEN}]
+    counts = {k: sum(1 for r in rows if test(r.due, today)) for k, _, test in TASK_WHEN}
+    if when:
+        tests = [test for k, _, test in TASK_WHEN if k in when]
+        rows = [r for r in rows if any(t(r.due, today) for t in tests)]
+    nexts = params.get("next") == "1"
+    next_count = sum(1 for r in rows if r.is_next)
+    if nexts:
+        rows = [r for r in rows if r.is_next]
+    sort_key, sort_dir = filters.parse_sort(params, cols)
+    rows = filters.sort_rows(rows, cols, sort_key, sort_dir)
+    return Listing(cols, active, sort_key, sort_dir, rows,
+                   {"when": when, "counts": counts, "nexts": nexts, "next_count": next_count})
 
 
 def sort_url_for(request: Request):
@@ -904,6 +1015,19 @@ def create_app(root: Path, config: dict | None = None,
         configured = task_types.names(app.state.task_types)
         return configured + [n for n in store.type_names_in_use() if n not in configured]
 
+    def listing(scope: str, params, q: str = "") -> Listing:
+        """What the list page for `scope` shows for the query `params`: the
+        pages and the dashboard widgets both ask here."""
+        if scope == "companies":
+            return company_listing(store, params, app.state.custom_fields,
+                                   task_type_options(), q)
+        if scope == "contacts":
+            return contact_listing(store, params, app.state.custom_fields, q)
+        if scope == "messages":
+            return message_listing(store, params, store.today(), message_window, outcomes,
+                                   app.state.custom_fields, q)
+        return task_listing(store, params, task_type_options(), store.today())
+
     templates = Jinja2Templates(directory=str(HERE / "templates"))
     templates.env.globals.update(
         fmt_date=fmt_date,
@@ -934,6 +1058,8 @@ def create_app(root: Path, config: dict | None = None,
         type_names=task_type_options,
         type_colour=lambda name: task_types.colour_of(app.state.task_types, name),
         palette=task_types.PALETTE,
+        # The sidebar's pinned dashboards (dashboards/*.toml with pin = true).
+        yours_pins=lambda: dashboards.pins(root),
     )
 
     templates.env.filters["slug"] = slugify  # CSS class names from outcome values
@@ -1293,23 +1419,11 @@ def create_app(root: Path, config: dict | None = None,
         """Every to-do in one table: the date chips, then one filter per column.
         `form_error` and `form` put a refused Add task back next to its form."""
         today = store.today()
-        cols = task_columns(task_type_options())
-        active = filters.parse(params, cols)
-        if "status" not in active and "f_status" not in params:
-            active["status"] = ["open"]      # open ones unless you ask for done
-        rows = filters.apply(todo_rows(store.companies.values(), include_done=True),
-                             cols, active)
-        when = [w for w in params.getlist("when") if w in {k for k, _, _ in TASK_WHEN}]
-        counts = {k: sum(1 for r in rows if test(r.due, today)) for k, _, test in TASK_WHEN}
-        if when:
-            tests = [test for k, _, test in TASK_WHEN if k in when]
-            rows = [r for r in rows if any(t(r.due, today) for t in tests)]
-        nexts = params.get("next") == "1"
-        next_count = sum(1 for r in rows if r.is_next)
-        if nexts:
-            rows = [r for r in rows if r.is_next]
-        sort_key, sort_dir = filters.parse_sort(params, cols)
-        rows = filters.sort_rows(rows, cols, sort_key, sort_dir)
+        found = listing("tasks", params)
+        cols, active, rows = found.columns, found.active, found.rows
+        sort_key, sort_dir = found.sort, found.dir
+        when, counts = found.extra["when"], found.extra["counts"]
+        nexts, next_count = found.extra["nexts"], found.extra["next_count"]
 
         def with_params(drop: tuple, add: list) -> str:
             kept = [(k, v) for k, v in params.multi_items()
@@ -1584,17 +1698,10 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.get("/companies", response_class=HTMLResponse)
     def companies_list(request: Request, q: str = ""):
-        cols = company_columns(app.state.custom_fields, task_type_options())
-        active = filters.parse(request.query_params, cols)
-        sort_key, sort_dir = filters.parse_sort(request.query_params, cols)
-        companies = filters.apply(store.search(q), cols, active)
-        show_parked = (request.query_params.get("parked") == "1"
-                       or "temp-disqualified" in active.get("stage", []))
-        hidden = 0
-        if not show_parked:
-            hidden = sum(1 for c in companies if c.is_parked)
-            companies = [c for c in companies if not c.is_parked]
-        companies = filters.sort_rows(companies, cols, sort_key, sort_dir)
+        found = listing("companies", request.query_params, q)
+        cols, active, companies = found.columns, found.active, found.rows
+        sort_key, sort_dir = found.sort, found.dir
+        show_parked, hidden = found.extra["show_parked"], found.extra["hidden_parked"]
         toggle = [(k, v) for k, v in request.query_params.multi_items()
                   if k not in ("parked", "flash")]
         if not show_parked:
@@ -1608,56 +1715,21 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.get("/contacts", response_class=HTMLResponse)
     def contacts_list(request: Request, q: str = ""):
-        cols = contact_columns(app.state.custom_fields)
-        active = filters.parse(request.query_params, cols)
-        sort_key, sort_dir = filters.parse_sort(request.query_params, cols)
-        needle = (q or "").strip().lower()
-        rows = []
-        for company in store.companies.values():
-            for contact in company.contacts.values():
-                row = ContactRow(company, contact)
-                haystack = (row.name, row.email, row.title, row.company_name)
-                if needle and not any(needle in (h or "").lower() for h in haystack):
-                    continue
-                rows.append(row)
-        rows = filters.apply(rows, cols, active)
-        rows.sort(key=lambda r: (r.name.lower(), r.company_name.lower()))
-        rows = filters.sort_rows(rows, cols, sort_key, sort_dir)
+        found = listing("contacts", request.query_params, q)
         return render(request, "contacts.html", {
-            "rows": rows, "q": q, "filter_columns": cols, "active": active,
-            "sort": sort_key, "dir": sort_dir,
+            "rows": found.rows, "q": q, "filter_columns": found.columns,
+            "active": found.active, "sort": found.sort, "dir": found.dir,
         })
 
     # --------------------------------------------------------------- messages
 
     @app.get("/messages", response_class=HTMLResponse)
     def messages_list(request: Request, q: str = ""):
-        today = store.today()
-        cols = message_columns(message_statuses(outcomes), app.state.custom_fields)
-        active = filters.parse(request.query_params, cols)
-        sort_key, sort_dir = filters.parse_sort(request.query_params, cols)
-        needle = (q or "").strip().lower()
-        uses = Counter(
-            normalised_body(i.body) for c in store.companies.values()
-            for i in c.interactions if i.is_message)
-        rows = []
-        for company in store.companies.values():
-            for it in company.interactions:
-                if not it.is_message:
-                    continue
-                status = company.message_status(it, today, message_window, outcomes)
-                rows.append(MessageRow(company, it, status, uses[normalised_body(it.body)]))
-        counts = Counter(r.status for r in rows)
-        if needle:
-            rows = [r for r in rows if needle in r.preview.lower()
-                    or needle in r.company_name.lower() or needle in r.contact.lower()]
-        rows = filters.apply(rows, cols, active)
-        rows.sort(key=lambda r: (r.date or datetime.min), reverse=True)
-        rows = filters.sort_rows(rows, cols, sort_key, sort_dir)
+        found = listing("messages", request.query_params, q)
         return render(request, "messages.html", {
-            "rows": rows, "q": q, "filter_columns": cols, "active": active,
-            "sort": sort_key, "dir": sort_dir, "counts": counts,
-            "window": message_window,
+            "rows": found.rows, "q": q, "filter_columns": found.columns,
+            "active": found.active, "sort": found.sort, "dir": found.dir,
+            "counts": found.extra["counts"], "window": message_window,
         })
 
     def report_span(period: str, params, today) -> reports.Period:
@@ -1715,6 +1787,42 @@ def create_app(root: Path, config: dict | None = None,
             "back": "/reports?" + reports.period_query(period, params.get("from", ""),
                                                       params.get("to", "")),
         })
+
+    # ------------------------------------------------------------ dashboards
+
+    def dashboard_report(period: str) -> tuple[dict, str]:
+        """The report behind a dashboard's report widget, and the query its
+        numbers carry to /reports/rows. `all` is a custom period from the
+        first day in the data."""
+        today = store.today()
+        if period == "all":
+            start = min(dashboards.first_day(store) or today, today)
+            span = reports.Period(start, today)
+            query = reports.period_query("custom", fmt_date(start), fmt_date(today))
+        else:
+            span = reports.period_for(period, today)
+            query = reports.period_query(period)
+        return build_report(span, today), query
+
+    @app.get("/d/{slug}", response_class=HTMLResponse)
+    def dashboard_page(request: Request, slug: str):
+        """A dashboard from dashboards/<slug>.toml: its widgets that work, and
+        a list of what is wrong with the rest (never a 500)."""
+        dash = dashboards.get(root, slug)
+        if dash is None:
+            return render(request, "dashboard.html", {
+                "missing": slug, "others": dashboards.load_all(root)}, status_code=404)
+        columns = dashboards.columns_for(app.state.custom_fields, task_type_options(),
+                                         message_statuses(outcomes))
+        built: dict[str, tuple[dict, str]] = {}
+
+        def report_for(period: str) -> tuple[dict, str]:
+            if period not in built:  # two widgets on one period build it once
+                built[period] = dashboard_report(period)
+            return built[period]
+
+        shown = dashboards.view(dash, columns, app.state.custom_fields, listing, report_for)
+        return render(request, "dashboard.html", {**shown, "delta": reports.delta})
 
     @app.post("/companies/{slug}/interactions/{id}/outcome")
     def interaction_outcome(request: Request, slug: str, id: str,
