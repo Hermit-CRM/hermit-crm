@@ -164,3 +164,26 @@ now a goal: Hermit makes adjusting and automating it prominent, and the
 user's own agent does the building (a folder you point your agent at, with
 everything around it built). See
 `docs/superpowers/specs/2026-10-03-ai-adjustability-design.md`.
+
+### Make it yours: follow-ups (QA, 2026-10-03)
+
+Built and tested with real Claude Code runs on demo folders; these are left.
+
+- [ ] Click a real `claude-cli://open` link on macOS (also with a prompt near
+      the 1,024-byte limit, where the OS fails silently) and try Cursor, Codex
+      and Gemini with their own agents; only the link and command strings were
+      checked.
+- [ ] A real routine draft from the user's AI CLI (the tests and the QA run
+      stub the AI), and the Claude Desktop path over MCP (driven by a script).
+- [ ] "Asked on" says "Hermit CRM" for Home; it should say "Home".
+- [ ] On `/d/<slug>` the Adjust tab offers "make a Monday dashboard" instead of
+      changes to the dashboard you are on.
+- [ ] Recent changes lists `settings: adjust_agent` commits, and Undo would flip
+      the agent choice; hide them.
+- [ ] `hermitcrm check` does not flag CSS syntax errors in `theme.css`, only
+      `url()`, `@import` and token typos.
+- [ ] 70 of the older POST routes take no form token and rely on the Origin
+      check (as before this feature).
+- [ ] Routines on Gemini, Grok and custom AI commands are refused, because
+      those CLIs cannot be run without tools; add their switches when they
+      have one. Codex runs with `--sandbox read-only` (untested here).
