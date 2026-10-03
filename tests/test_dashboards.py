@@ -222,6 +222,71 @@ filters = { stage = ["engaged", "discovery", "offer"] }
         assert len(company_slugs(client.get(url).text)) == 1
 
 
+BARS = (r'<tr><td><a href="([^"]+)">([^<]*)</a></td><td class="num">'
+        r'<a class="rows" href="[^"]+">(\d+)</a>')
+
+
+@pytest.mark.parametrize("scope,by", [
+    ("companies", "country"), ("companies", "source"), ("companies", "stage"),
+    ("contacts", "title"), ("contacts", "company_name"), ("messages", "channel"),
+    ("messages", "status"), ("tasks", "status"), ("tasks", "company_name")])
+def test_every_bar_counts_what_its_link_lists_in_every_scope(client, folder, scope, by):
+    write(folder, "g", f'title = "G"\n[[widget]]\ntype = "group"\nscope = "{scope}"\n'
+                       f'by = "{by}"\nlimit = 50\n')
+    group = widgets_of(client.get("/d/g").text)[0]
+    bars = re.findall(BARS, group)
+    assert bars
+    rows_of = {"companies": company_slugs, "contacts": contact_keys,
+               "messages": message_keys, "tasks": task_texts}[scope]
+    for url, label, n in bars:
+        assert len(rows_of(client.get(html.unescape(url)).text)) == int(n), label
+
+
+def test_a_group_is_counted_from_one_listing_not_one_per_bar(client, folder, monkeypatch):
+    from hermitcrm import web
+    calls = []
+    real = web.company_listing
+    monkeypatch.setattr(web, "company_listing",
+                        lambda *a, **k: calls.append(1) or real(*a, **k))
+    write(folder, "g", 'title = "G"\n[[widget]]\ntype = "group"\nscope = "companies"\n'
+                       'by = "stage"\n')
+    group = widgets_of(client.get("/d/g").text)[0]
+    assert len(re.findall(BARS, group)) == 7 and len(calls) == 1
+    # a widget that filters the grouped column itself still counts per bar page,
+    # because its bars drop that filter
+    calls.clear()
+    write(folder, "g", 'title = "G"\n[[widget]]\ntype = "group"\nscope = "companies"\n'
+                       'by = "stage"\nfilters = { stage = ["prospect", "engaged"] }\n')
+    group = widgets_of(client.get("/d/g").text)[0]
+    bars = re.findall(BARS, group)
+    assert [b[1] for b in bars] == ["prospect", "engaged"] and len(calls) == 1 + len(bars)
+    for url, _, n in bars:
+        assert len(company_slugs(client.get(html.unescape(url)).text)) == int(n)
+
+
+def test_limit_is_at_most_50_in_the_check_and_in_the_drawing(folder):
+    from types import SimpleNamespace
+    from hermitcrm.filters import Column
+
+    def verdict(limit, kind="group"):
+        extra = 'by = "stage"\n' if kind == "group" else ""
+        write(folder, "cap", f'title = "Cap"\n[[widget]]\ntype = "{kind}"\n'
+                             f'scope = "companies"\n{extra}limit = {limit}\n')
+        return problems(folder)
+
+    assert verdict(50) == [] and verdict(50, "list") == []
+    assert verdict(51) == ["dashboards/cap.toml: widget 1: limit may be at most 50"]
+    assert verdict(51, "list") == ["dashboards/cap.toml: widget 1: limit may be at most 50"]
+    # and a widget that got past the check anyway is still drawn with 50 bars
+    seen = []
+    values = [f"v{i:02}" for i in range(80)]
+    found = SimpleNamespace(rows=values)
+    column = Column("v", "v", getter=lambda r: r)
+    bars = dashboards._group_view({"by": "v", "limit": 99}, "companies", [column],
+                                  lambda scope, params: seen.append(1) or found)
+    assert len(bars["bars"]) == 50 and bars["more"] == 30 and len(seen) == 1
+
+
 def test_group_on_a_select_field_shows_empty_values_without_a_link(client, folder):
     (folder / "fields.toml").write_text("""\
 [[field]]
