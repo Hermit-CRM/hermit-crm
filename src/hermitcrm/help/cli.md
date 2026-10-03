@@ -70,7 +70,7 @@ hermitcrm set companies|contacts|interactions --where KEY=VALUE ... [--all]
                                         change many records at once. A dry run unless --apply (count, five
                                         before -> after samples), then ONE commit `bulk: <summary>` and its
                                         undo command. --where is the list pages' filter syntax; no --where
-                                        needs --all. Bodies and names are never touched. See Adjust: bulk changes
+                                        needs --all. Bodies and names are never touched. See Make it yours: bulk changes
 hermitcrm rebuild                          rebuild the index and PIPELINE.md, commit "pipeline: rebuild"
 hermitcrm import FILE [--mode companies|contacts] [--map HEADER=FIELD ...] [--apply]
 hermitcrm fetch SLUG [--url URL] [--apply] fields from the website or LinkedIn page (no AI)
@@ -106,4 +106,4 @@ Drafts go to Home, never out. See [Routines](/help/adjust-routines).
 `undo` is what the Undo buttons on the Make it yours page run; see
 [Make it yours](/help/adjust).
 
-Related: [Settings](/help/settings), [AI agents](/help/ai-agents), [Data format](/help/data-format), [Adjust: bulk changes](/help/adjust-bulk)
+Related: [Settings](/help/settings), [AI agents](/help/ai-agents), [Data format](/help/data-format), [Make it yours: bulk changes](/help/adjust-bulk)

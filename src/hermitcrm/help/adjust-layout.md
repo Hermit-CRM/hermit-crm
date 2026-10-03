@@ -1,4 +1,4 @@
-# Adjust: page layout
+# Make it yours: page layout
 
 A recipe for your AI agent: put the sections of the company, contact and home pages in another order or hide them, hide fields, and choose the columns of the Companies and Contacts lists, all in one file, `layout.toml`.
 

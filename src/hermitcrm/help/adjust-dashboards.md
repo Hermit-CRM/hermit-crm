@@ -1,4 +1,4 @@
-# Dashboards
+# Make it yours: dashboards
 
 Pages of your own at `/d/<name>`: lists, counts, bars and report sections, written as `dashboards/<name>.toml` by you or your AI agent, and pinned in the sidebar if you like.
 

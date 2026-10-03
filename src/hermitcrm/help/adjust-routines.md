@@ -1,4 +1,4 @@
-# Routines
+# Make it yours: routines
 
 Small jobs in `routines.toml` that run every morning after the daily sync: a morning brief, or one AI draft per quiet thread. Drafts wait on Home; Hermit never sends anything.
 
