@@ -7,7 +7,7 @@
 <h1>Contacts ({{ rows | length }}){% if q %} matching &ldquo;{{ q }}&rdquo;{% endif %}</h1>
 <p class="page-actions"><a class="button" href="/contacts/new">New contact</a> <a class="button" href="/import?mode=contacts">Import</a></p>
 {{ m.filter_form('contact-filters', '/contacts', active, q, sort, dir) }}
-<table class="filterable">
+<div class="table-scroll"><table class="filterable">
   <tr>{% for col in filter_columns %}<th>{{ col.label }} {{ m.sort_links(col, sort, dir, sort_url) }}</th>{% endfor %}</tr>
   <tr class="filters">{% for col in filter_columns %}<th>{{ m.filter_control(col, active, 'contact-filters') }}</th>{% endfor %}</tr>
   {%- set custom = custom_fields_for('contact') %}
@@ -36,5 +36,5 @@
   {% else %}
   <tr><td colspan="{{ filter_columns | length }}" class="empty">No contacts.</td></tr>
   {% endfor %}
-</table>
+</table></div>
 {% endblock %}

@@ -460,7 +460,7 @@ nav .alert { color: var(--surface); background: var(--danger); border-radius: 8p
 details.stage-history { margin: 6px 0; max-width: 700px; }
 details.stage-history summary { cursor: pointer; }
 .report-grid { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
-.report-grid > div { flex: 1 1 420px; min-width: 0; }
+.report-grid > div { flex: 1 1 420px; min-width: 0; overflow-x: auto; }   /* a wide table scrolls in its cell, not the page */
 table.report td.num, table.report th.num { text-align: right; white-space: nowrap; }
 .bar { background: var(--subtle); height: 10px; min-width: 1px; border-radius: 2px; }
 td.bar-cell { width: 35%; }
