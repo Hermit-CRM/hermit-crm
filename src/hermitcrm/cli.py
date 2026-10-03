@@ -1450,7 +1450,20 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
         return cmd_schedule(root, args.action, at=args.at, serve=args.serve,
                             backup=not args.no_backup, backup_every=args.backup_every)
 
-    store = build_store(root)
+    if args.command == "check":
+        # config.toml first: a value of the wrong kind (`outcomes = 5`) or a
+        # file that does not parse stops the store being built, and a line
+        # that names the problem is worth more than a traceback.
+        try:
+            store = build_store(root)
+        except Exception as exc:
+            from hermitcrm import adjust
+            lines = adjust.validate_config(root) or [
+                f"config.toml: file: cannot be used ({type(exc).__name__}: {exc})"]
+            print("\n".join(lines))
+            return 1
+    else:
+        store = build_store(root)
 
     if args.command == "mcp":
         return cmd_mcp(root, store, stdin=stdin)

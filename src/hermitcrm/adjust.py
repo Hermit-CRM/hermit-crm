@@ -675,6 +675,11 @@ EXTENSION_KEYS = ("task_types", "outcomes", "silent_days", "message_window_days"
                   AGENT_KEY)
 
 
+# The one config.toml problem that is only a warning: the app still reads the
+# rest of the file (web.py shows it in the banner and loads on).
+UNKNOWN_KEY = "not a setting Hermit reads"
+
+
 def validate_config(root: Path) -> list[str]:
     path = Path(root) / "config.toml"
     if not path.is_file():
@@ -690,7 +695,7 @@ def validate_config(root: Path) -> list[str]:
         if key not in known:
             hint = near(key, EXTENSION_KEYS)
             if hint:
-                problems.append(f"config.toml: {key}: not a setting Hermit reads{hint}")
+                problems.append(f"config.toml: {key}: {UNKNOWN_KEY}{hint}")
     if AGENT_KEY in data:
         value = str(data[AGENT_KEY]).strip().lower()
         if value and value not in AGENTS:
@@ -729,6 +734,12 @@ def validate_config(root: Path) -> list[str]:
         if key in data and (not isinstance(data[key], int) or isinstance(data[key], bool)
                             or data[key] < 1):
             problems.append(f"config.toml: {key}: must be a whole number of days, 1 or more")
+    # The follow-up thresholds are not for an agent to change, but the app reads
+    # them as whole numbers, so a word there is named instead of crashing a page.
+    for key in ("followup_reply_days", "followup_nudge_days"):
+        if key in data and (not isinstance(data[key], int) or isinstance(data[key], bool)
+                            or data[key] < 0):
+            problems.append(f"config.toml: {key}: must be a whole number of days, 0 or more")
     return problems
 
 

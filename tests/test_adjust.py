@@ -619,3 +619,75 @@ def test_the_rules_page_covers_every_recipe():
                  ".secrets.toml", "PIPELINE.md", "Send anything"):
         assert rule in text, rule
     assert "hermitcrm help adjust" in helpdocs.read("ai-agents")
+
+
+# ----------------------------------------- a file that reads but cannot be used
+
+
+def test_a_wrong_typed_setting_keeps_the_old_settings_and_shows_a_banner(demo):
+    app, client = make(demo)
+    assert client.get("/").status_code == 200
+    for line in ("outcomes = 5", 'followup_nudge_days = "soon"'):
+        with open(demo / "config.toml", "a") as fh:
+            fh.write(f"\n{line}\n")
+        for path in ("/", "/reports", "/messages", "/yours"):
+            page = client.get(path)
+            assert page.status_code == 200, (line, path)
+            assert 'class="warning-box file-problems"' in page.text, (line, path)
+            assert "config.toml" in page.text.split("file-problems")[1].split("</div>")[0]
+        # the app keeps what it had, and the bad value never reaches the config
+        assert app.state.config.get("outcomes") != 5
+        assert app.state.config.get("followup_nudge_days") != "soon"
+        assert app.state.store.outcomes != [] and "ghosted" not in app.state.store.outcomes
+        (demo / "config.toml").write_text(
+            (demo / "config.toml").read_text().replace(f"\n{line}\n", "\n"))
+        settle(demo)
+        page = client.get("/")
+        assert page.status_code == 200 and "file-problems" not in page.text, line
+
+
+def test_a_bad_config_is_read_once_not_on_every_request(demo, monkeypatch):
+    app, client = make(demo)
+    with open(demo / "config.toml", "a") as fh:
+        fh.write("\noutcomes = 5\n")
+    seen = []
+    real = adjust.validate_config
+    monkeypatch.setattr(adjust, "validate_config", lambda root: seen.append(1) or real(root))
+    for _ in range(3):
+        assert client.get("/reports").status_code == 200
+    assert len(seen) == 1
+
+
+def test_a_wrong_shaped_messages_file_keeps_the_old_wording_and_shows_a_banner(demo):
+    app, client = make(demo)
+    (demo / "messages.toml").write_text('[signals]\ngrowing = "Booming right now"\n')
+    assert "Booming right now" in client.get("/companies/northwind-robotics").text
+    (demo / "messages.toml").write_text("languages = 5\n")
+    page = client.get("/companies/northwind-robotics")
+    assert page.status_code == 200
+    assert "Booming right now" in page.text                          # the last good wording
+    assert 'class="warning-box file-problems"' in page.text and "messages.toml" in page.text
+    assert isinstance(app.state.messages["languages"], dict)
+    (demo / "messages.toml").write_text('[signals]\ngrowing = "Up and up"\n')
+    page = client.get("/companies/northwind-robotics")
+    assert "Up and up" in page.text and "file-problems" not in page.text
+
+
+def test_a_typo_in_config_is_shown_but_does_not_stop_the_rest_loading(demo):
+    app, client = make(demo)
+    st.set_config_values(demo / "config.toml", {"silent_dayz": 3, "outcomes": ["replied", "ghosted"]})
+    page = client.get("/messages")
+    assert "ghosted" in page.text and "silent_dayz" in page.text
+    assert 'class="warning-box file-problems"' in page.text
+
+
+def test_check_prints_the_problem_instead_of_a_traceback(demo, capsys):
+    with open(demo / "config.toml", "a") as fh:
+        fh.write("\noutcomes = 5\n")
+    assert cli.main(["--data", str(demo), "check"]) == 1
+    out = capsys.readouterr().out
+    assert "config.toml: outcomes: must be a list" in out and "Traceback" not in out
+    with open(demo / "config.toml", "a") as fh:
+        fh.write("silent_days = [\n")
+    assert cli.main(["--data", str(demo), "check"]) == 1
+    assert capsys.readouterr().out.startswith("config.toml: ")
