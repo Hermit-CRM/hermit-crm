@@ -1435,26 +1435,34 @@ def create_app(root: Path, config: dict | None = None,
     def sample_add(request: Request, csrf_token: str = Form("")):
         check_csrf(csrf_token)
         try:
-            company = sample.add(store)
+            done = sample.add(store)
         except sample.SampleError as exc:
             return flashed("/", str(exc))
-        return flashed(f"/companies/{company.slug}",
-                       "The sample account is loaded. Look around; the bar at the top "
-                       "removes it when you are done.")
+        extras = [sample.LABELS[f] + (", pinned in the sidebar" if f == sample.DASHBOARD
+                                      else ", paused")
+                  for f in done.files]
+        return flashed(f"/companies/{done.companies[0].slug}",
+                       "The sample account is loaded"
+                       + (f", with {sample.and_list(extras)}" if extras else "")
+                       + ". Look around; the bar at the top removes it when you are done.")
 
     @app.get("/sample/remove", response_class=HTMLResponse)
     def sample_remove_page(request: Request):
-        return render(request, "sample_remove.html", {})
+        plan = sample.plan_removal(root)
+        return render(request, "sample_remove.html", {
+            "extras": [{"label": sample.LABELS[f], "file": f,
+                        "url": sample.DASHBOARD_URL if f == sample.DASHBOARD
+                        else sample.ROUTINE_URL} for f in plan.files],
+            "kept": plan.kept})
 
     @app.post("/sample/remove")
     def sample_remove(request: Request, csrf_token: str = Form("")):
         check_csrf(csrf_token)
-        removed = sample.remove(store)
-        if not removed:
+        done = sample.remove(store)
+        if not done.what:
             return flashed("/", "There is no sample account to remove")
-        return flashed("/", "Removed the sample account: "
-                       + ", ".join(c.name for c in removed)
-                       + ". You can load it again from Getting started.")
+        return flashed("/", f"Removed the sample: {sample.and_list(done.what)}. "
+                       + " ".join(done.kept + ["You can load it again from Getting started."]))
 
     @app.post("/disclaimer/accept")
     def disclaimer_accept(request: Request, csrf_token: str = Form(""),

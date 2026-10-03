@@ -92,9 +92,10 @@ web app has a Help link; `hermitcrm help [topic]` prints the same pages.
 
 Want to see a worked account first? The empty home page offers **Look at a
 sample account** (or run `hermitcrm sample add`): one made-up company with its
-people, messages, a deal on the pipeline and tasks. A bar on every page says it
-is there; **Remove it** deletes it again in one commit (`hermitcrm sample
-remove`), and never touches your own companies.
+people, messages, a deal on the pipeline and tasks, plus a pinned dashboard and a
+paused routine to show what you can build. A bar on every page says it is there;
+**Remove it** deletes it again in one commit (`hermitcrm sample remove`), and
+never touches your own companies.
 
 With the app running at http://127.0.0.1:8765, click **New company**, type a
 name and a country, and save. Or do the same from the terminal:
