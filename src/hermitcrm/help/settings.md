@@ -2,6 +2,13 @@
 
 `/settings`: who you are, mail and calendar capture, backup, appearance, fields of your own, AI (Enrich and Ask the Hermit), outcomes, the daily schedule, access from a phone or an AI client, Support Hermit, and About.
 
+The page has five tabs: **General** (You, AI, Appearance, Support Hermit,
+About), **Email & calendar** (BCC capture, Calendar), **Your CRM** (Fields,
+Drafts, Task types, Outcomes), **Backup**, and **Advanced** (Schedule, access
+from a phone or an AI app, checking the installation). A section that is set
+up leads with its status, such as the last import; its form opens under
+**Change …**, and **How it works** links to its heading on this page.
+
 Every section writes `config.toml` in the data folder, keeping its comments;
 secrets (the mail app password, the calendar URL) go to `.secrets.toml`
 (mode 600) or the system's secret store, never to `config.toml`. The secret

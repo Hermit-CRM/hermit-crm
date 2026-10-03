@@ -273,7 +273,8 @@ def test_access_section_shows_the_phone_and_mcp_commands(folder):
     started from a terminal, so it must name both and say the port is open."""
     app, client = make_client(folder)
     page = client.get("/settings").text
-    assert 'id="access"' in page and 'href="#access">Access' in page
+    advanced = page.split('id="tab-advanced"')[1]
+    assert 'id="access"' in advanced and 'id="mcp"' in advanced
     assert f"--data {folder} serve --host 0.0.0.0" in page
     assert f"--data {folder} mcp" in page
     assert "&#34;mcpServers&#34;" in page  # the JSON to paste, escaped
