@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""The ten-step walkthrough at /welcome.
+"""The eleven-step walkthrough at /welcome.
 
 Each step knows whether it is done by asking the data, not by remembering that
 you clicked something: "your first company" is done when a company exists,
@@ -44,7 +44,11 @@ class Step:
     manual: bool = False
 
 
-def steps(store, config: dict, setup_state: dict, ai_available: bool) -> list[Step]:
+def steps(store, config: dict, setup_state: dict, ai_available: bool,
+          adjusted: bool = False) -> list[Step]:
+    """`adjusted`: the folder has something made with Make it yours (a
+    theme.css, layout.toml, routines.toml, a dashboard or an "ai: adjust:"
+    commit; see adjust.has_adjusted)."""
     # The sample account is there to look at; the steps count your own records.
     companies = [c for c in store.companies.values() if not c.is_sample]
     contacts = [c for co in companies for c in co.contacts.values()]
@@ -113,6 +117,11 @@ def steps(store, config: dict, setup_state: dict, ai_available: bool) -> list[St
              + ("" if ai_available else ", once an AI CLI is set up under Settings")
              + ".",
              "Try a filter", "/companies", "find" in ticked, manual=True),
+        Step("yours", "Make it yours",
+             "Change one thing about Hermit CRM with your own AI agent: try the look "
+             "first. You describe it, your agent builds it in your data folder, and every "
+             "change is one commit you can undo.",
+             "Try the look", "/yours?starter=look#describe", adjusted),
     ]
 
 

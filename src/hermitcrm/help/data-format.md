@@ -155,7 +155,9 @@ One commit per write, with a fixed message shape: `company: <slug> created`,
 `company: <slug> stage <old> -> <new>`, `contact: <company>/<slug> updated`,
 `interaction: <company> <channel> <direction> <contact> <date>`,
 `import: ...`, `bcc: ...`, `calendar: ...`, `ai: ...` for enrichment and
-agent-made changes, `pipeline: rebuild`. Rolling back is plain git:
-`git checkout <sha> -- <path>` or `git revert <sha>`, then `hermitcrm rebuild`.
+agent-made changes (`ai: adjust: <what>` for a change made through
+[Make it yours](/help/adjust)), `pipeline: rebuild`. Rolling back is
+`hermitcrm undo <sha>`, a new commit named `Revert "<subject>"` (git's own
+revert), or plain git: `git checkout <sha> -- <path>`, then `hermitcrm rebuild`.
 
 Related: [Companies](/help/companies), [Interactions](/help/interactions), [AI agents](/help/ai-agents), [CLI](/help/cli)

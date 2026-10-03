@@ -508,14 +508,19 @@ def cmd_rebuild(store: Store, gitops: GitOps) -> str:
 
 
 def cmd_check(store: Store) -> tuple[str, int]:
+    from hermitcrm import adjust
+
     store.load()
+    # The files an agent may write (fields.toml, theme.css, messages.toml and
+    # config.toml's keys): one "<file>: <where>: <what>" line each.
+    extension = adjust.validate(store.root)
     # Since format 7 a contact has no notes body: what you know about a person
     # is a note interaction. A body written by hand is shown, not lost.
     stray = [f"companies/{c.slug}/contacts/{cs}.md: has a notes body; the app no longer "
              f"shows it (log it as a note on the contact instead)"
              for c in store.companies.values() for cs, ct in c.contacts.items()
              if ct.notes.strip()]
-    if not store.problems:
+    if not store.problems and not extension:
         n_companies = len(store.companies)
         n_contacts = sum(len(c.contacts) for c in store.companies.values())
         n_interactions = sum(len(c.interactions) for c in store.companies.values())
@@ -525,8 +530,23 @@ def cmd_check(store: Store) -> tuple[str, int]:
                 f"{n_interactions} interactions, no problems"]),
             0,
         )
-    lines = [f"{p.path}: {p.message}" for p in store.problems]
+    lines = [f"{p.path}: {p.message}" for p in store.problems] + extension
     return ("\n".join(lines), 1)
+
+
+# --------------------------------------------------------------------- undo
+
+
+def cmd_undo(store: Store, sha: str) -> tuple[str, int]:
+    """`git revert` of one commit, as a new commit (the hub's Undo button)."""
+    from hermitcrm import history
+
+    try:
+        new, subject = history.undo(store, sha)
+    except history.UndoError as exc:
+        return (str(exc), 1)
+    return (f"Undone in a new commit {new}: {subject}\n"
+            f"To bring the change back: hermitcrm undo {new}", 0)
 
 
 # ------------------------------------------------------------------- import
@@ -1058,6 +1078,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("rebuild", help="rebuild the index and PIPELINE.md")
     sub.add_parser("check", help="validate every file")
+    p_undo = sub.add_parser("undo", help="reverse one commit with a new commit (git revert)")
+    p_undo.add_argument("sha", help="the commit to undo, as git log or the Make it yours "
+                                    "page shows it")
 
     p_sample = sub.add_parser("sample", help="add or remove the made-up sample account")
     p_sample.add_argument("action", choices=["add", "remove"])
@@ -1263,6 +1286,15 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
     if args.command == "check":
         text, code = cmd_check(store)
         print(text)
+        return code
+
+    if args.command == "undo":
+        text, code = cmd_undo(store, args.sha)
+        print(text, file=sys.stderr if code else sys.stdout)
+        if code == 0:
+            config = load_config(root)
+            GitOps(root, push_enabled=config["push_enabled"],
+                   remote=config.get("remote", "origin")).push_async()
         return code
 
     if args.command == "report":

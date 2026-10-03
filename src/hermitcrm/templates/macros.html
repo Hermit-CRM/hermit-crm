@@ -394,3 +394,27 @@
 </form>
 {% endif %}
 {%- endmacro %}
+
+{# The handoff to the user's own agent (Make it yours): a request box and the
+   buttons for the agent config.toml names. static/adjust.js builds the prompt,
+   the link and the command from these data attributes as the user types, the
+   same way adjust.handoff() does; the hint lines below say what each one does. #}
+{% macro handoff(h, id, page_title='', path='', label='Describe a change', text='', more=false) %}
+<div class="handoff" data-agent="{{ h.agent }}" data-folder="{{ h.folder }}" data-page-title="{{ page_title }}" data-path="{{ path }}" data-limit="{{ h.limit }}">
+  <label class="small" for="{{ id }}">{{ label }}</label>
+  <textarea id="{{ id }}" class="request" data-request rows="3" placeholder="e.g. a list of everyone I met in September who has no next step">{{ text }}</textarea>
+  <div class="ask-actions wrap">
+    {% if h.how == 'link' %}<a class="button primary" data-open href="#" aria-disabled="true">{{ h.button }}</a>{% endif %}
+    {% if h.how == 'command' %}<button type="button" class="primary" data-copy="command">{{ h.button }}</button>{% endif %}
+    <button type="button" data-copy="prompt"{% if h.how == 'copy' %} class="primary"{% endif %}>Copy prompt</button>
+    <span class="small" data-copied role="status"></span>
+    {% if more %}<a class="small more-ideas" href="/yours">More ideas</a>{% endif %}
+  </div>
+  {% if h.how == 'link' %}<p class="small warning" data-too-long hidden>Too long for a link: over {{ h.limit }} bytes, and longer links fail without a word on macOS. Copy the prompt and paste it into {{ h.label }} instead.</p>{% endif %}
+  {% if h.agent == 'claude' %}<p class="small" data-link-hint>Opens a terminal in your data folder with the request typed in. Nothing runs until you press Enter. Nothing opened? Run <code>claude</code> once in a terminal, then try again.</p>
+  {% elif h.agent == 'cursor' %}<p class="small" data-link-hint>Open your data folder (<code>{{ h.folder_shown }}</code>) in Cursor first: the request goes to the Cursor window in front. Nothing runs until you press Enter.</p>
+  {% elif h.how == 'command' %}<p class="small">Paste the command in a terminal and press Enter: {{ h.label }} starts in your data folder with the request.</p>
+  {% else %}<p class="small">Paste the prompt into your AI agent, started in your data folder (<code>{{ h.folder_shown }}</code>). <a href="/settings#enrichment">Name your agent</a> to get a one-click button.</p>{% endif %}
+  <details class="sent-as-box"><summary class="small">What your agent receives</summary><p class="sent-as" data-sent-as></p></details>
+</div>
+{% endmacro %}
