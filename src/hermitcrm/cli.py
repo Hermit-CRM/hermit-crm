@@ -131,16 +131,25 @@ def cmd_sample(store: Store, action: str) -> tuple[str, int]:
 
     if action == "add":
         try:
-            company = sample.add(store)
+            done = sample.add(store)
         except sample.SampleError as exc:
             return (str(exc), 1)
-        return (f"Added the sample account {company.name} (companies/{company.slug}). "
-                "It is made up; `hermitcrm sample remove` deletes it again.", 0)
-    removed = sample.remove(store)
-    if not removed:
-        return ("No sample account to remove.", 0)
-    return ("Removed the sample account: " + ", ".join(c.name for c in removed)
-            + ". It stays in the git history.", 0)
+        company = done.companies[0]
+        lines = [f"Added the sample account {company.name} (companies/{company.slug})."]
+        if sample.DASHBOARD in done.files:
+            lines.append(f"With it: the dashboard {sample.DASHBOARD_TITLE}, pinned in the "
+                         f"sidebar ({sample.DASHBOARD}).")
+        if sample.ROUTINES in done.files:
+            lines.append(f"With it: the routine {sample.ROUTINE_TITLE}, paused "
+                         f"({sample.ROUTINES}). It only drafts; nothing is sent.")
+        lines += done.kept
+        lines.append("It is all made up; `hermitcrm sample remove` deletes it again.")
+        return ("\n".join(lines), 0)
+    done = sample.remove(store)
+    if not done.what:
+        return ("\n".join(["No sample account to remove.", *done.kept]), 0)
+    return ("\n".join([f"Removed the sample: {sample.and_list(done.what)}. "
+                       "It stays in the git history.", *done.kept]), 0)
 
 
 # -------------------------------------------------------------------- setup

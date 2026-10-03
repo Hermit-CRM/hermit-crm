@@ -465,6 +465,7 @@ def test_ask_adjust_on_every_page(demo):
 
 
 def test_pinned_items_come_from_the_yours_pins_global(demo):
+    (demo / "dashboards" / "monday-review.toml").unlink()  # the sample's, pinned
     app, client = make(demo)
     sidebar = client.get("/pipeline").text.split("</nav>")[0]
     assert "Monday review" not in sidebar                            # the default: none
@@ -579,7 +580,8 @@ def test_built_items_and_the_providers_list(demo):
     (demo / "messages.toml").write_text('[languages.de]\nsignoff = "Gruß"\n')
     (demo / "layout.toml").write_text("[company]\n")
     kinds = [i["kind"] for i in adjust.all_built(demo)]
-    assert kinds == ["fields", "look", "messages", "layout"]
+    # the demo also has the sample account's dashboard and routine
+    assert kinds == ["fields", "look", "messages", "dashboard", "layout", "routine"]
     for item in adjust.all_built(demo):
         assert set(item) == {"kind", "title", "url", "detail", "adjust"}
     # the layout row is the layout module's own; a provider that fails costs
