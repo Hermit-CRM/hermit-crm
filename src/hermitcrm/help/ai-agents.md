@@ -158,11 +158,42 @@ The tools, reads first:
 | `add_company` | Create a company; returns the slug. |
 | `add_contact` | Create a contact under a company. |
 | `add_interaction` | Log an email, message, call or meeting. |
+| `adjust_help` | A Make it yours recipe: `adjust` (the rules) or `adjust-<topic>`. |
+| `adjust_read` | The text of a file you may change, or which of them exist. |
+| `adjust_write` | Replace one of those files: checked first, then one commit. |
+| `adjust_config` | Change `task_types`, `outcomes` or `silent_days`; one commit. |
+| `bulk_preview` | The dry run of a change to many records, with a `preview_id`. |
+| `bulk_apply` | Apply that change after the user said yes; one commit. |
+| `undo` | Reverse one commit with a new one (`git revert`). |
 
-The three `add_` tools are the same `store.create_*` calls the web form and
+Seventeen tools: ten that only read (`bulk_preview` included) and seven that
+write. The three `add_` tools are the same `store.create_*` calls the web form and
 `hermitcrm add` make, so validation, slugging, the prospect-to-engaged move and
 the git commit are shared rather than copied. Each one writes a file and makes a
 commit, so call them only when a record has actually been asked for.
+
+### Make it yours over MCP
+
+A client with no shell (Claude Desktop, ChatGPT) can change Hermit itself the
+way an agent with a shell does with `hermitcrm help adjust`, and the rules that
+page asks an agent to keep are enforced rather than only written down:
+
+- `adjust_help` first: the rules, then the recipe for the kind of change.
+- `adjust_write` takes only `fields.toml`, `layout.toml`,
+  `dashboards/<name>.toml`, `routines.toml`, `theme.css`, `messages.toml` and
+  `MESSAGING.md`, and no path outside the folder. It runs the checks of
+  `hermitcrm check` on the new text first: a problem leaves the file as it was,
+  makes no commit and comes back as `<file>: <where>: <what>` lines to fix. A
+  file with changes that are not committed yet is not overwritten.
+- A routine written this way arrives paused (`paused = true`, and the answer
+  says so), unless it was already on. The user previews it and turns it on.
+- `adjust_config` changes only `task_types`, `outcomes` and `silent_days`,
+  through the same code Settings saves them with.
+- `bulk_apply` refuses unless its `preview_id` comes from a `bulk_preview` of
+  the same scope, filters and changes on the folder as it is now, so the dry
+  run always comes first. Interaction bodies are never changed.
+- Every write is one commit (`ai: adjust: <summary>` or `bulk: ...`), and the
+  answer gives its id for `undo`. Nothing is ever sent: messages are drafts.
 
 Every tool re-reads the folder before answering, so a long-lived MCP session
 does not serve a snapshot from whenever the client connected.

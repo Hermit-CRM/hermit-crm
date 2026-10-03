@@ -30,7 +30,7 @@ from pathlib import Path
 
 from . import __version__, backup, bcc, guard, migrations, schedule, secrets, updates, usertheme
 from . import setup as setup_steps
-from .datafolder import is_data_folder
+from .datafolder import SKILL, is_data_folder
 from .enrich import Enricher
 from .store import DEFAULT_CONFIG
 
@@ -184,6 +184,15 @@ def run_checks(root: Path, *, online: bool = False, env: dict | None = None,
                 f"({guard.SETTINGS})")
     except guard.GuardError as exc:
         add("agent guard", WARN, str(exc))
+
+    try:  # before format 8 the pending migration writes it; "data format" says so
+        if migrations.missing_agent_files(root):
+            add("agent skill", WARN, f"{SKILL} is missing, so /hermit (Make it yours) "
+                "does not work in Claude Code; run hermitcrm migrate")
+        elif (root / SKILL).exists():
+            add("agent skill", OK, f"/hermit works in Claude Code ({SKILL})")
+    except migrations.FormatTooNew:
+        pass  # "data format" already failed on it
 
     remote = str(config.get("remote") or "origin")
     url = setup_steps.remote_url(root, remote, runner)
