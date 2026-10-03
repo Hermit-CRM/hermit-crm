@@ -3318,9 +3318,11 @@ def create_app(root: Path, config: dict | None = None,
                "last_run": routines.last_run_text(state),
                "waiting": [d for d in routines.drafts(root) if d.routine == name],
                "picks": [], "brief": None, "tried": None, "tried_pick": None,
-               "try_error": ""}
+               "try_error": "", "ai_problem": ""}
         if routine is not None:
             ctx["description"] = routines.describe(routine, config)
+            if routine.action == "draft":
+                ctx["ai_problem"] = routines.ai_problem(app.state.enricher)
             try:
                 if routine.action == "brief":
                     ctx["brief"] = routines.make_brief(store, config, store.now())
@@ -3341,8 +3343,10 @@ def create_app(root: Path, config: dict | None = None,
         valid = {r.name: r for r in loaded.routines}
         rows = [{"name": n, "routine": valid.get(n),
                  "last_run": routines.last_run_text(state.get(n))} for n in loaded.names]
+        drafting = any(r.action == "draft" for r in loaded.routines)
         return render(request, "routines.html", {
             "present": loaded.present, "rows": rows, "problems": loaded.errors,
+            "ai_problem": routines.ai_problem(app.state.enricher) if drafting else "",
             "waiting": len(routines.drafts(root))})
 
     @app.get("/yours/routines/{name}", response_class=HTMLResponse)

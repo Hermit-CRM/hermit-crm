@@ -247,8 +247,14 @@ class Provider:
         self.binary = binary or self.default_binary
 
     # Tools for a run: None = the enrich default (web search); a string is
-    # provider-specific (Claude: an --allowedTools value). Set per call.
+    # provider-specific (Claude: an --allowedTools value); "" = a run that must
+    # have none. Set per call.
     tools: str | None = None
+
+    # How a run with tools="" is held to that, in words ("" = this CLI has no
+    # switch for it). Where the AI reads text from strangers (routines), a CLI
+    # without one is refused rather than run with its tools on.
+    no_tools = ""
 
     def build_argv(self, schema_path: str, model: str, out_path: str = "",
                    prompt: str = "", schema: dict | None = None) -> list[str]:
@@ -272,12 +278,17 @@ class ClaudeProvider(Provider):
     """Claude Code: `claude -p` with web search and a JSON schema (verified 2.1.211)."""
 
     name, default_binary = "claude", "claude"
+    no_tools = "no tools at all (--tools \"\")"
 
     def build_argv(self, schema_path, model, out_path="", prompt="", schema=None):
         argv = [self.binary, "-p", "--output-format", "json",
                 "--json-schema", json.dumps(schema or {}),
                 "--allowedTools", self.tools if self.tools is not None
                 else "WebSearch,WebFetch"]
+        if self.tools == "":
+            # --allowedTools only says what needs no approval: Claude still reads
+            # files with its read-only tools. --tools "" takes every tool away.
+            argv += ["--tools", ""]
         if model:
             argv += ["--model", model]
         return argv
@@ -313,10 +324,15 @@ class CodexProvider(Provider):
     """
 
     name, default_binary = "codex", "codex"
+    no_tools = "its read-only sandbox (--sandbox read-only)"
 
     def build_argv(self, schema_path, model, out_path="", prompt="", schema=None):
         argv = [self.binary, "exec", "--skip-git-repo-check",
                 "--output-schema", schema_path, "--output-last-message", out_path]
+        if self.tools == "":
+            # Codex has no switch that turns its tools off; the sandbox keeps it from
+            # changing anything (it can still read files on this machine).
+            argv += ["--sandbox", "read-only"]
         if model:
             argv += ["-m", model]
         return argv + ["-"]
@@ -556,6 +572,20 @@ class Enricher:
             return "enrich_provider is custom but enrich_command is empty"
         return ("no AI CLI found (looked for " + ", ".join(AUTO_ORDER) + "); install "
                 "one or set enrich_provider / enrich_command in config.toml")
+
+    def no_tools_problem(self) -> str:
+        """Why a run that must have no tools cannot go to this CLI, else "".
+
+        Only Claude (--tools "") and Codex (--sandbox read-only) have a switch
+        for it; Gemini, Grok and a custom command run with whatever tools they
+        have. A run of that kind is refused, in one line saying what to do.
+        """
+        provider = self.provider
+        if provider is None or provider.no_tools:
+            return ""
+        who = "your custom command" if provider.name == "custom" else provider.name
+        return (f"{who} can't run without tools, so routines that draft need Claude Code "
+                "or Codex: set enrich_provider to claude or codex (Settings, AI)")
 
     # --- transport
 

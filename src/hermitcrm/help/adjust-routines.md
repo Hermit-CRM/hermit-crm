@@ -27,11 +27,19 @@ dashboard, or `hermitcrm set` with a dry run).
    threads Home lists under replies you owe, and the ones waiting on them) or the
    same filters as the Companies and Contacts lists.
 2. **The AI drafts** one message per selected record, at most `limit` per run,
-   through the AI CLI set up for Enrich (Settings, AI), on the medium model, with
-   no tools. It gets the record (as `hermitcrm show` prints it), the playbook
-   `MESSAGING.md`, the folder's `messages.toml` wording in the contact's
-   language, and the routine's `prompt`. It answers in JSON; an empty, overlong
-   or garbled answer skips that record with a one-line reason.
+   through the AI CLI set up for Enrich (Settings, AI), on the medium model. It
+   gets the record (as `hermitcrm show` prints it), the playbook `MESSAGING.md`,
+   the folder's `messages.toml` wording in the contact's language, and the
+   routine's `prompt`. It answers in JSON; an empty, overlong or garbled answer
+   skips that record with a one-line reason.
+   The record can hold messages from other people, so the AI is held back:
+   Claude Code runs with all of its tools switched off (`--tools ""`); Codex
+   runs in its read-only sandbox, which cannot be turned into "no tools": it can
+   read files on this machine but cannot change anything. Gemini CLI, Grok CLI
+   and a custom command have no such switch, so a routine that drafts refuses to
+   run on them. It says so in one line on its page, in `hermitcrm routines list`
+   and in the preview, and fails the same way in a real run, until Settings, AI
+   names Claude Code or Codex. It is never run with its tools on.
 3. **Drafts land on Home** under *Drafts from routines*, with a link to the
    person. The user edits one, sends it themselves, then clicks *I sent it*
    (logged as an outbound message) or *Discard*. A routine never writes a second
