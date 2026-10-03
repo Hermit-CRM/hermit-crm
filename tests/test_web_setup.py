@@ -315,3 +315,69 @@ def test_settings_says_where_secrets_live_on_each_platform(folder, monkeypatch):
     assert "locked while you are logged out" in page
     assert re.search(r'name="keychain" value="1" checked[^>]*> Store the password in '
                      r'the system keyring \(Secret Service\)', page)
+
+
+# ------------------------------------------------- small fixes on the page (Oct 2026)
+
+def test_a_stored_calendar_address_is_said_to_be_kept(folder):
+    """The address field is a password field, so it shows empty once saved; the
+    BCC password says "stored; leave empty to keep it" and now so does this one."""
+    app, client = make_client(folder)
+    app.state.fetch_calendar = lambda url: "BEGIN:VCALENDAR\nEND:VCALENDAR\n"
+
+    def field():
+        return re.search(r'<input type="password" name="url"[^>]*>',
+                         client.get("/settings").text).group(0)
+
+    assert "stored" not in field()
+    client.post("/setup/calendar", data={"csrf_token": token(client),
+                                         "url": "https://cal.example.com/s.ics"})
+    assert 'placeholder="stored; leave empty to keep it"' in field()
+
+
+def test_a_github_remote_gets_one_private_warning_not_two(folder):
+    subprocess.run(["git", "-C", str(folder), "remote", "add", "origin",
+                    "git@github.com:me/crm.git"], check=True)
+    _, client = make_client(folder)
+    page = client.get("/settings").text
+    assert "github.com hosts public repositories too" in page
+    assert page.count("PRIVATE") == 1
+
+
+def test_the_field_form_offers_only_places_the_record_has(folder):
+    """Each "Shown in" box names the records it fits, from VIEWS_FOR_SCOPE, so
+    the page can hide the rest; before, a contact field could tick "board" and
+    be refused on save."""
+    _, client = make_client(folder)
+    page = client.get("/settings").text
+    offered = {view: set(scopes.split()) for scopes, view in re.findall(
+        r'<label data-scopes="([^"]*)"><input type="checkbox" name="show_in" '
+        r'value="(\w+)"', page)}
+    assert offered == {"detail": {"company", "contact", "interaction"},
+                       "board": {"company"}, "companies": {"company"},
+                       "contacts": {"contact"}, "messages": {"interaction"}}
+    assert 'id="field-applies-to"' in page and 'id="field-show-in"' in page
+
+
+def test_checkboxes_sit_beside_their_words(folder):
+    """A bare checkbox inherits the full-width block every input gets; the
+    outreach box showed up detached in the middle of the field form."""
+    app, client = make_client(folder)
+    app.state.setup_platform = "darwin"
+    page = client.get("/settings").text
+    assert '<label class="check"><input type="checkbox" name="messaging"' in page
+    assert '<label class="check"><input type="checkbox" name="keychain"' in page
+    assert 'style="display:inline' not in page
+
+
+def test_unticking_outreach_use_sticks(folder):
+    """An unticked checkbox sends nothing; the route read that as "on"."""
+    app, client = make_client(folder)
+    t = token(client)
+    client.post("/settings/fields/add", data={"csrf_token": t, "key": "private_note"})
+    client.post("/settings/fields/add", data={"csrf_token": t, "key": "segment",
+                                              "messaging": "on"})
+    defs = {d.key: d for d in app.state.custom_fields}
+    assert defs["private_note"].messaging is False
+    assert defs["segment"].messaging is True
+    assert "messaging = false" in (folder / "fields.toml").read_text()
