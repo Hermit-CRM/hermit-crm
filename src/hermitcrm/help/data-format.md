@@ -154,7 +154,8 @@ folder written by a newer Hermit CRM is refused until you upgrade.
 One commit per write, with a fixed message shape: `company: <slug> created`,
 `company: <slug> stage <old> -> <new>`, `contact: <company>/<slug> updated`,
 `interaction: <company> <channel> <direction> <contact> <date>`,
-`import: ...`, `bcc: ...`, `calendar: ...`, `ai: ...` for enrichment and
+`import: ...`, `bcc: ...`, `calendar: ...`, `bulk: <summary>` for one `hermitcrm set`
+(many records, one commit, with its own undo), `ai: ...` for enrichment and
 agent-made changes, `pipeline: rebuild`. Rolling back is plain git:
 `git checkout <sha> -- <path>` or `git revert <sha>`, then `hermitcrm rebuild`.
 

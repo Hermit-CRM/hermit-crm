@@ -1181,3 +1181,18 @@ def test_a_note_does_not_engage_a_prospect(store):
     assert (note.channel, note.contact, note.body) == ("note", "jane-doe", "Met at a fair.\n")
     assert acme.contacts["jane-doe"].notes == ""
     assert acme.last_touch is None
+
+
+def test_updating_a_contact_keeps_their_tasks(store):
+    """update_contact rebuilt the contact from a list of fields that left `tasks`
+    out, so editing a title dropped every task the person had."""
+    store.create_company("Acme")
+    store.create_contact("acme", "Jane", "Doe")
+    store.add_task("acme", "Send the deck", due="2026-09-20", contact="jane-doe")
+
+    store.update_contact("acme", "jane-doe", title="CEO")
+
+    fresh = Store(store.root)
+    fresh.load()
+    jane = fresh.get("acme").contacts["jane-doe"]
+    assert jane.title == "CEO" and [t.text for t in jane.tasks] == ["Send the deck"]

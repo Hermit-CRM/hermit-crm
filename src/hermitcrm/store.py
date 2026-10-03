@@ -1206,7 +1206,7 @@ class Store:
             raise ValidationError({"contact": f"unknown contact {cslug!r}"})
         new = Contact(**{k: getattr(contact, k) for k in (
             "first_name", "last_name", "slug", "title", "linkedin", "email", "phone",
-            "role", "language", "created", "updated", "notes")})
+            "role", "language", "tasks", "created", "updated", "notes")})
         new.extra = dict(contact.extra)
         if "custom" in fields:
             new.extra = fields_mod.apply(new.extra, fields.pop("custom") or {})

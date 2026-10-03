@@ -29,6 +29,7 @@ page for the screen you are on; `hermitcrm help <topic>` prints the same text.
 - [CLI](/help/cli): every `hermitcrm` command.
 - [Data format](/help/data-format): the files, their front-matter keys, stage history, migrations.
 - [AI agents](/help/ai-agents): how an AI session should read and write the folder, and the MCP server (`hermitcrm mcp`) that lets a client with no shell do it.
+- [Adjust: bulk changes](/help/adjust-bulk): `hermitcrm set`, a dry run first and then one commit you can undo; the recipe an AI agent follows.
 - [Feedback](/help/feedback): tell whoever gave you Hermit CRM what worked and what did not.
 - [Disclaimer](/help/disclaimer): no warranty, your backups, your integrations, and what the name is not licensed for.
 
