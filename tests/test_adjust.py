@@ -625,6 +625,33 @@ def test_recipes_render_and_print(demo, topic, capsys):
     assert capsys.readouterr().out == helpdocs.read(topic)
 
 
+def test_look_recipe_example_is_valid_and_moves_every_sidebar_colour(tmp_path):
+    """A \"cooler\" look that leaves --sidebar-active alone shows a beige menu
+    item on a blue-grey page, so the recipe lists those tokens and the example
+    changes them. Its tokens must be real ones and its CSS must pass check."""
+    text = helpdocs.read("adjust-look")
+    tokens = adjust.shipped_tokens()
+    listed = set(re.findall(r"^\| `(--[a-z0-9-]+)` \|", text, re.M))
+    assert {"--sidebar", "--sidebar-hover", "--sidebar-active"} <= listed <= tokens
+    css = re.search(r"```css\n(.*?)```", text, re.S).group(1)
+    assert {"--sidebar", "--sidebar-hover", "--sidebar-active"} <= set(
+        re.findall(r"^\s*(--[a-z0-9-]+):", css, re.M))
+    (tmp_path / "theme.css").write_text(css, encoding="utf-8")
+    assert adjust.validate_theme(tmp_path) == []
+
+
+def test_feature_recipe_does_not_hand_a_generator_to_the_template_row():
+    """"I want a quote generator" is the hub's own example of something Hermit
+    cannot do. The recipe once sent every quote to a MESSAGING.md template, and
+    the agent built that unasked; now a template covers the wording only, and a
+    partial cover is asked about before anything is written."""
+    text = helpdocs.read("adjust-feature")
+    assert "The wording of a quote" in text and "| A quote, a proposal" not in text
+    assert "ask before you
+build the partial version" in text
+    assert "change nothing in the data folder until they say yes" in text
+
+
 def test_the_rules_page_covers_every_recipe():
     text = helpdocs.read("adjust")
     for topic in ("adjust-fields", "adjust-look", "adjust-messages", "adjust-connect",

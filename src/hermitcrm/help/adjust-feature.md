@@ -16,11 +16,16 @@ disguise. Try these before anything else:
 | "Hide this", "put that first" | a page layout (`hermitcrm help adjust-layout`) |
 | A weekly overview, a ranked list, a report of their own | a dashboard |
 | A reminder, a daily brief, follow-ups drafted for me | a routine (`hermitcrm help adjust-routines`); it drafts, never sends |
-| A quote, a proposal, an email in their style | a template in `MESSAGING.md` (`hermitcrm help adjust-messages`), filled in by you on request |
+| The wording of a quote, a proposal or an email in their style | a template in `MESSAGING.md` (`hermitcrm help adjust-messages`), filled in by you on request |
 | Data from another tool | an import (`hermitcrm help adjust-connect`) |
 
-If one of these does it, say so, build it that way, and say what is different
-from what they asked.
+If one of these does the whole job, say so, build it that way, and say what is
+different from what they asked.
+
+If one only does part of it (a button, a PDF, line items, a calculation, a
+screen Hermit does not have), a "quote generator" for instance, say which part
+it covers, write the feature request for the rest (step 2), and ask before you
+build the partial version: change nothing in the data folder until they say yes.
 
 ## 2. If it really needs code: a feature request
 
@@ -60,7 +65,8 @@ installed package:
 
 ## Safety
 
-- Nothing in the data folder changes in this recipe, unless step 1 found a way.
+- Nothing in the data folder changes in this recipe, unless step 1 found a way
+  that does the whole job, or the user said yes to a partial one.
 - Never post, mail or open an issue on the user's behalf.
 
 Related: [Make it yours](/help/adjust), [Feedback](/help/feedback)
