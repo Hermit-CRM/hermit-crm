@@ -732,7 +732,7 @@ class ToolError(Exception):
 WRITABLE = ("fields.toml", "layout.toml", "routines.toml", "theme.css", "messages.toml",
             "MESSAGING.md")
 DASHBOARD_FILE = re.compile(r"^dashboards/[a-z0-9]+(?:-[a-z0-9]+)*\.toml$")
-CONFIG_KEYS = ("task_types", "outcomes", "silent_days")
+CONFIG_KEYS = ("task_types", "outcomes", "silent_days")   # = adjust.AGENT_CONFIG_KEYS
 RECIPES = tuple(t for t in HELP_TOPICS if t == "adjust" or t.startswith("adjust-"))
 OPS = ("set", "unset", "add_tags", "remove_tags", "stage")
 MAX_FILE = 256 * 1024
