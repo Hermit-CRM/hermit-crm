@@ -72,13 +72,13 @@ but nobody would find it; **b** = possible with a small new declarative file the
   `CLAUDE.md`/`AGENTS.md` (`datafolder.AGENT_RULES`) cover reading cheaply and `hermitcrm add`;
   they say nothing about fields, theme, layouts or automation.
 
-**How Gijs actually uses it (last 30 days, his own data folder):**
-- 366 companies, 341 of them prospects, imported from a list;
-- 29 interactions, mostly LinkedIn outbound;
-- four scoring fields of his own (`my_score`, `fit_score`, `fte_estimate`, `ae_count`);
-- 27 messages sent with a 12% success rate, and 10 still at outcome "unknown".
+**How the author actually uses it (last 30 days, a real data folder):**
+- a few hundred companies, almost all prospects, imported from a list;
+- a few dozen interactions, mostly LinkedIn outbound;
+- four scoring fields of their own (a score, a fit score, a headcount estimate, a count of sales people);
+- a few dozen messages sent with a low success rate, and about ten still at outcome "unknown".
 
-His most useful cases are ranking and working that prospect list, bulk tagging or scoring it,
+The most useful cases are ranking and working that prospect list, bulk tagging or scoring it,
 and nudging quiet LinkedIn threads.
 
 ---
