@@ -1,0 +1,15 @@
+{# Today's brief from a brief routine (hermitcrm/routines.py), at the top of Home. #}
+{% for b in routine_briefs %}
+<section class="card routine-brief" id="brief-{{ b.name }}">
+  <h2>{{ b.title }} <span class="small">as of {{ b.at | replace('T', ' ') }}</span></h2>
+  {% set ns = namespace(any=false) %}
+  {% for section in b.sections if section['items'] %}{% set ns.any = true %}
+  <h3>{{ section.title }} ({{ section.count }})</h3>
+  <ul>
+    {% for item in section['items'] %}<li><a href="{{ item.url }}">{{ item.text }}</a></li>{% endfor %}
+    {% if section.more %}<li class="small">and {{ section.more }} more</li>{% endif %}
+  </ul>
+  {% endfor %}
+  {% if not ns.any %}<p class="small">No meetings today, nothing due and no replies owed.</p>{% endif %}
+</section>
+{% endfor %}
