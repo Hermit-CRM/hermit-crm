@@ -28,6 +28,7 @@ import ipaddress
 import json
 import logging
 import platform as platform_info
+import re
 import socket
 import subprocess
 import sys
@@ -41,14 +42,15 @@ from urllib.parse import parse_qsl as _parse_qsl, quote, urlencode, urlparse
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from markupsafe import Markup, escape
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import QueryParams
 
 from . import __version__, updates
 from fastapi.templating import Jinja2Templates
 
-from . import (bcc, brief, calendar_sync, capture, disclaimer, feedback,
-               fields as custom, filters, followups, messaging, migrations,
+from . import (adjust, bcc, brief, calendar_sync, capture, disclaimer, feedback,
+               fields as custom, filters, followups, history, messaging, migrations,
                pipeline, reports, sample, welcome)
 from . import schedule, scrape, secrets, task_types, usertheme
 from . import help as helpdocs
@@ -553,6 +555,15 @@ CSP = ("default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inlin
        "script-src 'self' 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'")
 
 
+_PLACEHOLDER = re.compile(r"\[([^\[\]]+)\]")
+
+
+def placeholders(text: str) -> Markup:
+    """A starter's text as HTML: escaped, each [placeholder] marked as the part
+    to change (the request box keeps the brackets)."""
+    return Markup(_PLACEHOLDER.sub(r'<span class="ph">\1</span>', str(escape(text))))
+
+
 def safe_page(page: str) -> str:
     """A local path to answer questions about; anything else becomes /."""
     page = (page or "").strip()
@@ -794,8 +805,21 @@ def create_app(root: Path, config: dict | None = None,
         Re-reading first means the commit's push already uses a push_enabled or
         remote the save just changed.
         """
+        config_reloaded()
+        setup_steps.commit_config(root, store.notify)
+
+    def config_reloaded() -> None:
+        """Re-read config.toml and rebuild everything derived from it, without
+        committing: a Settings save commits after this (config_saved), and an
+        agent's edit is the agent's to commit. A config.toml that no longer
+        parses keeps the settings the app had; `hermitcrm check` names the line."""
         nonlocal message_window
-        fresh = load_config(root)
+        try:
+            fresh = load_config(root)
+        except (OSError, ValueError) as exc:  # tomllib.TOMLDecodeError is a ValueError
+            logger.warning("config.toml not re-read: %s", exc)
+            watched["config.toml"] = file_stamp("config.toml")
+            return
         keep = {k: config[k] for k in ("start_update_check",) if k in config}
         config.clear()
         config.update(fresh, **keep)
@@ -814,9 +838,63 @@ def create_app(root: Path, config: dict | None = None,
         message_window = int(config.get("message_window_days", 14))
         app.state.enricher = build_enricher(config)
         app.state.custom_fields = load_custom_fields()
+        followup_days.update(
+            reply_after=int(config.get("followup_reply_days",
+                                       DEFAULT_CONFIG["followup_reply_days"])),
+            nudge_after=int(config.get("followup_nudge_days",
+                                       DEFAULT_CONFIG["followup_nudge_days"])))
         cal_url_cache.clear()
         current_setup_state(refresh=True)
-        setup_steps.commit_config(root, store.notify)
+        watched["config.toml"] = file_stamp("config.toml")
+        watched[custom.FILENAME] = file_stamp(custom.FILENAME)
+
+    def messages_reloaded() -> None:
+        """Re-read messages.toml: the drafts and the labels the pages show."""
+        watched[messaging.MESSAGES_FILE] = file_stamp(messaging.MESSAGES_FILE)
+        try:
+            fresh = messaging.load_messages(root)
+        except Exception as exc:  # a broken file keeps the wording the app had
+            logger.warning("messages.toml not re-read: %s", exc)
+            return
+        app.state.messages = fresh
+        templates.env.globals["signal_labels"] = messaging.signal_labels(fresh)
+        templates.env.globals["language_names"] = messaging.language_names(fresh)
+
+    def fields_reloaded() -> None:
+        app.state.custom_fields = load_custom_fields()
+        watched[custom.FILENAME] = file_stamp(custom.FILENAME)
+
+    # Pickup without a restart: the files an agent may edit while the app runs,
+    # with the (mtime, size) the app last read them at. A few stats per page.
+    def file_stamp(name: str):
+        try:
+            st = (root / name).stat()
+        except OSError:
+            return None
+        return (st.st_mtime_ns, st.st_size)
+
+    watched = {name: file_stamp(name)
+               for name in ("config.toml", messaging.MESSAGES_FILE, custom.FILENAME)}
+
+    def pick_up_edits() -> None:
+        """Re-read whichever watched file changed on disk since the app read it."""
+        changed = [n for n in watched if file_stamp(n) != watched[n]]
+        if "config.toml" in changed:
+            config_reloaded()          # re-reads fields.toml too
+        if messaging.MESSAGES_FILE in changed:
+            messages_reloaded()
+        if custom.FILENAME in changed and file_stamp(custom.FILENAME) != watched[custom.FILENAME]:
+            fields_reloaded()
+
+    def reload_everything() -> None:
+        """What Reload does: the records, fields.toml and messages.toml again,
+        and config.toml when it changed on disk (the config the app was started
+        with may hold keys that are not in the file)."""
+        pick_up_edits()
+        store.load()
+        fields_reloaded()
+        messages_reloaded()
+        app.state.index_head = gitops.last_commit_sha()
 
     def calendar_alert() -> str:
         last = inbox.last_run(calendar_sync.LAST_RUN_FILE)
@@ -847,6 +925,10 @@ def create_app(root: Path, config: dict | None = None,
         # prospect the next time any page is opened (idempotent, one commit).
         if request.method == "GET" and not request.url.path.startswith("/static") \
                 and request.url.path != "/theme.css":
+            try:
+                pick_up_edits()
+            except Exception:
+                logger.exception("picking up edited files failed")
             try:
                 refresh_if_moved()
             except Exception:
@@ -938,6 +1020,43 @@ def create_app(root: Path, config: dict | None = None,
 
     templates.env.filters["slug"] = slugify  # CSS class names from outcome values
     templates.env.filters["href"] = safe_href  # stored URLs: http(s) or nothing
+    templates.env.filters["placeholders"] = placeholders  # a starter's [placeholders]
+    templates.env.filters["inline"] = lambda text: Markup(helpdocs.inline(str(text or "")))
+    # The sidebar's pinned dashboards (contract 6): the dashboards module
+    # registers the real one under the same name.
+    templates.env.globals.setdefault("yours_pins", lambda: [])
+    # Where "or describe it" links open the hub: /yours?starter=<id>#describe.
+    templates.env.globals["starter_link"] = (
+        lambda starter_id: f"/yours?starter={quote(starter_id)}#describe")
+    templates.env.globals["settings_starters"] = adjust.SETTINGS_STARTERS
+    templates.env.globals["reports_starter"] = adjust.REPORTS_STARTER
+
+    def starter_values(company=None) -> dict:
+        """The starters' {slots} from this folder's data, worked out once per
+        commit (the data only changes with one)."""
+        key = (app.state.index_head, id(app.state.custom_fields),
+               config.get("followup_nudge_days"), config.get("message_window_days"))
+        if company is None and starter_cache.get("key") == key:
+            return starter_cache["values"]
+        values = adjust.prefill(store, app.state.custom_fields, config, company=company)
+        if company is None:
+            starter_cache.update(key=key, values=values)
+        return values
+
+    starter_cache: dict = {}
+
+    def adjust_context(request: Request, ctx: dict) -> dict:
+        """The Adjust tab: who gets the request, the page it is about, and the
+        starters that fit the page."""
+        kind = adjust.page_kind(request.url.path)
+        company = ctx.get("company") if kind in ("company", "contact") else None
+        on_hub = request.url.path == "/yours"
+        return {
+            "handoff": adjust.agent_info(config, root),
+            "adjust_path": "" if on_hub else adjust.page_path(request.url.path,
+                                                               request.url.query),
+            "page_starters": adjust.starters_for(kind, starter_values(company)),
+        }
 
     def render(request: Request, name: str, ctx: dict, status_code: int = 200):
         bcc_alert = bcc.run_alert(inbox.last_run(), store.now())
@@ -967,6 +1086,7 @@ def create_app(root: Path, config: dict | None = None,
             "samples": sample.samples(store),
         }
         context.update(ctx)
+        context.update(adjust_context(request, context))
         return templates.TemplateResponse(request, name, context,
                                           status_code=status_code)
 
@@ -1070,11 +1190,23 @@ def create_app(root: Path, config: dict | None = None,
          "Activity, funnel and outcomes over a period you choose."),
         ("/ask", "Ask the Hermit", "ask",
          "A question about the page you are on, or the whole CRM."),
+        ("/yours", "Make it yours", "yours",
+         "Describe a change and your own AI agent builds it: a field, a look, a dashboard."),
     ]
+
+    adjusted_cache: dict = {}
+
+    def adjusted() -> bool:
+        """Whether the folder has something made with Make it yours (the
+        welcome step), looked up again only after a commit."""
+        head = app.state.index_head
+        if adjusted_cache.get("head") != head or "value" not in adjusted_cache:
+            adjusted_cache.update(head=head, value=adjust.has_adjusted(root))
+        return adjusted_cache["value"]
 
     def welcome_steps() -> list:
         return welcome.steps(store, config, current_setup_state(),
-                             app.state.enricher.available)
+                             app.state.enricher.available, adjusted=adjusted())
 
     @app.get("/welcome", response_class=HTMLResponse)
     def welcome_page(request: Request):
@@ -2549,6 +2681,11 @@ def create_app(root: Path, config: dict | None = None,
                                                          or 14),
                               "silent_days": str(config.get("silent_days") or 14)},
             "task_types_form": {"rows": app.state.task_types},
+            "agent_choices": [("", "the tool above ("
+                               + (adjust.AGENTS[adjust.agent_for({**config, adjust.AGENT_KEY: ""})]
+                                  ["label"] or "copy the prompt") + ")"),
+                              *((k, v["label"] or "none: copy the prompt")
+                                for k, v in adjust.AGENTS.items())],
             "schedule": schedule_status(),
             "local_backup": local_backup_status(),
             "access": access_facts(),
@@ -2760,6 +2897,24 @@ def create_app(root: Path, config: dict | None = None,
                 else f" Unavailable: {enricher.unavailable_reason()}")
         return flashed("/settings", result.text() + note, anchor="enrichment")
 
+    @app.post("/settings/adjust-agent")
+    def settings_adjust_agent(request: Request, csrf_token: str = Form(""),
+                              agent: str = Form("")):
+        """Which agent Make it yours hands requests to (adjust_agent)."""
+        check_csrf(csrf_token)
+        agent = agent.strip().lower()
+        if agent and agent not in adjust.AGENTS:
+            result = setup_steps.StepResult(ok=False, errors={
+                "agent": "Pick one of " + ", ".join(adjust.AGENTS) + ", or follow the tool."})
+            return setup_invalid(request, result, "enrichment")
+        setup_steps.set_config_values(root / "config.toml", {adjust.AGENT_KEY: agent})
+        config_saved()
+        info = adjust.agent_info(config, root)
+        return flashed("/settings", "Make it yours now " + (
+            f"opens {info['label']}." if info["how"] == "link" else
+            f"gives you a command for {info['label']}." if info["how"] == "command" else
+            "gives you a prompt to copy."), anchor="enrichment")
+
     @app.post("/settings/appearance")
     def settings_appearance(request: Request, csrf_token: str = Form(""),
                             theme: str = Form("")):
@@ -2897,6 +3052,56 @@ def create_app(root: Path, config: dict | None = None,
             raise HTTPException(status_code=404, detail=f"unknown inbox item {item_id!r}")
         return flashed("/", f"Discarded {item.address}", anchor="to-file")
 
+    # ---------------------------------------------------------- make it yours
+
+    HUB_CHANGES = "changes"   # the hub's Recent changes, where an undo lands
+
+    def hub_page(request: Request, status_code: int = 200):
+        """/yours: describe a change, start from an idea, what you have built,
+        recent changes with Undo."""
+        values = starter_values()
+        params = request.query_params
+        chosen = adjust.starter(params.get("starter", ""), values)
+        family = params.get("family", "")
+        cards = adjust.gallery(values)
+        now = datetime.now()   # commit times are real times, whatever the store's clock
+        return render(request, "yours.html", {
+            "describe_text": params.get("request", "") or (chosen["text"] if chosen else ""),
+            "picked": chosen["id"] if chosen else "",
+            "families": [(f, sum(1 for c in cards if c["family"] == f))
+                         for f in adjust.FAMILIES],
+            "family": family if family in adjust.FAMILIES else "",
+            "cards": cards,
+            "suggested": adjust.suggestions(store, app.state.custom_fields, config, values,
+                                            store.today(), message_window, outcomes),
+            "built": adjust.all_built(root),
+            "changes": [(c, history.when_text(c.when, now))
+                        for c in history.recent_changes(root)],
+            "problems": adjust.all_problems(root),
+            "feature": adjust.starter("feature", values),
+            "recipe_topics": {t for t in adjust.RECIPES.values() if helpdocs.read(t)},
+        }, status_code=status_code)
+
+    @app.get("/yours", response_class=HTMLResponse)
+    def yours(request: Request):
+        return hub_page(request)
+
+    @app.post("/yours/undo")
+    def yours_undo(request: Request, csrf_token: str = Form(""), sha: str = Form("")):
+        """Undo one change: a new commit that reverses it (hermitcrm undo)."""
+        check_csrf(csrf_token)
+        try:
+            new, subject = history.undo(store, sha)
+        except history.UndoError as exc:
+            if exc.prompt:   # a conflict: hand it to the agent, prefilled
+                return goto(f"/yours?request={quote(exc.prompt)}"
+                            f"&flash={quote(str(exc), safe='')}#describe")
+            return flashed("/yours", str(exc), anchor=HUB_CHANGES)
+        reload_everything()
+        gitops.push_async()
+        return flashed("/yours", f"Undone in a new commit {new}: {subject}. Undo that one "
+                       "to bring the change back.", anchor=HUB_CHANGES)
+
     # ------------------------------------------------------------------- help
 
     def help_page(request: Request, topic: str, **extra):
@@ -3001,9 +3206,9 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.post("/reload")
     def reload_index(request: Request):
-        """Re-read the data folder: the records and the fields that describe them."""
-        store.load()
-        app.state.custom_fields = load_custom_fields()
+        """Re-read the data folder: the records, the fields that describe them,
+        the draft wording and config.toml (see reload_everything)."""
+        reload_everything()
         return goto(request.headers.get("referer") or "/")
 
     @app.get("/health")

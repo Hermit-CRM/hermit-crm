@@ -63,6 +63,17 @@ nothing is written and nothing is committed.
 - Never rewrite interaction bodies; they are the record.
 - Never put secrets in `config.toml` and never commit `.secrets.toml`.
 
+## Adjusting Hermit
+
+When the user asks you to change Hermit CRM itself (a field, the look, a
+dashboard, a page layout, templates, a routine, many records at once), run
+`hermitcrm help adjust` first and follow it. It lists the files you may write
+without asking, the recipe for each kind of change, and the rules: records only
+through `hermitcrm add` and `hermitcrm set` (dry run first), `hermitcrm check`
+after every change, one commit per change named `ai: adjust: <what>`, drafts
+only and never sending anything. `hermitcrm undo <commit>` reverses a change with
+a new commit. See [Make it yours](/help/adjust).
+
 ## Backups and undo
 
 The folder is backed up every few minutes to a repository outside it that

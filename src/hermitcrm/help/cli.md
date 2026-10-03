@@ -33,7 +33,8 @@ hermitcrm brief [--days 7]                 each upcoming meeting with its stage,
 hermitcrm mcp                              serve this folder to AI clients over MCP (stdio); see the AI agents topic
 hermitcrm report [--days N | --from D --to D] [--md]
                                         the Reports page as text tables (Markdown with --md)
-hermitcrm check                            validate every file; exit 1 and the file paths on problems
+hermitcrm check                            validate every file (records, fields.toml, theme.css, messages.toml,
+                                        config.toml); exit 1 and one "file: where: what" line per problem
 ```
 
 ## Backups
@@ -70,9 +71,14 @@ hermitcrm calendar [--apply] [--ics FILE ...]
                                         import past meetings from the ICS feed (or .ics files)
 hermitcrm sync [--apply]                   bcc, then calendar; what the daily job runs
 hermitcrm backfill-history [--apply]       stage_history from git for companies without one
+hermitcrm undo COMMIT                      reverse one commit with a new one (git revert); refuses a merge,
+                                        an unknown commit or uncommitted changes, and stops on a conflict
 ```
 
 `bcc`, `calendar` and `sync` with `--apply` tell a running web app to reload
 its index afterwards.
+
+`undo` is what the Undo buttons on the Make it yours page run; see
+[Make it yours](/help/adjust).
 
 Related: [Settings](/help/settings), [AI agents](/help/ai-agents), [Data format](/help/data-format)

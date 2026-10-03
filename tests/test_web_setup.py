@@ -61,7 +61,7 @@ def test_the_walkthrough_is_home_until_it_is_finished(folder):
         r = client.get(page)
     assert r.status_code == 303 and r.headers["location"] == "/welcome"
     page = client.get("/welcome").text
-    assert "0 of 10" in page and 'href="/settings#you"' in page
+    assert "0 of 11" in page and 'href="/settings#you"' in page
     assert 'href="/" data-tour="home" class="active"' in page   # Home is this page
 
 
@@ -130,7 +130,7 @@ def test_the_first_company_does_not_take_the_beginner_help_with_it(folder):
     app.state.store.create_company("Real Customer BV")
     page = client.get("/").text
     assert "What needs doing" in page and "How it is going" in page   # the real home
-    assert "Getting started" in page and "1 of 10" in page            # and the help below it
+    assert "Getting started" in page and "1 of 11" in page            # and the help below it
     assert "What this thing does" in page
     assert 'action="/sample"' in page and 'href="/welcome"' in page
 
