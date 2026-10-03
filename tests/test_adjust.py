@@ -292,6 +292,36 @@ def test_the_hub_on_a_demo_folder(demo):
     assert 'data-path=""' in page
 
 
+def test_a_toml_typo_in_config_is_a_message_not_a_traceback(empty, capsys):
+    """config.toml is where an agent puts task types and outcomes. A typo there
+    stopped every command with a traceback, `hermitcrm check` too, the very
+    command an agent runs to find out what it got wrong."""
+    with open(empty / "config.toml", "a", encoding="utf-8") as fh:
+        fh.write('\ntask_types = [{name = "call", colour = "blue"\n')
+    assert cli.main(["--data", str(empty), "check"]) == 1
+    err = capsys.readouterr().err
+    assert re.search(r"^config\.toml: line \d+: ", err, re.M) and "Traceback" not in err
+    assert cli.main(["--data", str(empty), "digest"]) == 2
+    assert "config.toml: line" in capsys.readouterr().err
+    assert cli.main(["--data", str(empty), "doctor"]) in (0, 1)   # doctor reports on its own
+
+
+def test_the_app_works_with_a_toml_typo_in_fields_toml(empty):
+    """A fields.toml that is not even TOML raised TOMLDecodeError, which the
+    start-up and the pages did not expect (they handle FieldError): the app
+    would not start. It starts with no custom fields, every page loads, and the
+    hub names the problem."""
+    (empty / "fields.toml").write_text("[[field\nkey = ", encoding="utf-8")
+    with pytest.raises(custom.FieldError, match="fields.toml: is not valid TOML"):
+        custom.load(empty)
+    app, client = make(empty)
+    assert app.state.custom_fields == []
+    for path in ("/", "/companies", "/contacts", "/pipeline", "/settings", "/yours", "/welcome"):
+        assert client.get(path).status_code in (200, 303), path
+    assert "fields.toml: line 1:" in client.get("/yours").text
+    assert any(p.startswith("fields.toml: line 1:") for p in adjust.all_problems(empty))
+
+
 def test_the_app_starts_with_a_broken_messages_file(empty):
     """messages.toml was read once at start-up without a guard, so one typo from
     an agent kept the app from starting at all, with a traceback. It starts on

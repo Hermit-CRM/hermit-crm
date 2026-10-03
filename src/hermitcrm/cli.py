@@ -27,6 +27,7 @@ import os
 import re
 import subprocess
 import sys
+import tomllib
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -1415,6 +1416,18 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
 
     if args.command == "backup":  # before migrations: a backup never changes the data
         return cmd_backup(root, args)
+
+    if args.command != "doctor":
+        # An agent may write keys into config.toml (task types, outcomes). A typo
+        # there stopped every command, `check` included, with a traceback.
+        try:
+            load_config(root)
+        except tomllib.TOMLDecodeError as exc:
+            from hermitcrm import adjust
+            print(adjust._toml_problem("config.toml", exc), file=sys.stderr)
+            print("Fix that line (or ask your agent to), then run the command again.",
+                  file=sys.stderr)
+            return 1 if args.command == "check" else 2
 
     if args.command == "doctor":  # before migrations: report, never change the folder
         from hermitcrm import doctor
