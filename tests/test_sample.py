@@ -198,7 +198,7 @@ def test_load_and_remove_from_the_web(folder):
         page = client.get(url)
         assert page.status_code == 200, url
         assert "sample-bar" in page.text and 'href="/sample/remove"' in page.text, url
-    assert "0 of 10" in client.get("/welcome").text   # the sample ticks nothing
+    assert "0 of 11" in client.get("/welcome").text   # the sample ticks nothing
     # a second load is refused with a message, not a second company
     r = client.post("/sample", data={"csrf_token": csrf})
     assert "already" in r.headers["location"].lower()
