@@ -1,4 +1,4 @@
-# Adjust: bulk changes
+# Make it yours: bulk changes
 
 Recipe for an AI agent: change many records at once with `hermitcrm set`, always as a dry run first, then one commit that can be undone.
 

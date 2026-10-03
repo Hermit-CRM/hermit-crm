@@ -199,3 +199,10 @@ def test_stacked_help_layout_keeps_wide_content_inside_the_column():
     rules = stacked.group(1)
     assert re.search(r"\.helpdoc-layout \{[^}]*flex-direction: column;[^}]*align-items: stretch", rules)
     assert re.search(r"\.helpdoc table \{[^}]*overflow-x: auto", rules)
+
+
+def test_every_make_it_yours_recipe_is_titled_alike():
+    """The topic list in the Help sidebar reads as one family."""
+    for topic in helpdocs.topics():
+        if topic.startswith("adjust"):
+            assert helpdocs.title_of(helpdocs.read(topic)).startswith("Make it yours"), topic
