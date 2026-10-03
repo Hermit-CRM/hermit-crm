@@ -233,7 +233,7 @@ class Starter:
 STARTERS = [
     Starter("dashboard-monday", "Dashboards", "A Monday dashboard",
             "Make a dashboard called [Monday review] with: prospects with [{score}] above "
-            "[{score_cut}] that I have not contacted yet, the replies I owe, and the deals "
+            "[{score_cut}] that I have not contacted yet, my overdue tasks, and the deals "
             "by stage with their value. Pin it to the sidebar.",
             "dashboards/monday-review.toml", UNDO, ("home", "pipeline", "other")),
     Starter("look", "Look", "Change the look",
@@ -249,15 +249,16 @@ STARTERS = [
             "company files, one commit", DRY_RUN, ("companies",)),
     Starter("routine-nudge", "Routines", "Nudge quiet threads",
             "Every [morning], for people I messaged on [{channel}] [{nudge_days}] days ago "
-            "without a reply, draft a short follow-up into To file. Never send anything.",
-            "routines.toml; drafts land in To file", PAUSED,
+            "without a reply, draft a short follow-up for me to check on Home. Never send "
+            "anything.",
+            "routines.toml; drafts wait on Home", PAUSED,
             ("messages", "contact", "contacts", "home")),
     Starter("layout-company", "Pages", "Rearrange a page",
             "On company pages, show the [timeline] first and hide the [Merge] section. "
             "Hide the [value per month] field everywhere.",
             "layout.toml", UNDO, ("company",)),
     Starter("messages-template", "Messages", "Templates in my voice",
-            "Write a [{channel} connection note] template for [finance leads at payment "
+            "Write a [first {channel} message] template for [finance leads at payment "
             "companies], in [English, Dutch and German]. Use my playbook.",
             "messages.toml", UNDO, ("messages", "contact", "settings")),
     Starter("import", "Connect", "Bring data in",
@@ -299,9 +300,9 @@ STARTERS = [
             "[no response]. Show me the dry run first.",
             "company files, one commit", DRY_RUN, ("pipeline",)),
     Starter("routine-brief", "Routines", "A morning brief",
-            "Every [morning], put a short brief of [today's meetings and overdue tasks] in "
-            "To file.",
-            "routines.toml; the brief lands in To file", PAUSED,
+            "Every [morning], show me a short brief on Home: today's meetings, tasks due and "
+            "replies I owe.",
+            "routines.toml; the brief shows on Home", PAUSED,
             ("home", "calendar", "tasks")),
     Starter("dashboard-week", "Dashboards", "This week at a glance",
             "Make a dashboard called [This week] with my [overdue tasks], the tasks due "
@@ -315,16 +316,16 @@ STARTERS = [
             "Add the task types [demo] and [proposal], in [blue] and [amber].",
             "config.toml (task_types)", UNDO, ("tasks", "settings")),
     Starter("dashboard-messages", "Dashboards", "How your messages land",
-            "Make a dashboard of my [{channel}] messages from the last [30] days by outcome, "
-            "with the ones still [unknown] first.",
+            "Make a dashboard of my [{channel}] messages by outcome, with the ones still "
+            "[unknown] first.",
             "dashboards/messages.toml", UNDO, ("messages",)),
     Starter("outcomes", "Fields", "Your own outcomes",
             "Change my message outcomes to [replied, meeting booked, no reply].",
             "config.toml (outcomes)", UNDO, ("messages", "settings")),
-    Starter("routine-outcomes", "Routines", "A weekly outcome check",
-            "Every [Friday], list my messages from the last [{window}] days that still have "
-            "no outcome, and put that list in To file.",
-            "routines.toml; the list lands in To file", PAUSED, ("messages", "reports")),
+    Starter("routine-replies", "Routines", "Reply drafts",
+            "Every morning, for each reply I owe, draft an answer for me to check on Home. "
+            "Use my playbook. Never send anything.",
+            "routines.toml; drafts wait on Home", PAUSED, ("messages", "reports")),
     Starter("dashboard-report", "Dashboards", "Your own report",
             "Make a dashboard called [Pipeline health] with the [funnel] for the last [30] "
             "days, the deals by [stage] and the [overdue next steps]. Pin it to the sidebar.",
