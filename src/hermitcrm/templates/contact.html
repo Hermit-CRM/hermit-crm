@@ -1,20 +1,26 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
+{# The header (name, the line under it) stays on top. Below it the sections
+   come in layout.toml's order (help: adjust-layout); their names, in the
+   default order: details, timeline, quick-add, tasks, drafts, merge, delete.
+   `hide` is the fields layout.toml hides on this page. The odd blank lines
+   keep the default page byte for byte what it was before layouts. #}
 {% block title %}{{ contact.name }}{% endblock %}
 {% block content %}
+{%- set hide = layout_hidden('contact') %}
 <h1>{{ contact.name }}</h1>
 <div class="small">
-  <a href="/companies/{{ company.slug }}">{{ company.name }}</a> &middot;
-  {{ contact.title or 'no title' }} &middot; {{ contact.role or 'no role' }} &middot;
-  {% if contact.email %}<a href="mailto:{{ contact.email }}">{{ contact.email }}</a>{% else %}no email{% endif %} &middot; {{ contact.phone or 'no phone' }}
-  {% if contact.linkedin %} &middot; <a href="{{ contact.linkedin | href }}" target="_blank" rel="noopener">linkedin</a>{% endif %}
+  <a href="/companies/{{ company.slug }}">{{ company.name }}</a>{% if 'title' not in hide %} &middot;
+  {{ contact.title or 'no title' }}{% endif %}{% if 'role' not in hide %} &middot; {{ contact.role or 'no role' }}{% endif %}{% if 'email' not in hide %} &middot;
+  {% if contact.email %}<a href="mailto:{{ contact.email }}">{{ contact.email }}</a>{% else %}no email{% endif %}{% endif %}{% if 'phone' not in hide %} &middot; {{ contact.phone or 'no phone' }}{% endif %}
+  {% if contact.linkedin and 'linkedin' not in hide %} &middot; <a href="{{ contact.linkedin | href }}" target="_blank" rel="noopener">linkedin</a>{% endif %}
   {% if enricher and enricher.available %}
   <form method="post" action="/companies/{{ company.slug }}/contacts/{{ contact.slug }}/enrich" class="inline enrich">
     <button type="submit" title="Look up missing fields with web search via the {{ enricher.provider_name }} CLI (uses credits); you confirm before anything is saved">Enrich</button>
   </form>
   {% endif %}
 </div>
-
+{% for section in layout_sections('contact') %}{% if section == 'details' %}
 <section id="details">
   <h2>Contact</h2>
   {{ m.errors_box(errors) }}
@@ -25,26 +31,26 @@
   </form>
   <p class="small">slug {{ contact.slug }} &middot; created {{ fmt_datetime(contact.created) }} &middot; updated {{ fmt_datetime(contact.updated) }}</p>
 </section>
-
+{% elif section == 'timeline' %}
 <section id="timeline">
   <h2>Interactions ({{ interactions | length }})</h2>
   {{ m.timeline(company, interactions) }}
 </section>
-
+{% elif section == 'quick-add' %}
 <section id="quick-add">
   <h2>Log an interaction</h2>
   {{ m.interaction_form('/companies/' ~ company.slug ~ '/interactions', company, interaction, contact=contact) }}
 </section>
-
+{% elif section == 'tasks' %}
 
 <section id="tasks">
   <h2>Tasks for {{ contact.name }}</h2>
   <p class="small">Things you owe this person. {{ company.name }}'s <a href="/companies/{{ company.slug }}#tasks">next step</a> is its open task due first, which can be one of these.</p>
   {{ m.task_list(company, contact.tasks, today, contact=contact.slug) }}
 </section>
-
+{% elif section == 'drafts' %}
 {{ m.drafts_section(company, contact, drafts, signal, observation, '/companies/' ~ company.slug ~ '/contacts/' ~ contact.slug) }}
-
+{% elif section == 'merge' %}
 {% if company.contacts | length > 1 %}
 <section id="merge">
   <h2>Merge</h2>
@@ -57,7 +63,7 @@
   </form>
 </section>
 {% endif %}
-
+{% elif section == 'delete' %}
 <section id="delete">
   <h2>Delete</h2>
   {% set open_tasks = contact.tasks | rejectattr('done') | list %}
@@ -67,4 +73,4 @@
     <span class="small">{% if interactions %}{{ interactions | length }} interaction(s) stay on {{ company.name }}, without a contact.{% else %}No interactions are linked to this contact.{% endif %}</span>
   </form>
 </section>
-{% endblock %}
+{% endif %}{% endfor %}{% endblock %}

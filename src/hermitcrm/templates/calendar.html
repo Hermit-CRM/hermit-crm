@@ -23,9 +23,9 @@
         <div class="brief-company">
           <div class="brief-head">
             <a href="/companies/{{ m.company.slug }}">{{ m.company.name }}</a>
-            <span class="small">{{ m.company.stage }} &middot; {{ m.company.days_in_stage(today) }}d in stage{% if m.company.value_eur_month is not none %} &middot; {{ m.company.value_eur_month }} EUR/month{% endif %}</span>
+            <span class="small">{{ m.company.stage }} &middot; {{ m.company.days_in_stage(today) }}d in stage{% if m.company.value_eur_month is not none and 'value_eur_month' not in layout_hidden('company') %} &middot; {{ m.company.value_eur_month }} EUR/month{% endif %}</span>
           </div>
-          {% if m.company.product_oneliner %}<div class="small">{{ m.company.product_oneliner }}</div>{% endif %}
+          {% if m.company.product_oneliner and 'product_oneliner' not in layout_hidden('company') %}<div class="small">{{ m.company.product_oneliner }}</div>{% endif %}
           {% if m.company.next_step_open %}
           <div class="small{% if m.company.next_step_overdue(today) %} overdue{% endif %}">next: {{ m.company.next_step or '(no text)' }}{% if m.company.next_step_due %}, due {{ fmt_date(m.company.next_step_due) }}{% endif %}</div>
           {% endif %}

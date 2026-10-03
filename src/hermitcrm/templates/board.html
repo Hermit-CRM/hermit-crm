@@ -2,6 +2,7 @@
 {% import "macros.html" as m %}
 {% block title %}Pipeline{% endblock %}
 {% block content %}
+{%- set hide = layout_hidden('company') %}{# layout.toml: fields hidden everywhere #}
 <h1>Pipeline</h1>
 {% if followups %}
 <section class="radar" id="followups">
@@ -38,7 +39,7 @@
     {% for c in column.companies %}
     <article class="card">
       <h3><a href="/companies/{{ c.slug }}">{{ c.name }}</a></h3>
-      <div class="small">{{ c.days_in_stage(today) }}d in stage{% if c.country %} &middot; {{ c.country }}{% endif %}</div>
+      <div class="small">{{ c.days_in_stage(today) }}d in stage{% if c.country and 'country' not in hide %} &middot; {{ c.country }}{% endif %}</div>
       <div class="small">{{ c.last_touch_summary }}</div>
       {% set nxt = c.next_todo() %}
       {% if nxt %}
@@ -46,7 +47,7 @@
         next: {{ nxt.text or '(no text)' }}{% if nxt.due %}, due {{ fmt_date(nxt.due) }}{% endif %}{% if nxt.done %} (done){% else %} {{ m.type_chip(nxt.type) }}{% endif %}
       </div>
       {% endif %}
-      {% if c.value_eur_month is not none %}<div class="small">{{ c.value_eur_month }} EUR/month</div>{% endif %}
+      {% if c.value_eur_month is not none and 'value_eur_month' not in hide %}<div class="small">{{ c.value_eur_month }} EUR/month</div>{% endif %}
       <form method="post" action="/companies/{{ c.slug }}/stage" class="stage-form">
         <select name="stage" onchange="this.form.submit()">
           {% for s in stages %}<option value="{{ s }}"{% if s == c.stage %} selected{% endif %}>{{ s }}</option>{% endfor %}

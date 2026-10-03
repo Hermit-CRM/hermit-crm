@@ -35,6 +35,7 @@ TOPICS = [
     "messages", "reports", "settings", "import", "extension", "enrich", "ask", "merge", "cli",
     "backups", "data-format", "ai-agents", "feedback", "disclaimer",
     "adjust-bulk",
+    "adjust-layout",
 ]
 
 
