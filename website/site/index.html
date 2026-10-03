@@ -69,7 +69,7 @@
 <main id="main">
   <section class="hero col">
     <h1>A CRM for one.</h1>
-    <p class="subline">A free, open-source CRM for founders, freelancers and anyone doing their own sales. It keeps your companies, contacts and conversations as plain text files on your laptop, made to work with your AI tools. With a pipeline, a calendar, dashboards and enrichment from a company's website.</p>
+    <p class="subline">A free, open-source CRM for founders, freelancers and anyone doing their own sales. It keeps your companies, contacts and conversations as plain text files on your laptop, and your own AI agent can reshape it to fit how you work. With a pipeline, a calendar, dashboards and enrichment from a company's website.</p>
     <div class="download">
   <a class="btn" href="download/hermitcrm-0.5.0.tar.gz">Download for Mac and Linux</a>
   <p class="meta">Version 0.5.0 · Apache 2.0</p>
@@ -122,6 +122,58 @@ next_step_due: 2026-09-24
 
   <hr class="rule blank">
 
+  <section class="yours wide" aria-labelledby="yours">
+    <div class="narrow">
+      <p class="label">Adjust</p>
+      <h2 class="big" id="yours">Make it yours, with your own AI.</h2>
+      <p class="lead">Say what you want in one sentence. Your own AI agent (Claude Code, Codex, Cursor or Gemini CLI) builds it in your data folder, following recipes that come with Hermit, and you see it on the next page load.</p>
+    </div>
+    <ol class="examples">
+      <li class="example">
+        <div class="example-text">
+          <h3>A dashboard from one sentence</h3>
+          <p class="small-label">You type</p>
+          <p class="said">Make a dashboard called Monday review with my open deals, what is due this week and the deals by stage with their value. Pin it to the sidebar.</p>
+          <p class="small-label">What changes</p>
+          <p class="change">One new file, <code>dashboards/monday-review.toml</code>. The page is pinned in the sidebar, and every number opens the records behind it.</p>
+        </div>
+        <figure class="window">
+          <div class="window-bar"><i></i><i></i><i></i><span>127.0.0.1:8765/d/monday-review</span></div>
+          <img src="img/make-it-yours-dashboard.png" alt="The Monday review dashboard in Hermit CRM, pinned in the sidebar: 3 open deals, 5 tasks due this week, the deals by stage and the open deals with their next step." width="1800" height="1400" loading="lazy">
+        </figure>
+      </li>
+      <li class="example">
+        <div class="example-text">
+          <h3>A new field</h3>
+          <p class="small-label">You type</p>
+          <p class="said">Add a date field contract renewal to companies, shown on the company page and in the companies list.</p>
+          <p class="small-label">What changes</p>
+          <p class="change">Seven lines in <code>fields.toml</code>. The field shows on every company page, and as a column you can sort and filter in the companies list.</p>
+        </div>
+        <figure class="window">
+          <div class="window-bar"><i></i><i></i><i></i><span>127.0.0.1:8765/companies/northwind-robotics</span></div>
+          <img src="img/make-it-yours-field.png" alt="A company page in Hermit CRM with the new contract renewal field: its date in the header, and its input with a line of help in the form." width="1380" height="1180" loading="lazy">
+        </figure>
+      </li>
+      <li class="example">
+        <div class="example-text">
+          <h3>A routine that drafts follow-ups</h3>
+          <p class="small-label">You type</p>
+          <p class="said">Every morning, for people I messaged 7 days ago without a reply, draft a short follow-up. Never send anything.</p>
+          <p class="small-label">What changes</p>
+          <p class="change">A routine in <code>routines.toml</code>. It starts paused, so you see first who it would pick. Once you turn it on, its drafts wait on Home for you to edit and send yourself.</p>
+        </div>
+        <figure class="window">
+          <div class="window-bar"><i></i><i></i><i></i><span>127.0.0.1:8765</span></div>
+          <img src="img/make-it-yours-routine.png" alt="Home in Hermit CRM with a draft from the Nudge quiet threads routine: a short follow-up to a contact who has not replied in 20 days, with I sent it and Discard buttons." width="1380" height="770" loading="lazy">
+        </figure>
+      </li>
+    </ol>
+    <p class="safety narrow"><strong>Safe to try.</strong> Every change is a git commit you can undo in one click. Routines only write drafts: they start paused, and Hermit never sends a message.</p>
+  </section>
+
+  <hr class="rule blank">
+
   <section class="features col" aria-labelledby="features">
     <h2 class="label" id="features">What you get</h2>
     <dl>
@@ -129,12 +181,13 @@ next_step_due: 2026-09-24
       <dt>Calendar</dt><dd>Overdue and due-today next steps, a month view, and a brief before each meeting.</dd>
       <dt>Companies and contacts</dt><dd>Sortable tables of companies and people, and one timeline per company of every email, call and meeting.</dd>
       <dt>Messages</dt><dd>Outreach drafts in English, German, Dutch or French, in your wording, and the outcome of every message.</dd>
-      <dt>Dashboards</dt><dd>Weekly activity, funnel and conversion, time in stage, and which messages get answers.</dd>
+      <dt>Reports</dt><dd>Weekly activity, funnel and conversion, time in stage, and which messages get answers.</dd>
+      <dt>Dashboards</dt><dd>Pages of your own with lists, counts and bar charts. Describe one in a sentence, your AI builds it, and you pin it to the sidebar.</dd>
     </dl>
     <div class="principles">
       <p><strong>Local.</strong> It runs on your computer. Your data is a folder of Markdown files in git, on your own disk.</p>
-      <p><strong>AI-native.</strong> Plain files, a small CLI and an MCP server, so Claude Code, Codex or Claude Desktop can read your pipeline and log a call. Ask Hermit answers questions on every page.</p>
-      <p><strong>Configurable.</strong> Change the look, add fields and features, or ask your AI tool to change anything else. It is all open source.</p>
+      <p><strong>Your AI is the admin.</strong> Plain files, a small CLI and an MCP server, so the agent you already use can read your pipeline, log a call and change how Hermit works. Ask Hermit answers questions on every page.</p>
+      <p><strong>Yours to change.</strong> Press Adjust on any page and describe what you want: a dashboard, a field, a page layout, a routine. Your agent builds it, every change can be undone, and the code is open source.</p>
     </div>
   </section>
 
