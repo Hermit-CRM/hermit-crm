@@ -832,7 +832,7 @@ def create_app(root: Path, config: dict | None = None,
         # see the new outcomes; the store keeps its own copy.
         outcomes[:] = [str(o) for o in (config.get("outcomes") or DEFAULT_OUTCOMES)]
         store.outcomes = list(outcomes)
-        templates.env.globals["message_statuses"] = message_statuses(outcomes)
+        templates.env.globals["message_statuses"][:] = message_statuses(outcomes)
         app.state.task_types = task_types.from_config(config.get("task_types"))
         store.task_types = task_types.names(app.state.task_types)
         message_window = int(config.get("message_window_days", 14))
@@ -857,8 +857,12 @@ def create_app(root: Path, config: dict | None = None,
             logger.warning("messages.toml not re-read: %s", exc)
             return
         app.state.messages = fresh
-        templates.env.globals["signal_labels"] = messaging.signal_labels(fresh)
-        templates.env.globals["language_names"] = messaging.language_names(fresh)
+        # In place: an imported macro module (macros.html) keeps the dicts it
+        # was first given, so a new dict would never reach the drafts section.
+        for name, value in (("signal_labels", messaging.signal_labels(fresh)),
+                            ("language_names", messaging.language_names(fresh))):
+            templates.env.globals[name].clear()
+            templates.env.globals[name].update(value)
 
     def fields_reloaded() -> None:
         app.state.custom_fields = load_custom_fields()
@@ -987,6 +991,7 @@ def create_app(root: Path, config: dict | None = None,
         return configured + [n for n in store.type_names_in_use() if n not in configured]
 
     templates = Jinja2Templates(directory=str(HERE / "templates"))
+    app.state.templates = templates  # modules that add page globals (yours_pins) reach it here
     templates.env.globals.update(
         fmt_date=fmt_date,
         fmt_datetime=fmt_datetime,
@@ -1033,15 +1038,14 @@ def create_app(root: Path, config: dict | None = None,
 
     def starter_values(company=None) -> dict:
         """The starters' {slots} from this folder's data, worked out once per
-        commit (the data only changes with one)."""
+        commit (the data only changes with one), plus the company on screen."""
         key = (app.state.index_head, id(app.state.custom_fields),
                config.get("followup_nudge_days"), config.get("message_window_days"))
-        if company is None and starter_cache.get("key") == key:
-            return starter_cache["values"]
-        values = adjust.prefill(store, app.state.custom_fields, config, company=company)
-        if company is None:
-            starter_cache.update(key=key, values=values)
-        return values
+        if starter_cache.get("key") != key:
+            starter_cache.update(key=key, values=adjust.prefill(
+                store, app.state.custom_fields, config))
+        values = starter_cache["values"]
+        return {**values, **adjust.company_values(company)} if company is not None else values
 
     starter_cache: dict = {}
 
@@ -1198,10 +1202,13 @@ def create_app(root: Path, config: dict | None = None,
 
     def adjusted() -> bool:
         """Whether the folder has something made with Make it yours (the
-        welcome step), looked up again only after a commit."""
+        welcome step). The files are a few stats; the git log for an
+        "ai: adjust:" commit runs again only after a commit."""
+        if adjust.has_adjusted_files(root):
+            return True
         head = app.state.index_head
         if adjusted_cache.get("head") != head or "value" not in adjusted_cache:
-            adjusted_cache.update(head=head, value=adjust.has_adjusted(root))
+            adjusted_cache.update(head=head, value=adjust.has_adjust_commit(root))
         return adjusted_cache["value"]
 
     def welcome_steps() -> list:
@@ -3065,7 +3072,11 @@ def create_app(root: Path, config: dict | None = None,
         family = params.get("family", "")
         cards = adjust.gallery(values)
         now = datetime.now()   # commit times are real times, whatever the store's clock
+        # An undo's result shows by the table it came from, not out of sight at the top.
+        undo_note = request.query_params.get("flash", "") if params.get("undo") else ""
         return render(request, "yours.html", {
+            "undo_note": undo_note,
+            **({"flash": ""} if undo_note else {}),
             "describe_text": params.get("request", "") or (chosen["text"] if chosen else ""),
             "picked": chosen["id"] if chosen else "",
             "families": [(f, sum(1 for c in cards if c["family"] == f))
@@ -3096,10 +3107,10 @@ def create_app(root: Path, config: dict | None = None,
             if exc.prompt:   # a conflict: hand it to the agent, prefilled
                 return goto(f"/yours?request={quote(exc.prompt)}"
                             f"&flash={quote(str(exc), safe='')}#describe")
-            return flashed("/yours", str(exc), anchor=HUB_CHANGES)
+            return flashed("/yours?undo=1", str(exc), anchor=HUB_CHANGES)
         reload_everything()
         gitops.push_async()
-        return flashed("/yours", f"Undone in a new commit {new}: {subject}. Undo that one "
+        return flashed("/yours?undo=1", f"Undone in a new commit {new}: {subject}. Undo that one "
                        "to bring the change back.", anchor=HUB_CHANGES)
 
     # ------------------------------------------------------------------- help

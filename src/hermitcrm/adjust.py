@@ -225,7 +225,6 @@ class Starter:
     kinds: tuple[str, ...]
 
 
-ALL_KINDS = PAGE_KINDS
 
 # The eight use cases of the design (section 4) first, then a few per page
 # kind. The panel shows the first four that fit the page, in this order.
@@ -347,7 +346,6 @@ BY_ID = {s.id: s for s in [*STARTERS, FEATURE]}
 SETTINGS_STARTERS = {"fields": "field-new", "messaging": "messages-template",
                      "task-types": "task-types", "outcomes": "outcomes"}
 REPORTS_STARTER = "dashboard-report"
-WELCOME_STARTER = "look"
 
 # Defaults when the data has nothing better (the design's own examples).
 DEFAULTS = {"score": "fit", "score_cut": "70", "field2": "FTE estimate", "country": "Germany",
@@ -410,16 +408,23 @@ def prefill(store, defs: list, config: dict, company=None) -> dict:
     out["nudge_days"] = str(config.get("followup_nudge_days") or out["nudge_days"])
     out["window"] = str(config.get("message_window_days") or out["window"])
     if company is not None:
-        if company.tags:
-            out["company_tag"] = company.tags[0]
-        if company.country:
-            out["company_country"] = company.country
+        out.update(company_values(company))
     unused = unused_fields(companies)
     if unused:
         out["unused_field"] = OPTIONAL_FIELDS[unused[0]]
     stray = stray_keys(companies, defs)
     if stray:
         out["stray_key"] = stray[0][0]
+    return out
+
+
+def company_values(company) -> dict:
+    """The slots that speak of the company page the user is on."""
+    out = {}
+    if company.tags:
+        out["company_tag"] = company.tags[0]
+    if company.country:
+        out["company_country"] = company.country
     return out
 
 
@@ -593,11 +598,20 @@ ADJUSTED_FILES = ("theme.css", "layout.toml", "routines.toml")
 
 
 def has_adjusted(root: Path) -> bool:
+    return has_adjusted_files(root) or has_adjust_commit(root)
+
+
+def has_adjusted_files(root: Path) -> bool:
+    """A few stats: a theme.css, layout.toml, routines.toml or a dashboard."""
     root = Path(root)
     if any((root / name).is_file() for name in ADJUSTED_FILES):
         return True
-    if (root / "dashboards").is_dir() and any((root / "dashboards").glob("*.toml")):
-        return True
+    return (root / "dashboards").is_dir() and any((root / "dashboards").glob("*.toml"))
+
+
+def has_adjust_commit(root: Path) -> bool:
+    """One git log: any commit named "ai: adjust: ..."."""
+    root = Path(root)
     try:
         proc = subprocess.run(["git", "log", "-1", "--format=%h", "--grep=^ai: adjust:"],
                               cwd=root, capture_output=True, text=True, timeout=30)
@@ -609,16 +623,23 @@ def has_adjusted(root: Path) -> bool:
 # ------------------------------------------------------------------ validation
 
 
-def near(name: str, choices) -> str:
+def near(name: str, choices, cutoff: float = 0.6) -> str:
     """" (did you mean X?)" for a near miss, else ""."""
-    match = difflib.get_close_matches(str(name), list(choices), n=1, cutoff=0.6)
+    match = difflib.get_close_matches(str(name), list(choices), n=1, cutoff=cutoff)
     return f" (did you mean {match[0]}?)" if match else ""
 
 
 def _toml_problem(name: str, exc: tomllib.TOMLDecodeError) -> str:
-    where = f"line {exc.lineno}" if getattr(exc, "lineno", None) else "syntax"
-    message = getattr(exc, "msg", str(exc))
-    return f"{name}: {where}: {message}"
+    """"<file>: line N: <what>". Python 3.14 gives the line as an attribute;
+    before that it is only at the end of the message."""
+    text = str(exc)
+    line = getattr(exc, "lineno", None)
+    found = re.search(r"\s*\(at (?:line (\d+), column \d+|end of document)\)$", text)
+    if found:
+        line = line or (int(found.group(1)) if found.group(1) else None)
+        text = text[:found.start()]
+    message = getattr(exc, "msg", None) or text
+    return f"{name}: line {line}: {message}" if line else f"{name}: end of file: {message}"
 
 
 def _load_toml(path: Path, problems: list[str]) -> dict | None:
@@ -731,7 +752,11 @@ def validate_theme(root: Path) -> list[str]:
     for m in _TOKEN_DECL.finditer(code):
         name = m.group(1)
         if name not in tokens:
-            hint = near(name, tokens)
+            # Compared without the "--" every token shares, and strictly: a
+            # variable of the user's own is fine, a typo of a token is not.
+            match = difflib.get_close_matches(name[2:], [t[2:] for t in tokens], n=1,
+                                              cutoff=0.8)
+            hint = f" (did you mean --{match[0]}?)" if match else ""
             if hint:
                 line = code.count("\n", 0, m.start()) + 1
                 problems.append(f"{usertheme.FILENAME}: line {line}: {name} is not a token "
