@@ -24,6 +24,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from markupsafe import escape
 
 from hermitcrm import cli, routines
 from hermitcrm.enrich import EnrichError, Enricher
@@ -805,3 +806,90 @@ def test_a_crash_halfway_still_commits_the_drafts_written(folder):
                      config=CONFIG)
     assert subjects(folder.root)[0] == "routine: reply-drafts: 1 draft"
     assert git(folder.root, "status", "--porcelain") == ""
+
+
+# ------------------------------------------- a CLI that cannot run without tools
+
+
+def unrestricted(*answers) -> Enricher:
+    """An AI CLI with no no-tools switch (Gemini), with a fake runner behind it."""
+    return Enricher(provider="gemini", which=ALL, runner=FakeAI(*answers))
+
+
+REFUSED = "gemini can't run without tools, so routines that draft need Claude Code or Codex"
+
+
+def test_a_cli_without_a_no_tools_switch_is_refused_not_run(folder):
+    write_routines(folder)
+    fake = unrestricted(good())
+    before = subjects(folder.root)
+    with pytest.raises(routines.RoutineError, match=REFUSED):
+        routines.run(folder, routine(folder, "nudge-quiet-threads"), apply=True,
+                     enricher=fake, config=CONFIG)
+    with pytest.raises(routines.RoutineError, match=REFUSED):
+        routines.try_first(folder, routine(folder, "reply-drafts"), fake, CONFIG)
+    assert fake.runner.calls == [] and subjects(folder.root) == before
+    assert routines.drafts(folder.root) == []
+
+
+@pytest.mark.parametrize("provider", ["claude", "codex"])
+def test_claude_and_codex_still_draft(folder, provider):
+    write_routines(folder)
+    fake = Enricher(provider=provider, which=ALL, runner=FakeAI(good()))
+    result = routines.run(folder, routine(folder, "nudge-quiet-threads"), apply=True,
+                          enricher=fake, config=CONFIG)
+    assert result.drafts == 1 and fake.runner.calls[0]["tools"] == ""
+
+
+def test_the_sync_says_why_in_one_line(folder):
+    write_routines(folder, STARTERS.replace('name = "reply-drafts"',
+                                            'name = "reply-drafts"\npaused = false'))
+    fake = unrestricted(good())
+    text, code = sync(folder, fake)
+    assert code == 0 and f"reply-drafts: failed: {REFUSED}" in text
+    assert fake.runner.calls == [] and routines.drafts(folder.root) == []
+    assert "can't run without tools" in routines.read_state(folder.root)["reply-drafts"]["error"]
+
+
+def test_the_reason_shows_in_list_preview_and_a_dry_run(folder):
+    write_routines(folder)
+    fake = unrestricted(good())
+    text, code = cli.cmd_routines(folder, folder.root, CONFIG, "list", enricher=fake)
+    assert code == 0 and f"Drafting is refused: {REFUSED}" in text
+    text, code = cli.cmd_routines(folder, folder.root, CONFIG, "preview", "reply-drafts",
+                                  enricher=fake)
+    assert code == 0 and f"The AI step is refused: {REFUSED}" in text
+    assert "No AI was run" not in text and "Would draft for 1" in text
+    text, code = cli.cmd_routines(folder, folder.root, CONFIG, "preview", "reply-drafts",
+                                  try_ai=True, enricher=fake)
+    assert code == 1 and f"Try failed: {REFUSED}" in text
+    text, _ = cli.cmd_routines(folder, folder.root, CONFIG, "run", "reply-drafts",
+                               enricher=fake)
+    assert f"a real run would be refused: {REFUSED}" in text
+    # a folder with only a brief has nothing to refuse
+    write_routines(folder, '[[routine]]\nname = "morning-brief"\naction = "brief"\n')
+    text, _ = cli.cmd_routines(folder, folder.root, CONFIG, "list", enricher=fake)
+    assert "refused" not in text
+    # and the same folder with Claude says nothing about it
+    write_routines(folder)
+    text, _ = cli.cmd_routines(folder, folder.root, CONFIG, "list", enricher=ai(good()))
+    assert "refused" not in text
+    assert fake.runner.calls == []
+
+
+def test_the_reason_shows_on_the_routine_pages_and_the_button_goes(folder, app, client):
+    write_routines(folder)
+    page = client.get("/yours/routines/reply-drafts").text
+    assert "The AI step will not run" not in page and "Try the AI on the first one" in page
+    app.state.enricher = unrestricted(good())
+    page = client.get("/yours/routines/reply-drafts").text
+    shown = str(escape(REFUSED))                                     # can't is escaped
+    assert "The AI step will not run." in page and shown in page
+    assert "Try the AI on the first one" not in page
+    assert "Routines that draft will not run." in client.get("/yours/routines").text
+    r = client.post("/yours/routines/reply-drafts/try",
+                    data={"csrf_token": app.state.csrf_token})
+    assert r.status_code == 400 and shown in r.text
+    assert app.state.enricher.runner.calls == []
+    # a brief uses no AI, so its page has nothing to say
+    assert "The AI step will not run" not in client.get("/yours/routines/morning-brief").text

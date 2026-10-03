@@ -1067,6 +1067,11 @@ def cmd_routines(store: Store, root: Path, config: dict, action: str = "list",
             what = r.action if r.action == "brief" else f"{r.select} -> draft"
             lines.append(f"{n} | {r.state} | {r.title} | {what} | "
                          f"{routines.last_run_text(state.get(n))}")
+        blocked = routines.ai_problem(enricher if enricher is not None
+                                      else routines.default_enricher(config)) \
+            if any(r.action == "draft" for r in loaded.routines) else ""
+        if blocked:
+            lines.append(f"Drafting is refused: {blocked}")
         waiting = len(routines.drafts(root))
         lines.append(f"Drafts waiting on Home: {waiting}")
         lines += loaded.errors
@@ -1118,7 +1123,10 @@ def cmd_routines(store: Store, root: Path, config: dict, action: str = "list",
                     lines.append(f"Subject: {answer.subject}")
                 lines.append(answer.body.rstrip("\n"))
         else:
-            lines += ["", "No AI was run and nothing was written. To see one draft: "
+            blocked = routines.ai_problem(enricher if enricher is not None
+                                          else routines.default_enricher(config))
+            lines += ["", f"The AI step is refused: {blocked}" if blocked else
+                      "No AI was run and nothing was written. To see one draft: "
                       f"hermitcrm routines preview {routine.name} --try"]
         return ("\n".join(lines), 0)
     # run: one routine by name (even a paused one: you asked for it), else all that are on
