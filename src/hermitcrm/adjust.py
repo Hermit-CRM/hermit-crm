@@ -791,6 +791,8 @@ def validate_messages(root: Path) -> list[str]:
         return problems
     try:
         messages = messaging.load_messages(root)
+    except messaging.MessagesShapeError as exc:
+        return [f"{messaging.MESSAGES_FILE}: languages: {exc}"]
     except Exception as exc:  # deep_merge on a value of the wrong shape
         return [f"{messaging.MESSAGES_FILE}: file: {exc}"]
     try:
