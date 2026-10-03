@@ -582,17 +582,16 @@ def test_built_items_and_the_providers_list(demo):
     assert kinds == ["fields", "look", "messages", "layout"]
     for item in adjust.all_built(demo):
         assert set(item) == {"kind", "title", "url", "detail", "adjust"}
-    # a module that lists layouts itself replaces the core's plain row; one that
-    # fails costs only its own rows
-    extra = [lambda root: [{"kind": "layout", "title": "Company page", "url": "",
-                            "detail": "timeline first", "adjust": "x"}],
-             lambda root: 1 / 0]
-    adjust.BUILT_PROVIDERS.extend(extra)
+    # the layout row is the layout module's own; a provider that fails costs
+    # only its own rows
+    assert [i["detail"] for i in adjust.all_built(demo) if i["kind"] == "layout"] == [
+        "layout.toml changes nothing yet"]
+    adjust.BUILT_PROVIDERS.append(lambda root: 1 / 0)
     try:
         items = adjust.all_built(demo)
     finally:
-        del adjust.BUILT_PROVIDERS[-2:]
-    assert [i["detail"] for i in items if i["kind"] == "layout"] == ["timeline first"]
+        del adjust.BUILT_PROVIDERS[-1]
+    assert [i["kind"] for i in items] == kinds
 
 
 # ------------------------------------------------------------------ recipes

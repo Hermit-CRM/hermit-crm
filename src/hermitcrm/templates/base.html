@@ -34,8 +34,7 @@
   {{ navlink('/reports', 'Reports', 'reports', path.startswith('/reports')) }}
   <div class="nav-group" aria-hidden="true">Yours</div>
   <a href="/yours" data-tour="yours" class="hub{% if path.startswith('/yours') %} active" aria-current="page{% endif %}">{{ icon('yours') }}<span>Make it yours</span></a>
-  {% for pin in yours_pins() %}<a href="{{ pin.url }}"{% if path == pin.url %} class="active" aria-current="page"{% endif %}>{{ icon('dashboard') }}<span>{{ pin.title }}</span></a>
-  {% endfor %}
+  {% for pin in yours_pins() %}{{ navlink(pin.url, pin.title, 'dashboard', path == pin.url) }}{% endfor %}
   <div class="nav-gap"></div>
   {% call navlink('/settings#' ~ inbox_alert_anchor if inbox_alert else '/settings', 'Settings', 'settings', path.startswith('/settings')) %}{% if inbox_alert %} <span class="alert" title="{{ inbox_alert }}">!</span>{% endif %}{% endcall %}
   {{ navlink('/help/' ~ help_topic, 'Help', 'help', path.startswith('/help')) }}
