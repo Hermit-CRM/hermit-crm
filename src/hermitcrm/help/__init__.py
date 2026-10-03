@@ -173,6 +173,12 @@ def _table_row(line: str) -> list[str]:
     return [cell.strip() for cell in line.split("|")]
 
 
+def heading_anchor(title: str) -> str:
+    """The id a help sub-heading gets: "AI: Enrich and Ask" -> "ai-enrich-and-ask"."""
+    plain = re.sub(r"[`*\[\]]|\]\([^)]*\)", "", title)
+    return re.sub(r"[^a-z0-9]+", "-", plain.lower()).strip("-") or "section"
+
+
 def render(text: str) -> str:
     """Markdown to HTML. Unknown constructs render as paragraphs."""
     lines = text.splitlines()
@@ -180,6 +186,7 @@ def render(text: str) -> str:
     para: list[str] = []
     list_tag = ""
     items: list[str] = []
+    anchors: set[str] = set()
     i = 0
 
     def flush_para() -> None:
@@ -218,7 +225,17 @@ def render(text: str) -> str:
             flush_para()
             flush_list()
             level = len(m.group(1))
-            out.append(f"<h{level}>{inline(m.group(2).strip())}</h{level}>")
+            title = m.group(2).strip()
+            if level == 1:
+                out.append(f"<h1>{inline(title)}</h1>")
+            else:
+                # Sub-headings get an id, so a page can link straight to its
+                # topic: Settings' "How it works" goes to /help/settings#bcc-capture.
+                anchor = heading_anchor(title)
+                while anchor in anchors:
+                    anchor += "-"
+                anchors.add(anchor)
+                out.append(f'<h{level} id="{anchor}">{inline(title)}</h{level}>')
             i += 1
             continue
         if line.lstrip().startswith("|") and i + 1 < len(lines) and _TABLE_SEP.match(lines[i + 1]):

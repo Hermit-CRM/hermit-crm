@@ -1,146 +1,108 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
 {% block title %}Settings{% endblock %}
-{% macro status(done) %}<span class="setup-status {{ 'done' if done else 'pending' }}">{{ 'done' if done else 'pending' }}</span>{% endmacro %}
+{% macro status(done, yes='done', no='pending') %}<span class="setup-status {{ 'done' if done else 'pending' }}">{{ yes if done else no }}</span>{% endmacro %}
 {% macro step_errors(step) %}{% set errs = form_errors.get(step, {}) %}{% if errs %}<div class="errors"><ul>{% for msg in errs.values() %}<li>{{ msg }}</li>{% endfor %}</ul></div>{% endif %}{% endmacro %}
+{% macro how(href) %}<a class="how" href="{{ href }}">How it works</a>{% endmacro %}
+{#- The page is five tabs. Each lists the section ids it holds, so a link or a
+    redirect to a section (/settings#bcc) opens the tab it is on. -#}
+{% set groups = [
+  ('general', 'General', ['you', 'enrichment', 'appearance', 'support', 'about']),
+  ('mail', 'Email & calendar', ['bcc', 'calendar']),
+  ('crm', 'Your CRM', ['fields', 'messaging', 'task-types', 'outcomes']),
+  ('backup', 'Backup', ['backup']),
+  ('advanced', 'Advanced', ['schedule', 'access', 'mcp', 'doctor']),
+] %}
+{% set lb = local_backup %}
+{% set attention = {
+  'general': not state.you,
+  'mail': inbox_alert,
+  'backup': lb.level != 'ok',
+} %}
+{% macro group_start(key) %}{% for gid, label, sections in groups if gid == key %}<div class="settings-group" id="tab-{{ gid }}"{% for s in sections if s in form_errors %}{% if loop.first %} data-error{% endif %}{% endfor %}>{% endfor %}{% endmacro %}
 {% block content %}
 <h1>Settings</h1>
-<p class="small settings-toc">
-  <a href="#you">You</a> &middot; <a href="#bcc">BCC capture</a> &middot; <a href="#calendar">Calendar</a> &middot;
-  <a href="#backup">Backup</a> &middot; <a href="#appearance">Appearance</a> &middot; <a href="#fields">Fields</a> &middot; <a href="#messaging">Drafts</a> &middot; <a href="#enrichment">AI</a> &middot; <a href="#task-types">Task types</a> &middot; <a href="#outcomes">Outcomes</a> &middot;
-  <a href="#schedule">Schedule</a> &middot; <a href="#access">Access</a> &middot; <a href="#support">Support Hermit</a> &middot; <a href="#about">About</a>
-  &middot; <a href="/help/settings">Help</a>
-</p>
-<p class="small">{% if os_store %}Secrets are stored in <code>.secrets.toml</code> (mode 600) or {{ os_store_label }}, never in <code>config.toml</code>.{% if os_store == 'secret-service' %} A keyring is locked while you are logged out, so a daily import that runs then cannot read the password; keep it in <code>.secrets.toml</code> if the machine imports without you logged in.{% endif %}{% elif is_windows %}Secrets are stored in <code>.secrets.toml</code>, never in <code>config.toml</code>. They are plain text, readable only by your user account and never committed to git.{% else %}Secrets are stored in <code>.secrets.toml</code>, never in <code>config.toml</code>. No system keyring was found (install <code>libsecret-tools</code> and run a Secret Service such as GNOME Keyring or KWallet to use one), so they are plain text, readable only by your user account (mode 600) and never committed to git.{% endif %} Everything else is written to <code>config.toml</code>, comments kept.{% if setup_pending %} <a href="/">Skip for now</a>{% endif %}</p>
+{% if setup_pending %}<p class="small">A few steps are still open below. <a href="/">Skip for now</a></p>{% endif %}
+<nav class="settings-tabs" aria-label="Settings">
+  {% for gid, label, sections in groups %}
+  {%- set flagged = attention.get(gid) or (sections | select('in', form_errors) | list) -%}
+  <a href="#tab-{{ gid }}" data-group="tab-{{ gid }}">{{ label }}{% if flagged %}<span class="dot" role="img" aria-label="needs a look" title="Needs a look"></span>{% endif %}</a>
+  {% endfor %}
+</nav>
 
+{# ================================================================= General #}
+{{ group_start('general') }}
 <section class="setup-step" id="you">
-  <h2>You {{ status(state.you) }}</h2>
+  <div class="setting-head"><h2>You</h2>{{ status(state.you) }}</div>
+  {% if state.you %}
+  <p class="summary">{{ you.name }}</p>
+  <p class="meta">Sends mail from {{ you.addresses }}</p>
+  {% else %}
+  <p class="summary">Your name signs the drafts; mail from your addresses counts as outbound.</p>
+  {% endif %}
   {{ step_errors('you') }}
-  <form method="post" action="/settings/you" class="record-form">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label>Your name <input name="name" value="{{ you.name }}" required></label>
-    <label>Addresses you send mail from (comma-separated; the first is your main address)
-      <input name="addresses" value="{{ you.addresses }}" required></label>
-    <button type="submit">Save</button>
-  </form>
+  <details class="edit"{% if not state.you or 'you' in form_errors %} open{% endif %}>
+    <summary>{{ 'Change name or addresses' if state.you else 'Your name and addresses' }}</summary>
+    <form method="post" action="/settings/you" class="record-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Your name <input name="name" value="{{ you.name }}" required></label>
+      <label>Addresses you send mail from (comma-separated; the first is your main address)
+        <input name="addresses" value="{{ you.addresses }}" required></label>
+      <button type="submit">Save</button>
+    </form>
+  </details>
 </section>
 
-<section class="setup-step" id="bcc">
-  <h2>BCC capture {{ status(state.bcc) }}</h2>
-  <p class="small">How it works: when you write to a prospect, put a tracking address in BCC (or forward the thread to it later). Hermit CRM reads that mailbox over IMAP, matches each message to a company by the other person's address or domain, and logs it as an interaction. Mail you send or forward to someone at a domain no company has creates that company, named after the domain. Personal addresses and domains that fit more than one company wait on <a href="/#to-file">Home, under To file</a>. With Gmail, <code>you+crm@gmail.com</code> reaches your own inbox, so no second account is needed; a filter can file those messages out of the way.</p>
-  {{ step_errors('bcc') }}
-  <form method="post" action="/settings/bcc" class="record-form" id="bcc-form">
+<section class="setup-step" id="enrichment">
+  <div class="setting-head"><h2>AI: Enrich and Ask the Hermit</h2>
+    {%- if enrich_status.available %}<span class="setup-status done">In use: {{ enrich_status.provider }}</span>
+    {%- else %}<span class="setup-status pending">Unavailable</span>{% endif %}{{ how('/help/settings#ai-enrich-and-ask-the-hermit') }}</div>
+  <p class="summary">Fills a record's empty fields and answers questions about your CRM, using an AI command-line tool you already have.</p>
+  {% if not enrich_status.available %}
+  <p class="warning">Unavailable: {{ enrich_status.reason }}</p>
+  <p class="small">Started by launchd or systemd (<code>hermitcrm schedule install --serve</code>), Hermit CRM has a bare PATH: put the CLI in <code>/usr/local/bin</code>, <code>/opt/homebrew/bin</code> or <code>~/.local/bin</code>, or give its full path as the command below.</p>
+  {% endif %}
+  {{ step_errors('enrichment') }}
+  <form method="post" action="/settings/enrichment" class="record-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label>Mail provider
-      <select id="bcc-provider" aria-describedby="bcc-provider-note">
-        <option value="">other (type the server yourself)</option>
-        {% for key, p in mail_providers.items() %}<option value="{{ key }}" data-host="{{ p.imap_host }}"{% if bcc_form.imap_host == p.imap_host %} selected{% endif %}>{{ p.label }}</option>{% endfor %}
+    <label>Tool
+      <select name="provider">
+        {% for p in enrich_providers %}<option value="{{ p }}"{% if p == enrich_form.provider %} selected{% endif %}>{{ 'auto: the first of claude, codex, gemini, grok' if p == 'auto' else p }}</option>{% endfor %}
       </select>
     </label>
-    {% for key, p in mail_providers.items() %}
-    <p class="small provider-note{% if not p.works %} warning{% endif %}" data-provider="{{ key }}" id="{{ 'bcc-provider-note' if loop.first else '' }}"{% if bcc_form.imap_host != p.imap_host %} hidden{% endif %}>
-      <strong>{{ p.label }}:</strong> {{ p.note }}{% if p.password_url %} <a href="{{ p.password_url }}" target="_blank" rel="noopener">Create the app password</a>.{% endif %}
-    </p>
-    {% endfor %}
-    <label>BCC address <input name="address" value="{{ bcc_form.address }}" placeholder="you+crm@gmail.com"></label>
-    <label>IMAP server <input name="imap_host" id="bcc-imap-host" value="{{ bcc_form.imap_host }}" placeholder="imap.gmail.com"></label>
-    <label>App password <input type="password" name="password" value="" autocomplete="new-password" placeholder="{{ 'stored; leave empty to keep it' if state.bcc else '' }}"></label>
-    {% if os_store %}<label class="check"><input type="checkbox" name="keychain" value="1" checked> Store the password in {{ os_store_label }}</label>{% endif %}
+    <fieldset class="switch across">
+      <legend>Account</legend>
+      <label><input type="radio" name="account" value="subscription"{% if enrich_form.account != 'api' %} checked{% endif %}> Subscription: a ChatGPT, Claude or Gemini plan</label>
+      <label><input type="radio" name="account" value="api"{% if enrich_form.account == 'api' %} checked{% endif %}> API key</label>
+    </fieldset>
+    <fieldset class="switch across">
+      <legend>Model</legend>
+      <label><input type="radio" name="tier" value="medium"{% if enrich_form.tier != 'strong' %} checked{% endif %}> Medium: {{ model_label(tier_models.medium) }} (default)</label>
+      <label><input type="radio" name="tier" value="strong"{% if enrich_form.tier == 'strong' %} checked{% endif %}> Strong: {{ model_label(tier_models.strong) }}</label>
+    </fieldset>
+    {% if tier_models.strong %}<p class="small">Answers made on the medium model offer "Retry with {{ model_label(tier_models.strong) }}".</p>{% endif %}
+    <details class="edit"{% if enrich_form.provider == 'custom' or 'enrichment' in form_errors %} open{% endif %}>
+      <summary>Command, timeout and model ids</summary>
+      <div class="row">
+        <label class="grow">Command (empty: the tool's own) <input name="command" value="{{ enrich_form.command }}" placeholder="/opt/homebrew/bin/claude"></label>
+        <label>Timeout (seconds) <input name="timeout" value="{{ enrich_form.timeout }}" inputmode="numeric" size="6"></label>
+      </div>
+      <div class="row">
+        <label class="grow">Medium model (empty: the default) <input name="model" value="{{ enrich_form.model }}" placeholder="{{ tier_models.medium if not enrich_form.model else '' }}"></label>
+        <label class="grow">Strong model (empty: the default) <input name="model_strong" value="{{ enrich_form.model_strong }}" placeholder="{{ tier_models.strong if not enrich_form.model_strong else '' }}"></label>
+      </div>
+      <p class="small">Only for a CLI that names a model differently; an id set here is used on any account. A subscription is not entitled to every API model id, so on one Hermit CRM asks for no particular model where that matters.</p>
+    </details>
     <button type="submit">Save</button>
-  </form>
-  {% if gmail_filter %}
-  <p>Gmail filter (Settings → Filters → Create new filter): <code>{{ gmail_filter }}</code></p>
-  <form method="post" action="/settings/bcc/test" class="inline">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <button type="submit">Test connection (dry run)</button>
-  </form>
-  {% endif %}
-  <div class="bcc-status">
-    <p class="small">Mail it cannot place waits on <a href="/#to-file">Home, under To file</a>.</p>
-    {% if last_run %}
-      {% if last_run.ok %}
-        <p>Last import {{ last_run.at | replace('T', ' ') }}: {{ last_run.summary }}</p>
-      {% else %}
-        <p class="error">Last import {{ last_run.at | replace('T', ' ') }} failed: {{ last_run.error }}</p>
-      {% endif %}
-    {% else %}
-      <p class="small">No import has run yet.</p>
-    {% endif %}
-    {% if inbox_alert and last_run and last_run.ok %}<p class="error">{{ inbox_alert }}</p>{% endif %}
-    <form method="post" action="/bcc/import" class="inline"><button type="submit">Import now</button></form>
-  </div>
-</section>
-
-<section class="setup-step" id="calendar">
-  <h2>Calendar {{ status(state.calendar) }}</h2>
-  <p class="small">Optional. The secret ICS address of your calendar (Google: Settings → your calendar → Integrate calendar → Secret address in iCal format). Treat it like a password.</p>
-  {{ step_errors('calendar') }}
-  <form method="post" action="/settings/calendar" class="record-form">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label>Secret ICS address <input type="password" name="url" value="" autocomplete="off" placeholder="{{ 'stored; leave empty to keep it' if state.calendar else '' }}"></label>
-    <button type="submit">Save and test (dry run)</button>
-  </form>
-  <div class="bcc-status">
-    {% if calendar_last_run %}
-      {% if calendar_last_run.ok %}
-        <p>Last meeting import {{ calendar_last_run.at | replace('T', ' ') }}: {{ calendar_last_run.summary }}</p>
-      {% else %}
-        <p class="error">Last meeting import {{ calendar_last_run.at | replace('T', ' ') }} failed: {{ calendar_last_run.error }}</p>
-      {% endif %}
-    {% else %}
-      <p class="small">No meeting import has run yet. Past meetings whose attendees match no company wait on <a href="/#to-file">Home, under To file</a>.</p>
-    {% endif %}
-    <form method="post" action="/calendar/import" class="inline"><input type="hidden" name="back" value="/settings"><button type="submit">Import meetings now</button></form>
-  </div>
-</section>
-
-<section class="setup-step" id="backup">
-  <h2>Backup {{ status(state.backup) }}</h2>
-  {{ step_errors('backup') }}
-  <h3>On this computer</h3>
-  <p class="small">Every few minutes, to a repository outside this folder that can only grow: a reset, a deleted <code>.git</code> or a force-push loses nothing, and any version can be put back. <a href="/help/backups">How it works and how to roll back</a>.</p>
-  {% set lb = local_backup %}
-  <p class="{{ 'warning' if lb.level != 'ok' else 'small' }} local-backup-summary">
-    {%- if lb.level == 'ok' and lb.age_minutes is not none -%}
-      Last backup {{ 'just now' if lb.age_minutes < 1 else lb.age_minutes ~ ' min ago' }} ({{ lb.size }}).
-    {%- elif not lb.last_ok -%}
-      No backup yet.
-    {%- else -%}
-      {{ lb.summary }}
-    {%- endif -%}
-    {% if lb.last_ok and not schedule.backup_installed %} It does not repeat on its own yet.{% endif %}
-  </p>
-  {% if schedule.backup_elsewhere %}
-  <p class="warning">This computer's backup job is set up for another folder, <code>{{ schedule.backup_elsewhere }}</code>; there is one per computer. To back up this folder instead, run <code>hermitcrm --data {{ about.data_dir }} schedule install</code>; that folder is then no longer backed up.</p>
-  {% elif not schedule.backup_installed or not lb.last_ok %}
-  <form method="post" action="/settings/backup/local" class="record-form">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <button type="submit">Start local backups</button>
-    <span class="small">Makes a first backup now, then one every 5 minutes in the background.</span>
-  </form>
-  {% endif %}
-  <details class="small">
-    <summary>Where it is kept</summary>
-    <p>In <code>{{ lb.dest }}</code>, outside your CRM folder, so deleting the folder does not delete the backup. To keep it somewhere else, such as another disk or a synced folder, set <code>backup_dir</code> in <code>config.toml</code>.</p>
-    {% if lb.lines[1:] %}<ul class="schedule-lines">{% for line in lb.lines[1:] %}<li><code>{{ line }}</code></li>{% endfor %}</ul>{% endif %}
-  </details>
-  <h3>Online copy (optional){% if state.remote %} {{ status(true) }}{% endif %}</h3>
-  <p class="small">The backup above lives on the same disk as your data. For a copy that survives a lost laptop, push the folder to a git remote after every change.</p>
-  {% if remote_warning %}<p class="warning">{{ remote_warning }}</p>
-  {% else %}<p class="warning"><strong>The repository must be PRIVATE</strong> on GitHub, GitLab or Bitbucket: it holds your contacts and mail.</p>{% endif %}
-  <form method="post" action="/settings/backup" class="record-form">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label>Git remote URL <input name="url" value="{{ remote_url }}" placeholder="git@github.com:you/crm.git"></label>
-    <button type="submit">Save and test push</button>
   </form>
 </section>
 
 <section class="setup-step" id="appearance">
-  <h2>Appearance</h2>
+  <div class="setting-head"><h2>Appearance</h2></div>
   {{ step_errors('appearance') }}
   <form method="post" action="/settings/appearance" class="record-form theme-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <fieldset class="switch">
+    <fieldset class="switch across">
       <legend>Night mode</legend>
       {% for t, label in [('light', 'Off'), ('dark', 'On'), ('system', 'Follow the system')] %}
       <label><input type="radio" name="theme" value="{{ t }}"{% if t == theme %} checked{% endif %}> {{ label }}</label>
@@ -148,25 +110,140 @@
     </fieldset>
     <button type="submit">Save</button>
   </form>
-  <h3>Your own look</h3>
-  {% if theme_file.active %}
-  <p class="small theme-status"><strong>In use:</strong> <code>{{ theme_file.path }}</code>. It changes colours and fonts on top of the default. Delete the file to go back to the default look.</p>
-  {% if theme_file.problems %}
-  <ul class="small provider-note warning">
-    {% for line, problem in theme_file.problems %}<li>Line {{ line }}: {{ problem }}</li>{% endfor %}
-  </ul>
-  {% endif %}
-  {% else %}
-  <p class="small theme-status"><strong>Not in use.</strong> To change colours or fonts, ask your AI tool to write <code>{{ theme_file.path }}</code>, for example "make my Hermit CRM blue". It is one block like the one below; <a href="/help/settings">Help > Settings</a> lists what you can change.</p>
-  <pre class="small theme-example">{{ theme_example }}</pre>
-  {% endif %}
+  <details class="edit"{% if theme_file.problems %} open{% endif %}>
+    <summary>Your own look: {{ 'in use' if theme_file.active else 'not in use' }}</summary>
+    {% if theme_file.active %}
+    <p class="small theme-status"><strong>In use:</strong> <code>{{ theme_file.path }}</code>. It changes colours and fonts on top of the default. Delete the file to go back to the default look.</p>
+    {% if theme_file.problems %}
+    <ul class="small provider-note warning">
+      {% for line, problem in theme_file.problems %}<li>Line {{ line }}: {{ problem }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% else %}
+    <p class="small theme-status"><strong>Not in use.</strong> To change colours or fonts, ask your AI tool to write <code>{{ theme_file.path }}</code>, for example "make my Hermit CRM blue". It is one block like this; <a href="/help/settings">Help > Settings</a> lists what you can change.</p>
+    <pre class="small theme-example">{{ theme_example }}</pre>
+    {% endif %}
+  </details>
 </section>
 
-<section class="setup-step" id="fields">
-  <h2>Fields</h2>
-  <p class="small">Fields of your own, on top of the ones Hermit CRM has. Their values live in the front matter of the record they belong to, like every other field, so nothing is hidden in a database. They are described in <code>fields.toml</code> next to your data.</p>
-  {{ step_errors('fields') }}
+<section class="setup-step" id="support">
+  <div class="setting-head"><h2>Support Hermit</h2></div>
+  <p>Hermit CRM is free and open source, and stays that way. If it earns its place in your week, you can support its development with a tip on Ko-fi.</p>
+  <p><a class="button" href="{{ support_url }}" target="_blank" rel="noopener">Support Hermit on Ko-fi</a></p>
+  <p class="small">Opens <code>{{ support_url | replace('https://', '') }}</code> in your browser. Nothing in the app depends on it, and Hermit CRM sends nothing to Ko-fi.</p>
+</section>
 
+<section class="setup-step" id="about">
+  <div class="setting-head"><h2>About</h2></div>
+  <table class="about">
+    <tr><th>Version</th><td>Hermit CRM v{{ about.version }}{% if update_notice and update_notice.available %} &mdash; <span class="update-notice">v{{ update_notice.available }} available: <code>{{ update_notice.hint }}</code></span>{% elif about.update_note %} <span class="small">({{ about.update_note }})</span>{% endif %}</td></tr>
+    <tr><th>Data folder</th><td><code>{{ about.data_dir }}</code></td></tr>
+    <tr><th>Data format</th><td>{% if about.data_format is none %}unknown{% else %}{{ about.data_format }}{% if about.data_format != about.latest_format %} (this Hermit CRM writes {{ about.latest_format }}; run <code>hermitcrm migrate</code>){% endif %}{% endif %}</td></tr>
+    <tr><th>Help</th><td><a href="/help">All help topics</a>, or <code>hermitcrm help</code></td></tr>
+  </table>
+</section>
+</div>
+
+{# ======================================================== Email & calendar #}
+{{ group_start('mail') }}
+<section class="setup-step" id="bcc">
+  <div class="setting-head"><h2>BCC capture</h2>{{ status(state.bcc) }}{{ how('/help/settings#bcc-capture') }}</div>
+  {% if state.bcc and bcc_form.address %}
+  <p class="summary">BCC <code>{{ bcc_form.address }}</code> when you email a prospect, or forward a thread to it, and the mail is logged on the right company.</p>
+  {% else %}
+  <p class="summary">Put a tracking address in BCC when you email a prospect, and the mail is logged on the right company. With Gmail, <code>you+crm@gmail.com</code> reaches your own inbox, so no second account is needed.</p>
+  {% endif %}
+  <div class="bcc-status">
+    {% if last_run %}
+      {% if last_run.ok %}
+        <p class="meta">Last import {{ last_run.at | replace('T', ' ') }}: {{ last_run.summary }}</p>
+      {% else %}
+        <p class="error">Last import {{ last_run.at | replace('T', ' ') }} failed: {{ last_run.error }}</p>
+      {% endif %}
+    {% else %}
+      <p class="meta">No import has run yet.</p>
+    {% endif %}
+    {% if inbox_alert and last_run and last_run.ok %}<p class="error">{{ inbox_alert }}</p>{% endif %}
+    <p class="meta">Mail it cannot place waits on <a href="/#to-file">Home, under To file</a>.</p>
+  </div>
+  <div class="actions">
+    <form method="post" action="/bcc/import" class="inline"><button type="submit">Import now</button></form>
+    {% if gmail_filter %}
+    <form method="post" action="/settings/bcc/test" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">Test connection (dry run)</button>
+    </form>
+    {% endif %}
+  </div>
+  {{ step_errors('bcc') }}
+  <details class="edit"{% if not state.bcc or 'bcc' in form_errors or (last_run and not last_run.ok) %} open{% endif %}>
+    <summary>{{ 'Change mailbox' if state.bcc else 'Set up the mailbox' }}</summary>
+    <form method="post" action="/settings/bcc" class="record-form" id="bcc-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Mail provider
+        <select id="bcc-provider" aria-describedby="bcc-provider-note">
+          <option value="">other (type the server yourself)</option>
+          {% for key, p in mail_providers.items() %}<option value="{{ key }}" data-host="{{ p.imap_host }}"{% if bcc_form.imap_host == p.imap_host %} selected{% endif %}>{{ p.label }}</option>{% endfor %}
+        </select>
+      </label>
+      {% for key, p in mail_providers.items() %}
+      <p class="small provider-note{% if not p.works %} warning{% endif %}" data-provider="{{ key }}" id="{{ 'bcc-provider-note' if loop.first else '' }}"{% if bcc_form.imap_host != p.imap_host %} hidden{% endif %}>
+        <strong>{{ p.label }}:</strong> {{ p.note }}{% if p.password_url %} <a href="{{ p.password_url }}" target="_blank" rel="noopener">Create the app password</a>.{% endif %}
+      </p>
+      {% endfor %}
+      <div class="row">
+        <label class="grow">BCC address <input name="address" value="{{ bcc_form.address }}" placeholder="you+crm@gmail.com"></label>
+        <label class="grow">IMAP server <input name="imap_host" id="bcc-imap-host" value="{{ bcc_form.imap_host }}" placeholder="imap.gmail.com"></label>
+      </div>
+      <label>App password <input type="password" name="password" value="" autocomplete="new-password" placeholder="{{ 'stored; leave empty to keep it' if state.bcc else '' }}"></label>
+      {% if os_store %}<label class="check"><input type="checkbox" name="keychain" value="1" checked> Store the password in {{ os_store_label }}</label>{% endif %}
+      <p class="small">{% if os_store %}Secrets are stored in <code>.secrets.toml</code> (mode 600) or {{ os_store_label }}, never in <code>config.toml</code>.{% if os_store == 'secret-service' %} A keyring is locked while you are logged out, so a daily import that runs then cannot read the password; keep it in <code>.secrets.toml</code> if the machine imports without you logged in.{% endif %}{% elif is_windows %}Secrets are stored in <code>.secrets.toml</code>, never in <code>config.toml</code>. They are plain text, readable only by your user account and never committed to git.{% else %}Secrets are stored in <code>.secrets.toml</code>, never in <code>config.toml</code>. No system keyring was found (install <code>libsecret-tools</code> and run a Secret Service such as GNOME Keyring or KWallet to use one), so they are plain text, readable only by your user account (mode 600) and never committed to git.{% endif %}</p>
+      <button type="submit">Save</button>
+    </form>
+    {% if gmail_filter %}
+    <h3>Gmail filter</h3>
+    <p class="small">Keeps these copies out of your inbox. In Gmail: Settings → Filters → Create new filter.</p>
+    <pre class="copy"><code>{{ gmail_filter }}</code></pre>
+    {% endif %}
+  </details>
+</section>
+
+<section class="setup-step" id="calendar">
+  <div class="setting-head"><h2>Calendar</h2>{% if state.calendar %}{{ status(true) }}{% endif %}{{ how('/help/calendar') }}</div>
+  <p class="summary">{% if not state.calendar %}Optional. {% endif %}Logs past meetings with people at your companies.</p>
+  <div class="bcc-status">
+    {% if calendar_last_run %}
+      {% if calendar_last_run.ok %}
+        <p class="meta">Last meeting import {{ calendar_last_run.at | replace('T', ' ') }}: {{ calendar_last_run.summary }}</p>
+      {% else %}
+        <p class="error">Last meeting import {{ calendar_last_run.at | replace('T', ' ') }} failed: {{ calendar_last_run.error }}</p>
+      {% endif %}
+    {% else %}
+      <p class="meta">No meeting import has run yet. Past meetings whose attendees match no company wait on <a href="/#to-file">Home, under To file</a>.</p>
+    {% endif %}
+  </div>
+  <div class="actions">
+    <form method="post" action="/calendar/import" class="inline"><input type="hidden" name="back" value="/settings"><button type="submit">Import meetings now</button></form>
+  </div>
+  {{ step_errors('calendar') }}
+  <details class="edit"{% if 'calendar' in form_errors or (calendar_last_run and not calendar_last_run.ok) %} open{% endif %}>
+    <summary>{{ 'Change calendar address' if state.calendar else 'Add your calendar' }}</summary>
+    <form method="post" action="/settings/calendar" class="record-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Secret ICS address <input type="password" name="url" value="" autocomplete="off" placeholder="{{ 'stored; leave empty to keep it' if state.calendar else '' }}"></label>
+      <p class="small">Google: Settings → your calendar → Integrate calendar → Secret address in iCal format. Treat it like a password.</p>
+      <button type="submit">Save and test (dry run)</button>
+    </form>
+  </details>
+</section>
+</div>
+
+{# ================================================================ Your CRM #}
+{{ group_start('crm') }}
+<section class="setup-step" id="fields">
+  <div class="setting-head"><h2>Fields</h2>{{ how('/help/settings#fields') }}</div>
+  <p class="summary">Fields of your own, on top of the ones Hermit CRM has. Their values live in your records' front matter; <code>fields.toml</code> describes them.</p>
+  {{ step_errors('fields') }}
   {% if custom_field_defs %}
   <div class="table-scroll"><table class="fields-list small">
     <tr><th>key</th><th>label</th><th>type</th><th>on</th><th>shown in</th></tr>
@@ -178,49 +255,51 @@
     {% endfor %}
   </table></div>
   {% else %}
-  <p class="setup-status pending">No fields of your own yet.</p>
+  <p class="meta">No fields of your own yet.</p>
   {% endif %}
 
-  <h3 class="small">Add one</h3>
-  <form method="post" action="/settings/fields/add" class="record-form">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <div class="row">
-      <label>key <input name="key" placeholder="segment" required></label>
-      <label class="grow">label (empty: the key) <input name="label"></label>
-      <label>type
-        <select name="type">{% for t in field_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select>
-      </label>
-      <label>on
-        <select name="applies_to" id="field-applies-to">{% for sc in field_scopes %}<option value="{{ sc }}">{{ sc }}</option>{% endfor %}</select>
-      </label>
-    </div>
-    <div class="row">
-      <label class="grow">options, comma separated (select only) <input name="options" placeholder="smb, mid-market, enterprise"></label>
-      <label class="grow">help text under the input <input name="help"></label>
-    </div>
-    <label class="check"><input type="checkbox" name="messaging" value="on" checked> Outreach templates may use it as <code>{key}</code></label>
-    <fieldset class="switch across" id="field-show-in">
-      <legend>Shown in</legend>
-      {% for view in ['detail', 'board', 'companies', 'contacts', 'messages'] %}
-      <label data-scopes="{% for sc in field_scopes if view in field_views[sc] %}{{ sc }} {% endfor %}"><input type="checkbox" name="show_in" value="{{ view }}"{% if view == 'detail' %} checked{% endif %}> {{ view }}</label>
-      {% endfor %}
-    </fieldset>
-    <p class="small">A field only appears where its record does: <code>board</code> and <code>companies</code> for a company field, <code>contacts</code> for a contact, <code>messages</code> for an interaction. Wherever it appears as a column it can be filtered and sorted like any other.</p>
-    <button type="submit">Add field</button>
-  </form>
-
-  <h3 class="small">All of them at once</h3>
-  <form method="post" action="/settings/fields" class="record-form">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label class="grow">fields.toml <textarea name="fields_toml" rows="12" spellcheck="false">{{ fields_form.toml }}</textarea></label>
-    <p class="small">This is the file itself, so what you save is what you are reading. Removing a field here stops Hermit CRM showing it; the values stay in your records untouched, and putting the field back brings them straight back.</p>
-    <button type="submit">Save fields</button>
-  </form>
+  <details class="edit"{% if not custom_field_defs or 'fields' in form_errors %} open{% endif %}>
+    <summary>Add a field</summary>
+    <form method="post" action="/settings/fields/add" class="record-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="row">
+        <label>key <input name="key" placeholder="segment" required></label>
+        <label class="grow">label (empty: the key) <input name="label"></label>
+        <label>type
+          <select name="type">{% for t in field_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select>
+        </label>
+        <label>on
+          <select name="applies_to" id="field-applies-to">{% for sc in field_scopes %}<option value="{{ sc }}">{{ sc }}</option>{% endfor %}</select>
+        </label>
+      </div>
+      <div class="row">
+        <label class="grow">options, comma separated (select only) <input name="options" placeholder="smb, mid-market, enterprise"></label>
+        <label class="grow">help text under the input <input name="help"></label>
+      </div>
+      <fieldset class="switch across" id="field-show-in">
+        <legend>Shown in</legend>
+        {% for view in ['detail', 'board', 'companies', 'contacts', 'messages'] %}
+        <label data-scopes="{% for sc in field_scopes if view in field_views[sc] %}{{ sc }} {% endfor %}"><input type="checkbox" name="show_in" value="{{ view }}"{% if view == 'detail' %} checked{% endif %}> {{ view }}</label>
+        {% endfor %}
+      </fieldset>
+      <label class="check"><input type="checkbox" name="messaging" value="on" checked> Outreach templates may use it as <code>{key}</code></label>
+      <button type="submit">Add field</button>
+    </form>
+  </details>
+  <details class="edit"{% if 'fields' in form_errors %} open{% endif %}>
+    <summary>Edit fields.toml directly</summary>
+    <form method="post" action="/settings/fields" class="record-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label class="grow">fields.toml <textarea name="fields_toml" rows="12" spellcheck="false">{{ fields_form.toml }}</textarea></label>
+      <p class="small">This is the file itself. Removing a field stops Hermit CRM showing it; the values stay in your records, and putting the field back brings them back.</p>
+      <button type="submit">Save fields</button>
+    </form>
+  </details>
 </section>
 
 <section class="setup-step" id="messaging">
-  <h2>Drafts</h2>
-  <p class="small">Every field of your own is a slot the outreach templates can use by name, written <code>{{ '{' }}key{{ '}' }}</code>; an empty one renders as its label in square brackets, the mark the templates already use for "only you can fill this in". Two of them can also play the roles the shipped wording knows about. See <a href="/help/messages">Messages</a>.</p>
+  <div class="setting-head"><h2>Drafts</h2>{{ how('/help/messages') }}</div>
+  <p class="summary">Outreach drafts can use any field of your own as <code>{{ '{' }}key{{ '}' }}</code>. These two also fill the sentences about team size; with neither set, those sentences leave a line for you to fill in.</p>
   {{ step_errors('messaging') }}
   <form method="post" action="/settings/messaging" class="record-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -237,56 +316,14 @@
           {% for k in company_field_keys %}<option value="{{ k }}"{% if messaging_form.team_field == k %} selected{% endif %}>{{ k }}</option>{% endfor %}
         </select>
       </label>
+      <button type="submit">Save</button>
     </div>
-    <p class="small">With neither set, the sentences about team size use their "unknown" wording, which is a line you fill in yourself. Nothing is invented.</p>
-    <button type="submit">Save</button>
-  </form>
-</section>
-
-<section class="setup-step" id="enrichment">
-  <h2>AI: Enrich and Ask the Hermit</h2>
-  <p class="small">Enrich and Ask the Hermit use an AI CLI you already have. The Enrich button asks it for a company's or contact's empty fields; Ask the Hermit answers questions about the page you are on, then about the whole CRM. Provider <code>auto</code> takes the first of claude, codex, gemini, grok it finds; <code>custom</code> runs the command line below. "Fetch from URL" needs none of this.</p>
-  {% if enrich_status.available %}
-  <p class="setup-status done">In use: {{ enrich_status.provider }}</p>
-  {% else %}
-  <p class="setup-status pending">Unavailable: {{ enrich_status.reason }}</p>
-  <p class="small">When Hermit CRM runs under launchd or systemd (<code>hermitcrm schedule install --serve</code>) it starts with a bare PATH: the CLI must be in <code>/usr/local/bin</code>, <code>/opt/homebrew/bin</code> or <code>~/.local/bin</code>, or give its full path as the command.</p>
-  {% endif %}
-  {{ step_errors('enrichment') }}
-  <form method="post" action="/settings/enrichment" class="record-form">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <div class="row">
-      <label>Provider
-        <select name="provider">
-          {% for p in enrich_providers %}<option value="{{ p }}"{% if p == enrich_form.provider %} selected{% endif %}>{{ p }}</option>{% endfor %}
-        </select>
-      </label>
-      <label class="grow">Command (empty: the provider's own binary) <input name="command" value="{{ enrich_form.command }}" placeholder="/opt/homebrew/bin/claude"></label>
-      <label>Timeout (seconds) <input name="timeout" value="{{ enrich_form.timeout }}" inputmode="numeric" size="6"></label>
-    </div>
-    <fieldset class="switch">
-      <legend>Account</legend>
-      <label><input type="radio" name="account" value="subscription"{% if enrich_form.account != 'api' %} checked{% endif %}> Subscription: signed in with a ChatGPT, Claude or Gemini plan</label>
-      <label><input type="radio" name="account" value="api"{% if enrich_form.account == 'api' %} checked{% endif %}> API key</label>
-    </fieldset>
-    <p class="small">A subscription is not entitled to the same model ids as an API key, and asking for one it does not have fails outright rather than falling back. On a subscription, Hermit CRM asks for no particular model where that is known to matter, and the CLI answers on whatever your plan gets.</p>
-    <fieldset class="switch">
-      <legend>Model</legend>
-      <label><input type="radio" name="tier" value="medium"{% if enrich_form.tier != 'strong' %} checked{% endif %}> Medium: {{ model_label(tier_models.medium) }}{% if tier_models.medium %} <code>{{ tier_models.medium }}</code>{% endif %} (default)</label>
-      <label><input type="radio" name="tier" value="strong"{% if enrich_form.tier == 'strong' %} checked{% endif %}> Strong: {{ model_label(tier_models.strong) }}{% if tier_models.strong %} <code>{{ tier_models.strong }}</code>{% endif %}</label>
-    </fieldset>
-    <p class="small">{% if tier_models.strong %}Answers and enrich proposals made on the medium model offer "Retry with {{ model_label(tier_models.strong) }}". {% endif %}Override a model id when your CLI names it differently; an override is used whatever the account type.</p>
-    <div class="row">
-      <label>Medium model (empty: provider default) <input name="model" value="{{ enrich_form.model }}" placeholder="{{ tier_models.medium if not enrich_form.model else '' }}"></label>
-      <label>Strong model (empty: provider default) <input name="model_strong" value="{{ enrich_form.model_strong }}" placeholder="{{ tier_models.strong if not enrich_form.model_strong else '' }}"></label>
-    </div>
-    <button type="submit">Save</button>
   </form>
 </section>
 
 <section class="setup-step" id="task-types">
-  <h2>Task types</h2>
-  <p class="small">Your own labels for tasks and next steps, e.g. <em>pipeline follow-up</em>, <em>prospecting</em>, <em>lost deals</em>. A type is a label and a filter; it changes no dates. Renaming a type renames it on every task that has it. Deleting one leaves it on its tasks, in grey.</p>
+  <div class="setting-head"><h2>Task types</h2></div>
+  <p class="summary">Your own labels for tasks and next steps, used as filters. Renaming one renames it on every task; deleting one leaves it on its tasks, in grey.</p>
   {{ step_errors('task-types') }}
   <form method="post" action="/settings/task-types" class="record-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -314,8 +351,8 @@
 </section>
 
 <section class="setup-step" id="outcomes">
-  <h2>Outcomes</h2>
-  <p class="small">The outcome choices for an interaction, one per line, in order. The <strong>first</strong> is what a detected reply counts as; the <strong>last</strong> is what silence past the message window counts as. A sent message with no outcome and no reply is <em>unknown</em> until the window passes.</p>
+  <div class="setting-head"><h2>Outcomes</h2>{{ how('/help/settings#outcomes') }}</div>
+  <p class="summary">One per line, in order. The <strong>first</strong> is what a detected reply counts as; the <strong>last</strong> is what silence past the message window counts as.</p>
   {{ step_errors('outcomes') }}
   <form method="post" action="/settings/outcomes" class="record-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -327,53 +364,144 @@
     <button type="submit">Save</button>
   </form>
 </section>
+</div>
 
+{# ================================================================== Backup #}
+{{ group_start('backup') }}
+<section class="setup-step" id="backup">
+  <div class="setting-head"><h2>Backup</h2>{{ status(state.backup) }}<a class="how" href="/help/backups">How to roll back</a></div>
+  {{ step_errors('backup') }}
+  <h3>On this computer</h3>
+  <p class="{{ 'warning' if lb.level != 'ok' else 'summary' }} local-backup-summary">
+    {%- if lb.level == 'ok' and lb.age_minutes is not none -%}
+      Last backup {{ 'just now' if lb.age_minutes < 1 else lb.age_minutes ~ ' min ago' }} ({{ lb.size }}).
+    {%- elif not lb.last_ok -%}
+      No backup yet.
+    {%- else -%}
+      {{ lb.summary }}
+    {%- endif -%}
+    {% if lb.last_ok and not schedule.backup_installed %} It does not repeat on its own yet.{% endif %}
+  </p>
+  <p class="meta">Every few minutes, to a repository outside this folder that can only grow, so any version can be put back.</p>
+  {% if schedule.backup_elsewhere %}
+  <p class="warning">This computer's backup job is set up for another folder, <code>{{ schedule.backup_elsewhere }}</code>; there is one per computer. To back up this folder instead, run <code>hermitcrm --data {{ about.data_dir }} schedule install</code>; that folder is then no longer backed up.</p>
+  {% elif not schedule.backup_installed or not lb.last_ok %}
+  <form method="post" action="/settings/backup/local" class="record-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">Start local backups</button>
+    <span class="small">Makes a first backup now, then one every 5 minutes in the background.</span>
+  </form>
+  {% endif %}
+  <details class="edit">
+    <summary>Where it is kept</summary>
+    <p class="small">In <code>{{ lb.dest }}</code>, outside your CRM folder, so deleting the folder does not delete the backup. To keep it somewhere else, such as another disk or a synced folder, set <code>backup_dir</code> in <code>config.toml</code>.</p>
+    {% if lb.lines[1:] %}<ul class="schedule-lines small">{% for line in lb.lines[1:] %}<li><code>{{ line }}</code></li>{% endfor %}</ul>{% endif %}
+  </details>
+
+  <h3>Online copy (optional){% if state.remote %} {{ status(true) }}{% endif %}</h3>
+  {% if remote_url %}
+  <p class="summary">Pushed to <code>{{ remote_url }}</code> after every change.</p>
+  {% else %}
+  <p class="summary">The backup above lives on the same disk as your data. For a copy that survives a lost laptop, push the folder to a git remote after every change.</p>
+  {% endif %}
+  {% if remote_warning %}<p class="warning">{{ remote_warning }}</p>
+  {% else %}<p class="warning"><strong>The repository must be PRIVATE</strong> on GitHub, GitLab or Bitbucket: it holds your contacts and mail.</p>{% endif %}
+  <details class="edit"{% if not remote_url or 'backup' in form_errors %} open{% endif %}>
+    <summary>{{ 'Change the repository' if remote_url else 'Set up an online copy' }}</summary>
+    <form method="post" action="/settings/backup" class="record-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Git remote URL <input name="url" value="{{ remote_url }}" placeholder="git@github.com:you/crm.git"></label>
+      <button type="submit">Save and test push</button>
+    </form>
+  </details>
+</section>
+</div>
+
+{# ================================================================ Advanced #}
+{{ group_start('advanced') }}
+<p class="small">These are set up from a terminal. This tab shows what is running and the commands to copy.</p>
 <section class="setup-step" id="schedule">
-  <h2>Schedule {{ status(schedule.installed) }}</h2>
-  <p class="small">The daily job runs <code>hermitcrm sync --apply</code> (BCC, then calendar import). Read-only here; install or remove it from a terminal.</p>
-  <ul class="schedule-lines">
-    {% for line in schedule.lines %}<li><code>{{ line }}</code></li>{% endfor %}
-  </ul>
-  <p>Install (daily at 07:00; <code>--at HH:MM</code> changes the time, drop <code>--serve</code> to leave the web app to you):</p>
-  <pre class="copy"><code>{{ schedule.install_command }}</code></pre>
+  <div class="setting-head"><h2>Schedule</h2>{{ status(schedule.installed) }}{{ how('/help/settings#schedule') }}</div>
+  <p class="summary">A daily job runs <code>hermitcrm sync --apply</code>: the BCC import, then the calendar import.</p>
+  <details class="edit"{% if not schedule.installed %} open{% endif %}>
+    <summary>What is installed, and the install command</summary>
+    <ul class="schedule-lines small">
+      {% for line in schedule.lines %}<li><code>{{ line }}</code></li>{% endfor %}
+    </ul>
+    <p class="small">Daily at 07:00; <code>--at HH:MM</code> changes the time, and without <code>--serve</code> the web app is left to you.</p>
+    <pre class="copy"><code>{{ schedule.install_command }}</code></pre>
+  </details>
 </section>
 
 <section class="setup-step" id="access">
-  <h2>Access</h2>
-  <p class="small">Two more ways into the same folder. Both start from a terminal, so this section is read-only.</p>
-
-  <h3>From your phone</h3>
-  <p>The app is bound to <code>{{ access.host }}</code>{% if not access.on_network %}, which only this machine can reach{% endif %}. Bind it to every interface and open the app on your phone over the same Wi-Fi:</p>
-  <pre class="copy"><code>{{ access.serve_command }}</code></pre>
-  <p>Then open <code>{{ access.lan_url }}</code> on the phone. To make it permanent, set <code>host = "0.0.0.0"</code> in <code>config.toml</code>.</p>
-  <p class="warning">Hermit CRM has no password. Anyone who can reach that port can read and write your CRM, so use it on a network you trust, or a private one (Tailscale, WireGuard) rather than public Wi-Fi.</p>
-
-  <h3>From an AI client (MCP)</h3>
-  <p>Lets a desktop AI client on this machine &mdash; Claude Desktop, ChatGPT desktop, Cursor &mdash; read and write this CRM with no terminal: ask for your pipeline, what you owe a reply to, a brief before a meeting, and log the call afterwards. Seven read tools and three writes; the writes commit exactly as the web form does.</p>
-  <pre class="copy"><code>{{ access.mcp_command }}</code></pre>
-  <p>It speaks on stdin and stdout, so you do not run it yourself: paste this into your client's MCP config and it starts it for you. That also means the client must run on this machine &mdash; a phone app cannot reach it. For the phone, use the section above.</p>
-  <pre class="copy"><code>{{ access.mcp_config }}</code></pre>
-  <p class="small">Details and the full tool list: <a href="/help/ai-agents">AI agents</a>.</p>
+  <div class="setting-head"><h2>Access from your phone</h2>{% if access.on_network %}{{ status(true, 'on') }}{% endif %}{{ how('/help/settings#access') }}</div>
+  {% set no_password %}<p class="warning">Hermit CRM has no password. Anyone who can reach that port can read and write your CRM, so use it on a network you trust, or a private one (Tailscale, WireGuard) rather than public Wi-Fi.</p>{% endset %}
+  {% if access.on_network %}
+  <p class="summary">The app answers on your network: open <code>{{ access.lan_url }}</code> on a phone on the same Wi-Fi.</p>
+  {{ no_password }}
+  {% else %}
+  <p class="summary">The app is bound to <code>{{ access.host }}</code>, which only this machine can reach.</p>
+  <details class="edit">
+    <summary>How to turn it on</summary>
+    <pre class="copy"><code>{{ access.serve_command }}</code></pre>
+    <p class="small">Then open <code>{{ access.lan_url }}</code> on the phone. To make it permanent, set <code>host = "0.0.0.0"</code> in <code>config.toml</code>.</p>
+    {{ no_password }}
+  </details>
+  {% endif %}
 </section>
 
-<section class="setup-step" id="support">
-  <h2>Support Hermit</h2>
-  <p>Hermit CRM is free and open source, and stays that way. If it earns its place in your week, you can support its development with a tip on Ko-fi.</p>
-  <p><a class="button" href="{{ support_url }}" target="_blank" rel="noopener">Support Hermit on Ko-fi</a></p>
-  <p class="small">Opens <code>{{ support_url | replace('https://', '') }}</code> in your browser. Nothing in the app depends on it, and Hermit CRM sends nothing to Ko-fi.</p>
+<section class="setup-step" id="mcp">
+  <div class="setting-head"><h2>Access from an AI app (MCP)</h2>{{ how('/help/ai-agents') }}</div>
+  <p class="summary">Lets Claude Desktop, ChatGPT desktop or Cursor on this computer read and write this CRM: your pipeline, the replies you owe, a brief before a meeting, and logging the call afterwards.</p>
+  <details class="edit">
+    <summary>The config to paste</summary>
+    <p class="small">Your AI app starts it for you: paste this into its MCP config. It talks over stdin and stdout, so the app must run on this computer.</p>
+    <pre class="copy"><code>{{ access.mcp_config }}</code></pre>
+    <p class="small">The command on its own: <code>{{ access.mcp_command }}</code></p>
+  </details>
 </section>
 
-<section class="setup-step" id="about">
-  <h2>About</h2>
-  <table class="about">
-    <tr><th>Version</th><td>Hermit CRM v{{ about.version }}{% if update_notice and update_notice.available %} &mdash; <span class="update-notice">v{{ update_notice.available }} available: <code>{{ update_notice.hint }}</code></span>{% elif about.update_note %} <span class="small">({{ about.update_note }})</span>{% endif %}</td></tr>
-    <tr><th>Data folder</th><td><code>{{ about.data_dir }}</code></td></tr>
-    <tr><th>Data format</th><td>{% if about.data_format is none %}unknown{% else %}{{ about.data_format }}{% if about.data_format != about.latest_format %} (this Hermit CRM writes {{ about.latest_format }}; run <code>hermitcrm migrate</code>){% endif %}{% endif %}</td></tr>
-    <tr><th>Check the installation</th><td><code>hermitcrm --data {{ about.data_dir }} doctor</code> (add <code>--online</code> to try the IMAP login)</td></tr>
-    <tr><th>Help</th><td><a href="/help">All help topics</a>, or <code>hermitcrm help</code></td></tr>
-  </table>
+<section class="setup-step" id="doctor">
+  <div class="setting-head"><h2>Check the installation</h2></div>
+  <pre class="copy"><code>hermitcrm --data {{ about.data_dir }} doctor</code></pre>
+  <p class="small">Add <code>--online</code> to try the IMAP login as well.</p>
 </section>
+</div>
+
 <script>
+// One tab at a time, picked by the address: #tab-mail opens a tab, and a
+// section id (#bcc, where every save and the red "!" in the nav land) opens
+// the tab that holds it. A page re-shown with a form error opens that tab.
+// Without this script every tab shows, one after the other.
+(function () {
+  var nav = document.querySelector(".settings-tabs");
+  if (!nav) return;
+  var groups = [].slice.call(document.querySelectorAll(".settings-group"));
+  var tabs = [].slice.call(nav.querySelectorAll("a[data-group]"));
+  function show(group) {
+    groups.forEach(function (g) { g.hidden = g !== group; });
+    tabs.forEach(function (t) {
+      if (t.dataset.group === group.id) t.setAttribute("aria-current", "page");
+      else t.removeAttribute("aria-current");
+    });
+  }
+  // The browser's own jump to #section comes after this script has picked the
+  // tab, and the sections' scroll-margin keeps the tabs and "Saved" in view.
+  function fromAddress(event) {
+    var target = location.hash && document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    var group = target && (target.classList.contains("settings-group") ? target : target.closest(".settings-group"));
+    if (group) {
+      show(group);
+      if (event) target.scrollIntoView();   // a hash change jumped before the tab switched
+      return;
+    }
+    var flagged = document.querySelector(".settings-group[data-error]");
+    show(flagged || groups[0]);
+    if (flagged) flagged.querySelector(".errors").closest("[id]").scrollIntoView();
+  }
+  window.addEventListener("hashchange", fromAddress);
+  fromAddress();
+})();
 // Picking a provider fills the server and shows how to get its app password.
 // Plain progressive enhancement: without this, the server box is typed by hand.
 (function () {
