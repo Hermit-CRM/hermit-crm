@@ -177,6 +177,29 @@ def test_quiet_threads_selects_from_the_radar(folder):
     assert routines.select(folder, routine(folder, "nudge-quiet-threads"), CONFIG) == []
 
 
+def test_the_sample_company_is_never_selected(folder):
+    from hermitcrm import followups, sample
+
+    sample.add(folder)
+    made_up = [c.slug for c in sample.samples(folder)]
+    assert made_up
+    # the sample really is on the radar, so only the guard keeps it out
+    radar = {r.company.slug for r in followups.radar(folder, FIXED_NOW.date())}
+    assert radar & set(made_up)
+    write_routines(folder, STARTERS + '''
+[[routine]]
+name = "everyone"
+action = "draft"
+select = "records"
+prompt = "Say hi."
+''')
+    for name in ("nudge-quiet-threads", "reply-drafts", "everyone"):
+        picks = routines.select(folder, routine(folder, name), CONFIG)
+        assert not {p.record.split("/")[0] for p in picks} & set(made_up), name
+    assert "acme" in [p.record for p in routines.select(
+        folder, routine(folder, "nudge-quiet-threads"), CONFIG)]
+
+
 def test_replies_owed_and_filters_on_radar_rows(folder):
     write_routines(folder)
     picks = routines.select(folder, routine(folder, "reply-drafts"), CONFIG)
