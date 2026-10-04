@@ -286,7 +286,7 @@ a = "Nothing. It is free and open source under the Apache License 2.0. It is alp
 [footer]
 # {github} is replaced by a link to [links].github labelled with
 # [header].github_label, {sha256} by a link to [links].sha256.
-text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · {github} · {sha256} · [Compare](compare/) · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
+text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · {github} · {sha256} · [Compare](compare/) · [About](about/) · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
 
 
 # ── Share image (og.png, 1200 x 630) ─────────────────────────────────
