@@ -3,7 +3,7 @@
 All notable changes to Hermit CRM. Versions follow semantic versioning; a change to
 the data format always comes with an automatic migration.
 
-## Unreleased
+## 0.6.0 (2026-10-04)
 
 **Make it yours, with your own AI.** Hermit now has one place for changing it
 to fit how you work, and your own AI agent does the building. Nothing is sent
@@ -11,12 +11,15 @@ anywhere new: the agent is the one you already use (Claude Code, Cursor, Codex,
 Gemini), working on the files in your folder, and every change is a git commit
 you can undo.
 
-**Upgrading from 0.5.0.** The data format goes from 7 to 8: the first command
-after the upgrade (restarting the app counts) adds an agent skill and a short
-"Adjusting Hermit" section to the folder's agent files, and one line to
-`.gitignore`, in one commit. It touches no company, contact or interaction.
-`hermitcrm migrate --dry-run` shows it first; to go back, `git revert` that
-commit and reinstall 0.5.0, which refuses a format-8 folder.
+**Upgrading from 0.5.0.** Run the command the update notice names (usually
+`uv tool install hermitcrm@latest`), or unpack the new download and run
+`uv tool install --reinstall .` in it, then restart the app. The data format
+goes from 7 to 8: the first command after the upgrade (restarting the app
+counts) adds an agent skill and a short "Adjusting Hermit" section to the
+folder's agent files, and one line to `.gitignore`, in one commit. It touches
+no company, contact or interaction. `hermitcrm migrate --dry-run` shows it
+first; to go back, `git revert` that commit and reinstall 0.5.0, which
+refuses a format-8 folder.
 
 - **Ask · Adjust.** One button on every page opens a panel: Ask a question
   about the page, or Adjust it by describing the change. The request goes to
@@ -57,8 +60,16 @@ commit and reinstall 0.5.0, which refuses a format-8 folder.
   paused routine, so you can see both before you ask for your own.
 - **`hermitcrm check`** also checks the new files and says what is wrong in
   each, with the line.
+- **Settings in five tabs**: General, Email & calendar, Your CRM, Backup and
+  Advanced, at about half the words. Each section leads with its status
+  and opens its form on request; a tab shows a dot when something in it
+  needs you. Links to a section (`/settings#bcc`) still land on it, and
+  "How it works" opens the matching part of Help.
 - Fixed: saving a contact removed its tasks. Saving a contact form cleared its
   custom fields.
+- Fixed: unticking "Outreach templates may use it" on a field did nothing.
+  "Shown in" offers only the places the field's record type can appear. A
+  stored calendar address says it is stored, as the BCC password does.
 
 ## 0.5.0 (2026-10-02)
 
