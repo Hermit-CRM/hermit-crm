@@ -29,6 +29,12 @@ primary_region = 'fra'
     path = '/'
     timeout = '3s'
 
+# The download log (see nginx.conf) lives on a 1 GB volume. Create it once with
+#   flyctl volumes create downloads --region fra --size 1 --app hermitcrm
+[[mounts]]
+  source = 'downloads'
+  destination = '/data'
+
 [[vm]]
   memory = '256mb'
   cpus = 1
