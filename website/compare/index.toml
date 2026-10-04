@@ -119,6 +119,7 @@ hermit = "Alpha software. No warranty and no support."
 # ── Headings used on every comparison page ───────────────────────────
 # {name} is replaced by the other CRM's name.
 [labels]
+header_about       = "About"      # top right, links to /about/
 header_link        = "Download"   # top right, links to the home page
 breadcrumb_home    = "Hermit CRM"
 breadcrumb_compare = "Compare"

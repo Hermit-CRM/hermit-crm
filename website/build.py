@@ -266,6 +266,9 @@ def render(c: dict, ld: str = "") -> str:
     # as long as the repository is private.
     github = (f'<a href="{attr(c["links"]["github"])}">{md(c["header"]["github_label"])}</a>'
               if c["links"]["github"] else "")
+    # The top bar: About, then GitHub (when the repository is public).
+    nav = (f'<nav class="site-nav" aria-label="Site">'
+           f'<a href="about/">{md(c["header"]["about_label"])}</a>{github}</nav>')
 
     steps = "\n".join(f"      <li><span>{md(s)}</span></li>" for s in i["steps"])
     features = "\n".join(f"      <dt>{md(x['name'])}</dt><dd>{md(x['text'])}</dd>"
@@ -314,7 +317,7 @@ def render(c: dict, ld: str = "") -> str:
 
 <header class="site-header wide">
   <a class="brand" href="./" aria-label="{attr(c["header"]["name"])} home">{MARK}<span>{md(c["header"]["name"])}</span></a>
-  {github}
+  {nav}
 </header>
 
 <main id="main">
@@ -501,6 +504,8 @@ def page_head(c: dict, hub: dict, *, title: str, description: str, path: str, ro
               modified=None) -> str:
     """<head> of a page below the home page. `root` leads back to site/ ("../../")."""
     site = c["page"]["site_url"].rstrip("/")
+    # On the About page its own link is marked as the current page.
+    here = ' aria-current="page"' if path == "/about/" else ""
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -529,7 +534,7 @@ def page_head(c: dict, hub: dict, *, title: str, description: str, path: str, ro
 
 <header class="site-header wide">
   <a class="brand" href="{root}" aria-label="{attr(c["header"]["name"])} home">{MARK}<span>{md(c["header"]["name"])}</span></a>
-  <a href="{root}">{md(hub["labels"]["header_link"])}</a>
+  <nav class="site-nav" aria-label="Site"><a href="{root}about/"{here}>{md(hub["labels"]["header_about"])}</a><a href="{root}">{md(hub["labels"]["header_link"])}</a></nav>
 </header>
 """
 
