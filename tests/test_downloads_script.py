@@ -95,6 +95,15 @@ def test_a_browser_name_without_fetch_metadata_is_a_scanner_not_a_person():
     assert [r["id"] for r in out["bots"]] == ["id4"]
 
 
+def test_ignore_txt_moves_requests_to_yours_without_deleting_anything(tmp_path):
+    (tmp_path / "ignore.txt").write_text("# verification curls, 4 Oct\nid2   # 0.5.0\n\n")
+    assert dl.read_ignored(tmp_path) == {"id2"}
+    assert dl.read_ignored(tmp_path / "nowhere") == set()
+    out = dl.website_events([hit(1, ua="curl/8.7.1"), hit(2, ua="curl/8.7.1")], dl.read_ignored(tmp_path))
+    assert [r["id"] for r in out["downloads"]] == ["id1"]
+    assert [r["id"] for r in out["mine"]] == ["id2"]
+
+
 def test_website_events_judges_completeness_per_file():
     old = "/download/hermitcrm-0.5.0.tar.gz"
     rows = [hit(1, path=old, bytes_=552796), hit(2), hit(3, path=old, bytes_=552796)]

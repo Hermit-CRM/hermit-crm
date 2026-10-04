@@ -248,7 +248,17 @@ def looks_like_a_bot(row: dict) -> bool:
     return "sf" in row and ua.startswith("Mozilla/") and not row["sf"]
 
 
-def website_events(rows: list[dict]) -> dict[str, list[dict]]:
+def read_ignored(data_dir: Path) -> set[str]:
+    """Request ids in ignore.txt (one per line, `#` starts a comment): downloads that were not real,
+    such as a verification curl. Nothing is deleted from the log; the report just counts them as yours."""
+    path = data_dir / "ignore.txt"
+    if not path.exists():
+        return set()
+    lines = (line.split("#")[0].strip() for line in path.read_text().splitlines())
+    return {line for line in lines if line}
+
+
+def website_events(rows: list[dict], ignore: frozenset[str] | set[str] = frozenset()) -> dict[str, list[dict]]:
     """Sort tarball GETs into mine / bots / aborted / downloads. Other requests are ignored."""
     gets = [r for r in rows if r["method"] == "GET" and r["status"] == 200]
     biggest: dict[str, int] = {}
@@ -256,7 +266,8 @@ def website_events(rows: list[dict]) -> dict[str, list[dict]]:
         biggest[r["path"]] = max(biggest.get(r["path"], 0), r["bytes"])
     out: dict[str, list[dict]] = {"downloads": [], "aborted": [], "bots": [], "mine": []}
     for r in gets:
-        if "own" in parse_qs(r.get("q", ""), keep_blank_values=True) or "selftest" in r["ua"].lower():
+        if (r["id"] in ignore or "own" in parse_qs(r.get("q", ""), keep_blank_values=True)
+                or "selftest" in r["ua"].lower()):
             out["mine"].append(r)
         elif looks_like_a_bot(r):
             out["bots"].append(r)
@@ -306,11 +317,12 @@ def report(data_dir: Path, installs: bool = False) -> None:
             f"over {len(traffic)} saved days (activity, not people: it includes your own checkouts)")
 
     path = data_dir / "website.jsonl"
-    site = website_events(parse_log(path.read_text())) if path.exists() else dict.fromkeys(("downloads", "aborted", "bots", "mine"), [])
+    site = (website_events(parse_log(path.read_text()), read_ignored(data_dir)) if path.exists()
+            else dict.fromkeys(("downloads", "aborted", "bots", "mine"), []))
     out("")
     out(f"Website  {len(site['downloads'])} completed downloads")
     for label, key in (("aborted before the end", "aborted"), ("bots and crawlers", "bots"),
-                       ("yours (?own or selftest)", "mine")):
+                       ("yours (?own, selftest or ignore.txt)", "mine")):
         if site[key]:
             out(f"           {len(site[key]):>5}  {label}")
     per_file: dict[str, int] = {}
