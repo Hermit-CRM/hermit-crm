@@ -21,12 +21,12 @@
 
 # ── Values used in several places ────────────────────────────────────
 [release]
-version  = "0.5.0"
+version  = "0.6.0"
 license  = "Apache 2.0"
 
 [links]
-download       = "download/hermitcrm-0.5.0.tar.gz"   # served by the site, see README
-sha256         = "download/hermitcrm-0.5.0.tar.gz.sha256"
+download       = "download/hermitcrm-0.6.0.tar.gz"   # served by the site, see README
+sha256         = "download/hermitcrm-0.6.0.tar.gz.sha256"
 github         = ""    # empty hides the GitHub links; fill in when the repo is public
 
 
