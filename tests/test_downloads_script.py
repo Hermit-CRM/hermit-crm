@@ -81,6 +81,20 @@ def test_website_events_sorts_requests_into_mine_bots_aborted_and_downloads():
     assert [r["id"] for r in out["aborted"]] == ["id7"]
 
 
+def test_a_browser_name_without_fetch_metadata_is_a_scanner_not_a_person():
+    # A link scanner that borrows a browser's name sends no Sec-Fetch-Site; a person's browser does.
+    person = dict(hit(1), sf="same-origin", su="?1")
+    from_a_github_link = dict(hit(2), sf="cross-site", su="?1")
+    typed_in_the_address_bar = dict(hit(3), sf="none", su="?1")
+    scanner = dict(hit(4), sf="", su="")
+    curl = dict(hit(5, ua="curl/8.7.1"), sf="", su="")           # not a browser, so not judged on it
+    before_the_field_existed = hit(6)                            # no "sf" key: judged on the user agent alone
+    out = dl.website_events([person, from_a_github_link, typed_in_the_address_bar, scanner, curl,
+                             before_the_field_existed])
+    assert [r["id"] for r in out["downloads"]] == ["id1", "id2", "id3", "id5", "id6"]
+    assert [r["id"] for r in out["bots"]] == ["id4"]
+
+
 def test_website_events_judges_completeness_per_file():
     old = "/download/hermitcrm-0.5.0.tar.gz"
     rows = [hit(1, path=old, bytes_=552796), hit(2), hit(3, path=old, bytes_=552796)]
@@ -116,6 +130,43 @@ def test_report_separates_installs_from_browsers_scripts_and_mirrors(tmp_path, c
 def test_report_before_any_collect_says_so(tmp_path, capsys):
     dl.report(tmp_path)
     assert "run `downloads.py collect` first" in capsys.readouterr().out
+
+
+def test_the_log_pull_starts_a_stopped_machine_and_retries_while_it_boots(monkeypatch):
+    # `flyctl ssh` refuses a stopped machine ("no started VMs"); the site's machine
+    # is stopped whenever nobody is looking, so the pull has to start it itself.
+    calls = []
+
+    def fake_run(cmd, timeout=180):
+        calls.append(cmd[1])
+        if cmd[1] == "machines":
+            return json.dumps([{"id": "m1", "state": "stopped"}])
+        if calls.count("ssh") == 1:
+            raise RuntimeError("flyctl exited 1: app hermitcrm has no started VMs")
+        return "Connecting to fdaa::1... complete\n" + json.dumps(hit(1)) + "\n"
+
+    started = []
+    monkeypatch.setattr(dl, "run", fake_run)
+    monkeypatch.setattr(dl.subprocess, "run", lambda cmd, **kw: started.append(cmd))
+    monkeypatch.setattr(dl.time, "sleep", lambda seconds: None)
+    assert [r["id"] for r in dl.parse_log(dl.ssh_cat("/data/downloads.log"))] == ["id1"]
+    assert started and started[0][:3] == ["flyctl", "machine", "start"] and "m1" in started[0]
+
+
+def test_the_log_pull_gives_up_after_six_tries(monkeypatch):
+    def always_fails(cmd, timeout=180):
+        if cmd[1] == "machines":
+            return "[]"
+        raise RuntimeError("no started VMs")
+
+    monkeypatch.setattr(dl, "run", always_fails)
+    monkeypatch.setattr(dl.time, "sleep", lambda seconds: None)
+    try:
+        dl.ssh_cat("/data/downloads.log")
+    except RuntimeError as e:
+        assert "no started VMs" in str(e)
+    else:
+        raise AssertionError("expected the failure to surface so collect reports it")
 
 
 def test_collect_survives_a_failing_source_and_says_so(tmp_path, monkeypatch, capsys):
