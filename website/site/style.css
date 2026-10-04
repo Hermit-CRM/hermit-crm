@@ -254,6 +254,14 @@ details p { margin: 0 0 24px; }
 .cards h2 { margin: 0 0 8px; font-size: 26px; font-weight: 500; line-height: 1.25; }
 .cards p { margin: 0; }
 
+/* ── About page (/about/) ───────────────────────────────────────── */
+.story { margin-top: 36px; }
+.story p { margin: 0 0 22px; }
+.pull { margin: 44px 0; padding-left: 24px; border-left: 3px solid var(--green-ink); }
+.pull blockquote { margin: 0; }
+.pull blockquote p { margin: 0; font-size: 28px; line-height: 1.3; font-weight: 500; }
+.pull figcaption { margin-top: 12px; font-size: 15px; color: var(--muted); }
+
 .site-footer .notice { margin: 0 0 12px; }
 .site-footer p:last-child { margin: 0; }
 
@@ -335,6 +343,9 @@ details p { margin: 0 0 24px; }
   .page-h1 { font-size: 38px; }
   .lead { font-size: 19px; }
   .part, .about { margin-top: 56px; }
+  .story { margin-top: 28px; }
+  .pull { margin: 36px 0; padding-left: 18px; }
+  .pull blockquote p { font-size: 23px; }
   .versus thead { position: absolute; left: -9999px; }
   .versus, .versus caption, .versus tbody, .versus tr, .versus th, .versus td { display: block; width: auto; }
   .versus tbody tr { padding: 14px 0; border-top: 1px solid var(--rule); }
