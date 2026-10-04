@@ -15,14 +15,14 @@
 
 """Build the Hermit CRM website from content.toml.
 
-    python3 build.py            build site/index.html, site/compare/ and site/app-tokens.css once
-    python3 build.py --watch    rebuild whenever content.toml, style.css or the app's tokens change
+    python3 build.py            build site/index.html, site/compare/, site/about/ and site/app-tokens.css once
+    python3 build.py --watch    rebuild whenever content.toml, about.toml, style.css or the app's tokens change
     python3 build.py --share    also render site/img/og.png (needs Playwright)
     python3 build.py --release  build, then fail if any [TBC], "#" link or brief problem is left
 
 Only the Python standard library is needed (3.11 or newer) for the page.
-All words come from content.toml and compare/*.toml (the comparison pages);
-the look is in site/style.css. Colours and
+All words come from content.toml, compare/*.toml (the comparison pages) and
+about.toml (the About page); the look is in site/style.css. Colours and
 fonts shared with the app come from src/hermitcrm/static/tokens.css, copied into
 site/app-tokens.css on every build. The build fails if the site uses a token
 that neither file defines, so the site cannot drift from the app unnoticed.
@@ -46,6 +46,7 @@ STYLE = SITE / "style.css"
 TOKENS = ROOT.parent / "src" / "hermitcrm" / "static" / "tokens.css"
 APP_TOKENS = SITE / "app-tokens.css"
 COMPARE = ROOT / "compare"
+ABOUT = ROOT / "about.toml"
 LLMS = SITE / "llms.txt"
 
 # Tokens from tokens.css that mean the same on the site as in the app. They are
@@ -523,7 +524,7 @@ def page_head(c: dict, hub: dict, *, title: str, description: str, path: str, ro
 <link rel="stylesheet" href="{root}style.css">
 {ld}</head>
 <body>
-<!-- Built from compare/*.toml by build.py. Edit the text there, not here. -->
+<!-- Built from compare/*.toml and about.toml by build.py. Edit the text there, not here. -->
 <a class="skip" href="#main">Skip to content</a>
 
 <header class="site-header wide">
@@ -533,10 +534,13 @@ def page_head(c: dict, hub: dict, *, title: str, description: str, path: str, ro
 """
 
 
-def page_foot(hub: dict, compare_link: str) -> str:
-    return (f'<footer class="site-footer col">\n  <p class="notice">{md(hub["notice"]["text"])}</p>\n'
-            f'  <p>{md(hub["footer"]["text"].replace("{compare}", compare_link))}</p>\n</footer>\n'
-            "</body>\n</html>\n")
+def page_foot(hub: dict, compare_link: str, about_link: str, notice: bool = True) -> str:
+    """Footer of a page below the home page. The prices-and-trademarks notice is
+    for the comparison pages; the About page leaves it out."""
+    text = hub["footer"]["text"].replace("{compare}", compare_link).replace("{about}", about_link)
+    return ('<footer class="site-footer col">\n'
+            + (f'  <p class="notice">{md(hub["notice"]["text"])}</p>\n' if notice else "")
+            + f'  <p>{md(text)}</p>\n</footer>\n</body>\n</html>\n')
 
 
 def crumbs(hub: dict, root: str, here: str, compare_link: str | None) -> str:
@@ -627,7 +631,7 @@ def render_compare(c: dict, hub: dict, p: dict, pages: list[dict]) -> str:
 {section("others", f'    <ul class="others">{chr(10)}{others}{chr(10)}    </ul>')}
 </main>
 
-""" + page_foot(hub, "../"))
+""" + page_foot(hub, "../", "../../about/"))
 
 
 def render_hub(c: dict, hub: dict, pages: list[dict]) -> str:
@@ -694,10 +698,67 @@ def render_hub(c: dict, hub: dict, pages: list[dict]) -> str:
 {about_block(hub, root)}
 </main>
 
-""" + page_foot(hub, "./"))
+""" + page_foot(hub, "./", "../about/"))
 
 
-def llms_txt(c: dict, hub: dict, pages: list[dict]) -> str:
+# ── About page (/about/) ─────────────────────────────────────────────
+def load_about() -> dict:
+    """about.toml, with the story's entries checked: a paragraph or a quote with its source."""
+    a = tomllib.loads(ABOUT.read_text(encoding="utf-8"))
+    for need in ("page", "author", "story"):
+        if need not in a:
+            raise BuildError(f"about.toml has no [{need}]")
+    for n, item in enumerate(a["story"], 1):
+        if not ("text" in item or ("quote" in item and "by" in item)):
+            raise BuildError(f"about.toml: story entry {n} needs `text`, or `quote` and `by`")
+    return a
+
+
+def render_about(c: dict, hub: dict, a: dict) -> str:
+    site, lab, pg, au = c["page"]["site_url"].rstrip("/"), hub["labels"], a["page"], a["author"]
+    path, root = "/about/", "../"
+    url, published = site + path, pg["published"]
+
+    def block(item: dict) -> str:
+        if "text" in item:
+            return f'    <p>{md(item["text"])}</p>'
+        return (f'    <figure class="pull">\n      <blockquote><p>{md(item["quote"])}</p></blockquote>\n'
+                f'      <figcaption>{md(item["by"])}</figcaption>\n    </figure>')
+
+    story = "\n".join(block(item) for item in a["story"])
+    ld = jsonld(
+        {"@type": "AboutPage", "@id": url, "url": url, "name": flat(pg["title"]),
+         "description": flat(pg["description"]), "inLanguage": "en",
+         "datePublished": published.isoformat(), "dateModified": published.isoformat(),
+         "isPartOf": {"@id": f"{site}/#website"}, "about": {"@id": f"{site}/#software"},
+         "author": {"@type": "Person", "name": au["name"], "url": au["url"]},
+         "breadcrumb": {"@id": f"{url}#breadcrumb"}},
+        breadcrumbs(url, [(lab["breadcrumb_home"], f"{site}/"), (pg["h1"], url)]),
+        software(c, hub), website(c))
+
+    return (page_head(c, hub, title=pg["title"], description=flat(pg["description"]), path=path, root=root, ld=ld,
+                      modified=published)
+            + f"""
+<main id="main">
+  <div class="page-top col">
+    {crumbs(hub, root, pg["h1"], None)}
+    <h1 class="page-h1">{md(pg["h1"])}</h1>
+    <p class="checked">{md(au["label"])} <a href="{attr(au["url"])}">{md(au["name"])}</a>, <time datetime="{published.isoformat()}">{long_date(published)}</time>.</p>
+  </div>
+
+  <section class="story col" aria-label="{attr(pg["h1"])}">
+{story}
+  </section>
+
+  <section class="about col" aria-label="Download Hermit CRM">
+    <div class="download"><a class="btn" href="{root}">{md(lab["download"])}</a><p class="meta">{md(lab["download_note"])}</p></div>
+  </section>
+</main>
+
+""" + page_foot(hub, "../compare/", "./", notice=False))
+
+
+def llms_txt(c: dict, hub: dict, pages: list[dict], about: dict) -> str:
     """llms.txt (llmstxt.org): a plain summary with links, for AI tools that read a site."""
     site = c["page"]["site_url"].rstrip("/")
     y = c["yours"]
@@ -708,7 +769,8 @@ def llms_txt(c: dict, hub: dict, pages: list[dict]) -> str:
               for e in y["examples"]]
     lines += ["", plain(y["safety"]), "",
               "## Pages", "", f"- [Home]({site}/): what it is, how to install it, questions and answers",
-             f"- [Hermit CRM compared]({site}/compare/): {plain(hub['page']['description'])}", "",
+             f"- [Hermit CRM compared]({site}/compare/): {plain(hub['page']['description'])}",
+             f"- [About]({site}/about/): {plain(about['page']['description'])}", "",
              "## Comparisons", ""]
     lines += [f"- [Hermit CRM vs {p['name']}]({site}/compare/{p['slug']}/): {plain(p['short_answer'])}"
               for p in pages]
@@ -718,7 +780,7 @@ def llms_txt(c: dict, hub: dict, pages: list[dict]) -> str:
 
 
 def build_compare(c: dict) -> tuple[dict, list[dict]]:
-    """Write site/compare/ and site/llms.txt. Stale pages of a removed CRM are deleted."""
+    """Write site/compare/. Stale pages of a removed CRM are deleted."""
     hub, pages = load_compare()
     out = SITE / "compare"
     out.mkdir(exist_ok=True)
@@ -731,10 +793,18 @@ def build_compare(c: dict) -> tuple[dict, list[dict]]:
     for p in pages:
         (out / p["slug"]).mkdir(exist_ok=True)
         (out / p["slug"] / "index.html").write_text(render_compare(c, hub, p, pages), encoding="utf-8")
-    if c["page"]["site_url"]:
-        LLMS.write_text(llms_txt(c, hub, pages), encoding="utf-8")
-    print(f"built site/compare/ ({len(pages)} comparisons) and site/llms.txt")
+    print(f"built site/compare/ ({len(pages)} comparisons)")
     return hub, pages
+
+
+def build_about(c: dict, hub: dict, pages: list[dict]) -> dict:
+    """Write site/about/index.html and site/llms.txt (which lists the About page)."""
+    a = load_about()
+    (SITE / "about").mkdir(exist_ok=True)
+    (SITE / "about" / "index.html").write_text(render_about(c, hub, a), encoding="utf-8")
+    LLMS.write_text(llms_txt(c, hub, pages, a), encoding="utf-8")
+    print("built site/about/ and site/llms.txt")
+    return a
 
 
 # ── Checks against the brief ─────────────────────────────────────────
@@ -749,11 +819,14 @@ def walk(value, path=""):
             yield from walk(v, f"{path}[{n}]")
 
 
-def check(c: dict, pages: list[dict] | None = None, hub: dict | None = None) -> tuple[list[str], list[str]]:
+def check(c: dict, pages: list[dict] | None = None, hub: dict | None = None,
+          about: dict | None = None) -> tuple[list[str], list[str]]:
     problems, tbc = [], []
     texts = list(walk(c))
     if hub:
         texts += walk(hub, "compare/index")
+    if about:
+        texts += walk(about, "about")
     for p in pages or []:
         texts += walk({k: v for k, v in p.items() if k != "checked"}, f"compare/{p['slug']}")
     # Search results cut titles after about 60 characters and descriptions
@@ -762,6 +835,8 @@ def check(c: dict, pages: list[dict] | None = None, hub: dict | None = None) -> 
     if hub:
         snippets.append(("compare/index", hub["page"]["title"], hub["page"]["description"]))
     snippets += [(f"compare/{p['slug']}", p["title"], p["description"]) for p in pages or []]
+    if about:
+        snippets.append(("about", about["page"]["title"], about["page"]["description"]))
     for where, title, description in snippets:
         if len(flat(title)) > 65:
             problems.append(f"{where}: title is {len(flat(title))} characters, keep it at 65 or less")
@@ -810,18 +885,19 @@ def build() -> tuple[dict, list[str], list[str]]:
     c = tomllib.loads(CONTENT.read_text(encoding="utf-8"))
     site_url = c["page"]["site_url"].rstrip("/")
     APP_TOKENS.write_text(app_css, encoding="utf-8")
-    # The comparison pages need the site's address for their canonical links,
-    # so they are only built once [page].site_url is set.
+    # The comparison pages and the About page need the site's address for their
+    # canonical links, so they are only built once [page].site_url is set.
     hub, pages = build_compare(c) if site_url else (None, [])
+    about = build_about(c, hub, pages) if hub else None
     ld = jsonld(website(c), software(c, hub)) if hub else ""
     OUT.write_text(render(c, ld), encoding="utf-8")
     print(f"built {OUT.relative_to(ROOT)} and {APP_TOKENS.relative_to(ROOT)}")
-    crawl(site_url, pages)
-    problems, tbc = check(c, pages, hub)
+    crawl(site_url, pages, about)
+    problems, tbc = check(c, pages, hub, about)
     return c, problems, tbc
 
 
-def crawl(site_url: str, pages: list[dict] = ()) -> None:
+def crawl(site_url: str, pages: list[dict] = (), about: dict | None = None) -> None:
     """Write robots.txt and sitemap.xml for search engines, or drop them while
     the site has no address yet (a sitemap needs absolute URLs)."""
     robots, sitemap = SITE / "robots.txt", SITE / "sitemap.xml"
@@ -838,6 +914,9 @@ def crawl(site_url: str, pages: list[dict] = ()) -> None:
         urls.append(f"  <url><loc>{html.escape(site_url)}/compare/</loc><lastmod>{newest}</lastmod></url>")
         urls += [f"  <url><loc>{html.escape(site_url)}/compare/{p['slug']}/</loc>"
                  f"<lastmod>{p['checked'].isoformat()}</lastmod></url>" for p in pages]
+    if about:
+        urls.append(f"  <url><loc>{html.escape(site_url)}/about/</loc>"
+                    f"<lastmod>{about['page']['published'].isoformat()}</lastmod></url>")
     sitemap.write_text('<?xml version="1.0" encoding="UTF-8"?>\n'
                        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
                        + "\n".join(urls) + "\n</urlset>\n", encoding="utf-8")
@@ -884,8 +963,8 @@ def main() -> None:
     if "--share" in sys.argv:
         share(c)
     if "--watch" in sys.argv:
-        watched = lambda: [CONTENT, STYLE, TOKENS, *sorted(COMPARE.glob("*.toml"))]  # noqa: E731
-        print("watching content.toml, compare/*.toml, site/style.css and the app's tokens.css (Ctrl+C to stop)")
+        watched = lambda: [CONTENT, ABOUT, STYLE, TOKENS, *sorted(COMPARE.glob("*.toml"))]  # noqa: E731
+        print("watching content.toml, about.toml, compare/*.toml, site/style.css and the app's tokens.css (Ctrl+C to stop)")
         stamp = lambda: [(f, f.stat().st_mtime) for f in watched()]  # noqa: E731
         seen = stamp()
         while True:
