@@ -47,6 +47,7 @@ site_url    = "https://hermitcrm.io"
 # ── Top bar ──────────────────────────────────────────────────────────
 [header]
 name         = "Hermit CRM"
+about_label  = "About"    # top right, links to /about/
 github_label = "GitHub"
 
 
