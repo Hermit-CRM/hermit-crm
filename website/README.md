@@ -111,6 +111,55 @@ deploy:
 
 Keep older files in `site/download/` if people may still link to them.
 
+## Counting downloads
+
+`scripts/downloads.py` counts downloads on all three channels and keeps the
+numbers (`collect` fetches and saves, `report` prints). It is maintainer
+tooling: `.gitattributes` keeps it out of the download.
+
+| Channel | Where the count comes from |
+| --- | --- |
+| Website | the tarball log nginx writes to the Fly volume |
+| GitHub | release asset counts, plus clone and view traffic (a 14-day window, so it must be saved) |
+| PyPI | pypistats.org for daily totals, and ClickPy (the public copy of PyPI's download log) for who downloaded |
+
+**The website log.** `nginx.conf` logs only `GET /download/hermitcrm-<version>.tar.gz`
+requests, one JSON line each, to `/data/downloads.log` on the Fly volume
+`downloads` (1 GB, created once with the command in `fly.toml`). No IP address
+and no referer are kept; the `.sha256` files, the pages and the `www` redirect
+log nothing. The volume survives deploys and machine stops. Do not delete it:
+the log goes with it (Fly keeps 5 daily snapshots). stdout is no use for this:
+`flyctl logs` keeps only the last 100 lines.
+
+**Your own downloads.** Add `?own` to the link (nginx ignores the query string)
+or use `curl -A selftest`, and `report` lists the request under "yours".
+
+**What a PyPI number means.** A new release gets a few hundred downloads in its
+first days from mirrors, scanners and crawlers. pypistats' "without mirrors" still
+includes browser downloads and Python scripts. The number for people who ran
+`pip install` or `uv` is "pip/uv installs" in the report; `report --installs`
+lists each one with its country, Python and system. None of the three counts
+unique people, and a person who uses two channels is counted twice.
+
+**Running it.**
+
+```sh
+uv run --no-project --python 3.13 scripts/downloads.py collect
+uv run --no-project --python 3.13 scripts/downloads.py report --installs
+```
+
+The data is in `~/.local/share/hermitcrm-downloads/` (set `HERMITCRM_DOWNLOADS_DIR`
+to move it; keep it out of the repository). A launchd job, `io.hermitcrm.downloads`,
+runs `collect` every 6 hours. It runs a *copy* of the script in that folder, not
+the checkout, so a branch in progress never runs unattended; after changing the
+script, copy it over again:
+
+```sh
+cp scripts/downloads.py ~/.local/share/hermitcrm-downloads/downloads.py
+```
+
+`collect` exits 1 when a source fails, which launchd shows as a failed job.
+
 ## Fonts
 
 None are downloaded, from Google or anywhere else. The page uses fonts that are
