@@ -134,6 +134,13 @@ the log goes with it (Fly keeps 5 daily snapshots). stdout is no use for this:
 **Your own downloads.** Add `?own` to the link (nginx ignores the query string)
 or use `curl -A selftest`, and `report` lists the request under "yours".
 
+**Link scanners.** Anything that publishes the download link (a PR, a post, a
+mail) gets it fetched within seconds by scanners, some with a browser's name in the
+user agent. The log keeps the browser's `Sec-Fetch-Site` / `Sec-Fetch-User`
+headers, and `report` calls a browser-named request without them a bot. That is a
+heuristic: the website number is an upper bound, most trustworthy once the first
+burst after a launch has passed.
+
 **What a PyPI number means.** A new release gets a few hundred downloads in its
 first days from mirrors, scanners and crawlers. pypistats' "without mirrors" still
 includes browser downloads and Python scripts. The number for people who ran

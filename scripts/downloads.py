@@ -41,6 +41,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.request
 from datetime import datetime, timezone
 from io import StringIO
@@ -166,9 +167,28 @@ def collect_github(data_dir: Path) -> str:
     return f"{len(assets)} assets, {len(traffic)} traffic days"
 
 
+def ssh_cat(path: str) -> str:
+    """Read a file on the site's machine.
+
+    The machine is stopped whenever nobody is looking at the site, and `flyctl ssh`
+    does not start it ("app has no started VMs"), so start it first and retry while
+    it boots. Fly stops it again on its own once it is idle."""
+    for attempt in range(6):
+        try:
+            for m in json.loads(run(["flyctl", "machines", "list", "-a", FLY_APP, "--json"])):
+                if m["state"] in ("stopped", "suspended", "created"):
+                    subprocess.run(["flyctl", "machine", "start", m["id"], "-a", FLY_APP],
+                                   capture_output=True, timeout=120)
+            return run(["flyctl", "ssh", "console", "-a", FLY_APP, "-C", f"cat {path}"])
+        except RuntimeError:
+            if attempt == 5:
+                raise
+            time.sleep(5)
+
+
 def collect_website(data_dir: Path) -> str:
-    # ssh starts the machine if it is stopped; the volume keeps the file between boots.
-    text = run(["flyctl", "ssh", "console", "-a", FLY_APP, "-C", "cat /data/downloads.log"])
+    # The volume keeps the file between boots.
+    text = ssh_cat("/data/downloads.log")
     path = data_dir / "website.jsonl"
     merged = {r["id"]: r for r in parse_log(path.read_text())} if path.exists() else {}
     fresh = parse_log(text)
@@ -218,6 +238,16 @@ def pypi_bucket(row: dict) -> str:
     return {"Browser": "browser", "requests": "scripts", "": "unknown"}.get(installer, "other")
 
 
+def looks_like_a_bot(row: dict) -> bool:
+    ua = row["ua"]
+    if not ua or BOT_UA.search(ua):
+        return True
+    # A person's browser sends Sec-Fetch-Site; a scanner that borrows a browser's
+    # name usually does not. curl and wget never send it and are not judged on it,
+    # and log lines from before the field existed have no "sf" key at all.
+    return "sf" in row and ua.startswith("Mozilla/") and not row["sf"]
+
+
 def website_events(rows: list[dict]) -> dict[str, list[dict]]:
     """Sort tarball GETs into mine / bots / aborted / downloads. Other requests are ignored."""
     gets = [r for r in rows if r["method"] == "GET" and r["status"] == 200]
@@ -228,7 +258,7 @@ def website_events(rows: list[dict]) -> dict[str, list[dict]]:
     for r in gets:
         if "own" in parse_qs(r.get("q", ""), keep_blank_values=True) or "selftest" in r["ua"].lower():
             out["mine"].append(r)
-        elif not r["ua"] or BOT_UA.search(r["ua"]):
+        elif looks_like_a_bot(r):
             out["bots"].append(r)
         elif r["bytes"] < COMPLETE * biggest[r["path"]]:
             out["aborted"].append(r)
