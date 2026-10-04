@@ -132,7 +132,9 @@ the log goes with it (Fly keeps 5 daily snapshots). stdout is no use for this:
 `flyctl logs` keeps only the last 100 lines.
 
 **Your own downloads.** Add `?own` to the link (nginx ignores the query string)
-or use `curl -A selftest`, and `report` lists the request under "yours".
+or use `curl -A selftest`, and `report` lists the request under "yours". For a
+request that is already in the log, put its `id` in `ignore.txt` in the data folder
+(one per line, `#` for comments); nothing is deleted from the log.
 
 **Link scanners.** Anything that publishes the download link (a PR, a post, a
 mail) gets it fetched within seconds by scanners, some with a browser's name in the
