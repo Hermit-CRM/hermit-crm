@@ -1,0 +1,99 @@
+# ─────────────────────────────────────────────────────────────────────
+#  The About page at /about/. Same rules as content.toml: no em dashes, no
+#  exclamation marks, none of the banned words; `python3 build.py --release`
+#  checks them.
+#
+#  `story` is the page, one paragraph per entry. Where the quote goes is
+#  marked by an entry of the form { quote = "...", by = "..." }.
+#  Inside any text you can use **bold**, `code` and [link text](url).
+# ─────────────────────────────────────────────────────────────────────
+
+[page]
+title       = "About Hermit CRM: why I built a local CRM for one person"
+description = """
+The short story of why Gijs Bos built Hermit CRM, a free local CRM for one
+person, and how you can help as a beta tester.
+"""
+h1        = "About Hermit CRM"
+published = 2026-10-04
+
+# The byline under the heading, and the author in the page's structured data.
+[author]
+name  = "Gijs Bos"
+url   = "https://www.linkedin.com/in/gijsbos"
+label = "Written by"
+
+
+# ── The story, in Gijs's words ───────────────────────────────────────
+[[story]]
+text = """
+This is the short story about why and how I created Hermit CRM. I had decided
+in August or September 2026 to start doing interim/fractional work. I already
+had a client, but I could take on another one. So I started looking for one.
+Quite quickly I realised that I needed a way to track my outreach efforts. I
+vividly remember how I took a Google Sheet and created two tabs. One with
+companies and the other one with contacts. But before even finishing those two
+tabs, I thought: "What the hell am I doing? This is exactly what I advise my
+customers not to do: an unstructured way of executing sales processes."
+"""
+
+[[story]]
+text = """
+I looked at HubSpot, Attio, and a bunch of others, but their free versions
+didn't do what I wanted. And thus Hermit CRM was conceived. It started out with
+a list of simple functionalities: companies, contacts and tasks. That was done
+quickly. A functionality for importing a CSV with leads from Clay.com came
+next. I quickly realised that I didn't need a web-based app, because it was
+just me. And by the time I'd need another person, my readiness to invest in an
+expensive CRM might be higher.
+"""
+
+[[story]]
+text = """
+Once I took the local storage / sovereign route, it was easy to decide to use a
+list of `.md` files as storage. Honestly, without really thinking it through,
+the CRM was fully AI-enabled. And not the kind of AI that the big firms give
+you, but something I (and therefore anybody) could change instantly with a
+couple of simple commands with their own AI tool of choice.
+"""
+
+[[story]]
+text = """
+Truth be told, for about 5 minutes I thought: I could sell Hermit CRM and
+become the new Marc Benioff. Quickly, I realised that I'd be happier as an
+indie vibe coder. So, I open sourced the code under an Apache license.
+"""
+
+[[story]]
+text = """
+The functionalities that came afterwards were just for fun and personal
+frustrations with how the Hermit worked for me. I kept thinking: "If I improve
+it for myself, why not share it with the rest of the planet?" My rationale: if
+just one person finds it useful for a couple of weeks, that's more than enough.
+"""
+
+[[story]]
+text = """
+Anyway, now (beginning of October 2026) I'm looking for beta testers: friends,
+family, random strangers on the interwebs. I'm somewhat hesitant to put it out
+there. There are many great open source CRMs such as
+[Twenty](../compare/twenty/) and others, but few use local storage, are easy
+to use and are completely free.
+"""
+
+[[story]]
+quote = "If you're not embarrassed by the first version of your product, you've launched too late."
+by    = "Reid Hoffman"
+
+[[story]]
+text = """
+By typing this I suppose I'm ready. What I'd really like is for others to
+become Hermits as well: to use it, to modify it to suit their workflows or even
+to expand the main version together with me.
+"""
+
+[[story]]
+text = """
+Please share what you (dis)like. All your feedback will be read and answered by
+me: [feedback@hermitcrm.io](mailto:feedback@hermitcrm.io)
+"""

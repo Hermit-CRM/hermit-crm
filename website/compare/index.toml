@@ -146,4 +146,4 @@ before you decide. Found a mistake? Message
 """
 
 [footer]
-text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · [All comparisons]({compare}) · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
+text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · [All comparisons]({compare}) · [About]({about}) · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"

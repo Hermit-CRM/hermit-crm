@@ -18,6 +18,7 @@ Safe to try. Every change is a git commit you can undo in one click. Routines on
 
 - [Home](https://hermitcrm.io/): what it is, how to install it, questions and answers
 - [Hermit CRM compared](https://hermitcrm.io/compare/): How Hermit CRM, a free local CRM for one person, compares with HubSpot, Attio, Pipedrive, folk, Twenty and Notion on price, data and AI access.
+- [About](https://hermitcrm.io/about/): The short story of why Gijs Bos built Hermit CRM, a free local CRM for one person, and how you can help as a beta tester.
 
 ## Comparisons
 
