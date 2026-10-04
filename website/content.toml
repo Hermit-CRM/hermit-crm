@@ -27,7 +27,7 @@ license  = "Apache 2.0"
 [links]
 download       = "download/hermitcrm-0.6.0.tar.gz"   # served by the site, see README
 sha256         = "download/hermitcrm-0.6.0.tar.gz.sha256"
-github         = ""    # empty hides the GitHub links; fill in when the repo is public
+github         = "https://github.com/Hermit-CRM/hermit-crm"   # empty hides the GitHub links
 
 
 # ── Browser tab, search results and link previews ────────────────────
