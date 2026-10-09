@@ -229,7 +229,8 @@ Hermit what it means:
 A **valued** open stage shows the monthly value in its `PIPELINE.md` heading.
 Up and Down reorder, Delete removes a stage, and the blank row adds one.
 Renaming a stage renames it on every company and in every stage history, in a
-commit of its own. Deleting a stage that still has companies asks where they go
+commit together with the new list, so one Undo takes it all back. Deleting a stage
+that still has companies asks where they go
 (and for a reason, when that stage is a lost one). A stage can only become a lost
 stage when every company in it already has a reason. Without any setting the
 defaults apply: prospect, engaged, discovery (valued), offer (valued), won,

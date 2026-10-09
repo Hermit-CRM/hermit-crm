@@ -506,8 +506,30 @@ class _Demo:
                                              contact=contact, date=self.at(days_ago, hour),
                                              subject=subject, outcome=outcome, body=body)
 
+    # The story's stages, by what they are: an open stage by its place in the
+    # list, a closed one by its role. A folder that kept the default names is
+    # used as it is.
+    _OPEN_PLACE = {"prospect": 0, "engaged": 1, "discovery": 2, "offer": -1}
+    _ROLE = {"won": "won", "lost": "lost", "disqualified": "closed",
+             "temp-disqualified": "parked"}
+
+    def story_stage(self, name: str) -> str:
+        """The stage of this folder that plays `name` in the sample's story."""
+        stages = self.store.stages
+        if name in self._OPEN_PLACE:
+            if stages.is_open(name):
+                return name
+            open_ = stages.open
+            place = self._OPEN_PLACE[name]
+            return open_[-1] if place < 0 else open_[min(place, len(open_) - 1)]
+        if stages.role_of(name) == self._ROLE[name]:
+            return name
+        return (stages.with_role(self._ROLE[name]) or [stages.entry])[0]
+
     def move(self, slug, days_ago, hour=12, **fields):
         self.at(days_ago, hour)
+        if "stage" in fields:
+            fields["stage"] = self.story_stage(fields["stage"])
         self.store.update_company(slug, **fields)
 
     # --- the accounts

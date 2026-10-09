@@ -3342,8 +3342,9 @@ def create_app(root: Path, config: dict | None = None,
                     for i, (n, r, o) in enumerate(
                         zip(name, role + ["open"] * len(name), old + [""] * len(name)))]
             form = {"rows": rows, "roles": stages_mod.ROLES, "confirm": confirm}
-            result = setup_steps.StepResult(ok=False,
-                                            errors={"stages": error} if error else {})
+            # The page script scrolls to the error box, so there is always one.
+            result = setup_steps.StepResult(
+                ok=False, errors={"stages": error or "Check the stages below."})
             return setup_invalid(request, result, "stages", stages_form=form)
 
         if errors:
@@ -3355,7 +3356,7 @@ def create_app(root: Path, config: dict | None = None,
             if ask:
                 ask["index"] = delete
             return form_back(why, ask)
-        parts = stage_ops.apply(store, root, change, config_saved)
+        parts = stage_ops.apply(store, root, change, config_reloaded)
         return flashed("/settings", "Stages saved" + ("; " + "; ".join(parts) if parts else ""),
                        anchor="stages")
 

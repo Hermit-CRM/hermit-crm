@@ -764,23 +764,19 @@ def cmd_stages(store: Store, root: Path, config: dict, args) -> tuple[str, int]:
                     f"(one of: {', '.join(ask['targets'])})")
             hint += (" and --reason TEXT (a lost stage needs one)." if ask["needs_reason"]
                      else ".")
-            return ((why + " " if why else "") + hint, 2)
+            return ((why + " " if ask["move_to"] else "") + hint, 2)
         if why:
             return (why, 2)
         text = stage_ops.render(store, change, root)
         if not args.apply:
-            return (text + "\nDry run; add --apply to write (one commit per step, undoable).", 0)
+            return (text + "\nDry run; add --apply to write (one commit, undoable).", 0)
         store.on_write = _writer(store, root, config)
-        from hermitcrm import setup as setup_steps
-
-        def activate() -> None:
-            store.set_stages(change.after)
-            setup_steps.commit_config(root, lambda message, paths: store.notify(
-                "ai: adjust: " + message.removeprefix("settings: "), paths))
-
-        parts = stage_ops.apply(store, root, change, activate, label="ai: adjust")
+        parts = stage_ops.apply(store, root, change,
+                                lambda: store.set_stages(change.after), label="ai: adjust")
+        sha = GitOps(root, push_enabled=False).last_commit_sha() or ""
+        undo = f"Undo: hermitcrm undo {sha[:7]}" if sha else "Undo: hermitcrm undo <commit>"
         return (text + "\nDone" + ("; " + "; ".join(parts) if parts else "")
-                + ".\nUndo each commit with: hermitcrm undo <sha> (see git log).", 0)
+                + f".\n{undo}", 0)
     except stage_ops.StageOpError as exc:
         return (str(exc), 2)
     except ValidationError as exc:

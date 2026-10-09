@@ -62,6 +62,10 @@ def subjects(folder: Path, n: int = 8) -> list[str]:
     return git(folder, "log", f"-{n}", "--format=%s").splitlines()
 
 
+def files_of(folder: Path, rev: str = "HEAD") -> set[str]:
+    return set(git(folder, "show", "--name-only", "--format=", rev).split())
+
+
 def cfg(folder: Path) -> dict:
     return tomllib.loads((folder / "config.toml").read_text(encoding="utf-8"))
 
@@ -141,9 +145,14 @@ def test_rename_insert_and_drop_in_one_save(demo, tmp_path):
     assert copperleaf.stage == "contacted"
     assert all("engaged" not in (e.from_stage, e.to_stage) for e in copperleaf.stage_history)
     assert store.companies["glasshouse-health"].stage == "prospect"
-    log = subjects(demo)
-    assert 'settings: stage "engaged" renamed to "contacted" (' in " ".join(log)
-    assert 'settings: stage "temp-disqualified" removed, 1 company moved to "prospect"' in log
+    # One commit takes it all: the config line, the companies and PIPELINE.md.
+    before = subjects(demo, 2)[1]
+    assert subjects(demo, 1) == [
+        'settings: stages: renamed "engaged" to "contacted", removed "temp-disqualified" '
+        "(6 companies rewritten, 1 moved)"]
+    assert {"config.toml", "PIPELINE.md", "companies/copperleaf-studio/company.md",
+            "companies/glasshouse-health/company.md"} <= files_of(demo)
+    assert "temp-disqualified" not in before          # the commit before is not part of it
     assert "from: engaged" not in (demo / "companies" / "copperleaf-studio"
                                    / "company.md").read_text()
 
@@ -176,7 +185,9 @@ def test_a_new_first_stage_writes_the_implied_history_first(demo, tmp_path):
     assert store.stages.entry == "inbox"
     tall = store.companies["tallpine-software"]
     assert [(e.from_stage, e.to_stage) for e in tall.stage_history] == [("", "prospect")]
-    assert any("stage history written out" in s for s in subjects(demo))
+    # The start of the old history went into the same commit as the new stage list.
+    assert subjects(demo, 1) == ["settings: stages changed"]
+    assert {"config.toml", "companies/tallpine-software/company.md"} <= files_of(demo)
     assert [(e.from_stage, e.to_stage) for e in tall.stage_entries()] == [("", "prospect")]
 
 
@@ -408,3 +419,25 @@ def test_a_company_in_a_removed_stage_stays_visible_and_the_app_says_so(tmp_path
     page = client.get("/companies/acme").text
     assert 'value="b" selected>b (not in Settings)' in page
     assert column_order(client.get("/pipeline").text) == ["a"]
+
+
+def test_one_undo_takes_a_whole_stage_change_back(demo, tmp_path):
+    """The config line and the rewritten companies are one commit, so undoing it
+    cannot leave config.toml and the company files disagreeing."""
+    app, client = make_client(demo, tmp_path)
+    t = token(client)
+    rows = default_rows()
+    rows[1] = ("contacted", "open", "engaged", False)
+    assert client.post("/settings/stages", data=form(rows, csrf_token=t)).status_code == 303
+    sha = git(demo, "rev-parse", "HEAD").strip()
+    assert app.state.store.companies["copperleaf-studio"].stage == "contacted"
+
+    code = cli.main(["undo", sha], root=demo)
+    assert code == 0
+    assert "stages" not in cfg(demo)
+    text = (demo / "companies" / "copperleaf-studio" / "company.md").read_text()
+    assert "stage: engaged" in text and "contacted" not in text
+    assert client.get("/pipeline").status_code == 200       # the app re-reads the file
+    assert app.state.store.stages == st.DEFAULT_STAGES
+    store = cli.build_store(demo)
+    assert cli.cmd_check(store)[1] == 0 and store.off_board() == []
