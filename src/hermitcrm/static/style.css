@@ -138,6 +138,8 @@ a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset:
 
 .small { font-size: 12px; color: var(--muted); margin: 2px 0; }
 .empty { color: var(--muted); font-style: italic; }
+/* A company whose stage config.toml no longer lists (Companies table). */
+td.off-board { color: var(--muted); font-style: italic; }
 .overdue { color: var(--danger); }
 
 .flash {

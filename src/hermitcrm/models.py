@@ -29,6 +29,8 @@ from typing import Iterable
 
 import yaml
 
+from .stages import DEFAULT_STAGES, StageSet
+
 # --------------------------------------------------------------------------- enums
 
 
@@ -40,17 +42,6 @@ class Source(str, Enum):
     LIST = "list"
     NETWORK = "network"
     OTHER = "other"
-
-
-class Stage(str, Enum):
-    PROSPECT = "prospect"
-    ENGAGED = "engaged"
-    DISCOVERY = "discovery"
-    OFFER = "offer"
-    WON = "won"
-    LOST = "lost"
-    DISQUALIFIED = "disqualified"
-    TEMP_DISQUALIFIED = "temp-disqualified"
 
 
 # ISO 3166-1 alpha-2, all 249 officially assigned codes.
@@ -142,18 +133,6 @@ class InteractionSource(str, Enum):
     BCC_IMPORT = "bcc-import"
     CALENDAR_IMPORT = "calendar-import"
     MIGRATION = "migration"  # contact notes ported to note interactions (format 7)
-
-
-OPEN_STAGES = ["offer", "discovery", "engaged", "prospect"]
-# Old stage names still accepted as input (imports, CLI); files are migrated.
-STAGE_ALIASES = {"reached-out": "engaged"}
-# Early stages carry no monthly value in PIPELINE.md headings.
-UNVALUED_STAGES = ["engaged", "prospect"]
-CLOSED_STAGES = ["won", "lost", "disqualified"]
-# Parked: out of the pipeline for now, but a next step (revisit) still shows up.
-PARKED_STAGES = ["temp-disqualified"]
-# Stages whose reason is kept in `lost_reason`.
-REASON_STAGES = ["lost", "disqualified", "temp-disqualified"]
 
 
 class ValidationError(Exception):
@@ -476,7 +455,7 @@ class Company:
     stage: str = "prospect"
     stage_changed: date | None = None
     lost_reason: str = ""
-    requalify_on: date | None = None  # temp-disqualified until this date
+    requalify_on: date | None = None  # parked (e.g. temp-disqualified) until this date
     value_eur_month: int | None = None
     product_oneliner: str = ""
     next_step: str = ""
@@ -493,6 +472,9 @@ class Company:
     contacts: dict[str, Contact] = field(default_factory=dict)
     interactions: list[Interaction] = field(default_factory=list)
     extra: dict = field(default_factory=dict)  # unknown front-matter keys, round-tripped
+    # The configured stages (config.toml `stages`); the Store attaches its own.
+    # Not written to file. A bare Company() keeps the default stages.
+    stages: StageSet = field(default=DEFAULT_STAGES, repr=False, compare=False)
 
     # --- derived, never written to file
     @property
@@ -528,15 +510,16 @@ class Company:
         """The history oldest first, with the start filled in when it is not
         recorded: an implicit `"" -> <first from_stage>` entry dated `created`.
         Without any history (files written before it existed and not yet
-        backfilled) that is `"" -> prospect` at `created`, plus
-        `prospect -> <stage>` at `stage_changed` when the stage moved on."""
+        backfilled) that is `"" -> <entry stage>` at `created`, plus
+        `<entry stage> -> <stage>` at `stage_changed` when the stage moved on."""
         entries = sorted(self.stage_history, key=lambda e: e.date)
         if not entries:
+            entry = self.stages.entry
             if self.created:
-                entries.append(StageChange(self.created.date(), "", "prospect"))
-            if self.stage != "prospect" and self.stage_changed:
+                entries.append(StageChange(self.created.date(), "", entry))
+            if self.stage != entry and self.stage_changed:
                 entries.append(StageChange(self.stage_changed,
-                                           "prospect" if entries else "", self.stage))
+                                           entry if entries else "", self.stage))
             return entries
         if entries[0].from_stage and self.created:
             entries.insert(0, StageChange(min(self.created.date(), entries[0].date), "",
@@ -546,7 +529,7 @@ class Company:
     @property
     def closed_on(self) -> date | None:
         """Date of the last transition into a closed stage, if any."""
-        dates = [e.date for e in self.stage_history if e.to_stage in CLOSED_STAGES]
+        dates = [e.date for e in self.stage_history if self.stages.is_closed(e.to_stage)]
         return max(dates) if dates else None
 
     def entered_stage_on(self, stage: str) -> date | None:
@@ -648,11 +631,11 @@ class Company:
 
     @property
     def is_closed(self) -> bool:
-        return self.stage in CLOSED_STAGES
+        return self.stages.is_closed(self.stage)
 
     @property
     def is_parked(self) -> bool:
-        return self.stage in PARKED_STAGES
+        return self.stages.is_parked(self.stage)
 
     @property
     def is_active(self) -> bool:
@@ -1010,12 +993,13 @@ def _datetime_or_none(value, field_name: str, errors: dict[str, str]) -> datetim
 
 
 def _stage_history(value, errors: dict[str, str]) -> list[StageChange]:
+    """Any stage name is accepted here: the history is the record, and a stage
+    removed from Settings has to stay readable (`check` warns about it)."""
     if value in (None, "", []):
         return []
     if not isinstance(value, list):
         errors["stage_history"] = "stage_history must be a list"
         return []
-    allowed = [s.value for s in Stage]
     history = []
     for n, item in enumerate(value, 1):
         if not isinstance(item, dict):
@@ -1027,16 +1011,21 @@ def _stage_history(value, errors: dict[str, str]) -> list[StageChange]:
             when = None
         from_stage = str(item.get("from") or "").strip()
         to_stage = str(item.get("to") or "").strip()
-        if when is None or to_stage not in allowed or (from_stage and from_stage not in allowed):
+        if when is None or not to_stage:
             errors["stage_history"] = (f"stage_history entry {n} needs a date and "
-                                       f"known from/to stages")
+                                       f"a stage to move to")
             return []
         history.append(StageChange(when, from_stage, to_stage,
                                    str(item.get("reason") or "").strip()))
     return history
 
 
-def company_from_dict(meta: dict, body: str, slug: str) -> Company:
+def company_from_dict(meta: dict, body: str, slug: str,
+                      stages: StageSet | None = None) -> Company:
+    """A Company from front matter. A stage that is not in `stages` still loads
+    (it may have been removed from Settings); only a missing reason on a stage
+    with the `lost` role is an error."""
+    stages = stages or DEFAULT_STAGES
     errors: dict[str, str] = {}
     if not isinstance(meta, dict):
         raise ValidationError({"file": "front matter is not a mapping"})
@@ -1045,10 +1034,10 @@ def company_from_dict(meta: dict, body: str, slug: str) -> Company:
         errors["name"] = "name is required"
     country = _enum(normalise_country(_str(meta, "country")), Country, "country", True, errors)
     source = _enum(_str(meta, "source"), Source, "source", True, errors, "other")
-    stage = _enum(_str(meta, "stage"), Stage, "stage", True, errors, "prospect")
+    stage = _str(meta, "stage").strip() or stages.entry
     lost_reason = _str(meta, "lost_reason").strip()
-    if stage == Stage.LOST.value and not lost_reason:
-        errors["lost_reason"] = "lost_reason is required when stage is lost"
+    if stages.requires_reason(stage) and not lost_reason:
+        errors["lost_reason"] = f"lost_reason is required when stage is {stage}"
     c = Company(
         name=name,
         slug=slug,
@@ -1076,6 +1065,7 @@ def company_from_dict(meta: dict, body: str, slug: str) -> Company:
         updated=_datetime_or_none(meta.get("updated"), "updated", errors),
         notes=body,
         extra=_extra(meta, COMPANY_KEYS),
+        stages=stages,
     )
     if errors:
         raise ValidationError(errors)

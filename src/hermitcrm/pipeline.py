@@ -22,7 +22,6 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 
-from .models import OPEN_STAGES, UNVALUED_STAGES
 from .store import Store
 
 CLOSED_WINDOW_DAYS = 90
@@ -77,15 +76,16 @@ def render(store: Store, now: datetime | None = None) -> str:
 
     blocks = [f"# Pipeline  (generated {now:%Y-%m-%d %H:%M}, do not edit)"]
 
-    for stage in OPEN_STAGES:
+    stages = store.stages
+    for stage in stages.reverse_open:
         stage_companies = sorted(
             (c for c in companies if c.stage == stage), key=_stage_sort_key
         )
-        if stage in UNVALUED_STAGES:
-            heading = f"## {stage} ({len(stage_companies)})"
-        else:
+        if stages.valued(stage):
             total = sum(c.value_eur_month or 0 for c in stage_companies)
             heading = f"## {stage} ({len(stage_companies)}, {_fmt_money(total)} EUR/month)"
+        else:
+            heading = f"## {stage} ({len(stage_companies)})"
         lines = [heading] + [_company_line(c, today) for c in stage_companies]
         blocks.append("\n".join(lines))
 
@@ -112,50 +112,49 @@ def render(store: Store, now: datetime | None = None) -> str:
         lines.append(f"- {c.slug} | {c.stage} | last touch {touch} ({c.silent_days(today)}d)")
     blocks.append("\n".join(lines))
 
+    for stage in stages.parked:
+        parked = sorted((c for c in companies if c.stage == stage),
+                        key=lambda c: (c.stage_changed or date.min, c.slug))
+        lines = [f"## {stage.replace('-', ' ').capitalize()} ({len(parked)})"]
+        for c in parked:
+            since = f"{c.stage_changed:%Y-%m-%d}" if c.stage_changed else "unknown"
+            if c.requalify_on:
+                since += f" until {c.requalify_on:%Y-%m-%d}"
+            reason = c.lost_reason or "no reason"
+            lines.append(f"- {c.slug} | since {since} | {reason} | "
+                         f"{_next_field(c)}")
+        blocks.append("\n".join(lines))
+
     cutoff = today - timedelta(days=CLOSED_WINDOW_DAYS)
     closed = [
         c for c in companies
         if c.is_closed and c.stage_changed is not None and c.stage_changed >= cutoff
     ]
-    won = sorted((c for c in closed if c.stage == "won"),
-                 key=lambda c: (c.stage_changed, c.slug))
-    lost = sorted((c for c in closed if c.stage == "lost"),
-                  key=lambda c: (c.stage_changed, c.slug))
-    disqualified = sorted((c for c in closed if c.stage == "disqualified"),
-                          key=lambda c: (c.stage_changed, c.slug))
-    parked = sorted((c for c in companies if c.is_parked),
-                    key=lambda c: (c.stage_changed or date.min, c.slug))
-    lines = [f"## Temp disqualified ({len(parked)})"]
-    for c in parked:
-        since = f"{c.stage_changed:%Y-%m-%d}" if c.stage_changed else "unknown"
-        if c.requalify_on:
-            since += f" until {c.requalify_on:%Y-%m-%d}"
-        reason = c.lost_reason or "no reason"
-        lines.append(f"- {c.slug} | since {since} | {reason} | "
-                     f"{_next_field(c)}")
-    blocks.append("\n".join(lines))
-
     lines = ["## Closed last 90 days"]
-    if won:
-        lines.append(
-            "- won: " + "; ".join(f"{c.slug} ({c.stage_changed:%Y-%m-%d})" for c in won)
-        )
-    if lost:
-        lines.append(
-            "- lost: " + "; ".join(
-                f"{c.slug} ({c.stage_changed:%Y-%m-%d}, {c.lost_reason})" for c in lost
-            )
-        )
-    if disqualified:
-        lines.append(
-            "- disqualified: " + "; ".join(
-                f"{c.slug} ({c.stage_changed:%Y-%m-%d}, {c.lost_reason or 'no reason'})"
-                for c in disqualified
-            )
-        )
-    if not won and not lost and not disqualified:
+    for stage in stages.closed:
+        role = stages.role_of(stage)
+        hit = sorted((c for c in closed if c.stage == stage),
+                     key=lambda c: (c.stage_changed, c.slug))
+        if not hit:
+            continue
+        if role == "won":
+            detail = lambda c: f"{c.slug} ({c.stage_changed:%Y-%m-%d})"
+        elif role == "lost":
+            detail = lambda c: f"{c.slug} ({c.stage_changed:%Y-%m-%d}, {c.lost_reason})"
+        else:
+            detail = lambda c: (f"{c.slug} ({c.stage_changed:%Y-%m-%d}, "
+                                f"{c.lost_reason or 'no reason'})")
+        lines.append(f"- {stage}: " + "; ".join(detail(c) for c in hit))
+    if len(lines) == 1:
         lines.append("- none")
     blocks.append("\n".join(lines))
+
+    # Companies in a stage config.toml no longer lists: not on any list above.
+    stray = [c for c in companies if not stages.is_known(c.stage)]
+    if stray:
+        lines = [f"## Not in Settings ({len(stray)})"]
+        lines += [f"- {c.slug} | {c.stage} | {_next_field(c)}" for c in stray]
+        blocks.append("\n".join(lines))
 
     return "\n\n".join(blocks) + "\n"
 

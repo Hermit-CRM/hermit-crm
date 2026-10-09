@@ -32,14 +32,10 @@ from datetime import date, datetime, timedelta
 from statistics import median
 from urllib.parse import urlencode
 
-from .models import CLOSED_STAGES, Channel, Company, Contact, Interaction, Stage
+from .models import Channel, Company, Contact, Interaction
 from .store import DEFAULT_CONFIG, Store
 
 PERIODS = ["7d", "30d", "90d", "quarter", "ytd", "custom"]
-# Board order, left to right; the funnel adds won at the end.
-PIPELINE_STAGES = ["prospect", "engaged", "discovery", "offer"]
-FUNNEL_STAGES = PIPELINE_STAGES + ["won"]
-STAGE_ORDER = [s.value for s in Stage]
 # Every channel you make contact on, including calendar "meeting". A note is a
 # memo, not activity, so it has no column and no count anywhere in the reports.
 CHANNELS = [c.value for c in Channel if c is not Channel.NOTE]
@@ -348,9 +344,12 @@ def funnel(store: Store, period: Period, rows: Rows | None = None) -> dict:
     - pipeline: today's open stages with count and summed value_eur_month.
     """
     rows = _rows(rows)
+    # The configured stages: every one for the "entered" table, the open ones
+    # (board order, left to right) plus the first won stage for the funnel.
+    stage_order, funnel_stages = store.stages.names, store.stages.funnel
 
     def entered(p: Period) -> dict[str, list[Row]]:
-        out: dict[str, list[Row]] = {s: [] for s in STAGE_ORDER}
+        out: dict[str, list[Row]] = {s: [] for s in stage_order}
         for c in store.companies.values():
             for e in c.stage_entries():
                 if e.date in p:
@@ -365,21 +364,21 @@ def funnel(store: Store, period: Period, rows: Rows | None = None) -> dict:
         "key": rows.put(f"funnel.entered.stage:{s}", f"Entered {s}", cur[s]),
         "previous_key": rows.put(f"funnel.entered.stage:{s}.previous",
                                  f"Entered {s}{PREVIOUS}", prev[s]),
-    } for s in STAGE_ORDER]
+    } for s in stage_order]
 
-    reached: dict[str, list[Company]] = {s: [] for s in FUNNEL_STAGES}
+    reached: dict[str, list[Company]] = {s: [] for s in funnel_stages}
     for c in store.companies.values():
-        stages = _entries_by_stage(c, period.end)
-        furthest = max((FUNNEL_STAGES.index(s) for s in stages if s in FUNNEL_STAGES),
+        visited = _entries_by_stage(c, period.end)
+        furthest = max((funnel_stages.index(s) for s in visited if s in funnel_stages),
                        default=-1)
-        for s in FUNNEL_STAGES[:furthest + 1]:
+        for s in funnel_stages[:furthest + 1]:
             reached[s].append(c)
     reached_keys = {s: rows.put(f"funnel.reached.stage:{s}",
                                 f"Reached {s} or later by {period.end:%Y-%m-%d}",
                                 [company_row(c) for c in reached[s]])
-                    for s in FUNNEL_STAGES}
+                    for s in funnel_stages}
     conversion = []
-    for x, y in zip(FUNNEL_STAGES, FUNNEL_STAGES[1:]):
+    for x, y in zip(funnel_stages, funnel_stages[1:]):
         base, hit = len(reached[x]), len(reached[y])
         conversion.append({"from": x, "to": y, "base": base, "reached": hit,
                            "rate": rate(hit, base),
@@ -394,10 +393,10 @@ def funnel(store: Store, period: Period, rows: Rows | None = None) -> dict:
         "median": median(days for _, days in spans[s]),
         "key": rows.put(f"funnel.visited.stage:{s}", f"Visited {s} (days in stage)",
                         [company_row(c, note=f"{days} days") for c, days in spans[s]]),
-    } for s in STAGE_ORDER if spans.get(s)]
+    } for s in stage_order if spans.get(s)]
 
     pipeline = []
-    for s in PIPELINE_STAGES:
+    for s in store.stages.open:
         members = [c for c in store.companies.values() if c.stage == s]
         pipeline.append({"stage": s, "count": len(members), "value": _value(members),
                          "key": rows.put(f"funnel.pipeline.stage:{s}", f"Pipeline: {s}",
@@ -422,10 +421,14 @@ def outcomes(store: Store, period: Period, rows: Rows | None = None) -> dict:
     lost_reasons: the 10 most common reasons of those lost in the period,
     lowercased and stripped (empty reasons skipped)."""
     rows = _rows(rows)
+    stages = store.stages
 
     def closed(p: Period) -> dict[str, list[Company]]:
         return {s: [c for c in store.companies.values()
-                    if c.stage == s and closed_date(c) in p] for s in CLOSED_STAGES}
+                    if c.stage == s and closed_date(c) in p] for s in stages.closed}
+
+    def of_role(by_stage: dict[str, list[Company]], role: str) -> list[Company]:
+        return [c for s in stages.with_role(role) for c in by_stage[s]]
 
     def closed_rows(companies: list[Company]) -> list[Row]:
         return [company_row(c, when=closed_date(c), status=c.lost_reason) for c in companies]
@@ -437,17 +440,18 @@ def outcomes(store: Store, period: Period, rows: Rows | None = None) -> dict:
         "key": rows.put(f"outcomes.{s}", f"Closed {s}", closed_rows(cur[s])),
         "previous_key": rows.put(f"outcomes.{s}.previous", f"Closed {s}{PREVIOUS}",
                                  closed_rows(prev[s])),
-    } for s in CLOSED_STAGES]
+    } for s in stages.closed]
     by_reason: dict[str, list[Company]] = {}
-    for c in cur["lost"]:
+    for c in of_role(cur, "lost"):
         if c.lost_reason.strip():
             by_reason.setdefault(" ".join(c.lost_reason.split()).lower(), []).append(c)
     reasons = sorted(by_reason.items(), key=lambda kv: (-len(kv[1]), kv[0]))[:10]
-    won, lost = len(cur["won"]), len(cur["lost"])
+    won, lost = len(of_role(cur, "won")), len(of_role(cur, "lost"))
+    prev_won, prev_lost = len(of_role(prev, "won")), len(of_role(prev, "lost"))
     return {
         "rows": out_rows,
         "win_rate": rate(won, won + lost),
-        "previous_win_rate": rate(len(prev["won"]), len(prev["won"]) + len(prev["lost"])),
+        "previous_win_rate": rate(prev_won, prev_won + prev_lost),
         "lost_reasons": [{"reason": r, "count": len(cs),
                           "key": rows.put(f"outcomes.lost_reason:{r}", f"Lost: {r}",
                                           closed_rows(cs))}
@@ -555,7 +559,7 @@ def sources(store: Store, period: Period, rows: Rows | None = None) -> dict:
     for c in store.companies.values():
         if c.created in period:
             created.setdefault(c.source, []).append(c)
-        if c.stage == "won" and closed_date(c) in period:
+        if store.stages.role_of(c.stage) == "won" and closed_date(c) in period:
             wins.setdefault(c.source, []).append(c)
     keys = sorted(set(created) | set(wins),
                   key=lambda k: (-len(created.get(k, [])), -len(wins.get(k, [])), k))
