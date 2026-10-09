@@ -138,6 +138,15 @@ a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset:
 
 .small { font-size: 12px; color: var(--muted); margin: 2px 0; }
 .empty { color: var(--muted); font-style: italic; }
+/* A company whose stage config.toml no longer lists (Companies table). */
+td.off-board { color: var(--muted); font-style: italic; }
+/* Deal stages in Settings: a name has to stay readable on a phone, so the table
+   keeps its width and scrolls (.table-scroll) rather than squeezing the boxes. */
+.stages-table input[name=name] { min-width: 11em; }
+.stages-table select { min-width: 6em; }
+.stages-table td.actions { white-space: nowrap; }
+/* The invisible first button of a form whose rows have their own buttons. */
+.default-submit { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 .overdue { color: var(--danger); }
 
 .flash {

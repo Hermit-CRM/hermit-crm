@@ -47,6 +47,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from . import filters, followups, messaging, task_types
+from . import stages as stages_mod
 from . import fields as fields_mod
 from .enrich import EnrichError
 from .models import (
@@ -187,7 +188,7 @@ def columns(root: Path | str, scope: str, config: dict | None = None) -> list:
         return contact_columns(defs)
     config = config if config is not None else load_config(root)
     types = task_types.names(task_types.from_config(config.get("task_types")))
-    return company_columns(defs, types)
+    return company_columns(defs, types, stages_mod.from_config(config.get("stages")))
 
 
 def _check_filters(raw, cols: list) -> tuple[dict, list[str]]:

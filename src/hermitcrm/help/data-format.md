@@ -39,10 +39,10 @@ show only real changes.
 | linkedin | text | |
 | country | code or empty | ISO 3166-1 alpha-2; also picks the draft language |
 | source | enum | linkedin-search, referral, inbound, event, list, network, other |
-| stage | enum | prospect, engaged, discovery, offer, won, lost, disqualified, temp-disqualified |
+| stage | text | one of the stages in `config.toml` (`stages`); by default prospect, engaged, discovery, offer, won, lost, disqualified, temp-disqualified. A name the settings do not list still loads (`check` warns) |
 | stage_changed | date | set whenever the stage changes |
-| lost_reason | text | required for lost; optional for disqualified and temp-disqualified; cleared otherwise |
-| requalify_on | date or empty | only while temp-disqualified: the day it goes back to prospect |
+| lost_reason | text | required in a stage with the role lost (by default `lost`); optional in a closed or parked stage (`disqualified`, `temp-disqualified`); cleared otherwise |
+| requalify_on | date or empty | only in a parked stage (by default `temp-disqualified`): the day it goes back to the entry stage (`prospect`) |
 | value_eur_month | int or empty | |
 | product_oneliner | text | |
 | next_step | text | one line |
@@ -165,7 +165,8 @@ memo, not a touch: it never moves last touch, outcomes, follow-ups or reports.
 `stage_history` is append-only, one map per stage change made through Hermit CRM:
 `{date: YYYY-MM-DD, from: <stage>, to: <stage>, reason: <text>}` (`reason`
 omitted when empty; `from` is `''` for the stage a company was created in when
-that was not prospect). Merging combines both lists by date. It feeds the
+that was not the entry stage, the first open one: `prospect` by default). A stage
+renamed in Settings is renamed in every entry. Merging combines both lists by date. It feeds the
 funnel, time in stage and closing dates on the Reports page.
 `hermitcrm backfill-history` reconstructs it from git for older companies.
 

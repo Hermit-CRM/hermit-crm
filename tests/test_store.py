@@ -203,6 +203,9 @@ def test_create_company_bad_enum(store):
     with pytest.raises(ValidationError) as e:
         store.create_company("Acme", stage="negotiating")
     assert "stage" in e.value.errors
+    with pytest.raises(ValidationError) as e:
+        store.create_company("Acme", source="carrier-pigeon")
+    assert "source" in e.value.errors
 
 
 # ------------------------------------------------------------- update company
@@ -569,13 +572,13 @@ GOOD = ("name: Good\nslug: good\nstage: prospect\nstage_changed: 2026-09-01\n"
 
 def test_bad_enum_is_a_problem_and_other_files_still_load(tmp_path):
     write_company_file(tmp_path, "good", GOOD)
-    write_company_file(tmp_path, "bad", "name: Bad\nslug: bad\nstage: negotiating\n")
+    write_company_file(tmp_path, "bad", "name: Bad\nslug: bad\nsource: carrier-pigeon\n")
     s = Store(tmp_path)
     problems = s.load()
     assert set(s.companies) == {"good"}
     assert len(problems) == 1
     assert problems[0].path == "companies/bad/company.md"
-    assert "stage" in problems[0].message
+    assert "source" in problems[0].message
     assert s.problems is problems
 
 
@@ -685,7 +688,7 @@ def test_reload_company_refreshes_problems(store):
     store.create_company("Acme")
     path = store.root / "companies" / "acme" / "company.md"
     good = read(path)
-    path.write_text(good.replace("stage: prospect", "stage: negotiating"),
+    path.write_text(good.replace("source: other", "source: carrier-pigeon"),
                     encoding="utf-8")
     assert store.reload_company("acme") is None
     assert len(store.problems) == 1

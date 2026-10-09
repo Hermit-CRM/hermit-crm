@@ -139,8 +139,10 @@ file per conversation. Everything below is convenience on top of it.
 
 ## Features
 
-- **Pipeline board** with stages prospect, reached out, discovery, offer, won,
-  lost, disqualified and temporarily disqualified (with a requalify date).
+- **Pipeline board** with stages of your own. The defaults are prospect,
+  engaged, discovery, offer, won, lost, disqualified and temporarily
+  disqualified (with a requalify date); rename, add, reorder or remove them in
+  Settings, each with a role (open, won, lost, closed or parked).
 - **Companies and contacts tables** with column filters and sorting.
 - **Follow-up radar** on the home page: the threads where somebody wrote to you
   and you have not answered, and the ones where you wrote and nothing came back.

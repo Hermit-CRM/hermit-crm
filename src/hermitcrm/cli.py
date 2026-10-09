@@ -31,7 +31,7 @@ import tomllib
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from hermitcrm import __version__, layout, migrations, task_types
+from hermitcrm import __version__, layout, migrations, stages, task_types
 from hermitcrm.datafolder import InitError, NotDataFolder, init_folder, resolve_data_dir
 from hermitcrm.enrich import EnrichError, Enricher
 from hermitcrm.gitops import GitOps
@@ -65,7 +65,8 @@ def _writer(store: Store, root: Path, config: dict):
 def build_store(root: Path) -> Store:
     config = load_config(root)
     store = Store(root, silent_days=config["silent_days"], outcomes=config["outcomes"],
-                  task_types=task_types.names(task_types.from_config(config.get("task_types"))))
+                  task_types=task_types.names(task_types.from_config(config.get("task_types"))),
+                  stages=stages.from_config(config.get("stages")))
     store.load()
     return store
 
@@ -531,6 +532,9 @@ def cmd_check(store: Store) -> tuple[str, int]:
              f"shows it (log it as a note on the contact instead)"
              for c in store.companies.values() for cs, ct in c.contacts.items()
              if ct.notes.strip()]
+    # A company in a stage config.toml does not list loads fine; it is said, not failed.
+    off_board = store.stage_warnings()
+    stray += off_board
     if not store.problems and not extension:
         n_companies = len(store.companies)
         n_contacts = sum(len(c.contacts) for c in store.companies.values())
@@ -541,7 +545,7 @@ def cmd_check(store: Store) -> tuple[str, int]:
                 f"{n_interactions} interactions, no problems"]),
             0,
         )
-    lines = [f"{p.path}: {p.message}" for p in store.problems] + extension
+    lines = [f"{p.path}: {p.message}" for p in store.problems] + extension + off_board
     return ("\n".join(lines), 1)
 
 
@@ -729,6 +733,57 @@ def cmd_set(store: Store, args) -> tuple[str, int]:
         return (str(exc), exc.code)
 
 
+def cmd_stages(store: Store, root: Path, config: dict, args) -> tuple[str, int]:
+    """`hermitcrm stages`: list the deal stages, or change them (stage_ops.py).
+
+    A dry run unless --apply. Exit 0 for a listing, a dry run or a finished
+    change, 2 for a request that was refused before anything was written."""
+    from hermitcrm import stage_ops
+    from hermitcrm.models import ValidationError
+
+    action = args.stages_action
+    if action in (None, "list"):
+        return (stage_ops.listing(store), 0)
+    given = lambda key, default=None: getattr(args, key, default)   # noqa: E731
+    valued = {"yes": True, "no": False}.get(given("valued"))
+    if given("valued_flag"):
+        valued = True
+    try:
+        change = stage_ops.plan(
+            store, action, name=args.name, new_name=given("new", ""),
+            role=given("role") or "", valued=valued, after=given("after") or "",
+            first=bool(given("first")), move_to=given("move_to") or "",
+            reason=given("reason") or "")
+        if not change.changes_anything:
+            return ("Nothing to change: the stages are already like this.", 0)
+        why, ask = stage_ops.blockers(store, change)
+        if ask:
+            n = ask["count"]
+            hint = (f"{n} {'company is' if n == 1 else 'companies are'} still in "
+                    f"{', '.join(ask['names'])}. Say where they go with --move-to STAGE "
+                    f"(one of: {', '.join(ask['targets'])})")
+            hint += (" and --reason TEXT (a lost stage needs one)." if ask["needs_reason"]
+                     else ".")
+            return ((why + " " if ask["move_to"] else "") + hint, 2)
+        if why:
+            return (why, 2)
+        text = stage_ops.render(store, change, root)
+        if not args.apply:
+            return (text + "\nDry run; add --apply to write (one commit, undoable).", 0)
+        store.on_write = _writer(store, root, config)
+        parts = stage_ops.apply(store, root, change,
+                                lambda: store.set_stages(change.after), label="ai: adjust",
+                                deactivate=lambda: store.set_stages(change.before))
+        sha = GitOps(root, push_enabled=False).last_commit_sha() or ""
+        undo = f"Undo: hermitcrm undo {sha[:7]}" if sha else "Undo: hermitcrm undo <commit>"
+        return (text + "\nDone" + ("; " + "; ".join(parts) if parts else "")
+                + f".\n{undo}", 0)
+    except stage_ops.StageOpError as exc:
+        return (str(exc), 2)
+    except ValidationError as exc:
+        return ("; ".join(f"{k}: {v}" for k, v in exc.errors.items()), 2)
+
+
 def cmd_import(store: Store, path: Path, apply: bool = False, mode: str | None = None,
                mapping: dict | None = None) -> str:
     from hermitcrm.importer import apply_import, decode_upload, plan_import
@@ -897,7 +952,7 @@ def history_from_git(company, git_log, git_show):
     entry from "" dated `created` (or the first commit, when that is earlier). A working copy whose
     stage differs from the last commit adds one entry dated `stage_changed`.
     """
-    from hermitcrm.models import REASON_STAGES, Stage, StageChange
+    from hermitcrm.models import StageChange
 
     path = f"companies/{company.slug}/company.md"
     out = git_log(["log", "--follow", "--name-only", "--format=%H %cs", "--", path])
@@ -913,15 +968,15 @@ def history_from_git(company, git_log, git_show):
         return []
     commits.reverse()  # oldest first
 
-    allowed = {s.value for s in Stage}
+    stage_set = company.stages
     history: list = []
     stage = ""
     for sha, when, file_path in commits:
         text = git_show(["show", f"{sha}:{file_path}"])
-        new_stage = _front_matter_value(text, "stage")
-        if new_stage not in allowed or new_stage == stage:
+        new_stage = stage_set.resolve(_front_matter_value(text, "stage"))
+        if not new_stage or new_stage == stage:
             continue
-        reason = _front_matter_value(text, "lost_reason") if new_stage in REASON_STAGES else ""
+        reason = _front_matter_value(text, "lost_reason") if stage_set.keeps_reason(new_stage) else ""
         if not history and company.created:
             when = min(company.created.date(), when)
         history.append(StageChange(when, stage, new_stage, reason))
@@ -929,7 +984,7 @@ def history_from_git(company, git_log, git_show):
     if company.stage != stage:
         when = company.stage_changed or (company.created.date() if company.created else None)
         if when is not None:
-            reason = company.lost_reason if company.stage in REASON_STAGES else ""
+            reason = company.lost_reason if stage_set.keeps_reason(company.stage) else ""
             history.append(StageChange(when, stage, company.stage, reason))
     return history
 
@@ -1307,6 +1362,40 @@ def _build_parser() -> argparse.ArgumentParser:
                        help="the commit summary (after 'bulk: '); default is made from "
                             "the operations")
 
+    p_stages = sub.add_parser(
+        "stages", help="list the deal stages, or rename, add, move, change or remove one; "
+                       "a dry run unless --apply (help: adjust-stages)")
+    st_sub = p_stages.add_subparsers(dest="stages_action")
+    st_sub.add_parser("list", help="the stages, their roles and companies (the default)")
+    roles = list(stages.ROLES)
+    s_rename = st_sub.add_parser("rename", help="rename a stage on every company and history")
+    s_rename.add_argument("name", metavar="OLD")
+    s_rename.add_argument("new", metavar="NEW")
+    s_add = st_sub.add_parser("add", help="add a stage (after the last open one by default)")
+    s_add.add_argument("name")
+    s_add.add_argument("--role", choices=roles, default="open")
+    s_add.add_argument("--valued", dest="valued_flag", action="store_true",
+                       help="show the monthly value in PIPELINE.md (open stages)")
+    s_add.add_argument("--after", metavar="STAGE", help="put it after this stage")
+    s_move = st_sub.add_parser("move", help="move a stage in the order")
+    s_move.add_argument("name")
+    s_move_to = s_move.add_mutually_exclusive_group(required=True)
+    s_move_to.add_argument("--after", metavar="STAGE")
+    s_move_to.add_argument("--first", action="store_true")
+    s_set = st_sub.add_parser("set", help="change a stage's role or whether it is valued")
+    s_set.add_argument("name")
+    s_set.add_argument("--role", choices=roles)
+    s_set.add_argument("--valued", choices=["yes", "no"])
+    s_remove = st_sub.add_parser("remove", help="remove a stage; its companies move to "
+                                                "--move-to")
+    s_remove.add_argument("name")
+    s_remove.add_argument("--move-to", metavar="STAGE", help="where its companies go")
+    s_remove.add_argument("--reason", metavar="TEXT",
+                          help="the reason, when they move into a lost stage")
+    for sp in (s_rename, s_add, s_move, s_set, s_remove):
+        sp.add_argument("--apply", action="store_true",
+                        help="make the change. Without it, only a dry run")
+
     p_import = sub.add_parser("import", help="import companies/contacts from a TSV, CSV "
                                              "or .xlsx file")
     p_import.add_argument("file", type=Path)
@@ -1600,6 +1689,14 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
         text, code = cmd_set(store, args)
         print(text, file=sys.stderr if code else sys.stdout)
         if code == 0 and args.apply:
+            _reload_server(load_config(root))
+        return code
+
+    if args.command == "stages":
+        config = load_config(root)
+        text, code = cmd_stages(store, root, config, args)
+        print(text, file=sys.stderr if code else sys.stdout)
+        if code == 0 and getattr(args, "apply", False):
             _reload_server(load_config(root))
         return code
 

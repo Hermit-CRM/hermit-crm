@@ -36,7 +36,7 @@ from typing import Callable
 from urllib.parse import urlparse
 
 from . import backup as local_backup
-from . import bcc, calendar_sync, secrets
+from . import bcc, calendar_sync, secrets, stages
 from .gitops import GitOps
 from .store import DEFAULT_CONFIG, Store, load_config
 
@@ -83,6 +83,47 @@ def toml_value(value) -> str:
     raise TypeError(f"unsupported config value {value!r}")
 
 
+def _value_end(lines: list[str], idx: int) -> int:
+    """Index of the last line of the value that `key = ...` starts on lines[idx].
+
+    A list or table may run over several lines (a hand-written `stages = [` ...
+    `]`), and a string may too (`\"\"\"` or `'''`); replacing only the first line
+    would leave the rest dangling. A value that never closes is taken to be that
+    one line, so a damaged file loses nothing more."""
+    depth, quote = 0, ""
+    for j in range(idx, len(lines)):
+        text = lines[j].split("=", 1)[1] if j == idx else lines[j]
+        k = 0
+        while k < len(text):
+            ch = text[k]
+            if quote:
+                if ch == "\\" and quote[0] == '"':
+                    k += 2                       # an escaped character
+                    continue
+                if text.startswith(quote, k):
+                    k += len(quote)
+                    quote = ""
+                    continue
+            elif text.startswith(('"""', "'''"), k):
+                quote = text[k:k + 3]
+                k += 3
+                continue
+            elif ch in "\"'":
+                quote = ch
+            elif ch == "#":
+                break
+            elif ch in "[{":
+                depth += 1
+            elif ch in "]}":
+                depth -= 1
+            k += 1
+        if quote and len(quote) == 1:
+            quote = ""                           # a one-line string ends with its line
+        if depth <= 0 and not quote:
+            return j
+    return idx
+
+
 def set_config_values(path: Path | str, values: dict) -> Path:
     """Set keys in config.toml, keeping every comment and unrelated line.
 
@@ -96,8 +137,10 @@ def set_config_values(path: Path | str, values: dict) -> Path:
         live = re.compile(rf"^\s*{re.escape(key)}\s*=")
         commented = re.compile(rf"^\s*#\s*{re.escape(key)}\s*=")
         idx = next((i for i, l in enumerate(lines) if live.match(l)), None)
-        if idx is None:
-            idx = next((i for i, l in enumerate(lines) if commented.match(l)), None)
+        if idx is not None:
+            lines[idx:_value_end(lines, idx) + 1] = [new]   # a multi-line value goes whole
+            continue
+        idx = next((i for i, l in enumerate(lines) if commented.match(l)), None)
         if idx is None:
             lines.append(new)
         else:
@@ -158,6 +201,16 @@ def describe_config_change(old: dict, new: dict, limit: int = 100) -> str:
         if len(message) <= limit:
             return message
     return f"settings: {', '.join(keys[:3])} and {len(keys) - 3} more"
+
+
+def config_holds_secret(data_dir: Path | str) -> bool:
+    """Whether config.toml names a secret (see secrets.NAMES), so it must not
+    ride along in a commit; commit_config leaves such a file uncommitted."""
+    try:
+        new = tomllib.loads((Path(data_dir) / CONFIG_FILE).read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return True
+    return any(name in new for name in secrets.NAMES)
 
 
 def commit_config(data_dir: Path | str,
@@ -363,7 +416,7 @@ def test_bcc(data_dir: Path, config: dict | None = None, open_mailbox=None,
     config = config if config is not None else load_config(data_dir)
     settings = bcc.settings_from_config(config)
     if store is None:
-        store = Store(data_dir)
+        store = Store(data_dir, stages=stages.load(data_dir))
         store.load()
     opener = open_mailbox or (lambda: bcc.open_gmail(settings, data_dir))
     try:
@@ -466,7 +519,7 @@ def save_calendar(data_dir: Path, url: str, config: dict | None = None,
     config = config if config is not None else load_config(data_dir)
     settings = calendar_sync.settings_from_config(config)
     if store is None:
-        store = Store(data_dir)
+        store = Store(data_dir, stages=stages.load(data_dir))
         store.load()
     fetcher = fetch or calendar_sync.fetch_ics
     try:
@@ -660,6 +713,12 @@ def save_task_types(data_dir: Path, types) -> None:
     from hermitcrm import task_types
     set_config_values(Path(data_dir) / "config.toml",
                       {"task_types": task_types.to_config(types)})
+
+
+def save_stages(data_dir: Path, stage_set) -> None:
+    """Write the deal stages (a stages.StageSet) to config.toml."""
+    set_config_values(Path(data_dir) / "config.toml",
+                      {"stages": stages.to_config(stage_set)})
 
 
 def save_theme(data_dir: Path, theme: str) -> StepResult:

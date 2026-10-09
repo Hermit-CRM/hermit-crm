@@ -7,7 +7,7 @@
 <h1>Companies ({{ companies | length }}){% if q %} matching &ldquo;{{ q }}&rdquo;{% endif %}</h1>
 <p class="page-actions"><a class="button" href="/companies/new">New company</a> <a class="button" href="/import?mode=companies">Import</a></p>
 {{ m.filter_form('company-filters', '/companies', active, q, sort, dir) }}
-<a class="toggle-parked" href="{{ toggle_url }}">{% if show_parked %}Hide temp disqualified{% else %}Show temp disqualified ({{ hidden_parked }}){% endif %}</a>
+{% if parked_label %}<a class="toggle-parked" href="{{ toggle_url }}">{% if show_parked %}Hide {{ parked_label }}{% else %}Show {{ parked_label }} ({{ hidden_parked }}){% endif %}</a>{% endif %}
 {% if show_parked %}<input type="hidden" name="parked" value="1" form="company-filters">{% endif %}
 <div class="table-scroll"><table class="filterable">
   <tr>{% for col in filter_columns %}{% if col.key == 'links' %}<th>links</th>{% else %}<th>{{ col.label }} {{ m.sort_links(col, sort, dir, sort_url) }}</th>{% endif %}{% endfor %}</tr>
@@ -22,7 +22,7 @@
     {%- elif col.key == 'country' %}
     <td>{{ c.country }}</td>
     {%- elif col.key == 'stage' %}
-    <td>{{ c.stage }}{% if c.requalify_on %} <span class="small">until {{ fmt_date(c.requalify_on) }}</span>{% endif %}</td>
+    <td{% if not c.stages.is_known(c.stage) %} class="off-board" title="not in Settings"{% endif %}>{{ c.stage }}{% if c.requalify_on %} <span class="small">until {{ fmt_date(c.requalify_on) }}</span>{% endif %}</td>
     {%- elif col.key == 'source' %}
     <td>{{ c.source }}</td>
     {%- elif col.key == 'tags' %}

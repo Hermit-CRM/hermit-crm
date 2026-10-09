@@ -95,8 +95,9 @@ Companies and Contacts pages. Write values as text in quotes:
 | `"*"` | not empty |
 
 Choice columns take one value or a list of exact values: `stage = ["prospect",
-"engaged"]`. Stages: prospect, engaged, discovery, offer, won, lost,
-disqualified, temp-disqualified.
+"engaged"]`. The default stages are prospect, engaged, discovery, offer, won,
+lost, disqualified, temp-disqualified; the user's may differ
+(`hermitcrm stages` lists them).
 
 Company columns (also used by `quiet_threads` and `replies_owed`): `name`,
 `country` (a code such as DE), `stage`, `source`, `tags`, `last_touch`,

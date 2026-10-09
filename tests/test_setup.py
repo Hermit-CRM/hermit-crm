@@ -299,3 +299,47 @@ def test_save_bcc_linux_without_keyring_falls_back_to_the_file(folder, monkeypat
         assert secrets.get("bcc_password", folder, env={}, platform="linux") == "s3cret"
         monkeypatch.setattr(secrets, "_which", lambda n: "/usr/bin/" + n)
     assert calls == []
+
+
+def test_set_config_values_replaces_a_multi_line_value_whole(tmp_path):
+    """A hand-written multi-line array must not leave its tail behind."""
+    path = tmp_path / "config.toml"
+    path.write_text('port = 8765\nstages = [\n  {name = "a", role = "open"},\n'
+                    '  {name = "b", role = "won"}, # keep? no, it is the old value\n]\n'
+                    'silent_days = 14\ntext = "a ] in a string"\n', encoding="utf-8")
+    st.set_config_values(path, {"stages": [{"name": "x", "role": "open"}], "silent_days": 7})
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    assert data["stages"] == [{"name": "x", "role": "open"}]
+    assert data["silent_days"] == 7 and data["port"] == 8765
+    assert data["text"] == "a ] in a string"
+    assert path.read_text(encoding="utf-8").splitlines()[:2] == [
+        "port = 8765", 'stages = [{name = "x", role = "open"}]']
+
+
+def test_set_config_values_leaves_a_bracket_inside_a_string_alone(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text('note = "closing ] bracket ["\nsilent_days = 14\n', encoding="utf-8")
+    st.set_config_values(path, {"note": "plain", "silent_days": 3})
+    assert tomllib.loads(path.read_text(encoding="utf-8")) == {"note": "plain", "silent_days": 3}
+
+
+def test_set_config_values_replaces_a_value_that_runs_over_a_triple_quoted_string(tmp_path):
+    """A `\"\"\"` string may hold brackets, quotes and the key's own name on later lines."""
+    path = tmp_path / "config.toml"
+    path.write_text('port = 8765\nnote = """first ] line\nsecond "quoted" [ line\n'
+                    'silent_days = 99\n"""\nsilent_days = 14\n', encoding="utf-8")
+    st.set_config_values(path, {"note": "plain", "silent_days": 3})
+    assert tomllib.loads(path.read_text(encoding="utf-8")) == {
+        "port": 8765, "note": "plain", "silent_days": 3}
+
+
+def test_set_config_values_replaces_a_literal_triple_quoted_string(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text("note = '''\nC:\\path ] with a backslash\n'''\nport = 1\n", encoding="utf-8")
+    st.set_config_values(path, {"note": "plain"})
+    assert tomllib.loads(path.read_text(encoding="utf-8")) == {"note": "plain", "port": 1}
+
+
+def test_a_value_that_never_closes_costs_one_line_not_the_rest_of_the_file(tmp_path):
+    lines = ['a = 1', 'stages = [', 'b = 2', 'c = 3']
+    assert st._value_end(lines, 1) == 1
