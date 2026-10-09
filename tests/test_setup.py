@@ -299,3 +299,25 @@ def test_save_bcc_linux_without_keyring_falls_back_to_the_file(folder, monkeypat
         assert secrets.get("bcc_password", folder, env={}, platform="linux") == "s3cret"
         monkeypatch.setattr(secrets, "_which", lambda n: "/usr/bin/" + n)
     assert calls == []
+
+
+def test_set_config_values_replaces_a_multi_line_value_whole(tmp_path):
+    """A hand-written multi-line array must not leave its tail behind."""
+    path = tmp_path / "config.toml"
+    path.write_text('port = 8765\nstages = [\n  {name = "a", role = "open"},\n'
+                    '  {name = "b", role = "won"}, # keep? no, it is the old value\n]\n'
+                    'silent_days = 14\ntext = "a ] in a string"\n', encoding="utf-8")
+    st.set_config_values(path, {"stages": [{"name": "x", "role": "open"}], "silent_days": 7})
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    assert data["stages"] == [{"name": "x", "role": "open"}]
+    assert data["silent_days"] == 7 and data["port"] == 8765
+    assert data["text"] == "a ] in a string"
+    assert path.read_text(encoding="utf-8").splitlines()[:2] == [
+        "port = 8765", 'stages = [{name = "x", role = "open"}]']
+
+
+def test_set_config_values_leaves_a_bracket_inside_a_string_alone(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text('note = "closing ] bracket ["\nsilent_days = 14\n', encoding="utf-8")
+    st.set_config_values(path, {"note": "plain", "silent_days": 3})
+    assert tomllib.loads(path.read_text(encoding="utf-8")) == {"note": "plain", "silent_days": 3}
