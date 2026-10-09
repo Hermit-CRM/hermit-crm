@@ -31,10 +31,12 @@ and so do their other routines.
 
 from __future__ import annotations
 
+import json
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import stages as stages_mod
 from .models import Company
 from .store import Store
 
@@ -118,6 +120,19 @@ talked about. Sign with my first name.
 # The first comment line of each: still there, the file came from the sample
 # (changed or not); gone, it is the user's own and nothing is said about it.
 DASHBOARD_MARK = DASHBOARD_TEXT.splitlines()[0]
+
+
+def dashboard_text(root: Path | str) -> str:
+    """The sample dashboard with its stage lists in this folder's own stages:
+    the open stages after the first, and all of them. The default stages give
+    DASHBOARD_TEXT exactly, so the text is the same wherever it is compared."""
+    stage_set = stages_mod.load(root)
+    if stage_set == stages_mod.DEFAULT_STAGES:
+        return DASHBOARD_TEXT
+    open_ = stage_set.open
+    return (DASHBOARD_TEXT
+            .replace('["engaged", "discovery", "offer"]', json.dumps(open_[1:] or open_))
+            .replace('["prospect", "engaged", "discovery", "offer"]', json.dumps(open_)))
 ROUTINE_MARK = ROUTINE_BLOCK.splitlines()[0]
 
 # What the messages call the two files.
@@ -189,7 +204,7 @@ def write_extras(root: Path | str) -> tuple[list[str], list[str]]:
     else:
         try:
             dash.parent.mkdir(exist_ok=True)
-            dash.write_text(DASHBOARD_TEXT, encoding="utf-8")
+            dash.write_text(dashboard_text(root), encoding="utf-8")
             wrote.append(DASHBOARD)
         except OSError as exc:
             kept.append(f"{DASHBOARD} could not be written ({exc.strerror or exc}).")
@@ -238,7 +253,7 @@ def untouched(root: Path | str) -> set[str]:
     dashboard word for word, routines.toml when it holds nothing else."""
     root = Path(root)
     out = set()
-    if _text(root / DASHBOARD) == DASHBOARD_TEXT:
+    if _text(root / DASHBOARD) == dashboard_text(root):
         out.add(DASHBOARD)
     text = _text(root / ROUTINES)
     if text is not None:
@@ -253,7 +268,7 @@ def untouched_urls(root: Path | str) -> set[str]:
     (the hub marks them)."""
     root = Path(root)
     out = set()
-    if _text(root / DASHBOARD) == DASHBOARD_TEXT:
+    if _text(root / DASHBOARD) == dashboard_text(root):
         out.add(DASHBOARD_URL)
     text = _text(root / ROUTINES)
     if text is not None and _without_routine(text) is not None:
@@ -281,7 +296,7 @@ def plan_removal(root: Path | str) -> Removal:
     root = Path(root)
     plan = Removal()
     text = _text(root / DASHBOARD)
-    if text == DASHBOARD_TEXT:
+    if text == dashboard_text(root):
         plan.delete.append(DASHBOARD)
     elif text is not None and DASHBOARD_MARK in text:
         plan.kept.append(f"Kept {DASHBOARD}: it changed since the sample wrote it, so "

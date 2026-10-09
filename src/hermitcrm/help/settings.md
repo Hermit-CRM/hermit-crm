@@ -4,7 +4,7 @@
 
 The page has five tabs: **General** (You, AI, Appearance, Support Hermit,
 About), **Email & calendar** (BCC capture, Calendar), **Your CRM** (Fields,
-Drafts, Task types, Outcomes), **Backup**, and **Advanced** (Schedule, access
+Drafts, Task types, Deal stages, Outcomes), **Backup**, and **Advanced** (Schedule, access
 from a phone or an AI app, checking the installation). A section that is set
 up leads with its status, such as the last import; its form opens under
 **Change …**, and **How it works** links to its heading on this page.
@@ -210,6 +210,33 @@ above*, it follows the tool Enrich uses when that is Claude Code, Codex or
 Gemini CLI. The General tab's first card, **Make it yours with your AI**, opens
 the same page, and each section of the Your CRM tab has an *or describe it*
 link that starts it with a matching request.
+
+## Deal stages
+
+The steps a deal goes through, in order: the Pipeline columns, the stage
+filters and the funnel follow this list. Each stage has a name (lowercase
+letters, digits and hyphens, at most 30 characters) and a **role** that tells
+Hermit what it means:
+
+| Role | Meaning |
+|---|---|
+| open | A column on the board. The first one is where new companies start and where a requalified company returns. |
+| won | A deal won. Counts for the win rate. |
+| lost | A deal lost. A reason is required. |
+| closed | Any other end, such as disqualified. |
+| parked | Out of the pipeline for now, with a date to come back. |
+
+A **valued** open stage shows the monthly value in its `PIPELINE.md` heading.
+Up and Down reorder, Delete removes a stage, and the blank row adds one.
+Renaming a stage renames it on every company and in every stage history, in a
+commit together with the new list, so one Undo takes it all back. Deleting a stage
+that still has companies asks where they go
+(and for a reason, when that stage is a lost one). A stage can only become a lost
+stage when every company in it already has a reason. Without any setting the
+defaults apply: prospect, engaged, discovery (valued), offer (valued), won,
+lost, disqualified, temp-disqualified. Dashboards and routines that still name
+an old stage are listed after the save, not rewritten.
+The same changes are `hermitcrm stages` for an agent (`hermitcrm help adjust-stages`).
 
 ## Outcomes
 

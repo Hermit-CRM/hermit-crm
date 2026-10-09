@@ -86,6 +86,11 @@
     <strong>A file your agent writes has a problem.</strong> Where Hermit cannot use a file it keeps what it read before. Paste these lines to your agent, or run <code>hermitcrm check</code>:
     <ul>{% for p in file_problems %}<li><code>{{ p }}</code></li>{% endfor %}</ul>
   </div>{% endif %}
+  {% if off_board %}<div class="warning-box">
+    <strong>{{ off_board.values() | sum }} {{ 'company is' if off_board.values() | sum == 1 else 'companies are' }} in a stage that is not in Settings:</strong>
+    {% for name, n in off_board.items() %}{{ name }} ({{ n }}){% if not loop.last %}, {% endif %}{% endfor %}.
+    They stay as they are, off the board. Add the stage back in <a href="/settings#stages">Settings</a>, or move them to one that exists.
+  </div>{% endif %}
   {% if flash %}<p class="flash">{{ flash }}</p>{% endif %}
   {% block content %}{% endblock %}
 </main>

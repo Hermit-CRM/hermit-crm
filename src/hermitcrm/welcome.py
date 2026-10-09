@@ -29,9 +29,6 @@ from dataclasses import dataclass
 # Steps you tick yourself, because the app has no way to see them happen.
 MANUAL = ("extension", "find")
 
-# The one stage change Hermit CRM makes by itself: see Store.create_interaction.
-AUTO_MOVE = ("prospect", "engaged")
-
 
 @dataclass
 class Step:
@@ -54,10 +51,12 @@ def steps(store, config: dict, setup_state: dict, ai_available: bool,
     contacts = [c for co in companies for c in co.contacts.values()]
     interactions = [i for co in companies for i in co.interactions]
     # A move is a recorded change from one stage to another. Not the stage a
-    # company was created in (no from_stage), and not prospect -> engaged, which
-    # logging the first interaction does on its own -- by hand, by BCC or by the
-    # calendar import -- so it would tick this step for a user who never moved one.
-    moved = any(e.from_stage and (e.from_stage, e.to_stage) != AUTO_MOVE
+    # company was created in (no from_stage), and not the first stage -> the next
+    # (prospect -> engaged by default), which logging the first interaction does
+    # on its own -- by hand, by BCC or by the calendar import -- so it would tick
+    # this step for a user who never moved one (see Store.create_interaction).
+    auto_move = (store.stages.entry, store.stages.advance_target)
+    moved = any(e.from_stage and (e.from_stage, e.to_stage) != auto_move
                 for co in companies for e in co.stage_history)
     planned = any(co.has_next_step or co.tasks for co in companies) or \
         any(c.tasks for c in contacts)

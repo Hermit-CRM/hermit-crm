@@ -55,6 +55,8 @@ from . import (adjust, bcc, brief, calendar_sync, capture, dashboards, disclaime
                pipeline, reports, sample, welcome)
 from . import layout
 from . import schedule, scrape, secrets, task_types, usertheme
+from . import stage_ops
+from . import stages as stages_mod
 from . import routines
 from . import help as helpdocs
 from . import setup as setup_steps
@@ -81,7 +83,6 @@ from .models import (
     Role,
     Country,
     Source,
-    Stage,
     TaskStatus,
     Todo,
     ValidationError,
@@ -94,6 +95,7 @@ from .models import (
     slugify,
     split_name,
 )
+from .stages import DEFAULT_STAGES, StageSet
 from .store import (
     COMPANY_MERGE_FIELDS, CONTACT_MERGE_FIELDS, DEFAULT_CONFIG, Store, load_config,
     normalise_body,
@@ -104,9 +106,6 @@ logger = logging.getLogger("crm.web")
 HERE = Path(__file__).resolve().parent
 BASE_URL = "http://127.0.0.1:8765"
 
-BOARD_STAGES = ["prospect", "engaged", "discovery", "offer"]
-BOARD_CLOSED = ["won", "lost", "disqualified", "temp-disqualified"]
-STAGES = [s.value for s in Stage]
 SOURCES = [s.value for s in Source]
 COUNTRIES = [c.value for c in Country]
 TASK_STATUSES = [t.value for t in TaskStatus]
@@ -149,6 +148,20 @@ def _custom_column(d) -> Column:
                   getter=lambda obj: (getattr(obj, "extra", None) or {}).get(d.key))
 
 
+# The buttons the company page shows for the two default exit stages. A stage of
+# another name gets its own name, capitalised.
+EXIT_VERBS = {"disqualified": "Disqualify", "temp-disqualified": "Temp disqualify"}
+
+
+def stage_exits(stages: StageSet) -> list[dict]:
+    """The stages the company page offers to move a company out of the
+    pipeline into: every closed (not won or lost) and parked stage, in
+    Settings order. `parked` ones also ask until when."""
+    return [{"name": s.name, "parked": s.role == "parked",
+             "label": EXIT_VERBS.get(s.name) or s.name.replace("-", " ").capitalize()}
+            for s in stages if s.role in ("closed", "parked")]
+
+
 def scope_columns(defs: list, scope: str) -> list[Column]:
     """Every custom field of one record type as a column, whatever its
     `show_in`: what layout.toml's `columns` may pick from."""
@@ -167,11 +180,12 @@ def _next_type(company) -> str:
 
 
 def company_columns(defs: list | None = None,
-                    type_options: list[str] | None = None) -> list[Column]:
+                    type_options: list[str] | None = None,
+                    stages: StageSet | None = None) -> list[Column]:
     return [
         Column("name", "name"),
         Column("country", "country", "enum", COUNTRIES),
-        Column("stage", "stage", "enum", STAGES),
+        Column("stage", "stage", "enum", (stages or DEFAULT_STAGES).names),
         Column("source", "source", "enum", SOURCES),
         *custom_columns(defs or [], "companies"),
         Column("tags", "tags"),
@@ -186,9 +200,10 @@ def company_columns(defs: list | None = None,
     ]
 
 
-def board_columns(defs: list | None = None) -> list[Column]:
+def board_columns(defs: list | None = None,
+                  stages: StageSet | None = None) -> list[Column]:
     return [
-        Column("stage", "columns", "enum", BOARD_STAGES),
+        Column("stage", "columns", "enum", (stages or DEFAULT_STAGES).board),
         Column("name", "name"),
         Column("country", "country", "enum", COUNTRIES),
         Column("source", "source", "enum", SOURCES),
@@ -240,7 +255,8 @@ def todo_rows(companies, include_done: bool = False) -> list[TodoRow]:
     return rows
 
 
-def task_columns(type_options: list[str] | None = None) -> list[Column]:
+def task_columns(type_options: list[str] | None = None,
+                 stages: StageSet | None = None) -> list[Column]:
     """The Tasks table; a type column only once there are types to show."""
     cols = [
         Column("due", "due", "date"),
@@ -252,7 +268,7 @@ def task_columns(type_options: list[str] | None = None) -> list[Column]:
     return cols + [
         Column("who", "for"),
         Column("company_name", "company"),
-        Column("stage", "stage", "enum", STAGES),
+        Column("stage", "stage", "enum", (stages or DEFAULT_STAGES).names),
         Column("status", "status", "enum", ["open", "done"]),
         Column("done_on", "done on", "date"),
     ]
@@ -337,14 +353,15 @@ class MessageRow:
         self.extra = it.extra  # custom fields read from here
 
 
-def message_columns(statuses: list[str], defs: list | None = None) -> list[Column]:
+def message_columns(statuses: list[str], defs: list | None = None,
+                    stages: StageSet | None = None) -> list[Column]:
     return [
         Column("date", "sent", "date"),
         Column("company_name", "company"),
         Column("contact", "contact"),
         Column("channel", "channel", "enum", CHANNELS),
         Column("country", "country", "enum", COUNTRIES),
-        Column("stage", "stage", "enum", STAGES),
+        Column("stage", "stage", "enum", (stages or DEFAULT_STAGES).names),
         Column("status", "outcome", "enum", statuses),
         Column("uses", "uses", "number"),
         *custom_columns(defs or [], "messages"),
@@ -379,19 +396,22 @@ def company_listing(store: Store, params, defs: list | None = None,
     """The Companies tab: search, filters, then the parked ones out unless
     asked for (`parked=1`) or filtered on, then the sort. `cols` overrides
     the default columns (the app passes layout.toml's)."""
-    cols = cols or company_columns(defs, type_options)
+    cols = cols or company_columns(defs, type_options, store.stages)
     active = filters.parse(params, cols)
     sort_key, sort_dir = filters.parse_sort(params, cols)
     companies = filters.apply(store.search(q), cols, active)
     show_parked = (params.get("parked") == "1"
-                   or "temp-disqualified" in active.get("stage", []))
+                   or any(store.stages.is_parked(s) for s in active.get("stage", [])))
     hidden = 0
     if not show_parked:
         hidden = sum(1 for c in companies if c.is_parked)
         companies = [c for c in companies if not c.is_parked]
     companies = filters.sort_rows(companies, cols, sort_key, sort_dir)
+    # The toggle names the parked stage(s), "temp disqualified" by default.
+    parked_label = " / ".join(s.replace("-", " ") for s in store.stages.parked)
     return Listing(cols, active, sort_key, sort_dir, companies,
-                   {"show_parked": show_parked, "hidden_parked": hidden})
+                   {"show_parked": show_parked, "hidden_parked": hidden,
+                    "parked_label": parked_label})
 
 
 def contact_listing(store: Store, params, defs: list | None = None, q: str = "",
@@ -419,7 +439,7 @@ def message_listing(store: Store, params, today: date, window: int, outcomes: li
                     defs: list | None = None, q: str = "") -> Listing:
     """The Messages tab: every message sent, newest first, with its outcome.
     `extra["counts"]` counts the outcomes before search and filters."""
-    cols = message_columns(message_statuses(outcomes), defs)
+    cols = message_columns(message_statuses(outcomes), defs, store.stages)
     active = filters.parse(params, cols)
     sort_key, sort_dir = filters.parse_sort(params, cols)
     needle = (q or "").strip().lower()
@@ -448,7 +468,7 @@ def task_listing(store: Store, params, type_options: list[str] | None,
     """The Tasks tab: open tasks unless `f_status` says otherwise, then the
     date chips (`when`) and "next steps only" (`next=1`), then the sort.
     `extra` carries the chip counts the page shows."""
-    cols = task_columns(type_options)
+    cols = task_columns(type_options, store.stages)
     active = filters.parse(params, cols)
     if "status" not in active and "f_status" not in params:
         active["status"] = ["open"]      # open ones unless you ask for done
@@ -851,7 +871,8 @@ def create_app(root: Path, config: dict | None = None,
     # whole app. Tests pass a fixed clock; the app itself passes none.
     store = Store(root, silent_days=int(config.get("silent_days", 14)),
                   on_write=on_write, outcomes=outcomes, clock=clock,
-                  task_types=task_types.names(configured_types))
+                  task_types=task_types.names(configured_types),
+                  stages=stages_mod.from_config(config.get("stages")))
     store.load()
 
     def load_custom_fields() -> list:
@@ -962,6 +983,7 @@ def create_app(root: Path, config: dict | None = None,
         the app still holds the settings it had."""
         outcome_names = [str(o) for o in (cfg.get("outcomes") or DEFAULT_OUTCOMES)]
         types = task_types.from_config(cfg.get("task_types"))
+        stage_set = stages_mod.from_config(cfg.get("stages"))
         return {
             "bcc": bcc.settings_from_config(cfg),
             "calendar": calendar_sync.settings_from_config(cfg),
@@ -972,6 +994,7 @@ def create_app(root: Path, config: dict | None = None,
             "statuses": message_statuses(outcome_names),
             "types": types,
             "type_names": task_types.names(types),
+            "stages": stage_set,
             "message_window": int(cfg.get("message_window_days", 14)),
             "enricher": build_enricher(cfg),
             "custom_fields": load_custom_fields(),
@@ -1027,6 +1050,8 @@ def create_app(root: Path, config: dict | None = None,
         templates.env.globals["message_statuses"][:] = derived["statuses"]
         app.state.task_types = derived["types"]
         store.task_types = derived["type_names"]
+        store.set_stages(derived["stages"])
+        templates.env.globals["stages"][:] = derived["stages"].names
         message_window = derived["message_window"]
         app.state.enricher = derived["enricher"]
         app.state.custom_fields = derived["custom_fields"]
@@ -1198,7 +1223,8 @@ def create_app(root: Path, config: dict | None = None,
         # "shown" is what the page draws as columns.
         if scope == "companies":
             cols, shown = list_columns("companies", [
-                *company_columns(app.state.custom_fields, task_type_options()), LINKS])
+                *company_columns(app.state.custom_fields, task_type_options(),
+                                 store.stages), LINKS])
             found = company_listing(store, params, q=q, cols=cols)
             found.extra["shown"] = shown
             return found
@@ -1218,7 +1244,8 @@ def create_app(root: Path, config: dict | None = None,
         fmt_date=fmt_date,
         fmt_datetime=fmt_datetime,
         preview=followups.first_line,
-        stages=STAGES,
+        stage_exits=stage_exits,
+        stages=list(store.stages.names),   # config_reloaded keeps it current in place
         sources=SOURCES,
         countries=COUNTRIES,
         task_statuses=TASK_STATUSES,
@@ -1290,6 +1317,15 @@ def create_app(root: Path, config: dict | None = None,
             "page_starters": adjust.starters_for(kind, starter_values(company)),
         }
 
+    def off_board_stages() -> dict[str, int]:
+        """Stage -> companies, for companies in a stage Settings does not list
+        (removed by hand in config.toml); empty when all is well."""
+        counts: dict[str, int] = {}
+        for company in store.companies.values():
+            if not store.stages.is_known(company.stage):
+                counts[company.stage] = counts.get(company.stage, 0) + 1
+        return counts
+
     def render(request: Request, name: str, ctx: dict, status_code: int = 200):
         bcc_alert = bcc.run_alert(inbox.last_run(), store.now())
         inbox_alert = bcc_alert or calendar_alert()
@@ -1317,6 +1353,7 @@ def create_app(root: Path, config: dict | None = None,
             "model_label": model_label,
             "samples": sample.samples(store),
             "file_problems": [line for lines in file_problems.values() for line in lines],
+            "off_board": off_board_stages(),
         }
         context.update(ctx)
         context.update(adjust_context(request, context))
@@ -1610,10 +1647,11 @@ def create_app(root: Path, config: dict | None = None,
     @app.get("/pipeline", response_class=HTMLResponse)
     def board(request: Request):
         today = store.today()
-        cols = board_columns(app.state.custom_fields)
+        stages = store.stages
+        cols = board_columns(app.state.custom_fields, stages)
         active = filters.parse(request.query_params, cols)
         sort_key, sort_dir = filters.parse_sort(request.query_params, cols)
-        shown_stages = active.get("stage") or BOARD_STAGES
+        shown_stages = active.get("stage") or stages.board
         card_filters = {k: v for k, v in active.items() if k != "stage"}
         companies = filters.apply(store.companies.values(), cols, card_filters)
 
@@ -1623,11 +1661,11 @@ def create_app(root: Path, config: dict | None = None,
 
         columns = [
             {"stage": stage, "companies": ordered(c for c in companies if c.stage == stage)}
-            for stage in BOARD_STAGES if stage in shown_stages
+            for stage in stages.board if stage in shown_stages
         ]
         closed = {
             stage: ordered(c for c in companies if c.stage == stage)
-            for stage in BOARD_CLOSED
+            for stage in stages.closed_lists
         }
         hidden = layout.load(root).hidden_columns("companies")
         return render(request, "board.html", {
@@ -1982,7 +2020,7 @@ def create_app(root: Path, config: dict | None = None,
         return render(request, "companies.html", {
             "companies": companies, "q": q, "filter_columns": shown, "active": active,
             "sort": sort_key, "dir": sort_dir, "show_parked": show_parked,
-            "hidden_parked": hidden,
+            "hidden_parked": hidden, "parked_label": found.extra["parked_label"],
             "toggle_url": "/companies" + ("?" + urlencode(toggle) if toggle else ""),
         })
 
@@ -2086,7 +2124,7 @@ def create_app(root: Path, config: dict | None = None,
             return render(request, "dashboard.html", {
                 "missing": slug, "others": dashboards.load_all(root)}, status_code=404)
         columns = dashboards.columns_for(app.state.custom_fields, task_type_options(),
-                                         message_statuses(outcomes))
+                                         message_statuses(outcomes), store.stages)
         built: dict[str, tuple[dict, str]] = {}
 
         def report_for(period: str) -> tuple[dict, str]:
@@ -2177,7 +2215,8 @@ def create_app(root: Path, config: dict | None = None,
     def company_new(request: Request):
         values = {
             "name": "", "website": "", "linkedin": "", "country": "", "source": "other",
-            "stage": "prospect", "lost_reason": "", "requalify_on": "", "value_eur_month": "",
+            "stage": store.stages.entry, "lost_reason": "", "requalify_on": "",
+            "value_eur_month": "",
             "product_oneliner": "",
             "next_step": "", "next_step_due": "", "next_step_status": "open",
             "next_step_type": "", "tags": "", "notes": "",
@@ -2193,7 +2232,7 @@ def create_app(root: Path, config: dict | None = None,
         linkedin: str = Form(""),
         country: str = Form(""),
         source: str = Form("other"),
-        stage: str = Form("prospect"),
+        stage: str = Form(""),
         lost_reason: str = Form(""),
         requalify_on: str = Form(""),
         value_eur_month: str = Form(""),
@@ -2240,6 +2279,7 @@ def create_app(root: Path, config: dict | None = None,
             "values": with_custom(company_values(company), company, "company"),
             "interaction": interaction,
             "focus": request.query_params.get("focus", ""),
+            "focus_stage": request.query_params.get("stage", ""),
             "others": sorted((c for c in store.companies.values() if c.slug != slug),
                              key=lambda c: c.name.lower()),
             **draft_context(request, company, draft_contact),
@@ -2254,7 +2294,7 @@ def create_app(root: Path, config: dict | None = None,
         linkedin: str = Form(""),
         country: str = Form(""),
         source: str = Form("other"),
-        stage: str = Form("prospect"),
+        stage: str = Form(""),
         lost_reason: str = Form(""),
         requalify_on: str = Form(""),
         value_eur_month: str = Form(""),
@@ -2307,6 +2347,7 @@ def create_app(root: Path, config: dict | None = None,
                 "errors": exc.errors,
                 "interaction": interaction_values(company),
                 "focus": "lost_reason" if "lost_reason" in exc.errors else "",
+                "focus_stage": values.get("stage", ""),
                 "others": [],
                 **draft_context(request, company,
                                 next(iter(company.contacts.values()), None)),
@@ -2399,18 +2440,19 @@ def create_app(root: Path, config: dict | None = None,
     @app.post("/companies/{slug}/disqualify")
     def company_disqualify(request: Request, slug: str, stage: str = Form(""),
                            reason: str = Form(""), requalify_on: str = Form("")):
-        """Disqualify, temp disqualify (until a date), or requalify."""
+        """Move a company into a closed or parked stage (disqualify, temp
+        disqualify until a date, ...), or requalify it into the entry stage."""
         need_company(slug)
-        if stage not in (Stage.DISQUALIFIED.value, Stage.TEMP_DISQUALIFIED.value,
-                         Stage.PROSPECT.value):
+        stages = store.stages
+        if not (stages.role_of(stage) in ("closed", "parked") or stage == stages.entry):
             return flashed(f"/companies/{slug}", f"unknown stage {stage!r}")
         try:
             store.update_company(slug, stage=stage, lost_reason=reason,
                                  requalify_on=requalify_on)
         except ValidationError as exc:
             return flashed(f"/companies/{slug}", "; ".join(exc.errors.values()))
-        word = "Requalified" if stage == Stage.PROSPECT.value else stage.replace("-", " ").capitalize()
-        if stage == Stage.TEMP_DISQUALIFIED.value and requalify_on:
+        word = "Requalified" if stage == stages.entry else stage.replace("-", " ").capitalize()
+        if stages.is_parked(stage) and requalify_on:
             word += f" until {requalify_on}"
         return flashed(f"/companies/{slug}", word)
 
@@ -2496,9 +2538,13 @@ def create_app(root: Path, config: dict | None = None,
     @app.post("/companies/{slug}/stage")
     def company_stage(request: Request, slug: str, stage: str = Form("")):
         company = need_company(slug)
-        if stage == Stage.LOST.value and company.stage != Stage.LOST.value:
+        if store.stages.requires_reason(stage) and company.stage != stage:
             # A lost stage needs a reason: send the user to the form instead.
-            return goto(f"/companies/{slug}?focus=lost_reason")
+            # The first lost stage is what the form selects, so only another
+            # one has to be named.
+            first = store.stages.with_role("lost")[0]
+            pick = "" if stage == first else "&" + urlencode({"stage": stage})
+            return goto(f"/companies/{slug}?focus=lost_reason{pick}")
         try:
             store.update_company(slug, stage=stage)
         except ValidationError as exc:
@@ -2935,6 +2981,7 @@ def create_app(root: Path, config: dict | None = None,
                                                          or 14),
                               "silent_days": str(config.get("silent_days") or 14)},
             "task_types_form": {"rows": app.state.task_types},
+            "stages_form": stages_form_default(),
             "agent_choices": [("", "the tool above ("
                                + (adjust.AGENTS[adjust.agent_for({**config, adjust.AGENT_KEY: ""})]
                                   ["label"] or "copy the prompt") + ")"),
@@ -2953,6 +3000,13 @@ def create_app(root: Path, config: dict | None = None,
         ctx.update(inbox_context())
         ctx.update(extra)
         return ctx
+
+    def stages_form_default() -> dict:
+        counts = store.stage_counts()
+        return {"rows": [{"name": s.name, "old": s.name, "role": s.role,
+                          "valued": s.valued, "count": counts.get(s.name, 0)}
+                         for s in store.stages],
+                "roles": stages_mod.ROLES, "confirm": None}
 
     def settings_page(request: Request, status_code: int = 200, **extra):
         return render(request, "settings.html", settings_context(**extra),
@@ -3267,6 +3321,44 @@ def create_app(root: Path, config: dict | None = None,
         done = [f"{o} to {n} ({store.rename_task_type(o, n)})" for o, n in renames.items()]
         message = "Task types saved" + ("; renamed " + ", ".join(done) if done else "")
         return flashed("/settings", message, anchor="task-types")
+
+    @app.post("/settings/stages")
+    def settings_stages(request: Request, csrf_token: str = Form(""),
+                        name: list[str] = Form([]), role: list[str] = Form([]),
+                        valued: list[str] = Form([]), old: list[str] = Form([]),
+                        delete: str = Form(""), move: str = Form(""),
+                        move_to: str = Form(""), move_reason: str = Form("")):
+        check_csrf(csrf_token)
+        counts = store.stage_counts()
+        before = store.stages
+        new, renames, removed, errors = stages_mod.plan_rows(
+            name, role, valued, old, before, delete, move)
+
+        def form_back(error: str = "", confirm: dict | None = None):
+            """The form as it was submitted, with an error or the move-to question."""
+            rows = [{"name": stages_mod.clean(n) or n.strip(), "old": stages_mod.clean(o),
+                     "role": r, "valued": str(i) in valued,
+                     "count": counts.get(stages_mod.clean(o), 0)}
+                    for i, (n, r, o) in enumerate(
+                        zip(name, role + ["open"] * len(name), old + [""] * len(name)))]
+            form = {"rows": rows, "roles": stages_mod.ROLES, "confirm": confirm}
+            # The page script scrolls to the error box, so there is always one.
+            result = setup_steps.StepResult(
+                ok=False, errors={"stages": error or "Check the stages below."})
+            return setup_invalid(request, result, "stages", stages_form=form)
+
+        if errors:
+            return form_back(errors["stages"])
+        change = stage_ops.Change(before, new, renames, removed,
+                                  stages_mod.clean(move_to), move_reason)
+        why, ask = stage_ops.blockers(store, change)
+        if why or ask:       # a role that needs reasons, or "where do they go?"
+            if ask:
+                ask["index"] = delete
+            return form_back(why, ask)
+        parts = stage_ops.apply(store, root, change, config_reloaded)
+        return flashed("/settings", "Stages saved" + ("; " + "; ".join(parts) if parts else ""),
+                       anchor="stages")
 
     # Review queue (the former /inbox, "To file" on Home): BCC and calendar items
     # waiting for a company. Import now lives under Settings > BCC capture.

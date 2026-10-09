@@ -47,7 +47,7 @@ from typing import Callable
 from urllib.parse import quote
 
 from . import fields as custom
-from . import messaging, task_types, usertheme
+from . import messaging, stages, task_types, usertheme
 
 logger = logging.getLogger("crm.adjust")
 
@@ -677,7 +677,9 @@ AGENT_CONFIG_KEYS = ("task_types", "outcomes", "silent_days")
 # What `check` suggests for a key written almost like one of these ("did you
 # mean"). Not a list of what an agent may write: message_window_days and the
 # choice of agent are the user's, checked here only so a wrong value is named.
-HINT_KEYS = (*AGENT_CONFIG_KEYS, "message_window_days", AGENT_KEY)
+# `stages` is not an agent key either: changing a stage can rewrite company files,
+# so it goes through `hermitcrm stages` (help: adjust-stages).
+HINT_KEYS = (*AGENT_CONFIG_KEYS, "message_window_days", "stages", AGENT_KEY)
 
 
 # The one config.toml problem that is only a warning: the app still reads the
@@ -727,6 +729,8 @@ def validate_config(root: Path) -> list[str]:
                     problems.append(f"config.toml: task_types entry {i}: colour {colour!r} "
                                     f"is not one of {', '.join(task_types.PALETTE)}"
                                     f"{near(colour, task_types.PALETTE)}")
+    if "stages" in data:
+        problems += stages.problems(data["stages"])
     if "outcomes" in data:
         raw = data["outcomes"]
         items = [str(o).strip() for o in raw] if isinstance(raw, list) else None

@@ -53,7 +53,11 @@ Without asking, and only these:
 - `hermitcrm set ...` changes records in bulk. It shows a dry run first (how
   many, a few before and after); show it to the user, and only then run it again
   with `--apply`. See `hermitcrm help adjust-bulk`.
-- Both commit by themselves; do not commit their files again.
+- `hermitcrm stages ...` renames, adds, moves or removes a deal stage. A stage
+  name is stored on every company, so never edit the `stages` line of
+  `config.toml` yourself. Dry run first, show it, wait for a yes. See
+  `hermitcrm help adjust-stages`.
+- These commit by themselves; do not commit their files again.
 
 ## Never
 
@@ -80,6 +84,7 @@ Without asking, and only these:
 | A dashboard, a saved view, a ranked list, a pin in the sidebar | `hermitcrm help adjust-dashboards` |
 | Hiding a field or a section, reordering a page, list columns | `hermitcrm help adjust-layout` |
 | Tagging, scoring or moving many records at once | `hermitcrm help adjust-bulk` |
+| Renaming, adding, reordering or removing a deal stage | `hermitcrm help adjust-stages` |
 | Something that should happen every day or week (drafts, briefs, reminders) | `hermitcrm help adjust-routines` |
 
 ## Check and pickup

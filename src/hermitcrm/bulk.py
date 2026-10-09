@@ -60,9 +60,7 @@ from .gitops import GitOps
 from .models import (
     Country,
     Role,
-    STAGE_ALIASES,
     Source,
-    Stage,
     ValidationError,
     company_to_frontmatter,
     contact_to_frontmatter,
@@ -70,6 +68,7 @@ from .models import (
     normalise_country,
     parse_tags,
 )
+from .stages import DEFAULT_STAGES
 from .store import Store, load_config
 
 SCOPES = ("companies", "contacts", "interactions")
@@ -421,7 +420,7 @@ def _check_choice(name: str, value: str) -> str:
     return value
 
 
-def _resolve(scope: str, defs: list, ops: Ops) -> _Resolved:
+def _resolve(scope: str, defs: list, ops: Ops, stages=None) -> _Resolved:
     if ops.is_empty():
         raise BulkError("nothing to do. Give --set FIELD=VALUE, --unset FIELD, --add-tag T, "
                         "--remove-tag T or --stage S.")
@@ -475,9 +474,10 @@ def _resolve(scope: str, defs: list, ops: Ops) -> _Resolved:
         if scope != "companies":
             raise BulkError("--stage only works on companies (a stage belongs to a company). "
                             "To change contacts by stage, filter on the company instead.")
-        options = [s.value for s in Stage]
+        stages = stages or DEFAULT_STAGES
+        options = stages.names
         stage = str(ops.stage).strip()
-        if STAGE_ALIASES.get(stage, stage) not in options:
+        if stages.resolve(stage) not in options:
             raise BulkError(f"--stage: unknown stage {stage!r}.{_hint(stage.lower(), options)} "
                             f"Allowed: {', '.join(options)}.")
     return _Resolved(builtin, custom, add, remove, stage)
@@ -528,7 +528,7 @@ def _rows_and_columns(store: Store, scope: str, defs: list):
     if scope == "companies":
         types = list(store.task_types)
         types += [n for n in store.type_names_in_use() if n not in types]
-        return store.all(), web.company_columns(mine, types)
+        return store.all(), web.company_columns(mine, types, store.stages)
     if scope == "contacts":
         rows = [web.ContactRow(company, contact)
                 for company in store.all()
@@ -541,7 +541,8 @@ def _rows_and_columns(store: Store, scope: str, defs: list):
     rows = [web.MessageRow(company, it, company.message_status(it, today, window, store.outcomes),
                            uses[web.normalised_body(it.body)])
             for company in store.all() for it in company.interactions if it.is_message]
-    return rows, web.message_columns(web.message_statuses(store.outcomes), mine)
+    return rows, web.message_columns(web.message_statuses(store.outcomes), mine,
+                                     store.stages)
 
 
 def _find_column(name: str, cols: list):
@@ -707,7 +708,7 @@ def _simulate(store: Store, scope: str, refs: list, resolved: _Resolved):
         for slug in sorted({company for company, _, _ in refs}):
             shutil.copytree(store.company_dir(slug), scratch / "companies" / slug)
         sim = Store(scratch, silent_days=store.silent_days, outcomes=store.outcomes,
-                    task_types=store.task_types, clock=store.clock)
+                    task_types=store.task_types, clock=store.clock, stages=store.stages)
         sim.load()
         for company, key, label in refs:
             before = _meta(sim, scope, company, key)
@@ -780,7 +781,7 @@ def plan(store: Store, scope: str, where=None, ops: Ops | None = None, *,
                         "--where KEY=VALUE (repeatable, same syntax as the list filters, "
                         f"e.g. --where 'country=DE'), or add --all if you really mean all of them.")
     defs = _custom_defs(store.root)
-    resolved = _resolve(scope, defs, ops)
+    resolved = _resolve(scope, defs, ops, store.stages)
     rows, cols = _rows_and_columns(store, scope, defs)
     matched = _match(rows, _parse_where(where, cols))
     refs = [_ref(scope, row) for row in matched]

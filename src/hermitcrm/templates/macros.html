@@ -176,6 +176,7 @@
     </label>{% endif %}
     <label>stage
       <select name="stage" id="stage">
+        {% if values.stage and values.stage not in stages %}<option value="{{ values.stage }}" selected>{{ values.stage }} (not in Settings)</option>{% endif %}
         {% for s in stages %}<option value="{{ s }}"{% if values.stage == s %} selected{% endif %}>{{ s }}</option>{% endfor %}
       </select>
     </label>
@@ -189,8 +190,8 @@
     </label>{% endif %}
   </div>{% endif %}
   {% if 'lost_reason' not in hide or 'requalify_on' not in hide or 'value_eur_month' not in hide %}<div class="row">
-    {% if 'lost_reason' not in hide %}<label class="grow">reason (lost / disqualified) <input name="lost_reason" id="lost_reason" value="{{ values.lost_reason }}"> {{ err(errors, 'lost_reason') }}</label>{% endif %}
-    {% if 'requalify_on' not in hide %}<label>requalify on (temp disqualified) <input type="date" name="requalify_on" value="{{ values.requalify_on }}"> {{ err(errors, 'requalify_on') }}</label>{% endif %}
+    {% if 'lost_reason' not in hide %}<label class="grow">reason <input name="lost_reason" id="lost_reason" value="{{ values.lost_reason }}"> {{ err(errors, 'lost_reason') }}</label>{% endif %}
+    {% if 'requalify_on' not in hide %}<label>requalify on <input type="date" name="requalify_on" value="{{ values.requalify_on }}"> {{ err(errors, 'requalify_on') }}</label>{% endif %}
     {% if 'value_eur_month' not in hide %}<label>value EUR/month <input name="value_eur_month" value="{{ values.value_eur_month }}"> {{ err(errors, 'value_eur_month') }}</label>{% endif %}
   </div>{% endif %}
   {% if 'product_oneliner' not in hide %}<div class="row">

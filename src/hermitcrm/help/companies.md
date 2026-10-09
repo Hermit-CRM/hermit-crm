@@ -8,8 +8,10 @@ Columns: name, country, stage, source, any field of your own that asked for
 this table, tags, last touch, next step, due, plus website and LinkedIn links. The search box in the
 nav matches company name, tags, contact names and contact emails. Each column
 has a filter control (see the `?` next to Filter for the syntax) and sort
-arrows. Temp-disqualified companies are hidden until you click "Show temp
-disqualified (N)" or filter on that stage.
+arrows. Parked companies (by default the temp-disqualified ones) are hidden
+until you click "Show temp disqualified (N)" or filter on that stage; the link
+carries the name of your parked stage. A company in a stage that Settings no
+longer lists shows in grey.
 
 New companies come from `/companies/new` (name is required; website, LinkedIn,
 country, source, stage, value, next step, tags, notes are optional), from
@@ -48,6 +50,8 @@ you disqualify it instead.
   not the header.
 - **Disqualify** and **Temp disqualify** (with a reason and, for temp, an
   "until" date); **Requalify** brings a disqualified company back to prospect.
+  The menu offers every stage whose role is closed or parked, so with stages
+  of your own the buttons carry their names.
 - The next step (the open task due first) with its status tag, **Done** /
   **Reopen**, the Google Calendar link and a link down to all tasks.
 - **Company**: every field in an edit form. Setting the stage to lost needs a
@@ -93,11 +97,14 @@ owe, so there is no side to pick.
 
 ## Stages
 
-`prospect`, `engaged`, `discovery`, `offer` are open; `won`, `lost` and
-`disqualified` are closed; `temp-disqualified` is parked: off the board and
+The stages are a setting: you name them, order them and give each a role
+(Settings > Deal stages, or `hermitcrm help adjust-stages`). These are the
+defaults. `prospect`, `engaged`, `discovery`, `offer` are open; `won`, `lost`
+and `disqualified` are closed; `temp-disqualified` is parked: off the board and
 the table, back to prospect by itself on `requalify_on`. Every stage change
 appends to `stage_history` and sets `stage_changed` to today. The first
-interaction logged on a prospect moves it to engaged. Before format 4 the
+interaction logged on a prospect moves it to engaged (the first open stage
+moves to the next one, when that is open too). Before format 4 the
 engaged stage was called `reached-out`; migration 4 renamed it, and
 `reached-out` is still accepted as input (imports, CLI).
 

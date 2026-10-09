@@ -17,9 +17,8 @@ from datetime import date, datetime
 import pytest
 import yaml
 
+from hermitcrm.stages import DEFAULT_STAGES
 from hermitcrm.models import (
-    CLOSED_STAGES,
-    OPEN_STAGES,
     Channel,
     Company,
     Contact,
@@ -29,7 +28,6 @@ from hermitcrm.models import (
     InteractionSource,
     Role,
     Source,
-    Stage,
     ValidationError,
     company_from_dict,
     company_to_frontmatter,
@@ -56,7 +54,7 @@ def test_enum_values_are_hyphenated_strings():
     assert [e.value for e in Source] == [
         "linkedin-search", "referral", "inbound", "event", "list", "network", "other",
     ]
-    assert [e.value for e in Stage] == [
+    assert DEFAULT_STAGES.names == [
         "prospect", "engaged", "discovery", "offer", "won", "lost",
         "disqualified", "temp-disqualified",
     ]
@@ -67,8 +65,8 @@ def test_enum_values_are_hyphenated_strings():
     assert [e.value for e in Channel] == ["email", "linkedin", "call", "meeting", "note"]
     assert [e.value for e in Direction] == ["out", "in"]
     assert [e.value for e in InteractionSource] == ["manual", "bcc-import", "calendar-import", "migration"]
-    assert OPEN_STAGES == ["offer", "discovery", "engaged", "prospect"]
-    assert CLOSED_STAGES == ["won", "lost", "disqualified"]
+    assert DEFAULT_STAGES.reverse_open == ["offer", "discovery", "engaged", "prospect"]
+    assert DEFAULT_STAGES.closed == ["won", "lost", "disqualified"]
 
 
 # ------------------------------------------------------------------ slugify
@@ -336,9 +334,18 @@ def test_company_from_dict_missing_name():
 
 def test_company_from_dict_bad_enum():
     with pytest.raises(ValidationError) as e:
-        company_from_dict({"name": "Acme", "stage": "negotiating"}, "", "acme")
-    assert "stage" in e.value.errors
-    assert "negotiating" in e.value.errors["stage"]
+        company_from_dict({"name": "Acme", "source": "carrier-pigeon"}, "", "acme")
+    assert "source" in e.value.errors
+    assert "carrier-pigeon" in e.value.errors["source"]
+
+
+def test_company_from_dict_accepts_a_stage_settings_does_not_list():
+    # A stage removed from config.toml must not make the company unreadable.
+    c = company_from_dict({"name": "Acme", "stage": "negotiating",
+                           "stage_history": [{"date": "2026-01-02", "from": "prospect",
+                                              "to": "negotiating"}]}, "", "acme")
+    assert c.stage == "negotiating" and not c.is_closed and not c.is_parked
+    assert c.stage_history[0].to_stage == "negotiating"
 
 
 def test_company_from_dict_lost_needs_reason():

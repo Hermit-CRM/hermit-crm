@@ -76,13 +76,14 @@ its `show_in` (`companies` for a company field, `contacts` for a contact
 field, `messages` for an interaction field).
 
 **`companies`** (the Companies page). Temp-disqualified companies are left
-out unless the `stage` filter asks for `temp-disqualified`, as on the page.
+out unless the `stage` filter asks for the parked stage (`temp-disqualified` by
+default), as on the page.
 
 | Key | Kind | What |
 |---|---|---|
 | `name` | text | the company's name |
 | `country` | fixed values | ISO code, e.g. `DE`, `NL`, `GB` |
-| `stage` | fixed values | `prospect`, `engaged`, `discovery`, `offer`, `won`, `lost`, `disqualified`, `temp-disqualified` |
+| `stage` | fixed values | the stages in `config.toml`; by default `prospect`, `engaged`, `discovery`, `offer`, `won`, `lost`, `disqualified`, `temp-disqualified` (`hermitcrm stages` lists yours) |
 | `source` | fixed values | `linkedin-search`, `referral`, `inbound`, `event`, `list`, `network`, `other` |
 | `tags` | text | every tag, as `a, b` |
 | `last_touch` | date | the last interaction; empty means never contacted |

@@ -45,7 +45,6 @@ from .models import (
     normalise_country,
     Role,
     Source,
-    Stage,
     ValidationError,
     normalise_email,
     normalise_linkedin,
@@ -550,8 +549,9 @@ def _plan_row(store, index: int, row: dict[str, str], today, mapping=None,
             else:
                 extras.append(f"{header}: {value}")
         elif fkey == "stage":
-            if value in {s.value for s in Stage}:
-                fields["stage"] = value
+            stage = store.stages.resolve(value)
+            if stage in store.stages:
+                fields["stage"] = stage
             else:
                 extras.append(f"{header}: {value}")
         elif fkey == "website":

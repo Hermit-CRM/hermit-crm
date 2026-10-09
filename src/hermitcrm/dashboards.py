@@ -46,6 +46,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 from . import fields as custom
+from . import stages as stages_mod
 from . import task_types
 from .filters import _text, matches  # the text a filter compares: group values must be the same
 from .store import DEFAULT_CONFIG, load_config
@@ -195,16 +196,17 @@ def pins(root: Path | str) -> list[dict]:
 # ------------------------------------------------------------- the columns
 
 
-def columns_for(defs: list, type_options: list[str], statuses: list[str]) -> dict:
+def columns_for(defs: list, type_options: list[str], statuses: list[str],
+                stages=None) -> dict:
     """Scope -> the list page's own Columns (custom fields included), built
     by the same functions the pages use."""
     from . import web  # web imports this module; by the time this runs it is loaded
 
     return {
-        "companies": web.company_columns(defs, type_options),
+        "companies": web.company_columns(defs, type_options, stages),
         "contacts": web.contact_columns(defs),
-        "messages": web.message_columns(statuses, defs),
-        "tasks": web.task_columns(type_options),
+        "messages": web.message_columns(statuses, defs, stages),
+        "tasks": web.task_columns(type_options, stages),
     }
 
 
@@ -226,7 +228,9 @@ def folder_columns(root: Path, store=None) -> tuple[dict, list]:
     if store is not None:
         types += [t for t in store.type_names_in_use() if t not in types]
     outcomes = [str(o) for o in (config.get("outcomes") or DEFAULT_CONFIG["outcomes"])]
-    return columns_for(defs, types, web.message_statuses(outcomes)), defs
+    stage_set = store.stages if store is not None else stages_mod.from_config(
+        config.get("stages"))
+    return columns_for(defs, types, web.message_statuses(outcomes), stage_set), defs
 
 
 # -------------------------------------------------------------- validation
