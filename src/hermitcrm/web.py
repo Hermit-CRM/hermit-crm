@@ -55,6 +55,7 @@ from . import (adjust, bcc, brief, calendar_sync, capture, dashboards, disclaime
                pipeline, reports, sample, welcome)
 from . import layout
 from . import schedule, scrape, secrets, task_types, usertheme
+from . import stage_ops
 from . import stages as stages_mod
 from . import routines
 from . import help as helpdocs
@@ -3347,50 +3348,14 @@ def create_app(root: Path, config: dict | None = None,
 
         if errors:
             return form_back(errors["stages"])
-        # A stage that becomes `lost` needs a reason on every company already in it.
-        for row_old, row_name, row_role in zip(old, (stages_mod.clean(n) for n in name), role):
-            row_old = stages_mod.clean(row_old)
-            if row_old and row_role == "lost" and before.role_of(row_old) != "lost":
-                bare = [c for c in store.companies.values()
-                        if c.stage == row_old and not c.lost_reason]
-                if bare:
-                    return form_back(
-                        f"{len(bare)} companies in {row_old} have no reason, and a lost "
-                        f"stage needs one. Give them a reason (or move them) first.")
-        # Deleting a stage that still has companies: they have to go somewhere.
-        loaded = [n for n in removed if counts.get(n)]
-        if loaded:
-            total = sum(counts[n] for n in loaded)
-            target = stages_mod.clean(move_to)
-            needs_reason = bool(target) and new.requires_reason(target) and any(
-                not c.lost_reason for c in store.companies.values() if c.stage in loaded)
-            if target not in new or (needs_reason and not move_reason.strip()):
-                ask = {"index": delete, "names": loaded, "count": total,
-                       "targets": new.names, "move_to": target,
-                       "needs_reason": needs_reason}
-                why = ("" if not target else
-                       f"{target} is not a stage you are keeping." if target not in new
-                       else f"Moving companies to {target} needs a reason.")
-                return form_back(why, ask)
-        # Written down first: the start of an old history follows the entry stage.
-        if stages_mod.entry_moves(before, new, renames):
-            store.materialise_stage_history()
-        setup_steps.save_stages(root, new)
-        config_saved()        # store.stages first, so the sweeps below validate
-        parts = []
-        if renames:
-            changed = store.rename_stages(renames)
-            parts.append("renamed " + ", ".join(f"{o} to {n}" for o, n in renames.items())
-                         + f" ({changed} {'company' if changed == 1 else 'companies'})")
-        for gone in loaded:
-            moved = store.remove_stage(gone, stages_mod.clean(move_to), move_reason)
-            parts.append(f"moved {moved} {'company' if moved == 1 else 'companies'} "
-                         f"from {gone} to {stages_mod.clean(move_to)}")
-        stale = stages_mod.mentions(root, [*renames, *removed])
-        if stale:
-            parts.append("still named in " + "; ".join(
-                f"{n}: {', '.join(files)}" for n, files in stale.items())
-                + " (edit those by hand or ask your agent)")
+        change = stage_ops.Change(before, new, renames, removed,
+                                  stages_mod.clean(move_to), move_reason)
+        why, ask = stage_ops.blockers(store, change)
+        if why or ask:       # a role that needs reasons, or "where do they go?"
+            if ask:
+                ask["index"] = delete
+            return form_back(why, ask)
+        parts = stage_ops.apply(store, root, change, config_saved)
         return flashed("/settings", "Stages saved" + ("; " + "; ".join(parts) if parts else ""),
                        anchor="stages")
 
