@@ -263,3 +263,39 @@ def test_add_and_set_take_custom_stage_names_on_the_command_line(tmp_path, capsy
     capsys.readouterr()
     assert cli.main(["add", "company", "Gamma", "--stage", "prospect"], root=root) == 2
     assert "unknown stage 'prospect' (allowed: lead, qualified, won)" in capsys.readouterr().err
+
+
+# ------------------------------------------------------------------ the sample account
+
+
+def test_the_sample_account_fits_a_folder_with_stages_of_its_own(tmp_path):
+    """The sample's story runs through the user's stages, and its dashboard filters
+    on their names, so adding it leaves `check` clean and removing it takes it all."""
+    from hermitcrm import sample
+    from hermitcrm.datafolder import init_folder
+
+    root = init_folder(tmp_path / "f")
+    with open(root / "config.toml", "a", encoding="utf-8") as fh:
+        fh.write('\nstages = [{name = "lead", role = "open"}, {name = "contacted", role = '
+                 '"open"}, {name = "proposal", role = "open", valued = true}, '
+                 '{name = "closed-won", role = "won"}]\n')
+    store = cli.build_store(root)
+    outcome = sample.add(store)
+    company = outcome.companies[0]
+    assert company.stage == "proposal"                       # the offer, in the last open stage
+    assert [e.to_stage for e in company.stage_entries()] == ["lead", "contacted", "proposal"]
+    dashboard = (root / sample.DASHBOARD).read_text()
+    assert 'stage = ["contacted", "proposal"]' in dashboard
+    assert 'stage = ["lead", "contacted", "proposal"]' in dashboard
+    text, code = cli.cmd_check(store)
+    assert code == 0 and text.startswith("OK:"), text
+    removed = sample.remove(store)
+    assert removed.companies and not (root / sample.DASHBOARD).exists()
+
+
+def test_the_sample_is_unchanged_for_the_default_stages(tmp_path):
+    from hermitcrm import sample
+    from hermitcrm.datafolder import init_folder
+
+    root = init_folder(tmp_path / "f")
+    assert sample.dashboard_text(root) == sample.DASHBOARD_TEXT

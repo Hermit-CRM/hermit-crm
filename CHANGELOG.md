@@ -16,7 +16,8 @@ change, no migration, and `PIPELINE.md`, the reports and `hermitcrm check`
 print exactly what they did before.
 
 - **Renaming is a sweep.** The new name goes on every company and into every
-  `stage_history` entry, in one commit. Two stages can swap names.
+  `stage_history` entry. Two stages can swap names. A stage change is one
+  commit, the setting and the records together, so one undo takes it all back.
 - **Deleting a stage that has companies asks where they go**, and for a reason
   when that stage is a lost one. The move is an ordinary stage change, so the
   history records it.

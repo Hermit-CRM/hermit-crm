@@ -76,12 +76,15 @@ def test_rename_dry_run_says_what_it_would_do_and_writes_nothing(demo, capsys):
 def test_rename_apply_rewrites_companies_and_commits_with_the_ai_prefix(demo, capsys):
     code, out, _ = run(demo, capsys, "rename", "engaged", "contacted", "--apply")
     assert code == 0, out
+    assert f"Undo: hermitcrm undo {head(demo)[:7]}" in out
     assert configured(demo)[:3] == ["prospect", "contacted", "discovery"]
     text = (demo / "companies" / "copperleaf-studio" / "company.md").read_text()
     assert "stage: contacted" in text and "engaged" not in text
-    subjects = log(demo)
-    assert 'ai: adjust: stage "engaged" renamed to "contacted" (6 companies)' in subjects
-    assert all(s.startswith("ai: adjust:") for s in subjects[:2])
+    # One commit for the config line and every rewritten company, so one undo.
+    assert log(demo, 1) == ['ai: adjust: stage "engaged" renamed to "contacted" (6 companies)']
+    changed = set(subprocess.run(["git", "show", "--name-only", "--format=", "HEAD"], cwd=demo,
+                                 capture_output=True, text=True, check=True).stdout.split())
+    assert {"config.toml", "PIPELINE.md", "companies/copperleaf-studio/company.md"} <= changed
     store = cli.build_store(demo)
     assert cli.cmd_check(store)[1] == 1       # the demo dashboard still says engaged ...
     assert "monday-review.toml" in cli.cmd_check(store)[0]    # ... and check names it
@@ -93,7 +96,7 @@ def test_add_puts_an_open_stage_after_the_last_open_one(demo, capsys):
     assert code == 0, out
     assert configured(demo) == ["prospect", "engaged", "discovery", "offer", "qualified",
                                 "won", "lost", "disqualified", "temp-disqualified"]
-    assert "ai: adjust: stages changed" in log(demo)
+    assert log(demo, 1) == ["ai: adjust: stages changed"]
     code, out, _ = run(demo, capsys, "add", "snoozed", "--role", "parked", "--after", "won",
                        "--apply")
     assert configured(demo)[5:7] == ["won", "snoozed"]
@@ -116,7 +119,7 @@ def test_move_reorders_and_a_first_move_writes_the_implied_history_first(demo, c
             "written into stage_history first.") in out
     code, out, _ = run(demo, capsys, "move", "inbox", "--first", "--apply")
     assert code == 0 and configured(demo)[0] == "inbox"
-    assert any("stage history written out for 1 company" in s for s in log(demo, 10))
+    assert log(demo, 1) == ["ai: adjust: stages changed"]
     assert cli.build_store(demo).companies["tallpine-software"].stage_history[0].to_stage == \
         "prospect"
 

@@ -16,7 +16,8 @@
 
 The Settings page and `hermitcrm stages` both go through here, so a rename means
 the same on both: the new list is saved to config.toml, then companies are
-rewritten (stage and stage_history) or moved, each in a commit of its own.
+rewritten (stage and stage_history) or moved, all in ONE commit so a single undo puts
+the setting and the records back together.
 """
 
 from __future__ import annotations
@@ -72,33 +73,70 @@ def blockers(store: Store, change: Change) -> tuple[str, dict | None]:
         not c.lost_reason for c in store.companies.values() if c.stage in loaded)
     if target in after and not (needs_reason and not change.reason.strip()):
         return "", None
-    why = ("" if not target else
+    why = (f"Choose where the companies in {', '.join(loaded)} go before deleting "
+           f"{'it' if len(loaded) == 1 else 'them'}." if not target else
            f"{target} is not a stage you are keeping." if target not in after
            else f"Moving companies to {target} needs a reason.")
     return why, {"names": loaded, "count": sum(counts[n] for n in loaded),
                  "targets": after.names, "move_to": target, "needs_reason": needs_reason}
 
 
-def apply(store: Store, root, change: Change, activate, label: str = "settings") -> list[str]:
-    """Write `change`: the start of old histories first (it follows the entry
-    stage), then config.toml, then the sweeps. `activate()` makes the saved
-    config the live one (Settings re-reads it; the CLI swaps it in and commits).
-    Returns the parts of a summary."""
-    loaded = [n for n in change.removed if store.stage_counts().get(n)]
-    if stages_mod.entry_moves(change.before, change.after, change.renames):
-        store.materialise_stage_history(label)
-    setup_steps.save_stages(root, change.after)
-    activate()
-    parts = []
-    if change.renames:
-        changed = store.rename_stages(change.renames, label)
-        parts.append("renamed " + ", ".join(f"{o} to {n}" for o, n in change.renames.items())
-                     + f" ({changed} {'company' if changed == 1 else 'companies'})")
+def _companies(n: int) -> str:
+    return f"{n} {'company' if n == 1 else 'companies'}"
+
+
+def _subject(label: str, change: Change, rewritten: int, moved: dict[str, int]) -> str:
+    """The one commit's subject: what the change did to the companies."""
+    renames, removed = change.renames, [n for n in change.removed]
     target = stages_mod.clean(change.move_to)
-    for gone in loaded:
-        moved = store.remove_stage(gone, target, change.reason, label)
-        parts.append(f"moved {moved} {'company' if moved == 1 else 'companies'} "
-                     f"from {gone} to {target}")
+    if len(renames) == 1 and not removed:
+        (old, new), = renames.items()
+        return f'{label}: stage "{old}" renamed to "{new}" ({_companies(rewritten)})'
+    if len(removed) == 1 and not renames:
+        gone = removed[0]
+        if moved.get(gone):
+            return (f'{label}: stage "{gone}" removed, {_companies(moved[gone])} '
+                    f'moved to "{target}"')
+        return f'{label}: stage "{gone}" removed'
+    if not renames and not removed:
+        return f"{label}: stages changed"
+    parts = [f'renamed "{o}" to "{n}"' for o, n in renames.items()]
+    parts += [f'removed "{n}"' for n in removed]
+    counts = []
+    if renames:
+        counts.append(f"{_companies(rewritten)} rewritten")
+    if moved:
+        counts.append(f"{sum(moved.values())} moved")
+    return f"{label}: stages: " + ", ".join(parts) + (f" ({', '.join(counts)})" if counts else "")
+
+
+def apply(store: Store, root, change: Change, activate, label: str = "settings") -> list[str]:
+    """Write `change` as ONE commit, so one undo takes it all back: the start of
+    old histories first (it follows the entry stage), config.toml, the rename
+    sweep, then the moves out of removed stages. `activate()` makes the saved
+    config the live one without committing it (Settings re-reads the file; the
+    CLI swaps the set in). Returns the parts of a summary."""
+    counts = store.stage_counts()
+    loaded = [n for n in change.removed if counts.get(n)]
+    target = stages_mod.clean(change.move_to)
+    parts: list[str] = []
+    rewritten, moved = 0, {}
+    with store.batch(f"{label}: stages changed") as ctx:
+        if stages_mod.entry_moves(change.before, change.after, change.renames):
+            store.materialise_stage_history(label)
+        setup_steps.save_stages(root, change.after)
+        if not setup_steps.config_holds_secret(root):    # else it stays uncommitted
+            store.notify(ctx["message"], ["config.toml"])
+        activate()
+        if change.renames:
+            rewritten = store.rename_stages(change.renames, label)
+            parts.append("renamed " + ", ".join(
+                f"{o} to {n}" for o, n in change.renames.items())
+                + f" ({_companies(rewritten)})")
+        for gone in loaded:
+            moved[gone] = store.remove_stage(gone, target, change.reason, label)
+            parts.append(f"moved {_companies(moved[gone])} from {gone} to {target}")
+        ctx["message"] = _subject(label, change, rewritten, moved)
     stale = stages_mod.mentions(root, [*change.renames, *change.removed])
     if stale:
         parts.append("still named in " + "; ".join(

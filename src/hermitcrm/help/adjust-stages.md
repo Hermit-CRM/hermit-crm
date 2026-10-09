@@ -6,11 +6,11 @@ Use this recipe when the user wants their own stages: "call engaged contacted", 
 
 ## The rules
 
-1. **Use `hermitcrm stages`.** It validates names and roles, saves `config.toml`, rewrites or moves the companies and commits each step with the subject `ai: adjust: ...`.
+1. **Use `hermitcrm stages`.** It validates names and roles, saves `config.toml`, rewrites or moves the companies and makes **one commit** for all of it, with the subject `ai: adjust: ...`, so one undo takes the whole change back.
 2. **Dry run first.** Without `--apply` nothing is written. It prints the new list, how many companies each change touches (with a few slugs) and anything that still names an old stage.
 3. **Show the dry run to the user and wait for a yes.** A stage change rewrites record files, so it is not one of the keys you may write without asking. Run `--apply` only after the user has said yes to that exact change.
 4. **Run `hermitcrm check` afterwards** and tell the user if it reports anything. `dashboards/*.toml` and `routines.toml` that name an old stage are *not* rewritten by the command; the dry run lists them, and `check` flags the old name (`unknown value 'engaged'`). Fix those files after the user agrees (`hermitcrm help adjust-dashboards`, `hermitcrm help adjust-routines`).
-5. Tell the user what changed and how to undo it: each commit has its own id (`git log`), and `hermitcrm undo <id>` reverses it with a new commit.
+5. Tell the user what changed and how to undo it: the commit id (`git log -1`), and `hermitcrm undo <id>` reverses the whole change, the setting and the companies, with a new commit.
 
 ## What a stage is
 
@@ -50,7 +50,7 @@ hermitcrm stages remove NAME --move-to STAGE [--reason TEXT] [--apply]
 - `add` puts a new open stage after the last open one unless you say `--after`; other roles go to the end.
 - `remove` needs `--move-to` when companies are in the stage: they are moved with an ordinary stage change, so each history records it. Moving into a `lost` stage needs `--reason`.
 - `set --role lost` is refused while companies in that stage have no reason.
-- Putting a new stage first, or moving one first, changes the entry stage. The start of an old history is "created in the entry stage", so the command first writes that start into the files of companies that only imply it (a separate commit), and nothing is re-dated.
+- Putting a new stage first, or moving one first, changes the entry stage. The start of an old history is "created in the entry stage", so the command first writes that start into the files of companies that only imply it (in the same commit), and nothing is re-dated.
 
 ## Worked example: rename and insert
 
@@ -67,7 +67,7 @@ Stages after this change:
   discovery  open valued  1 company
   ...
 Rename "engaged" to "contacted": 28 companies rewritten (21 in it now, the rest only in their stage_history), e.g. acme, beta, gamma
-Dry run; add --apply to write (one commit per step, undoable).
+Dry run; add --apply to write (one commit, undoable).
 ```
 
 Your reply: "Renaming engaged to contacted rewrites 28 company files (21 are in it now, the rest passed through it). Shall I apply it?" After a yes, run it with `--apply`, then:

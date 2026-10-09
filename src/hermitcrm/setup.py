@@ -160,6 +160,16 @@ def describe_config_change(old: dict, new: dict, limit: int = 100) -> str:
     return f"settings: {', '.join(keys[:3])} and {len(keys) - 3} more"
 
 
+def config_holds_secret(data_dir: Path | str) -> bool:
+    """Whether config.toml names a secret (see secrets.NAMES), so it must not
+    ride along in a commit; commit_config leaves such a file uncommitted."""
+    try:
+        new = tomllib.loads((Path(data_dir) / CONFIG_FILE).read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return True
+    return any(name in new for name in secrets.NAMES)
+
+
 def commit_config(data_dir: Path | str,
                   commit: Callable[[str, list[str]], object]) -> str:
     """Commit config.toml when it differs from the last commit; the message.

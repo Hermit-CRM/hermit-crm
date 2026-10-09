@@ -393,7 +393,7 @@
       <button type="submit">Move and delete</button>
     </div>
     {% endif %}
-    <table class="stages-table">
+    <div class="table-scroll"><table class="stages-table">
       <tr><th>stage</th><th>role</th><th title="Show the monthly value in the PIPELINE.md heading">valued</th><th>companies</th><th></th></tr>
       {% for r in stages_form.rows %}
       <tr>
@@ -414,7 +414,7 @@
         <td><input type="checkbox" name="valued" value="{{ stages_form.rows | length }}" aria-label="show value"></td>
         <td></td><td></td>
       </tr>
-    </table>
+    </table></div>
     <button type="submit">Save stages</button>
   </form>
 </section>
