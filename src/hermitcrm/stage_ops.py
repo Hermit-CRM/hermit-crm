@@ -23,6 +23,7 @@ the setting and the records back together.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from . import setup as setup_steps
 from . import stages as stages_mod
@@ -110,33 +111,57 @@ def _subject(label: str, change: Change, rewritten: int, moved: dict[str, int]) 
     return f"{label}: stages: " + ", ".join(parts) + (f" ({', '.join(counts)})" if counts else "")
 
 
-def apply(store: Store, root, change: Change, activate, label: str = "settings") -> list[str]:
+def _snapshot(store: Store, root) -> dict:
+    """The bytes of every file a stage change can write: config.toml and each
+    company.md (a change touches nothing else)."""
+    paths = [Path(root) / "config.toml", *store.companies_dir.glob("*/company.md")]
+    return {p: p.read_bytes() for p in paths if p.is_file()}
+
+
+def _restore(snapshot: dict) -> None:
+    for path, data in snapshot.items():
+        if path.read_bytes() != data:
+            path.write_bytes(data)
+
+
+def apply(store: Store, root, change: Change, activate, label: str = "settings",
+          deactivate=None) -> list[str]:
     """Write `change` as ONE commit, so one undo takes it all back: the start of
     old histories first (it follows the entry stage), config.toml, the rename
     sweep, then the moves out of removed stages. `activate()` makes the saved
     config the live one without committing it (Settings re-reads the file; the
-    CLI swaps the set in). Returns the parts of a summary."""
+    CLI swaps the set in). If anything fails part-way the files are put back as
+    they were, nothing is committed, and `deactivate()` (default: `activate()`
+    again) makes the old config the live one. Returns the parts of a summary."""
     counts = store.stage_counts()
     loaded = [n for n in change.removed if counts.get(n)]
     target = stages_mod.clean(change.move_to)
     parts: list[str] = []
     rewritten, moved = 0, {}
-    with store.batch(f"{label}: stages changed") as ctx:
-        if stages_mod.entry_moves(change.before, change.after, change.renames):
-            store.materialise_stage_history(label)
-        setup_steps.save_stages(root, change.after)
-        if not setup_steps.config_holds_secret(root):    # else it stays uncommitted
-            store.notify(ctx["message"], ["config.toml"])
-        activate()
-        if change.renames:
-            rewritten = store.rename_stages(change.renames, label)
-            parts.append("renamed " + ", ".join(
-                f"{o} to {n}" for o, n in change.renames.items())
-                + f" ({_companies(rewritten)})")
-        for gone in loaded:
-            moved[gone] = store.remove_stage(gone, target, change.reason, label)
-            parts.append(f"moved {_companies(moved[gone])} from {gone} to {target}")
-        ctx["message"] = _subject(label, change, rewritten, moved)
+    snapshot = _snapshot(store, root)
+    try:
+        with store.batch(f"{label}: stages changed") as ctx:
+            if stages_mod.entry_moves(change.before, change.after, change.renames):
+                store.materialise_stage_history(label)
+            setup_steps.save_stages(root, change.after)
+            if not setup_steps.config_holds_secret(root):    # else it stays uncommitted
+                store.notify(ctx["message"], ["config.toml"])
+            activate()
+            if change.renames:
+                rewritten = store.rename_stages(change.renames, label)
+                parts.append("renamed " + ", ".join(
+                    f"{o} to {n}" for o, n in change.renames.items())
+                    + f" ({_companies(rewritten)})")
+            for gone in loaded:
+                moved[gone] = store.remove_stage(gone, target, change.reason, label)
+                parts.append(f"moved {_companies(moved[gone])} from {gone} to {target}")
+            ctx["message"] = _subject(label, change, rewritten, moved)
+    except Exception:
+        _restore(snapshot)
+        (deactivate or activate)()
+        store.set_stages(change.before)
+        store.load()
+        raise
     stale = stages_mod.mentions(root, [*change.renames, *change.removed])
     if stale:
         parts.append("still named in " + "; ".join(

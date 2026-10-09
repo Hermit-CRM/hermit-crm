@@ -321,3 +321,25 @@ def test_set_config_values_leaves_a_bracket_inside_a_string_alone(tmp_path):
     path.write_text('note = "closing ] bracket ["\nsilent_days = 14\n', encoding="utf-8")
     st.set_config_values(path, {"note": "plain", "silent_days": 3})
     assert tomllib.loads(path.read_text(encoding="utf-8")) == {"note": "plain", "silent_days": 3}
+
+
+def test_set_config_values_replaces_a_value_that_runs_over_a_triple_quoted_string(tmp_path):
+    """A `\"\"\"` string may hold brackets, quotes and the key's own name on later lines."""
+    path = tmp_path / "config.toml"
+    path.write_text('port = 8765\nnote = """first ] line\nsecond "quoted" [ line\n'
+                    'silent_days = 99\n"""\nsilent_days = 14\n', encoding="utf-8")
+    st.set_config_values(path, {"note": "plain", "silent_days": 3})
+    assert tomllib.loads(path.read_text(encoding="utf-8")) == {
+        "port": 8765, "note": "plain", "silent_days": 3}
+
+
+def test_set_config_values_replaces_a_literal_triple_quoted_string(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text("note = '''\nC:\\path ] with a backslash\n'''\nport = 1\n", encoding="utf-8")
+    st.set_config_values(path, {"note": "plain"})
+    assert tomllib.loads(path.read_text(encoding="utf-8")) == {"note": "plain", "port": 1}
+
+
+def test_a_value_that_never_closes_costs_one_line_not_the_rest_of_the_file(tmp_path):
+    lines = ['a = 1', 'stages = [', 'b = 2', 'c = 3']
+    assert st._value_end(lines, 1) == 1
