@@ -11,7 +11,7 @@
 {% set groups = [
   ('general', 'General', ['make-it-yours', 'you', 'enrichment', 'appearance', 'support', 'about']),
   ('mail', 'Email & calendar', ['bcc', 'calendar']),
-  ('crm', 'Your CRM', ['fields', 'messaging', 'task-types', 'outcomes']),
+  ('crm', 'Your CRM', ['fields', 'messaging', 'task-types', 'stages', 'outcomes']),
   ('backup', 'Backup', ['backup']),
   ('advanced', 'Advanced', ['schedule', 'access', 'mcp', 'doctor']),
 ] %}
@@ -367,6 +367,55 @@
       </tr>
     </table>
     <button type="submit">Save task types</button>
+  </form>
+</section>
+
+<section class="setup-step" id="stages">
+  <div class="setting-head"><h2>Deal stages</h2>{{ how('/help/adjust-stages') }}</div>
+  <p class="summary">The steps a deal goes through, in order: the Pipeline columns, the filters and the funnel follow this list. Each stage has a role that tells Hermit what it means.
+    <strong>open</strong> is a column on the board (the first one is where new companies start and where a requalified one returns).
+    <strong>won</strong> and <strong>lost</strong> end a deal (lost needs a reason).
+    <strong>closed</strong> is any other end, such as disqualified. <strong>parked</strong> is out of the pipeline for now, with a date to come back.
+    Renaming a stage renames it on every company and in its history; deleting one asks where its companies go.</p>
+  {{ step_errors('stages') }}
+  <form method="post" action="/settings/stages" class="record-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {#- Enter in a name box submits the form's first button: make that Save, not a row's Delete. -#}
+    <button type="submit" class="default-submit" tabindex="-1" aria-hidden="true">Save stages</button>
+    {% if stages_form.confirm %}
+    {% set ask = stages_form.confirm %}
+    <div class="warning-box stage-move">
+      <strong>{{ ask.count }} {{ 'company is' if ask.count == 1 else 'companies are' }} still in {{ ask.names | join(', ') }}.</strong>
+      Move {{ 'it' if ask.count == 1 else 'them' }} to
+      <select name="move_to" aria-label="move companies to">{% for t in ask.targets %}<option value="{{ t }}"{% if t == ask.move_to %} selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+      <input name="move_reason" placeholder="reason (needed for a lost stage)" aria-label="reason for the move">
+      <input type="hidden" name="delete" value="{{ ask.index }}">
+      <button type="submit">Move and delete</button>
+    </div>
+    {% endif %}
+    <table class="stages-table">
+      <tr><th>stage</th><th>role</th><th title="Show the monthly value in the PIPELINE.md heading">valued</th><th>companies</th><th></th></tr>
+      {% for r in stages_form.rows %}
+      <tr>
+        <td><input name="name" value="{{ r.name }}" maxlength="30" aria-label="stage name"><input type="hidden" name="old" value="{{ r.old }}"></td>
+        <td><select name="role" aria-label="role">{% for x in stages_form.roles %}<option value="{{ x }}"{% if x == r.role %} selected{% endif %}>{{ x }}</option>{% endfor %}</select></td>
+        <td><input type="checkbox" name="valued" value="{{ loop.index0 }}"{% if r.valued %} checked{% endif %} aria-label="show value"></td>
+        <td class="num">{{ r.count }}</td>
+        <td class="actions">
+          {% if not loop.first %}<button type="submit" name="move" value="{{ loop.index0 }}-up" title="Move up">Up</button>{% endif %}
+          {% if not loop.last %}<button type="submit" name="move" value="{{ loop.index0 }}-down" title="Move down">Down</button>{% endif %}
+          <button type="submit" name="delete" value="{{ loop.index0 }}" title="Remove this stage">Delete</button>
+        </td>
+      </tr>
+      {% endfor %}
+      <tr>
+        <td><input name="name" value="" maxlength="30" placeholder="new stage" aria-label="new stage name"><input type="hidden" name="old" value=""></td>
+        <td><select name="role" aria-label="role">{% for x in stages_form.roles %}<option value="{{ x }}">{{ x }}</option>{% endfor %}</select></td>
+        <td><input type="checkbox" name="valued" value="{{ stages_form.rows | length }}" aria-label="show value"></td>
+        <td></td><td></td>
+      </tr>
+    </table>
+    <button type="submit">Save stages</button>
   </form>
 </section>
 

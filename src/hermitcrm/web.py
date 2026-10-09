@@ -1316,6 +1316,15 @@ def create_app(root: Path, config: dict | None = None,
             "page_starters": adjust.starters_for(kind, starter_values(company)),
         }
 
+    def off_board_stages() -> dict[str, int]:
+        """Stage -> companies, for companies in a stage Settings does not list
+        (removed by hand in config.toml); empty when all is well."""
+        counts: dict[str, int] = {}
+        for company in store.companies.values():
+            if not store.stages.is_known(company.stage):
+                counts[company.stage] = counts.get(company.stage, 0) + 1
+        return counts
+
     def render(request: Request, name: str, ctx: dict, status_code: int = 200):
         bcc_alert = bcc.run_alert(inbox.last_run(), store.now())
         inbox_alert = bcc_alert or calendar_alert()
@@ -1343,6 +1352,7 @@ def create_app(root: Path, config: dict | None = None,
             "model_label": model_label,
             "samples": sample.samples(store),
             "file_problems": [line for lines in file_problems.values() for line in lines],
+            "off_board": off_board_stages(),
         }
         context.update(ctx)
         context.update(adjust_context(request, context))
@@ -2970,6 +2980,7 @@ def create_app(root: Path, config: dict | None = None,
                                                          or 14),
                               "silent_days": str(config.get("silent_days") or 14)},
             "task_types_form": {"rows": app.state.task_types},
+            "stages_form": stages_form_default(),
             "agent_choices": [("", "the tool above ("
                                + (adjust.AGENTS[adjust.agent_for({**config, adjust.AGENT_KEY: ""})]
                                   ["label"] or "copy the prompt") + ")"),
@@ -2988,6 +2999,13 @@ def create_app(root: Path, config: dict | None = None,
         ctx.update(inbox_context())
         ctx.update(extra)
         return ctx
+
+    def stages_form_default() -> dict:
+        counts = store.stage_counts()
+        return {"rows": [{"name": s.name, "old": s.name, "role": s.role,
+                          "valued": s.valued, "count": counts.get(s.name, 0)}
+                         for s in store.stages],
+                "roles": stages_mod.ROLES, "confirm": None}
 
     def settings_page(request: Request, status_code: int = 200, **extra):
         return render(request, "settings.html", settings_context(**extra),
@@ -3302,6 +3320,79 @@ def create_app(root: Path, config: dict | None = None,
         done = [f"{o} to {n} ({store.rename_task_type(o, n)})" for o, n in renames.items()]
         message = "Task types saved" + ("; renamed " + ", ".join(done) if done else "")
         return flashed("/settings", message, anchor="task-types")
+
+    @app.post("/settings/stages")
+    def settings_stages(request: Request, csrf_token: str = Form(""),
+                        name: list[str] = Form([]), role: list[str] = Form([]),
+                        valued: list[str] = Form([]), old: list[str] = Form([]),
+                        delete: str = Form(""), move: str = Form(""),
+                        move_to: str = Form(""), move_reason: str = Form("")):
+        check_csrf(csrf_token)
+        counts = store.stage_counts()
+        before = store.stages
+        new, renames, removed, errors = stages_mod.plan_rows(
+            name, role, valued, old, before, delete, move)
+
+        def form_back(error: str = "", confirm: dict | None = None):
+            """The form as it was submitted, with an error or the move-to question."""
+            rows = [{"name": stages_mod.clean(n) or n.strip(), "old": stages_mod.clean(o),
+                     "role": r, "valued": str(i) in valued,
+                     "count": counts.get(stages_mod.clean(o), 0)}
+                    for i, (n, r, o) in enumerate(
+                        zip(name, role + ["open"] * len(name), old + [""] * len(name)))]
+            form = {"rows": rows, "roles": stages_mod.ROLES, "confirm": confirm}
+            result = setup_steps.StepResult(ok=False,
+                                            errors={"stages": error} if error else {})
+            return setup_invalid(request, result, "stages", stages_form=form)
+
+        if errors:
+            return form_back(errors["stages"])
+        # A stage that becomes `lost` needs a reason on every company already in it.
+        for row_old, row_name, row_role in zip(old, (stages_mod.clean(n) for n in name), role):
+            row_old = stages_mod.clean(row_old)
+            if row_old and row_role == "lost" and before.role_of(row_old) != "lost":
+                bare = [c for c in store.companies.values()
+                        if c.stage == row_old and not c.lost_reason]
+                if bare:
+                    return form_back(
+                        f"{len(bare)} companies in {row_old} have no reason, and a lost "
+                        f"stage needs one. Give them a reason (or move them) first.")
+        # Deleting a stage that still has companies: they have to go somewhere.
+        loaded = [n for n in removed if counts.get(n)]
+        if loaded:
+            total = sum(counts[n] for n in loaded)
+            target = stages_mod.clean(move_to)
+            needs_reason = bool(target) and new.requires_reason(target) and any(
+                not c.lost_reason for c in store.companies.values() if c.stage in loaded)
+            if target not in new or (needs_reason and not move_reason.strip()):
+                ask = {"index": delete, "names": loaded, "count": total,
+                       "targets": new.names, "move_to": target,
+                       "needs_reason": needs_reason}
+                why = ("" if not target else
+                       f"{target} is not a stage you are keeping." if target not in new
+                       else f"Moving companies to {target} needs a reason.")
+                return form_back(why, ask)
+        # Written down first: the start of an old history follows the entry stage.
+        if stages_mod.entry_moves(before, new, renames):
+            store.materialise_stage_history()
+        setup_steps.save_stages(root, new)
+        config_saved()        # store.stages first, so the sweeps below validate
+        parts = []
+        if renames:
+            changed = store.rename_stages(renames)
+            parts.append("renamed " + ", ".join(f"{o} to {n}" for o, n in renames.items())
+                         + f" ({changed} {'company' if changed == 1 else 'companies'})")
+        for gone in loaded:
+            moved = store.remove_stage(gone, stages_mod.clean(move_to), move_reason)
+            parts.append(f"moved {moved} {'company' if moved == 1 else 'companies'} "
+                         f"from {gone} to {stages_mod.clean(move_to)}")
+        stale = stages_mod.mentions(root, [*renames, *removed])
+        if stale:
+            parts.append("still named in " + "; ".join(
+                f"{n}: {', '.join(files)}" for n, files in stale.items())
+                + " (edit those by hand or ask your agent)")
+        return flashed("/settings", "Stages saved" + ("; " + "; ".join(parts) if parts else ""),
+                       anchor="stages")
 
     # Review queue (the former /inbox, "To file" on Home): BCC and calendar items
     # waiting for a company. Import now lives under Settings > BCC capture.

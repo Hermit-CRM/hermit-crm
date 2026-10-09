@@ -708,7 +708,7 @@ def _simulate(store: Store, scope: str, refs: list, resolved: _Resolved):
         for slug in sorted({company for company, _, _ in refs}):
             shutil.copytree(store.company_dir(slug), scratch / "companies" / slug)
         sim = Store(scratch, silent_days=store.silent_days, outcomes=store.outcomes,
-                    task_types=store.task_types, clock=store.clock)
+                    task_types=store.task_types, clock=store.clock, stages=store.stages)
         sim.load()
         for company, key, label in refs:
             before = _meta(sim, scope, company, key)

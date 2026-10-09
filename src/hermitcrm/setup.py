@@ -36,7 +36,7 @@ from typing import Callable
 from urllib.parse import urlparse
 
 from . import backup as local_backup
-from . import bcc, calendar_sync, secrets
+from . import bcc, calendar_sync, secrets, stages
 from .gitops import GitOps
 from .store import DEFAULT_CONFIG, Store, load_config
 
@@ -363,7 +363,7 @@ def test_bcc(data_dir: Path, config: dict | None = None, open_mailbox=None,
     config = config if config is not None else load_config(data_dir)
     settings = bcc.settings_from_config(config)
     if store is None:
-        store = Store(data_dir)
+        store = Store(data_dir, stages=stages.load(data_dir))
         store.load()
     opener = open_mailbox or (lambda: bcc.open_gmail(settings, data_dir))
     try:
@@ -466,7 +466,7 @@ def save_calendar(data_dir: Path, url: str, config: dict | None = None,
     config = config if config is not None else load_config(data_dir)
     settings = calendar_sync.settings_from_config(config)
     if store is None:
-        store = Store(data_dir)
+        store = Store(data_dir, stages=stages.load(data_dir))
         store.load()
     fetcher = fetch or calendar_sync.fetch_ics
     try:
@@ -660,6 +660,12 @@ def save_task_types(data_dir: Path, types) -> None:
     from hermitcrm import task_types
     set_config_values(Path(data_dir) / "config.toml",
                       {"task_types": task_types.to_config(types)})
+
+
+def save_stages(data_dir: Path, stage_set) -> None:
+    """Write the deal stages (a stages.StageSet) to config.toml."""
+    set_config_values(Path(data_dir) / "config.toml",
+                      {"stages": stages.to_config(stage_set)})
 
 
 def save_theme(data_dir: Path, theme: str) -> StepResult:

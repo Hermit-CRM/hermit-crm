@@ -140,6 +140,8 @@ a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset:
 .empty { color: var(--muted); font-style: italic; }
 /* A company whose stage config.toml no longer lists (Companies table). */
 td.off-board { color: var(--muted); font-style: italic; }
+/* The invisible first button of a form whose rows have their own buttons. */
+.default-submit { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 .overdue { color: var(--danger); }
 
 .flash {
