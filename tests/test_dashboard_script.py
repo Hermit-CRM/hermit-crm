@@ -197,3 +197,13 @@ def test_github_section_shows_the_latest_snapshot_and_new_stars_per_day(tmp_path
     assert s["stars_per_day"]["New stars"] == [0, 0, 2, 0, 0]
     assert 'data-chart="stars"' in db.render(s, live=True)
     assert "<h2>GitHub</h2>" not in db.render(db.summarize(tmp_path / "nowhere", today="2026-10-05"), live=True)
+
+
+def test_the_default_port_is_not_the_apps_own_and_a_busy_port_is_explained(capsys):
+    assert db.PORT != 8765                                        # `hermitcrm serve` uses it
+    taken = ThreadingHTTPServer(("127.0.0.1", 0), db.make_handler(Path(".")))
+    try:
+        assert db.serve(Path("."), taken.server_address[1], open_browser=False) == 1
+    finally:
+        taken.server_close()
+    assert "--port" in capsys.readouterr().err
