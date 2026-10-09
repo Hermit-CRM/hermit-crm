@@ -292,6 +292,12 @@ def load(root) -> StageSet:
         return DEFAULT_STAGES
 
 
+def entry_moves(old: StageSet, new: StageSet, renames: dict[str, str] | None = None) -> bool:
+    """Whether a change moves the entry stage (the implied start of every
+    history, the requalify target), once renames are applied."""
+    return (renames or {}).get(old.entry, old.entry) != new.entry
+
+
 # ------------------------------------------------------------- settings form
 
 

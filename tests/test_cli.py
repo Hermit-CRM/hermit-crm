@@ -254,13 +254,13 @@ def test_check_broken_enum_returns_one_and_names_file(tmp_path):
     store.create_company("Acme GmbH", source="referral")
 
     company_file = tmp_path / "companies" / "acme" / "company.md"
-    broken = company_file.read_text().replace("stage: prospect", "stage: bogus")
+    broken = company_file.read_text().replace("source: referral", "source: bogus")
     company_file.write_text(broken)
 
     text, code = crm.cmd_check(store)
     assert code == 1
     assert "companies/acme/company.md" in text
-    assert "stage" in text
+    assert "source" in text
 
 
 # ------------------------------------------------------------------- rebuild
@@ -315,7 +315,7 @@ def test_main_check_end_to_end_with_problem(tmp_path, capsys):
     store.create_company("Acme GmbH", source="referral")
     company_file = tmp_path / "companies" / "acme" / "company.md"
     company_file.write_text(
-        company_file.read_text().replace("stage: prospect", "stage: bogus")
+        company_file.read_text().replace("source: referral", "source: bogus")
     )
 
     code = crm.main(["check"], root=tmp_path)

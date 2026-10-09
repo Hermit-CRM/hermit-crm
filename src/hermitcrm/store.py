@@ -39,6 +39,7 @@ except ImportError:  # pragma: no cover
     fcntl = None
 
 from . import fields as fields_mod
+from .stages import DEFAULT_STAGES, StageSet
 from .models import (
     Channel,
     Company,
@@ -48,12 +49,9 @@ from .models import (
     Direction,
     Interaction,
     InteractionSource,
-    REASON_STAGES,
     Role,
     Source,
-    STAGE_ALIASES,
     Task,
-    Stage,
     StageChange,
     TaskStatus,
     ValidationError,
@@ -309,6 +307,7 @@ class Store:
         clock: Callable[[], datetime] | None = None,
         outcomes: list[str] | None = None,
         task_types: list[str] | None = None,
+        stages: StageSet | None = None,
     ):
         self.root = Path(root)
         self.companies_dir = self.root / "companies"
@@ -319,6 +318,8 @@ class Store:
         self.outcomes = [str(o) for o in (outcomes or DEFAULT_OUTCOMES)]
         # Allowed task types (config task_types, by name); "" is always allowed.
         self.task_types = [str(t) for t in (task_types or [])]
+        # The configured deal stages (config `stages`); the defaults without.
+        self.stages = stages or DEFAULT_STAGES
         self.on_write = on_write
         self._touched: list[str] = []
         self._batch: list[str] | None = None
@@ -414,7 +415,7 @@ class Store:
             return None
         try:
             meta, body = split_file(company_file.read_text(encoding="utf-8"))
-            company = company_from_dict(meta, body, slug)
+            company = company_from_dict(meta, body, slug, self.stages)
         except ValidationError as exc:
             self._problem(company_file, exc.args[0])
             return None
@@ -588,8 +589,6 @@ class Store:
             if allow_empty:
                 return default
             raise ValidationError({field_name: f"{field_name} is required"})
-        if enum is Stage:
-            value = STAGE_ALIASES.get(value, value)
         allowed = [e.value for e in enum]
         if value not in allowed:
             raise ValidationError(
@@ -597,6 +596,33 @@ class Store:
                              f"(allowed: {', '.join(allowed)})"}
             )
         return value
+
+    def _coerce_stage(self, value, current: str = "") -> str:
+        """Empty (the entry stage), a configured stage, or unchanged (a stage
+        removed in Settings stays on the companies that are in it)."""
+        value = self.stages.resolve(str(value or "").strip())
+        if not value:
+            return self.stages.entry
+        if value != current and value not in self.stages:
+            raise ValidationError(
+                {"stage": f"unknown stage {value!r} "
+                          f"(allowed: {', '.join(self.stages.names)})"})
+        return value
+
+    def _reason_rules(self, stage: str, reason: str, requalify_on):
+        """What a stage does to `lost_reason` and `requalify_on`, by its role: a
+        lost stage needs a reason, lost, closed and parked stages keep one, only
+        a parked stage keeps a requalify date. A stage Settings no longer has
+        keeps both as they are."""
+        if self.stages.requires_reason(stage) and not reason:
+            raise ValidationError(
+                {"lost_reason": f"lost_reason is required when stage is {stage}"})
+        if self.stages.is_known(stage):
+            if not self.stages.keeps_reason(stage):
+                reason = ""
+            if not self.stages.keeps_requalify(stage):
+                requalify_on = None
+        return reason, requalify_on
 
     def _coerce_outcome(self, value, current: str = "") -> str:
         """Empty, one of the configured outcomes, or unchanged (a legacy value
@@ -628,7 +654,7 @@ class Store:
         linkedin="",
         country="",
         source="other",
-        stage="prospect",
+        stage="",
         lost_reason="",
         requalify_on=None,
         value_eur_month=None,
@@ -646,17 +672,10 @@ class Store:
             raise ValidationError({"name": "name is required"})
         country = self._coerce_enum(normalise_country(country), Country, "country", True, "")
         source = self._coerce_enum(source, Source, "source", True, "other")
-        stage = self._coerce_enum(stage, Stage, "stage", True, "prospect")
-        lost_reason = (lost_reason or "").strip()
-        if stage == Stage.LOST.value and not lost_reason:
-            raise ValidationError(
-                {"lost_reason": "lost_reason is required when stage is lost"}
-            )
-        if stage not in REASON_STAGES:
-            lost_reason = ""
+        stage = self._coerce_stage(stage)
         requalify_on = self._coerce_date(requalify_on, "requalify_on")
-        if stage != Stage.TEMP_DISQUALIFIED.value:
-            requalify_on = None
+        lost_reason, requalify_on = self._reason_rules(
+            stage, (lost_reason or "").strip(), requalify_on)
         now = self.now()
         taken = set(self.companies)
         if self.companies_dir.exists():
@@ -684,14 +703,15 @@ class Store:
             created=now,
             updated=now,
             notes=normalise_body(notes),
+            stages=self.stages,
         )
         company.extra = fields_mod.apply({}, custom or {})
         if not company.has_next_step:
             company.next_step_status = TaskStatus.OPEN.value
         if company.next_step_done:
             company.next_step_done_on = now.date()
-        if stage != Stage.PROSPECT.value:
-            # Prospect is the implicit start; any other start is recorded.
+        if stage != self.stages.entry:
+            # The entry stage is the implicit start; any other start is recorded.
             company.stage_history = [StageChange(now.date(), "", stage, lost_reason)]
         self.write_company(company)
         self.companies[slug] = company
@@ -706,6 +726,7 @@ class Store:
             raise ValidationError({"slug": f"unknown company {slug!r}"})
         old_stage = company.stage
         new = Company(**{k: getattr(company, k) for k in COMPANY_COPY_FIELDS})
+        new.stages = self.stages
         new.extra = dict(company.extra)
         if "custom" in fields:
             new.extra = fields_mod.apply(new.extra, fields.pop("custom") or {})
@@ -728,8 +749,7 @@ class Store:
             new.source = self._coerce_enum(fields["source"], Source, "source", True,
                                            "other")
         if "stage" in fields:
-            new.stage = self._coerce_enum(fields["stage"], Stage, "stage", True,
-                                          "prospect")
+            new.stage = self._coerce_stage(fields["stage"], company.stage)
         if "lost_reason" in fields:
             new.lost_reason = (fields["lost_reason"] or "").strip()
         if "requalify_on" in fields:
@@ -768,14 +788,8 @@ class Store:
         if "notes" in fields:
             new.notes = normalise_body(fields["notes"])
 
-        if new.stage == Stage.LOST.value and not new.lost_reason:
-            raise ValidationError(
-                {"lost_reason": "lost_reason is required when stage is lost"}
-            )
-        if new.stage not in REASON_STAGES:
-            new.lost_reason = ""
-        if new.stage != Stage.TEMP_DISQUALIFIED.value:
-            new.requalify_on = None
+        new.lost_reason, new.requalify_on = self._reason_rules(
+            new.stage, new.lost_reason, new.requalify_on)
 
         now = self.now()
         new.updated = now
@@ -801,8 +815,8 @@ class Store:
 
     @_locked
     def requalify_due(self, today: date | None = None) -> list[str]:
-        """Put every temp-disqualified company whose requalify date has arrived
-        back into prospect. Idempotent; one commit for all of them."""
+        """Put every parked company whose requalify date has arrived back into
+        the entry stage. Idempotent; one commit for all of them."""
         today = today or self.today()
         candidates = sorted(c.slug for c in self.companies.values()
                             if c.requalify_due(today))
@@ -818,7 +832,7 @@ class Store:
             message = f"company: requalified {', '.join(due)} (parked until today)"
         with self.batch(message):
             for slug in due:
-                self.update_company(slug, stage=Stage.PROSPECT.value)
+                self.update_company(slug, stage=self.stages.entry)
         return due
 
     @_locked
@@ -831,6 +845,7 @@ class Store:
         if company.stage_history:
             raise ValidationError({"stage_history": f"{slug} already has a stage history"})
         new = Company(**{k: getattr(company, k) for k in COMPANY_COPY_FIELDS})
+        new.stages = self.stages
         new.extra = dict(company.extra)
         new.contacts = company.contacts
         new.interactions = company.interactions
@@ -840,6 +855,120 @@ class Store:
         self.companies[slug] = new
         self._notify(f"company: {slug} stage history backfilled")
         return new
+
+    # --- stages (config `stages`): the set, and the sweeps that follow a change
+
+    def set_stages(self, stages: StageSet) -> None:
+        """Swap in a new stage set (after Settings or a hand edit of config.toml)
+        and hand it to every loaded company."""
+        self.stages = stages
+        for company in self.companies.values():
+            company.stages = stages
+
+    def stage_counts(self) -> dict[str, int]:
+        """Companies per stage name, configured or not."""
+        counts: dict[str, int] = {}
+        for company in self.companies.values():
+            counts[company.stage] = counts.get(company.stage, 0) + 1
+        return counts
+
+    def off_board(self) -> list[Company]:
+        """Companies in a stage config.toml does not list, by name."""
+        return sorted((c for c in self.companies.values()
+                       if not self.stages.is_known(c.stage)), key=lambda c: c.name.lower())
+
+    def stage_warnings(self) -> list[str]:
+        """`check` warnings: a company in a stage the settings do not have."""
+        return [f"companies/{c.slug}: stage {c.stage!r} is not in config.toml stages"
+                for c in self.off_board()]
+
+    @_locked
+    def materialise_stage_history(self) -> int:
+        """Write out the start of every history that is only implied, in one
+        commit. An implied start is "created in the entry stage" and follows the
+        entry stage, so it is written down before a change that moves the entry
+        stage (stages.entry_moves) rather than silently re-dating old companies.
+        Returns how many companies were written."""
+        self.load()
+        todo = []
+        for slug in sorted(self.companies):
+            company = self.companies[slug]
+            entries = [] if company.stage_history else company.stage_entries()
+            if entries:
+                company.stage_history = entries
+                todo.append(company)
+        if not todo:
+            return 0
+        n = len(todo)
+        with self.batch(f"settings: stage history written out for {n} "
+                        f"compan{'y' if n == 1 else 'ies'}"):
+            for company in todo:
+                self.write_company(company)
+                self._notify(f"company: {company.slug} stage history written out")
+        return n
+
+    @_locked
+    def rename_stages(self, renames: dict[str, str]) -> int:
+        """Put the new name on `stage` and on every `stage_history` from/to of
+        every company, in one commit. All renames apply at once, so two stages
+        can swap names. Returns how many companies changed."""
+        renames = {o: n for o, n in renames.items() if o and n and o != n}
+        if not renames:
+            return 0
+        self.load()
+        todo = []
+        for slug in sorted(self.companies):
+            company = self.companies[slug]
+            stage = renames.get(company.stage, company.stage)
+            history = [StageChange(e.date, renames.get(e.from_stage, e.from_stage),
+                                   renames.get(e.to_stage, e.to_stage), e.reason)
+                       for e in company.stage_history]
+            if stage != company.stage or history != company.stage_history:
+                company.stage, company.stage_history = stage, history
+                todo.append(company)
+        if len(renames) == 1:
+            (old, new), = renames.items()
+            subject = f'settings: stage "{old}" renamed to "{new}"'
+        else:
+            subject = "settings: stages renamed: " + ", ".join(
+                f'"{o}" to "{n}"' for o, n in renames.items())
+        n = len(todo)
+        with self.batch(subject) as ctx:
+            for company in todo:
+                self.write_company(company)
+                self._notify(f"company: {company.slug} stage renamed")
+            ctx["message"] += f" ({n} compan{'y' if n == 1 else 'ies'})"
+        return n
+
+    @_locked
+    def remove_stage(self, name: str, move_to: str, reason: str = "") -> int:
+        """Move every company in stage `name` to `move_to`, as an ordinary stage
+        change each (the history keeps the move), in one commit. `reason` is for
+        a target that needs one (a lost stage) and a company without its own.
+        Returns how many companies moved."""
+        if move_to not in self.stages:
+            raise ValidationError(
+                {"move_to": f"unknown stage {move_to!r} "
+                            f"(allowed: {', '.join(self.stages.names)})"})
+        self.load()
+        movers = sorted((c for c in self.companies.values() if c.stage == name),
+                        key=lambda c: c.slug)
+        reason = (reason or "").strip()
+        if (movers and self.stages.requires_reason(move_to) and not reason
+                and any(not c.lost_reason for c in movers)):
+            raise ValidationError(
+                {"lost_reason": f"a reason is needed to move companies to {move_to}"})
+        if not movers:
+            return 0
+        n = len(movers)
+        with self.batch(f'settings: stage "{name}" removed, {n} '
+                        f'compan{"y" if n == 1 else "ies"} moved to "{move_to}"'):
+            for company in movers:
+                self.update_company(
+                    company.slug, stage=move_to,
+                    lost_reason=company.lost_reason or reason,
+                    message=f'company: {company.slug} stage {name} -> {move_to}')
+        return n
 
     # --- merging
 
@@ -1032,6 +1161,7 @@ class Store:
         if keep == drop:
             raise ValidationError({"drop": "a company cannot be merged into itself"})
         merged = Company(**{k: getattr(a, k) for k in COMPANY_COPY_FIELDS})
+        merged.stages = self.stages
         for field_name in COMPANY_MERGE_FIELDS:
             setattr(merged, field_name, self._merge_value(
                 field_name, getattr(a, field_name), getattr(b, field_name),
@@ -1040,13 +1170,8 @@ class Store:
         # Tasks are not a field you pick a winner for: dropping one side's list
         # would lose work silently, so both survive.
         merged.tasks = [*a.tasks, *b.tasks]
-        if merged.stage == Stage.LOST.value and not merged.lost_reason:
-            raise ValidationError(
-                {"lost_reason": "lost_reason is required when stage is lost"})
-        if merged.stage not in REASON_STAGES:
-            merged.lost_reason = ""
-        if merged.stage != Stage.TEMP_DISQUALIFIED.value:
-            merged.requalify_on = None
+        merged.lost_reason, merged.requalify_on = self._reason_rules(
+            merged.stage, merged.lost_reason, merged.requalify_on)
         if not merged.has_next_step:
             merged.next_step_status = "open"
         # The done date follows whichever side's next step won.
@@ -1317,9 +1442,10 @@ class Store:
                    f"{it.contact_label} {when:%Y-%m-%dT%H:%M}")
         # A logged interaction means contact was made: a prospect becomes
         # engaged, in the same commit as the interaction. A note is not contact.
-        advance = company.stage == Stage.PROSPECT.value and it.is_touch
+        entry, target = self.stages.entry, self.stages.advance_target
+        advance = target is not None and company.stage == entry and it.is_touch
         if advance:
-            message += f"; stage {Stage.PROSPECT.value} -> {Stage.ENGAGED.value}"
+            message += f"; stage {entry} -> {target}"
         with self.batch(message):
             self.write_interaction(company_slug, it)
             company.interactions.append(it)
@@ -1327,7 +1453,7 @@ class Store:
                                       reverse=True)
             self._notify(message)
             if advance:
-                self.update_company(company_slug, stage=Stage.ENGAGED.value)
+                self.update_company(company_slug, stage=target)
         return it
 
     @_locked

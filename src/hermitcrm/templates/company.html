@@ -17,25 +17,23 @@
   {% for f in custom_fields_for('company') if f.shows_in('detail') and f.key not in hide and company.extra.get(f.key) not in (none, '') %}
   <span>{{ f.label }} {{ f.display(company.extra.get(f.key)) }}</span>
   {% endfor %}
-  {% if company.stage in ['disqualified', 'temp-disqualified'] %}
+  {% set exits = stage_exits(company.stages) %}
+  {% if company.stages.role_of(company.stage) in ['closed', 'parked'] %}
   <form method="post" action="/companies/{{ company.slug }}/disqualify" class="inline">
-    <input type="hidden" name="stage" value="prospect"><button type="submit">Requalify</button>
+    <input type="hidden" name="stage" value="{{ company.stages.entry }}"><button type="submit">Requalify</button>
   </form>
-  {% else %}
+  {% elif exits %}
   <details class="inline-edit stage-menu">
-    <summary class="button">Disqualify</summary>
+    <summary class="button">{% if exits | map(attribute='name') | select('in', ['disqualified', 'temp-disqualified']) | list | length == exits | length %}Disqualify{% else %}Close or park{% endif %}</summary>
     <div class="menu-panel">
+      {% for x in exits %}
       <form method="post" action="/companies/{{ company.slug }}/disqualify" class="inline-form">
-        <input type="hidden" name="stage" value="disqualified">
+        <input type="hidden" name="stage" value="{{ x.name }}">
         <input name="reason" placeholder="reason" value="{{ company.lost_reason }}">
-        <button type="submit">Disqualify</button>
+        {% if x.parked %}<label class="inline">until <input type="date" name="requalify_on" value="{{ fmt_date(company.requalify_on) }}" title="the company goes back to {{ company.stages.entry }} on this date"></label>{% endif %}
+        <button type="submit">{{ x.label }}</button>
       </form>
-      <form method="post" action="/companies/{{ company.slug }}/disqualify" class="inline-form">
-        <input type="hidden" name="stage" value="temp-disqualified">
-        <input name="reason" placeholder="reason" value="{{ company.lost_reason }}">
-        <label class="inline">until <input type="date" name="requalify_on" value="{{ fmt_date(company.requalify_on) }}" title="the company goes back to prospect on this date"></label>
-        <button type="submit">Temp disqualify</button>
-      </form>
+      {% endfor %}
     </div>
   </details>
   {% endif %}
@@ -134,7 +132,8 @@
 <script>
 (function () {
   var stage = document.getElementById('stage');
-  if (stage) { stage.value = 'lost'; }
+  {%- set to_stage = focus_stage if focus_stage in company.stages else (company.stages.with_role('lost') | first | default('')) %}
+  if (stage && {{ to_stage | tojson }}) { stage.value = {{ to_stage | tojson }}; }
   var reason = document.getElementById('lost_reason');
   if (reason) { reason.focus(); }
 })();

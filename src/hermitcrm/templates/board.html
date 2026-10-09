@@ -61,7 +61,7 @@
   {% endfor %}
 </div>
 
-{% for stage in ['won', 'lost', 'disqualified', 'temp-disqualified'] %}
+{% for stage in closed %}
 <details class="closed" id="closed-{{ stage }}">
   <summary>{{ stage }} ({{ closed[stage] | length }})</summary>
   <ul>

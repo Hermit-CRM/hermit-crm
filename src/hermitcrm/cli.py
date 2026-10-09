@@ -31,7 +31,7 @@ import tomllib
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from hermitcrm import __version__, layout, migrations, task_types
+from hermitcrm import __version__, layout, migrations, stages, task_types
 from hermitcrm.datafolder import InitError, NotDataFolder, init_folder, resolve_data_dir
 from hermitcrm.enrich import EnrichError, Enricher
 from hermitcrm.gitops import GitOps
@@ -65,7 +65,8 @@ def _writer(store: Store, root: Path, config: dict):
 def build_store(root: Path) -> Store:
     config = load_config(root)
     store = Store(root, silent_days=config["silent_days"], outcomes=config["outcomes"],
-                  task_types=task_types.names(task_types.from_config(config.get("task_types"))))
+                  task_types=task_types.names(task_types.from_config(config.get("task_types"))),
+                  stages=stages.from_config(config.get("stages")))
     store.load()
     return store
 
@@ -897,7 +898,7 @@ def history_from_git(company, git_log, git_show):
     entry from "" dated `created` (or the first commit, when that is earlier). A working copy whose
     stage differs from the last commit adds one entry dated `stage_changed`.
     """
-    from hermitcrm.models import REASON_STAGES, Stage, StageChange
+    from hermitcrm.models import StageChange
 
     path = f"companies/{company.slug}/company.md"
     out = git_log(["log", "--follow", "--name-only", "--format=%H %cs", "--", path])
@@ -913,15 +914,15 @@ def history_from_git(company, git_log, git_show):
         return []
     commits.reverse()  # oldest first
 
-    allowed = {s.value for s in Stage}
+    stages = company.stages
     history: list = []
     stage = ""
     for sha, when, file_path in commits:
         text = git_show(["show", f"{sha}:{file_path}"])
-        new_stage = _front_matter_value(text, "stage")
-        if new_stage not in allowed or new_stage == stage:
+        new_stage = stages.resolve(_front_matter_value(text, "stage"))
+        if not new_stage or new_stage == stage:
             continue
-        reason = _front_matter_value(text, "lost_reason") if new_stage in REASON_STAGES else ""
+        reason = _front_matter_value(text, "lost_reason") if stages.keeps_reason(new_stage) else ""
         if not history and company.created:
             when = min(company.created.date(), when)
         history.append(StageChange(when, stage, new_stage, reason))
@@ -929,7 +930,7 @@ def history_from_git(company, git_log, git_show):
     if company.stage != stage:
         when = company.stage_changed or (company.created.date() if company.created else None)
         if when is not None:
-            reason = company.lost_reason if company.stage in REASON_STAGES else ""
+            reason = company.lost_reason if stages.keeps_reason(company.stage) else ""
             history.append(StageChange(when, stage, company.stage, reason))
     return history
 

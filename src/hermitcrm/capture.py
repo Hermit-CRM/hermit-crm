@@ -61,6 +61,7 @@ class Capture:
     company: Company | None = None   # the employer, when we already have it
     fetch_error: str = ""            # why the page itself could not be read
     read_nothing: bool = False       # the bookmarklet ran, but the page gave nothing
+    stage: str = "prospect"          # the stage a new company starts in (the entry stage)
 
     @property
     def contact_values(self) -> dict:
@@ -89,7 +90,7 @@ class Capture:
         """The company form's values dict, prefilled."""
         blank = {
             "name": "", "website": "", "linkedin": "", "country": "", "source": "other",
-            "stage": "prospect", "lost_reason": "", "requalify_on": "",
+            "stage": self.stage, "lost_reason": "", "requalify_on": "",
             "value_eur_month": "", "product_oneliner": "",
             "next_step": "", "next_step_due": "",
             "next_step_status": "open", "tags": "", "notes": "",
@@ -178,7 +179,8 @@ def from_url(store: Store, url: str, fetcher=scrape.fetch,
                                          custom_keys=custom_keys)
     fields = dict(proposal.fields)
     return Capture(url=url, name=company_name(facts, url), fields=fields,
-                   notes=proposal.notes, existing=find_existing(store, url, fields))
+                   notes=proposal.notes, existing=find_existing(store, url, fields),
+                   stage=store.stages.entry)
 
 
 def profile(store: Store, url: str, fetcher=scrape.fetch) -> Capture:

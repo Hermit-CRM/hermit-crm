@@ -591,7 +591,8 @@ def build_tools(root: Path, store) -> list[Tool]:
              schema({"name": text(description='The company name, e.g. "Acme BV".'),
                      "website": text(), "linkedin": text(),
                      "country": text(description="Two-letter code, e.g. NL."),
-                     "source": text(), "stage": text(description="Default prospect."),
+                     "source": text(), "stage": text(description="A stage from Settings; "
+                                                      "default the first open one."),
                      "value_eur_month": text(description="Whole euros per month."),
                      "product_oneliner": text(), "next_step": text(),
                      "next_step_due": text(description="YYYY-MM-DD."),
@@ -609,8 +610,9 @@ def build_tools(root: Path, store) -> list[Tool]:
                     ["company", "name"]), add_contact_tool),
         Tool("add_interaction",
              "Log an email, LinkedIn message, call or meeting, or a note about a "
-             "person. Writes the file and commits it. Logging one on a prospect "
-             "moves it to engaged (a note does not).",
+             "person. Writes the file and commits it. Logging one on a company in "
+             "the first stage moves it to the next (prospect to engaged by default; "
+             "a note does not).",
              schema({"company": text(description="The company's slug."),
                      "channel": text(description="email, linkedin, call, meeting or "
                                                  "note (a memo: no direction).",
