@@ -87,7 +87,9 @@ def _value_end(lines: list[str], idx: int) -> int:
     """Index of the last line of the value that `key = ...` starts on lines[idx].
 
     A list or table may run over several lines (a hand-written `stages = [` ...
-    `]`); replacing only the first line would leave the rest dangling."""
+    `]`), and a string may too (`\"\"\"` or `'''`); replacing only the first line
+    would leave the rest dangling. A value that never closes is taken to be that
+    one line, so a damaged file loses nothing more."""
     depth, quote = 0, ""
     for j in range(idx, len(lines)):
         text = lines[j].split("=", 1)[1] if j == idx else lines[j]
@@ -95,10 +97,17 @@ def _value_end(lines: list[str], idx: int) -> int:
         while k < len(text):
             ch = text[k]
             if quote:
-                if ch == "\\" and quote == '"':
-                    k += 1
-                elif ch == quote:
+                if ch == "\\" and quote[0] == '"':
+                    k += 2                       # an escaped character
+                    continue
+                if text.startswith(quote, k):
+                    k += len(quote)
                     quote = ""
+                    continue
+            elif text.startswith(('"""', "'''"), k):
+                quote = text[k:k + 3]
+                k += 3
+                continue
             elif ch in "\"'":
                 quote = ch
             elif ch == "#":
@@ -108,9 +117,11 @@ def _value_end(lines: list[str], idx: int) -> int:
             elif ch in "]}":
                 depth -= 1
             k += 1
+        if quote and len(quote) == 1:
+            quote = ""                           # a one-line string ends with its line
         if depth <= 0 and not quote:
             return j
-    return len(lines) - 1
+    return idx
 
 
 def set_config_values(path: Path | str, values: dict) -> Path:

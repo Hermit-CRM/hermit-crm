@@ -772,7 +772,8 @@ def cmd_stages(store: Store, root: Path, config: dict, args) -> tuple[str, int]:
             return (text + "\nDry run; add --apply to write (one commit, undoable).", 0)
         store.on_write = _writer(store, root, config)
         parts = stage_ops.apply(store, root, change,
-                                lambda: store.set_stages(change.after), label="ai: adjust")
+                                lambda: store.set_stages(change.after), label="ai: adjust",
+                                deactivate=lambda: store.set_stages(change.before))
         sha = GitOps(root, push_enabled=False).last_commit_sha() or ""
         undo = f"Undo: hermitcrm undo {sha[:7]}" if sha else "Undo: hermitcrm undo <commit>"
         return (text + "\nDone" + ("; " + "; ".join(parts) if parts else "")

@@ -362,3 +362,38 @@ def test_stage_counts_include_stages_the_settings_do_not_have(cs):
 
 def test_stagechange_equality_is_by_value():
     assert StageChange(date(2026, 1, 1), "a", "b") == StageChange(date(2026, 1, 1), "a", "b")
+
+
+# ------------------------------------------------------------ a change that fails half-way
+
+
+def test_a_stage_change_that_fails_part_way_puts_every_file_back(cs, messages, monkeypatch):
+    from hermitcrm import setup as setup_steps
+    from hermitcrm import stage_ops
+    setup_steps.save_stages(cs.root, CUSTOM)
+    cs.create_company("Acme")
+    cs.update_company("acme", stage="contacted")
+    cs.create_company("Beta", stage="qualified")
+    config = (cs.root / "config.toml").read_bytes()
+    files = {slug: (cs.root / "companies" / slug / "company.md").read_bytes()
+             for slug in ("acme", "beta")}
+    kept = [s for s in st.to_config(CUSTOM) if s["name"] != "qualified"]
+    new = st.from_config([{**s, "name": "reached"} if s["name"] == "contacted" else s
+                          for s in kept])
+    change = stage_ops.Change(CUSTOM, new, {"contacted": "reached"}, ["qualified"], "lead")
+
+    def disk_full(*a, **k):
+        raise OSError("disk full")
+    monkeypatch.setattr(cs, "remove_stage", disk_full)
+    messages.clear()
+
+    with pytest.raises(OSError):
+        stage_ops.apply(cs, cs.root, change, lambda: cs.set_stages(new),
+                        deactivate=lambda: cs.set_stages(CUSTOM))
+
+    assert (cs.root / "config.toml").read_bytes() == config
+    for slug, data in files.items():
+        assert (cs.root / "companies" / slug / "company.md").read_bytes() == data
+    assert cs.stages == CUSTOM
+    assert cs.companies["acme"].stage == "contacted" and cs.companies["beta"].stage == "qualified"
+    assert messages == []                     # nothing was committed
