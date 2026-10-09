@@ -532,6 +532,9 @@ def cmd_check(store: Store) -> tuple[str, int]:
              f"shows it (log it as a note on the contact instead)"
              for c in store.companies.values() for cs, ct in c.contacts.items()
              if ct.notes.strip()]
+    # A company in a stage config.toml does not list loads fine; it is said, not failed.
+    off_board = store.stage_warnings()
+    stray += off_board
     if not store.problems and not extension:
         n_companies = len(store.companies)
         n_contacts = sum(len(c.contacts) for c in store.companies.values())
@@ -542,7 +545,7 @@ def cmd_check(store: Store) -> tuple[str, int]:
                 f"{n_interactions} interactions, no problems"]),
             0,
         )
-    lines = [f"{p.path}: {p.message}" for p in store.problems] + extension
+    lines = [f"{p.path}: {p.message}" for p in store.problems] + extension + off_board
     return ("\n".join(lines), 1)
 
 

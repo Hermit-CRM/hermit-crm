@@ -298,6 +298,26 @@ def entry_moves(old: StageSet, new: StageSet, renames: dict[str, str] | None = N
     return (renames or {}).get(old.entry, old.entry) != new.entry
 
 
+def mentions(root, names) -> dict[str, list[str]]:
+    """Which of routines.toml and dashboards/*.toml still say one of `names` on
+    a line about a stage. Hermit does not rewrite those files; Settings names
+    them so they can be fixed."""
+    root = Path(root)
+    files = [p for p in [root / "routines.toml", *sorted((root / "dashboards").glob("*.toml"))]
+             if p.is_file()]
+    found: dict[str, list[str]] = {}
+    for name in names:
+        word = re.compile(rf"(?<![\w-]){re.escape(name)}(?![\w-])")
+        for path in files:
+            try:
+                lines = path.read_text(encoding="utf-8").splitlines()
+            except OSError:
+                continue
+            if any("stage" in line and word.search(line) for line in lines):
+                found.setdefault(name, []).append(str(path.relative_to(root)))
+    return found
+
+
 # ------------------------------------------------------------- settings form
 
 
