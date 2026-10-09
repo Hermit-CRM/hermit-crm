@@ -194,3 +194,119 @@ def test_collect_survives_a_failing_source_and_says_so(tmp_path, monkeypatch, ca
     assert dl.collect(tmp_path) == 0                              # the next good run clears the failure
     status = json.loads((tmp_path / "status.json").read_text())
     assert status["website"]["ok"] and "error" not in status["website"]
+
+
+def view(n, *, ua="Mozilla/5.0 (Macintosh)", sf="cross-site", sd="document", q="", status=200, host="hermitcrm.io",
+         ref="news.example.com", path="/index.html", method="GET"):
+    return {"t": f"2026-10-05T09:00:{n:02d}+00:00", "id": f"v{n}", "method": method, "h": host, "path": path,
+            "q": q, "status": status, "ua": ua, "ref": ref, "sf": sf, "sd": sd, "sm": "navigate"}
+
+
+def test_visit_events_sorts_page_views_into_people_ai_bots_scripts_and_mine():
+    rows = [
+        view(1),                                                         # a person from a link
+        view(2, sf="same-origin", ref=""),                               # the same person, next page
+        view(3, ua="Mozilla/5.0 (compatible; GPTBot/1.1)", sf="", sd=""),  # an AI crawler
+        view(4, ua="Mozilla/5.0 AppleWebKit; ChatGPT-User/1.0", sf="", sd=""),
+        view(5, ua="Slackbot-LinkExpanding 1.0", sf="", sd=""),          # a link preview
+        view(6, ua=""),                                                  # no user agent
+        view(7, ua="Mozilla/5.0 (X11)", sf="", sd=""),                   # a browser name, no fetch metadata
+        view(8, ua="curl/8.7.1", sf="", sd=""),                          # a script, not a visitor
+        view(9, q="own"),                                                # Gijs
+        view(10, host="hermitcrm.fly.dev"),                              # the noindex copy
+        view(11, status=404),                                            # ignored
+        view(12, method="HEAD"),                                         # ignored
+    ]
+    out = dl.visit_events(rows)
+    assert [r["id"] for r in out["people"]] == ["v1", "v2"]
+    assert [r["id"] for r in out["ai"]] == ["v3", "v4"]
+    assert [r["id"] for r in out["bots"]] == ["v5", "v6", "v7"]
+    assert [r["id"] for r in out["scripts"]] == ["v8"]
+    assert [r["id"] for r in out["mine"]] == ["v9", "v10"]
+
+
+def test_an_arrival_is_a_view_that_began_outside_the_site():
+    assert dl.is_arrival(view(1, sf="cross-site")) and dl.is_arrival(view(2, sf="none"))
+    assert not dl.is_arrival(view(3, sf="same-origin"))
+    assert dl.count_hosts([view(1), view(2), view(3, ref="")]) == {"news.example.com": 2, "direct": 1}
+
+
+def test_ai_name_says_which_crawler():
+    assert dl.ai_name("Mozilla/5.0 (compatible; GPTBot/1.1; +https://openai.com/gptbot)") == "GPTBot"
+    assert dl.ai_name("Mozilla/5.0 (X11)") == ""
+
+
+def test_visits_is_one_of_the_sources_collect_runs():
+    assert list(dl.SOURCES) == ["pypi", "github", "website", "visits"]
+
+
+def test_the_visit_pull_treats_a_missing_log_as_not_deployed_yet(tmp_path, monkeypatch):
+    def no_file(path):
+        raise RuntimeError("flyctl exited 1: cat: can't open '/data/visits.log': No such file or directory")
+    monkeypatch.setattr(dl, "ssh_cat", no_file)
+    assert "no page log" in dl.collect_visits(tmp_path)
+    monkeypatch.setattr(dl, "ssh_cat", lambda path: (_ for _ in ()).throw(RuntimeError("no started VMs")))
+    try:
+        dl.collect_visits(tmp_path)
+    except RuntimeError as e:
+        assert "no started VMs" in str(e)
+    else:
+        raise AssertionError("a real failure must reach collect")
+
+
+def test_the_visit_pull_merges_by_id_so_a_second_pull_loses_nothing(tmp_path, monkeypatch):
+    monkeypatch.setattr(dl, "ssh_cat", lambda path: json.dumps(view(1)) + "\n" + json.dumps(view(2)) + "\n")
+    dl.collect_visits(tmp_path)
+    monkeypatch.setattr(dl, "ssh_cat", lambda path: json.dumps(view(2)) + "\n" + json.dumps(view(3)) + "\n")
+    assert "3 saved" in dl.collect_visits(tmp_path)
+
+
+def test_report_counts_arrivals_apart_from_page_views(tmp_path, capsys):
+    rows = [view(1), view(2, sf="same-origin", ref=""), view(3, ua="GPTBot/1.1", sf="", sd="")]
+    (tmp_path / "visits.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+    dl.report(tmp_path)
+    out = capsys.readouterr().out
+    assert "Visitors 1 arrivals, 2 page views by people" in out
+    assert "1  AI crawlers and assistants" in out and "from news.example.com" in out
+
+
+def test_report_without_a_page_log_says_to_deploy(tmp_path, capsys):
+    dl.report(tmp_path)
+    assert "no page log saved yet" in capsys.readouterr().out
+
+
+def test_stars_are_counted_per_day_and_the_newest_snapshot_wins():
+    assert dl.stars_per_day(["2026-10-01T08:00:00Z", "2026-10-01T09:30:00Z", "2026-10-03T00:00:00Z"]) == {
+        "2026-10-01": 2, "2026-10-03": 1}
+    rows = [{"day": "2026-10-01", "referrer": "a.example.com", "uniques": "9"},
+            {"day": "2026-10-02", "referrer": "a.example.com", "uniques": "2"},
+            {"day": "2026-10-02", "referrer": "b.example.com", "uniques": "5"}]
+    assert [r["referrer"] for r in dl.latest_snapshot(rows, "uniques")] == ["b.example.com", "a.example.com"]
+    assert dl.latest_snapshot([], "uniques") == []
+
+
+def test_collect_github_saves_stars_forks_referrers_and_pages(tmp_path, monkeypatch):
+    answers = {
+        "releases": [{"tag_name": "v0.7.0", "assets": [{"name": "hermitcrm-0.7.0.tar.gz", "download_count": 3}]}],
+        "traffic/clones": {"clones": [{"timestamp": "2026-10-04T00:00:00Z", "count": 5, "uniques": 2}]},
+        "traffic/views": {"views": [{"timestamp": "2026-10-04T00:00:00Z", "count": 7, "uniques": 3}]},
+        "traffic/popular/referrers": [{"referrer": "news.example.com", "count": 8, "uniques": 4}],
+        "traffic/popular/paths": [{"path": "/example-org/example-repo", "title": "x", "count": 9, "uniques": 5}],
+    }
+
+    def fake_run(cmd, timeout=180):
+        endpoint = cmd[2]
+        if "stargazers" in endpoint:
+            return "2026-10-01T08:00:00Z\n2026-10-01T09:00:00Z\n"
+        for key, value in answers.items():
+            if endpoint.endswith(key) or (key == "releases" and "releases" in endpoint):
+                return json.dumps(value)
+        return json.dumps({"stargazers_count": 2, "forks_count": 1, "subscribers_count": 1})   # the repo itself
+
+    monkeypatch.setattr(dl, "run", fake_run)
+    assert "2 stars" in dl.collect_github(tmp_path)
+    assert [(r["day"], r["stars"]) for r in dl.read_csv(tmp_path / "github-stars.csv")] == [("2026-10-01", "2")]
+    assert [r["referrer"] for r in dl.read_csv(tmp_path / "github-referrers.csv")] == ["news.example.com"]
+    assert [r["path"] for r in dl.read_csv(tmp_path / "github-paths.csv")] == ["/example-org/example-repo"]
+    repo = dl.read_csv(tmp_path / "github-repo.csv")
+    assert (repo[0]["stars"], repo[0]["forks"], repo[0]["watchers"]) == ("2", "1", "1")

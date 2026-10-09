@@ -66,6 +66,10 @@ PYPI_FIELDS = ["day", "version", "type", "installer", "country", "python", "syst
 STATS_FIELDS = ["day", "category", "downloads"]
 ASSET_FIELDS = ["day", "tag", "asset", "downloads"]
 TRAFFIC_FIELDS = ["day", "clones", "clones_unique", "views", "views_unique"]
+STARS_FIELDS = ["day", "stars"]
+REPO_FIELDS = ["day", "stars", "forks", "watchers"]
+REFERRER_FIELDS = ["day", "referrer", "count", "uniques"]
+PATH_FIELDS = ["day", "path", "count", "uniques"]
 
 # What pip, uv and friends report as `installer`. Anything else that downloads
 # is a browser, a script, a mirror or a scanner.
@@ -75,6 +79,14 @@ MIRRORS = {"bandersnatch", "devpi", "Artifactory", "Nexus", "z3c.pypimirror"}
 BOT_UA = re.compile(r"bot|crawl|spider|preview|scan|slurp|headless|facebookexternalhit|uptime|monitor", re.I)
 # A completed download sent (nearly) the whole file.
 COMPLETE = 0.9
+
+# Website page views (website/nginx.conf, /data/visits.log). The crawlers of AI
+# services, and the assistants that fetch a page because a person asked, are
+# counted on their own: for this site they matter, but they are not visitors.
+SITE_HOST = "hermitcrm.io"
+AI_BOT = re.compile(r"GPTBot|ChatGPT-User|OAI-SearchBot|ClaudeBot|Claude-User|Claude-SearchBot|anthropic-ai|"
+                    r"PerplexityBot|Perplexity-User|Google-Extended|Applebot-Extended|Bytespider|CCBot|Amazonbot|"
+                    r"meta-externalagent|cohere-ai|DuckAssistBot|MistralAI-User", re.I)
 
 
 def log(msg: str, err: bool = False) -> None:
@@ -150,6 +162,20 @@ def collect_pypi(data_dir: Path) -> str:
     return f"{len(stats)} pypistats rows, {total} ClickPy rows"
 
 
+def latest_snapshot(rows: list[dict], sort_key: str) -> list[dict]:
+    """The rows saved on the most recent day, biggest first. Referrers and popular pages are
+    rolling 14-day totals saved once per collect, so only the newest day is the current picture."""
+    latest = max((r["day"] for r in rows), default=None)
+    return sorted((r for r in rows if r["day"] == latest), key=lambda r: -int(r[sort_key]))
+
+
+def stars_per_day(timestamps: list[str]) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for t in timestamps:
+        out[t[:10]] = out.get(t[:10], 0) + 1
+    return out
+
+
 def collect_github(data_dir: Path) -> str:
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     # One page of 100 is plenty: the project has a handful of releases.
@@ -164,7 +190,24 @@ def collect_github(data_dir: Path) -> str:
             row[kind], row[f"{kind}_unique"] = e["count"], e["uniques"]
     merge_csv(data_dir / "github-traffic.csv", TRAFFIC_FIELDS, ["day"],
               [{f: r.get(f, 0) for f in TRAFFIC_FIELDS} for r in traffic.values()])
-    return f"{len(assets)} assets, {len(traffic)} traffic days"
+    # The repo's own numbers, and who sent the traffic. Referrers and popular pages are
+    # rolling 14-day totals, so each collect saves them under today's date.
+    repo = json.loads(run(["gh", "api", f"repos/{REPO}"]))
+    merge_csv(data_dir / "github-repo.csv", REPO_FIELDS, ["day"],
+              [{"day": today, "stars": repo["stargazers_count"], "forks": repo["forks_count"],
+                "watchers": repo["subscribers_count"]}])
+    referrers = json.loads(run(["gh", "api", f"repos/{REPO}/traffic/popular/referrers"]))
+    merge_csv(data_dir / "github-referrers.csv", REFERRER_FIELDS, ["day", "referrer"],
+              [{"day": today, "referrer": r["referrer"], "count": r["count"], "uniques": r["uniques"]} for r in referrers])
+    paths = json.loads(run(["gh", "api", f"repos/{REPO}/traffic/popular/paths"]))
+    merge_csv(data_dir / "github-paths.csv", PATH_FIELDS, ["day", "path"],
+              [{"day": today, "path": r["path"], "count": r["count"], "uniques": r["uniques"]} for r in paths])
+    # Stars have a date, so their history can be rebuilt on every run (an unstar drops out).
+    starred = run(["gh", "api", f"repos/{REPO}/stargazers", "--paginate", "-H", "Accept: application/vnd.github.star+json",
+                   "--jq", ".[].starred_at"]).split()
+    merge_csv(data_dir / "github-stars.csv", STARS_FIELDS, ["day"],
+              [{"day": d, "stars": n} for d, n in sorted(stars_per_day(starred).items())])
+    return f"{len(assets)} assets, {len(traffic)} traffic days, {repo['stargazers_count']} stars"
 
 
 def ssh_cat(path: str) -> str:
@@ -198,7 +241,23 @@ def collect_website(data_dir: Path) -> str:
     return f"{len(fresh)} lines on the volume, {len(ordered)} saved"
 
 
-SOURCES = {"pypi": collect_pypi, "github": collect_github, "website": collect_website}
+def collect_visits(data_dir: Path) -> str:
+    try:
+        text = ssh_cat("/data/visits.log")
+    except RuntimeError as e:
+        if "No such file" not in str(e):  # the site has not been deployed with the page log yet
+            raise
+        return "no page log on the site yet (deploy website/ first)"
+    path = data_dir / "visits.jsonl"
+    merged = {r["id"]: r for r in parse_log(path.read_text())} if path.exists() else {}
+    fresh = parse_log(text)
+    merged.update({r["id"]: r for r in fresh})
+    ordered = sorted(merged.values(), key=lambda r: (r["t"], r["id"]))
+    write_atomic(path, "".join(json.dumps(r, separators=(",", ":")) + "\n" for r in ordered))
+    return f"{len(fresh)} lines on the volume, {len(ordered)} saved"
+
+
+SOURCES = {"pypi": collect_pypi, "github": collect_github, "website": collect_website, "visits": collect_visits}
 
 
 def collect(data_dir: Path) -> int:
@@ -278,6 +337,55 @@ def website_events(rows: list[dict], ignore: frozenset[str] | set[str] = frozens
     return out
 
 
+def ai_name(ua: str) -> str:
+    m = AI_BOT.search(ua)
+    return m.group(0) if m else ""
+
+
+def visit_events(rows: list[dict], ignore: frozenset[str] | set[str] = frozenset()) -> dict[str, list[dict]]:
+    """Sort page requests into people, AI crawlers, bots, scripts and yours.
+
+    parse_log wants "path", which a page row has. A person is a browser that says it is
+    navigating to a document (Sec-Fetch-Dest) and that is not a named bot; curl and
+    scripts send neither, and are kept apart rather than called visitors. `arrivals`
+    are the people who came from outside the site (a link, a bookmark, the address bar,
+    Sec-Fetch-Site cross-site or none); a click from one page of the site to another is
+    same-origin and counts as a page view only. No IP address or cookie is kept, so this
+    is the closest thing to a unique visit the log allows."""
+    out: dict[str, list[dict]] = {"people": [], "ai": [], "bots": [], "scripts": [], "mine": []}
+    for r in rows:
+        if r.get("method", "GET") != "GET" or r.get("status") not in (200, 304):
+            continue
+        ua = r.get("ua", "")
+        if (r["id"] in ignore or "own" in parse_qs(r.get("q", ""), keep_blank_values=True)
+                or "selftest" in ua.lower() or r.get("h", SITE_HOST) != SITE_HOST):
+            out["mine"].append(r)
+        elif AI_BOT.search(ua):
+            out["ai"].append(r)
+        elif not ua or BOT_UA.search(ua):
+            out["bots"].append(r)
+        elif not ua.startswith("Mozilla/"):
+            out["scripts"].append(r)
+        elif r.get("sd") != "document":
+            out["bots"].append(r)
+        else:
+            out["people"].append(r)
+    return out
+
+
+def count_hosts(rows) -> dict[str, int]:
+    """Where arrivals came from; an empty referrer (typed, bookmarked, an app) is "direct"."""
+    out: dict[str, int] = {}
+    for r in rows:
+        host = r.get("ref") or "direct"
+        out[host] = out.get(host, 0) + 1
+    return out
+
+
+def is_arrival(row: dict) -> bool:
+    return row.get("sf") in ("cross-site", "none")
+
+
 def report(data_dir: Path, installs: bool = False) -> None:
     lines = []
     out = lines.append
@@ -316,6 +424,13 @@ def report(data_dir: Path, installs: bool = False) -> None:
         out(f"         clones {sum(int(r['clones']) for r in traffic)}, views {sum(int(r['views']) for r in traffic)} "
             f"over {len(traffic)} saved days (activity, not people: it includes your own checkouts)")
 
+    repo_rows = sorted(read_csv(data_dir / "github-repo.csv"), key=lambda r: r["day"])
+    if repo_rows:
+        r = repo_rows[-1]
+        out(f"         {r['stars']} stars, {r['forks']} forks, {r['watchers']} watching (as of {r['day']})")
+    for r in latest_snapshot(read_csv(data_dir / "github-referrers.csv"), "uniques")[:5]:
+        out(f"         {r['uniques']:>5}  unique visitors from {r['referrer']} in the last 14 days")
+
     path = data_dir / "website.jsonl"
     site = (website_events(parse_log(path.read_text()), read_ignored(data_dir)) if path.exists()
             else dict.fromkeys(("downloads", "aborted", "bots", "mine"), []))
@@ -330,6 +445,23 @@ def report(data_dir: Path, installs: bool = False) -> None:
         per_file[r["path"]] = per_file.get(r["path"], 0) + 1
     for p in sorted(per_file):
         out(f"           {per_file[p]:>5}  {p}")
+
+    vpath = data_dir / "visits.jsonl"
+    visits = (visit_events(parse_log(vpath.read_text()), read_ignored(data_dir)) if vpath.exists()
+              else dict.fromkeys(("people", "ai", "bots", "scripts", "mine"), []))
+    people = visits["people"]
+    out("")
+    if vpath.exists():
+        out(f"Visitors {sum(1 for r in people if is_arrival(r))} arrivals, {len(people)} page views by people "
+            "(an arrival is a visit that began outside the site; no IP or cookie is kept)")
+        for label, key in (("AI crawlers and assistants", "ai"), ("bots and link previews", "bots"),
+                           ("scripts (curl, python...)", "scripts"), ("yours (?own, ignore.txt, other host)", "mine")):
+            if visits[key]:
+                out(f"           {len(visits[key]):>5}  {label}")
+        for host, n in sorted(count_hosts(r for r in people if is_arrival(r)).items(), key=lambda kv: -kv[1])[:5]:
+            out(f"           {n:>5}  from {host}")
+    else:
+        out("Visitors no page log saved yet: deploy website/, then run `downloads.py collect`")
 
     best = buckets["installs"] + gh_total + len(site["downloads"])
     site_all = sum(len(v) for v in site.values())
