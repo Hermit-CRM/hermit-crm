@@ -37,7 +37,7 @@ TOPICS = [
     # Make it yours: one recipe per kind of change, read by the user's own agent
     # after `adjust` (the rules).
     "adjust-fields", "adjust-look", "adjust-messages", "adjust-connect", "adjust-feature",
-    "adjust-dashboards", "adjust-bulk", "adjust-layout", "adjust-routines",
+    "adjust-dashboards", "adjust-bulk", "adjust-layout", "adjust-routines", "adjust-stages",
 ]
 
 

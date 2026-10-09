@@ -722,7 +722,7 @@ def test_the_rules_page_covers_every_recipe():
     text = helpdocs.read("adjust")
     for topic in ("adjust-fields", "adjust-look", "adjust-messages", "adjust-connect",
                   "adjust-feature", "adjust-dashboards", "adjust-layout", "adjust-bulk",
-                  "adjust-routines"):
+                  "adjust-routines", "adjust-stages"):
         assert f"`hermitcrm help {topic}`" in text, topic
     for rule in ("hermitcrm check", "ai: adjust:", "hermitcrm undo", "dry run",
                  ".secrets.toml", "PIPELINE.md", "Send anything"):

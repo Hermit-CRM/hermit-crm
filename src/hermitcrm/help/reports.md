@@ -13,10 +13,12 @@ dates. The CLI prints the same report: `hermitcrm report --days 30`, or
 - **Activity**: interactions per ISO week, by channel and direction; companies
   touched; new companies and contacts.
 - **Funnel**: entries per stage from `stage_history`, conversion between
-  prospect, engaged, discovery, offer and won, median days in stage, and
-  the current pipeline with its monthly value.
+  prospect, engaged, discovery, offer and won (your own open stages, then the
+  first won stage), median days in stage, and the current pipeline with its
+  monthly value.
 - **Outcomes**: won, lost and disqualified in the period (by the closing date
-  from the stage history, else `stage_changed`), win rate, top 10 lost reasons.
+  from the stage history, else `stage_changed`), win rate (won stages over won
+  plus lost stages, by role), top 10 lost reasons.
 - **Messages**: sent, and the results by language, by channel and for the five
   most reused texts.
 - **Sources**: companies created and won per source.

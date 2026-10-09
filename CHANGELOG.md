@@ -3,6 +3,39 @@
 All notable changes to Hermit CRM. Versions follow semantic versioning; a change to
 the data format always comes with an automatic migration.
 
+## Unreleased
+
+**Stages are configurable.** The steps a deal goes through are yours to name
+and order. Settings > Your CRM > Deal stages renames, reorders, adds and
+removes them, and each stage has a role that tells Hermit what it means: `open`
+(a board column; the first one is where new companies start), `won`, `lost`
+(needs a reason), `closed` (any other end, such as disqualified) or `parked`
+(out of the pipeline until a date). Without a setting the stages are the ones
+Hermit always had, so nothing changes until you change it: no data-format
+change, no migration, and `PIPELINE.md`, the reports and `hermitcrm check`
+print exactly what they did before.
+
+- **Renaming is a sweep.** The new name goes on every company and into every
+  `stage_history` entry, in one commit. Two stages can swap names.
+- **Deleting a stage that has companies asks where they go**, and for a reason
+  when that stage is a lost one. The move is an ordinary stage change, so the
+  history records it.
+- **A stage that is not in the settings never makes a file unreadable.** The
+  company loads, sits off the board in grey, a banner says so, and
+  `hermitcrm check` prints a warning (exit code unchanged). Saving it keeps
+  its stage, reason and date until you pick one that exists.
+- **`hermitcrm stages`** lists the stages and changes them (`rename`, `add`,
+  `move`, `set`, `remove`): a dry run first, `--apply` writes it, commits start
+  with `ai: adjust:`. A new recipe, `hermitcrm help adjust-stages`, tells an
+  agent how.
+- The company page's Disqualify menu offers every closed or parked stage, and
+  Requalify returns a company to the first open stage. With the default names
+  the buttons read as before.
+- Dashboards and routines that name an old stage are not rewritten. The
+  Settings message and `hermitcrm check` name them.
+- Behind the scenes there are no stage constants any more: every rule asks the
+  configured stages by role.
+
 ## 0.6.0 (2026-10-04)
 
 **Make it yours, with your own AI.** Hermit now has one place for changing it
