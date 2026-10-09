@@ -15,7 +15,7 @@
 
 """A local dashboard for the numbers scripts/downloads.py collects.
 
-    dashboard.py serve            http://127.0.0.1:8765, with a Refresh button that runs `collect`
+    dashboard.py serve            http://127.0.0.1:8777, with a Refresh button that runs `collect`
     dashboard.py serve --open     ...and open it in the browser
     dashboard.py build            write dashboard.html into the data folder (no Refresh button)
 
@@ -42,7 +42,8 @@ from urllib.parse import parse_qs
 import downloads as dl
 
 TOKENS_CSS = Path(__file__).resolve().parent.parent / "src" / "hermitcrm" / "static" / "tokens.css"
-PORT = 8765
+# Not 8765: that is the Hermit CRM app's own port, and the app is usually running.
+PORT = 8777
 
 
 def day_range(first: str, last: str) -> list[str]:
@@ -514,7 +515,12 @@ def make_handler(data_dir: Path):
 
 
 def serve(data_dir: Path, port: int, open_browser: bool) -> int:
-    server = ThreadingHTTPServer(("127.0.0.1", port), make_handler(data_dir))
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", port), make_handler(data_dir))
+    except OSError as e:
+        print(f"Cannot listen on 127.0.0.1:{port} ({e.strerror}). Something else is using it; "
+              f"pick another with --port, for example --port {port + 1}.", file=sys.stderr)
+        return 1
     url = f"http://127.0.0.1:{port}/"
     print(f"Dashboard on {url} (data in {data_dir}); Ctrl-C to stop")
     if open_browser:

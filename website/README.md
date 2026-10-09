@@ -199,7 +199,7 @@ cp scripts/downloads.py ~/.local/share/hermitcrm-downloads/downloads.py
 uv run --no-project --python 3.13 scripts/dashboard.py serve --open
 ```
 
-serves one page on `http://127.0.0.1:8765` (this computer only) from the files
+serves one page on `http://127.0.0.1:8777` (this computer only; `--port` changes it) from the files
 `collect` saved. **Refresh** runs `collect` and reloads, so you do not need the
 launchd job to look at it; the job is for not losing the 14-day windows. A failing
 source does not blank the page: it shows what is saved and the Sources table at the
