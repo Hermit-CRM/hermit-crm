@@ -34,6 +34,11 @@ print exactly what they did before.
   the buttons read as before.
 - Dashboards and routines that name an old stage are not rewritten. The
   Settings message and `hermitcrm check` name them.
+- A setting saved over a value you wrote on several lines (a `stages` or
+  `task_types` list) is replaced whole. Before, only its first line was
+  replaced and the rest was left behind, which broke `config.toml`.
+- The sample account follows your stages: its story runs through them and its
+  dashboard filters on their names.
 - Behind the scenes there are no stage constants any more: every rule asks the
   configured stages by role.
 

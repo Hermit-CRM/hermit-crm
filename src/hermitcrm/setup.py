@@ -83,6 +83,36 @@ def toml_value(value) -> str:
     raise TypeError(f"unsupported config value {value!r}")
 
 
+def _value_end(lines: list[str], idx: int) -> int:
+    """Index of the last line of the value that `key = ...` starts on lines[idx].
+
+    A list or table may run over several lines (a hand-written `stages = [` ...
+    `]`); replacing only the first line would leave the rest dangling."""
+    depth, quote = 0, ""
+    for j in range(idx, len(lines)):
+        text = lines[j].split("=", 1)[1] if j == idx else lines[j]
+        k = 0
+        while k < len(text):
+            ch = text[k]
+            if quote:
+                if ch == "\\" and quote == '"':
+                    k += 1
+                elif ch == quote:
+                    quote = ""
+            elif ch in "\"'":
+                quote = ch
+            elif ch == "#":
+                break
+            elif ch in "[{":
+                depth += 1
+            elif ch in "]}":
+                depth -= 1
+            k += 1
+        if depth <= 0 and not quote:
+            return j
+    return len(lines) - 1
+
+
 def set_config_values(path: Path | str, values: dict) -> Path:
     """Set keys in config.toml, keeping every comment and unrelated line.
 
@@ -96,8 +126,10 @@ def set_config_values(path: Path | str, values: dict) -> Path:
         live = re.compile(rf"^\s*{re.escape(key)}\s*=")
         commented = re.compile(rf"^\s*#\s*{re.escape(key)}\s*=")
         idx = next((i for i, l in enumerate(lines) if live.match(l)), None)
-        if idx is None:
-            idx = next((i for i, l in enumerate(lines) if commented.match(l)), None)
+        if idx is not None:
+            lines[idx:_value_end(lines, idx) + 1] = [new]   # a multi-line value goes whole
+            continue
+        idx = next((i for i, l in enumerate(lines) if commented.match(l)), None)
         if idx is None:
             lines.append(new)
         else:

@@ -441,3 +441,18 @@ def test_one_undo_takes_a_whole_stage_change_back(demo, tmp_path):
     assert app.state.store.stages == st.DEFAULT_STAGES
     store = cli.build_store(demo)
     assert cli.cmd_check(store)[1] == 0 and store.off_board() == []
+
+
+def test_saving_stages_over_a_hand_written_multi_line_array_keeps_config_valid(tmp_path):
+    folder = custom_folder(tmp_path, 'stages = [\n  {name = "a", role = "open"},\n'
+                                      '  {name = "b", role = "open"},\n'
+                                      '  {name = "done", role = "won"},\n]')
+    app, client = make_client(folder, tmp_path)
+    t = token(client)
+    rows = [("a", "open", "a", False), ("b", "open", "b", False), ("done", "won", "done", False),
+            ("c", "open", "", False)]
+    r = client.post("/settings/stages", data=form(rows, csrf_token=t))
+    assert r.status_code == 303
+    assert [s["name"] for s in cfg(folder)["stages"]] == ["a", "b", "done", "c"]
+    assert app.state.store.stages.names == ["a", "b", "done", "c"]
+    assert "# calendar_lookback_days" in (folder / "config.toml").read_text()   # the rest stays
