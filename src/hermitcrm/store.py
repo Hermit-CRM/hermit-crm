@@ -882,12 +882,25 @@ class Store:
         return [f"companies/{c.slug}: stage {c.stage!r} is not in config.toml stages"
                 for c in self.off_board()]
 
+    def stage_users(self, names) -> list[str]:
+        """Slugs of the companies in one of `names`, or with one in their history."""
+        names = set(names)
+        return sorted(c.slug for c in self.companies.values()
+                      if c.stage in names or any(e.from_stage in names or e.to_stage in names
+                                                 for e in c.stage_history))
+
+    def unwritten_histories(self) -> int:
+        """How many companies have a stage history that is only implied."""
+        return sum(1 for c in self.companies.values()
+                   if not c.stage_history and c.stage_entries())
+
     @_locked
-    def materialise_stage_history(self) -> int:
+    def materialise_stage_history(self, label: str = "settings") -> int:
         """Write out the start of every history that is only implied, in one
         commit. An implied start is "created in the entry stage" and follows the
         entry stage, so it is written down before a change that moves the entry
         stage (stages.entry_moves) rather than silently re-dating old companies.
+        `label` starts the commit subject ("settings", or "ai: adjust" from the CLI).
         Returns how many companies were written."""
         self.load()
         todo = []
@@ -900,7 +913,7 @@ class Store:
         if not todo:
             return 0
         n = len(todo)
-        with self.batch(f"settings: stage history written out for {n} "
+        with self.batch(f"{label}: stage history written out for {n} "
                         f"compan{'y' if n == 1 else 'ies'}"):
             for company in todo:
                 self.write_company(company)
@@ -908,7 +921,7 @@ class Store:
         return n
 
     @_locked
-    def rename_stages(self, renames: dict[str, str]) -> int:
+    def rename_stages(self, renames: dict[str, str], label: str = "settings") -> int:
         """Put the new name on `stage` and on every `stage_history` from/to of
         every company, in one commit. All renames apply at once, so two stages
         can swap names. Returns how many companies changed."""
@@ -928,9 +941,9 @@ class Store:
                 todo.append(company)
         if len(renames) == 1:
             (old, new), = renames.items()
-            subject = f'settings: stage "{old}" renamed to "{new}"'
+            subject = f'{label}: stage "{old}" renamed to "{new}"'
         else:
-            subject = "settings: stages renamed: " + ", ".join(
+            subject = f"{label}: stages renamed: " + ", ".join(
                 f'"{o}" to "{n}"' for o, n in renames.items())
         n = len(todo)
         with self.batch(subject) as ctx:
@@ -941,7 +954,8 @@ class Store:
         return n
 
     @_locked
-    def remove_stage(self, name: str, move_to: str, reason: str = "") -> int:
+    def remove_stage(self, name: str, move_to: str, reason: str = "",
+                     label: str = "settings") -> int:
         """Move every company in stage `name` to `move_to`, as an ordinary stage
         change each (the history keeps the move), in one commit. `reason` is for
         a target that needs one (a lost stage) and a company without its own.
@@ -961,7 +975,7 @@ class Store:
         if not movers:
             return 0
         n = len(movers)
-        with self.batch(f'settings: stage "{name}" removed, {n} '
+        with self.batch(f'{label}: stage "{name}" removed, {n} '
                         f'compan{"y" if n == 1 else "ies"} moved to "{move_to}"'):
             for company in movers:
                 self.update_company(
