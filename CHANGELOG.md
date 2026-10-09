@@ -3,7 +3,7 @@
 All notable changes to Hermit CRM. Versions follow semantic versioning; a change to
 the data format always comes with an automatic migration.
 
-## Unreleased
+## 0.7.0 (2026-10-09)
 
 **Stages are configurable.** The steps a deal goes through are yours to name
 and order. Settings > Your CRM > Deal stages renames, reorders, adds and
@@ -15,9 +15,16 @@ Hermit always had, so nothing changes until you change it: no data-format
 change, no migration, and `PIPELINE.md`, the reports and `hermitcrm check`
 print exactly what they did before.
 
+**Upgrading from 0.6.0.** Run the command the update notice names (usually
+`uv tool install hermitcrm@latest`), or unpack the new download and run
+`uv tool install --reinstall .` in it, then restart the app. The data format
+stays at 8: nothing in your folder is migrated or rewritten by the upgrade.
+
 - **Renaming is a sweep.** The new name goes on every company and into every
   `stage_history` entry. Two stages can swap names. A stage change is one
   commit, the setting and the records together, so one undo takes it all back.
+  If a change fails part-way (a full disk, say), the files are put back as they
+  were and nothing is committed.
 - **Deleting a stage that has companies asks where they go**, and for a reason
   when that stage is a lost one. The move is an ordinary stage change, so the
   history records it.
@@ -36,7 +43,8 @@ print exactly what they did before.
   Settings message and `hermitcrm check` name them.
 - A setting saved over a value you wrote on several lines (a `stages` or
   `task_types` list) is replaced whole. Before, only its first line was
-  replaced and the rest was left behind, which broke `config.toml`.
+  replaced and the rest was left behind, which broke `config.toml`. A value
+  written as a multi-line `"""` string is replaced whole too.
 - The sample account follows your stages: its story runs through them and its
   dashboard filters on their names.
 - Behind the scenes there are no stage constants any more: every rule asks the
