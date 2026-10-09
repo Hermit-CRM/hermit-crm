@@ -91,7 +91,8 @@ Things worth knowing:
 - `>` and `<` compare numbers only on a number field. A field that holds text such as
   `~45` compares alphabetically, which is wrong for sizes. If the user's size field is
   text, say so and offer to make it a number field first (`hermitcrm help adjust-fields`).
-- The Companies page hides parked companies (`temp-disqualified`) unless you ask.
+- The Companies page hides parked companies (by default `temp-disqualified`; the
+  stages are the user's own, see `hermitcrm stages`) unless you ask.
   `hermitcrm set` does not hide them: `--where country=DE` finds them too. Add
   `--where stage=!temp-disqualified` to leave them out.
 - Without any `--where` the command is refused. To change every record, say so with

@@ -1,12 +1,12 @@
 # Pipeline
 
-The board at `/pipeline`: one column per open stage, cards you can move with a dropdown, closed companies in lists below.
+The board at `/pipeline`: one column per open stage, cards you can move with a dropdown, closed companies in lists below. The stages are yours to name and order (Settings > Deal stages); this page describes the defaults.
 
 ## Columns and cards
 
-The four open stages are columns: **prospect**, **engaged**, **discovery**,
-**offer**. A column with no companies is drawn narrow so all four fit on one
-screen. A card shows the company name (a link), days in the current stage,
+The open stages are columns. By default there are four: **prospect**,
+**engaged**, **discovery**, **offer**. A column with no companies is drawn
+narrow so they fit on one screen. A card shows the company name (a link), days in the current stage,
 the country, the last touch (`email out 2026-09-14 (jane-doe)`), the next step
 with its due date (red when overdue, struck through when done) and the monthly
 value when set. The stage dropdown on a card saves on change; choosing
@@ -17,11 +17,11 @@ by last touch (most recent first).
 
 ## Closed and parked
 
-Below the board, **won**, **lost**, **disqualified** and **temp-disqualified**
-are collapsed lists with the reason and, for parked companies, the date they
-come back to prospect (`requalify_on`). That return happens by itself: on any
-page view, a parked company whose date has arrived goes back to prospect in
-one commit.
+Below the board, every other stage is a collapsed list: by default **won**,
+**lost**, **disqualified** and **temp-disqualified**, with the reason and, for
+parked companies, the date they come back to the first open stage
+(`requalify_on`). That return happens by itself: on any page view, a parked
+company whose date has arrived goes back to prospect in one commit.
 
 ## Filter bar
 

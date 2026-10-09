@@ -64,6 +64,7 @@ hermitcrm add contact SLUG NAME [--title T] [--email E] [--phone P] [--role R] [
 hermitcrm add interaction SLUG --channel email|linkedin|call|meeting|note --direction in|out (not for a note)
                                         [--contact CSLUG] [--subject S] [--date D] [--body TEXT|-]
                                         log an interaction; --body - reads it from stdin, and a prospect becomes engaged
+                                        (the first open stage moves to the next)
 hermitcrm set companies|contacts|interactions --where KEY=VALUE ... [--all]
         [--set FIELD=VALUE ...] [--unset FIELD ...] [--add-tag T ...] [--remove-tag T ...]
         [--stage S] [--apply] [--message TEXT]
@@ -71,6 +72,9 @@ hermitcrm set companies|contacts|interactions --where KEY=VALUE ... [--all]
                                         before -> after samples), then ONE commit `bulk: <summary>` and its
                                         undo command. --where is the list pages' filter syntax; no --where
                                         needs --all. Bodies and names are never touched. See Make it yours: bulk changes
+hermitcrm stages [rename OLD NEW | add NAME | move NAME | set NAME | remove NAME] [--apply]
+                                        the deal stages and their roles; a dry run unless --apply (rewrites
+                                        companies, one `ai: adjust:` commit per step). See Make it yours: deal stages
 hermitcrm rebuild                          rebuild the index and PIPELINE.md, commit "pipeline: rebuild"
 hermitcrm import FILE [--mode companies|contacts] [--map HEADER=FIELD ...] [--apply]
 hermitcrm fetch SLUG [--url URL] [--apply] fields from the website or LinkedIn page (no AI)
@@ -85,8 +89,8 @@ hermitcrm undo COMMIT                      reverse one commit with a new one (gi
                                         an unknown commit or uncommitted changes, and stops on a conflict
 ```
 
-`bcc`, `calendar`, `sync` and `set` with `--apply` tell a running web app to reload
-its index afterwards.
+`bcc`, `calendar`, `sync`, `set` and `stages` with `--apply` tell a running web app to
+reload its index afterwards.
 
 `set` exits 0 for a dry run, a finished change and "nothing matches"; 2 when it
 refused the request before writing anything; 1 when a write was tried and rolled
@@ -106,4 +110,4 @@ Drafts go to Home, never out. See [Routines](/help/adjust-routines).
 `undo` is what the Undo buttons on the Make it yours page run; see
 [Make it yours](/help/adjust).
 
-Related: [Settings](/help/settings), [AI agents](/help/ai-agents), [Data format](/help/data-format), [Make it yours: bulk changes](/help/adjust-bulk)
+Related: [Settings](/help/settings), [AI agents](/help/ai-agents), [Data format](/help/data-format), [Make it yours: bulk changes](/help/adjust-bulk), [Make it yours: deal stages](/help/adjust-stages)
