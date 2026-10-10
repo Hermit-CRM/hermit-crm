@@ -26,7 +26,9 @@ primary_region = 'fra'
     grace_period = '2s'
     interval = '30s'
     method = 'get'
-    path = '/'
+    # Not '/': the page views are logged (see nginx.conf) and this check would be
+    # most of them. robots.txt is a plain file that is never logged.
+    path = '/robots.txt'
     timeout = '3s'
 
 # The download log (see nginx.conf) lives on a 1 GB volume. Create it once with

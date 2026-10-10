@@ -111,25 +111,49 @@ deploy:
 
 Keep older files in `site/download/` if people may still link to them.
 
-## Counting downloads
+## Counting downloads and visitors
 
-`scripts/downloads.py` counts downloads on all three channels and keeps the
-numbers (`collect` fetches and saves, `report` prints). It is maintainer
-tooling: `.gitattributes` keeps it out of the download.
+`scripts/downloads.py` counts downloads on all three channels, website visitors
+and GitHub's own numbers, and keeps them (`collect` fetches and saves, `report`
+prints). `scripts/dashboard.py` shows the same numbers as one page (see
+"The dashboard" below). Both are maintainer tooling: `.gitattributes` keeps them
+out of the download.
 
 | Channel | Where the count comes from |
 | --- | --- |
 | Website | the tarball log nginx writes to the Fly volume |
-| GitHub | release asset counts, plus clone and view traffic (a 14-day window, so it must be saved) |
+| GitHub | release asset counts, clone and view traffic, referrers and popular pages (14-day windows, so they must be saved), stars with their dates, forks and watchers |
 | PyPI | pypistats.org for daily totals, and ClickPy (the public copy of PyPI's download log) for who downloaded |
+| Website visitors | the page log nginx writes next to the tarball log (below) |
 
 **The website log.** `nginx.conf` logs only `GET /download/hermitcrm-<version>.tar.gz`
 requests, one JSON line each, to `/data/downloads.log` on the Fly volume
 `downloads` (1 GB, created once with the command in `fly.toml`). No IP address
-and no referer are kept; the `.sha256` files, the pages and the `www` redirect
-log nothing. The volume survives deploys and machine stops. Do not delete it:
+and no referer are kept; the `.sha256` files and the `www` redirect log nothing
+(the pages go to a second log, next section). The volume survives deploys and machine stops. Do not delete it:
 the log goes with it (Fly keeps 5 daily snapshots). stdout is no use for this:
 `flyctl logs` keeps only the last 100 lines.
+
+**The page log.** `nginx.conf` also logs every HTML page and `llms.txt`, one JSON
+line each, to `/data/visits.log` on the same volume. Still no IP address and no
+cookie, and of the referer only the host (`news.example.com`, never the path or
+query). Images, CSS, `robots.txt` and the Fly health check (which is why it asks
+for `/robots.txt` and not `/`) are not logged. The log keeps the browser's
+`Sec-Fetch-Site`, `-Dest` and `-Mode` headers, and `report` uses them like this:
+
+| Counted as | What it is |
+| --- | --- |
+| People | a browser that says it is opening a document, whose name is not a known bot |
+| Arrivals | the people whose first page came from a link, a bookmark or the address bar (`cross-site` or `none`). A click from one page of the site to another is `same-origin` and only a page view. This is the closest thing to "visitors" the log allows, because no IP or cookie means nobody can be recognised on a second visit |
+| AI crawlers and assistants | GPTBot, ClaudeBot, PerplexityBot and the like, and assistants fetching a page because someone asked (ChatGPT-User, Claude-User...). Listed by name, never counted as visitors |
+| Bots, scripts, yours | link previews and anything else that is not a browser; curl and scripts; `?own`, `ignore.txt` ids and the `hermitcrm.fly.dev` copy |
+
+Put `?ref=hn` (or `?utm_source=hn`) on a link you post and the dashboard lists the
+arrivals under "Tagged links": that is how Reddit, Hacker News, a newsletter or a
+mail count without any of them having an API. The log is never trimmed; at a few
+hundred bytes a view, 1 GB is years. Deploy `website/` once before `collect` can
+fetch it; until then the source says so and the dashboard shows an empty Visitors
+section.
 
 **Your own downloads.** Add `?own` to the link (nginx ignores the query string)
 or use `curl -A selftest`, and `report` lists the request under "yours". For a
@@ -168,6 +192,27 @@ cp scripts/downloads.py ~/.local/share/hermitcrm-downloads/downloads.py
 ```
 
 `collect` exits 1 when a source fails, which launchd shows as a failed job.
+
+## The dashboard
+
+```sh
+uv run --no-project --python 3.13 scripts/dashboard.py serve --open
+```
+
+serves one page on `http://127.0.0.1:8777` (this computer only; `--port` changes it) from the files
+`collect` saved. **Refresh** runs `collect` and reloads, so you do not need the
+launchd job to look at it; the job is for not losing the 14-day windows. A failing
+source does not blank the page: it shows what is saved and the Sources table at the
+bottom says which source failed and since when. `dashboard.py build` writes
+`dashboard.html` into the data folder instead, a static copy without the button.
+
+The page shows real downloads per day (PyPI installs and website downloads), the
+Visitors section, GitHub's numbers, who downloads, and a "Left out" table with every
+count that was set aside (CI, mirrors, browsers on PyPI, bots, your own), so a
+total that looks low can be checked. It makes no counting rules of its own: it calls
+`downloads.py`, so the page and `report` always agree. Run the dashboard from the
+checkout, not the launchd copy: it imports `downloads.py` from the same folder, and
+the copy in the data folder does not need it.
 
 ## Fonts
 
