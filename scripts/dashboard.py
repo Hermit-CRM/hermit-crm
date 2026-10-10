@@ -441,6 +441,10 @@ def render(summary: dict, live: bool, generated: str | None = None) -> str:
   {refresh}
 </header>
 
+<div class="filters"><span class="label">Show</span>{ranges}</div>
+
+{visitors}
+
 <h2>All time</h2>
 <div class="tiles">
   {tile("Best estimate of real downloads", t["best"], "PyPI installs + GitHub + website", hero=True)}
@@ -450,13 +454,11 @@ def render(summary: dict, live: bool, generated: str | None = None) -> str:
 </div>
 
 <h2>Per day</h2>
-<div class="filters"><span class="label">Show</span>{ranges}</div>
 <div class="card"><h3>Real downloads</h3><p class="sub">PyPI installs and website downloads, stacked</p>
   <div class="chart" data-chart="downloads" data-label="Real downloads per day"><div class="tip" hidden></div></div>
   <div class="legend">{legend}</div></div>
 {traffic}
 
-{visitors}
 {github}
 
 <h2>Downloads: who and what</h2>

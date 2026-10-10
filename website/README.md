@@ -206,8 +206,8 @@ source does not blank the page: it shows what is saved and the Sources table at 
 bottom says which source failed and since when. `dashboard.py build` writes
 `dashboard.html` into the data folder instead, a static copy without the button.
 
-The page shows real downloads per day (PyPI installs and website downloads), the
-Visitors section, GitHub's numbers, who downloads, and a "Left out" table with every
+The page shows the Visitors section first (who came to the website, and from where),
+then real downloads per day (PyPI installs and website downloads), GitHub's numbers, who downloads, and a "Left out" table with every
 count that was set aside (CI, mirrors, browsers on PyPI, bots, your own), so a
 total that looks low can be checked. It makes no counting rules of its own: it calls
 `downloads.py`, so the page and `report` always agree. Run the dashboard from the
