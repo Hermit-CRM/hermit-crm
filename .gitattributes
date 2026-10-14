@@ -1,6 +1,9 @@
 # Not part of the download: scripts/release.sh uses git archive, which skips these.
 website/ export-ignore
 docs/superpowers/ export-ignore
+# README media: the README links them by URL, so the download needs no copy.
+docs/img/ export-ignore
+.github/social-preview.png export-ignore
 scripts/downloads.py export-ignore
 scripts/dashboard.py export-ignore
 tests/test_downloads_script.py export-ignore

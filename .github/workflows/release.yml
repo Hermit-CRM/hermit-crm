@@ -12,6 +12,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Tag matches __version__
+        run: |
+          version=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/hermitcrm/__init__.py)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME does not match __version__ $version" >&2
+            exit 1
+          fi
       - name: Build sdist and wheel
         run: |
           python -m pip install build
@@ -40,11 +47,36 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: dist
-          path: dist/
+          path: ${{ runner.temp }}/pypi/
+      - name: Build the download (what INSTALL.md and the website point at)
+        run: |
+          version=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/hermitcrm/__init__.py)
+          scripts/release.sh
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - name: Release notes from CHANGELOG.md
+        run: |
+          {
+            echo "**Install on a Mac:** paste this into Claude Code, Codex, Cursor or another AI coding agent:"
+            echo
+            echo '```text'
+            echo "Read https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/INSTALL.md and set up Hermit CRM for me."
+            echo '```'
+            echo
+            echo "Or download \`hermitcrm-$VERSION.tar.gz\` below, check it with \`shasum -a 256 -c hermitcrm-$VERSION.tar.gz.sha256\`, unpack it, open the folder in your AI coding tool and say *Read INSTALL.md and set up Hermit CRM for me.* Already installed? \`uv tool install hermitcrm@latest\`."
+            echo
+            awk -v h="## $VERSION " 'index($0, h) == 1 {on = 1; next} on && /^## / {exit} on' CHANGELOG.md
+          } > notes.md
+          cat notes.md
+      # The download goes up, not the PyPI sdist: both are named
+      # hermitcrm-<version>.tar.gz, and the download is the one with INSTALL.md.
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
+        run: >
+          gh release create "$GITHUB_REF_NAME"
+          "dist/hermitcrm-$VERSION.tar.gz" "dist/hermitcrm-$VERSION.tar.gz.sha256" "$RUNNER_TEMP"/pypi/*.whl
+          --repo "$GITHUB_REPOSITORY" --title "Hermit CRM $VERSION" --notes-file notes.md
