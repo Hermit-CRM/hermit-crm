@@ -18,7 +18,8 @@
     python3 build.py            build site/index.html, site/compare/, site/about/ and site/app-tokens.css once
     python3 build.py --watch    rebuild whenever content.toml, about.toml, style.css or the app's tokens change
     python3 build.py --share    also render site/img/og.png (needs Playwright)
-    python3 build.py --release  build, then fail if any [TBC], "#" link or brief problem is left
+    python3 build.py --release  build, then fail if any [TBC], "#" link or brief problem is left,
+                                or if /docs/ was not built from the release's own download
 
 Only the Python standard library is needed (3.11 or newer) for the page.
 All words come from content.toml, compare/*.toml (the comparison pages) and
@@ -26,16 +27,24 @@ about.toml (the About page); the look is in site/style.css. Colours and
 fonts shared with the app come from src/hermitcrm/static/tokens.css, copied into
 site/app-tokens.css on every build. The build fails if the site uses a token
 that neither file defines, so the site cannot drift from the app unnoticed.
+
+/docs/ and llms-full.txt are the app's Help pages (src/hermitcrm/help/*.md),
+taken from the download named in [links].download so they match the released
+version; see README, "Docs".
 """
 from __future__ import annotations
 
 import html
+import importlib.util
 import json
 import re
 import struct
 import sys
+import tarfile
+import tempfile
 import time
 import tomllib
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -48,6 +57,8 @@ APP_TOKENS = SITE / "app-tokens.css"
 COMPARE = ROOT / "compare"
 ABOUT = ROOT / "about.toml"
 LLMS = SITE / "llms.txt"
+LLMS_FULL = SITE / "llms-full.txt"
+HELP = ROOT.parent / "src" / "hermitcrm" / "help"
 
 # Tokens from tokens.css that mean the same on the site as in the app. They are
 # defined for the whole page; the rest (the app's palette) only inside the
@@ -75,6 +86,10 @@ def common_meta(c: dict) -> str:
              f'<meta property="og:site_name" content="{attr(c["header"]["name"])}">',
              '<meta property="og:locale" content="en_GB">']
     if site:
+        # For AI tools and crawlers: where the manual is, as a page and as text.
+        lines += [f'<link rel="help" href="{attr(site)}/docs/">',
+                  f'<link rel="alternate" type="text/plain" title="Hermit CRM docs as text" '
+                  f'href="{attr(site)}/llms-full.txt">']
         lines += ['<meta property="og:image:width" content="1200">',
                   '<meta property="og:image:height" content="630">',
                   f'<meta property="og:image:alt" content="{attr(c["share"]["image_alt"])}">']
@@ -266,8 +281,9 @@ def render(c: dict, ld: str = "") -> str:
     # as long as the repository is private.
     github = (f'<a href="{attr(c["links"]["github"])}">{md(c["header"]["github_label"])}</a>'
               if c["links"]["github"] else "")
-    # The top bar: About, then GitHub (when the repository is public).
+    # The top bar: Docs, About, then GitHub (when the repository is public).
     nav = (f'<nav class="site-nav" aria-label="Site">'
+           f'<a href="docs/">{md(c["header"]["docs_label"])}</a>'
            f'<a href="about/">{md(c["header"]["about_label"])}</a>{github}</nav>')
 
     steps = "\n".join(f"      <li><span>{md(s)}</span></li>" for s in i["steps"])
@@ -457,6 +473,7 @@ def software(c: dict, hub: dict) -> dict:
             "softwareVersion": c["release"]["version"],
             "license": "https://www.apache.org/licenses/LICENSE-2.0",
             "isAccessibleForFree": True,
+            "softwareHelp": {"@type": "CreativeWork", "url": f"{site}/docs/"},
             "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"}}
 
 
@@ -504,8 +521,9 @@ def page_head(c: dict, hub: dict, *, title: str, description: str, path: str, ro
               modified=None) -> str:
     """<head> of a page below the home page. `root` leads back to site/ ("../../")."""
     site = c["page"]["site_url"].rstrip("/")
-    # On the About page its own link is marked as the current page.
+    # On the About and Docs pages their own link is marked as the current page.
     here = ' aria-current="page"' if path == "/about/" else ""
+    here_docs = ' aria-current="page"' if path == "/docs/" else ""
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -529,20 +547,22 @@ def page_head(c: dict, hub: dict, *, title: str, description: str, path: str, ro
 <link rel="stylesheet" href="{root}style.css">
 {ld}</head>
 <body>
-<!-- Built from compare/*.toml and about.toml by build.py. Edit the text there, not here. -->
+<!-- Built by build.py from compare/*.toml, about.toml and the app's Help pages. Edit the text there, not here. -->
 <a class="skip" href="#main">Skip to content</a>
 
 <header class="site-header wide">
   <a class="brand" href="{root}" aria-label="{attr(c["header"]["name"])} home">{MARK}<span>{md(c["header"]["name"])}</span></a>
-  <nav class="site-nav" aria-label="Site"><a href="{root}about/"{here}>{md(hub["labels"]["header_about"])}</a><a href="{root}">{md(hub["labels"]["header_link"])}</a></nav>
+  <nav class="site-nav" aria-label="Site"><a href="{root}docs/"{here_docs}>{md(hub["labels"]["header_docs"])}</a><a href="{root}about/"{here}>{md(hub["labels"]["header_about"])}</a><a href="{root}">{md(hub["labels"]["header_link"])}</a></nav>
 </header>
 """
 
 
-def page_foot(hub: dict, compare_link: str, about_link: str, notice: bool = True) -> str:
+def page_foot(hub: dict, compare_link: str, about_link: str, docs_link: str,
+              notice: bool = True) -> str:
     """Footer of a page below the home page. The prices-and-trademarks notice is
     for the comparison pages; the About page leaves it out."""
-    text = hub["footer"]["text"].replace("{compare}", compare_link).replace("{about}", about_link)
+    text = (hub["footer"]["text"].replace("{compare}", compare_link)
+            .replace("{about}", about_link).replace("{docs}", docs_link))
     return ('<footer class="site-footer col">\n'
             + (f'  <p class="notice">{md(hub["notice"]["text"])}</p>\n' if notice else "")
             + f'  <p>{md(text)}</p>\n</footer>\n</body>\n</html>\n')
@@ -636,7 +656,7 @@ def render_compare(c: dict, hub: dict, p: dict, pages: list[dict]) -> str:
 {section("others", f'    <ul class="others">{chr(10)}{others}{chr(10)}    </ul>')}
 </main>
 
-""" + page_foot(hub, "../", "../../about/"))
+""" + page_foot(hub, "../", "../../about/", "../../docs/"))
 
 
 def render_hub(c: dict, hub: dict, pages: list[dict]) -> str:
@@ -703,7 +723,7 @@ def render_hub(c: dict, hub: dict, pages: list[dict]) -> str:
 {about_block(hub, root)}
 </main>
 
-""" + page_foot(hub, "./", "../about/"))
+""" + page_foot(hub, "./", "../about/", "../docs/"))
 
 
 # ── About page (/about/) ─────────────────────────────────────────────
@@ -760,20 +780,243 @@ def render_about(c: dict, hub: dict, a: dict) -> str:
   </section>
 </main>
 
-""" + page_foot(hub, "../compare/", "./", notice=False))
+""" + page_foot(hub, "../compare/", "./", "../docs/", notice=False))
 
 
-def llms_txt(c: dict, hub: dict, pages: list[dict], about: dict) -> str:
-    """llms.txt (llmstxt.org): a plain summary with links, for AI tools that read a site."""
+# ── Docs (/docs/ and llms-full.txt) ──────────────────────────────────
+# The app's Help pages (src/hermitcrm/help/*.md) are the one source: the app's
+# /help, `hermitcrm help <topic>` and these all read them, and nothing here is
+# copied by hand. They are taken from the download the site offers, so the docs
+# describe the version people get, not work on main that is not released yet.
+# The index is left out (the contents list replaces it), and so is feedback,
+# which is a form inside the app.
+DOCS_SKIP = ("index", "feedback")
+
+
+class Docs(dict):
+    """version, date (or None), source ("download" or "working tree"), path,
+    topics [(topic, title, summary, markdown)] and render (the app's converter)."""
+
+
+def load_help(folder: Path):
+    """The app's help module, loaded from a folder without importing the rest of
+    the package. It needs only the standard library."""
+    spec = importlib.util.spec_from_file_location("hermit_help", folder / "__init__.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def version_of(init_py: str) -> str:
+    m = re.search(r'^__version__ = "([^"]+)"$', init_py, re.M)
+    return m.group(1) if m else ""
+
+
+def first_paragraph(text: str) -> str:
+    """The paragraph under a topic's title, joined into one line. (The app's own
+    summary_of keeps only its first line, which is enough for a terminal.)"""
+    para: list[str] = []
+    for line in text.splitlines():
+        if line.startswith("# ") and not para:
+            continue
+        if line.strip():
+            para.append(line.strip())
+        elif para:
+            break
+    return " ".join(para)
+
+
+def read_help(folder: Path, version: str, **info) -> Docs:
+    mod = load_help(folder)
+    topics = []
+    for topic in mod.topics():
+        text = mod.read(topic)
+        if text is None or topic in DOCS_SKIP:
+            continue
+        topics.append((topic, mod.title_of(text) or topic, first_paragraph(text), text))
+    return Docs(version=version, topics=topics, render=mod.render, **info)
+
+
+def docs_from_tarball(tarball: Path, label: str = "") -> Docs:
+    """The Help pages inside a release tarball (made by scripts/release.sh, so one
+    top folder, hermitcrm-<version>/). Its date is the commit's: git archive
+    stamps every file with it."""
+    with tarfile.open(tarball, "r:gz") as tar, tempfile.TemporaryDirectory() as tmp:
+        help_dir, init_py, stamp = Path(tmp), "", 0
+        for m in tar.getmembers():
+            parts = m.name.split("/")
+            if not m.isfile() or len(parts) < 4 or parts[1:3] != ["src", "hermitcrm"]:
+                continue
+            if parts[3:] == ["__init__.py"]:
+                init_py = tar.extractfile(m).read().decode("utf-8")
+            elif len(parts) == 5 and parts[3] == "help" and re.fullmatch(r"[\w-]+\.(md|py)", parts[4]):
+                (help_dir / parts[4]).write_bytes(tar.extractfile(m).read())
+                stamp = max(stamp, m.mtime)
+        if not (help_dir / "__init__.py").is_file():
+            raise BuildError(f"{tarball.name} has no src/hermitcrm/help/")
+        made = datetime.fromtimestamp(stamp, timezone.utc).date() if stamp else None
+        return read_help(help_dir, version_of(init_py), date=made, source="download",
+                         path=label or tarball.name)
+
+
+def load_docs(c: dict) -> Docs:
+    """From the download in [links].download when it is in site/, otherwise from
+    this checkout (which `check` reports, and --release refuses)."""
+    link = c["links"]["download"]
+    tarball = SITE / link if link not in ("", "#") and "://" not in link else None
+    if tarball and tarball.is_file():
+        return docs_from_tarball(tarball, f"site/{link}")
+    init_py = (HELP.parent / "__init__.py").read_text(encoding="utf-8")
+    return read_help(HELP, version_of(init_py), date=None, source="working tree",
+                     path="src/hermitcrm/help/")
+
+
+_APP_LINK = re.compile(r"\[([^\]]+)\]\((/[^)\s]*)\)")
+
+
+def docs_links(text: str, topics: set[str], base: str) -> str:
+    """Point the Help pages' links at this page: /help/settings#bcc-capture becomes
+    <base>#settings-bcc-capture. Links into the rest of the app (/welcome,
+    /settings) mean nothing on the website, so they become plain text."""
+    def fix(m: re.Match) -> str:
+        path, _, frag = m.group(2).partition("#")
+        path = path.rstrip("/")
+        if path == "/help":
+            return f"[{m.group(1)}]({base}#contents)"
+        topic = path[len("/help/"):] if path.startswith("/help/") else ""
+        if topic in topics:
+            return f"[{m.group(1)}]({base}#{topic}{'-' + frag if frag else ''})"
+        return m.group(1)
+    return _APP_LINK.sub(fix, text)
+
+
+def demote(text: str) -> str:
+    """One heading level down, outside code fences: a topic's # title becomes ##
+    under the page's own title."""
+    out, fenced = [], False
+    for line in text.splitlines():
+        if line.startswith("```"):
+            fenced = not fenced
+        elif not fenced and re.match(r"#{1,5} ", line):
+            line = "#" + line
+        out.append(line)
+    return "\n".join(out)
+
+
+def docs_section(docs: Docs, topic: str, text: str, names: set[str]) -> str:
+    """One topic as HTML: the title an h2 with the topic as its id, sub-headings
+    one level down with ids prefixed by the topic (so they stay unique on the
+    page), and wide tables in a box that scrolls on a phone."""
+    body = docs["render"](docs_links(text, names, ""))
+    body = re.sub(r'<h([2-5]) id="([^"]+)">(.*?)</h\1>',
+                  lambda m: f'<h{int(m.group(1)) + 1} id="{topic}-{m.group(2)}">{m.group(3)}</h{int(m.group(1)) + 1}>',
+                  body)
+    body = re.sub(r"<h1>(.*?)</h1>", rf'<h2 id="{topic}">\1</h2>', body, count=1)
+    body = body.replace("<table>", '<div class="docs-table"><table>').replace("</table>", "</table></div>")
+    return body
+
+
+def render_docs(c: dict, hub: dict, docs: Docs) -> str:
+    site, lab, d = c["page"]["site_url"].rstrip("/"), hub["labels"], c["docs"]
+    path, root = "/docs/", "../"
+    url = site + path
+    names = {t for t, *_ in docs["topics"]}
+    version = docs["version"] or c["release"]["version"]
+    article = {"@type": "TechArticle", "@id": url, "url": url, "headline": flat(d["h1"]),
+               "name": flat(d["title"]), "description": flat(d["description"]), "inLanguage": "en",
+               "version": version, "isPartOf": {"@id": f"{site}/#website"},
+               "about": {"@id": f"{site}/#software"}, "breadcrumb": {"@id": f"{url}#breadcrumb"},
+               "encoding": {"@type": "MediaObject", "encodingFormat": "text/plain",
+                            "contentUrl": f"{site}/llms-full.txt"}}
+    if docs["date"]:
+        article["dateModified"] = docs["date"].isoformat()
+    ld = jsonld(article, breadcrumbs(url, [(lab["breadcrumb_home"], f"{site}/"), (d["h1"], url)]),
+                software(c, hub), website(c))
+
+    def toc(items) -> str:
+        return "".join(f'<li><a href="#{t}">{html.escape(title)}</a></li>' for t, title, *_ in items)
+    use = [x for x in docs["topics"] if not x[0].startswith("adjust-")]
+    recipes = [x for x in docs["topics"] if x[0].startswith("adjust-")]
+    sections = "\n".join(
+        f'  <section class="doc" aria-labelledby="{t}">\n{docs_section(docs, t, text, names)}\n'
+        f'  <p class="doc-up"><a href="#contents">{md(d["back"])}</a></p>\n  </section>'
+        for t, _, _, text in docs["topics"])
+    made = (f', <time datetime="{docs["date"].isoformat()}">{long_date(docs["date"])}</time>'
+            if docs["date"] else "")
+
+    return (page_head(c, hub, title=d["title"], description=flat(d["description"]), path=path,
+                      root=root, ld=ld, modified=docs["date"])
+            + f"""
+<main id="main">
+  <div class="page-top col">
+    {crumbs(hub, root, d["h1"], None)}
+    <h1 class="page-h1">{md(d["h1"])}</h1>
+    <p class="lead">{md(d["lead"])}</p>
+    <p class="checked">{md(d["version_label"])} {html.escape(version)}{made}. {md(d["text_note"])}</p>
+  </div>
+
+  <nav class="docs-toc col" id="contents" aria-labelledby="contents-h">
+    <h2 class="label" id="contents-h">{md(d["contents"])}</h2>
+    <ul>{toc(use)}</ul>
+    <h3 class="label">{md(d["recipes"])}</h3>
+    <p class="docs-note">{md(d["recipes_note"])}</p>
+    <ul>{toc(recipes)}</ul>
+  </nav>
+
+  <div class="docs col">
+{sections}
+  </div>
+</main>
+
+""" + page_foot(hub, "../compare/", "../about/", "./", notice=False))
+
+
+def llms_full_txt(c: dict, docs: Docs) -> str:
+    """Every docs topic as Markdown in one file, for an AI tool that wants the
+    whole manual in one request (the llms-full.txt convention)."""
+    site, d = c["page"]["site_url"].rstrip("/"), c["docs"]
+    names = {t for t, *_ in docs["topics"]}
+    version = docs["version"] or c["release"]["version"]
+    head = [f"# {plain(d['h1'])}", "", f"> {plain(d['description'])}", "",
+            f"{plain(d['version_label'])} {version}"
+            + (f", {docs['date'].isoformat()}" if docs["date"] else "") + ". "
+            f"The same text as {site}/docs/ and as `hermitcrm help <topic>` in the app.", ""]
+    body = [demote(docs_links(text, names, f"{site}/docs/")).rstrip("\n") + "\n"
+            for _, _, _, text in docs["topics"]]
+    return "\n".join(head) + "\n" + "\n".join(body)
+
+
+def build_docs(c: dict, hub: dict) -> Docs:
+    """Write site/docs/index.html and site/llms-full.txt."""
+    docs = load_docs(c)
+    (SITE / "docs").mkdir(exist_ok=True)
+    (SITE / "docs" / "index.html").write_text(render_docs(c, hub, docs), encoding="utf-8")
+    LLMS_FULL.write_text(llms_full_txt(c, docs), encoding="utf-8")
+    print(f"built site/docs/ and site/llms-full.txt ({len(docs['topics'])} topics, "
+          f"version {docs['version']}, from {docs['path']})")
+    return docs
+
+
+def llms_txt(c: dict, hub: dict, pages: list[dict], about: dict, docs: Docs) -> str:
+    """llms.txt (llmstxt.org): a plain summary with links, for AI tools that read a site.
+    The docs come first: they say what Hermit CRM does, feature by feature."""
     site = c["page"]["site_url"].rstrip("/")
-    y = c["yours"]
+    y, d = c["yours"], c["docs"]
     lines = [f"# {c['header']['name']}", "", f"> {plain(c['hero']['subline'])}", "",
              plain(hub["hermit"]["about"]), "",
+             "## Docs", "", plain(d["llms_intro"]), "",
+             f"- [All docs in one file]({site}/llms-full.txt): every topic below as Markdown, "
+             f"for version {docs['version'] or c['release']['version']}",
+             f"- [Docs]({site}/docs/): the same as one web page"]
+    lines += [f"- [{plain(title)}]({site}/docs/#{t}): {plain(summary)}"
+              for t, title, summary, _ in docs["topics"]]
+    lines += ["",
              f"## {plain(y['heading']).rstrip('.')}", "", plain(y["promise"]), ""]
     lines += [f'- {plain(e["name"])}: "{plain(e["prompt"])}" {plain(e["change"])}'
               for e in y["examples"]]
     lines += ["", plain(y["safety"]), "",
               "## Pages", "", f"- [Home]({site}/): what it is, how to install it, questions and answers",
+             f"- [Docs]({site}/docs/): {plain(d['description'])}",
              f"- [Hermit CRM compared]({site}/compare/): {plain(hub['page']['description'])}",
              f"- [About]({site}/about/): {plain(about['page']['description'])}", "",
              "## Comparisons", ""]
@@ -803,12 +1046,11 @@ def build_compare(c: dict) -> tuple[dict, list[dict]]:
 
 
 def build_about(c: dict, hub: dict, pages: list[dict]) -> dict:
-    """Write site/about/index.html and site/llms.txt (which lists the About page)."""
+    """Write site/about/index.html."""
     a = load_about()
     (SITE / "about").mkdir(exist_ok=True)
     (SITE / "about" / "index.html").write_text(render_about(c, hub, a), encoding="utf-8")
-    LLMS.write_text(llms_txt(c, hub, pages, a), encoding="utf-8")
-    print("built site/about/ and site/llms.txt")
+    print("built site/about/")
     return a
 
 
@@ -825,7 +1067,7 @@ def walk(value, path=""):
 
 
 def check(c: dict, pages: list[dict] | None = None, hub: dict | None = None,
-          about: dict | None = None) -> tuple[list[str], list[str]]:
+          about: dict | None = None, docs: Docs | None = None) -> tuple[list[str], list[str]]:
     problems, tbc = [], []
     texts = list(walk(c))
     if hub:
@@ -842,6 +1084,7 @@ def check(c: dict, pages: list[dict] | None = None, hub: dict | None = None,
     snippets += [(f"compare/{p['slug']}", p["title"], p["description"]) for p in pages or []]
     if about:
         snippets.append(("about", about["page"]["title"], about["page"]["description"]))
+    snippets.append(("docs", c["docs"]["title"], c["docs"]["description"]))
     for where, title, description in snippets:
         if len(flat(title)) > 65:
             problems.append(f"{where}: title is {len(flat(title))} characters, keep it at 65 or less")
@@ -878,6 +1121,17 @@ def check(c: dict, pages: list[dict] | None = None, hub: dict | None = None,
         if png_size(SITE / "img" / e["image"]) == (0, 0):
             problems.append(f"yours.examples: site/img/{e['image']} is missing or not a PNG")
             print(f"  warning  {problems[-1]}")
+    # /docs/ must describe the version people download, so on a release it has
+    # to come from that download and carry its version.
+    if docs:
+        if docs["source"] != "download":
+            problems.append(f"docs: built from {docs['path']}, not from the download in "
+                            f"[links].download, so they may describe unreleased work")
+            print(f"  warning  {problems[-1]}")
+        if docs["version"] != c["release"]["version"]:
+            problems.append(f"docs: {docs['path']} is version {docs['version'] or '?'}, "
+                            f"[release].version is {c['release']['version']}")
+            print(f"  warning  {problems[-1]}")
     return problems, tbc
 
 
@@ -894,15 +1148,20 @@ def build() -> tuple[dict, list[str], list[str]]:
     # canonical links, so they are only built once [page].site_url is set.
     hub, pages = build_compare(c) if site_url else (None, [])
     about = build_about(c, hub, pages) if hub else None
+    docs = build_docs(c, hub) if hub else None
+    if hub:
+        LLMS.write_text(llms_txt(c, hub, pages, about, docs), encoding="utf-8")
+        print("built site/llms.txt")
     ld = jsonld(website(c), software(c, hub)) if hub else ""
     OUT.write_text(render(c, ld), encoding="utf-8")
     print(f"built {OUT.relative_to(ROOT)} and {APP_TOKENS.relative_to(ROOT)}")
-    crawl(site_url, pages, about)
-    problems, tbc = check(c, pages, hub, about)
+    crawl(site_url, pages, about, docs)
+    problems, tbc = check(c, pages, hub, about, docs)
     return c, problems, tbc
 
 
-def crawl(site_url: str, pages: list[dict] = (), about: dict | None = None) -> None:
+def crawl(site_url: str, pages: list[dict] = (), about: dict | None = None,
+          docs: Docs | None = None) -> None:
     """Write robots.txt and sitemap.xml for search engines, or drop them while
     the site has no address yet (a sitemap needs absolute URLs)."""
     robots, sitemap = SITE / "robots.txt", SITE / "sitemap.xml"
@@ -910,6 +1169,7 @@ def crawl(site_url: str, pages: list[dict] = (), about: dict | None = None) -> N
         robots.unlink(missing_ok=True)
         sitemap.unlink(missing_ok=True)
         LLMS.unlink(missing_ok=True)
+        LLMS_FULL.unlink(missing_ok=True)
         return
     robots.write_text(f"User-agent: *\nAllow: /\n\nSitemap: {site_url}/sitemap.xml\n",
                       encoding="utf-8")
@@ -922,6 +1182,9 @@ def crawl(site_url: str, pages: list[dict] = (), about: dict | None = None) -> N
     if about:
         urls.append(f"  <url><loc>{html.escape(site_url)}/about/</loc>"
                     f"<lastmod>{about['page']['published'].isoformat()}</lastmod></url>")
+    if docs:
+        lastmod = f"<lastmod>{docs['date'].isoformat()}</lastmod>" if docs["date"] else ""
+        urls.append(f"  <url><loc>{html.escape(site_url)}/docs/</loc>{lastmod}</url>")
     sitemap.write_text('<?xml version="1.0" encoding="UTF-8"?>\n'
                        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
                        + "\n".join(urls) + "\n</urlset>\n", encoding="utf-8")
@@ -968,8 +1231,10 @@ def main() -> None:
     if "--share" in sys.argv:
         share(c)
     if "--watch" in sys.argv:
-        watched = lambda: [CONTENT, ABOUT, STYLE, TOKENS, *sorted(COMPARE.glob("*.toml"))]  # noqa: E731
-        print("watching content.toml, about.toml, compare/*.toml, site/style.css and the app's tokens.css (Ctrl+C to stop)")
+        watched = lambda: [CONTENT, ABOUT, STYLE, TOKENS, *sorted(COMPARE.glob("*.toml")),  # noqa: E731
+                           *sorted(HELP.glob("*.md"))]
+        print("watching content.toml, about.toml, compare/*.toml, site/style.css, the app's tokens.css "
+              "and its Help pages (Ctrl+C to stop)")
         stamp = lambda: [(f, f.stat().st_mtime) for f in watched()]  # noqa: E731
         seen = stamp()
         while True:

@@ -13,7 +13,9 @@
 # limitations under the License.
 
 """Help: short Markdown pages, read by people (``/help``, ``hermitcrm help``) and by
-AI agents (``hermitcrm help <topic>`` from the data folder's CLAUDE.md).
+AI agents (``hermitcrm help <topic>`` from the data folder's CLAUDE.md). The
+website's /docs/ and llms-full.txt are built from these same pages (from the
+release tarball, by website/build.py), so they are the one source for all three.
 
 The pages live next to this file as ``<topic>.md`` and ship as package data.
 ``render`` is a small converter (headings, paragraphs, lists, fenced code,

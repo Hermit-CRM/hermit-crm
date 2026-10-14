@@ -265,6 +265,32 @@ details p { margin: 0 0 24px; }
 .pull blockquote p { margin: 0; font-size: 28px; line-height: 1.3; font-weight: 500; }
 .pull figcaption { margin-top: 12px; font-size: 15px; color: var(--muted); }
 
+/* ── Docs (/docs/): the app's Help pages, one after another ──────── */
+.docs-toc { margin-top: 48px; padding: 24px 0; border-block: 1px solid var(--rule); }
+.docs-toc ul { margin: 12px 0 0; padding-left: 22px; columns: 2; column-gap: 32px; font-size: 17px; }
+.docs-toc li { break-inside: avoid; margin-bottom: 4px; }
+.docs-toc h3 { margin-top: 28px; }
+.docs-note { margin: 4px 0 0; font-size: 15px; color: var(--muted); }
+.docs { font-size: 17px; line-height: 1.6; }
+.doc { padding-top: 24px; scroll-margin-top: 16px; }
+.doc h2 { margin: 48px 0 16px; font-size: 32px; font-weight: 500; line-height: 1.2; scroll-margin-top: 16px; }
+.doc h3 { margin: 32px 0 10px; font-size: 22px; font-weight: 500; line-height: 1.3; scroll-margin-top: 16px; }
+.doc h4, .doc h5, .doc h6 { margin: 24px 0 8px; font-size: 18px; font-weight: 600; scroll-margin-top: 16px; }
+.doc p, .doc ul, .doc ol { margin: 0 0 14px; }
+.doc ul, .doc ol { padding-left: 22px; }
+.doc pre {
+  margin: 0 0 16px; padding: 14px 16px; overflow-x: auto;
+  background: var(--card); border: 1px solid var(--rule); border-radius: 6px;
+  font-size: 14px; line-height: 1.5;
+}
+.doc pre code { font-size: inherit; }
+.doc :not(pre) > code { overflow-wrap: anywhere; }  /* long paths and commands wrap on a phone */
+.docs-table { margin: 0 0 16px; overflow-x: auto; }
+.docs-table table { border-collapse: collapse; font-size: 15px; line-height: 1.45; }
+.docs-table th, .docs-table td { text-align: left; vertical-align: top; padding: 8px 14px 8px 0; border-top: 1px solid var(--rule); }
+.docs-table th { font-weight: 600; border-top: 0; }
+.doc-up { margin: 20px 0 0; font-size: 15px; }
+
 .site-footer .notice { margin: 0 0 12px; }
 .site-footer p:last-child { margin: 0; }
 
@@ -360,12 +386,27 @@ details p { margin: 0 0 24px; }
   .versus td + td { margin-top: 8px; }
   .versus td::before { content: attr(data-label) ": "; font-weight: 600; }
   .cards h2 { font-size: 22px; }
+  .docs-toc ul { columns: 1; }
+  .doc h2 { font-size: 26px; }
 }
-/* Small phones: a smaller name keeps it and both header links on one line */
-@media (max-width: 359px) {
+/* Phones: tighter header links keep the name and all three links on one line */
+@media (max-width: 439px) {
+  .site-header { column-gap: 12px; }
+  .site-nav { gap: 12px; }
+  .site-nav a { font-size: 15px; padding-inline: 6px; margin-inline: -6px; }
+}
+/* Small phones: a smaller name as well */
+@media (max-width: 379px) {
+  .site-header { column-gap: 8px; }
+  .site-nav { gap: 10px; }
   .brand { gap: 8px; }
   .brand svg { width: 24px; height: 19px; }
   .brand span { font-size: 18px; }
+}
+
+/* The narrowest phones (320 px) */
+@media (max-width: 339px) {
+  .site-nav a { font-size: 14px; }
 }
 
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
