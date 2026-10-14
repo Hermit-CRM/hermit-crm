@@ -385,6 +385,25 @@
 {%- endif -%}
 {%- endmacro %}
 
+{# Edit the text and due date of one open to-do. `index` is None for the
+   company's next-step fields; `contact` is the person's slug or ''. #}
+{% macro todo_edit(company, t, index, contact='', back='') -%}
+{%- if not t.done -%}
+<details class="inline-edit todo-edit">
+  <summary class="button">Edit</summary>
+  <form method="post" action="/companies/{{ company.slug }}/todo-edit" class="inline-form">
+    {% if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
+    <input type="hidden" name="index" value="{{ '' if index is none else index }}">
+    <input type="hidden" name="contact" value="{{ contact }}">
+    <input type="hidden" name="text" value="{{ t.text }}">
+    <input name="new_text" value="{{ t.text }}" aria-label="task" required>
+    <input type="date" name="due" value="{{ t.due.isoformat() if t.due else '' }}" aria-label="due">
+    <button type="submit">Save</button>
+  </form>
+</details>
+{%- endif -%}
+{%- endmacro %}
+
 {% macro task_section(company, today) -%}
 {% set first = company.next_todo() %}
 <section id="tasks">
@@ -401,6 +420,7 @@
       <td class="due{% if t.overdue(today) %} overdue{% endif %}">{{ fmt_date(t.due) if t.due else 'no date' }}</td>
       <td>{% if t.done %}<span class="tag status-done">done</span>{% if t.done_on %} <span class="small">{{ fmt_date(t.done_on) }}</span>{% endif %}{% else %}<span class="tag status-open">open</span>{% endif %}</td>
       <td class="actions">
+        {{ todo_edit(company, t, t.index, t.contact.slug if t.contact else '') }}
         {{ todo_actions(company, t, delete=true) }}
         {% if is_next and t.due %}<a class="calendar" target="_blank" rel="noopener" href="{{ calendar_link(company, t) }}">Add to Google Calendar</a>{% endif %}
       </td>
@@ -433,6 +453,7 @@
     <td class="{% if t.overdue(today) %}overdue{% endif %}">{{ fmt_date(t.due) if t.due else '' }}</td>
     <td>{% if t.done %}done{% if t.done_on %} {{ fmt_date(t.done_on) }}{% endif %}{% endif %}</td>
     <td class="actions">
+      {{ todo_edit(company, t, loop.index0, contact) }}
       <form method="post" action="/companies/{{ company.slug }}/tasks/{{ loop.index0 }}/done" class="inline">
         <input type="hidden" name="contact" value="{{ contact }}">
         <input type="hidden" name="text" value="{{ t.text }}">

@@ -1110,6 +1110,45 @@ class Store:
         self._write_owner(company, record)
         self._notify(f"task: {where} retyped")
 
+    @_locked
+    def edit_todo(self, slug: str, index: int | None, new_text: str, due=None,
+                  contact: str = "", text: str = "") -> None:
+        """Change the text and due date of one open to-do: task `index` of the
+        company or `contact`, or the next-step fields when `index` is None.
+        `text` is what the page showed, so a stale page is refused. Nothing
+        is written when nothing changes."""
+        new_text = " ".join((new_text or "").split())
+        if not new_text:
+            raise ValidationError({"text": "a task needs a line of text"})
+        new_due = self._coerce_date(due, "due")
+        if index is None:
+            company = self._current(slug)
+            if company is None:
+                raise ValidationError({"slug": f"unknown company {slug!r}"})
+            if not company.has_next_step:
+                raise ValidationError({"task": "that task is no longer there; reload the page"})
+            if text and " ".join(text.split()) != " ".join(company.next_step.split()):
+                raise ValidationError({"task": "that task has changed since the page was "
+                                               "loaded; reload and try again"})
+            if company.next_step_done:
+                raise ValidationError({"task": "reopen the task before editing it"})
+            if (new_text, new_due) == (company.next_step, company.next_step_due):
+                return
+            self.update_company(slug, next_step=new_text, next_step_due=new_due,
+                                message=f"task: {slug} next step edited")
+            return
+        company, record = self._task_owner(slug, contact)
+        task = self._task_at(record, index, text)
+        if task.done:
+            raise ValidationError({"task": "reopen the task before editing it"})
+        if (new_text, new_due) == (task.text, task.due):
+            return
+        task.text, task.due = new_text, new_due
+        record.updated = self.now()
+        where = f"{slug}/{contact}" if contact else slug
+        self._write_owner(company, record)
+        self._notify(f"task: {where} edited")
+
     def type_names_in_use(self) -> list[str]:
         """Every type some to-do carries, sorted; the filters offer these too."""
         return sorted({t.type for c in self.companies.values() for t in c.todos()

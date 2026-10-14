@@ -1128,6 +1128,78 @@ def test_set_todo_type_changes_a_task_or_the_next_step(store):
         store.set_todo_type("acme", 0, "prospecting", text="something else")
 
 
+def test_edit_todo_changes_text_and_due_of_a_task(store, messages):
+    store.create_company(name="Acme")
+    store.add_task("acme", "send deck", due="2026-09-20")
+    store.edit_todo("acme", 0, "  send the  new deck ", due="2026-09-25",
+                    text="send deck")
+    t = store.companies["acme"].tasks[0]
+    assert (t.text, t.due, t.done) == ("send the new deck", date(2026, 9, 25), False)
+    assert messages[-1] == "task: acme edited"
+
+    store.edit_todo("acme", 0, "send the new deck", due="", text="send the new deck")
+    assert store.companies["acme"].tasks[0].due is None      # date cleared
+
+
+def test_edit_todo_on_a_contact_task_and_the_next_step(store, messages):
+    store.create_company(name="Acme")
+    store.create_contact("acme", first_name="Jane", last_name="Roe")
+    store.add_task("acme", "call her", contact="jane-roe")
+    store.edit_todo("acme", 0, "call Jane", due="2026-10-01", contact="jane-roe",
+                    text="call her")
+    t = store.companies["acme"].contacts["jane-roe"].tasks[0]
+    assert (t.text, t.due) == ("call Jane", date(2026, 10, 1))
+    assert messages[-1] == "task: acme/jane-roe edited"
+
+    store.update_company("acme", next_step="book demo", next_step_due="2026-09-30")
+    store.edit_todo("acme", None, "book the demo", due="2026-10-02", text="book demo")
+    c = store.companies["acme"]
+    assert (c.next_step, c.next_step_due, c.next_step_status) == \
+        ("book the demo", date(2026, 10, 2), "open")
+    assert messages[-1] == "task: acme next step edited"
+
+
+def test_edit_todo_keeps_type_and_writes_nothing_when_unchanged(store, messages):
+    store.task_types = ["prospecting"]
+    store.create_company(name="Acme")
+    store.add_task("acme", "send deck", due="2026-09-20", type="prospecting")
+    path = store.company_dir("acme") / "company.md"
+    before, n = path.read_text(), len(messages)
+    store.edit_todo("acme", 0, "send deck", due="2026-09-20", text="send deck")
+    assert path.read_text() == before and len(messages) == n   # no write, no commit
+    store.edit_todo("acme", 0, "send deck", due="2026-09-21", text="send deck")
+    assert store.companies["acme"].tasks[0].type == "prospecting"
+
+
+def test_edit_todo_refuses_bad_input_and_stale_pages(store):
+    store.create_company(name="Acme")
+    store.add_task("acme", "send deck")
+    with pytest.raises(ValidationError) as e:
+        store.edit_todo("acme", 0, "   ", text="send deck")
+    assert "text" in e.value.errors
+    with pytest.raises(ValidationError) as e:
+        store.edit_todo("acme", 0, "x", due="next week", text="send deck")
+    assert "due" in e.value.errors
+    with pytest.raises(ValidationError):                       # page is stale
+        store.edit_todo("acme", 0, "x", text="something else")
+    with pytest.raises(ValidationError):                       # row is gone
+        store.edit_todo("acme", 5, "x")
+    store.set_task_done("acme", 0)
+    with pytest.raises(ValidationError) as e:                  # done: reopen first
+        store.edit_todo("acme", 0, "x", text="send deck")
+    assert "reopen" in e.value.errors["task"]
+
+    store.update_company("acme", next_step="call")
+    with pytest.raises(ValidationError):                       # next step changed
+        store.edit_todo("acme", None, "x", text="email")
+    store.update_company("acme", next_step_status="done")
+    with pytest.raises(ValidationError):
+        store.edit_todo("acme", None, "x", text="call")
+    store.update_company("acme", next_step="")
+    with pytest.raises(ValidationError):                       # no next step at all
+        store.edit_todo("acme", None, "x")
+
+
 def test_rename_rewrites_every_todo_in_one_commit(store):
     written = []
     store.on_write = written.append

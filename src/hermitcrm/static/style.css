@@ -325,6 +325,10 @@ table.tasks td.due, table.tasks td.actions { white-space: nowrap; }
 .next-step-line form.inline, td.actions form.inline { display: inline; margin-left: 6px; }
 .next-step-line button, td.actions button { padding: 1px 8px; font-size: 12px; }
 td.actions a { margin-right: 6px; }
+td.actions details.todo-edit { margin-left: 0; }
+td.actions details.todo-edit[open] { display: block; white-space: normal; }
+td.actions details.todo-edit form.inline-form { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; }
+td.actions details.todo-edit input[name="new_text"] { min-width: 16em; flex: 1; }
 form.enrich { display: inline; margin-left: 8px; }
 form.enrich button { padding: 1px 8px; font-size: 12px; }
 
