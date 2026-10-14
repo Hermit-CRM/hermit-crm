@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Publish the site's numbers on https://hermitcrm.io/stats/ once a day.
+  See website/README.md, "Public stats".
+
+  Replace YOU with your macOS user name (launchd does not expand $HOME or ~).
+  `collect` runs first so the numbers are fresh; `;` rather than `&&`, so a
+  failing source still publishes the rest (the page then says that section is
+  stale). If the Mac is asleep at 06:20, launchd runs the job when it wakes.
+  uv must be on the PATH below; `which uv` says where it is.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>io.hermitcrm.publicstats</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-c</string>
+    <string>uv run --no-project --python 3.13 downloads.py collect; uv run --no-project --python 3.13 publicstats.py publish</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/YOU/.local/share/hermitcrm-downloads</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Users/YOU/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>6</integer>
+    <key>Minute</key>
+    <integer>20</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/YOU/.local/share/hermitcrm-downloads/publicstats.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/YOU/.local/share/hermitcrm-downloads/publicstats.log</string>
+</dict>
+</plist>

@@ -57,6 +57,7 @@ Safe to try. Every change is a git commit you can undo in one click. Routines on
 - [Docs](https://hermitcrm.io/docs/): How every part of Hermit CRM works: pipeline, contacts, mail capture, reports, the CLI, the MCP server and how your AI agent can change it.
 - [Hermit CRM compared](https://hermitcrm.io/compare/): How Hermit CRM, a free local CRM for one person, compares with HubSpot, Attio, Pipedrive, folk, Twenty and Notion on price, data and AI access.
 - [About](https://hermitcrm.io/about/): The short story of why Gijs Bos built Hermit CRM, a free local CRM for one person, and how you can help as a beta tester.
+- [Stats](https://hermitcrm.io/stats/): the site's own numbers, updated daily: visitors, downloads, GitHub stars, AI crawlers; the same as JSON at https://hermitcrm.io/stats/stats.json
 
 ## Comparisons
 

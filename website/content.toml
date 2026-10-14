@@ -304,11 +304,33 @@ back           = "Back to contents"
 llms_intro     = "What Hermit CRM does, feature by feature: the app's own Help pages for the released version. Read the AI agents page first if you will work in a data folder or over MCP."
 
 
+# ── Stats page (/stats/) ─────────────────────────────────────────────
+# The page shell; the numbers themselves come from scripts/publicstats.py,
+# uploaded daily to the Fly volume and included by nginx. See README,
+# "Public stats".
+[stats]
+title       = "Hermit CRM in numbers: visitors, downloads, stars"
+description = "Hermit CRM is built in public. The site's own numbers, updated every day: visitors, downloads, GitHub stars and AI crawlers. No cookies."
+h1          = "Hermit CRM in numbers"
+intro       = "Hermit CRM is built in public, so here are its numbers: visits to this site, downloads, GitHub stars and AI tools reading the docs. They are updated every day. The site sets no cookies and keeps no IP addresses."
+fallback    = "The numbers are not published yet. Come back tomorrow."
+how_heading = "How we count"
+how = [
+  "**Arrivals** are visits that began somewhere else: a link, a bookmark, the address bar. A click from one page of this site to another is not a new arrival.",
+  "**Downloads** are installs by pip or uv from PyPI (not CI, mirrors or browsers), release files from GitHub, and complete downloads from this site (not bots, and not cut off halfway).",
+  "**AI fetches** are pages read by a named AI crawler or assistant, such as ClaudeBot or GPTBot.",
+  "Anything seen fewer than 3 times in a list (a site that sent visitors, a page, a country) is counted under **Other**, because one visit can point at one person.",
+  "What we set aside (bots, scripts, CI, our own tests) is listed at the end, as totals.",
+]
+json_label  = "The same numbers as JSON: [stats.json](stats.json)."
+llms        = "the site's own numbers, updated daily: visitors, downloads, GitHub stars, AI crawlers"
+
+
 # ── Bottom of the page ───────────────────────────────────────────────
 [footer]
 # {github} is replaced by a link to [links].github labelled with
 # [header].github_label, {sha256} by a link to [links].sha256.
-text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · {github} · {sha256} · [Docs](docs/) · [Compare](compare/) · [About](about/) · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
+text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · {github} · {sha256} · [Docs](docs/) · [Stats](stats/) · [Compare](compare/) · [About](about/) · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
 
 
 # ── Share image (og.png, 1200 x 630) ─────────────────────────────────

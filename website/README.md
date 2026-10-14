@@ -121,7 +121,8 @@ their sizes and warns when one is missing.
 
 Upload the `site/` folder as-is to any static host (GitHub Pages, Netlify,
 Cloudflare Pages), including the generated `app-tokens.css`. It makes no requests to other servers: no web fonts, no
-analytics, no cookies, no trackers. Set `[page].site_url` first so
+analytics, no cookies, no trackers. (The site's own numbers are public at
+`/stats/`, counted from nginx's logs on the server; see "Public stats".) Set `[page].site_url` first so
 link previews find the share image.
 
 ### Publishing a build
@@ -242,8 +243,74 @@ then real downloads per day (PyPI installs and website downloads), GitHub's numb
 count that was set aside (CI, mirrors, browsers on PyPI, bots, your own), so a
 total that looks low can be checked. It makes no counting rules of its own: it calls
 `downloads.py`, so the page and `report` always agree. Run the dashboard from the
-checkout, not the launchd copy: it imports `downloads.py` from the same folder, and
-the copy in the data folder does not need it.
+checkout, not the launchd copy: it imports `downloads.py` from the same folder.
+(The data folder has a copy of `dashboard.py` too, for `publicstats.py`; see below.)
+
+## Public stats
+
+Hermit CRM is built in public: https://hermitcrm.io/stats/ shows the site's own
+numbers, and https://hermitcrm.io/stats/stats.json has the same numbers as data.
+They are updated once a day, with no AI and no redeploy in the loop.
+
+**How it fits together.** `build.py` writes the page shell, `site/stats/index.html`,
+with the text from `[stats]` in `content.toml`. The numbers are a fragment,
+`numbers.html`, that `scripts/publicstats.py` builds from the data folder and
+uploads to the Fly volume (`/data/public/`). nginx includes it into the shell with
+SSI (`nginx.conf`, `location /stats/`), so a new day's numbers are an upload, not a
+`flyctl deploy`. Until the fragment exists the page says "not published yet";
+opened from disk it always says that, because browsers ignore SSI.
+
+**What is on it.** Arrivals per day and where they came from, pages, tagged links,
+downloads per day and per version, GitHub stars, forks, visitors and cloners, AI
+crawlers and assistants by name, installs by country and installer, and the "Left
+out" totals. Charts cover the last 90 days. The counting is `dashboard.summarize()`,
+so the page, the dashboard and `report` agree.
+
+**What is never on it.** User agents (only AI product names such as ClaudeBot),
+request ids, times finer than a day, single PyPI install rows, Python versions,
+GitHub stargazers, the source error messages, and anything counted as yours
+(`?own`, `ignore.txt`). In every list, a name seen fewer than 3 times (a referrer
+host, a page, a tag, a country) is counted under "Other": one visit from
+`mail.someones-company.example` can point at one person. To hide a name whatever
+its count, put it in `public-hide.txt` in the data folder (one host, page or tag per
+line, `#` for comments). That file stays out of git: it names what it hides.
+
+**Running it.**
+
+```sh
+uv run --no-project --python 3.13 scripts/publicstats.py build --out /tmp/stats-preview   # look first
+uv run --no-project --python 3.13 scripts/publicstats.py publish                          # build and upload
+```
+
+`build` writes `numbers.html` and `stats.json` (to `<data>/public/` by default).
+`publish` builds, then uploads only when the files changed (`--force` uploads anyway).
+The same data and the same `--today` give the same bytes. A failed upload exits 1
+and shows as `publish` in the dashboard's Sources table. When a source's `collect`
+failed, the page says how old that section's numbers are.
+
+**The daily job.** `io.hermitcrm.publicstats.plist` (in this folder) runs
+`collect`, then `publish`, every day at 06:20, or on wake if the Mac was asleep.
+Like `collect`, it runs copies in the data folder, and `publicstats.py` needs all
+three:
+
+```sh
+cp scripts/downloads.py scripts/dashboard.py scripts/publicstats.py ~/.local/share/hermitcrm-downloads/
+cp website/io.hermitcrm.publicstats.plist ~/Library/LaunchAgents/   # then replace YOU in it
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.hermitcrm.publicstats.plist
+launchctl kickstart gui/$(id -u)/io.hermitcrm.publicstats            # run it once now
+```
+
+Pause it with `launchctl bootout gui/$(id -u)/io.hermitcrm.publicstats`. Its
+output is in `publicstats.log` in the data folder.
+
+**Taking the numbers offline at once:**
+
+```sh
+flyctl ssh console -a hermitcrm -C "rm /data/public/numbers.html /data/public/stats.json"
+```
+
+The page then shows the "not published yet" text and `stats.json` is a 404, until
+the next `publish` (pause the job first).
 
 ## Fonts
 

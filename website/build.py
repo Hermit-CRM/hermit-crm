@@ -557,12 +557,12 @@ def page_head(c: dict, hub: dict, *, title: str, description: str, path: str, ro
 """
 
 
-def page_foot(hub: dict, compare_link: str, about_link: str, docs_link: str,
+def page_foot(hub: dict, compare_link: str, about_link: str, docs_link: str, stats_link: str,
               notice: bool = True) -> str:
     """Footer of a page below the home page. The prices-and-trademarks notice is
     for the comparison pages; the About page leaves it out."""
     text = (hub["footer"]["text"].replace("{compare}", compare_link)
-            .replace("{about}", about_link).replace("{docs}", docs_link))
+            .replace("{about}", about_link).replace("{docs}", docs_link).replace("{stats}", stats_link))
     return ('<footer class="site-footer col">\n'
             + (f'  <p class="notice">{md(hub["notice"]["text"])}</p>\n' if notice else "")
             + f'  <p>{md(text)}</p>\n</footer>\n</body>\n</html>\n')
@@ -656,7 +656,7 @@ def render_compare(c: dict, hub: dict, p: dict, pages: list[dict]) -> str:
 {section("others", f'    <ul class="others">{chr(10)}{others}{chr(10)}    </ul>')}
 </main>
 
-""" + page_foot(hub, "../", "../../about/", "../../docs/"))
+""" + page_foot(hub, "../", "../../about/", "../../docs/", "../../stats/"))
 
 
 def render_hub(c: dict, hub: dict, pages: list[dict]) -> str:
@@ -723,7 +723,7 @@ def render_hub(c: dict, hub: dict, pages: list[dict]) -> str:
 {about_block(hub, root)}
 </main>
 
-""" + page_foot(hub, "./", "../about/", "../docs/"))
+""" + page_foot(hub, "./", "../about/", "../docs/", "../stats/"))
 
 
 # ── About page (/about/) ─────────────────────────────────────────────
@@ -780,7 +780,57 @@ def render_about(c: dict, hub: dict, a: dict) -> str:
   </section>
 </main>
 
-""" + page_foot(hub, "../compare/", "./", "../docs/", notice=False))
+""" + page_foot(hub, "../compare/", "./", "../docs/", "../stats/", notice=False))
+
+
+# ── Stats (/stats/) ──────────────────────────────────────────────────
+# Only the shell is built here. The numbers are a fragment that
+# scripts/publicstats.py uploads to the Fly volume once a day; nginx includes
+# it with SSI (see nginx.conf and README, "Public stats"). Opened from disk,
+# the page shows the fallback text: browsers ignore SSI comments.
+def render_stats(c: dict, hub: dict) -> str:
+    site, lab, st = c["page"]["site_url"].rstrip("/"), hub["labels"], c["stats"]
+    path, root = "/stats/", "../"
+    url = site + path
+    ld = jsonld(
+        {"@type": "WebPage", "@id": url, "url": url, "name": flat(st["title"]),
+         "description": flat(st["description"]), "inLanguage": "en",
+         "isPartOf": {"@id": f"{site}/#website"}, "about": {"@id": f"{site}/#software"},
+         "breadcrumb": {"@id": f"{url}#breadcrumb"}},
+        breadcrumbs(url, [(lab["breadcrumb_home"], f"{site}/"), (st["h1"], url)]),
+        software(c, hub), website(c))
+    how = "\n".join(f"      <li>{md(item)}</li>" for item in st["how"])
+    return (page_head(c, hub, title=st["title"], description=flat(st["description"]), path=path, root=root, ld=ld)
+            + f"""
+<main id="main">
+  <div class="page-top col">
+    {crumbs(hub, root, st["h1"], None)}
+    <h1 class="page-h1">{md(st["h1"])}</h1>
+    <p class="lead">{md(st["intro"])}</p>
+  </div>
+
+  <div class="stats-page col">
+<!--# block name="nostats" --><p class="stats-fallback">{md(st["fallback"])}</p><!--# endblock -->
+<!--# include virtual="/stats/_numbers" stub="nostats" -->
+  </div>
+
+  <section class="stats-how col" aria-labelledby="how">
+    <h2 id="how">{md(st["how_heading"])}</h2>
+    <ul>
+{how}
+    </ul>
+    <p>{md(st["json_label"])}</p>
+  </section>
+</main>
+
+""" + page_foot(hub, "../compare/", "../about/", "../docs/", "./", notice=False))
+
+
+def build_stats(c: dict, hub: dict) -> None:
+    """Write site/stats/index.html."""
+    (SITE / "stats").mkdir(exist_ok=True)
+    (SITE / "stats" / "index.html").write_text(render_stats(c, hub), encoding="utf-8")
+    print("built site/stats/")
 
 
 # ── Docs (/docs/ and llms-full.txt) ──────────────────────────────────
@@ -968,7 +1018,7 @@ def render_docs(c: dict, hub: dict, docs: Docs) -> str:
   </div>
 </main>
 
-""" + page_foot(hub, "../compare/", "../about/", "./", notice=False))
+""" + page_foot(hub, "../compare/", "../about/", "./", "../stats/", notice=False))
 
 
 def llms_full_txt(c: dict, docs: Docs) -> str:
@@ -1018,7 +1068,9 @@ def llms_txt(c: dict, hub: dict, pages: list[dict], about: dict, docs: Docs) -> 
               "## Pages", "", f"- [Home]({site}/): what it is, how to install it, questions and answers",
              f"- [Docs]({site}/docs/): {plain(d['description'])}",
              f"- [Hermit CRM compared]({site}/compare/): {plain(hub['page']['description'])}",
-             f"- [About]({site}/about/): {plain(about['page']['description'])}", "",
+             f"- [About]({site}/about/): {plain(about['page']['description'])}",
+             f"- [Stats]({site}/stats/): {plain(c['stats']['llms'])}; "
+             f"the same as JSON at {site}/stats/stats.json", "",
              "## Comparisons", ""]
     lines += [f"- [Hermit CRM vs {p['name']}]({site}/compare/{p['slug']}/): {plain(p['short_answer'])}"
               for p in pages]
@@ -1085,6 +1137,7 @@ def check(c: dict, pages: list[dict] | None = None, hub: dict | None = None,
     if about:
         snippets.append(("about", about["page"]["title"], about["page"]["description"]))
     snippets.append(("docs", c["docs"]["title"], c["docs"]["description"]))
+    snippets.append(("stats", c["stats"]["title"], c["stats"]["description"]))
     for where, title, description in snippets:
         if len(flat(title)) > 65:
             problems.append(f"{where}: title is {len(flat(title))} characters, keep it at 65 or less")
@@ -1150,18 +1203,19 @@ def build() -> tuple[dict, list[str], list[str]]:
     about = build_about(c, hub, pages) if hub else None
     docs = build_docs(c, hub) if hub else None
     if hub:
+        build_stats(c, hub)
         LLMS.write_text(llms_txt(c, hub, pages, about, docs), encoding="utf-8")
         print("built site/llms.txt")
     ld = jsonld(website(c), software(c, hub)) if hub else ""
     OUT.write_text(render(c, ld), encoding="utf-8")
     print(f"built {OUT.relative_to(ROOT)} and {APP_TOKENS.relative_to(ROOT)}")
-    crawl(site_url, pages, about, docs)
+    crawl(site_url, pages, about, docs, stats=bool(hub))
     problems, tbc = check(c, pages, hub, about, docs)
     return c, problems, tbc
 
 
 def crawl(site_url: str, pages: list[dict] = (), about: dict | None = None,
-          docs: Docs | None = None) -> None:
+          docs: Docs | None = None, stats: bool = False) -> None:
     """Write robots.txt and sitemap.xml for search engines, or drop them while
     the site has no address yet (a sitemap needs absolute URLs)."""
     robots, sitemap = SITE / "robots.txt", SITE / "sitemap.xml"
@@ -1185,6 +1239,8 @@ def crawl(site_url: str, pages: list[dict] = (), about: dict | None = None,
     if docs:
         lastmod = f"<lastmod>{docs['date'].isoformat()}</lastmod>" if docs["date"] else ""
         urls.append(f"  <url><loc>{html.escape(site_url)}/docs/</loc>{lastmod}</url>")
+    if stats:
+        urls.append(f"  <url><loc>{html.escape(site_url)}/stats/</loc><changefreq>daily</changefreq></url>")
     sitemap.write_text('<?xml version="1.0" encoding="UTF-8"?>\n'
                        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
                        + "\n".join(urls) + "\n</urlset>\n", encoding="utf-8")
