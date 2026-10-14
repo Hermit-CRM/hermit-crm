@@ -1,0 +1,3418 @@
+# Hermit CRM docs
+
+> How every part of Hermit CRM works: pipeline, contacts, mail capture, reports, the CLI, the MCP server and how your AI agent can change it.
+
+For version 0.7.0, 2026-10-09. The same text as https://hermitcrm.io/docs/ and as `hermitcrm help <topic>` in the app.
+
+## Pipeline
+
+The board at `/pipeline`: one column per open stage, cards you can move with a dropdown, closed companies in lists below. The stages are yours to name and order (Settings > Deal stages); this page describes the defaults.
+
+### Columns and cards
+
+The open stages are columns. By default there are four: **prospect**,
+**engaged**, **discovery**, **offer**. A column with no companies is drawn
+narrow so they fit on one screen. A card shows the company name (a link), days in the current stage,
+the country, the last touch (`email out 2026-09-14 (jane-doe)`), the next step
+with its due date (red when overdue, struck through when done) and the monthly
+value when set. The stage dropdown on a card saves on change; choosing
+**lost** sends you to the company page to give a reason first.
+
+Cards are ordered by next-step due date (earliest first, no date last), then
+by last touch (most recent first).
+
+### Closed and parked
+
+Below the board, every other stage is a collapsed list: by default **won**,
+**lost**, **disqualified** and **temp-disqualified**, with the reason and, for
+parked companies, the date they come back to the first open stage
+(`requalify_on`). That return happens by itself: on any page view, a parked
+company whose date has arrived goes back to prospect in one commit.
+
+### Filter bar
+
+The bar above the board has one control per column: the **columns** list
+picks which stages show; the other controls filter the cards. Text boxes take
+a small syntax: `text` contains, `!text` does not contain, `=text` equals,
+`>x` and `<x` larger or smaller (numbers, `YYYY-MM-DD` dates, otherwise text
+order), `-` empty, `*` not empty. Filters combine with AND and stay in the
+URL, so a view can be bookmarked. The `?` next to the Filter button shows
+this syntax.
+
+### Empty board
+
+With no companies yet, the board offers three starts: import a spreadsheet,
+add a company by hand, or set up BCC capture.
+
+### The same data as text
+
+`PIPELINE.md` in the data folder is the board as one Markdown page, regenerated
+on every write: stages with counts and monthly value, overdue next steps,
+silent accounts, parked companies, closed companies of the last 90 days.
+
+Related: [Companies](https://hermitcrm.io/docs/#companies), [Calendar](https://hermitcrm.io/docs/#calendar), [Data format](https://hermitcrm.io/docs/#data-format)
+
+## Calendar
+
+`/calendar`: meetings this week, your tasks on their due date, and accounts going quiet. The list of all tasks, with filters, is on the [Tasks](https://hermitcrm.io/docs/#tasks) page.
+
+### Sections, top to bottom
+
+1. A line with the number of tasks due today or earlier, linking to them on
+   the Tasks page.
+2. **Meetings this week**: events in the next 7 days from the calendar import
+   whose attendees match a company, linked to it. The **Import meetings now**
+   button runs the same import as `hermitcrm calendar --apply`.
+3. **The month grid**: Monday first; every open task sits on its due date,
+   past dates in red, a company's next step in normal text and its other tasks
+   in the lighter style. Arrows move a month; "this month" comes back.
+4. **Silent for N+ days, not closed**: active companies with no interaction for
+   `silent_days` (default 14, set on the Settings page), sorted by how long
+   they have been quiet.
+
+### Tasks
+
+Marking a task done takes it off this page, the board's overdue colouring and
+`PIPELINE.md`, and records the day it was done. Parked (temp-disqualified)
+companies stay off the board but their tasks still show here, so a "revisit in
+March" is not forgotten.
+
+On the company page, a next step with a due date has an **Add to Google
+Calendar** link: an all-day event on that date with a link back to the
+company. No API, no account connection.
+
+Related: [Tasks](https://hermitcrm.io/docs/#tasks), [Pipeline](https://hermitcrm.io/docs/#pipeline), [Companies](https://hermitcrm.io/docs/#companies), [Settings](https://hermitcrm.io/docs/#settings)
+
+## Tasks
+
+`/tasks`: every task for every company and its people in one table.
+
+### The next step
+
+A company's **next step** is its open task due first; undated tasks come after
+dated ones. It carries a `next step` tag, and **Next steps only** (next to the
+date buttons) shows just those. Nothing to pick or pin: to change what is
+next, change a due date or tick the task off.
+
+### Task types
+
+Give tasks your own labels, such as *pipeline follow-up*, *prospecting* or
+*lost deals*, in **Settings → Task types**, each with a colour. Then pick a type
+when you add a task, or change it from the dropdown in the task's row. The
+**type** column filters by it; `(none)` finds the tasks without one. A type is
+only a label: it changes no dates. Renaming a type in Settings renames it on
+every task. A deleted type stays on its tasks, in grey. The next step's type
+also shows on the Companies list, the board and in PIPELINE.md.
+
+### Date buttons
+
+Above the table: **All dates**, **Overdue**, **Today**, **Next 7 days**,
+**Later** and **No date**, each with a count. Click several to combine them
+(Overdue plus Today is what used to be "Top priority"); click one again to turn
+it off. `/today` opens the page with Overdue and Today on.
+
+Tasks of every company are listed, closed ones (won, lost, disqualified)
+included, so a "revisit in March" on a lost deal is not forgotten. To leave
+closed companies out, use the stage filter.
+
+### Filters and sorting
+
+One box per column, as on the Companies page: due, what, type (once you have
+task types), for (the company or person the task is for), company, stage,
+status and done on. The
+page shows open tasks until you pick a status; choose `done` (or both) to see
+finished ones with the day they were done. Filters, date buttons and sorting
+stay in the URL, so a view can be bookmarked, and **Done** brings you back to
+the same view.
+
+### Adding a task
+
+**Create task** at the bottom takes a company (by name), an optional person (first
+name, last name or full name) and a due date. On a company page, **Add task** does the same with a
+list of its people.
+
+Related: [Companies](https://hermitcrm.io/docs/#companies), [Calendar](https://hermitcrm.io/docs/#calendar)
+
+## Companies
+
+`/companies` lists every company; `/companies/<slug>` is the account page with its fields, contacts, drafts, merge and timeline.
+
+### The table
+
+Columns: name, country, stage, source, any field of your own that asked for
+this table, tags, last touch, next step, due, plus website and LinkedIn links. The search box in the
+nav matches company name, tags, contact names and contact emails. Each column
+has a filter control (see the `?` next to Filter for the syntax) and sort
+arrows. Parked companies (by default the temp-disqualified ones) are hidden
+until you click "Show temp disqualified (N)" or filter on that stage; the link
+carries the name of your parked stage. A company in a stage that Settings no
+longer lists shows in grey.
+
+New companies come from `/companies/new` (name is required; website, LinkedIn,
+country, source, stage, value, next step, tags, notes are optional), from
+[Import](https://hermitcrm.io/docs/#import), or from the BCC and calendar imports on the Settings
+page.
+
+### The sample account
+
+A new folder can load one made-up company to look at: **Look at a sample
+account** on the empty home page or on Getting started, or `hermitcrm sample
+add`. It is Northwind Robotics, with two people, a message and its reply, a
+meeting, a deal at offer with its stage history, a next step and tasks. Its
+`company.md` carries `sample: true`, and a bar at the top of every page says
+it is there. The Getting started steps do not count it.
+
+It comes with two things from [Make it yours](https://hermitcrm.io/docs/#adjust), so you see what
+you can build before you ask for anything: the dashboard **Monday review**,
+pinned in the sidebar (`dashboards/monday-review.toml`), and the routine
+**Nudge quiet threads** in `routines.toml`, paused, so it does nothing until
+you turn it on. Neither replaces a file or a routine of the same name you
+already have. `hermitcrm init --demo` writes the same two.
+
+**Remove it** in that bar (or `hermitcrm sample remove`) lists what goes and
+deletes it in one commit, the dashboard and the routine included. Whatever
+you changed stays: a dashboard you edited, the routine once you edited or
+turned it on, and your own routines next to it. Only companies with
+`sample: true` can be removed this way; delete that line by hand and the
+company is yours to keep. Hermit CRM has no other way to delete a company:
+you disqualify it instead.
+
+### The company page
+
+- The header, two lines: one-liner, website and LinkedIn links, stage with days
+  in stage, last touch, and any field of your own; then **Enrich** (when an AI
+  CLI is available) and **Fetch from URL**. Country is in the edit form below,
+  not the header.
+- **Disqualify** and **Temp disqualify** (with a reason and, for temp, an
+  "until" date); **Requalify** brings a disqualified company back to prospect.
+  The menu offers every stage whose role is closed or parked, so with stages
+  of your own the buttons carry their names.
+- The next step (the open task due first) with its status tag, **Done** /
+  **Reopen**, the Google Calendar link and a link down to all tasks.
+- **Company**: every field in an edit form. Setting the stage to lost needs a
+  reason; leaving lost, disqualified or temp-disqualified clears it. Below the
+  form: slug, created, updated, stage changed, and the stage history collapsed.
+- **Contacts** with title, role, email and LinkedIn, a **log** link to each
+  person's Log an interaction form (an interaction is always with a person, so
+  the company page has no form of its own), and a New contact link.
+- **Tasks**: one list for the company and its people, open ones by due date
+  (the first is labelled **next step**), then the done ones with the day they
+  were done. **Done** / **Reopen** / **Delete** on each, and **Add task** with a
+  "for" list: the company or one of its people.
+- **Message drafts** for the most recently touched contact (see [Contacts](https://hermitcrm.io/docs/#contacts)).
+- **Merge**: pick another company to compare and merge into this one.
+- **Timeline**: every interaction across all contacts, newest first, bodies
+  collapsed (a note shows its text).
+
+Edits made outside the app (by hand or by an agent) show up on the next page
+view: the company's folder is re-read for every request.
+
+### Tasks and the next step
+
+A company has as many **tasks** as you like, each with an optional due date.
+They live on the company, or on one of its contacts when the thing you owe is
+owed to a person. A contact's tasks show on their own page and in the company's
+list with their name.
+
+The **next step** is not a separate thing you pick: it is the company's open
+task due first (undated tasks come after dated ones). That is what the board
+card, the Companies table, PIPELINE.md, meeting briefs and the follow-up radar
+show. To change what is next, change a due date or tick the task off. Adding a
+task never replaces another one.
+
+Files written before this rule keep their `next_step` field; it is read as one
+more task on the list, and **Done** and **Delete** work on it like any other.
+
+Ticking a task off records the day (`done_on`), shown on the company page and
+filterable on the [Tasks](https://hermitcrm.io/docs/#tasks) page.
+
+Deleting a contact takes their tasks with them, and says how many are open
+before it does. Merging two records keeps both lists: a task is work you still
+owe, so there is no side to pick.
+
+### Stages
+
+The stages are a setting: you name them, order them and give each a role
+(Settings > Deal stages, or `hermitcrm help adjust-stages`). These are the
+defaults. `prospect`, `engaged`, `discovery`, `offer` are open; `won`, `lost`
+and `disqualified` are closed; `temp-disqualified` is parked: off the board and
+the table, back to prospect by itself on `requalify_on`. Every stage change
+appends to `stage_history` and sets `stage_changed` to today. The first
+interaction logged on a prospect moves it to engaged (the first open stage
+moves to the next one, when that is open too). Before format 4 the
+engaged stage was called `reached-out`; migration 4 renamed it, and
+`reached-out` is still accepted as input (imports, CLI).
+
+### Country and language
+
+`country` is an ISO 3166-1 alpha-2 code (`UK` and `USA` are accepted and
+stored as `GB` and `US`). It also picks the draft language: German for DE, AT,
+CH and LI, Dutch for NL, French for FR, LU and MC, English otherwise.
+
+For **BE** the record decides between Dutch and French. Evidence, strongest
+first: previous mails and messages (their replies weigh most, then yours), a
+`/nl/` or `/fr/` website (or `nl.`/`fr.` subdomain), a postcode outside
+Brussels (Flanders: Dutch; Wallonia: French; Brussels 1000-1299 counts for
+neither), then the language of contact titles, notes and the product line.
+One side needs at least twice the weight of the other; otherwise the drafts
+are English. To force a language, add a `/nl/` or `/fr/` website or a note
+with the address.
+
+Related: [Pipeline](https://hermitcrm.io/docs/#pipeline), [Contacts](https://hermitcrm.io/docs/#contacts), [Interactions](https://hermitcrm.io/docs/#interactions), [Merge](https://hermitcrm.io/docs/#merge), [Enrich](https://hermitcrm.io/docs/#enrich), [Data format](https://hermitcrm.io/docs/#data-format)
+
+## Contacts
+
+`/contacts` lists every person across companies; a contact page holds the fields, this person's interactions and three message drafts.
+
+### The table
+
+Columns: name, company, title, email (a mailto link), LinkedIn, last touch and
+interaction count, with a filter control per column and sort arrows. The search
+box matches name, email, title and company.
+
+### The contact page
+
+`/companies/<slug>/contacts/<contact-slug>`:
+
+- Header: company, title, role, email, phone, LinkedIn, and **Enrich** when an
+  AI CLI is available.
+- **Contact**: first name, last name (at least one required), title, role
+  (`champion`, `decision-maker`, `influencer`, `gatekeeper` or none), email
+  (stored lower case), phone, LinkedIn. There is no notes field: what you
+  know about a person is a **note** on their timeline.
+- **Interactions** of this contact, newest first, notes included.
+- **Log an interaction** for this contact: an email, LinkedIn message, call,
+  meeting or note.
+- **Tasks** you owe this person.
+- **Message drafts** (below).
+- **Merge** another contact of the same company into this one (only shown when
+  the company has more than one contact).
+- **Delete contact** (asks first). Their interactions stay on the company
+  with the contact cleared, so the record survives; git keeps the file's
+  history.
+
+New contacts come from the company page's New contact link
+(`/companies/<slug>/contacts/new`), from Import in contacts mode, and from the
+BCC and calendar imports (a new person at a company whose domain is known).
+
+### Tasks
+
+The contact page lists the tasks you owe this person, with **Done**, **Delete**
+and a form to add one. They also show in the company's task list, and when one
+of them is the company's task due first, it is the company's next step.
+
+### Message drafts
+
+Three deliberately different drafts, written from CRM data alone, no AI. They
+are in the contact's **draft language** when you have set one on the contact
+(say, a German speaker at a Dutch company), else in the language of the
+company's country. The language picker above the drafts changes it for that
+page only, without saving it. The drafts are:
+
+1. **scale** (they are growing; offer help to keep the pace), or **bridge**
+   when the signal is hiring (help while the role is open), or **decline** when
+   the signal is headcount decline (a tough stretch, then an open question);
+2. **unblock**: past the next headcount hurdle (10, 20, 50, 100, 250, 500,
+   from the company's own fields);
+3. **hook**: one observation, then an open question.
+
+Two inputs are yours: the **signal** (growing, stalled, headcount decline, hiring, read off
+LinkedIn company insights; the link is right there) and one **observation**
+sentence from their website or team, which goes word for word into draft 3
+(it is not read as an instruction: set the language on the contact). Whatever the CRM cannot know is left in
+square brackets. Edit in place, copy, or **log as sent**, which opens the
+quick-add form with the draft as body and channel LinkedIn. The wording lives
+in the package's `default_messages.toml`; a `messages.toml` in the data folder
+overrides any part of it, and `MESSAGING.md` there is your playbook.
+
+Related: [Companies](https://hermitcrm.io/docs/#companies), [Interactions](https://hermitcrm.io/docs/#interactions), [Messages](https://hermitcrm.io/docs/#messages), [Merge](https://hermitcrm.io/docs/#merge)
+
+## Interactions
+
+An interaction is one touch with a person: an email, LinkedIn message, call or meeting, in or out, with the text kept verbatim. A **note** is an interaction too: a memo about the person, with no direction, that shows on their timeline but never counts as contact made (it does not move last touch, a prospect's stage, follow-ups, outcomes or reports).
+
+### Logging one
+
+An interaction is always with a person, so the **Log an interaction** form
+sits on every contact page (the "log" link in a company's contact list goes
+there), and on its own at `/companies/<slug>/interactions/new` where you pick
+the contact (the "log interaction" links on the Calendar open it). Fields:
+channel (`email`, `linkedin`, `call`, `meeting`, `note`, default linkedin),
+direction (`out` or `in`, default out; hidden for a note), date and time
+(default now, editable), subject, outcome and the body.
+The body is the pasted message or the call notes; it is stored byte for byte
+and never rewritten.
+
+Logging an interaction (by hand or from the BCC and calendar imports) on a
+company in **prospect** moves it to **engaged**, in the same commit; a note
+does not. Other
+stages are left alone.
+
+Saving redirects to the contact's page with the timeline scrolled to the new
+entry. Each entry has an edit link (`/companies/<slug>/interactions/<id>/edit`)
+where every field including the date can change; a date change renames the
+file.
+
+### Outcome
+
+`outcome` is one line: what came of it. The choices are configured on the
+Settings page (`outcomes` in `config.toml`, default `successful` and
+`unsuccessful`). For a sent message the outcome decides its status on the
+Messages tab: an explicit outcome wins; otherwise a later inbound interaction
+from the same contact (or a company-level one) counts as the **first**
+configured outcome; otherwise, once the message is older than
+`message_window_days` (default 14), it counts as the **last** one; until then
+it is unknown. Files from before format 3 carried a separate `result` key;
+migration 3 folded it into `outcome`.
+
+### Where interactions come from
+
+- **manual**: the form.
+- **bcc-import**: mail you BCC'd or forwarded to the tracking address, logged
+  at the contact with that email; the quoted thread is cut once at import.
+- **calendar-import**: past meetings from the calendar feed, one `meeting`
+  interaction per external attendee, subject from the event title, body from
+  its description.
+
+Imports carry a `message_id` so a rerun never logs the same mail or meeting
+twice. Mail and meetings that match no company wait on Home under **To file**.
+
+### To file (the review queue)
+
+Home shows a **To file (N)** list under *What needs doing* whenever the imports
+left something they could not place (while the walkthrough is still your home
+page, it shows there). Each item has the date, kind, direction, person and
+subject, the reason (personal address, unknown domain, several matching
+companies), the text collapsed, and a form to **Log at company** (a company slug
+or name, legal suffixes like GmbH ignored, else the company that has the mail's
+domain; a name that finds neither creates a new company, with the mail's domain
+as its website unless it is a personal address; the contact is found by email,
+else a same-named contact gets the email, else it is created) or **Discard**
+(remembered in `inbox/discarded.tsv`). The count shows on Home in the nav. The
+import status and the **Import now** buttons are under Settings, BCC capture and
+Calendar; the red `!` on Settings means the last import failed or is two days
+old, and jumps to the one that did.
+
+### Files and ids
+
+`companies/<slug>/interactions/<id>.md` with the id
+`YYYY-MM-DDTHHMM-<channel>-<direction>-<contact-slug or company>` (a
+collision gets `-2`, `-3`). The commit is
+`interaction: <company> <channel> <direction> <contact> <date>`.
+
+Related: [Messages](https://hermitcrm.io/docs/#messages), [Companies](https://hermitcrm.io/docs/#companies), [Contacts](https://hermitcrm.io/docs/#contacts), [Settings](https://hermitcrm.io/docs/#settings), [Data format](https://hermitcrm.io/docs/#data-format)
+
+## Messages
+
+`/messages`: every message you sent, newest first, with what came of it.
+
+### Fields of your own in a draft
+
+Every [field you defined](https://hermitcrm.io/docs/#settings) is a slot the templates can use by
+its key: a field `segment` is `{segment}`. A field with no value yet renders as
+its label in square brackets, like the other things only you can fill in, so a
+draft never goes quietly blank. A field can be kept out of the templates
+entirely with `messaging = false` in `fields.toml`, and a field whose key is
+already a slot name (`company`, `site`, `first`, ...) is ignored rather than
+shadowing it.
+
+Two fields can also play the roles the shipped wording knows about: a
+headcount, for the sentences about team size, and a count of sales people.
+Pick them under Settings -> Drafts. With neither set, those sentences use their
+"unknown" wording, which is a line you write yourself; nothing is invented.
+
+### What counts as a message
+
+An outbound interaction with a body, on any channel except `meeting`. Calls
+with notes count too; a logged interaction without text does not.
+
+### The table
+
+Sent, company, contact, channel, country, stage, outcome, how many times that
+exact text was used (whitespace and case ignored), and the message itself,
+collapsed. Every column has a filter control and sort arrows; the search box
+matches the message text, the company and the contact. The totals line at the
+top counts each status.
+
+### Outcome
+
+A message's status is its outcome when one was set by hand; otherwise it is
+derived: a later inbound interaction from the same contact (or a company-level
+one) makes it the first configured outcome (default `successful`); no reply
+within `message_window_days` (default 14) makes it the last one (default
+`unsuccessful`); before that it is `unknown`. Derived values are marked
+"(auto)". The buttons in the last column set or clear the outcome by hand
+(commit `interaction: <company> <id> outcome <value>`; the same field the
+interaction form edits, so both places always agree), and "edit" opens the
+interaction.
+
+The outcome list and the window are set on the Settings page. The Reports page
+breaks message outcomes down by language, channel and the most reused texts.
+
+Related: [Interactions](https://hermitcrm.io/docs/#interactions), [Reports](https://hermitcrm.io/docs/#reports), [Settings](https://hermitcrm.io/docs/#settings)
+
+## Reports
+
+`/reports`: numbers for a period, each with the change against the previous period of the same length.
+
+### Period
+
+`7d`, `30d` (default), `90d`, `quarter`, `ytd` or `custom` with from and to
+dates. The CLI prints the same report: `hermitcrm report --days 30`, or
+`--from D --to D`, `--md` for Markdown tables.
+
+### Sections
+
+- **Activity**: interactions per ISO week, by channel and direction; companies
+  touched; new companies and contacts.
+- **Funnel**: entries per stage from `stage_history`, conversion between
+  prospect, engaged, discovery, offer and won (your own open stages, then the
+  first won stage), median days in stage, and the current pipeline with its
+  monthly value.
+- **Outcomes**: won, lost and disqualified in the period (by the closing date
+  from the stage history, else `stage_changed`), win rate (won stages over won
+  plus lost stages, by role), top 10 lost reasons.
+- **Messages**: sent, and the results by language, by channel and for the five
+  most reused texts.
+- **Sources**: companies created and won per source.
+- **Hygiene**: overdue next steps, silent accounts, contacts without email.
+
+Tables with CSS bars, no charts library. Companies without a `stage_history`
+(created before it existed) can get one from git with
+`hermitcrm backfill-history --apply`.
+
+Related: [Pipeline](https://hermitcrm.io/docs/#pipeline), [Messages](https://hermitcrm.io/docs/#messages), [CLI](https://hermitcrm.io/docs/#cli)
+
+## Make it yours
+
+Describe a change to Hermit CRM and your own AI agent builds it in your data folder; this page is the rules that agent follows, and the first thing it reads.
+
+For people: open **Make it yours** in the sidebar (`/yours`), or the **Adjust**
+tab of the **Ask · Adjust** button on any page. Pick an idea or describe a
+change, then press **Open in Claude Code** (or your agent's button, or Copy
+prompt). Your agent does the work in your data folder. Hermit picks the change
+up on the next page you open, without a restart, and lists it under **Recent
+changes** with an **Undo** button.
+
+Hermit never builds the change itself, and never sends a message: routines and
+templates only write drafts for you to send.
+
+### For the agent: read this first
+
+You were asked to change Hermit CRM itself: a field, the look, a dashboard, a
+page layout, templates, a routine or many records at once. Work in the data
+folder (the one with `config.toml` and `companies/`), and:
+
+1. Find the request in the table under **Which recipe**, run that
+   `hermitcrm help <topic>` and follow it. If none fits, read
+   `hermitcrm help adjust-feature`.
+2. Change only the files listed under **Files you may write**. Records change
+   only through the CLI.
+3. Run `hermitcrm check`. Fix every line it prints and run it again until it
+   says `OK`.
+4. Make one commit per change, with only the files you changed:
+   `git add fields.toml && git commit -m "ai: adjust: contract renewal field"`.
+   Never `git add -A`: the folder may hold the user's own unfinished edits.
+5. Tell the user what changed, where to see it, and how to undo it (the commit
+   id, `hermitcrm undo <commit>`, or Undo on the Make it yours page).
+
+If the request is unclear or would change many records, ask before writing.
+
+### Files you may write
+
+Without asking, and only these:
+
+- `fields.toml`: fields of the user's own (`hermitcrm help adjust-fields`)
+- `layout.toml`: page layout (`hermitcrm help adjust-layout`)
+- `dashboards/*.toml`: dashboards (`hermitcrm help adjust-dashboards`)
+- `routines.toml`: routines (`hermitcrm help adjust-routines`)
+- `theme.css`: the look (`hermitcrm help adjust-look`)
+- `messages.toml` and `MESSAGING.md`: draft wording and the playbook
+  (`hermitcrm help adjust-messages`)
+- in `config.toml`, only the keys `task_types`, `outcomes` and `silent_days`;
+  leave every other line as it is.
+
+### Records only through the CLI
+
+- `hermitcrm add company|contact|interaction ...` creates a record.
+- `hermitcrm set ...` changes records in bulk. It shows a dry run first (how
+  many, a few before and after); show it to the user, and only then run it again
+  with `--apply`. See `hermitcrm help adjust-bulk`.
+- `hermitcrm stages ...` renames, adds, moves or removes a deal stage. A stage
+  name is stored on every company, so never edit the `stages` line of
+  `config.toml` yourself. Dry run first, show it, wait for a yes. See
+  `hermitcrm help adjust-stages`.
+- These commit by themselves; do not commit their files again.
+
+### Never
+
+- Rewrite an interaction body: it is the record of what was said.
+- Touch `.hermitcrm-format`, `PIPELINE.md` (generated), `.secrets.toml`,
+  `.claude/settings.json` or anything under `.git/`.
+- Rewrite history: no `git reset --hard`, `commit --amend`, `rebase` or
+  `push --force`. Undo with a new commit instead.
+- Send anything: no mail, no LinkedIn message, no API call on the user's
+  behalf. Messages are drafts; the user sends them.
+- Edit the installed Hermit CRM package (its code, templates or `tokens.css`):
+  an update overwrites it. A wish that needs code is `hermitcrm help adjust-feature`.
+- Put a password, token or API key in any file in the folder.
+
+### Which recipe
+
+| The user asks for | Run |
+|---|---|
+| A new field, a field shown in a list or on the cards, task types, outcomes | `hermitcrm help adjust-fields` ([read it](https://hermitcrm.io/docs/#adjust-fields)) |
+| Colours, fonts, a more compact look | `hermitcrm help adjust-look` ([read it](https://hermitcrm.io/docs/#adjust-look)) |
+| Draft templates, a language, the playbook | `hermitcrm help adjust-messages` ([read it](https://hermitcrm.io/docs/#adjust-messages)) |
+| Bringing data in, connecting another tool | `hermitcrm help adjust-connect` ([read it](https://hermitcrm.io/docs/#adjust-connect)) |
+| Something none of these covers, a new kind of record | `hermitcrm help adjust-feature` ([read it](https://hermitcrm.io/docs/#adjust-feature)) |
+| A dashboard, a saved view, a ranked list, a pin in the sidebar | `hermitcrm help adjust-dashboards` |
+| Hiding a field or a section, reordering a page, list columns | `hermitcrm help adjust-layout` |
+| Tagging, scoring or moving many records at once | `hermitcrm help adjust-bulk` |
+| Renaming, adding, reordering or removing a deal stage | `hermitcrm help adjust-stages` |
+| Something that should happen every day or week (drafts, briefs, reminders) | `hermitcrm help adjust-routines` |
+
+### Check and pickup
+
+`hermitcrm check` validates the records and every file above. Each problem is
+one line, `<file>: <where>: <what>`, often with a hint:
+
+```text
+fields.toml: renewal: type must be one of text, number, date, select (did you mean date?)
+theme.css: line 3: --acent is not a token the app uses (did you mean --accent?)
+```
+
+The running app re-reads `config.toml`, `fields.toml` and `messages.toml` when
+they change, and its index after any commit, so a change shows on the next page
+load. `theme.css` is read on every page. The Make it yours page shows the same
+problems as `check`, so the user can paste them back to you.
+
+### Undo
+
+```bash
+hermitcrm undo a1b2c3d     # a new commit that reverses a1b2c3d (git revert)
+```
+
+It refuses an unknown commit, a merge, the folder's first commit, and a folder
+with uncommitted changes to tracked files. When later changes touched the same
+lines it stops, leaves the folder as it was, and says so; then undo by hand
+with a new commit. The Undo buttons under Recent changes do the same. An undo
+is itself a commit, so undoing it brings the change back.
+
+### The safety badges
+
+Each idea on the Make it yours page says how safe it is:
+
+- **undo in one click**: one commit to one file; Undo takes it back.
+- **dry run first**: changes records; your agent shows how many and a few
+  examples before anything is written.
+- **preview first**: an import; you see every row and what will happen to it.
+- **starts paused**: a routine; it does nothing until you preview it and turn
+  it on, and it only ever writes drafts.
+
+### How the request reaches your agent
+
+Hermit hands the request to the agent named by `adjust_agent` in `config.toml`
+(Settings > AI): `claude`, `cursor`, `codex`, `gemini` or `copy`. Without it,
+it follows the tool Enrich uses (`enrich_provider`, or the name `enrich_command`
+starts with) when that is Claude Code, Codex or Gemini CLI, and otherwise gives
+you a prompt to copy.
+
+- **Claude Code**: a `claude-cli://` link opens a terminal in your data folder
+  with `/hermit Asked on <page> (<path>): <request>` typed in. `/hermit` is a
+  skill in the folder that runs `hermitcrm help adjust`. Nothing runs until you
+  press Enter. If nothing opens, run `claude` once in a terminal and try again.
+- **Cursor**: a link puts the request in the Cursor window in front; open the
+  data folder there first.
+- **Codex, Gemini CLI**: a command to paste in a terminal (`cd <folder> && codex '...'`).
+- Every other agent: **Copy prompt**, which starts with
+  `Run "hermitcrm help adjust" first and follow it.`
+
+A link longer than 500 bytes fails without a word on macOS, so a longer request
+gets Copy prompt instead of Open, with a line saying why.
+
+### Without a shell (Claude Desktop, ChatGPT)
+
+An AI app connected over MCP (`hermitcrm mcp`, see [AI agents](https://hermitcrm.io/docs/#ai-agents))
+cannot run commands, so it has tools for the same steps, and they keep the
+rules above for it:
+
+| With a shell | Over MCP |
+|---|---|
+| `hermitcrm help adjust`, `hermitcrm help adjust-<topic>` | `adjust_help` |
+| read a file you may change | `adjust_read` |
+| edit it, `hermitcrm check`, commit | `adjust_write`: refused, with the problems, until check passes; then one commit |
+| the `config.toml` keys | `adjust_config` |
+| `hermitcrm set` (dry run), then `--apply` | `bulk_preview`, then `bulk_apply` with its `preview_id` |
+| `hermitcrm undo <commit>` | `undo` |
+
+A routine written over MCP arrives paused. A prompt copied from Make it yours
+says to run `hermitcrm help adjust`; over MCP, call `adjust_help` instead.
+
+Related: [AI agents](https://hermitcrm.io/docs/#ai-agents), [CLI](https://hermitcrm.io/docs/#cli), [Settings](https://hermitcrm.io/docs/#settings), [Backups and undo](https://hermitcrm.io/docs/#backups)
+
+## Settings
+
+`/settings`: who you are, mail and calendar capture, backup, appearance, fields of your own, AI (Enrich and Ask the Hermit), outcomes, the daily schedule, access from a phone or an AI client, Support Hermit, and About.
+
+The page has five tabs: **General** (You, AI, Appearance, Support Hermit,
+About), **Email & calendar** (BCC capture, Calendar), **Your CRM** (Fields,
+Drafts, Task types, Deal stages, Outcomes), **Backup**, and **Advanced** (Schedule, access
+from a phone or an AI app, checking the installation). A section that is set
+up leads with its status, such as the last import; its form opens under
+**Change …**, and **How it works** links to its heading on this page.
+
+Every section writes `config.toml` in the data folder, keeping its comments;
+secrets (the mail app password, the calendar URL) go to `.secrets.toml`
+(mode 600) or the system's secret store, never to `config.toml`. The secret
+store is the Keychain on macOS and the Secret Service on Linux (GNOME Keyring,
+KWallet or KeePassXC, reached through `secret-tool` from `libsecret-tools`);
+Settings offers it only when it answers. Without one, secrets are stored in
+plain text in `.secrets.toml`, readable only by your user account and never
+committed to git. Full-disk encryption protects them when the machine is off.
+A Linux keyring is locked while you are logged out: if the daily import runs
+then (systemd lingering), keep the app password in `.secrets.toml`. The first time the
+web app starts without an owner email it opens this page once; "Skip for now"
+goes to the board. The same questions run in the terminal as `hermitcrm setup`.
+
+### You
+
+Your name (its first word signs the drafts) and the addresses you send mail
+from, comma-separated. Mail from these addresses counts as outbound; their
+non-freemail domains become `bcc_ignore_domains`, so colleagues are never
+logged as contacts.
+
+### BCC capture
+
+BCC or forward mail to a tracking address (for Gmail, `you+crm@gmail.com` is
+suggested) and Hermit CRM reads it over IMAP with an app password. Gmail needs
+2-step verification and an app password; the page shows the Gmail filter to
+add so the copies skip your inbox. **Test connection** runs a dry-run import.
+Per mail: an exact contact email match logs there; a new person at a company
+whose website or contact domain matches becomes a contact. A domain no company
+has becomes a new company, named after the domain (`acme-labs.de` becomes
+"Acme-labs", rename it any time), with the contact and the interaction in the
+same commit -- but only for mail you sent or forwarded yourself, never for a
+no-reply sender, and not when a company of that name already exists. Set
+`bcc_create_companies = false` in `config.toml` to send those to the review
+queue instead. Everything else (personal addresses, a domain that fits several
+companies) goes to the review queue, which is **To file** on Home. Dedup is by
+Message-ID. Below the form: the last import (time and summary, or the error)
+and **Import now**, which runs the import on the spot.
+
+### Calendar
+
+The secret ICS address of your calendar (Google: Settings, your calendar,
+Integrate calendar, secret address in iCal format; `webcal://` is fine).
+It is tested with a dry run and never shown again. Past meetings with an
+external attendee become `meeting` interactions; unmatched ones wait under
+**To file** on Home; events in the next 7 days show on the Calendar page. Below
+the form: the last meeting import and **Import meetings now**.
+
+### Backup
+
+**On this computer.** Every 5 minutes the folder is backed up to a local
+repository that can only grow, so a reset, a deleted `.git` or a force-push
+loses nothing. **Start local backups** makes the first one and schedules the
+rest (only the backup job; the daily sync stays as it is); `hermitcrm
+schedule install` does the same and more. The section is *done* once a backup
+has run. It lives in `~/.hermitcrm/backups/`, outside the folder; set
+`backup_dir` in `config.toml` to keep it elsewhere, such as another disk. A
+computer has one backup job: if it already backs up another folder, the
+button says so and leaves it alone.
+
+**Online copy (optional).** A git remote (must be **private**: the folder
+holds your contacts and mail). Saving sets or updates the remote, tries a
+push, and turns `push_enabled` on when it worked. Pushes then run in the
+background after every commit and never block. The remote is the copy off
+this machine; the local backup is the one nothing can rewrite. See
+[Backups and undo](https://hermitcrm.io/docs/#backups).
+
+### Appearance
+
+Night mode: off (`theme = "light"`), on (`"dark"`) or follow the operating
+system (`"system"`).
+
+#### Your own look: theme.css
+
+To change colours or fonts, put a file called `theme.css` in your data folder.
+The app loads it after its own styles, so whatever it sets wins, and it is
+committed with the rest of your data. Delete the file to go back to the
+default look. Settings > Appearance says whether the app is using it.
+
+The easiest way is to ask your AI tool, for example "make my Hermit CRM blue"
+or "put the titles in the same font as the rest". Point it at this page
+(`hermitcrm help settings`). Most looks need one `:root` block. Each colour is
+`light-dark(light value, dark value)`, so one line covers both night mode off
+and on. The colours most worth changing, with their defaults:
+
+```css
+/* My look for Hermit CRM. Delete this file to go back to the default. */
+:root {
+  --accent: light-dark(#166b4a, #6bc49a);      /* links, buttons, focus */
+  --bg: light-dark(#f5f1e8, #1c1b18);          /* page background */
+  --surface: light-dark(#fbf9f4, #24221e);     /* cards and tables */
+  --text: light-dark(#17181a, #ece7dc);        /* body text */
+  --muted: light-dark(#5c574e, #a8a193);       /* secondary text */
+  --line: light-dark(#d2c8b4, #3f3a33);        /* borders */
+  --line-strong: light-dark(#8f8778, #7a7264); /* borders of fields you type in */
+  --sidebar: light-dark(#efebe2, #211f1c);     /* the menu on the left */
+}
+```
+
+Keep only the lines you change. Fonts are tokens too: `--sans` is the main
+font (the system's sans-serif), `--title-font` sets the page titles, the name
+in the menu and the numbers on Home (`var(--serif)`, the system's serif), and
+`--mono` sets code and text boxes. `--title-font: var(--sans);` puts the titles
+in the main font; `--sans: ui-serif, Georgia, serif;` sets everything in a
+serif. Every token and its default is in `static/tokens.css` inside the Hermit
+CRM package; read it there, do not edit it (an update would overwrite it, and
+the website shares it).
+
+The file can also hold ordinary CSS rules, which win over the app's own. A
+ready-made cooler look, white and grey with a blue accent and sans-serif titles
+(Hermit CRM's look until September 2026):
+
+```css
+/* A cooler look: white, grey and blue. Delete this file to go back to the default. */
+:root {
+  --bg: light-dark(#fbfbfc, #16171b);
+  --surface: light-dark(#ffffff, #1e1f24);
+  --surface-2: light-dark(#f7f7f9, #23242a);
+  --subtle: light-dark(#f2f2f5, #2a2b32);
+  --text: light-dark(#1b1b1f, #e6e6ea);
+  --muted: light-dark(#5c5c66, #a4a4ae);
+  --faint: light-dark(#8e8e98, #7c7c86);
+  --line: light-dark(#d9d9de, #34353d);
+  --line-strong: light-dark(#8e8e98, #7c7c86);
+  --accent: light-dark(#1a4fd6, #7ea6ff);
+  --info-bg: light-dark(#eef4ff, #1d2a44);
+  --info-line: light-dark(#c7d8ff, #2f4675);
+  --sidebar: light-dark(#eeeef1, #1b1c21);
+  --sidebar-hover: light-dark(#e2e2e7, #26272e);
+  --sidebar-active: light-dark(#d9d9e0, #30313a);
+  --shadow-color: light-dark(rgba(20, 20, 30, .14), rgba(0, 0, 0, .5));
+  --title-font: var(--sans);
+}
+/* section labels in lowercase instead of small caps */
+h2 { font-variant-caps: normal; letter-spacing: 0; text-transform: lowercase; }
+```
+
+Two limits keep your data private. The file cannot load anything: `@import`
+and `url()` pointing at another file or website are blocked by the app, and
+`hermitcrm doctor` and Settings name the line. Colours and fonts already on
+your computer work; `data:` URLs work too. Keep text contrast readable, at
+least 4.5:1 against the background.
+
+### Fields
+
+Fields of your own, on top of the ones Hermit CRM has: a key, a label, a type
+(text, number, date or select) and where they show up. Add them one at a time,
+or edit `fields.toml` whole in the box below the form -- that box is the file
+itself, so what you save is what you are reading. Their values live in the
+front matter of the record they belong to, like every other field.
+
+Removing a field stops Hermit CRM showing it and leaves every value where it
+is; describing it again brings them back. See [the data format](https://hermitcrm.io/docs/#data-format).
+
+### BCC capture, per mail provider
+
+Pick your **mail provider** and the IMAP server fills itself in, with a note on
+where that provider hides its app password. Every one of them wants an app
+password rather than your normal one, and that is the step people get stuck on.
+
+- **Gmail / Google Workspace**: `imap.gmail.com`. Turn on 2-step verification
+  first; the app password page does not appear until you do.
+- **iCloud Mail**: `imap.mail.me.com`, an app-specific password from your Apple
+  account.
+- **Fastmail**: `imap.fastmail.com`, an app password with IMAP access.
+- **Outlook.com / Microsoft 365**: Microsoft has switched off password sign-in
+  for IMAP on most accounts, so this usually fails however the password is
+  made. What works is forwarding or BCC'ing to a Gmail or Fastmail address kept
+  for the purpose, and pointing Hermit CRM at that one.
+
+### AI: Enrich and Ask the Hermit
+
+`enrich_provider` (`auto`, `claude`, `codex`, `gemini`, `grok` or `custom`),
+`enrich_command` and `enrich_timeout`.
+
+**Account** (`enrich_account`) says how that CLI is signed in: `subscription`
+(a ChatGPT, Claude or Gemini plan, the default) or `api` (an API key). It
+matters because a plan is not entitled to the same model ids as an API key,
+and asking for one it does not have fails outright rather than quietly
+choosing something else: a Codex CLI signed in with a ChatGPT account answers
+`The 'gpt-5-mini' model is not supported`. On a subscription Hermit CRM asks
+for no particular model where that is known to matter, and the CLI answers on
+whatever the plan gets. A model you type into the fields below is always used,
+whatever the account type.
+
+**Model** switches between the medium
+tier (default; Claude: Opus) and the strong tier (Claude: Fable) for Enrich
+and [Ask the Hermit](https://hermitcrm.io/docs/#ask); `ai_tier` in `config.toml`. Answers and proposals
+made on the medium tier offer "Retry with" the strong model. The two model
+fields (`enrich_model`, `enrich_model_strong`) override the provider defaults. The section shows which
+CLI is in use, or why none is. Under launchd or systemd the process starts
+with a bare PATH, so the CLI must be in `/usr/local/bin`, `/opt/homebrew/bin`
+or `~/.local/bin`, or the command must be a full path. See [Enrich](https://hermitcrm.io/docs/#enrich).
+
+**Make it yours hands requests to** (`adjust_agent`): the agent that builds what
+you describe on the [Make it yours](https://hermitcrm.io/docs/#adjust) page. Claude Code and Cursor
+open with one click, Codex and Gemini CLI get a command to paste in a terminal,
+and *none* gives you the prompt to paste into any agent. Left on *the tool
+above*, it follows the tool Enrich uses when that is Claude Code, Codex or
+Gemini CLI. The General tab's first card, **Make it yours with your AI**, opens
+the same page, and each section of the Your CRM tab has an *or describe it*
+link that starts it with a matching request.
+
+### Deal stages
+
+The steps a deal goes through, in order: the Pipeline columns, the stage
+filters and the funnel follow this list. Each stage has a name (lowercase
+letters, digits and hyphens, at most 30 characters) and a **role** that tells
+Hermit what it means:
+
+| Role | Meaning |
+|---|---|
+| open | A column on the board. The first one is where new companies start and where a requalified company returns. |
+| won | A deal won. Counts for the win rate. |
+| lost | A deal lost. A reason is required. |
+| closed | Any other end, such as disqualified. |
+| parked | Out of the pipeline for now, with a date to come back. |
+
+A **valued** open stage shows the monthly value in its `PIPELINE.md` heading.
+Up and Down reorder, Delete removes a stage, and the blank row adds one.
+Renaming a stage renames it on every company and in every stage history, in a
+commit together with the new list, so one Undo takes it all back. Deleting a stage
+that still has companies asks where they go
+(and for a reason, when that stage is a lost one). A stage can only become a lost
+stage when every company in it already has a reason. Without any setting the
+defaults apply: prospect, engaged, discovery (valued), offer (valued), won,
+lost, disqualified, temp-disqualified. Dashboards and routines that still name
+an old stage are listed after the save, not rewritten.
+The same changes are `hermitcrm stages` for an agent (`hermitcrm help adjust-stages`).
+
+### Outcomes
+
+The outcome choices for interactions, one per line, in order: the first is
+what a detected reply counts as, the last what silence past the message
+window counts as. Also here: `message_window_days` (default 14) and
+`silent_days` (default 14, the Calendar's silent list and `PIPELINE.md`).
+Duplicates and an empty list are refused.
+
+### Schedule
+
+Read-only status of the daily job (`hermitcrm sync --apply`: BCC, then calendar)
+installed by `hermitcrm schedule install [--at HH:MM] [--serve]` through launchd
+(macOS) or systemd user units (Linux); on Windows the `schtasks` commands are
+printed for you to run. The install command to copy is on the page.
+
+### Access
+
+Read-only: the two other ways into the same folder, both started from a
+terminal.
+
+**From your phone.** The web app binds to `host` in `config.toml`, `127.0.0.1`
+by default, which only this machine can reach. `hermitcrm serve --host 0.0.0.0`
+binds every interface and prints the LAN address to open on the phone; setting
+`host = "0.0.0.0"` in `config.toml` makes it permanent. Hermit CRM has no
+password, so anyone who can reach the port can read and write the CRM: use a
+network you trust, or a private one (Tailscale, WireGuard), not public Wi-Fi.
+
+**From an AI client (MCP).** `hermitcrm mcp` speaks the Model Context Protocol
+on stdin and stdout, so a desktop AI client -- Claude Desktop, ChatGPT desktop,
+Cursor -- can read and write the CRM with no terminal. You do not run it
+yourself; the page shows the JSON to paste into the client's MCP config, which
+starts it. Because it is a local process talking over a pipe, the client has to
+run on this machine: a phone app cannot reach it, and the phone route is the
+web app above. Ten read tools and seven writes, each write one commit you can
+undo. [AI agents](https://hermitcrm.io/docs/#ai-agents) has the tool list.
+
+### Support Hermit
+
+Hermit CRM is free and open source. The Support Hermit link in Settings and at
+the bottom of the sidebar opens its
+[Ko-fi page](https://ko-fi.com/gijsbos) in your browser, where you can leave
+a tip. It is a plain link: the app loads nothing from Ko-fi and sends it
+nothing, and nothing in the app changes whether you give or not.
+
+### About
+
+Version and the update check, the data folder, its format version, and
+`hermitcrm doctor`, which checks the whole installation line by line.
+
+The update check asks once a day, sends no identifiers, and says what it found:
+a newer version, "the latest", "no release published yet" when nothing is
+published where it asks, or "could not reach ..." when it could not ask at all.
+Those last two are not the same as being up to date, and it will not say they
+are. It asks PyPI unless `update_url` in `config.toml` points somewhere else;
+any URL answering `{"version": "0.4.0"}` works, so a static file on a download
+page is enough. Turn it off with `update_check = false`.
+
+A newer version comes with the command that upgrades your install: `uv tool
+install hermitcrm@latest` when uv installed it, also from a download. Restart
+the app afterwards.
+
+Related: [Interactions](https://hermitcrm.io/docs/#interactions), [Enrich](https://hermitcrm.io/docs/#enrich), [CLI](https://hermitcrm.io/docs/#cli), [Data format](https://hermitcrm.io/docs/#data-format)
+
+## Import
+
+`/import` (and `hermitcrm import FILE`): companies or contacts from a spreadsheet, previewed before anything is written.
+
+### Input
+
+Paste a tab-separated table (copied from a spreadsheet) or upload a `.tsv`,
+`.csv` or `.xlsx` file (first worksheet; dates stay as serial numbers). The
+first row is the header.
+
+### Modes
+
+- **companies**: needs a `name` column. Other recognised columns fill the
+  company fields; contact columns prefixed `founder_` or `contact_` (name,
+  title, email, LinkedIn) create a contact.
+- **contacts**: needs a person name column; the company comes from a company
+  column or from a non-freemail email domain. Companies are matched by slug or
+  website domain, contacts by email, else by name.
+
+The mode is detected from the header (contacts when there is a person-name
+or email column plus a company column and no company-only column) and can be
+forced. Header aliases from HubSpot, Apollo, LinkedIn, Pipedrive and Attio
+exports are recognised; the full list is on the page. Unknown columns are kept
+as `column: value` lines in the notes.
+
+### Preview and apply
+
+The preview lists every row with its planned action (**create**, **update**
+of empty fields only, **keep**, **skip**) and warnings such as an unmapped
+country or a non-numeric score. Every column can be remapped to a field, to
+`notes` or to `ignore`. Applying writes everything in one commit:
+`import: <n> companies created, <m> updated, <k> contacts created`.
+
+In the CLI: `hermitcrm import FILE [--mode companies|contacts] [--map "Header=field" ...]`
+prints the plan; `--apply` writes it.
+
+Related: [Companies](https://hermitcrm.io/docs/#companies), [Contacts](https://hermitcrm.io/docs/#contacts), [CLI](https://hermitcrm.io/docs/#cli)
+
+## Extension
+
+`/extension`: turn the page you are looking at into a company record, in one
+click, without typing the name twice.
+
+The competition for a CRM is not another CRM, it is the record never getting
+written. The extension is the short path: you are on a company's website or its
+LinkedIn company page, you click one bookmark, and a new-company form opens
+with the fields already filled in.
+
+### A profile makes a contact
+
+A LinkedIn or Xing profile is a person, not a company, so it opens the
+new-contact form rather than the new-company one, with the employer typed into
+the company box. That box matches what you have already, so capturing three
+people from the same company puts all three on one record instead of making
+three companies.
+
+**On a LinkedIn profile you are logged in to, the bookmarklet reads the page
+you are looking at.** Your tab already shows everything, so it sends pieces of
+that page to Hermit CRM and nothing is fetched: no second request to LinkedIn,
+no cookies copied, nothing an automation check could notice. It fills in:
+
+- **name**, and **title**: the current role from Experience ("Head of
+  Compliance"), or the headline when Experience is not on the page
+- **company**: the one the page labels as the current company, and its
+  **LinkedIn page**, which a new company keeps -- so the next colleague you
+  capture lands on the same record, even if the names differ slightly
+- **email**, only when you have opened *Contact info* (your 1st-degree
+  connections) before clicking
+- the **location**, shown above the form
+
+It reads the order of the lines and the labels a screen reader gets, not
+LinkedIn's class names, which change all the time. When LinkedIn moves things
+around, a field it cannot place stays empty rather than wrong. If the form
+comes up nearly empty, the profile had probably not finished loading: click
+again once it has.
+
+Logged out -- a pasted URL, or a bookmarklet taken before this version --
+Hermit CRM fetches the profile itself, and LinkedIn shows an ordinary member
+almost nothing that way: often HTTP 999, otherwise job titles masked as
+`*****`. The form still opens, with the profile address and the name spelled
+in it; take the bookmarklet again from this page to read the real thing. A
+person's headline is never read as a company's one-liner -- that produced
+sentences like "Most companies don't have a lead problem... - Experience: ...
+- 500+ connections on LinkedIn", which is how the profile path was found.
+
+### The bookmarklet
+
+The `/extension` page has a link to drag to your bookmarks bar. It points at the
+address this Hermit CRM is serving on, so take it again if you later run
+`serve` on a different host or port. Some browsers refuse to run a bookmarklet
+clicked from a page; dragging it to the bar first always works, and the code is
+printed on the page to paste into a bookmark by hand.
+
+There is also a plain box on the same page: paste a URL, press **Read the
+page**. Same result, no bookmark.
+
+### What it reads
+
+On a LinkedIn profile, the page in your own tab (above). Anywhere else, the
+page's own metadata, fetched by your machine directly: nothing is sent
+anywhere, and no AI is involved. It proposes the company name, the website,
+the LinkedIn company page the site links to, the country, an employee-count
+hint and a one-line description. The same parser as **Fetch from URL** on an
+existing company ([Enrich](https://hermitcrm.io/docs/#enrich)); the extension only runs it the other way
+round, page first and record after.
+
+The guesses are guesses. Country in particular is inferred from the page and is
+sometimes wrong, which is why the form says to check the fields. **Nothing is
+written until you press Create company.**
+
+### If you already have it
+
+It looks for an existing company with that website or LinkedIn page before
+offering the form. When it finds one it says so and links to it, so a second
+click on the same bookmark opens the record rather than making a duplicate.
+
+A profile you have already saved opens that contact, whichever page of the
+profile you clicked on: `/in/x/overlay/contact-info/`, `nl.linkedin.com/in/x`
+and `/in/x?miniProfileUrn=...` are one person, stored as
+`https://www.linkedin.com/in/x`. Nothing is fetched to find that out.
+
+Related: [Enrich](https://hermitcrm.io/docs/#enrich), [Companies](https://hermitcrm.io/docs/#companies), [Import](https://hermitcrm.io/docs/#import)
+
+## Enrich
+
+Two ways to fill a company's or contact's empty fields: **Fetch from URL** reads a web page (no AI); **Enrich** asks an AI CLI you already have, on the medium model by default; the proposal page offers **Retry with** the strong model (Claude: Fable).
+
+Both show a proposal page first: each proposed value with a checkbox and an
+editable input, plus the sources. Only ticked fields are written, in one
+commit (`ai: company <slug> enriched`, `ai: contact <slug>/<contact> enriched`).
+Fields that already have a value are never touched.
+
+### Fetch from URL
+
+On the company page. Reads the given website or LinkedIn company URL
+(defaults to the company's own) with the standard library: title, meta
+description, links, JSON-LD and the domain's country TLD become proposals for
+website, LinkedIn, country and the one-liner. LinkedIn serves
+its public page to some anonymous requests and refuses others (HTTP 999); the
+error says so. CLI: `hermitcrm fetch <slug> [--url URL] [--apply]`.
+
+### Enrich
+
+On company and contact pages when a CLI is available. Company fields: website,
+LinkedIn, country, one-liner, plus any field of your own that set
+`enrich = true`. Contact fields: title,
+LinkedIn. The CLI is asked for a JSON answer with sources; anything it cannot
+verify comes back as "not found", never guessed. When nothing could be
+verified but the CLI found sources (say, a LinkedIn profile at another
+company, which often means the contact sits under the wrong company), the
+proposal page still opens with its notes and sources to check by hand. A call can take a minute and
+uses that CLI's credits. CLI: `hermitcrm enrich <slug> [--contact <cslug>] [--apply]`.
+
+### Which CLI
+
+Set on the Settings page or in `config.toml`: `enrich_provider` is `auto`
+(the first of claude, codex, gemini, grok found), one of those names, or
+`custom` with `enrich_command`; `enrich_model` and `enrich_timeout` (seconds,
+default 180) are optional. The binary is looked up on PATH and, because
+launchd and systemd start with a bare PATH, also in `/usr/local/bin`,
+`/opt/homebrew/bin`, `~/.local/bin` and the usual npm, bun, pipx and cargo
+folders. The Settings page shows what was resolved; `hermitcrm doctor` reports
+it too.
+
+Related: [Settings](https://hermitcrm.io/docs/#settings), [Companies](https://hermitcrm.io/docs/#companies), [Contacts](https://hermitcrm.io/docs/#contacts), [CLI](https://hermitcrm.io/docs/#cli)
+
+## Ask the Hermit
+
+The **Ask the Hermit** button, top right on every page, sends a question to the AI CLI configured under [Settings](https://hermitcrm.io/docs/#settings) (the same one Enrich uses).
+
+### How it answers
+
+1. **This page first.** The page you were on is rendered to plain text
+   (content, table cells, filled-in fields and the chosen value of each
+   dropdown; no navigation) and the model answers from that text alone,
+   without tools. This is fast and cheap.
+2. **The whole CRM if the page is not enough.** The model says so, and a
+   second run starts inside the data folder with read-only tools: reading
+   files and `hermitcrm show`, `digest`, `report` and `check`. The folder's
+   `CLAUDE.md` tells it to read `PIPELINE.md` first and never all interactions.
+   Nothing is ever written.
+
+The answer page says which of the two answered, which model ran and, for the
+whole-CRM step, the sources it used.
+
+### Buttons on the answer
+
+- **Retry with Fable** (or the strong model of your provider): the same
+  question on the strong tier. Shown when the answer came from the medium tier.
+- **Search the whole CRM instead**: skip the page step, for when the page
+  answer was too narrow.
+- **Skip the page, search the whole CRM**: the same, for a new question.
+
+### Models
+
+Two tiers per provider. Medium is the default; switch it under Settings → AI.
+
+| provider | medium | strong |
+|---|---|---|
+| claude | `claude-opus-5` (Opus) | `claude-fable-5-1` (Fable) |
+| codex | `gpt-5-mini` | `gpt-5` |
+| gemini | `gemini-2.5-flash` | `gemini-2.5-pro` |
+| grok | `grok-4-fast` | `grok-4` |
+
+Override either with `enrich_model` / `enrich_model_strong` in `config.toml`
+(or the Settings fields) when your CLI names a model differently. Only the
+claude IDs are verified. Fable needs Claude Code 2.1.251 or newer.
+
+### Notes
+
+- The page waits for the answer (no JavaScript): usually 10 to 30 seconds for
+  a page answer, up to `ask_timeout` (default 300 seconds) for the whole CRM.
+- Only local pages are sent, and only as text; the CSRF token and hidden
+  fields are left out.
+
+Related: [Enrich](https://hermitcrm.io/docs/#enrich), [Settings](https://hermitcrm.io/docs/#settings), [AI agents](https://hermitcrm.io/docs/#ai-agents)
+
+## Merge
+
+Combine two companies, or two contacts of one company, into one record in a single commit.
+
+### Companies
+
+On the company page, pick the company to merge **into this one** and click
+Compare. The merge page shows every field side by side with a radio per side;
+the default is this company's value, or the other's when this one is empty.
+Tags and notes can be combined. Contacts and interactions of the dropped
+company move over (a contact slug that collides gets `-2`), its stage history
+is merged by date, its folder is deleted, and the commit is
+`company: <dropped> merged into <kept>`. The history stays in git.
+
+### Contacts
+
+On a contact page (when the company has more than one contact), pick another
+contact to merge into this one. Same side-by-side choice; the dropped
+contact's interactions are re-pointed and renamed to the kept contact. Commit:
+`contact: <company>/<dropped> merged into <kept>`.
+
+### Undo
+
+Every merge is one commit: `git revert <sha>` in the data folder, then
+`hermitcrm rebuild`.
+
+Related: [Companies](https://hermitcrm.io/docs/#companies), [Contacts](https://hermitcrm.io/docs/#contacts), [Data format](https://hermitcrm.io/docs/#data-format)
+
+## CLI
+
+`hermitcrm [--data DIR] <command>`: the data folder is `--data`, then `$HERMITCRM_DATA`, then the current directory.
+
+Commands that write take `--apply`; without it they print what they would
+do. Every write is one git commit. Output is plain text meant to be read or
+pasted into an AI session.
+
+### Set up and run
+
+```text
+hermitcrm init DIR [--demo] [--no-setup]   new data folder (git repo, config, agent rules, /hermit skill); asks the setup questions
+hermitcrm sample add|remove                the made-up sample account in this folder, with a dashboard and a paused
+                                        routine: load it, or delete it again (what you changed stays)
+hermitcrm setup                            the setup questions again (you, BCC, backup, calendar)
+hermitcrm serve [--port N]                 the web app on 127.0.0.1 (port from config.toml, default 8765)
+hermitcrm doctor [--online]                one ok/warn/fail line per check; exit 1 on a failure
+hermitcrm schedule install [--at HH:MM] [--serve] [--backup-every MIN | --no-backup]
+                                        daily sync --apply and a backup every 5 minutes, via launchd
+                                        or systemd (schtasks printed on Windows)
+hermitcrm schedule remove|status
+hermitcrm migrate [--dry-run]              upgrade the data format (every command does this automatically);
+                                        also puts back a missing /hermit skill (.claude/skills/hermit/)
+hermitcrm help [TOPIC]                     these pages; no topic prints the index and the topic list
+```
+
+### Read
+
+```text
+hermitcrm show SLUG [--bodies N | --all]   one company: fields, notes, contacts, interactions, the last 3 bodies
+hermitcrm digest [--days 7]                recent interactions oldest first, 150 characters of body each
+hermitcrm followups [--reply-after N] [--nudge-after N]
+                                        threads you owe a reply, then ones you are waiting on
+hermitcrm brief [--days 7]                 each upcoming meeting with its stage, next step, contacts and last 3 interactions
+hermitcrm mcp                              serve this folder to AI clients over MCP (stdio); see the AI agents topic
+hermitcrm report [--days N | --from D --to D] [--md]
+                                        the Reports page as text tables (Markdown with --md)
+hermitcrm check                            validate every file (records, fields.toml, layout.toml, dashboards/,
+                                        routines.toml, theme.css, messages.toml, config.toml); exit 1 and
+                                        one "file: where: what" line per problem
+```
+
+### Backups
+
+```text
+hermitcrm backup [run] [--quiet]           back up now: new commits, uncommitted edits, a rewrite kept aside
+hermitcrm backup status                    where the backup is, its size, the last run; exit 1 on a warning
+hermitcrm backup list [PATH] [-n 20]       versions in the backup, newest first, optionally only those touching PATH
+hermitcrm backup restore ID [PATH ...] [--apply]
+                                        put files back as they were in version ID, as a new commit
+hermitcrm backup guard                     block history-rewriting git commands for Claude Code (.claude/settings.json)
+```
+
+See [Backups and undo](https://hermitcrm.io/docs/#backups).
+
+### Write
+
+```text
+hermitcrm add company NAME [--country NL] [--website URL] [--stage S] [--set FIELD=VALUE ...]
+                                        create a company; prints its slug. Writes and commits at once (no --apply)
+hermitcrm add contact SLUG NAME [--title T] [--email E] [--phone P] [--role R] [--notes N]
+                                        create a contact under a company; the name is split into first and last;
+                                        --notes is logged as a note interaction on them
+hermitcrm add interaction SLUG --channel email|linkedin|call|meeting|note --direction in|out (not for a note)
+                                        [--contact CSLUG] [--subject S] [--date D] [--body TEXT|-]
+                                        log an interaction; --body - reads it from stdin, and a prospect becomes engaged
+                                        (the first open stage moves to the next)
+hermitcrm set companies|contacts|interactions --where KEY=VALUE ... [--all]
+        [--set FIELD=VALUE ...] [--unset FIELD ...] [--add-tag T ...] [--remove-tag T ...]
+        [--stage S] [--apply] [--message TEXT]
+                                        change many records at once. A dry run unless --apply (count, five
+                                        before -> after samples), then ONE commit `bulk: <summary>` and its
+                                        undo command. --where is the list pages' filter syntax; no --where
+                                        needs --all. Bodies and names are never touched. See Make it yours: bulk changes
+hermitcrm stages [rename OLD NEW | add NAME | move NAME | set NAME | remove NAME] [--apply]
+                                        the deal stages and their roles; a dry run unless --apply (rewrites
+                                        companies, one `ai: adjust:` commit per step). See Make it yours: deal stages
+hermitcrm rebuild                          rebuild the index and PIPELINE.md, commit "pipeline: rebuild"
+hermitcrm import FILE [--mode companies|contacts] [--map HEADER=FIELD ...] [--apply]
+hermitcrm fetch SLUG [--url URL] [--apply] fields from the website or LinkedIn page (no AI)
+hermitcrm enrich SLUG [--contact CSLUG] [--apply]
+                                        fields from an AI CLI
+hermitcrm bcc [--apply] [--eml FILE ...]   import BCC'd or forwarded mail (or .eml files)
+hermitcrm calendar [--apply] [--ics FILE ...]
+                                        import past meetings from the ICS feed (or .ics files)
+hermitcrm sync [--apply]                   bcc, then calendar, then every routine that is on; what the daily job runs
+hermitcrm backfill-history [--apply]       stage_history from git for companies without one
+hermitcrm undo COMMIT                      reverse one commit with a new one (git revert); refuses a merge,
+                                        an unknown commit or uncommitted changes, and stops on a conflict
+```
+
+`bcc`, `calendar`, `sync`, `set` and `stages` with `--apply` tell a running web app to
+reload its index afterwards.
+
+`set` exits 0 for a dry run, a finished change and "nothing matches"; 2 when it
+refused the request before writing anything; 1 when a write was tried and rolled
+back (every file is as it was, nothing committed).
+
+### Routines
+
+```text
+hermitcrm routines [list]                  every routine in routines.toml, on or paused, and its last run
+hermitcrm routines preview NAME [--try]    who it would pick now, no AI and no writes; --try shows one AI draft, not saved
+hermitcrm routines run [NAME] [--apply]    one routine (even a paused one) or all that are on; one commit per routine
+hermitcrm routines on NAME                 turn it on: it runs after each daily sync (commit "routine: NAME: turned on")
+hermitcrm routines off NAME                pause it
+```
+
+Drafts go to Home, never out. See [Routines](https://hermitcrm.io/docs/#adjust-routines).
+`undo` is what the Undo buttons on the Make it yours page run; see
+[Make it yours](https://hermitcrm.io/docs/#adjust).
+
+Related: [Settings](https://hermitcrm.io/docs/#settings), [AI agents](https://hermitcrm.io/docs/#ai-agents), [Data format](https://hermitcrm.io/docs/#data-format), [Make it yours: bulk changes](https://hermitcrm.io/docs/#adjust-bulk), [Make it yours: deal stages](https://hermitcrm.io/docs/#adjust-stages)
+
+## Backups and undo
+
+A second copy of the folder's history, outside the folder, that can only grow; every few minutes, and any version can be put back. Claude Code is blocked from the git commands that destroy history.
+
+Every change in Hermit CRM is already a git commit, so a bad edit is undone
+from the history. What the history cannot protect is *itself*: a
+`git reset --hard`, an amended or rebased commit, a deleted `.git` folder or a
+force-push loses it. Anything with a shell in the folder can do that -- you, a
+script, or an AI agent that meant well. The backup covers that case.
+
+### Dangerous git commands are blocked
+
+Every data folder has a `.claude/settings.json` that stops Claude Code from
+running the commands that destroy history, in every permission mode (bypass
+included). An agent that tries one gets a refusal instead of a result:
+
+| Blocked | Why |
+|---|---|
+| `git reset --hard`, `git commit --amend`, `git rebase` | move `main` back or replace commits |
+| `git push --force` / `-f` / `--force-with-lease` | overwrite the copy on your remote |
+| `git filter-branch`, `git filter-repo` | rewrite every commit |
+| `git update-ref -d`, `git reflog expire`, `git gc --prune` | delete refs, or the objects a reset left behind |
+| `git clean -f` / `-fd` / `-fdx` | delete files git does not track |
+| the same with `git -C <dir> ...` | `git -C` would slip past a plain prefix match |
+| `rm -rf .git`, `rm -rf companies`, `rm -rf ~/.hermitcrm` | delete the history, the data or the backup |
+| editing `~/.hermitcrm/**` or `.claude/settings.json` | the backup, and this list itself |
+
+New folders get it from `hermitcrm init`; existing folders get it with the
+upgrade (data format 6), merged into any settings file already there. Your
+own rules in that file are kept. `hermitcrm doctor` warns when a rule is
+missing and `hermitcrm backup guard` puts them back.
+
+Two limits, stated plainly:
+
+- **It is Claude Code only.** Codex, Gemini and other agents have no such file;
+  they get the same rules as text in `AGENTS.md`.
+- **It matches command patterns; it is a seat belt, not a lock.** A script,
+  `bash -c "..."` or a command spelled differently still gets through. That is
+  what the backup below is for: whatever gets through, the versions it
+  destroyed are still in the backup.
+
+You are not blocked: these rules apply to Claude Code, not to your own
+terminal. To let an agent run one of them anyway, remove that line from the
+file for the moment (`doctor` will remind you to put it back).
+
+### What it is
+
+A bare git repository at `~/.hermitcrm/backups/<folder>-<hash>.git` (or
+`backup_dir` in `config.toml`; it has to be outside the data folder). It is
+set up so that nothing in it is ever lost:
+
+- a push can add commits and refs, but never move a ref backwards or delete one
+  (`receive.denyNonFastForwards`, `receive.denyDeletes`);
+- old versions are never cleaned up (reflogs and unreachable objects never expire);
+- Hermit CRM puts those settings back on every run, should anything change them.
+
+### What each run does
+
+To start it, click **Start local backups** in Settings, Backup, or run
+`hermitcrm schedule install`.
+
+`hermitcrm backup` (the scheduled job runs it every 5 minutes):
+
+1. **Uncommitted edits.** If a file differs from the last commit -- a hand edit,
+   an agent that forgot to commit -- that state is saved as
+   `refs/snapshots/<time>`. Your folder is not touched: no commit, no staging,
+   your branch stays where it is. The same state is saved once, not every run.
+2. **The branch.** New commits are added to the backup's `main`.
+3. **Rewritten history.** If `main` in the folder no longer contains what the
+   backup has (a reset, an amend, a rebase), the backup keeps its old `main`
+   as it was and stores the new line as `refs/rewritten/<time>/main`. The run
+   warns once (exit 1, a `WARNING:` line in the log, a warning in
+   `hermitcrm doctor`); later runs follow the new line.
+4. **Your git remote.** If you set one up under Settings, Backup, commits it
+   does not have yet are pushed there too, never forced. A failing push is a
+   warning; the local backup has already happened.
+
+Files in `.gitignore` are never backed up, so `.secrets.toml` stays on this
+machine only.
+
+### Size
+
+Git stores each version of a file once and compresses the differences between
+versions. A run that finds nothing new writes nothing: an idle folder costs
+nothing, however often the job runs. The backup grows with your real edits,
+typically a few MB for years of a CRM. `hermitcrm backup status` prints its
+size.
+
+### Turning it on
+
+```bash
+hermitcrm schedule install              # daily sync + backup every 5 minutes
+hermitcrm schedule install --backup-every 1
+hermitcrm schedule install --no-backup  # sync only
+hermitcrm backup status                 # where, how big, last run
+hermitcrm doctor                        # includes a backup line
+```
+
+On macOS the job is `io.hermitcrm.backup` (log `~/Library/Logs/hermitcrm-backup.log`,
+one line per run that did something); on Linux the `hermitcrm-backup.timer`
+user unit; on Windows a `schtasks` line to run yourself.
+
+### Finding a version
+
+```bash
+hermitcrm backup list                       # the last 20 versions, all lines
+hermitcrm backup list companies/acme        # only those that touched Acme
+hermitcrm backup list MESSAGING.md -n 50
+```
+
+Each line is `<id>  <date>  <message>`, with the ref names next to the ones
+that are the tip of a line (`main`, `snapshots/...`, `rewritten/...`).
+`list` runs a backup first, so what happened since the last scheduled run --
+usually the very thing you are looking into -- is in the list and saved.
+
+### Rolling back
+
+```bash
+hermitcrm backup restore <id> companies/acme            # dry run: what would change
+hermitcrm backup restore <id> companies/acme --apply    # one company
+hermitcrm backup restore <id> companies/acme companies/globex --apply
+hermitcrm backup restore <id> --apply                   # the whole folder
+hermitcrm backup restore snapshots/20260918-140500Z MESSAGING.md --apply
+```
+
+- `<id>` is any id from `backup list`, a ref name printed there, or anything
+  git understands (`HEAD~3`). A version that only the backup still has (it was
+  reset away in the folder) is fetched from the backup.
+- Without `--apply` nothing changes; it prints which files would change.
+- With `--apply` it first runs a backup, so the state being replaced is saved
+  too; then it puts the files back, removes files that did not exist in that
+  version (within the paths given), commits
+  `backup: restore <paths> to <id> (<date>)` and rebuilds the index and
+  `PIPELINE.md`.
+- A restore is a new commit on top. Nothing is taken out of the history, so a
+  restore is undone the same way.
+
+### When the folder itself is gone
+
+If `.git`, or the whole folder, has been deleted, clone the backup back to the
+same path (the backup's name comes from the path, so the job then carries on
+with the same backup):
+
+```bash
+ls ~/.hermitcrm/backups/
+mv ~/crm ~/crm-damaged                     # if anything is left of it
+git clone ~/.hermitcrm/backups/<folder>-<hash>.git ~/crm
+cd ~/crm
+git remote set-url origin <your private remote>   # or: git remote remove origin
+```
+
+That gives the backup's `main`. Two things may be newer than it: uncommitted
+edits (the newest `snapshots/<time>`) and, if the history was rewritten
+before the folder went, the newest `rewritten/<time>/main` (`hermitcrm backup
+status` lists them). Put back whichever you want:
+
+```bash
+hermitcrm backup list -n 5
+hermitcrm backup restore snapshots/<time> --apply
+```
+
+### What it does not cover
+
+- **The backup and the folder on the same disk.** A dead disk or a stolen
+  laptop takes both. Set a private git remote (Settings, Backup) and/or use
+  Time Machine or another machine-level backup; `backup_dir` can also point at
+  a folder another disk or a sync service holds.
+- **Someone going after the backup itself.** Anything running as you can
+  delete `~/.hermitcrm/backups`. Hermit CRM notices (the next run says the
+  backup "was missing" and `doctor` warns) but cannot bring it back. Claude
+  Code is denied that path (above); other agents only have the written rule.
+
+Related: [Settings](https://hermitcrm.io/docs/#settings), [CLI](https://hermitcrm.io/docs/#cli), [AI agents](https://hermitcrm.io/docs/#ai-agents)
+
+## Data format
+
+Every record is a Markdown file with YAML front matter in a fixed key order; the files are the only source of truth.
+
+```text
+<data>/
+  config.toml                 settings, every key optional and commented with its default
+  messages.toml               optional draft wording, merged over the package defaults
+  layout.toml                 optional page layout: section order, hidden fields, list columns
+  .secrets.toml               optional secrets (gitignored, mode 600)
+  .hermitcrm-format              data format version, one integer, committed
+  PIPELINE.md                 generated, never edit by hand
+  CLAUDE.md, AGENTS.md        rules for AI agents
+  .claude/settings.json       git commands Claude Code may not run (see Backups and undo)
+  .claude/skills/hermit/SKILL.md  the /hermit skill: Claude Code runs `hermitcrm help adjust` (Make it yours)
+  MESSAGING.md                your outreach playbook
+  dashboards/<name>.toml      optional pages of your own at /d/<name> (see Dashboards)
+  inbox/                      BCC and calendar items waiting for a decision
+  routines.toml               optional routines: a morning brief, AI drafts (see Routines)
+  drafts/                     drafts the routines wrote, waiting on Home; handled.tsv remembers closed ones
+  companies/<slug>/company.md
+  companies/<slug>/contacts/<contact-slug>.md
+  companies/<slug>/interactions/<id>.md
+```
+
+Writes are deterministic: known keys in the order below, unknown keys after
+them sorted by name and preserved as they were, dates as `YYYY-MM-DD`,
+datetimes as `YYYY-MM-DDTHH:MM` (local time), empty values as `key:`, bodies
+byte for byte. Two writes of the same data give identical files, so diffs
+show only real changes.
+
+### Company (`company.md`)
+
+| Key | Type | Notes |
+|---|---|---|
+| name | text | required |
+| slug | text | equals the folder name; never changes |
+| website | text | normalised to include the scheme |
+| linkedin | text | |
+| country | code or empty | ISO 3166-1 alpha-2; also picks the draft language |
+| source | enum | linkedin-search, referral, inbound, event, list, network, other |
+| stage | text | one of the stages in `config.toml` (`stages`); by default prospect, engaged, discovery, offer, won, lost, disqualified, temp-disqualified. A name the settings do not list still loads (`check` warns) |
+| stage_changed | date | set whenever the stage changes |
+| lost_reason | text | required in a stage with the role lost (by default `lost`); optional in a closed or parked stage (`disqualified`, `temp-disqualified`); cleared otherwise |
+| requalify_on | date or empty | only in a parked stage (by default `temp-disqualified`): the day it goes back to the entry stage (`prospect`) |
+| value_eur_month | int or empty | |
+| product_oneliner | text | |
+| next_step | text | one line |
+| next_step_due | date or empty | |
+| next_step_status | enum | open or done |
+| next_step_done_on | date | the day it was marked done; omitted otherwise |
+| tags | list | may be `[]` |
+| stage_history | list of maps | see below; omitted while empty |
+| created, updated | datetime | |
+
+`tasks` is a list of maps, absent until there is one, on a company **and** on
+a contact:
+
+```yaml
+tasks:
+  - {text: send the pricing page, due: 2026-09-24}
+  - {text: check whether the audit landed, done: true, done_on: 2026-09-21}
+```
+
+`text` is required; `due`, `done` and `done_on` (the day it was ticked off,
+written by the app) are optional. A company's next step is derived, not
+stored: it is the open task due first across the company's `tasks`, its
+contacts' `tasks` and the `next_step` fields, which older files use and which
+are read as one more task.
+
+Plus any field you defined yourself (see below), and any key Hermit CRM does
+not recognise, which is kept and written back untouched.
+
+### Fields of your own
+
+`fields.toml`, beside your data, describes fields Hermit CRM does not have:
+
+```toml
+[[field]]
+key = "fit_score"          # the front-matter key, and the filter key
+label = "fit"              # what the interface calls it
+type = "number"            # text, number, date or select
+applies_to = "company"     # company, contact or interaction
+help = "0 to 100"          # optional, shown under the input
+show_in = ["detail", "companies"]   # where it appears
+```
+
+`show_in` takes `detail` (the record's own page) plus the tables the record
+appears in: `board` and `companies` for a company field, `contacts` for a
+contact, `messages` for an interaction. Wherever a field is a column it can be
+filtered and sorted like any built-in one. A `select` field needs `options`,
+and a field with `enrich = true` and a `description` is offered to the AI when
+you press Enrich.
+
+The values are ordinary front matter, so a field you stop describing does not
+lose anything: the key stays in the file and comes back the moment you
+describe it again. A key that a built-in field already uses is refused, since
+a custom field with that name would shadow it.
+
+Hermit CRM had four such fields built in until 0.3.0 -- `my_score`,
+`fit_score`, `fte_estimate` and `ae_count` -- which were one person's way of
+working rather than a CRM's. An existing folder that used them gets a
+`fields.toml` describing them, written automatically, without a single
+company file being touched.
+
+The body is free Markdown notes.
+
+### Page layout
+
+`layout.toml`, beside your data, changes how the pages are laid out and
+nothing else: the order of the sections on the company, contact and home
+pages and which are hidden, the fields a record page hides, and the columns of
+the Companies and Contacts lists.
+
+```toml
+[company]
+sections = ["timeline"]              # first; the other sections follow in their usual order
+hide_sections = ["merge"]
+hide_fields = ["value_eur_month"]    # built-in or your own; the value stays in the file
+
+[companies]
+columns = ["name", "stage", "fit_score", "country", "next_step"]
+```
+
+The file is optional and so is every key; without it the pages are as they
+ship. A hidden field keeps its value, also when you save a form that does not
+show it. `hermitcrm check` reports unknown names and syntax errors; the app
+skips them meanwhile. Every section name, field and column key is in
+[Page layout](https://hermitcrm.io/docs/#adjust-layout).
+
+### Dashboards (`dashboards/<name>.toml`)
+
+Optional, one file per dashboard, shown at `/d/<name>`: a `title`, an
+optional `pin = true` (a link in the sidebar) and `description`, and one
+`[[widget]]` table per widget (a list, a count, bars per value, or a
+section of Reports). Widgets use the list pages' own filter keys and filter
+syntax, so they never need a migration. Nothing else reads the folder;
+`hermitcrm check` validates it line by line. The full reference is
+[Dashboards](https://hermitcrm.io/docs/#adjust-dashboards).
+
+### Contact (`contacts/<slug>.md`)
+
+`first_name`, `last_name` (at least one), `slug`, `title`, `linkedin`, `email`
+(lower case), `phone`, `role` (champion, decision-maker, influencer,
+gatekeeper or empty), `created`, `updated`. No body since format 7: notes on a
+person are note interactions (`hermitcrm check` lists a body written by hand). A file that still has
+a single `name` key is read by splitting on the first space and rewritten with
+both keys on its next save.
+
+### Interaction (`interactions/<id>.md`)
+
+`date` (datetime), `channel` (email, linkedin, call, meeting, note), `direction`
+(out, in; empty for a note), `contact` (contact slug; empty only in older or
+imported files), `subject`,
+`outcome` (one line; see the configured outcomes), `result` (legacy: success,
+unsuccessful or empty), `source` (manual, bcc-import, calendar-import, migration),
+`message_id` (imports only: the mail's Message-ID, or
+`ical:<UID>:<RECURRENCE-ID>:<attendee>` for a meeting). Body: the message or
+notes verbatim. Id: `YYYY-MM-DDTHHMM-<channel>-<direction>-<contact or company>`
+(a note: `YYYY-MM-DDTHHMM-note-<contact>`), `-2`, `-3` on collision. A note is a
+memo, not a touch: it never moves last touch, outcomes, follow-ups or reports.
+
+### Stage history
+
+`stage_history` is append-only, one map per stage change made through Hermit CRM:
+`{date: YYYY-MM-DD, from: <stage>, to: <stage>, reason: <text>}` (`reason`
+omitted when empty; `from` is `''` for the stage a company was created in when
+that was not the entry stage, the first open one: `prospect` by default). A stage
+renamed in Settings is renamed in every entry. Merging combines both lists by date. It feeds the
+funnel, time in stage and closing dates on the Reports page.
+`hermitcrm backfill-history` reconstructs it from git for older companies.
+
+### Slugs
+
+Lower-case ASCII, words joined by single hyphens, at most 60 characters;
+umlauts and accents transliterated (`ä` to `ae`, `é` to `e`); legal suffixes
+(gmbh, ag, bv, ltd, inc, sas, ...) dropped from the slug only; `-2`, `-3` on
+collision.
+
+### Routine drafts (`drafts/<id>.md`)
+
+Written by a routine run (`routines.toml`, see [Routines](https://hermitcrm.io/docs/#adjust-routines)),
+removed when you click *I sent it* (which logs an outbound interaction) or
+*Discard*. Front matter: `routine`, `made`, `record` (company slug, or
+`company/contact` for a contact routine), `company`, `contact`, `channel`,
+`subject`, `basis` (the interaction it follows up), `reason`; the body is the
+message. `drafts/handled.tsv` has one line per closed or skipped draft
+(routine, record, basis, what, when), so a routine does not write the same one
+twice. Last runs are in `inbox/.last-routines.json`, which is not in git.
+
+### Format version and migrations
+
+`.hermitcrm-format` holds one integer. When a release changes the format, the
+next command migrates the folder in one commit named
+`migrate: data format N → M (...)`, never touching an interaction body (format 6 adds
+`.claude/settings.json` and the backup rules in `CLAUDE.md` / `AGENTS.md`; format 7
+moves each contact's notes body into note interactions, a line starting
+`DD/MM/YYYY:` dated that day, the rest dated the contact's `created`; format 8
+adds the `/hermit` skill (a skill file of your own is kept), the "Adjusting
+Hermit" rules in `CLAUDE.md` / `AGENTS.md` when they do not mention
+`hermitcrm help adjust` yet, and `inbox/.last-routines.json` to `.gitignore`);
+`hermitcrm migrate --dry-run` lists the files first and `git revert` undoes it. A
+folder written by a newer Hermit CRM is refused until you upgrade.
+
+### Commits
+
+One commit per write, with a fixed message shape: `company: <slug> created`,
+`company: <slug> stage <old> -> <new>`, `contact: <company>/<slug> updated`,
+`interaction: <company> <channel> <direction> <contact> <date>`,
+`import: ...`, `bcc: ...`, `calendar: ...`, `bulk: <summary>` for one `hermitcrm set`
+(many records, one commit, with its own undo), `routine: <name>: ...`, `ai: ...` for
+enrichment and agent-made changes (`ai: adjust: <what>` for a change made through
+[Make it yours](https://hermitcrm.io/docs/#adjust)), `pipeline: rebuild`. Rolling back is
+`hermitcrm undo <sha>`, a new commit named `Revert "<subject>"` (git's own
+revert), or plain git: `git checkout <sha> -- <path>`, then `hermitcrm rebuild`.
+
+Related: [Companies](https://hermitcrm.io/docs/#companies), [Interactions](https://hermitcrm.io/docs/#interactions), [AI agents](https://hermitcrm.io/docs/#ai-agents), [CLI](https://hermitcrm.io/docs/#cli)
+
+## AI agents
+
+How an AI session (Claude Code, Codex or any agent) should read and write a Hermit CRM data folder; the same rules are in the folder's `CLAUDE.md` and `AGENTS.md`.
+
+The data folder is plain files in git, so an agent works in it like a person
+would: read what is needed, edit front matter, commit. Run `hermitcrm` commands
+from the folder, or add `--data <folder>`.
+
+An agent with a shell in the folder should use the commands below. An AI client
+with no shell -- Claude Desktop, ChatGPT, Cursor -- connects over MCP instead;
+see **Connecting over MCP** at the end.
+
+### Reading, cheapest first
+
+1. Read `PIPELINE.md` first. For a pipeline review it is usually enough: one
+   line per company, about 30 tokens each.
+2. For one account, run `hermitcrm show <slug>` rather than opening its files.
+3. For "what happened recently", run `hermitcrm digest --days 7`.
+4. For numbers (activity, funnel, outcomes, messages), run
+   `hermitcrm report --days 30 --md`.
+5. Open interaction files directly only when the exact wording matters
+   (drafting a reply, judging tone). Never read all interactions.
+6. Never edit `PIPELINE.md` by hand; it is generated.
+7. For outreach wording, read `MESSAGING.md` (the playbook) and
+   `messages.toml` (if present) before drafting anything.
+8. For how a feature works, run `hermitcrm help <topic>` (`hermitcrm help` lists
+   the topics).
+
+### Creating a record
+
+Three commands cover every kind of record, so an agent never has to write YAML
+by hand:
+
+```bash
+hermitcrm add company "Acme BV" --country NL --website acme.example.com
+hermitcrm add contact acme "Jane Roe" --title CTO --email jane@example.com
+hermitcrm add interaction acme --channel email --direction out \
+    --contact jane-roe --subject "Intro" --body -
+```
+
+- `add` writes the file, regenerates `PIPELINE.md` and commits, in that order.
+  It has no `--apply` and no dry run: it always writes, exactly as clicking
+  Save in the web app does.
+- Each command prints the slug it assigned, on one line, with the path it
+  wrote. Use that slug in the next command; never guess one.
+- `--body -` reads the message from stdin, so a multi-line body survives
+  intact.
+- For any field the flags do not cover, `--set field=value` (repeatable). A
+  wrong field name lists the ones that exist.
+- Logging an interaction advances a prospect to engaged, in the same commit.
+  That is intended.
+
+A value the store rejects prints `could not create: field: why` and exits 2;
+nothing is written and nothing is committed.
+
+### Writing
+
+- Prefer `hermitcrm add` over hand-written YAML, and the web app or a hand edit
+  of front matter over ad-hoc scripts.
+- Keep front-matter keys you do not recognise; Hermit CRM preserves them.
+- After editing files by hand, run `hermitcrm check`, then `hermitcrm rebuild`.
+- Commit messages for agent-made changes start with `ai:`.
+- Never rewrite interaction bodies; they are the record.
+- Never put secrets in `config.toml` and never commit `.secrets.toml`.
+
+### Adjusting Hermit
+
+When the user asks you to change Hermit CRM itself (a field, the look, a
+dashboard, a page layout, templates, a routine, many records at once), run
+`hermitcrm help adjust` first and follow it. It lists the files you may write
+without asking, the recipe for each kind of change, and the rules: records only
+through `hermitcrm add` and `hermitcrm set` (dry run first), `hermitcrm check`
+after every change, one commit per change named `ai: adjust: <what>`, drafts
+only and never sending anything. `hermitcrm undo <commit>` reverses a change with
+a new commit. See [Make it yours](https://hermitcrm.io/docs/#adjust).
+
+### Backups and undo
+
+The folder is backed up every few minutes to a repository outside it that
+only grows (`hermitcrm backup status` says where; see
+[Backups and undo](https://hermitcrm.io/docs/#backups)). For an agent that means:
+
+- Never rewrite history in the folder: no `git reset --hard`, `commit --amend`,
+  `rebase`, `filter-branch` or `push --force`. Undo with a new commit
+  (`git revert`, or `hermitcrm backup restore`). A rewrite is not lost -- the
+  backup keeps both lines and flags it -- but it is noisy and looks like damage.
+- Never touch `~/.hermitcrm/backups/`, `.git/hermitcrm-backup.json` or
+  `.claude/settings.json`.
+- To undo damage, find the version with `hermitcrm backup list <path>`, check
+  with `hermitcrm backup restore <id> <path>` (a dry run), then add `--apply`.
+  Say what you restored and from which version.
+
+**For Claude Code, these commands are blocked, not just discouraged.** Every
+data folder has a `.claude/settings.json` whose deny list refuses `git reset
+--hard`, `commit --amend`, `rebase`, `push --force`, `filter-branch`,
+`git clean -f`, `rm -rf .git` and the rest (also as `git -C <dir> ...`), in
+every permission mode, bypass included. The full list and its limits are in
+[Backups and undo](https://hermitcrm.io/docs/#backups), its first section. A
+refusal there is the rule working: make a new commit instead, and do not
+try another spelling, a script or `bash -c` to get round it.
+
+Other agents (Codex, Gemini, ...) have no such file and get these rules as
+text in `AGENTS.md`. A deny list matches command patterns, so it is a seat
+belt, not a lock; the backup is what makes a command that gets past it
+survivable.
+
+### What the web app does with hand edits
+
+A company page re-reads that company's folder on every request, so an edit
+shows up without a restart; the Reload button (or `hermitcrm rebuild`,
+`POST /reload`) rebuilds the whole index. Validation problems (an unknown
+stage, a missing name) never crash the app: `hermitcrm check` and `/health` list
+them with file paths.
+
+Related: [Data format](https://hermitcrm.io/docs/#data-format), [CLI](https://hermitcrm.io/docs/#cli), [Pipeline](https://hermitcrm.io/docs/#pipeline)
+
+### Connecting over MCP
+
+`hermitcrm mcp` serves one data folder to any MCP client, over stdio. It adds no
+dependency: MCP's stdio transport is newline-delimited JSON-RPC, which is all
+this speaks.
+
+For Claude Desktop, add this to `claude_desktop_config.json` (Settings →
+Developer → Edit Config):
+
+```json
+{
+  "mcpServers": {
+    "hermitcrm": {
+      "command": "hermitcrm",
+      "args": ["--data", "/Users/you/crm", "mcp"]
+    }
+  }
+}
+```
+
+Use the full path to the `hermitcrm` binary if it is not on the launcher's PATH
+(`which hermitcrm` prints it). Other clients take the same command and arguments.
+The client starts the process and talks to it over a pipe, so it has to run on
+the machine holding the folder. A phone reaches the CRM through the web app
+(`hermitcrm serve --host 0.0.0.0`), not through this.
+
+If you already have a shell in the folder, you do not need any of this: the CLI
+is strictly more capable, because it can also grep, read a single interaction
+and use git. MCP is for the client that has no shell.
+
+The tools, reads first:
+
+| Tool | What it gives |
+| --- | --- |
+| `list_pipeline` | The whole pipeline as one page. Start here. |
+| `search_companies` | Turn a name into a slug. |
+| `show_company` | One account: fields, contacts, timeline, recent bodies. |
+| `digest` | Interactions in the last N days. |
+| `report` | Activity, funnel, time in stage, outcomes, hygiene. |
+| `followups` | Threads you owe a reply, then ones you are waiting on. |
+| `brief` | Each upcoming meeting with the record behind it. |
+| `add_company` | Create a company; returns the slug. |
+| `add_contact` | Create a contact under a company. |
+| `add_interaction` | Log an email, message, call or meeting. |
+| `adjust_help` | A Make it yours recipe: `adjust` (the rules) or `adjust-<topic>`. |
+| `adjust_read` | The text of a file you may change, or which of them exist. |
+| `adjust_write` | Replace one of those files: checked first, then one commit. |
+| `adjust_config` | Change `task_types`, `outcomes` or `silent_days`; one commit. |
+| `bulk_preview` | The dry run of a change to many records, with a `preview_id`. |
+| `bulk_apply` | Apply that change after the user said yes; one commit. |
+| `undo` | Reverse one commit with a new one (`git revert`). |
+
+Seventeen tools: ten that only read (`bulk_preview` included) and seven that
+write. The three `add_` tools are the same `store.create_*` calls the web form and
+`hermitcrm add` make, so validation, slugging, the prospect-to-engaged move and
+the git commit are shared rather than copied. Each one writes a file and makes a
+commit, so call them only when a record has actually been asked for.
+
+#### Make it yours over MCP
+
+A client with no shell (Claude Desktop, ChatGPT) can change Hermit itself the
+way an agent with a shell does with `hermitcrm help adjust`, and the rules that
+page asks an agent to keep are enforced rather than only written down:
+
+- `adjust_help` first: the rules, then the recipe for the kind of change.
+- `adjust_write` takes only `fields.toml`, `layout.toml`,
+  `dashboards/<name>.toml`, `routines.toml`, `theme.css`, `messages.toml` and
+  `MESSAGING.md`, and no path outside the folder. It runs the checks of
+  `hermitcrm check` on the new text first: a problem leaves the file as it was,
+  makes no commit and comes back as `<file>: <where>: <what>` lines to fix. A
+  file with changes that are not committed yet is not overwritten.
+- A routine written this way arrives paused (`paused = true`, and the answer
+  says so), unless it was already on and you left what it does alone: change
+  its selector, filters, prompt, action, channel, days or limit and it is paused
+  again (only `title` and `paused` may differ). The user previews it and turns
+  it on.
+- `adjust_config` changes only `task_types`, `outcomes` and `silent_days`,
+  through the same code Settings saves them with.
+- `bulk_apply` refuses unless its `preview_id` comes from a `bulk_preview` of
+  the same scope, filters and changes on the folder as it is now, so the dry
+  run always comes first. Interaction bodies are never changed.
+- Every write is one commit (`ai: adjust: <summary>` or `bulk: ...`), and the
+  answer gives its id for `undo`. Nothing is ever sent: messages are drafts.
+
+Every tool re-reads the folder before answering, so a long-lived MCP session
+does not serve a snapshot from whenever the client connected.
+
+A rejected value comes back as a tool error the model can read and retry
+(`could not write: country: unknown country 'ZZZZ'`), not as a protocol error,
+and nothing is written.
+
+## Disclaimer
+
+Plain language, because this matters more than legal wording. The binding text
+is the Apache License 2.0, sections 7 and 8, in the LICENSE file that
+came with Hermit CRM.
+
+### What this is
+
+Hermit CRM is free. You pay nothing and you owe nothing.
+
+It is alpha software. It is incomplete, it changes without notice, and it has
+bugs that nobody has found yet. Parts of it will break.
+
+It comes with **no warranty of any kind**. Not that it works. Not that it keeps
+working. Not that it fits what you want to do with it. It is provided "as is".
+
+### Liability
+
+The author is not liable for any damage that comes from using this software.
+That includes, and is not limited to:
+
+- Lost, deleted, corrupted or unreadable data.
+- Backups that did not run, ran wrong, or could not be restored.
+- Lost deals, lost customers, lost revenue, lost time.
+- Any indirect or consequential loss of any kind.
+
+This holds even if you told the author the problem was likely, and even if the
+author should have seen it coming.
+
+### Backups are yours
+
+Hermit CRM writes a git commit for every change and copies your folder to a
+second repository every few minutes. That is a convenience, not a guarantee.
+
+**You are responsible for your own backups.** You are also responsible for
+testing that a restore actually works. A backup you have never restored is not
+a backup — it is a hope. Restore one to a scratch folder now and then and check
+the result with your own eyes.
+
+If the backup does not run, does not include what you expected, or cannot be
+restored when you need it, that is your risk to carry.
+
+### Your data
+
+Hermit CRM runs on your machine. Your data is a folder of files that you own,
+on disk that you control.
+
+- It sends **no telemetry**. No usage statistics, no crash reports, no pings.
+- The author **never receives, stores or processes your data**. There is no
+  server to receive it. There is no account. There is nothing to opt out of.
+- Under the GDPR, **you are the data controller** for everything you put in.
+  Your contacts, your records, your obligations. The author is not a processor
+  and not a joint controller, because nothing of yours ever reaches him.
+
+The one thing the app fetches on its own is a version number, at most once a
+day, to tell you an update exists. No identifiers are sent. Switch it off with
+`update_check = false` in `config.toml` or `HERMITCRM_NO_UPDATE_CHECK=1`.
+
+### Third-party integrations
+
+Some features talk to services that are not the author's: your mail provider
+over IMAP, your calendar's secret address, websites and LinkedIn pages you ask
+it to read, and AI command-line tools such as Claude Code or Codex.
+
+- **You supply your own keys, passwords and addresses.** They stay on your
+  machine. The author never sees them.
+- **You are responsible for following those providers' terms**, including the
+  [LinkedIn User Agreement](https://www.linkedin.com/legal/user-agreement).
+  Whether fetching a given page is allowed is between you and them.
+- **You are responsible for your own GDPR obligations** whenever data leaves
+  your machine — for example when an AI tool is given a contact's details to
+  enrich or draft with. That is a transfer you have chosen to make, on your
+  legal basis, under that provider's terms.
+- Costs are yours too. AI tools bill you, not the author.
+
+### Support
+
+There is none.
+
+No support, no service level, no response time, no obligation to fix anything
+or to answer at all. Bug reports and patches are welcome and may well be
+ignored. See SECURITY.md for security reports, which are read
+with more care but carry no promise either.
+
+### Trademark
+
+The Apache License covers the code. It does **not** grant rights to the name
+"Hermit CRM" or to the hermit logo (Apache 2.0, section 6).
+
+Fork the code, change it, ship it — that is what the licence is for. Give your
+fork a different name, and do not use the name or logo in a way that suggests
+the original project endorses it.
+
+Related: [Backups and undo](https://hermitcrm.io/docs/#backups), [Settings](https://hermitcrm.io/docs/#settings), Feedback
+
+## Make it yours: fields
+
+A recipe for your AI agent: add or change fields of your own, where they show, and your task types, outcomes and quiet threshold.
+
+Read `hermitcrm help adjust` first; its rules apply here too.
+
+### What the user can ask for
+
+- A new field on companies, contacts or interactions: text, number, date or a
+  choice from a list ("Add a date field contract renewal to companies").
+- A field shown in more places: the companies or contacts list, the pipeline
+  cards, the Messages table (each a sortable, filterable column).
+- A field offered to Enrich (`enrich = true`), or kept out of the draft
+  templates (`messaging = false`).
+- Task types and their colours, message outcomes, and after how many days an
+  account counts as silent.
+- "A new kind of record" (deals, partners, projects): Hermit has companies,
+  contacts and interactions only. Answer honestly with a field plus a
+  dashboard, for example partners as companies with a `type` field set to
+  `partner` and a pinned "Partners" dashboard; say that this is the way.
+
+### Files you may write
+
+- `fields.toml` in the data folder (absent means no fields of your own).
+- In `config.toml`: `task_types`, `outcomes`, `silent_days` only. Change the one
+  line, keep the comments and every other line.
+
+### fields.toml
+
+One `[[field]]` table per field:
+
+| Key | Required | Meaning |
+|---|---|---|
+| `key` | yes | the front-matter key, lower case with underscores (`contract_renewal`) |
+| `label` | no | what the pages call it (default: the key with spaces) |
+| `type` | no | `text` (default), `number`, `date` (YYYY-MM-DD) or `select` |
+| `applies_to` | no | `company` (default), `contact` or `interaction` |
+| `options` | for select | the allowed values, a list of strings |
+| `show_in` | no | where it shows: `detail` (the record's page, the default) plus `board` and `companies` for a company field, `contacts` for a contact field, `messages` for an interaction field |
+| `help` | no | one line under the input |
+| `enrich`, `description` | no | offer it to Enrich, and what to tell the model to look for |
+| `messaging` | no | `false` keeps it out of the draft templates (default `true`) |
+
+A key a built-in field already uses (`stage`, `country`, `tags`, ...) is refused.
+
+### Worked example
+
+"Add a date field contract renewal to companies, shown on the company page and
+in the companies list." Add to `fields.toml` (create it if it is not there):
+
+```toml
+[[field]]
+key = "contract_renewal"
+label = "contract renewal"
+type = "date"
+applies_to = "company"
+help = "when their current contract ends"
+show_in = ["detail", "companies"]
+```
+
+Then:
+
+```bash
+hermitcrm check
+git add fields.toml && git commit -m "ai: adjust: contract renewal field on companies"
+```
+
+The field shows on every company page and as a column on `/companies` on the
+next page load. Values are filled in on the company page, or in bulk with
+`hermitcrm set` (`hermitcrm help adjust-bulk`).
+
+### Task types, outcomes, silent days
+
+In `config.toml`:
+
+```toml
+task_types = [{name = "call", colour = "green"}, {name = "demo", colour = "blue"}, {name = "proposal", colour = "amber"}]
+outcomes = ["replied", "meeting booked", "no reply"]
+silent_days = 21
+```
+
+- Task type colours: green, blue, amber, red, violet or grey.
+- Outcomes are in order: the **first** is what a detected reply counts as, the
+  **last** what silence after the message window counts as.
+- Renaming a task type or an outcome here does not rename it on tasks and
+  messages already logged. Settings > Your CRM renames task types everywhere;
+  for outcomes, keep the old name in the list or ask the user before changing
+  logged messages in bulk.
+
+### Check
+
+`hermitcrm check` reads `fields.toml` and these `config.toml` keys and names
+each problem, for example:
+
+```text
+fields.toml: contract_renewal: type must be one of text, number, date, select (did you mean date?)
+config.toml: task_types entry 2: colour 'bleu' is not one of green, blue, amber, red, violet, grey (did you mean blue?)
+```
+
+### Safety
+
+- Removing a field from `fields.toml` hides it; every value stays in the
+  record files and comes back when the field is described again.
+- Changing a field's `key` does not move the values stored under the old key:
+  ask the user first, and move them with `hermitcrm set` (dry run first).
+- Never edit record files by hand to fill a field; use the page or `hermitcrm set`.
+- Commit: `ai: adjust: <what>`, one commit per change. Undo:
+  `hermitcrm undo <commit>`.
+
+Related: [Make it yours](https://hermitcrm.io/docs/#adjust), [Settings](https://hermitcrm.io/docs/#settings), [Data format](https://hermitcrm.io/docs/#data-format)
+
+## Make it yours: the look
+
+A recipe for your AI agent: change Hermit's colours, fonts and density with one `theme.css` in the data folder.
+
+Read `hermitcrm help adjust` first; its rules apply here too.
+
+### What the user can ask for
+
+"Make it blue", "cooler and more compact", "darker sidebar", "titles in the
+same font as the rest", "bigger text", "less rounded". Anything about colour,
+font, spacing and borders. Not: moving or hiding parts of a page (that is
+`hermitcrm help adjust-layout`).
+
+### The file you may write
+
+`theme.css` in the data folder, nothing else. The app loads it after its own
+styles, so whatever it sets wins, and it is read on every page: the change shows
+on the next page load. Deleting the file brings the default look back. Never
+edit `static/tokens.css` or `style.css` in the Hermit CRM package.
+
+### Tokens
+
+Most looks need one `:root` block of tokens. A colour is
+`light-dark(<light value>, <dark value>)`, so one line covers night mode off and
+on. The tokens worth changing, with their defaults:
+
+| Token | What it colours | Default |
+|---|---|---|
+| `--accent` | links, buttons, focus | `light-dark(#166b4a, #6bc49a)` |
+| `--bg` | page background | `light-dark(#f5f1e8, #1c1b18)` |
+| `--surface` | cards and tables | `light-dark(#fbf9f4, #24221e)` |
+| `--surface-2` | quiet boxes | `light-dark(#f2eee6, #292723)` |
+| `--subtle` | table headers, buttons | `light-dark(#ece7dc, #302d28)` |
+| `--text` | body text | `light-dark(#17181a, #ece7dc)` |
+| `--muted` | secondary text | `light-dark(#5c574e, #a8a193)` |
+| `--line` | borders | `light-dark(#d2c8b4, #3f3a33)` |
+| `--line-strong` | borders of fields you type in | `light-dark(#8f8778, #7a7264)` |
+| `--sidebar` | the menu on the left | `light-dark(#efebe2, #211f1c)` |
+| `--sidebar-hover` | a menu item under the mouse | `light-dark(#e7e1d5, #2b2924)` |
+| `--sidebar-active` | the menu item you are on | `light-dark(#ded7c8, #35322c)` |
+| `--sans` | the main font | the system's sans-serif |
+| `--title-font` | page titles, the name in the menu, the numbers on Home | `var(--serif)` |
+| `--mono` | code and text boxes | the system's monospace |
+
+The full list is `static/tokens.css` in the installed package: read it there,
+never change it.
+
+A warmer or cooler look means every grey moves together: `--bg`, `--surface`,
+`--surface-2`, `--subtle`, `--line`, `--sidebar`, `--sidebar-hover` and
+`--sidebar-active`. Change one and leave the rest, and the old colour shows as
+a beige menu item or a brown border.
+
+### Worked example
+
+"Make Hermit cooler and more compact: a blue accent and tighter table rows."
+Write `theme.css`:
+
+```css
+/* My look for Hermit CRM. Delete this file to go back to the default. */
+:root {
+  --accent: light-dark(#1a4fd6, #7ea6ff);
+  --bg: light-dark(#fbfbfc, #16171b);
+  --surface: light-dark(#ffffff, #1e1f24);
+  --surface-2: light-dark(#f7f7f9, #23242a);
+  --subtle: light-dark(#f2f2f5, #2a2b32);
+  --line: light-dark(#d9d9de, #34353d);
+  --sidebar: light-dark(#eeeef1, #1b1c21);
+  --sidebar-hover: light-dark(#e4e4e8, #25262c);
+  --sidebar-active: light-dark(#dadae0, #2f3037);
+  --title-font: var(--sans);
+}
+/* tighter tables */
+th, td { padding: 2px 6px; }
+```
+
+Then:
+
+```bash
+hermitcrm check
+git add theme.css && git commit -m "ai: adjust: cooler, more compact look"
+```
+
+If `theme.css` already exists, change it rather than starting over: keep what
+the user had unless they asked for a fresh look.
+
+### Check
+
+`hermitcrm check` names each line the app will block and each token that is
+almost a real one:
+
+```text
+theme.css: line 4: url(https://fonts.example.com/a.woff) loads a file; the app blocks it (only data: URLs work)
+theme.css: line 2: --acent is not a token the app uses (did you mean --accent?)
+```
+
+### Safety
+
+- The file cannot load anything: `@import` and `url()` to another file or site
+  are blocked, so fonts must be ones already on the computer.
+- Keep text readable: at least 4.5:1 contrast against its background, in both
+  light and dark.
+- Plain CSS rules may follow the `:root` block, but keep them few: class names
+  in the app can change between versions, tokens do not.
+- Commit: `ai: adjust: <what>`. Undo: `hermitcrm undo <commit>`, or delete the
+  file and commit that.
+
+Related: [Make it yours](https://hermitcrm.io/docs/#adjust), [Settings](https://hermitcrm.io/docs/#settings)
+
+## Make it yours: messages
+
+A recipe for your AI agent: rewrite the outreach drafts in the user's own voice, add a language, and keep the playbook.
+
+Read `hermitcrm help adjust` first; its rules apply here too. Messages are
+always drafts: nothing in Hermit sends them, and neither do you.
+
+### What the user can ask for
+
+- The three drafts on every company and contact page, in their own words
+  ("shorter", "less salesy", "sign off with Best, Alex").
+- Another language for the drafts.
+- A template the three drafts do not cover (a connection note, a follow-up, a
+  reply to a no): that goes in the playbook, `MESSAGING.md`, where they and you
+  find it when drafting.
+
+### Files you may write
+
+- `messages.toml`: the draft wording. It is merged key by key over the defaults
+  that ship with Hermit, so write only the keys that change.
+- `MESSAGING.md`: the playbook, the user's own notes. Add to it and edit the
+  part you were asked about; never wipe what the user wrote.
+
+Read both before you write anything. The shipped wording is
+`default_messages.toml` inside the installed Hermit CRM package: read it there
+when you need a key's current text, never change it.
+
+### How the drafts are built
+
+Each page shows three drafts, each a greeting, one body and a sign-off:
+
+1. `scale` (they are growing); a hiring signal swaps it for `bridge`, a
+   declining one for `decline`;
+2. `unblock` (past the next headcount hurdle);
+3. `hook` (one observation, then an open question).
+
+The text is per language under `[languages.<code>]`: `greeting`, `signoff`,
+`scale`, `bridge`, `decline`, `unblock`, `hook`, `observation`, and the tables
+`growth` (keys `growing`, `stalled`, `declining`, `""`), `size` and `team` (keys
+`known`, `unknown`). `[labels]` names the three drafts on the page.
+
+Slots in `{braces}`: `{first}` `{company}` `{growth}` `{size}` `{hurdle}`
+`{team}` `{observation}` `{fte}` `{ae}` `{site}` `{owner_first_name}`, plus one
+per field of the user's own, by its key (`{segment}`). Text in `[square
+brackets]` is for the user to fill in before sending. A literal brace is `{{`
+or `}}`.
+
+### Worked example
+
+"Make the drafts shorter and sign them Best, Alex." Write `messages.toml`:
+
+```toml
+[languages.en]
+signoff = "Best,\n{owner_first_name}"
+scale = "{growth}\nWorth 15 minutes to see whether [your offer] fits {company}?"
+hook = "{observation}\nWhat would make [the problem you solve] a priority this quarter?"
+```
+
+Then:
+
+```bash
+hermitcrm check
+git add messages.toml && git commit -m "ai: adjust: shorter English drafts"
+```
+
+"Write a LinkedIn connection note template for operations leads, in English
+and German." That is not one of the three drafts, so add it to `MESSAGING.md`
+under its own heading, one block per language, with `[square brackets]` for what
+the user fills in, and commit `ai: adjust: connection note in the playbook`.
+
+### A new language
+
+Add a full `[languages.<code>]` table (every key above, with `name = "Swedish"`)
+plus its `growth`, `size` and `team` tables. Drafts use it for a contact whose
+language is set to that code on their page, or when it is picked above the
+drafts; countries map to English, German, Dutch and French only.
+
+### Check
+
+`hermitcrm check` reads `messages.toml` and writes a draft in every language
+with it, so a typo shows before a page breaks:
+
+```text
+messages.toml: languages.en: {segmnt} is not a slot or a missing key (did you mean segment?)
+messages.toml: line 7: Expected '=' after a key in a key/value pair
+```
+
+### Safety
+
+- Drafts only. Never send anything, never log a message as sent for the user.
+- Keep the user's voice: read `MESSAGING.md` (what worked) before rewriting.
+- Commit: `ai: adjust: <what>`. Undo: `hermitcrm undo <commit>`; deleting
+  `messages.toml` brings the shipped wording back.
+
+Related: [Make it yours](https://hermitcrm.io/docs/#adjust), [Messages](https://hermitcrm.io/docs/#messages), [Contacts](https://hermitcrm.io/docs/#contacts)
+
+## Make it yours: bring data in
+
+A recipe for your AI agent: get companies, contacts, mail and meetings into Hermit from files and the tools the user already has.
+
+Read `hermitcrm help adjust` first; its rules apply here too.
+
+### What the user can ask for, and how
+
+| Wish | How | Who does it |
+|---|---|---|
+| "Import this list" (a CSV, TSV or .xlsx export from another tool) | `hermitcrm import FILE`: a preview, then `--apply` | you |
+| "Log my mail with prospects" | BCC capture: a mailbox Hermit reads every morning | the user, in Settings > Email & calendar |
+| "Log my meetings" | Calendar import from the calendar's secret address | the user, in Settings > Email & calendar |
+| "Save LinkedIn profiles and websites as I browse" | the bookmarklet on the Extension page | the user, in the browser |
+| "Let Claude Desktop or ChatGPT read my CRM" | the MCP server, `hermitcrm mcp` (see `hermitcrm help ai-agents`) | the user, in that app's settings |
+| "Sync with my other tool every hour", webhooks, an API key | not supported yet | see below |
+
+BCC and calendar need a password or a secret address. Never ask for one, never
+write one into a file: send the user to Settings, which keeps secrets out of git.
+
+### Worked example: an import
+
+"Import ~/Downloads/leads.csv (an export from my outreach tool). Match existing
+companies by website; show me what would be created first."
+
+```bash
+hermitcrm import ~/Downloads/leads.csv
+```
+
+Without `--apply` this only prints the plan: one line per row with its action
+(**create**, **update** of empty fields only, **keep** or **skip**) and warnings.
+Existing companies are matched by slug or website domain, contacts by email,
+else by name, so a second import of the same file creates nothing twice. Show
+the user the counts and a few rows. If a column landed in the wrong field,
+map it and preview again:
+
+```bash
+hermitcrm import ~/Downloads/leads.csv --map "Company Website=website" --map "Score=custom_fit_score"
+```
+
+A field of the user's own is mapped as `custom_<key>`, and needs that field in
+`fields.toml` first (`hermitcrm help adjust-fields`); a column named exactly like
+the key maps to it by itself. Columns nobody maps are kept as lines in the
+notes. When the user agrees:
+
+```bash
+hermitcrm import ~/Downloads/leads.csv --map "Company Website=website" --apply
+hermitcrm check
+```
+
+`--apply` writes everything in one commit (`import: 12 companies created, ...`);
+do not commit again. Undo: `hermitcrm undo <commit>`. The same import, with the
+same preview, is on the Import page (`/import`) for a user who prefers clicking.
+
+### Not supported yet: running code
+
+Hermit runs no code from the data folder: no scheduled scripts, no webhooks, no
+API keys for other services. A cloned or shared folder must never run anything
+by itself. So for "keep it in sync with my other tool":
+
+1. Say plainly that Hermit cannot do that yet.
+2. Offer what works today: an export from that tool, imported as above (and
+   again later; the matching keeps it from doubling), or BCC capture for mail.
+3. If the user still wants it, write the feature request
+   (`hermitcrm help adjust-feature`).
+
+Never write a script that edits records behind Hermit's back, and never install
+one in launchd, cron or the folder.
+
+### Safety
+
+- Preview before every import; apply only after the user has seen the counts.
+- Imports update empty fields only; they never overwrite what the user typed.
+- No secrets in any file, ever.
+
+Related: [Make it yours](https://hermitcrm.io/docs/#adjust), [Import](https://hermitcrm.io/docs/#import), [Settings](https://hermitcrm.io/docs/#settings), [AI agents](https://hermitcrm.io/docs/#ai-agents)
+
+## Make it yours: something Hermit can't do yet
+
+A recipe for your AI agent: when a wish needs new code, check first whether the files already cover it, then write a feature request or, for a developer, build it in their own copy.
+
+Read `hermitcrm help adjust` first; its rules apply here too.
+
+### 1. Check whether it is already possible
+
+Most wishes are a field, a layout, a dashboard, a routine or a template in
+disguise. Try these before anything else:
+
+| The user wants | It is |
+|---|---|
+| A separate list of deals, partners or investors | companies with a field (`type = "partner"`) and a pinned dashboard filtered on it (`hermitcrm help adjust-fields`, `hermitcrm help adjust-dashboards`) |
+| A deal value, a probability, a renewal date | a number or date field |
+| "Hide this", "put that first" | a page layout (`hermitcrm help adjust-layout`) |
+| A weekly overview, a ranked list, a report of their own | a dashboard |
+| A reminder, a daily brief, follow-ups drafted for me | a routine (`hermitcrm help adjust-routines`); it drafts, never sends |
+| The wording of a quote, a proposal or an email in their style | a template in `MESSAGING.md` (`hermitcrm help adjust-messages`), filled in by you on request |
+| Data from another tool | an import (`hermitcrm help adjust-connect`) |
+
+If one of these does the whole job, say so, build it that way, and say what is
+different from what they asked.
+
+If one only does part of it (a button, a PDF, line items, a calculation, a
+screen Hermit does not have), a "quote generator" for instance, say which part
+it covers, write the feature request for the rest (step 2), and ask before you
+build the partial version: change nothing in the data folder until they say yes.
+
+### 2. If it really needs code: a feature request
+
+Hermit runs no code from the data folder, and you never change the installed
+package (an update would undo it). Write the request for the user instead:
+
+```text
+Title: <one line: what they want to do, not how>
+
+What I am trying to do:
+<the job, in their words, one paragraph>
+
+What I tried in Hermit:
+<the field, layout, dashboard or routine you checked, and why it falls short>
+
+What would help:
+<the smallest change that would do it>
+
+Hermit CRM version: <hermitcrm --version>
+```
+
+Show it to the user. They can send it with Help > Feedback (it saves the text in
+the folder and offers to mail it) or paste it into a new issue on the Hermit CRM
+GitHub repository. Never post it yourself.
+
+### 3. For a developer: build it in their own copy
+
+If the user is a developer and wants to build it, do that in their own clone of
+the Hermit CRM source (Apache 2.0), never in the data folder and never in the
+installed package:
+
+1. Clone the repository, make a branch, follow `CONTRIBUTING.md` and the
+   repository's `AGENTS.md`.
+2. Write the change with tests; the test suite must pass.
+3. Sign off every commit (Developer Certificate of Origin, `git commit -s`) and
+   open a pull request.
+
+### Safety
+
+- Nothing in the data folder changes in this recipe, unless step 1 found a way
+  that does the whole job, or the user said yes to a partial one.
+- Never post, mail or open an issue on the user's behalf.
+
+Related: [Make it yours](https://hermitcrm.io/docs/#adjust), Feedback
+
+## Make it yours: dashboards
+
+Pages of your own at `/d/<name>`: lists, counts, bars and report sections, written as `dashboards/<name>.toml` by you or your AI agent, and pinned in the sidebar if you like.
+
+This page is the recipe an AI agent follows when someone asks for a
+dashboard. It is complete: you can write any dashboard from it without
+reading Hermit's code.
+
+### What people ask for
+
+- "Make a dashboard called Monday review with the prospects I should contact,
+  what is due this week and the deals by stage. Pin it."
+- "Show me my partners: how many, the quietest first, and where they are."
+- "A page with every message I sent on LinkedIn in the last month that got no
+  answer."
+- "Count the companies tagged priority per stage."
+
+A dashboard only reads. It never changes a record, so it is safe to try.
+
+### The file
+
+One file per dashboard: `dashboards/<name>.toml` in the data folder. The
+name is the page's address, so use lower-case letters, digits and hyphens:
+`dashboards/monday-review.toml` is `/d/monday-review`. Hermit picks up a new
+or changed file on the next page load; no restart.
+
+Top-level keys:
+
+| Key | Required | What |
+|---|---|---|
+| `title` | yes | the page's title and its name in the sidebar |
+| `pin` | no | `true` shows it in the sidebar, just above Settings (default `false`) |
+| `description` | no | one line under the title |
+| `widget` | yes | one `[[widget]]` table per widget, in the order they appear |
+
+### Widgets
+
+Every widget has a `type` and an optional `title` (a sensible title is made
+up when you leave it out). Each one is a saved view of a list page, so
+everything it shows links to that page with the same filters, and you land
+on exactly the records you counted.
+
+| Type | Keys | Shows |
+|---|---|---|
+| `list` | `scope`, `filters`, `columns`, `sort`, `limit`, `when` | rows of a list page; the first column links to the record |
+| `count` | `scope`, `filters`, `when` | one number, linking to those records |
+| `group` | `scope`, `by`, `filters`, `limit`, `when` | how many rows per value of `by`, as bars; each bar links to its rows |
+| `report` | `section`, `period` | one section of the Reports page; every number links to the rows behind it |
+
+- `scope`: which list page: `companies`, `contacts`, `messages` or `tasks`.
+- `filters`: a table of column key to filter, e.g.
+  `filters = { stage = "prospect", fit_score = ">70" }`. All of them must
+  match (AND).
+- `columns` (list only): the column keys to show, in order. Leave it out for
+  the defaults: companies `name, stage, country, next_step, next_step_due`;
+  contacts `name, company_name, title, last_touch`; messages
+  `date, company_name, contact, channel, status`; tasks
+  `text, due, who, company_name`.
+- `sort` (list only): a column key, A to Z (small to large, old to new);
+  put `-` in front for Z to A: `sort = "-fit_score"`. Empty values go last.
+  Without it, rows come in the list page's own order.
+- `limit`: how many rows a list shows (default 20; the rest are one click
+  away), or how many bars a group draws (default 20). At most 50.
+- `by` (group only): the column to count per value. A list value such as
+  `tags` counts once per tag.
+- `when` (tasks only): the Tasks page's date buttons, one or a list of
+  `overdue`, `today`, `week` (the next 7 days), `later` and `none` (no date).
+  These follow the calendar, unlike a fixed date in a filter.
+
+### Scopes: filter keys and columns
+
+The keys are the columns of the list page, the same ones its filter boxes
+use. Fields you defined yourself in `fields.toml` work too, under their
+`key`, but only on a list whose page shows them: a field needs that list in
+its `show_in` (`companies` for a company field, `contacts` for a contact
+field, `messages` for an interaction field).
+
+**`companies`** (the Companies page). Temp-disqualified companies are left
+out unless the `stage` filter asks for the parked stage (`temp-disqualified` by
+default), as on the page.
+
+| Key | Kind | What |
+|---|---|---|
+| `name` | text | the company's name |
+| `country` | fixed values | ISO code, e.g. `DE`, `NL`, `GB` |
+| `stage` | fixed values | the stages in `config.toml`; by default `prospect`, `engaged`, `discovery`, `offer`, `won`, `lost`, `disqualified`, `temp-disqualified` (`hermitcrm stages` lists yours) |
+| `source` | fixed values | `linkedin-search`, `referral`, `inbound`, `event`, `list`, `network`, `other` |
+| `tags` | text | every tag, as `a, b` |
+| `last_touch` | date | the last interaction; empty means never contacted |
+| `next_step` | text | the open task due first |
+| `next_type` | fixed values | that task's type; only once task types exist (`none` = no type) |
+| `next_step_due` | date | that task's due date |
+
+**`contacts`** (the Contacts page), A to Z by name.
+
+| Key | Kind | What |
+|---|---|---|
+| `name` | text | the person's name |
+| `company_name` | text | their company |
+| `title` | text | job title |
+| `email` | text | |
+| `linkedin` | text | profile URL |
+| `last_touch` | date | the last interaction with them |
+| `interaction_count` | number | how many interactions name them |
+
+**`messages`** (the Messages page): every outbound email, LinkedIn message
+or call with a body, newest first.
+
+| Key | Kind | What |
+|---|---|---|
+| `date` | date | when it was sent |
+| `company_name` | text | |
+| `contact` | text | the person's name |
+| `channel` | fixed values | `email`, `linkedin`, `call` |
+| `country` | fixed values | the company's country |
+| `stage` | fixed values | the company's stage |
+| `status` | fixed values | the outcome: your outcomes (Settings), or `unknown` while you wait |
+| `uses` | number | how often this exact text was sent |
+| `body` | text | the message itself |
+
+**`tasks`** (the Tasks page). Only open tasks, unless you filter on `status`.
+
+| Key | Kind | What |
+|---|---|---|
+| `text` | text | the task |
+| `due` | date | |
+| `type` | fixed values | the task type; only once task types exist (`none` = no type) |
+| `who` | text | the person, or the company for a company task |
+| `company_name` | text | |
+| `stage` | fixed values | the company's stage |
+| `status` | fixed values | `open` or `done` |
+| `done_on` | date | when it was ticked off |
+
+### Filters
+
+The same little syntax as the filter boxes on the list pages. Always write
+the filter in quotes.
+
+| Filter | Means |
+|---|---|
+| `"foo"` | contains foo (any case) |
+| `"!foo"` | does not contain foo |
+| `"=foo"` | is exactly foo (any case) |
+| `">5"`, `"<5"` | larger / smaller: numbers, dates as `2026-09-01`, otherwise A to Z order |
+| `"-"` | empty |
+| `"*"` | not empty |
+
+There is no `>=` or `<=`: for "5 or more" write `">4"`. A column with
+**fixed values** takes one value or a list of values and no operators:
+`stage = "prospect"` or `stage = ["prospect", "engaged"]` (either one).
+For `tags`, use contains (`tags = "partner"`), since `=` would have to match
+all tags at once.
+
+### Report sections and periods
+
+A `report` widget shows one section of the Reports page, exactly as Reports
+draws it: `activity`, `funnel` (with the pipeline and its monthly value),
+`outcomes`, `messages`, `sources` or `hygiene` (overdue next steps, silent
+accounts, contacts without email). `period` is `7d`, `30d` (the default),
+`90d`, `quarter`, `ytd` or `all` (from the first day in your data).
+
+### Example: Monday review
+
+The request: "Make a dashboard called Monday review with: prospects with fit
+above 70 that I have not contacted yet, the replies I owe, and the deals by
+stage with their value. Pin it to the sidebar." Here `fit_score` is a field
+of the user's own (a number in `fields.toml` with `companies` in its
+`show_in`).
+
+```toml
+title = "Monday review"
+pin = true
+description = "What to work on this week."
+
+[[widget]]
+type = "list"
+title = "High-fit prospects, never contacted"
+scope = "companies"
+filters = { stage = "prospect", fit_score = ">70", last_touch = "-" }
+columns = ["name", "fit_score", "country", "next_step"]
+sort = "-fit_score"
+limit = 20
+
+[[widget]]
+type = "list"
+title = "Due this week"
+scope = "tasks"
+when = ["overdue", "today", "week"]
+columns = ["text", "due", "who", "company_name"]
+
+[[widget]]
+type = "group"
+title = "Deals by stage"
+scope = "companies"
+by = "stage"
+filters = { stage = ["prospect", "engaged", "discovery", "offer"] }
+
+[[widget]]
+type = "report"
+title = "Pipeline and its value"
+section = "funnel"
+period = "30d"
+```
+
+The replies you owe are worked out from who wrote last (Home's follow-up
+list, `hermitcrm followups`), not by a list page, so a dashboard cannot show
+them yet. Say so, and point to Home.
+
+The sample account (`hermitcrm sample add`, and `init --demo`) writes its own
+`dashboards/monday-review.toml`, which starts with the comment "A sample
+dashboard". When the user asks for a Monday review and that file is there,
+change it in place rather than writing a second one. Once it is changed it is
+the user's, and `hermitcrm sample remove` leaves it.
+
+### Example: partners
+
+"Show me my partners: how many, the quietest first, and where they are."
+Hermit has no separate partner records; partners are companies with a tag
+(or a field of your own), and a dashboard gives them a page of their own.
+
+```toml
+title = "Partners"
+pin = true
+
+[[widget]]
+type = "count"
+title = "Partners"
+scope = "companies"
+filters = { tags = "partner" }
+
+[[widget]]
+type = "list"
+title = "Quietest first"
+scope = "companies"
+filters = { tags = "partner" }
+columns = ["name", "country", "last_touch", "next_step"]
+sort = "last_touch"
+
+[[widget]]
+type = "group"
+title = "By country"
+scope = "companies"
+by = "country"
+filters = { tags = "partner" }
+```
+
+### Check it, then commit
+
+1. Run `hermitcrm check`. Every problem in a dashboard is one line, such as
+   `dashboards/monday-review.toml: widget 2: unknown column fitscore (did you
+   mean fit_score?)`. Fix them all; the page itself lists the same lines and
+   shows only the widgets without a problem.
+2. Open `/d/<name>` and look at it (the app is usually on
+   http://127.0.0.1:8765).
+3. Commit just that file, one commit per change:
+   `git add dashboards/monday-review.toml` and
+   `git commit -m "ai: adjust: dashboard Monday review"`.
+
+### Rules
+
+- Write only `dashboards/<name>.toml`. When a field of the user's own must
+  become a filter or column, add the list to its `show_in` in `fields.toml`;
+  that shows it on the list page too, so say so.
+- A dashboard never changes records. Records change only through the
+  `hermitcrm` commands, never by editing their files for a dashboard.
+- Never touch interaction bodies, `PIPELINE.md`, `.hermitcrm-format`,
+  `.secrets.toml`, `.claude/settings.json` or the git history.
+- To undo a dashboard, revert its commit (`git revert <sha>`) or delete the
+  file in a new commit.
+
+Related: [Reports](https://hermitcrm.io/docs/#reports), [Data format](https://hermitcrm.io/docs/#data-format), [AI agents](https://hermitcrm.io/docs/#ai-agents)
+
+## Make it yours: bulk changes
+
+Recipe for an AI agent: change many records at once with `hermitcrm set`, always as a dry run first, then one commit that can be undone.
+
+Use this recipe when the user wants the same change on many companies, contacts or
+messages: tag a group, score a list, move a batch to a stage, set an outcome on
+old messages. The user does not need to know any syntax. You write the command.
+
+### The rules
+
+1. **Use `hermitcrm set`. Never edit many files by hand and never write a script.**
+   The command validates every value the way the forms do, writes the files the
+   standard way (keys Hermit does not know are kept), checks them, and makes one
+   commit. A script or a hand edit can leave half the folder changed.
+2. **Dry run first.** Without `--apply` nothing is written. It prints how many
+   records match, how many would change and a few before and after lines.
+3. **Show the dry run to the user and wait for a yes.** Quote the count and the
+   sample lines in your reply. Run `--apply` only after the user has said yes to
+   that exact change. A yes to an earlier, different command is not a yes.
+4. **Then run the same command again with `--apply`.** It prints the commit, for
+   example `23 companies changed in one commit a1b2c3d. Undo: hermitcrm undo a1b2c3d`.
+   Tell the user that line.
+5. **Do not make another commit for it.** `hermitcrm set --apply` has made the
+   commit, with the subject `bulk: <summary>`. Pass `--message "..."` to word the
+   summary yourself (Hermit adds the `bulk: ` in front).
+6. **Run `hermitcrm check` afterwards** and tell the user if it reports anything.
+
+### What it can change
+
+```text
+hermitcrm set <companies|contacts|interactions> [--where KEY=VALUE ...] [--all]
+    [--set FIELD=VALUE ...] [--unset FIELD ...]
+    [--add-tag TAG ...] [--remove-tag TAG ...] [--stage STAGE]
+    [--apply] [--message TEXT]
+```
+
+| Scope | Records | Fields you can set or clear |
+|---|---|---|
+| `companies` | the Companies list | `website`, `linkedin`, `country`, `source`, `lost_reason`, `requalify_on`, `value_eur_month`, `product_oneliner`, `next_step`, `next_step_due`, `next_step_status`, `next_step_type`, `tags`, and your own fields |
+| `contacts` | the Contacts list | `title`, `linkedin`, `email`, `phone`, `role`, `language`, and your own fields |
+| `interactions` | the rows of the Messages page (messages you sent) | `outcome`, `subject`, and your own fields |
+
+- `--set FIELD=VALUE` sets a field. An empty value (`--set next_step=`) clears it,
+  and so does `--unset FIELD`. Values are read the way the forms read them: numbers,
+  dates as `YYYY-MM-DD`, the choices of a `select` field, country codes such as `DE`.
+- `--add-tag` and `--remove-tag` edit a company's tags (companies only). Tags are
+  matched without regard to case, and a tag that is already there is not added again.
+- `--stage` moves companies the way the stage buttons do: it goes into the stage
+  history and the stage rules apply. `--stage lost` needs `--set lost_reason="..."` in
+  the same command. Moving a company out of a parked or closed stage clears the
+  reason and the requalify date, and the dry run shows that.
+- Your own fields (from `fields.toml`) work like built-in ones. A field that does not
+  exist is refused with a hint. Add it to `fields.toml` first, see
+  `hermitcrm help adjust-fields`.
+
+### Choosing the records: `--where`
+
+`--where KEY=VALUE` means exactly what typing VALUE into the filter box of that
+list page means. Repeat it; every `--where` has to hold. Quote the value, because
+the shell reads `>` and `<`.
+
+| Value | Matches |
+|---|---|
+| `foo` | the text contains foo (not case sensitive) |
+| `=foo` | the text equals foo |
+| `!foo` | the text does not contain foo |
+| `>5`, `<5` | larger or smaller: numbers on number fields, dates (`YYYY-MM-DD`) on date fields, alphabetical order on text fields |
+| `-` | is empty |
+| `*` | is not empty |
+
+On a column with fixed choices (stage, country, source, channel, status, a `select`
+field) give the exact choice. Give several to mean "any of them":
+`--where stage=prospect,engaged` or `--where stage=prospect --where stage=engaged`.
+`-`, `*`, `!x` and `=x` work there too.
+
+The keys, per scope. A column heading of the list also works as a key, with an
+underscore for a space (`last touch` is `last_touch`, and the Messages heading
+`outcome` is `status`):
+
+| Scope | Keys |
+|---|---|
+| `companies` | `name`, `country`, `stage`, `source`, your own fields, `tags`, `last_touch`, `next_step`, `next_type` (when you have task types), `next_step_due` |
+| `contacts` | `name`, `company_name`, `title`, `email`, `linkedin`, `last_touch`, `interaction_count`, your own contact fields |
+| `interactions` | `date`, `company_name`, `contact`, `channel`, `country`, `stage`, `status` (the outcome, explicit or worked out), `uses`, your own interaction fields, `body` |
+
+Things worth knowing:
+
+- `tags=priority` matches a company whose tags contain the text "priority". `=priority`
+  matches only a company whose whole tag list is "priority". Use `!priority` for "no
+  such tag".
+- `>` and `<` compare numbers only on a number field. A field that holds text such as
+  `~45` compares alphabetically, which is wrong for sizes. If the user's size field is
+  text, say so and offer to make it a number field first (`hermitcrm help adjust-fields`).
+- The Companies page hides parked companies (by default `temp-disqualified`; the
+  stages are the user's own, see `hermitcrm stages`) unless you ask.
+  `hermitcrm set` does not hide them: `--where country=DE` finds them too. Add
+  `--where stage=!temp-disqualified` to leave them out.
+- Without any `--where` the command is refused. To change every record, say so with
+  `--all` (it cannot be combined with `--where`).
+
+### Worked example 1: tag a group
+
+The user asks: "Tag every prospect in Germany with more than 50 FTE as priority."
+
+```bash
+hermitcrm set companies --where stage=prospect --where country=DE \
+    --where 'fte_estimate=>50' --add-tag priority
+```
+
+Here `fte_estimate` is a number field. Output (nothing is written):
+
+```text
+Dry run: add tag priority on companies where stage=prospect, country=DE, fte_estimate=>50
+25 companies match. 23 would change; 2 already look like this and are skipped.
+
+  northwind-robotics: tags: robotics, demo → robotics, demo, priority
+  ...
+  and 18 more.
+
+Nothing changed. Run again with --apply to change 23 companies in one commit.
+```
+
+Your reply to the user: "25 German prospects have more than 50 FTE. 2 already have the
+tag, so 23 would change, for example northwind-robotics. Shall I apply it?" After a
+yes:
+
+```bash
+hermitcrm set companies --where stage=prospect --where country=DE \
+    --where 'fte_estimate=>50' --add-tag priority --apply
+hermitcrm check
+```
+
+### Worked example 2: disqualify a batch
+
+The user asks: "Disqualify every prospect I scored below 3. Reason: weak fit."
+
+```bash
+hermitcrm set companies --where stage=prospect --where 'my_score=<3' \
+    --stage disqualified --set lost_reason="Weak fit"
+```
+
+The dry run shows `stage: prospect → disqualified` and `lost_reason: (empty) → Weak fit`
+for each record. Show it, wait for the yes, run the same command with `--apply`. The
+stage history of each company records the move, exactly as the stage buttons do. If
+the user changes their mind, the undo command in the output reverses the whole batch.
+
+### Worked example 3: outcomes on old messages
+
+The user asks: "Every LinkedIn message I sent before 26 September that nobody has
+answered counts as unsuccessful. I do not want to wait for the 14 days."
+
+```bash
+hermitcrm set interactions --where channel=linkedin --where status=unknown \
+    --where 'date=<2026-09-26' --set outcome=unsuccessful
+```
+
+`interactions` here are the rows of the Messages page, so `status=unknown` is the
+Messages filter: no explicit outcome, no reply, and still inside the message window
+(Settings, `message_window_days`). The outcome must be one of the user's configured
+outcomes; anything else is refused with the allowed list. The message bodies are never
+touched.
+
+More one-liners:
+
+```bash
+hermitcrm set contacts --where 'title=CEO' --set role=decision-maker
+hermitcrm set companies --where 'last_touch=-' --where stage=prospect --set next_step="Research" \
+    --set next_step_due=2026-10-15
+hermitcrm set companies --where tags=old-list --remove-tag old-list --add-tag archive
+hermitcrm set companies --where stage=lost --where 'tags=!lost' --add-tag lost
+```
+
+### What is refused, and why
+
+Everything refused prints why and exits 2, and nothing is written.
+
+| You tried | Why not |
+|---|---|
+| no `--where` and no `--all` | it would change every record |
+| `--set body=...`, `notes`, `message` | bodies are the record of what was said and are never rewritten, on any scope |
+| `name`, `slug`, `first_name`, `last_name` | they name the record or its file; change one record in the web app |
+| interaction `date`, `channel`, `direction`, `contact` | they are part of the file name |
+| `created`, `updated`, `stage_history`, `tasks`, an interaction's `source` or `message_id` | Hermit keeps these itself |
+| `--set stage=...` | use `--stage`, so the move goes into the stage history |
+| `--add-tag` on contacts or interactions | only companies have tags |
+| a field that does not exist | add it to `fields.toml` first (`hermitcrm help adjust-fields`) |
+| a value the form would refuse | a bad number, date, choice, country, outcome, or `--stage lost` without a reason |
+| `--unset` on a field that cannot be empty | `source`, `next_step_status`: set a value instead |
+
+The command is all or nothing. If one record cannot take the change, none are
+written, and the message names the record. A change that would also alter a field
+nobody asked about is refused too, as a bug in Hermit CRM to report.
+
+### If something goes wrong
+
+- Exit 2: refused before anything was written. Read the message, fix the command, run
+  the dry run again.
+- Exit 1: the write was tried and **rolled back**. Every file is back exactly as it
+  was and nothing was committed. The message says why (the folder changed since the
+  dry run, a written file failed the check, git could not commit). Run the dry run
+  again. Do not work around it with a script.
+- To undo a finished change: `hermitcrm undo <sha>` with the sha from the output.
+  It makes a new commit that reverses the batch (`git revert --no-edit <sha>`); history
+  is never rewritten. See [Backups and undo](https://hermitcrm.io/docs/#backups).
+
+### Commit message
+
+`hermitcrm set --apply` writes it: `bulk: <summary>`, for example
+`bulk: add tag priority on 23 companies (stage=prospect, country=DE)`. The commit holds
+only the changed record files and `PIPELINE.md`.
+
+Related: [CLI](https://hermitcrm.io/docs/#cli), [Backups and undo](https://hermitcrm.io/docs/#backups), [AI agents](https://hermitcrm.io/docs/#ai-agents), [Companies](https://hermitcrm.io/docs/#companies), [Messages](https://hermitcrm.io/docs/#messages)
+
+## Make it yours: page layout
+
+A recipe for your AI agent: put the sections of the company, contact and home pages in another order or hide them, hide fields, and choose the columns of the Companies and Contacts lists, all in one file, `layout.toml`.
+
+### What you can ask for
+
+- "On company pages, show the timeline first and hide the Merge section."
+- "Hide the value per month field everywhere."
+- "On Home, put Replies you owe at the top."
+- "In the companies list, show only name, stage, fit, country and the next step."
+- "Add my seniority field as a column in the contacts list."
+
+What a layout cannot do: rename a label, add a new kind of section, or change
+the HTML. For a new field, see `fields.toml` in [Data format](https://hermitcrm.io/docs/#data-format);
+for anything else, `hermitcrm help adjust` says which recipe fits.
+
+### The one file you write
+
+`layout.toml` in the data folder. Nothing else: no templates, no CSS, no
+record files. The file is optional, and so is every table and key in it. When
+it is absent, every page is exactly as it ships. The app reads it again on the
+next page load; there is nothing to restart.
+
+If the file exists, read it first and change it; keep the tables you were not
+asked about.
+
+```toml
+[company]                     # the company page
+sections = ["timeline", "details", "contacts"]   # these first, in this order
+hide_sections = ["merge"]     # never shown
+hide_fields = ["value_eur_month", "requalify_on"]
+
+[contact]                     # the contact page: the same three keys
+hide_fields = ["phone"]
+
+[home]                        # Home: sections and hide_sections only
+sections = ["owed"]
+
+[companies]                   # the Companies list
+columns = ["name", "stage", "fit_score", "country", "next_step"]
+
+[contacts]                    # the Contacts list
+columns = ["name", "company_name", "title", "email", "last_touch"]
+```
+
+Every value is a list of names in quotes.
+
+### Sections
+
+`sections` puts the sections you list first, in that order. **Sections you do
+not list are not hidden**: they follow in their default order. Only
+`hide_sections` hides a section. So a section that a later Hermit CRM adds
+always shows up. The page header (the name, the line under it, the stage and
+Disqualify) always stays on top and is not a section.
+
+| Page | Section names, in their default order |
+|---|---|
+| `[company]` | `enrich` (the Enrich and Fetch from URL buttons), `next-step` (the next step line), `details` (the edit form), `contacts`, `tasks`, `drafts` (message drafts), `merge`, `timeline` |
+| `[contact]` | `details` (the edit form), `timeline` (interactions), `quick-add` (Log an interaction), `tasks`, `drafts`, `merge` (only shown when the company has two or more people), `delete` |
+| `[home]` | `doing` (What needs doing), `to-file` (To file, only while there is something to file), `owed` (Replies you owe, only when you owe some), `going` (How it is going) |
+
+On Home the layout applies once the folder has companies. The empty-folder
+start cards and the Getting started block do not move.
+
+### Fields
+
+`hide_fields` hides a field on that record's page: the header line, the edit
+form and the New form. It also leaves the list: hidden company fields leave
+the Companies list and the Pipeline filters, hidden contact fields the
+Contacts list. A hidden country or value per month leaves the Pipeline cards,
+and a hidden value or one-liner the meeting brief on the Calendar. Reports,
+`PIPELINE.md`, the CLI and Ask still see every field.
+
+| Table | Built-in fields you can hide |
+|---|---|
+| `[company]` | `website`, `linkedin`, `country`, `source`, `lost_reason`, `requalify_on`, `value_eur_month`, `product_oneliner`, `next_step`, `next_step_due`, `next_step_status`, `next_step_type`, `tags`, `notes` |
+| `[contact]` | `title`, `role`, `language` (draft language), `email`, `phone`, `linkedin` |
+
+Your own fields from `fields.toml` work too: use their `key`, in the table for
+what they apply to (`company` or `contact`). The name and the stage of a
+company, and the first and last name of a contact, cannot be hidden.
+
+**Hiding never loses data.** The value stays in the file. A form leaves a
+hidden field out entirely, and saving a form keeps every value it did not
+carry. A hidden field that has an error (for example the reason, when the
+stage is set to lost) shows again so it can be filled in.
+
+### Columns
+
+`columns` chooses which columns a list shows and in what order. Leave it out
+for the default columns.
+
+| Table | Built-in column keys, in their default order |
+|---|---|
+| `[companies]` | `name`, `country`, `stage`, `source`, `tags`, `last_touch`, `next_step`, `next_type` (only when task types are set up), `next_step_due` (due), `links` (website and LinkedIn) |
+| `[contacts]` | `name`, `company_name` (company), `title`, `email`, `linkedin`, `last_touch`, `interaction_count` |
+
+Any of your own fields of that record type can be a column, by its `key`. When
+`columns` is set it wins over the field's `show_in` for that list: a field you
+list shows even without `companies` (or `contacts`) in its `show_in`, and a
+field you leave out does not show. Without `columns`, `show_in` decides, as
+before. Every column shown can be filtered and sorted, and a filter on a
+column that is not shown still works in a saved link.
+
+### Example: the company page
+
+The user asks: "On company pages, show the timeline first and hide the Merge
+section. Hide the value per month field everywhere."
+
+```toml
+[company]
+sections = ["timeline"]
+hide_sections = ["merge"]
+hide_fields = ["value_eur_month"]
+```
+
+The company page now shows the header, then the timeline, then the other
+sections in their default order: enrich, next-step, details, contacts, tasks,
+drafts. The value per month is gone from the form, the Pipeline cards and the
+meeting brief, and it stays in every company file.
+
+### Example: the lists
+
+The user asks: "Make the companies list just name, stage, fit, country and
+next step. In the contacts list, add my seniority field after the title."
+
+`fields.toml` has a company field `fit_score` and a contact field
+`seniority`, so:
+
+```toml
+[companies]
+columns = ["name", "stage", "fit_score", "country", "next_step"]
+
+[contacts]
+columns = ["name", "company_name", "title", "seniority", "email", "last_touch"]
+```
+
+### Check, then commit
+
+1. Run `hermitcrm check`. It reads `layout.toml` with `fields.toml` and names
+   every problem with its place and, for a near miss, the name you meant:
+   `layout.toml: [company] sections: unknown section timline (did you mean timeline?)`.
+   Fix what it says until it prints OK.
+2. Open the page (or ask the user to) to see the result.
+3. Commit only that file, one commit per change:
+   `git add layout.toml && git commit -m "ai: adjust: layout timeline first on company pages"`.
+
+A mistake never breaks a page: a syntax error means the default layout, and a
+wrong name is skipped while the rest applies. Still fix it: `check` fails
+until you do. To go back, revert the commit or delete the file.
+
+### Rules
+
+- Write `layout.toml` and nothing else for a layout request.
+- Never edit the templates or the package: an update would undo it.
+- Never rewrite history; undo with a new commit (`git revert`).
+
+Related: [Data format](https://hermitcrm.io/docs/#data-format), [Companies](https://hermitcrm.io/docs/#companies), [Contacts](https://hermitcrm.io/docs/#contacts), [AI agents](https://hermitcrm.io/docs/#ai-agents)
+
+## Make it yours: routines
+
+Small jobs in `routines.toml` that run every morning after the daily sync: a morning brief, or one AI draft per quiet thread. Drafts wait on Home; Hermit never sends anything.
+
+This page is a recipe for an AI agent (Claude Code, Codex, Cursor, Gemini CLI)
+asked to set up or change a routine, and the reference for the file. Read
+`hermitcrm help adjust` first if you have not: it has the rules for every change.
+
+### What the user can ask for
+
+- "Every morning, show me a short brief: meetings today, tasks due, replies I owe."
+- "Every morning, for people I messaged on LinkedIn 7 days ago without a reply,
+  draft a short follow-up. Never send anything."
+- "Draft replies to people who wrote to me and are still waiting."
+- "Each morning, draft a first message for up to 3 prospects with a score above 7
+  that I have never contacted."
+- "Pause the follow-up routine", "make the nudges shorter and in my voice".
+
+What routines cannot do: send anything, change records, run at other times than
+after the daily sync, react to events, or start each other. If the user wants
+that, say so plainly and offer the nearest thing (a routine that drafts, a
+dashboard, or `hermitcrm set` with a dry run).
+
+### How it works
+
+1. **Python selects** the records, with no AI: the follow-up radar (the
+   threads Home lists under replies you owe, and the ones waiting on them) or the
+   same filters as the Companies and Contacts lists.
+2. **The AI drafts** one message per selected record, at most `limit` per run,
+   through the AI CLI set up for Enrich (Settings, AI), on the medium model. It
+   gets the record (as `hermitcrm show` prints it), the playbook `MESSAGING.md`,
+   the folder's `messages.toml` wording in the contact's language, and the
+   routine's `prompt`. It answers in JSON; an empty, overlong or garbled answer
+   skips that record with a one-line reason.
+   The record can hold messages from other people, so the AI is held back:
+   Claude Code runs with all of its tools switched off (`--tools ""`); Codex
+   runs in its read-only sandbox, which cannot be turned into "no tools": it can
+   read files on this machine but cannot change anything. Gemini CLI, Grok CLI
+   and a custom command have no such switch, so a routine that drafts refuses to
+   run on them. It says so in one line on its page, in `hermitcrm routines list`
+   and in the preview, and fails the same way in a real run, until Settings, AI
+   names Claude Code or Codex. It is never run with its tools on.
+3. **Drafts land on Home** under *Drafts from routines*, with a link to the
+   person. The user edits one, sends it themselves, then clicks *I sent it*
+   (logged as an outbound message) or *Discard*. A routine never writes a second
+   draft for the same person while one is waiting, nor again for a thread that
+   was already drafted, until something new is logged on it.
+4. **Each run is one commit**, `routine: <name>: <n> drafts`, which the hub's
+   Undo can revert. A run that drafted nothing makes no commit. The last run
+   of each routine is kept in `inbox/.last-routines.json` (not in git).
+
+A `brief` routine uses no AI and writes no records: its summary shows at the
+top of Home for the rest of that day.
+
+### The file
+
+`routines.toml` in the data folder, one `[[routine]]` table per routine:
+
+| key | for | value |
+|---|---|---|
+| `name` | all | required; lowercase letters, digits and dashes; unique |
+| `title` | all | what Home and the hub show; default: the name |
+| `paused` | all | `true` (default) or `false`. Leave it out or `true`: the user turns it on |
+| `action` | all | `draft` (AI drafts one message per record) or `brief` (no AI) |
+| `select` | draft | `quiet_threads`, `replies_owed` or `records` |
+| `prompt` | draft | required: what to write, in the user's words; at most 2000 characters |
+| `limit` | draft | most drafts per run, 1 to 50; default 10 |
+| `channel` | draft | `email` or `linkedin`. For the radar selectors it also means "threads whose last message was on this channel" |
+| `days` | quiet_threads, replies_owed | at least this many days since the last message; default: the follow-up days in Settings |
+| `scope` | records | `companies` (default) or `contacts` |
+| `filters` | draft | narrow the selection; the list filter syntax below |
+
+The selectors:
+
+- `quiet_threads`: you wrote last, on a message, at least `days` ago, nothing
+  came back and no future next step is planned. Active companies only. One per
+  company.
+- `replies_owed`: they wrote last, at least `days` ago, and you have not
+  answered. Active companies only. One per company.
+- `records`: every company (or contact, with `scope = "contacts"`) that matches
+  `filters`, by name. Without filters that is everyone, so always add some.
+
+### Filters
+
+`filters` is a table of column = value, with the syntax of the filter row on the
+Companies and Contacts pages. Write values as text in quotes:
+
+| value | means |
+|---|---|
+| `"acme"` | contains acme (any case) |
+| `"!acme"` | does not contain acme |
+| `"=acme"` | is exactly acme |
+| `">70"`, `"<70"` | larger or smaller: numbers, dates as `YYYY-MM-DD` |
+| `"-"` | empty (for `last_touch`: never contacted) |
+| `"*"` | not empty |
+
+Choice columns take one value or a list of exact values: `stage = ["prospect",
+"engaged"]`. The default stages are prospect, engaged, discovery, offer, won,
+lost, disqualified, temp-disqualified; the user's may differ
+(`hermitcrm stages` lists them).
+
+Company columns (also used by `quiet_threads` and `replies_owed`): `name`,
+`country` (a code such as DE), `stage`, `source`, `tags`, `last_touch`,
+`next_step`, `next_step_due`, `next_type` (when task types are set up), plus every
+company field in `fields.toml` shown in the companies list. Contact columns:
+`name`, `company_name`, `title`, `email`, `linkedin`, `last_touch`,
+`interaction_count`, plus every contact field shown in the contacts list. A
+wrong column or value is reported by `hermitcrm check`, with a "did you mean".
+
+### Three starters
+
+Copy these as they are, then change what the user asked for. They start paused.
+
+```toml
+# Morning brief: meetings today, tasks due and replies owed, on Home. No AI.
+[[routine]]
+name = "morning-brief"
+title = "Morning brief"
+action = "brief"
+
+# Nudge quiet threads: people I messaged on LinkedIn 7+ days ago, no reply.
+[[routine]]
+name = "nudge-quiet-threads"
+title = "Nudge quiet threads"
+action = "draft"
+select = "quiet_threads"
+channel = "linkedin"
+days = 7
+limit = 10
+prompt = """
+Write a short, friendly follow-up to my last message: two or three sentences,
+one easy question, no pressure and no "just checking in". Refer to what we last
+talked about. Sign with my first name.
+"""
+
+# Reply drafts: they wrote, I have not answered yet.
+[[routine]]
+name = "reply-drafts"
+title = "Reply drafts"
+action = "draft"
+select = "replies_owed"
+prompt = """
+Draft a reply that answers their last message point by point. Put anything I
+must check or decide myself in [square brackets]. Keep my usual tone.
+"""
+```
+
+The sample account (`hermitcrm sample add`, and `init --demo`) writes a paused
+`nudge-quiet-threads` routine like the second one, for any channel, under a
+comment that starts "A sample routine". Change it in place when the user asks
+for one like it; once changed (or turned on) it is the user's, and
+`hermitcrm sample remove` leaves it.
+
+A `records` routine, for "first messages to high-score prospects never
+contacted":
+
+```toml
+[[routine]]
+name = "first-touch"
+title = "First touch for top prospects"
+action = "draft"
+select = "records"
+scope = "companies"
+filters = { stage = "prospect", my_score = ">7", last_touch = "-" }
+limit = 3
+prompt = "Draft a short first message using the playbook's hook angle."
+```
+
+### Steps for the agent
+
+1. Read `routines.toml` if it exists and keep everything in it: other routines,
+   comments, the user's `paused` values. Add or change only what was asked.
+2. Write new routines without `paused` (or with `paused = true`). Never turn a
+   routine on yourself: the user does that after looking at the preview.
+3. Run `hermitcrm check` and fix every line it prints about `routines.toml`.
+4. Run `hermitcrm routines preview <name>` and show the user who would be picked.
+   If they want to see a draft: `hermitcrm routines preview <name> --try` (one AI
+   run, nothing saved).
+5. Commit only `routines.toml`, as `ai: adjust: routine <name>`.
+6. Tell the user: it is paused; turn it on at `/yours/routines/<name>` or with
+   `hermitcrm routines on <name>`; drafts will appear on Home after the next
+   daily sync; nothing is ever sent.
+
+### Rules
+
+- Drafts only. No routine, prompt or command sends a message.
+- New routines start paused; preview first; the user turns them on.
+- A routine that is on and that you change (its select, filters, prompt,
+  action, channel, days or limit) goes back to `paused = true`: the user turned
+  on the old version, not yours. Only the title may change without that. Over
+  MCP, `adjust_write` does this for you and says so.
+- Write only `routines.toml`. Never write into `drafts/`, never edit
+  `inbox/.last-routines.json`, never run `hermitcrm routines run --apply` unless
+  the user asks for a run now.
+- The prompt is for wording, not for selection: who is picked is decided by
+  `select`, `filters`, `days` and `channel`, never by the AI.
+- A routine that fails is one line in the sync log; it never stops the sync or
+  the other routines.
+
+### Commands
+
+```text
+hermitcrm routines [list]                 every routine, on or paused, its last run; problems
+hermitcrm routines preview NAME [--try]   who it would pick now (no AI, no writes); --try shows one AI draft, not saved
+hermitcrm routines run [NAME] [--apply]   one routine (even a paused one), or all that are on; dry run without --apply
+hermitcrm routines on NAME | off NAME     turn on or pause; one commit, only the paused line changes
+```
+
+The web app has the same: `/yours/routines` lists them, `/yours/routines/<name>`
+is the preview with *Turn on*, *Pause* and *Try the AI on the first one*.
+
+Related: [CLI](https://hermitcrm.io/docs/#cli), [Data format](https://hermitcrm.io/docs/#data-format), [AI agents](https://hermitcrm.io/docs/#ai-agents), [Enrich](https://hermitcrm.io/docs/#enrich)
+
+## Make it yours: deal stages
+
+Recipe for an AI agent: rename, add, reorder or remove the stages a deal goes through with `hermitcrm stages`, always as a dry run first.
+
+Use this recipe when the user wants their own stages: "call engaged contacted", "add a qualified step before discovery", "drop the temp-disqualified stage". The stages are a setting (`stages` in `config.toml`), but **do not edit that line by hand and do not edit company files**. A stage name is stored on every company and in its `stage_history`, so a rename has to rewrite them all. `hermitcrm stages` does both, in commits you can undo.
+
+### The rules
+
+1. **Use `hermitcrm stages`.** It validates names and roles, saves `config.toml`, rewrites or moves the companies and makes **one commit** for all of it, with the subject `ai: adjust: ...`, so one undo takes the whole change back.
+2. **Dry run first.** Without `--apply` nothing is written. It prints the new list, how many companies each change touches (with a few slugs) and anything that still names an old stage.
+3. **Show the dry run to the user and wait for a yes.** A stage change rewrites record files, so it is not one of the keys you may write without asking. Run `--apply` only after the user has said yes to that exact change.
+4. **Run `hermitcrm check` afterwards** and tell the user if it reports anything. `dashboards/*.toml` and `routines.toml` that name an old stage are *not* rewritten by the command; the dry run lists them, and `check` flags the old name (`unknown value 'engaged'`). Fix those files after the user agrees (`hermitcrm help adjust-dashboards`, `hermitcrm help adjust-routines`).
+5. Tell the user what changed and how to undo it: the commit id (`git log -1`), and `hermitcrm undo <id>` reverses the whole change, the setting and the companies, with a new commit.
+
+### What a stage is
+
+A stage has a **name** and a **role**. The name is what you see; the role tells Hermit what the stage means, so no name is special.
+
+| Role | Meaning |
+|---|---|
+| `open` | A column on the board and a step in the funnel. The **first** open stage is where a new company starts and where a requalified one returns. When a company in it gets its first outbound message, it moves to the next stage, if that is open too. |
+| `won` | A deal closed won. Counts for the win rate and ends the funnel. |
+| `lost` | A deal closed lost. A **reason is required**. Counts against the win rate. |
+| `closed` | Any other end, such as disqualified. Keeps its reason, not in the win rate. |
+| `parked` | Out of the pipeline for now, with a date to come back (`requalify_on`); it returns to the entry stage on that day. |
+
+An `open` stage can also be **valued**: its heading in `PIPELINE.md` shows the monthly value. By default `discovery` and `offer` are valued.
+
+The defaults, used when `config.toml` has no `stages` line:
+
+```text
+prospect (open)  engaged (open)  discovery (open, valued)  offer (open, valued)
+won (won)  lost (lost)  disqualified (closed)  temp-disqualified (parked)
+```
+
+Names are lowercase `a-z`, `0-9` and single hyphens, at most 30 characters. `yes`, `no`, `on`, `off`, `true`, `false`, `null` and all-digit names are refused, because YAML would read them as something else. At least one stage must be `open`; the others can be absent (no `parked` stage means no "until" date; no `won` stage means the funnel ends at the last open stage).
+
+### Commands
+
+```text
+hermitcrm stages                                   the stages, their roles and companies
+hermitcrm stages rename OLD NEW [--apply]
+hermitcrm stages add NAME [--role open] [--valued] [--after STAGE] [--apply]
+hermitcrm stages move NAME (--after STAGE | --first) [--apply]
+hermitcrm stages set NAME [--role ROLE] [--valued yes|no] [--apply]
+hermitcrm stages remove NAME --move-to STAGE [--reason TEXT] [--apply]
+```
+
+- `rename` rewrites `stage` and every `stage_history` entry (`from` and `to`) on every company, in one commit. A rename does not change the `updated` date of a company.
+- `add` puts a new open stage after the last open one unless you say `--after`; other roles go to the end.
+- `remove` needs `--move-to` when companies are in the stage: they are moved with an ordinary stage change, so each history records it. Moving into a `lost` stage needs `--reason`.
+- `set --role lost` is refused while companies in that stage have no reason.
+- Putting a new stage first, or moving one first, changes the entry stage. The start of an old history is "created in the entry stage", so the command first writes that start into the files of companies that only imply it (in the same commit), and nothing is re-dated.
+
+### Worked example: rename and insert
+
+The user asks: "Call engaged contacted, and add a qualified step after it."
+
+```bash
+hermitcrm stages rename engaged contacted
+```
+
+```text
+Stages after this change:
+  prospect  open  341 companies
+  contacted  open  21 companies (was engaged)
+  discovery  open valued  1 company
+  ...
+Rename "engaged" to "contacted": 28 companies rewritten (21 in it now, the rest only in their stage_history), e.g. acme, beta, gamma
+Dry run; add --apply to write (one commit, undoable).
+```
+
+Your reply: "Renaming engaged to contacted rewrites 28 company files (21 are in it now, the rest passed through it). Shall I apply it?" After a yes, run it with `--apply`, then:
+
+```bash
+hermitcrm stages add qualified --after contacted
+hermitcrm stages add qualified --after contacted --apply
+hermitcrm check
+```
+
+### What `hermitcrm check` says
+
+- `config.toml: stages entry 2: ...` the setting is wrong (a bad name, an unknown role, a stage twice, no open stage). The app keeps the stages it had until the line is fixed.
+- `companies/<slug>: stage 'x' is not in config.toml stages` a company is in a stage the setting does not list (the setting was edited by hand). The company still loads. It sits off the board, in grey in the Companies list, until it is moved to a stage that exists or the stage is added back.
+- `dashboards/...: filter stage: unknown value 'engaged'` a dashboard or routine still names an old stage.
+
+Related: [Make it yours](https://hermitcrm.io/docs/#adjust), [CLI](https://hermitcrm.io/docs/#cli), [Companies](https://hermitcrm.io/docs/#companies), [Pipeline](https://hermitcrm.io/docs/#pipeline), [Settings](https://hermitcrm.io/docs/#settings)

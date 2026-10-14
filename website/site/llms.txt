@@ -4,6 +4,43 @@
 
 Hermit CRM is a free, open-source CRM for founders, freelancers and anyone doing their own sales. It runs on your Mac or Linux computer and keeps every company, contact and conversation as a Markdown file in a git folder on your own disk. A local web app gives you a pipeline board, a calendar of next steps, message drafts and reports. AI tools such as Claude Code, Codex or Claude Desktop can read and update the pipeline through the files, a small CLI or the built-in MCP server. It is alpha software under the Apache License 2.0, with no warranty and no support.
 
+## Docs
+
+What Hermit CRM does, feature by feature: the app's own Help pages for the released version. Read the AI agents page first if you will work in a data folder or over MCP.
+
+- [All docs in one file](https://hermitcrm.io/llms-full.txt): every topic below as Markdown, for version 0.7.0
+- [Docs](https://hermitcrm.io/docs/): the same as one web page
+- [Pipeline](https://hermitcrm.io/docs/#pipeline): The board at /pipeline: one column per open stage, cards you can move with a dropdown, closed companies in lists below. The stages are yours to name and order (Settings > Deal stages); this page describes the defaults.
+- [Calendar](https://hermitcrm.io/docs/#calendar): /calendar: meetings this week, your tasks on their due date, and accounts going quiet. The list of all tasks, with filters, is on the Tasks page.
+- [Tasks](https://hermitcrm.io/docs/#tasks): /tasks: every task for every company and its people in one table.
+- [Companies](https://hermitcrm.io/docs/#companies): /companies lists every company; /companies/<slug> is the account page with its fields, contacts, drafts, merge and timeline.
+- [Contacts](https://hermitcrm.io/docs/#contacts): /contacts lists every person across companies; a contact page holds the fields, this person's interactions and three message drafts.
+- [Interactions](https://hermitcrm.io/docs/#interactions): An interaction is one touch with a person: an email, LinkedIn message, call or meeting, in or out, with the text kept verbatim. A note is an interaction too: a memo about the person, with no direction, that shows on their timeline but never counts as contact made (it does not move last touch, a prospect's stage, follow-ups, outcomes or reports).
+- [Messages](https://hermitcrm.io/docs/#messages): /messages: every message you sent, newest first, with what came of it.
+- [Reports](https://hermitcrm.io/docs/#reports): /reports: numbers for a period, each with the change against the previous period of the same length.
+- [Make it yours](https://hermitcrm.io/docs/#adjust): Describe a change to Hermit CRM and your own AI agent builds it in your data folder; this page is the rules that agent follows, and the first thing it reads.
+- [Settings](https://hermitcrm.io/docs/#settings): /settings: who you are, mail and calendar capture, backup, appearance, fields of your own, AI (Enrich and Ask the Hermit), outcomes, the daily schedule, access from a phone or an AI client, Support Hermit, and About.
+- [Import](https://hermitcrm.io/docs/#import): /import (and hermitcrm import FILE): companies or contacts from a spreadsheet, previewed before anything is written.
+- [Extension](https://hermitcrm.io/docs/#extension): /extension: turn the page you are looking at into a company record, in one click, without typing the name twice.
+- [Enrich](https://hermitcrm.io/docs/#enrich): Two ways to fill a company's or contact's empty fields: Fetch from URL reads a web page (no AI); Enrich asks an AI CLI you already have, on the medium model by default; the proposal page offers Retry with the strong model (Claude: Fable).
+- [Ask the Hermit](https://hermitcrm.io/docs/#ask): The Ask the Hermit button, top right on every page, sends a question to the AI CLI configured under Settings (the same one Enrich uses).
+- [Merge](https://hermitcrm.io/docs/#merge): Combine two companies, or two contacts of one company, into one record in a single commit.
+- [CLI](https://hermitcrm.io/docs/#cli): hermitcrm [--data DIR] <command>: the data folder is --data, then $HERMITCRM_DATA, then the current directory.
+- [Backups and undo](https://hermitcrm.io/docs/#backups): A second copy of the folder's history, outside the folder, that can only grow; every few minutes, and any version can be put back. Claude Code is blocked from the git commands that destroy history.
+- [Data format](https://hermitcrm.io/docs/#data-format): Every record is a Markdown file with YAML front matter in a fixed key order; the files are the only source of truth.
+- [AI agents](https://hermitcrm.io/docs/#ai-agents): How an AI session (Claude Code, Codex or any agent) should read and write a Hermit CRM data folder; the same rules are in the folder's CLAUDE.md and AGENTS.md.
+- [Disclaimer](https://hermitcrm.io/docs/#disclaimer): Plain language, because this matters more than legal wording. The binding text is the Apache License 2.0, sections 7 and 8, in the LICENSE file that came with Hermit CRM.
+- [Make it yours: fields](https://hermitcrm.io/docs/#adjust-fields): A recipe for your AI agent: add or change fields of your own, where they show, and your task types, outcomes and quiet threshold.
+- [Make it yours: the look](https://hermitcrm.io/docs/#adjust-look): A recipe for your AI agent: change Hermit's colours, fonts and density with one theme.css in the data folder.
+- [Make it yours: messages](https://hermitcrm.io/docs/#adjust-messages): A recipe for your AI agent: rewrite the outreach drafts in the user's own voice, add a language, and keep the playbook.
+- [Make it yours: bring data in](https://hermitcrm.io/docs/#adjust-connect): A recipe for your AI agent: get companies, contacts, mail and meetings into Hermit from files and the tools the user already has.
+- [Make it yours: something Hermit can't do yet](https://hermitcrm.io/docs/#adjust-feature): A recipe for your AI agent: when a wish needs new code, check first whether the files already cover it, then write a feature request or, for a developer, build it in their own copy.
+- [Make it yours: dashboards](https://hermitcrm.io/docs/#adjust-dashboards): Pages of your own at /d/<name>: lists, counts, bars and report sections, written as dashboards/<name>.toml by you or your AI agent, and pinned in the sidebar if you like.
+- [Make it yours: bulk changes](https://hermitcrm.io/docs/#adjust-bulk): Recipe for an AI agent: change many records at once with hermitcrm set, always as a dry run first, then one commit that can be undone.
+- [Make it yours: page layout](https://hermitcrm.io/docs/#adjust-layout): A recipe for your AI agent: put the sections of the company, contact and home pages in another order or hide them, hide fields, and choose the columns of the Companies and Contacts lists, all in one file, layout.toml.
+- [Make it yours: routines](https://hermitcrm.io/docs/#adjust-routines): Small jobs in routines.toml that run every morning after the daily sync: a morning brief, or one AI draft per quiet thread. Drafts wait on Home; Hermit never sends anything.
+- [Make it yours: deal stages](https://hermitcrm.io/docs/#adjust-stages): Recipe for an AI agent: rename, add, reorder or remove the stages a deal goes through with hermitcrm stages, always as a dry run first.
+
 ## Make it yours, with your own AI
 
 Say what you want in one sentence. Your own AI agent (Claude Code, Codex, Cursor or Gemini CLI) builds it in your data folder, following recipes that come with Hermit, and you see it on the next page load.
@@ -17,6 +54,7 @@ Safe to try. Every change is a git commit you can undo in one click. Routines on
 ## Pages
 
 - [Home](https://hermitcrm.io/): what it is, how to install it, questions and answers
+- [Docs](https://hermitcrm.io/docs/): How every part of Hermit CRM works: pipeline, contacts, mail capture, reports, the CLI, the MCP server and how your AI agent can change it.
 - [Hermit CRM compared](https://hermitcrm.io/compare/): How Hermit CRM, a free local CRM for one person, compares with HubSpot, Attio, Pipedrive, folk, Twenty and Notion on price, data and AI access.
 - [About](https://hermitcrm.io/about/): The short story of why Gijs Bos built Hermit CRM, a free local CRM for one person, and how you can help as a beta tester.
 

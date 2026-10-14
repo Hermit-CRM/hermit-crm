@@ -14,6 +14,8 @@
 <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
 <meta property="og:site_name" content="Hermit CRM">
 <meta property="og:locale" content="en_GB">
+<link rel="help" href="https://hermitcrm.io/docs/">
+<link rel="alternate" type="text/plain" title="Hermit CRM docs as text" href="https://hermitcrm.io/llms-full.txt">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Hermit CRM: A CRM for one. Free for Mac and Linux, Apache 2.0.">
@@ -47,6 +49,10 @@
    "softwareVersion": "0.7.0",
    "license": "https://www.apache.org/licenses/LICENSE-2.0",
    "isAccessibleForFree": true,
+   "softwareHelp": {
+    "@type": "CreativeWork",
+    "url": "https://hermitcrm.io/docs/"
+   },
    "offers": {
     "@type": "Offer",
     "price": "0",
@@ -63,7 +69,7 @@
 
 <header class="site-header wide">
   <a class="brand" href="./" aria-label="Hermit CRM home"><svg viewBox="4.5 10.5 55 43" aria-hidden="true" focusable="false"><rect x="7" y="13" width="50" height="38" rx="7" fill="none" stroke="currentColor" stroke-width="5"/><circle cx="24" cy="27" r="5.5" fill="#1E8A60"/><path d="M16 43 a8 8 0 0 1 16 0 z" fill="#1E8A60"/><rect x="38" y="25" width="12" height="4" rx="2" fill="currentColor"/><rect x="38" y="34" width="8" height="4" rx="2" fill="currentColor"/></svg><span>Hermit CRM</span></a>
-  <nav class="site-nav" aria-label="Site"><a href="about/">About</a><a href="https://github.com/Hermit-CRM/hermit-crm">GitHub</a></nav>
+  <nav class="site-nav" aria-label="Site"><a href="docs/">Docs</a><a href="about/">About</a><a href="https://github.com/Hermit-CRM/hermit-crm">GitHub</a></nav>
 </header>
 
 <main id="main">
@@ -200,7 +206,7 @@ next_step_due: 2026-09-24
       <details open><summary>Does anything leave my Mac?</summary><p>Only what you send. A private git backup, if you add one. The AI tool you ask, when you use Ask Hermit or enrichment. A once-a-day version check with no identifiers, which you can turn off.</p></details>
       <details><summary>Do I need to be a developer?</summary><p>No. Your AI tool runs the commands and tells you in plain words what it is doing. On a fresh Mac you click Install once in an Apple dialog.</p></details>
       <details><summary>Does it run on Linux?</summary><p>Yes, but it is less tested than on a Mac. The install is the same: your AI tool checks for git and Python and installs what is missing, which on Linux may ask for your password. There is no keychain on Linux, so the mail password is kept in a file only your user account can read.</p></details>
-      <details><summary>Which AI tools work?</summary><p>For the install, any AI coding tool that can read a file and run commands: Claude Code, Codex, Cursor, Gemini CLI, Grok Build and others. Afterwards, Claude Desktop, ChatGPT, Cursor or any other MCP client can read your pipeline and log interactions.</p></details>
+      <details><summary>Which AI tools work?</summary><p>For the install, any AI coding tool that can read a file and run commands: Claude Code, Codex, Cursor, Gemini CLI, Grok Build and others. Afterwards, Claude Desktop, ChatGPT, Cursor or any other MCP client can read your pipeline and log interactions. An AI tool that wants the whole manual can read <a href="docs/">the docs</a>, or the same text as one file in <a href="llms-full.txt">llms-full.txt</a>.</p></details>
       <details><summary>Does it work with my email and calendar?</summary><p>Yes, without OAuth. BCC or forward mail to an address such as you+crm@gmail.com and it is logged on the right contact. Past meetings come in from your calendar's secret ICS link (Google, Outlook or iCloud). You type the app password and the link into the Settings page yourself, so they never pass through an AI chat.</p></details>
       <details><summary>Can my team use it?</summary><p>No. Hermit CRM is built for one person. If you need a team CRM, use one of the others.</p></details>
       <details><summary>How does it compare with HubSpot, Attio or Pipedrive?</summary><p>Those are hosted CRMs for teams, priced per seat, with your data in their cloud. Hermit CRM is free, for one person, and keeps your data on your own computer. <a href="compare/">Hermit CRM compared</a> puts it side by side with HubSpot, Attio, Pipedrive, folk, Twenty and Notion, and says when each one is the better choice.</p></details>
@@ -210,7 +216,7 @@ next_step_due: 2026-09-24
   </section>
 </main>
 
-<footer class="site-footer col">Hermit CRM · Apache License 2.0 · alpha, no warranty · <a href="https://github.com/Hermit-CRM/hermit-crm">GitHub</a> · <a href="download/hermitcrm-0.7.0.tar.gz.sha256">SHA-256</a> · <a href="compare/">Compare</a> · <a href="about/">About</a> · Built by <a href="https://www.linkedin.com/in/gijsbos">Gijs Bos</a></footer>
+<footer class="site-footer col">Hermit CRM · Apache License 2.0 · alpha, no warranty · <a href="https://github.com/Hermit-CRM/hermit-crm">GitHub</a> · <a href="download/hermitcrm-0.7.0.tar.gz.sha256">SHA-256</a> · <a href="docs/">Docs</a> · <a href="compare/">Compare</a> · <a href="about/">About</a> · Built by <a href="https://www.linkedin.com/in/gijsbos">Gijs Bos</a></footer>
 
 <script>
 // Copy button: shown only when scripts run. "Copied" only when the copy

@@ -47,6 +47,7 @@ site_url    = "https://hermitcrm.io"
 # ── Top bar ──────────────────────────────────────────────────────────
 [header]
 name         = "Hermit CRM"
+docs_label   = "Docs"     # top right, links to /docs/
 about_label  = "About"    # top right, links to /about/
 github_label = "GitHub"
 
@@ -247,7 +248,9 @@ a = """
 For the install, any AI coding tool that can read a file and run commands:
 Claude Code, Codex, Cursor, Gemini CLI, Grok Build and others. Afterwards, Claude
 Desktop, ChatGPT, Cursor or any other MCP client can read your pipeline and
-log interactions.
+log interactions. An AI tool that wants the whole manual can read
+[the docs](docs/), or the same text as one file in
+[llms-full.txt](llms-full.txt).
 """
 
 [[questions.items]]
@@ -283,11 +286,29 @@ q = "What does it cost?"
 a = "Nothing. It is free and open source under the Apache License 2.0. It is alpha software with no warranty and no support; see DISCLAIMER.md in the download."
 
 
+# ── Docs page (/docs/) and llms-full.txt ─────────────────────────────
+# The topics themselves are the app's Help pages (src/hermitcrm/help/*.md),
+# taken from the download in [links].download; only the words around them
+# are here. See README, "Docs".
+[docs]
+title          = "Hermit CRM docs: every feature, for people and AI agents"
+description    = "How every part of Hermit CRM works: pipeline, contacts, mail capture, reports, the CLI, the MCP server and how your AI agent can change it."
+h1             = "Hermit CRM docs"
+lead           = "The same pages as Help inside the app and `hermitcrm help <topic>` on the command line: how each part of Hermit CRM works, written for people and for the AI agents that work in your data folder."
+version_label  = "For version"
+text_note      = "All of it as one Markdown file: [llms-full.txt](../llms-full.txt)."
+contents       = "Contents"
+recipes        = "Make it yours: recipes"
+recipes_note   = "What your own AI agent follows when you ask it to change Hermit CRM. Start with [Make it yours](#adjust)."
+back           = "Back to contents"
+llms_intro     = "What Hermit CRM does, feature by feature: the app's own Help pages for the released version. Read the AI agents page first if you will work in a data folder or over MCP."
+
+
 # ── Bottom of the page ───────────────────────────────────────────────
 [footer]
 # {github} is replaced by a link to [links].github labelled with
 # [header].github_label, {sha256} by a link to [links].sha256.
-text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · {github} · {sha256} · [Compare](compare/) · [About](about/) · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
+text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · {github} · {sha256} · [Docs](docs/) · [Compare](compare/) · [About](about/) · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
 
 
 # ── Share image (og.png, 1200 x 630) ─────────────────────────────────

@@ -1,7 +1,7 @@
 # Hermit CRM website
 
-A static site in the "Quiet cabin" style (design direction A): the home page and
-the comparison pages under `/compare/`.
+A static site in the "Quiet cabin" style (design direction A): the home page,
+the comparison pages under `/compare/`, the About page and the docs under `/docs/`.
 
 This folder is for the maintainer only. `.gitattributes` marks it `export-ignore`,
 so `scripts/release.sh` (which uses `git archive`) leaves it out of the download,
@@ -62,6 +62,35 @@ Links between pages end in a slash (`compare/hubspot/`), which a web server
 turns into `index.html` but a browser opening files from disk does not. To click
 through the pages locally, serve the folder: `python3 -m http.server -d site 8000`.
 
+## Docs
+
+`/docs/` is the app's Help, all on one page, and `llms-full.txt` is the same text
+as one Markdown file for AI tools. Neither has text of its own to edit: both are
+built from `src/hermitcrm/help/*.md`, the pages the app shows under Help and
+`hermitcrm help <topic>` prints. Change a topic there and the app, the CLI and
+the website all follow. Only the words around them (title, intro, labels) are in
+`[docs]` in `content.toml`.
+
+The build takes the Help pages from the download in `[links].download` (the
+tarball in `site/download/`), not from this checkout, so the docs describe the
+version people get and not work on main that is not released yet. Publishing a
+new version (below) therefore updates the docs with no extra step. Without the
+tarball the build falls back to `src/hermitcrm/help/` and warns; `--release`
+refuses that, and refuses docs whose version is not `[release].version`.
+
+What changes on the way: links between Help pages become anchors on the page
+(`/help/settings#bcc-capture` becomes `#settings-bcc-capture`), links into the
+rest of the app (`/welcome`, `/settings`) become plain text, and two topics are
+left out: the Help index (the contents list replaces it) and Feedback (a form in
+the app). The topics are in the app's own order, with the Make it yours recipes
+listed separately in the contents.
+
+For AI tools: `llms.txt` lists every topic with its first paragraph before
+anything else, every page's `<head>` links to `/docs/` (`rel="help"`) and to
+`llms-full.txt`, the `SoftwareApplication` data names `/docs/` as its
+`softwareHelp`, and `/docs/` is in `sitemap.xml` with the release's date. People
+see one "Docs" link in the header and the footer.
+
 ## Other things you might change
 
 | What | Where |
@@ -107,7 +136,9 @@ deploy:
 3. Point `[links].download` and `[links].sha256` at them and set
    `[release].version`.
 4. `python3 build.py` warns when a linked file is missing, and
-   `--release` refuses to finish. Then `flyctl deploy --remote-only`.
+   `--release` refuses to finish. The same build rebuilds `/docs/` and
+   `llms-full.txt` from the new tarball (see "Docs"). Then
+   `flyctl deploy --remote-only`.
 
 Keep older files in `site/download/` if people may still link to them.
 
@@ -134,7 +165,7 @@ and no referer are kept; the `.sha256` files and the `www` redirect log nothing
 the log goes with it (Fly keeps 5 daily snapshots). stdout is no use for this:
 `flyctl logs` keeps only the last 100 lines.
 
-**The page log.** `nginx.conf` also logs every HTML page and `llms.txt`, one JSON
+**The page log.** `nginx.conf` also logs every HTML page, `llms.txt` and `llms-full.txt`, one JSON
 line each, to `/data/visits.log` on the same volume. Still no IP address and no
 cookie, and of the referer only the host (`news.example.com`, never the path or
 query). Images, CSS, `robots.txt` and the Fly health check (which is why it asks
