@@ -203,6 +203,17 @@ def test_import_logs_creates_and_queues_in_one_commit(store, messages):
     assert messages == [] and len(store.companies["acme"].interactions) == 1
 
 
+def test_same_name_other_address_goes_to_review(store):
+    seed(store)
+    events = cal.parse_ics(ics(vevent("dup-1", attendees=("mailto:jane.doe@acme.de",))))
+    inbox = bcc.Inbox(store.root)
+    result = cal.import_events(store, inbox, events, SETTINGS, store.now(), apply=True)
+    assert (result.logged, result.contacts, result.review) == (0, 0, 1)
+    [item] = inbox.items()
+    assert (item.kind, item.reason) == ("meeting", "may be acme/jane-doe (jane@acme.de)")
+    assert list(store.companies["acme"].contacts) == ["jane-doe"]
+
+
 def test_dry_run_writes_nothing(store, messages):
     seed(store)
     messages.clear()
