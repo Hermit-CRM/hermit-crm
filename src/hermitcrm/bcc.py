@@ -558,16 +558,45 @@ def company_named(store: Store, name: str):
     return hits[0] if len(hits) == 1 else None
 
 
-def existing_contact(company, address: str, first_name: str, last_name: str):
-    """The contact a mail belongs to: same email, else same name with no email yet."""
+def _name_key(name: str) -> str:
+    """Names compared ignoring case and accents: 'Jörg Müller' == 'joerg mueller'."""
+    return slugify(name or "", default="")
+
+
+def existing_contact(company, address: str, first_name: str, last_name: str,
+                     any_email: bool = False):
+    """The contact a mail belongs to: same email, else same name with no email yet.
+
+    ``any_email`` also takes a same-named contact that has another email on
+    file; only for a person's own choice (assigning an inbox item)."""
     by_email = next((c for c in company.contacts.values() if c.email == address), None)
     if by_email is not None:
         return by_email
-    wanted = f"{first_name} {last_name}".strip().lower()
+    wanted = _name_key(f"{first_name} {last_name}")
     if not wanted:
         return None
     return next((c for c in company.contacts.values()
-                 if not c.email and c.name.lower() == wanted), None)
+                 if (any_email or not c.email) and _name_key(c.name) == wanted), None)
+
+
+def similar_contacts(company, first_name: str, last_name: str) -> list:
+    """Contacts that may be this person: the same name (whatever email they
+    have), or the same first name where one of the two has no last name."""
+    first, full = _name_key(first_name), _name_key(f"{first_name} {last_name}")
+    if not full:
+        return []
+    out = []
+    for c in company.contacts.values():
+        if _name_key(c.name) == full or (
+                first and _name_key(c.first_name) == first
+                and not (_name_key(c.last_name) and _name_key(last_name))):
+            out.append(c)
+    return sorted(out, key=lambda c: c.slug)
+
+
+def _similar_reason(company_slug: str, contacts: list) -> str:
+    return "may be " + ", ".join(
+        f"{company_slug}/{c.slug}" + (f" ({c.email})" if c.email else "") for c in contacts)
 
 
 def log_entry(store: Store, company_slug: str, contact_slug: str, entry: Entry):
@@ -801,8 +830,19 @@ def handle_entry(store: Store, inbox: Inbox, entry: Entry, seen: set, planned: d
         return f"{match.company}/{match.contact} | log"
     if match.action == "create-contact":
         first, last = name_parts(entry.name, entry.address)
+        company = store.companies[match.company]
+        same = existing_contact(company, entry.address, first, last)
+        similar = [] if same is not None else similar_contacts(company, first, last)
+        if similar:  # perhaps another address of someone on file: a person decides
+            slugs = {c.slug for c in similar}
+            done = next((i for i in company.interactions
+                         if i.message_id == entry.message_id and i.contact in slugs), None)
+            if done is not None:  # assigned from the inbox on an earlier run
+                result.duplicates += 1
+                return f"{match.company}/{done.contact} | already imported"
+            return queue_entry(store, inbox, entry, seen, result, apply,
+                               _similar_reason(match.company, similar))
         result.logged += 1
-        same = existing_contact(store.companies[match.company], entry.address, first, last)
         if same is not None:  # known person, email not on file yet
             if apply:
                 store.update_contact(match.company, same.slug, email=entry.address)
@@ -835,6 +875,16 @@ def handle_entry(store: Store, inbox: Inbox, entry: Entry, seen: set, planned: d
             return create_company_entry(store, entry, match.new_domain, name, planned,
                                         result, apply)
         reason = f"{reason} ({refuse}, so none created)"
+    return queue_entry(store, inbox, entry, seen, result, apply, reason)
+
+
+def queue_entry(store: Store, inbox: Inbox, entry: Entry, seen: set, result,
+                apply: bool, reason: str) -> str:
+    """Put one entry in the review inbox, once."""
+    key = (entry.message_id, entry.address)
+    if key in seen:
+        result.duplicates += 1
+        return "already in the inbox or discarded"
     seen.add(key)
     result.review += 1
     if apply:
@@ -894,7 +944,8 @@ def assign(store: Store, inbox: Inbox, item_id: str, company: str,
         if new:
             slug = store.create_company(name, website=website_for_address(item.address)).slug
         target = store.companies[slug]
-        contact = existing_contact(target, item.address, first_name, last_name)
+        contact = existing_contact(target, item.address, first_name, last_name,
+                                   any_email=True)
         if contact is None:
             contact = store.create_contact(slug, first_name, last_name, email=item.address)
         elif not contact.email:
