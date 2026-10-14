@@ -207,3 +207,12 @@ def test_the_default_port_is_not_the_apps_own_and_a_busy_port_is_explained(capsy
     finally:
         taken.server_close()
     assert "--port" in capsys.readouterr().err
+
+
+def test_visitors_come_above_the_downloads_and_the_range_buttons_above_both(tmp_path):
+    seed(tmp_path)
+    for with_log in (False, True):
+        if with_log:
+            seed_visits(tmp_path)
+        page = db.render(db.summarize(tmp_path, today="2026-10-05"), live=True)
+        assert page.index("data-range") < page.index("<h2>Visitors</h2>") < page.index("<h2>All time</h2>")
