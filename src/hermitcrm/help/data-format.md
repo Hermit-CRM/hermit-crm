@@ -149,7 +149,7 @@ both keys on its next save.
 
 ## Interaction (`interactions/<id>.md`)
 
-`date` (datetime), `channel` (email, linkedin, call, meeting, note), `direction`
+`date` (datetime), `channel` (email, linkedin, call, whatsapp, meeting, note), `direction`
 (out, in; empty for a note), `contact` (contact slug; empty only in older or
 imported files), `subject`,
 `outcome` (one line; see the configured outcomes), `result` (legacy: success,
