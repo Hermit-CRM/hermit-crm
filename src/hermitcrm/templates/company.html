@@ -133,7 +133,10 @@
 (function () {
   var stage = document.getElementById('stage');
   {%- set to_stage = focus_stage if focus_stage in company.stages else (company.stages.with_role('lost') | first | default('')) %}
-  if (stage && {{ to_stage | tojson }}) { stage.value = {{ to_stage | tojson }}; }
+  if (stage && {{ to_stage | tojson }}) {
+    stage.value = {{ to_stage | tojson }};
+    stage.dispatchEvent(new Event('change'));  // shows the closing details
+  }
   var reason = document.getElementById('lost_reason');
   if (reason) { reason.focus(); }
 })();
