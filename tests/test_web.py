@@ -825,6 +825,95 @@ def test_a_stale_page_cannot_tick_off_the_wrong_task(client, app):
     assert "no%20longer%20there" in r.headers["location"]
 
 
+def test_a_task_can_be_edited_from_its_row(client, app, repo):
+    post_company(client, name="Acme")
+    client.post("/companies/acme/tasks", data={"text": "send deck", "due": "2026-09-20"})
+
+    r = client.post("/companies/acme/todo-edit",
+                    data={"index": "0", "text": "send deck", "new_text": "send the deck",
+                          "due": "2026-09-24"},
+                    headers={"referer": "http://testserver/companies/acme"})
+    assert r.status_code == 303
+    assert r.headers["location"].endswith("flash=Task%20saved#tasks")
+    assert r.headers["location"].startswith("/companies/acme?")
+    assert last_commit(repo) == "task: acme edited"
+    t = app.state.store.get("acme").tasks[0]
+    assert (t.text, str(t.due)) == ("send the deck", "2026-09-24")
+
+
+def test_a_contact_task_and_the_next_step_can_be_edited(client, app, repo):
+    post_company(client, name="Acme", next_step="Call Jane", next_step_due="2026-09-20")
+    post_contact(client, "acme", first_name="Jane", last_name="Roe")
+    client.post("/companies/acme/tasks", data={"text": "send her the deck",
+                                               "contact": "jane-roe"})
+
+    r = client.post("/companies/acme/todo-edit",
+                    data={"index": "0", "contact": "jane-roe", "text": "send her the deck",
+                          "new_text": "send Jane the deck", "due": ""},
+                    headers={"referer": "http://testserver/companies/acme/contacts/jane-roe"})
+    assert r.headers["location"].startswith("/companies/acme/contacts/jane-roe?")
+    assert last_commit(repo) == "task: acme/jane-roe edited"
+    assert app.state.store.get("acme").contacts["jane-roe"].tasks[0].text == \
+        "send Jane the deck"
+
+    r = client.post("/companies/acme/todo-edit",
+                    data={"index": "", "text": "Call Jane", "new_text": "Call Jane Roe",
+                          "due": "2026-09-22"})
+    assert last_commit(repo) == "task: acme next step edited"
+    c = app.state.store.get("acme")
+    assert (c.next_step, str(c.next_step_due)) == ("Call Jane Roe", "2026-09-22")
+
+
+def test_editing_a_task_from_a_stale_page_or_with_bad_input_is_refused(client, app):
+    post_company(client, name="Acme")
+    client.post("/companies/acme/tasks", data={"text": "first"})
+    r = client.post("/companies/acme/todo-edit",
+                    data={"index": "0", "text": "something else", "new_text": "x"})
+    assert "has%20changed%20since" in r.headers["location"]
+    r = client.post("/companies/acme/todo-edit",
+                    data={"index": "0", "text": "first", "new_text": " "})
+    assert "needs%20a%20line%20of%20text" in r.headers["location"]
+    r = client.post("/companies/acme/todo-edit",
+                    data={"index": "nope", "text": "first", "new_text": "x"})
+    assert "no%20longer%20there" in r.headers["location"]
+    assert [t.text for t in app.state.store.get("acme").tasks] == ["first"]
+    assert client.post("/companies/nobody/todo-edit",
+                       data={"index": "0", "new_text": "x"}).status_code == 404
+
+
+def test_edit_from_the_tasks_page_returns_to_the_same_filtered_view(client, app):
+    post_company(client, name="Acme")
+    client.post("/companies/acme/tasks", data={"text": "first"})
+    back = "/tasks?when=none"
+    r = client.post("/companies/acme/todo-edit",
+                    data={"index": "0", "text": "first", "new_text": "first!", "back": back})
+    assert r.headers["location"].startswith("/tasks?when=none&flash=Task%20saved")
+
+
+def test_open_tasks_have_an_edit_form_and_done_ones_do_not(client, app):
+    post_company(client, name="Acme", next_step="Call Jane", next_step_due="2026-09-20")
+    post_contact(client, "acme", first_name="Jane", last_name="Roe")
+    client.post("/companies/acme/tasks", data={"text": "open one", "due": "2026-09-21"})
+    client.post("/companies/acme/tasks", data={"text": "finished one"})
+    client.post("/companies/acme/tasks/1/done", data={"done": "1", "text": "finished one"})
+    client.post("/companies/acme/tasks", data={"text": "her task", "contact": "jane-roe"})
+
+    page = client.get("/companies/acme").text
+    # one edit form per open to-do: next step, "open one", "her task"
+    assert page.count('action="/companies/acme/todo-edit"') == 3
+    assert 'name="new_text" value="open one"' in page
+    assert 'name="due" value="2026-09-21"' in page
+    assert 'name="new_text" value="finished one"' not in page
+
+    contact_page = client.get("/companies/acme/contacts/jane-roe").text
+    assert contact_page.count('action="/companies/acme/todo-edit"') == 1
+    assert 'name="new_text" value="her task"' in contact_page
+
+    tasks_page = client.get("/tasks").text
+    assert tasks_page.count('action="/companies/acme/todo-edit"') == 3
+    assert 'name="back" value="/tasks' in tasks_page
+
+
 def test_a_contact_keeps_their_own_tasks(client, app, repo):
     post_company(client, name="Acme")
     post_contact(client, "acme", first_name="Jane", last_name="Roe")

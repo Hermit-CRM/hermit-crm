@@ -27,7 +27,7 @@
     <td>{{ r.stage }}</td>
     <td><span class="tag status-{{ r.status }}">{{ r.status }}</span></td>
     <td class="due">{{ fmt_date(r.done_on) if r.done_on else '' }}</td>
-    <td class="actions">{{ m.todo_actions(r.company, r.todo, back=here) }}</td>
+    <td class="actions">{{ m.todo_edit(r.company, r.todo, r.todo.index, r.contact.slug if r.contact else '', back=here) }}{{ m.todo_actions(r.company, r.todo, back=here) }}</td>
   </tr>
   {% else %}
   <tr><td colspan="{{ filter_columns | length + 1 }}" class="empty">No tasks match.</td></tr>

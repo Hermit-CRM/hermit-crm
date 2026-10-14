@@ -2426,6 +2426,23 @@ def create_app(root: Path, config: dict | None = None,
             return flashed(back, "that task is no longer there; reload the page", "tasks")
         return flashed(back, "Type saved", "tasks")
 
+    @app.post("/companies/{slug}/todo-edit")
+    def todo_edit(request: Request, slug: str, index: str = Form(""), contact: str = Form(""),
+                  text: str = Form(""), new_text: str = Form(""), due: str = Form(""),
+                  back: str = Form("")):
+        """Change the text and due date of one to-do from its row; an empty
+        `index` is the next-step fields."""
+        need_company(slug)
+        back = _task_back(request, slug, contact, back)
+        try:
+            store.edit_todo(slug, int(index) if index.strip() else None, new_text,
+                            due=due, contact=contact, text=text)
+        except ValidationError as exc:
+            return flashed(back, "; ".join(exc.errors.values()), "tasks")
+        except ValueError:
+            return flashed(back, "that task is no longer there; reload the page", "tasks")
+        return flashed(back, "Task saved", "tasks")
+
     @app.post("/companies/{slug}/tasks/{index}/done")
     def task_done(request: Request, slug: str, index: int, done: str = Form(""),
                   contact: str = Form(""), text: str = Form(""), back: str = Form("")):
