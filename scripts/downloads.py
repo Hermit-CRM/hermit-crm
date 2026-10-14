@@ -35,7 +35,9 @@ window (pypistats 180 days, GitHub traffic 14 days), which is why this runs on a
 schedule. `collect` exits 1 when any source failed, so launchd shows the failure.
 """
 import argparse
+import base64
 import csv
+import gzip
 import json
 import os
 import re
@@ -210,8 +212,8 @@ def collect_github(data_dir: Path) -> str:
     return f"{len(assets)} assets, {len(traffic)} traffic days, {repo['stargazers_count']} stars"
 
 
-def ssh_cat(path: str) -> str:
-    """Read a file on the site's machine.
+def fly_ssh(command: str) -> str:
+    """Run a command on the site's machine and return what it printed.
 
     The machine is stopped whenever nobody is looking at the site, and `flyctl ssh`
     does not start it ("app has no started VMs"), so start it first and retry while
@@ -222,11 +224,34 @@ def ssh_cat(path: str) -> str:
                 if m["state"] in ("stopped", "suspended", "created"):
                     subprocess.run(["flyctl", "machine", "start", m["id"], "-a", FLY_APP],
                                    capture_output=True, timeout=120)
-            return run(["flyctl", "ssh", "console", "-a", FLY_APP, "-C", f"cat {path}"])
+            return run(["flyctl", "ssh", "console", "-a", FLY_APP, "-C", command])
         except RuntimeError:
             if attempt == 5:
                 raise
             time.sleep(5)
+
+
+def ssh_cat(path: str) -> str:
+    """Read a file on the site's machine."""
+    return fly_ssh(f"cat {path}")
+
+
+# The upload goes inside the command itself, gzipped and base64-encoded, because that
+# works with any flyctl: whether `ssh console -C` passes stdin on is not documented.
+# Base64 has no quote characters, so it is safe inside the single quotes below.
+# TODO(maintainer): try `flyctl ssh sftp put`; if it runs without a prompt, it is simpler.
+PUT_LIMIT = 100_000
+
+
+def fly_put(remote_path: str, data: bytes) -> None:
+    """Write a file on the site's machine. It appears whole or not at all: the bytes go to
+    a temporary file next to it, which is then renamed over the old one."""
+    packed = base64.b64encode(gzip.compress(data, mtime=0)).decode()
+    if len(packed) > PUT_LIMIT:
+        raise RuntimeError(f"{remote_path}: {len(packed)} bytes encoded, more than the {PUT_LIMIT} a command can carry")
+    folder, name = remote_path.rsplit("/", 1)
+    tmp = f"{folder}/.{name}.tmp"
+    fly_ssh(f"sh -c 'echo {packed} | base64 -d | gunzip > {tmp} && mv {tmp} {remote_path}'")
 
 
 def collect_website(data_dir: Path) -> str:

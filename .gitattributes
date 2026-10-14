@@ -6,6 +6,9 @@ scripts/dashboard.py export-ignore
 tests/test_downloads_script.py export-ignore
 tests/test_dashboard_script.py export-ignore
 tests/test_website_docs.py export-ignore
+scripts/publicstats.py export-ignore
+tests/test_publicstats_script.py export-ignore
+tests/test_website_stats.py export-ignore
 # Contributor tooling: users install with uv tool install / pip, which ignore it.
 uv.lock export-ignore
 .gitattributes export-ignore
