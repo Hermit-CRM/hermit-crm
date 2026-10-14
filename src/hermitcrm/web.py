@@ -162,6 +162,14 @@ def stage_exits(stages: StageSet) -> list[dict]:
             for s in stages if s.role in ("closed", "parked")]
 
 
+def stage_keeps(stages: StageSet, name: str) -> str:
+    """What a stage keeps beside its name, for the company form to show only
+    then: "" (nothing), "reason", or "reason requalify" (a parked stage)."""
+    if not stages.keeps_reason(name):
+        return ""
+    return "reason requalify" if stages.keeps_requalify(name) else "reason"
+
+
 def scope_columns(defs: list, scope: str) -> list[Column]:
     """Every custom field of one record type as a column, whatever its
     `show_in`: what layout.toml's `columns` may pick from."""
@@ -1245,6 +1253,7 @@ def create_app(root: Path, config: dict | None = None,
         fmt_datetime=fmt_datetime,
         preview=followups.first_line,
         stage_exits=stage_exits,
+        stage_keeps=lambda name: stage_keeps(store.stages, name),
         stages=list(store.stages.names),   # config_reloaded keeps it current in place
         sources=SOURCES,
         countries=COUNTRIES,

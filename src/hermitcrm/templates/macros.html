@@ -138,11 +138,11 @@
 </form>
 {% endmacro %}
 
-{% macro custom_fields(defs, values, errors) %}
-{%- if defs %}
-  <div class="row custom-fields">
+{# The labels of the user's own fields. `grid`: they sit in a .form-grid (the
+   company form), three columns each, instead of in a .row of their own. #}
+{% macro custom_labels(defs, values, errors, grid=false) %}
     {% for f in defs %}
-    <label{% if f.type != 'select' %} class="grow"{% endif %}>{{ f.label }}
+    <label{% if grid %} class="span-3"{% elif f.type != 'select' %} class="grow"{% endif %}>{{ f.label }}
       {%- if f.type == 'select' %}
       <select name="custom_{{ f.key }}">
         <option value=""></option>
@@ -159,57 +159,118 @@
       {%- if f.help %} <span class="small faint">{{ f.help }}</span>{% endif %}
     </label>
     {% endfor %}
+{% endmacro %}
+
+{% macro custom_fields(defs, values, errors) %}
+{%- if defs %}
+  <div class="row custom-fields">
+    {{ custom_labels(defs, values, errors) }}
   </div>
 {%- endif %}
 {% endmacro %}
 
 {# `hide`: the fields layout.toml hides on the record page. A form leaves them
    out entirely, so saving keeps their values (web.submitted_only). #}
+{# The company form: groups of fields on a 12-column grid (.form-grid, the
+   span-N classes in style.css). `hide` is what layout.toml hides: such a field
+   is left out, and a group with nothing left in it is left out with it. The
+   reason and requalify fields only show for a stage that keeps them, or when
+   they already hold something; they are hidden, not removed, so they still
+   submit. #}
 {% macro company_fields(values, errors) %}
   {%- set hide = layout_hidden('company', errors) %}
-  <div class="row">
-    <label class="grow">name <input name="name" value="{{ values.name }}" required> {{ err(errors, 'name') }}</label>
-    {% if 'source' not in hide %}<label>source
-      <select name="source">
-        {% for s in sources %}<option value="{{ s }}"{% if values.source == s %} selected{% endif %}>{{ s }}</option>{% endfor %}
-      </select>
-    </label>{% endif %}
-    <label>stage
-      <select name="stage" id="stage">
-        {% if values.stage and values.stage not in stages %}<option value="{{ values.stage }}" selected>{{ values.stage }} (not in Settings)</option>{% endif %}
-        {% for s in stages %}<option value="{{ s }}"{% if values.stage == s %} selected{% endif %}>{{ s }}</option>{% endfor %}
-      </select>
-    </label>
-  </div>
-  {% if 'website' not in hide or 'linkedin' not in hide or 'country' not in hide %}<div class="row">
-    {% if 'website' not in hide %}<label class="grow">website <input name="website" value="{{ values.website }}"></label>{% endif %}
-    {% if 'linkedin' not in hide %}<label class="grow">linkedin <input name="linkedin" value="{{ values.linkedin }}"></label>{% endif %}
-    {% if 'country' not in hide %}<label>country
-      <input name="country" value="{{ values.country }}" list="country-codes" size="4" maxlength="3" placeholder="DE" title="ISO 3166-1 alpha-2 code">
-      <datalist id="country-codes">{% for c in countries %}<option value="{{ c }}">{% endfor %}</datalist>
-    </label>{% endif %}
-  </div>{% endif %}
-  {% if 'lost_reason' not in hide or 'requalify_on' not in hide or 'value_eur_month' not in hide %}<div class="row">
-    {% if 'lost_reason' not in hide %}<label class="grow">reason <input name="lost_reason" id="lost_reason" value="{{ values.lost_reason }}"> {{ err(errors, 'lost_reason') }}</label>{% endif %}
-    {% if 'requalify_on' not in hide %}<label>requalify on <input type="date" name="requalify_on" value="{{ values.requalify_on }}"> {{ err(errors, 'requalify_on') }}</label>{% endif %}
-    {% if 'value_eur_month' not in hide %}<label>value EUR/month <input name="value_eur_month" value="{{ values.value_eur_month }}"> {{ err(errors, 'value_eur_month') }}</label>{% endif %}
-  </div>{% endif %}
-  {% if 'product_oneliner' not in hide %}<div class="row">
-    <label class="grow">product oneliner <input name="product_oneliner" value="{{ values.product_oneliner }}"></label>
-  </div>{% endif %}
-  {{ custom_fields(custom_fields_for('company') | rejectattr('key', 'in', hide) | list, values, errors) }}
-  {% if 'next_step' not in hide or 'next_step_due' not in hide or 'next_step_status' not in hide or (type_names() and 'next_step_type' not in hide) %}<div class="row">
-    {% if 'next_step' not in hide %}<label class="grow">next step <input name="next_step" value="{{ values.next_step }}"></label>{% endif %}
-    {% if 'next_step_due' not in hide %}<label>due <input type="date" name="next_step_due" value="{{ values.next_step_due }}"> {{ err(errors, 'next_step_due') }}</label>{% endif %}
-    {% if 'next_step_status' not in hide %}<label>status
-      <select name="next_step_status">
-        {% for t in task_statuses %}<option value="{{ t }}"{% if values.next_step_status == t %} selected{% endif %}>{{ t }}</option>{% endfor %}
-      </select>
-    </label>{% endif %}
-    {% if type_names() and 'next_step_type' not in hide %}<label>type {{ type_select(values.next_step_type, name='next_step_type') }}</label>{% endif %}
-  </div>{% endif %}
-  {% if 'tags' not in hide %}<label>tags (comma separated) <input name="tags" value="{{ values.tags }}"></label>{% endif %}
-  {% if 'notes' not in hide %}<label>notes <textarea name="notes" rows="8">{{ values.notes }}</textarea></label>{% endif %}
+  {%- set custom = custom_fields_for('company') | rejectattr('key', 'in', hide) | list %}
+  {%- set keeps = stage_keeps(values.stage) %}
+  {#- which stages keep a reason (and a date to requalify on), for the script below #}
+  {%- set keeps_by_stage = {} %}
+  {%- for s in stages if stage_keeps(s) %}{% set _ = keeps_by_stage.update({s: stage_keeps(s)}) %}{% endfor %}
+  {%- set show_type = type_names() and 'next_step_type' not in hide %}
+  <fieldset class="form-group">
+    <div class="form-grid">
+      {#- The name is not a login: tell password managers to leave it alone. #}
+      <label class="span-6">name <input name="name" value="{{ values.name }}" required autocomplete="off" data-lpignore="true" data-1p-ignore data-bwignore="true"> {{ err(errors, 'name') }}</label>
+      {% if 'source' not in hide %}<label class="span-3">source
+        <select name="source">
+          {% for s in sources %}<option value="{{ s }}"{% if values.source == s %} selected{% endif %}>{{ s }}</option>{% endfor %}
+        </select>
+      </label>{% endif %}
+      <label class="span-3">stage
+        <select name="stage" id="stage" data-keeps='{{ keeps_by_stage | tojson }}'>
+          {% if values.stage and values.stage not in stages %}<option value="{{ values.stage }}" selected>{{ values.stage }} (not in Settings)</option>{% endif %}
+          {% for s in stages %}<option value="{{ s }}"{% if values.stage == s %} selected{% endif %}>{{ s }}</option>{% endfor %}
+        </select>
+      </label>
+      {% if 'website' not in hide %}<label class="span-5">website <input name="website" value="{{ values.website }}"></label>{% endif %}
+      {% if 'linkedin' not in hide %}<label class="span-5">linkedin <input name="linkedin" value="{{ values.linkedin }}"></label>{% endif %}
+      {% if 'country' not in hide %}<label class="span-2">country
+        <input name="country" value="{{ values.country }}" list="country-codes" size="4" maxlength="3" placeholder="DE" title="ISO 3166-1 alpha-2 code">
+        <datalist id="country-codes">{% for c in countries %}<option value="{{ c }}">{% endfor %}</datalist>
+      </label>{% endif %}
+    </div>
+  </fieldset>
+  {% if 'lost_reason' not in hide or 'requalify_on' not in hide %}
+  {%- set reason_shown = 'lost_reason' not in hide and (keeps or values.lost_reason or errors.lost_reason) %}
+  {%- set when_shown = 'requalify_on' not in hide and ('requalify' in keeps or values.requalify_on or errors.requalify_on) %}
+  <fieldset class="form-group" id="closing-fields"{% if not (reason_shown or when_shown) %} hidden{% endif %}>
+    <legend>Closing details</legend>
+    <div class="form-grid">
+      {% if 'lost_reason' not in hide %}<label class="span-6" id="lost_reason-label"{% if not reason_shown %} hidden{% endif %}>reason (lost / disqualified) <input name="lost_reason" id="lost_reason" value="{{ values.lost_reason }}"> {{ err(errors, 'lost_reason') }}</label>{% endif %}
+      {% if 'requalify_on' not in hide %}<label class="span-3" id="requalify_on-label"{% if not when_shown %} hidden{% endif %}>requalify on (temp disqualified) <input type="date" name="requalify_on" id="requalify_on" value="{{ values.requalify_on }}"> {{ err(errors, 'requalify_on') }}</label>{% endif %}
+    </div>
+  </fieldset>
+  {% endif %}
+  {% if 'product_oneliner' not in hide or 'value_eur_month' not in hide or custom %}
+  <fieldset class="form-group">
+    <legend>Profile</legend>
+    <div class="form-grid">
+      {% if 'product_oneliner' not in hide %}<label class="span-{{ 12 if 'value_eur_month' in hide else 9 }}">product oneliner <input name="product_oneliner" value="{{ values.product_oneliner }}"></label>{% endif %}
+      {% if 'value_eur_month' not in hide %}<label class="span-{{ 12 if 'product_oneliner' in hide else 3 }}">value EUR/month <input name="value_eur_month" value="{{ values.value_eur_month }}"> {{ err(errors, 'value_eur_month') }}</label>{% endif %}
+      {{ custom_labels(custom, values, errors, grid=true) }}
+    </div>
+  </fieldset>
+  {% endif %}
+  {% if 'next_step' not in hide or 'next_step_due' not in hide or 'next_step_status' not in hide or show_type %}
+  <fieldset class="form-group">
+    <legend>Next step</legend>
+    <div class="form-grid">
+      {% if 'next_step' not in hide %}<label class="span-12">next step <input name="next_step" value="{{ values.next_step }}"></label>{% endif %}
+      {% if 'next_step_due' not in hide %}<label class="span-4">due <input type="date" name="next_step_due" value="{{ values.next_step_due }}"> {{ err(errors, 'next_step_due') }}</label>{% endif %}
+      {% if 'next_step_status' not in hide %}<label class="span-4">status
+        <select name="next_step_status">
+          {% for t in task_statuses %}<option value="{{ t }}"{% if values.next_step_status == t %} selected{% endif %}>{{ t }}</option>{% endfor %}
+        </select>
+      </label>{% endif %}
+      {% if show_type %}<label class="span-4">type {{ type_select(values.next_step_type, name='next_step_type') }}</label>{% endif %}
+    </div>
+  </fieldset>
+  {% endif %}
+  {% if 'tags' not in hide or 'notes' not in hide %}
+  <fieldset class="form-group">
+    <legend>Tags and notes</legend>
+    <div class="form-grid">
+      {% if 'tags' not in hide %}<label class="span-12">tags (comma separated) <input name="tags" value="{{ values.tags }}"></label>{% endif %}
+      {% if 'notes' not in hide %}<label class="span-12">notes <textarea name="notes" rows="8">{{ values.notes }}</textarea></label>{% endif %}
+    </div>
+  </fieldset>
+  {% endif %}
+  <script>
+  (function () {
+    var stage = document.getElementById('stage'), box = document.getElementById('closing-fields');
+    if (!stage || !box) { return; }
+    var why = document.getElementById('lost_reason'), when = document.getElementById('requalify_on');
+    var whyLabel = document.getElementById('lost_reason-label'), whenLabel = document.getElementById('requalify_on-label');
+    function sync() {
+      var keeps = JSON.parse(stage.getAttribute('data-keeps') || '{}')[stage.value] || '';
+      var showWhy = !!(keeps || (why && why.value));
+      var showWhen = keeps.indexOf('requalify') > -1 || !!(when && when.value);
+      if (whyLabel) { whyLabel.hidden = !showWhy; }
+      if (whenLabel) { whenLabel.hidden = !showWhen; }
+      box.hidden = !((whyLabel && showWhy) || (whenLabel && showWhen));
+    }
+    stage.addEventListener('change', sync);
+    sync();
+  })();
+  </script>
 {% endmacro %}
 
 {% macro contact_fields(values, errors) %}

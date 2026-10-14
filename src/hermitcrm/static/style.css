@@ -222,6 +222,29 @@ textarea { font-family: var(--mono); font-size: 13px; }
 form.record-form .row > label.grow, form.interaction-form .row > label.grow { min-width: 0; }
 .row > label { flex: 0 0 auto; }
 .row > label.grow { flex: 1 1 220px; }
+/* The company form: groups of fields on a 12-column grid instead of long rows.
+   A field says how many columns it takes (span-N); on a phone every field takes
+   the whole line. The form is capped so a wide screen does not stretch it. */
+form.record-form:has(> fieldset.form-group) { max-width: 880px; padding: 14px 16px 16px; }
+fieldset.form-group { border: 0; padding: 0; margin: 0 0 14px; min-width: 0; }
+fieldset.form-group legend {
+  padding: 0; margin: 0 0 6px; width: 100%;
+  font-size: 12px; font-weight: 600; font-variant-caps: all-small-caps; letter-spacing: .06em;
+  color: var(--muted); border-bottom: 1px solid var(--line);
+}
+.form-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 8px 16px; align-items: start; }
+.form-grid > label { margin: 0; grid-column: span 12; }
+.form-grid > label .small { display: block; margin-top: 2px; }
+@media (min-width: 760px) {
+  .form-grid > label.span-2 { grid-column: span 2; }
+  .form-grid > label.span-3 { grid-column: span 3; }
+  .form-grid > label.span-4 { grid-column: span 4; }
+  .form-grid > label.span-5 { grid-column: span 5; }
+  .form-grid > label.span-6 { grid-column: span 6; }
+  .form-grid > label.span-9 { grid-column: span 9; }
+  .form-grid > label.span-12 { grid-column: span 12; }
+}
+fieldset.form-group[hidden], .form-grid > label[hidden] { display: none; }
 .radios { display: inline-flex; gap: 10px; margin-bottom: 8px; }
 .radios label { display: inline-flex; align-items: center; gap: 4px; margin: 0; }
 .radios input { display: inline-block; width: auto; }
