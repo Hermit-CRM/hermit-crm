@@ -1,6 +1,6 @@
 # Interactions
 
-An interaction is one touch with a person: an email, LinkedIn message, call or meeting, in or out, with the text kept verbatim. A **note** is an interaction too: a memo about the person, with no direction, that shows on their timeline but never counts as contact made (it does not move last touch, a prospect's stage, follow-ups, outcomes or reports).
+An interaction is one touch with a person: an email, LinkedIn message, call, WhatsApp message or meeting, in or out, with the text kept verbatim. A **note** is an interaction too: a memo about the person, with no direction, that shows on their timeline but never counts as contact made (it does not move last touch, a prospect's stage, follow-ups, outcomes or reports).
 
 ## Logging one
 
@@ -8,7 +8,9 @@ An interaction is always with a person, so the **Log an interaction** form
 sits on every contact page (the "log" link in a company's contact list goes
 there), and on its own at `/companies/<slug>/interactions/new` where you pick
 the contact (the "log interaction" links on the Calendar open it). Fields:
-channel (`email`, `linkedin`, `call`, `meeting`, `note`, default linkedin),
+channel (a dropdown: `email`, `linkedin`, `call`, `whatsapp`, `note`, default
+linkedin; `meeting` comes from the calendar import and is only offered when
+editing one),
 direction (`out` or `in`, default out; hidden for a note), date and time
 (default now, editable), subject, outcome and the body.
 The body is the pasted message or the call notes; it is stored byte for byte

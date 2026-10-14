@@ -512,6 +512,22 @@ def test_interaction_standalone_form_and_validation(client):
     assert "kept body" in bad.text
 
 
+def test_whatsapp_interaction_logs_and_meeting_keeps_its_channel_on_edit(client, repo):
+    post_company(client, name="Acme")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe")
+    resp = post_interaction(client, "acme", channel="whatsapp", direction="in",
+                            contact="jane-doe", date="2026-09-01T08:00", body="hi")
+    assert resp.status_code == 303
+    assert (repo / "companies/acme/interactions"
+            / "2026-09-01T0800-whatsapp-in-jane-doe.md").exists()
+
+    post_interaction(client, "acme", channel="meeting", direction="out",
+                     contact="jane-doe", date="2026-09-02T08:00", body="demo")
+    form = client.get("/companies/acme/interactions/"
+                      "2026-09-02T0800-meeting-out-jane-doe/edit").text
+    assert '<option value="meeting" selected>' in form
+
+
 def test_interaction_edit_renames_file_on_date_change(client, repo):
     post_company(client, name="Acme GmbH")
     post_contact(client, "acme", first_name="Jane", last_name="Doe")
@@ -1655,7 +1671,7 @@ def test_drafts_on_contact_and_company_pages(client, app):
     link = re.search(r'href="(/companies/brightnook/interactions/new\?contact=johannes-w'
                      r'&channel=linkedin&body=[^"]+)"', tuned).group(1)
     form = client.get(htmllib.unescape(link)).text
-    assert 'value="linkedin" checked' in form and "Hallo Johannes," in form
+    assert '<option value="linkedin" selected>' in form and "Hallo Johannes," in form
     assert '<option value="johannes-w" selected>' in form
 
     company_page = client.get("/companies/brightnook").text
@@ -1680,11 +1696,20 @@ def test_contact_enrich_shows_sources_when_nothing_verified(client, app):
 def test_log_interaction_defaults_to_linkedin_out(client, app):
     post_company(client, name="Acme")
     page = client.get("/companies/acme/interactions/new").text
-    assert 'name="channel" value="linkedin" checked' in page
-    assert 'name="channel" value="email" checked' not in page
+    assert '<option value="linkedin" selected>' in page
+    assert '<option value="email" selected>' not in page
     assert 'name="direction" value="out" checked' in page
-    assert 'value="email" checked' in client.get(
+    assert '<option value="email" selected>' in client.get(
         "/companies/acme/interactions/new?channel=email").text
+
+
+def test_channel_is_a_dropdown_with_whatsapp_and_no_meeting(client, app):
+    post_company(client, name="Acme")
+    page = client.get("/companies/acme/interactions/new").text
+    select = page.split('<select name="channel"')[1].split("</select>")[0]
+    assert re.findall(r'<option value="([a-z]+)"', select) == [
+        "email", "linkedin", "call", "whatsapp", "note"]
+    assert 'type="radio" name="channel"' not in page
 
 
 def test_logging_an_interaction_makes_a_prospect_engaged(client, app, repo):
@@ -2343,7 +2368,7 @@ def test_contact_page_logs_notes_and_has_no_notes_field(client, app, repo):
     page = client.get("/companies/acme/contacts/jane-doe").text
     form = page.split('<section id="quick-add">')[1].split("</section>")[0]
     assert '<input type="hidden" name="contact" value="jane-doe">' in form
-    assert 'name="channel" value="note"' in form and "<select name=\"contact\">" not in form
+    assert '<option value="note">note</option>' in form and "<select name=\"contact\">" not in form
     details = page.split('<section id="details">')[1].split("</section>")[0]
     assert 'name="notes"' not in details
     assert 'name="notes"' not in client.get("/companies/acme/contacts/new").text
