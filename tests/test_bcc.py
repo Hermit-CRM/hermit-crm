@@ -241,6 +241,74 @@ def test_domain_match_fills_email_of_existing_contact_instead_of_duplicating(sto
                         "0 to review)"]
 
 
+def test_same_name_other_address_goes_to_review_not_a_duplicate(store, messages):
+    seed(store)
+    raws = [raw_mail(to="Jane Doe <jane.doe@acme.de>"),
+            raw_mail(to="jane.doe@acme.de", mid="<m2@work.example.com>")]
+    inbox = inbox_for(store)
+    dry = bcc.import_mails(store, inbox, raws, SETTINGS)
+    messages.clear()
+    result = bcc.import_mails(store, inbox, raws, SETTINGS, apply=True)
+    reason = "may be acme/jane-doe (jane@acme.de)"
+    assert dry.lines == result.lines
+    assert [line.split(" | ", 3)[3] for line in result.lines] == [f"to review: {reason}"] * 2
+    assert (result.logged, result.contacts, result.review) == (0, 0, 2)
+    assert list(store.companies["acme"].contacts) == ["jane-doe"]
+    assert store.companies["acme"].contacts["jane-doe"].email == "jane@acme.de"
+    assert [i.reason for i in inbox.items()] == [reason] * 2
+    again = bcc.import_mails(store, inbox, raws, SETTINGS, apply=True)
+    assert (again.review, again.duplicates) == (0, 2)
+
+
+def test_first_name_only_contact_or_accent_goes_to_review(store):
+    seed(store)
+    store.create_contact("gamma", "Ann", "")
+    store.create_contact("beta", "Jörg", "Müller", email="jm@beta.io")
+    raws = [raw_mail(to="Ann Lee <ann@gamma.fr>"),
+            raw_mail(to="Joerg Mueller <joerg@beta.io>", mid="<m2@work.example.com>")]
+    result = bcc.import_mails(store, inbox_for(store), raws, SETTINGS, apply=True)
+    assert [line.split(" | ", 3)[3] for line in result.lines] == [
+        "to review: may be gamma/ann", "to review: may be beta/joerg-mueller (jm@beta.io)"]
+    assert list(store.companies["gamma"].contacts) == ["ann"]
+    assert store.companies["gamma"].contacts["ann"].email == ""
+    assert list(store.companies["beta"].contacts) == ["joerg-mueller"]
+
+
+def test_other_first_name_or_full_names_differ_still_creates(store):
+    seed(store)
+    store.create_contact("gamma", "Ann", "Lee", email="ann@gamma.fr")
+    raws = [raw_mail(to="Ann Park <ann.park@gamma.fr>, Bo Lee <bo@gamma.fr>")]
+    result = bcc.import_mails(store, inbox_for(store), raws, SETTINGS, apply=True)
+    assert (result.contacts, result.review) == (2, 0)
+    assert sorted(store.companies["gamma"].contacts) == ["ann-lee", "ann-park", "bo-lee"]
+
+
+def test_assign_same_name_keeps_the_email_and_rerun_skips(store, messages):
+    seed(store)
+    inbox = inbox_for(store)
+    raw = raw_mail(to="Jane Doe <jane.doe@acme.de>")
+    bcc.import_mails(store, inbox, [raw], SETTINGS, apply=True)
+    [item] = inbox.items()
+    slug, it = bcc.assign(store, inbox, item.id, "acme")
+    assert (slug, it.contact) == ("acme", "jane-doe")
+    assert list(store.companies["acme"].contacts) == ["jane-doe"]
+    assert store.companies["acme"].contacts["jane-doe"].email == "jane@acme.de"
+    again = bcc.import_mails(store, inbox, [raw], SETTINGS, apply=True)
+    assert (again.review, again.duplicates) == (0, 1) and inbox.count() == 0
+    assert again.lines[0].endswith("acme/jane-doe | already imported")
+
+
+def test_assign_with_another_name_creates_a_second_person(store):
+    seed(store)
+    inbox = inbox_for(store)
+    bcc.import_mails(store, inbox, [raw_mail(to="Jane Doe <jd@acme.de>")], SETTINGS,
+                     apply=True)
+    [item] = inbox.items()
+    _, it = bcc.assign(store, inbox, item.id, "acme", "Jane", "Doe-Smith")
+    assert it.contact == "jane-doe-smith"
+    assert store.companies["acme"].contacts["jane-doe-smith"].email == "jd@acme.de"
+
+
 def test_import_twice_changes_nothing(store, messages):
     seed(store)
     raw = raw_mail(to="jane@acme.de, bob@beta.io, y@nowhere.org")
