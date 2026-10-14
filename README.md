@@ -157,7 +157,7 @@ file per conversation. Everything below is convenience on top of it.
 - **Extension**: a bookmarklet that turns the page you are looking at into a
   filled-in form: a company page into a new company, a LinkedIn profile you
   are logged in to into a new contact, read in your own tab. Nothing to install.
-- **Timeline per company**: email, LinkedIn, call and meeting interactions,
+- **Timeline per company**: email, LinkedIn, call, WhatsApp and meeting interactions,
   in or out, with bodies kept byte for byte.
 - **Message drafts without AI**: three angles per contact in English, German,
   Dutch or French (by country; for Belgium from mails, website, postcode
@@ -271,7 +271,7 @@ hermitcrm check                       validate every file (exit 1 on problems)
 hermitcrm rebuild                     regenerate PIPELINE.md and commit
 hermitcrm add company NAME [--country NL] [--website URL] [--stage S] [--next-step TEXT] [--set FIELD=VALUE ...]
 hermitcrm add contact SLUG NAME [--title T] [--email E] [--phone P] [--role R]
-hermitcrm add interaction SLUG --channel email|linkedin|call|meeting --direction in|out
+hermitcrm add interaction SLUG --channel email|linkedin|call|whatsapp|meeting --direction in|out
                                    [--contact CSLUG] [--subject S] [--date D] [--body TEXT|-]
 hermitcrm import FILE [--mode companies|contacts] [--map HEADER=FIELD] [--apply]
 hermitcrm fetch <slug> [--url URL] [--apply]

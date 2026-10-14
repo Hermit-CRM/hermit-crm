@@ -62,7 +62,7 @@ def test_enum_values_are_hyphenated_strings():
     assert [e.value for e in Role] == [
         "champion", "decision-maker", "influencer", "gatekeeper",
     ]
-    assert [e.value for e in Channel] == ["email", "linkedin", "call", "meeting", "note"]
+    assert [e.value for e in Channel] == ["email", "linkedin", "call", "whatsapp", "meeting", "note"]
     assert [e.value for e in Direction] == ["out", "in"]
     assert [e.value for e in InteractionSource] == ["manual", "bcc-import", "calendar-import", "migration"]
     assert DEFAULT_STAGES.reverse_open == ["offer", "discovery", "engaged", "prospect"]

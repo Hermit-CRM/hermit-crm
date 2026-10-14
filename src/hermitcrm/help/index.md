@@ -17,7 +17,7 @@ page for the screen you are on; `hermitcrm help <topic>` prints the same text.
 - [Tasks](/help/tasks): every task in one list, with date buttons and filters.
 - [Companies](/help/companies): the table, the company page, stages, next steps, disqualify and requalify.
 - [Contacts](/help/contacts): the table, the contact page, roles, message drafts.
-- [Interactions](/help/interactions): logging email, LinkedIn, call and meeting touches; outcomes; To file.
+- [Interactions](/help/interactions): logging email, LinkedIn, call, WhatsApp and meeting touches; outcomes; To file.
 - [Messages](/help/messages): every sent message with its outcome.
 - [Reports](/help/reports): activity, funnel, outcomes, messages, sources, hygiene.
 - [Settings](/help/settings): you, BCC capture, calendar, backup, enrichment, outcomes, schedule, phone and MCP access, support, about.

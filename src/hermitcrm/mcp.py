@@ -609,14 +609,14 @@ def build_tools(root: Path, store) -> list[Tool]:
                                                "the new contact.")},
                     ["company", "name"]), add_contact_tool),
         Tool("add_interaction",
-             "Log an email, LinkedIn message, call or meeting, or a note about a "
+             "Log an email, LinkedIn message, call, WhatsApp message or meeting, or a note about a "
              "person. Writes the file and commits it. Logging one on a company in "
              "the first stage moves it to the next (prospect to engaged by default; "
              "a note does not).",
              schema({"company": text(description="The company's slug."),
-                     "channel": text(description="email, linkedin, call, meeting or "
+                     "channel": text(description="email, linkedin, call, whatsapp, meeting or "
                                                  "note (a memo: no direction).",
-                                     enum=["email", "linkedin", "call", "meeting", "note"]),
+                                     enum=["email", "linkedin", "call", "whatsapp", "meeting", "note"]),
                      "direction": text(description="in (they contacted you) or out. "
                                                    "Required except for a note.",
                                        enum=["in", "out"]),

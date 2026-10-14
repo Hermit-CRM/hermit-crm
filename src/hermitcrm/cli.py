@@ -395,6 +395,7 @@ def cmd_digest(store: Store, days: int, now: datetime | None = None) -> str:
     counts = {"email": {"out": 0, "in": 0},
               "linkedin": {"out": 0, "in": 0},
               "call": {"out": 0, "in": 0},
+              "whatsapp": {"out": 0, "in": 0},
               "meeting": {"out": 0, "in": 0}}
     companies_touched: set[str] = set()
     blocks = []
@@ -418,7 +419,7 @@ def cmd_digest(store: Store, days: int, now: datetime | None = None) -> str:
         summary = "Summary: 0 interactions | companies touched: 0"
     else:
         chan_parts = []
-        for ch in ("email", "linkedin", "call", "meeting"):
+        for ch in ("email", "linkedin", "call", "whatsapp", "meeting"):
             o, i = counts[ch]["out"], counts[ch]["in"]
             if o or i:
                 chan_parts.append(f"{ch}: {o} out / {i} in")
