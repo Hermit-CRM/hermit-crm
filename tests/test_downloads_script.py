@@ -178,6 +178,28 @@ def test_the_log_pull_gives_up_after_six_tries(monkeypatch):
         raise AssertionError("expected the failure to surface so collect reports it")
 
 
+def test_fly_put_writes_a_temporary_file_and_renames_it(monkeypatch):
+    sent = []
+    monkeypatch.setattr(dl, "fly_ssh", sent.append)
+    dl.fly_put("/data/public/numbers.html", b"<p>12 arrivals</p>\n")
+    [cmd] = sent
+    assert cmd.startswith("sh -c 'echo ") and cmd.endswith("'")
+    assert cmd.index("> /data/public/.numbers.html.tmp") < cmd.index("&& mv /data/public/.numbers.html.tmp "
+                                                                   "/data/public/numbers.html")
+    packed = cmd.split()[3]
+    assert dl.gzip.decompress(dl.base64.b64decode(packed)) == b"<p>12 arrivals</p>\n"
+
+
+def test_fly_put_refuses_a_file_too_big_for_one_command(monkeypatch):
+    monkeypatch.setattr(dl, "fly_ssh", lambda cmd: None)
+    try:
+        dl.fly_put("/data/public/numbers.html", dl.os.urandom(200_000))
+    except RuntimeError as e:
+        assert "more than" in str(e)
+    else:
+        raise AssertionError("expected a refusal")
+
+
 def test_collect_survives_a_failing_source_and_says_so(tmp_path, monkeypatch, capsys):
     def boom(_):
         raise RuntimeError("flyctl exited 1: no access token")
