@@ -29,6 +29,18 @@ Hermit CRM is a CRM that is a folder of Markdown files in git. Nothing leaves
 their machine. Work through these in order and stop at the first failure, with
 the error and what it means.
 
+**Sent here by a link, with no Hermit CRM folder open?** If the folder you are
+working in has no `pyproject.toml` naming `hermitcrm`, you are reading this from
+GitHub and the code is not on the machine yet. Do step 1 first (it makes sure
+git works), then fetch it and carry on from step 2 inside that folder:
+
+```bash
+git clone --depth 1 https://github.com/Hermit-CRM/hermit-crm.git ~/hermit-crm
+cd ~/hermit-crm
+```
+
+If `~/hermit-crm` already exists, ask before touching it.
+
 ### 1. Check the machine
 
 ```bash
