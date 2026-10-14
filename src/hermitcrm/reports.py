@@ -40,6 +40,9 @@ PERIODS = ["7d", "30d", "90d", "quarter", "ytd", "custom"]
 # memo, not activity, so it has no column and no count anywhere in the reports.
 CHANNELS = [c.value for c in Channel if c is not Channel.NOTE]
 DIRECTIONS = ["out", "in"]
+# Shorter channel names for the weekly table in plain text, to keep it within
+# 120 columns. Markdown keeps the full names.
+SHORT_CHANNELS = {"linkedin": "li", "whatsapp": "wa"}
 UNKNOWN = "unknown"
 OTHER = "other"  # a message status outside the configured outcomes
 
@@ -672,7 +675,10 @@ def render_text(report: dict, md: bool = False) -> str:
     out.append(_table(["metric", "period", "previous", "delta"],
                       [[labels[k], v, a["previous"][k], delta(v, a["previous"][k])]
                        for k, v in a["totals"].items()], md))
-    out.append(_table(["week"] + a["columns"] + ["total"],
+    headers = a["columns"] if md else [
+        " ".join([SHORT_CHANNELS.get(c.split()[0], c.split()[0])] + c.split()[1:])
+        for c in a["columns"]]
+    out.append(_table(["week"] + headers + ["total"],
                       [[r["week"]] + [r[c] for c in a["columns"]] + [r["total"]]
                        for r in a["weeks"]], md))
 

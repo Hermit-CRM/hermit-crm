@@ -119,6 +119,7 @@ class Channel(str, Enum):
     EMAIL = "email"
     LINKEDIN = "linkedin"
     CALL = "call"
+    WHATSAPP = "whatsapp"
     MEETING = "meeting"
     NOTE = "note"  # a memo about a person: no direction, never a touch
 

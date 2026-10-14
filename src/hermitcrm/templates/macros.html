@@ -95,11 +95,15 @@
 <form method="post" action="{{ action }}" class="interaction-form{% if values.channel == 'note' %} is-note{% endif %}">
   {{ errors_box(errors) }}
   <div class="row">
-    <span class="radios">
-      {% for ch in channels %}
-      <label><input type="radio" name="channel" value="{{ ch }}"{% if values.channel == ch %} checked{% endif %} onchange="this.form.classList.toggle('is-note', this.value === 'note')"> {{ ch }}</label>
-      {% endfor %}
-    </span>
+    {# meeting comes from the calendar import, so it is only offered when
+       editing one, to keep its channel. #}
+    <label>channel
+      <select name="channel" onchange="this.form.classList.toggle('is-note', this.value === 'note')">
+        {% for ch in channels if ch != 'meeting' or values.channel == 'meeting' %}
+        <option value="{{ ch }}"{% if values.channel == ch %} selected{% endif %}>{{ ch }}</option>
+        {% endfor %}
+      </select>
+    </label>
     <span class="radios directions">
       {% for d in directions %}
       <label><input type="radio" name="direction" value="{{ d }}"{% if values.direction == d or (not values.direction and loop.first) %} checked{% endif %}> {{ d }}</label>
