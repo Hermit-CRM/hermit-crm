@@ -46,4 +46,11 @@ the same view.
 name, last name or full name) and a due date. On a company page, **Add task** does the same with a
 list of its people.
 
+## Changing a task
+
+**Edit** in a task's row opens its text and due date; change either and
+**Save**. Clearing the date leaves the task undated. Changing a date can change
+which task is the next step. Done tasks have no Edit button: reopen one first.
+To change who a task is for, delete it and add it again.
+
 Related: [Companies](/help/companies), [Calendar](/help/calendar)
