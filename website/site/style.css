@@ -294,6 +294,42 @@ details p { margin: 0 0 24px; }
 .site-footer .notice { margin: 0 0 12px; }
 .site-footer p:last-child { margin: 0; }
 
+/* ── Stats (/stats/): the numbers come from publicstats.py ──────── */
+/* No style="" anywhere (the CSP blocks it): the charts are SVG with classes. */
+.stats-page { margin-top: 40px; }
+.stats-fallback, .stats-empty { color: var(--muted); }
+.stats-fresh, .stats-stale { margin: 0 0 24px; font-size: 15px; color: var(--muted); }
+.stats-stale { margin: -8px 0 16px; }
+.stats-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.stats-tile { padding: 16px; background: var(--card); border: 1px solid var(--rule); border-radius: 6px; }
+.stats-tile p { margin: 0; }
+.stats-label { font-size: 15px; }
+.stats-value { font-size: 34px; font-weight: 500; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.stats-note { font-size: 13px; color: var(--muted); }
+.stats h2, .stats-how h2 { margin: 64px 0 16px; font-size: 32px; font-weight: 500; line-height: 1.2; }
+.stats h3 { margin: 28px 0 8px; font-size: 19px; font-weight: 500; }
+.stats p { margin: 0 0 16px; }
+.stats-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 32px; }
+.stats table { width: 100%; border-collapse: collapse; font-size: 15px; line-height: 1.45; }
+.stats th, .stats td { text-align: left; padding: 6px 12px 6px 0; border-top: 1px solid var(--rule); font-weight: 400; overflow-wrap: anywhere; }
+.stats thead th { border-top: 0; font-weight: 600; }
+.stats .n { text-align: right; padding-right: 0; font-variant-numeric: tabular-nums; }
+.chart { margin: 0 0 8px; }
+.chart svg { display: block; width: 100%; height: auto; }
+.chart text { fill: var(--muted); font: 22px var(--sans); }
+.chart .base { stroke: var(--rule); stroke-width: 2; }
+.chart .s1 { fill: var(--green); }
+.chart .s2 { fill: var(--muted); }
+.chart g:hover rect { opacity: .7; }
+.chart figcaption { display: flex; flex-wrap: wrap; gap: 16px; font-size: 14px; color: var(--muted); }
+.key::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 2px; }
+.key.s1::before { background: var(--green); }
+.key.s2::before { background: var(--muted); }
+.stats-how { margin-top: 64px; }
+@media (max-width: 520px) { .chart text { font-size: 40px; } }
+.stats-how ul { padding-left: 22px; }
+.stats-how li { margin-bottom: 8px; }
+
 /* ── End ────────────────────────────────────────────────────────── */
 .site-footer { margin-top: 120px; padding: 28px 0 64px; border-top: 1px solid var(--rule); font-size: 15px; color: var(--muted); }
 
