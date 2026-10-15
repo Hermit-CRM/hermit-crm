@@ -1,5 +1,7 @@
 # Hermit CRM
 
+<!-- mcp-name: io.github.Hermit-CRM/hermit-crm -->
+
 **A free, local CRM for solopreneurs.** Your pipeline, contacts and
 conversations live as Markdown files in git on your own Mac, with a web app for
 you and a CLI and MCP server for your AI agent. No account, no cloud, Apache 2.0.
