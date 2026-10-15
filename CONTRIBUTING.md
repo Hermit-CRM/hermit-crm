@@ -4,6 +4,20 @@ Thanks for helping. Hermit CRM is deliberately small: plain files, a thin web ap
 no database and no JavaScript framework. Changes that keep it that way are the
 easiest to accept.
 
+## Where to start
+
+Issues labelled
+[good first issue](https://github.com/Hermit-CRM/hermit-crm/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+are small, self-contained and name the files involved. Say in the issue that you
+are taking one, so two people do not build the same thing. Questions and ideas
+go in [Discussions](https://github.com/Hermit-CRM/hermit-crm/discussions); bugs
+go in an issue with what you ran, what you expected and what happened.
+
+You do not need to write the code by hand: an AI coding agent is welcome, as
+long as you have read the diff, the tests pass, and the commit starts with
+`ai: ` (see below). `AGENTS.md` and `CLAUDE.md` in the repo root are the
+rules your agent should follow.
+
 ## Dev setup
 
 ```bash
