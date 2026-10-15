@@ -216,13 +216,15 @@ the same way the rest of the app already wraps.
 
 ## Sources
 
-- HubSpot, [Understand the default record layout](https://knowledge.hubspot.com/records/understand-the-default-record-layout) and [Work with records](https://knowledge.hubspot.com/records/work-with-records)
-- Salesforce, [Customize the user interface (Trailhead)](https://trailhead.salesforce.com/content/learn/modules/lex_migration_customization/lex_migration_customization_layouts_ui) and [Tailor the activity timeline](https://admin.salesforce.com/blog/2017/tailor-activity-timeline-lightning-experience-users)
-- Pipedrive, [Contact detail view](https://support.pipedrive.com/en/article/contact-detail-view), [Detail view sidebar](https://support.pipedrive.com/article/detail-view-sidebar), [Introducing the new contact detail view](https://www.pipedrive.com/en/blog/contact-detail-view)
-- Attio, [Configure record pages](https://attio.com/help/reference/managing-your-data/records/configure-record-pages) and [Create and view records](https://attio.com/help/reference/managing-your-data/records/create-and-view-records)
-- Copper, [Understand contact records in Copper](https://support.copper.com/en/articles/15826192-understand-contact-records-in-copper)
-- Close, [Leads](https://help.close.com/docs/leads)
-- folk, [Contact profile](https://help.folk.app/en/articles/5007276-contact-profile) and [Set reminders on your contacts](https://help.folk.app/en/articles/5658439-set-reminders-on-your-contacts)
-- Twenty, [Record pages](https://docs.twenty.com/user-guide/layout/capabilities/record-pages)
-- Dex, [Keep in touch](https://guide.getdex.com/features/keep-in-touch)
-- Monica, [Dex's Monica review](https://getdex.com/blog/monica-review/) and [Monica docs mirror](https://docs.bnkops.com/archive/pre-v2/cm/apps/monica-crm/)
+Each vendor's own help pages, read 15 Oct 2026 (titles only; search the vendor's help centre for them):
+
+- HubSpot, Understand the default record layout and Work with records
+- Salesforce, Customize the user interface (Trailhead) and Tailor the activity timeline
+- Pipedrive, Contact detail view, Detail view sidebar, Introducing the new contact detail view
+- Attio, Configure record pages and Create and view records
+- Copper, Understand contact records in Copper
+- Close, Leads
+- folk, Contact profile and Set reminders on your contacts
+- Twenty, Record pages
+- Dex, Keep in touch
+- Monica, Dex's Monica review and Monica docs mirror

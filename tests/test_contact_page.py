@@ -19,48 +19,23 @@ fields with an Edit box, the contact-page timeline, and the folded boxes
 from __future__ import annotations
 
 import re
-import subprocess
-from html import unescape
 from datetime import timedelta
-from pathlib import Path
+from html import unescape
 
 import pytest
-from fastapi.testclient import TestClient
 
 from hermitcrm import followups, layout
 from hermitcrm.followups import NUDGE, REPLY
-from hermitcrm.web import create_app
 from conftest import FIXED_NOW
+from test_layout import app, client, repo  # noqa: F401  (the same git-backed folder)
 
 TODAY = FIXED_NOW.date()
-CONFIG = {"port": 8765, "silent_days": 14, "push_enabled": False, "remote": "origin",
-          "owner_email": "me@example.com",
-          "welcome_dismissed": True, "disclaimer_accepted": "2026-09-01T09:00:00"}
 JANE = "/companies/acme/contacts/jane-doe"
 MAX = "/companies/acme/contacts/max-roe"
 
 
 def days_ago(n: int):
     return FIXED_NOW - timedelta(days=n)
-
-
-@pytest.fixture
-def repo(tmp_path: Path) -> Path:
-    for args in (["init", "-b", "main"], ["config", "user.name", "CRM Test"],
-                 ["config", "user.email", "crm@test.local"]):
-        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
-    (tmp_path / "companies").mkdir()
-    return tmp_path
-
-
-@pytest.fixture
-def app(repo: Path):
-    return create_app(repo, config=CONFIG, clock=lambda: FIXED_NOW)
-
-
-@pytest.fixture
-def client(app):
-    return TestClient(app, follow_redirects=False)
 
 
 @pytest.fixture
