@@ -1703,12 +1703,12 @@ def test_log_interaction_defaults_to_linkedin_out(client, app):
         "/companies/acme/interactions/new?channel=email").text
 
 
-def test_channel_is_a_dropdown_with_whatsapp_and_no_meeting(client, app):
+def test_channel_is_a_dropdown_with_whatsapp_and_meeting(client, app):
     post_company(client, name="Acme")
     page = client.get("/companies/acme/interactions/new").text
     select = page.split('<select name="channel"')[1].split("</select>")[0]
     assert re.findall(r'<option value="([a-z]+)"', select) == [
-        "email", "linkedin", "call", "whatsapp", "note"]
+        "email", "linkedin", "call", "whatsapp", "meeting", "note"]
     assert 'type="radio" name="channel"' not in page
 
 
