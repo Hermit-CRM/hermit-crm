@@ -4,6 +4,25 @@ Thanks for helping. Hermit CRM is deliberately small: plain files, a thin web ap
 no database and no JavaScript framework. Changes that keep it that way are the
 easiest to accept.
 
+## Before you start: safety first
+
+People install Hermit CRM on their own Mac, often by letting an AI agent follow
+`INSTALL.md`. That makes their safety the first thing every change is judged on.
+
+- **Open an issue first** for anything larger than a small fix, so we can agree
+  on the approach before you spend time on it.
+- **Small, focused feature and bug-fix PRs are very welcome.**
+- PRs from new contributors that change **dependencies, install files,
+  `INSTALL.md`, build scripts or GitHub workflows** will usually be declined.
+  If one of those really needs changing, say so in an issue and the maintainer
+  will make the change.
+- **No obfuscated, minified or generated code, no binaries, and no new network
+  calls** without discussing them in an issue first.
+- Every PR runs an **automatic safety check**, and the maintainer reviews every
+  change before merging. A red safety check does not mean your PR is rejected,
+  only that those parts get a closer look.
+- **Releases are always built and published by the maintainer.**
+
 ## Where to start
 
 Issues labelled

@@ -1,0 +1,22 @@
+# Dependabot checks once a week whether the tools and libraries Hermit CRM
+# depends on have newer versions, and opens a pull request when one does.
+# Security fixes arrive as soon as they are published, whatever the schedule.
+version: 2
+updates:
+  # Python packages: pyproject.toml and uv.lock
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # The actions used by the workflows in .github/workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # The website's container image (website/Dockerfile)
+  - package-ecosystem: "docker"
+    directory: "/website"
+    schedule:
+      interval: "weekly"
