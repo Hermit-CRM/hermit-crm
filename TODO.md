@@ -128,6 +128,14 @@ After:
       linkedin", the Contact form and the sections below it are plain stacked
       fieldsets, and the page has no quick actions (message, add task) other
       than Enrich. Keep layout.toml working.
+- [ ] Collapse the left navigation. The sidebar (`nav.sidebar` in base.html) is a
+      fixed 208 px grid column, full height and sticky, with icon + label for
+      every entry and the Yours pins, Settings and Help below it; there is no way
+      to get the width back. Add a collapse toggle (icons only, ~56 px, with the
+      labels revealed on hover or on focus), remembered in localStorage, with a
+      keyboard shortcut and `aria-expanded` on the button, and let `theme.css`
+      and a Settings option set the start state. Below 760 px the sidebar
+      already wraps to a row (style.css); keep that behaviour untouched.
 
 ## Unverified
 
