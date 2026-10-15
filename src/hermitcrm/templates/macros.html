@@ -57,9 +57,13 @@
 </form>
 {% endmacro %}
 
-{% macro drafts_section(company, draft_contact, drafts, signal, observation, page) %}
-<section id="drafts">
-  <h2>Message drafts{% if draft_contact %} for {{ draft_contact.first_name }}{% endif %} ({{ language_names[drafts[0].language] }})</h2>
+{# `fold` (the contact page): a closed box, `open` when it should start open. #}
+{% macro drafts_section(company, draft_contact, drafts, signal, observation, page, fold=false, open=true) %}
+{% set heading %}Message drafts{% if draft_contact %} for {{ draft_contact.first_name }}{% endif %} ({{ language_names[drafts[0].language] }}){% endset %}
+{% if fold %}<details id="drafts" class="drafts-box"{% if open %} open{% endif %}>
+  <summary><h2>{{ heading }}</h2></summary>
+{% else %}<section id="drafts">
+  <h2>{{ heading }}</h2>{% endif %}
   <form method="get" action="{{ page }}" class="inline-row drafts-form">
     <label>signal (check <a href="{{ (company.linkedin | href) ~ '/insights/' if company.linkedin | href else 'https://www.linkedin.com/company/' ~ company.slug ~ '/insights/' }}" target="_blank" rel="noopener">LinkedIn insights</a>)
       <select name="signal">
@@ -86,7 +90,7 @@
     </div>
     {% endfor %}
   </div>
-</section>
+{% if fold %}</details>{% else %}</section>{% endif %}
 {% endmacro %}
 
 {# An interaction is always with a person. With `contact` (the contact page)
@@ -305,23 +309,28 @@
   {{ custom_fields(custom_fields_for('contact') | rejectattr('key', 'in', hide) | list, values, errors) }}
 {% endmacro %}
 
-{% macro timeline(company, interactions) %}
+{# `contact_page`: every entry is with the same person, so no name; the
+   direction is an arrow, a missing subject says nothing, and a message shows
+   its first line with the rest behind "more". #}
+{% macro timeline(company, interactions, contact_page=false) %}
 <ul class="timeline">
   {% for i in interactions %}
   <li class="interaction{% if i.is_note %} note{% endif %}" id="i-{{ i.id }}">
     <div class="meta">
       <span class="when">{{ fmt_datetime(i.date).replace('T', ' ') }}</span>
       <span class="tag">{{ i.channel }}</span>
-      {% if i.direction %}<span class="tag">{{ i.direction }}</span>{% endif %}
-      <span class="who">{{ contact_label(company, i.contact) }}</span>
+      {% if i.direction and contact_page %}<span class="tag" title="{{ i.direction }}"><span aria-hidden="true">{{ '→' if i.direction == 'out' else '←' }}</span><span class="visually-hidden">{{ i.direction }}</span></span>
+      {% elif i.direction %}<span class="tag">{{ i.direction }}</span>{% endif %}
+      {% if not contact_page %}<span class="who">{{ contact_label(company, i.contact) }}</span>{% endif %}
       <a class="edit" href="/companies/{{ company.slug }}/interactions/{{ i.id }}/edit">edit</a>
       <form method="post" action="/companies/{{ company.slug }}/interactions/{{ i.id }}/delete" class="inline delete">
         <button type="submit" onclick="return confirm('Delete this interaction?')">delete</button>
       </form>
     </div>
-    {% if i.subject or not i.is_note %}<div class="subject{% if not i.subject %} empty{% endif %}">{{ i.subject or '(no subject)' }}</div>{% endif %}
+    {% if i.subject or not (i.is_note or contact_page) %}<div class="subject{% if not i.subject %} empty{% endif %}">{{ i.subject or '(no subject)' }}</div>{% endif %}
     {% if i.outcome %}<div class="outcome">outcome: {{ i.outcome }}</div>{% endif %}
     {% if i.body and i.is_note %}<pre>{{ i.body }}</pre>
+    {% elif i.body and contact_page %}<details class="body-preview"><summary><span class="first-line">{{ preview(i.body) }}</span> <span class="small">more</span></summary><pre>{{ i.body }}</pre></details>
     {% elif i.body %}<details><summary>body</summary><pre>{{ i.body }}</pre></details>{% endif %}
   </li>
   {% else %}

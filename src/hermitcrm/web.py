@@ -2690,20 +2690,55 @@ def create_app(root: Path, config: dict | None = None,
         return flashed(f"/companies/{slug}/contacts/{contact.slug}",
                        "Contact created")
 
+    def contact_summary(company: Company, contact, interactions: list, today) -> dict:
+        """The four facts on top of a contact page: last touch, who is waiting
+        on whom (the radar's own rule, so Home and this page agree), the open
+        task due first, and the history in numbers. Notes are not touches."""
+        touches = sorted((i for i in interactions if i.date and i.is_touch),
+                         key=lambda i: i.date)
+        last = touches[-1] if touches else None
+        open_tasks = [t for t in contact.tasks if not t.done]
+        return {
+            "last": last,
+            "last_days": (today - last.date.date()).days if last else None,
+            "waiting": followups.for_contact(company, contact.slug, today, **followup_days),
+            "next": min(open_tasks, key=lambda t: (t.due is None, t.due or today))
+                    if open_tasks else None,
+            "count": len(touches),
+            "count_in": sum(i.direction == Direction.IN.value for i in touches),
+            "count_out": sum(i.direction == Direction.OUT.value for i in touches),
+            "first": touches[0] if touches else None,
+            "has_outbound": any(i.direction == Direction.OUT.value for i in touches),
+        }
+
+    def contact_context(request: Request, company: Company, contact, values=None,
+                        channel: str = "", editing: bool = False, **extra) -> dict:
+        """Everything contact.html needs. A form sent back (errors, a stale
+        version) passes its `values` and opens the Edit box."""
+        interactions = [i for i in company.interactions if i.contact == contact.slug]
+        return {
+            "company": company,
+            "contact": contact,
+            "values": values or with_custom(contact_values(contact), contact, "contact"),
+            "interactions": interactions,
+            "interaction": interaction_values(company, contact=contact.slug, channel=channel),
+            "summary": contact_summary(company, contact, interactions, store.today()),
+            "editing": editing or values is not None,
+            **draft_context(request, company, contact),
+            **extra,
+        }
+
     @app.get("/companies/{slug}/contacts/{cslug}", response_class=HTMLResponse)
     def contact_page(request: Request, slug: str, cslug: str):
         company = need_company(slug, refresh=True)
         contact = company.contacts.get(cslug)
         if contact is None:
             raise HTTPException(status_code=404, detail=f"unknown contact {cslug!r}")
-        return render(request, "contact.html", {
-            "company": company,
-            "contact": contact,
-            "values": with_custom(contact_values(contact), contact, "contact"),
-            "interactions": [i for i in company.interactions if i.contact == cslug],
-            "interaction": interaction_values(company, contact=cslug),
-            **draft_context(request, company, contact),
-        })
+        # "Add note" links here with ?channel=note, so the log form needs no script.
+        channel = request.query_params.get("channel", "")
+        return render(request, "contact.html", contact_context(
+            request, company, contact, channel=channel,
+            editing=bool(request.query_params.get("edit"))))
 
     @app.post("/companies/{slug}/contacts/{cslug}")
     async def contact_update(
@@ -2734,33 +2769,23 @@ def create_app(root: Path, config: dict | None = None,
             person = current.contacts.get(cslug)
             if person is None:
                 raise HTTPException(status_code=404, detail=f"unknown contact {cslug!r}")
-            return render(request, "contact.html", {
-                "company": current,
-                "contact": person,
-                "values": {**with_custom(contact_values(person), person, "contact"),
-                           **values, **shown},
-                "flash": stale_form_text("contact",
-                                         changed_fields(values, contact_values(person))),
-                "interactions": [i for i in current.interactions if i.contact == cslug],
-                "interaction": interaction_values(current, contact=cslug),
-                **draft_context(request, current, person),
-            }, status_code=409)
+            return render(request, "contact.html", contact_context(
+                request, current, person,
+                values={**with_custom(contact_values(person), person, "contact"),
+                        **values, **shown},
+                flash=stale_form_text("contact",
+                                      changed_fields(values, contact_values(person)))),
+                status_code=409)
         try:
             if custom_errors:
                 raise ValidationError(custom_errors)
             store.update_contact(slug, cslug, custom=extra, **values)
         except ValidationError as exc:
-            return render(request, "contact.html", {
-                "company": company,
-                "contact": contact,
-                "values": {**with_custom(contact_values(contact), contact, "contact"),
-                           **values, **shown},
-                "errors": exc.errors,
-                "interactions": [i for i in company.interactions
-                                 if i.contact == cslug],
-                "interaction": interaction_values(company, contact=cslug),
-                **draft_context(request, company, contact),
-            }, status_code=400)
+            return render(request, "contact.html", contact_context(
+                request, company, contact,
+                values={**with_custom(contact_values(contact), contact, "contact"),
+                        **values, **shown},
+                errors=exc.errors), status_code=400)
         return flashed(f"/companies/{slug}/contacts/{cslug}", "Saved")
 
     @app.post("/companies/{slug}/contacts/{cslug}/delete")

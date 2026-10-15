@@ -282,8 +282,8 @@ def test_sections_reorder_and_hide(client, repo, acme):
                                                   "details", "contacts", "drafts"]
     assert "/merge" not in company and "Can you send the pricing?" in company
     contact = client.get("/companies/acme/contacts/jane-doe").text
-    assert order_of(contact, CONTACT_MARKERS) == ["tasks", "details", "timeline",
-                                                  "quick-add", "merge"]
+    assert order_of(contact, CONTACT_MARKERS) == ["tasks", "details", "quick-add",
+                                                  "timeline", "merge"]
     assert "Delete contact" not in contact
     home = client.get("/").text
     assert order_of(home, HOME_MARKERS) == ["going", "doing"]
