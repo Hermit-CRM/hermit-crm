@@ -302,6 +302,71 @@ def test_contact_bad_role(store):
         store.create_contact("acme", "Anna", role="boss")
 
 
+@pytest.mark.parametrize("email", [
+    "jane.example.com", "@example.com", "jane@", "jane@@example.com",
+    "@", " jane.example.com ",
+])
+@pytest.mark.parametrize("operation", ["create", "update"])
+def test_contact_invalid_email_writes_nothing(store, messages, email, operation):
+    store.create_company("Acme")
+    if operation == "update":
+        store.create_contact("acme", "Jane", email="jane@example.com")
+    before = {p: p.read_bytes() for p in store.root.rglob("*.md")}
+    messages.clear()
+
+    with pytest.raises(ValidationError) as exc:
+        if operation == "create":
+            store.create_contact("acme", "Jane", email=email, notes="Do not save")
+        else:
+            store.update_contact("acme", "jane", email=email, title="CTO",
+                                 notes="Do not save")
+
+    assert "email" in exc.value.errors
+    assert {p: p.read_bytes() for p in store.root.rglob("*.md")} == before
+    assert messages == []
+    company = store.get("acme")
+    if operation == "create":
+        assert company.contacts == {}
+    else:
+        assert company.contacts["jane"].email == "jane@example.com"
+        assert company.contacts["jane"].title == ""
+    assert company.interactions == []
+
+
+@pytest.mark.parametrize("email, expected", [
+    ("", ""), (None, ""), ("   ", ""),
+    (" Jane@Example.COM ", "jane@example.com"),
+    ("jane+crm@example.com", "jane+crm@example.com"),
+])
+@pytest.mark.parametrize("operation", ["create", "update"])
+def test_contact_email_normalisation(store, email, expected, operation):
+    store.create_company("Acme")
+    if operation == "create":
+        contact = store.create_contact("acme", "Jane", email=email)
+    else:
+        store.create_contact("acme", "Jane", email="jane@example.com")
+        contact = store.update_contact("acme", "jane", email=email)
+    assert contact.email == expected
+    assert fresh(store).get("acme").contacts["jane"].email == expected
+
+
+def test_legacy_invalid_contact_email_still_loads(store):
+    store.create_company("Acme")
+    store.create_contact("acme", "Jane", email="jane@example.com")
+    path = store.root / "companies/acme/contacts/jane.md"
+    legacy = path.read_bytes().replace(b"jane@example.com", b"jane.example.com")
+    path.write_bytes(legacy)
+
+    loaded = fresh(store)
+    assert loaded.get("acme").contacts["jane"].email == "jane.example.com"
+    assert path.read_bytes() == legacy
+    # An update that does not supply an email need not repair the old one.
+    contact = loaded.update_contact("acme", "jane", title="CTO")
+    assert contact.email == "jane.example.com"
+    contact = loaded.update_contact("acme", "jane", email="jane@example.com")
+    assert contact.email == "jane@example.com"
+
+
 # -------------------------------------------------------------- interactions
 
 

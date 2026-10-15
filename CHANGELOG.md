@@ -3,6 +3,13 @@
 All notable changes to Hermit CRM. Versions follow semantic versioning; a change to
 the data format always comes with an automatic migration.
 
+## Unreleased
+
+- Reject non-empty contact emails unless they contain exactly one `@` with text
+  on both sides, across the web app, CLI, MCP and imports. Contact forms show the
+  error beside the email field. Empty emails remain allowed and existing files
+  with invalid emails still load without being rewritten.
+
 ## 0.7.0 (2026-10-09)
 
 **Stages are configurable.** The steps a deal goes through are yours to name
