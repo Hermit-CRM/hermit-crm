@@ -83,7 +83,7 @@ OBFUSCATION = [
     (r"(?:\\x[0-9a-fA-F]{2}){20,}|(?:\\u[0-9a-fA-F]{4}){20,}|(?:%[0-9a-fA-F]{2}){30,}", "a long run of escaped characters"),
     (r"\b(atob|btoa|b64decode|b64encode|a85decode|b85decode|fromCharCode|codecs\.decode|zlib\.decompress|bz2\.decompress|lzma\.decompress)\b",
      "code that decodes hidden text"),
-    (r"[​-‏‪-‮⁠-⁤⁦-⁩﻿]", "invisible or text-direction characters that can hide what code really does"),
+    (r"[\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]", "invisible or text-direction characters that can hide what code really does"),
 ]
 
 BINARY_EXT = re.compile(
