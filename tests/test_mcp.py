@@ -212,3 +212,23 @@ def test_add_company_takes_a_next_step_type_from_settings(tools, store):
     assert not failed and store.companies["borduro"].next_step_type == "prospecting"
     text, failed = call(tools, "add_company", name="Nope", next_step_type="other")
     assert failed and "unknown task type" in text and "nope" not in store.companies
+
+
+def test_the_registry_entry_matches_the_package():
+    # The MCP Registry lists server.json and checks ownership by finding
+    # `mcp-name: <name>` in the README that PyPI shows, so the name, the
+    # marker and the versions have to agree on every release.
+    from pathlib import Path
+
+    from hermitcrm import __version__
+
+    root = Path(__file__).resolve().parents[1]
+    entry = json.loads((root / "server.json").read_text(encoding="utf-8"))
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    assert f"<!-- mcp-name: {entry['name']} -->" in readme
+    assert entry["version"] == __version__
+    (package,) = entry["packages"]
+    assert package["identifier"] == "hermitcrm"
+    assert package["version"] == __version__
+    assert package["packageArguments"] == [{"type": "positional", "value": "mcp"}]
+    assert len(entry["description"]) <= 100
