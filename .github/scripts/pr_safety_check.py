@@ -100,6 +100,7 @@ QUOTED = re.compile(r"(['\"])(.*?)\1")
 # Reserved for documentation and testing, or this machine: never a real destination.
 HARMLESS_HOST = re.compile(r"(^|\.)(example\.(com|org|net)|localhost|invalid|test)$|^127\.|^0\.0\.0\.0$|^::1$", re.I)
 CODE_FILE = re.compile(r"\.(py|js|mjs|ts|swift|rb|go|rs|java|kt)$")
+PROSE_FILE = re.compile(r"\.(md|markdown|txt|rst|html?)$", re.I)
 
 
 def git(*args: str) -> str:
@@ -165,11 +166,13 @@ def heading_at(text: str, lineno: int) -> str:
 
 
 def check(base: str, head: str) -> list[str]:
-    findings: list[str] = []
+    # (file, reason) -> line numbers, so a reason that repeats is reported once per file.
+    found: dict[tuple[str, str], list[int]] = {}
 
     def flag(path: str, line: int | None, why: str) -> None:
-        where = f"{path} (line {line})" if line else path
-        findings.append(f"{where}: {why}")
+        lines = found.setdefault((path, why), [])
+        if line and line not in lines:
+            lines.append(line)
 
     # File-level checks: what was added, changed, deleted, and with which permissions.
     merge_base = git("merge-base", base, head).strip()
@@ -222,8 +225,10 @@ def check(base: str, head: str) -> list[str]:
         if len(blob) >= 400 and entropy(blob) > 5.3:
             flag(path, None, "the added text looks scrambled or encrypted (unusually random characters).")
         for n, text in lines:
-            if len(text) > 500:
-                flag(path, n, f"has a very long line ({len(text)} characters), which can hide code.")
+            # A Markdown or HTML paragraph is one long line; only flag it if it is not prose.
+            prose = PROSE_FILE.search(path) and text.count(" ") / max(len(text), 1) > 0.08
+            if len(text) > 500 and not prose:
+                flag(path, n, "has very long lines (over 500 characters), which can hide code.")
             for token in re.findall(r"\S{120,}", text):
                 if entropy(token) > 4.8 and not URL.fullmatch(token):
                     flag(path, n, "contains a long run of random-looking characters (possibly hidden data).")
@@ -249,6 +254,17 @@ def check(base: str, head: str) -> list[str]:
                     if re.search(pattern, text):
                         flag(path, n, f"adds code that {label}: {reason}.")
                         break
+    findings = []
+    for (path, why), lines in found.items():
+        if not lines:
+            where = path
+        elif len(lines) == 1:
+            where = f"{path} (line {lines[0]})"
+        else:
+            shown = ", ".join(map(str, lines[:5]))
+            more = f" and {len(lines) - 5} more" if len(lines) > 5 else ""
+            where = f"{path} (lines {shown}{more})"
+        findings.append(f"{where}: {why}")
     return findings
 
 
