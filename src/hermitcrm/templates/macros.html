@@ -298,7 +298,7 @@
     </label>{% endif %}
   </div>
   {% if 'email' not in hide or 'phone' not in hide or 'linkedin' not in hide %}<div class="row">
-    {% if 'email' not in hide %}<label class="grow">email <input name="email" value="{{ values.email }}"></label>{% endif %}
+    {% if 'email' not in hide %}<label class="grow">email <input name="email" value="{{ values.email }}"> {{ err(errors, 'email') }}</label>{% endif %}
     {% if 'phone' not in hide %}<label class="grow">phone <input name="phone" value="{{ values.phone }}"></label>{% endif %}
     {% if 'linkedin' not in hide %}<label class="grow">linkedin <input name="linkedin" value="{{ values.linkedin }}"></label>{% endif %}
   </div>{% endif %}

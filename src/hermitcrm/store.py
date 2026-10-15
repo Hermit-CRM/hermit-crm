@@ -551,6 +551,16 @@ class Store:
     # --- coercion for form input
 
     @staticmethod
+    def _coerce_email(value: str | None) -> str:
+        # Validate writes here; normalise_email also loads legacy files.
+        value = normalise_email(value)
+        if value and (value.count("@") != 1 or not all(value.split("@"))):
+            raise ValidationError({
+                "email": "email must contain exactly one @ with text on both sides",
+            })
+        return value
+
+    @staticmethod
     def _coerce_int(value, field_name: str) -> int | None:
         if value is None or value == "":
             return None
@@ -1355,7 +1365,7 @@ class Store:
             slug=unique_slug(slugify(name, default="contact"), existing),
             title=(title or "").strip(),
             linkedin=normalise_linkedin(linkedin),
-            email=normalise_email(email),
+            email=self._coerce_email(email),
             phone=(phone or "").strip(),
             role=self._coerce_enum(role, Role, "role", True, ""),
             language=normalise_language(language),
@@ -1401,7 +1411,7 @@ class Store:
         if "linkedin" in fields:
             new.linkedin = normalise_linkedin(fields["linkedin"])
         if "email" in fields:
-            new.email = normalise_email(fields["email"])
+            new.email = self._coerce_email(fields["email"])
         if "phone" in fields:
             new.phone = (fields["phone"] or "").strip()
         if "role" in fields:

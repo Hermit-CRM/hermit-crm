@@ -482,6 +482,37 @@ def test_contact_routes(client, repo):
     assert "name is required" in bad.text
 
 
+@pytest.mark.parametrize("form", ["company", "global", "edit"])
+def test_contact_form_invalid_email_shows_field_error(client, app, repo, form):
+    post_company(client, name="Acme")
+    if form == "edit":
+        post_contact(client, "acme", first_name="Jane", email="jane@example.com")
+    before = {p: p.read_bytes() for p in (repo / "companies").rglob("*.md")}
+    commit = last_commit(repo)
+
+    if form == "global":
+        response = client.post("/contacts", data={
+            "name": "Jane", "company": "Acme", "email": "jane.example.com",
+        })
+    elif form == "edit":
+        response = client.post("/companies/acme/contacts/jane", data={
+            **CONTACT_BLANK, "first_name": "Jane", "email": "jane.example.com",
+        })
+    else:
+        response = post_contact(client, "acme", first_name="Jane",
+                                email="jane.example.com")
+
+    assert response.status_code == 400
+    assert re.search(
+        r'<input name="email" value="jane.example.com">\s*'
+        r'<span class="error">[^<]*email[^<]*</span>\s*</label>', response.text,
+    )
+    assert {p: p.read_bytes() for p in (repo / "companies").rglob("*.md")} == before
+    assert last_commit(repo) == commit
+    contacts = app.state.store.get("acme").contacts
+    assert len(contacts) == (1 if form == "edit" else 0)
+
+
 # -------------------------------------------------------------- interactions
 
 

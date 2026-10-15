@@ -39,7 +39,7 @@
   {% else %}
   <div class="row">
     <label class="grow">name <input name="name" value="{{ values.name }}" required> {{ m.err(errors, 'name') }}</label>
-    <label class="grow">email <input name="email" value="{{ values.email }}"></label>
+    <label class="grow">email <input name="email" value="{{ values.email }}"> {{ m.err(errors, 'email') }}</label>
     <label class="grow">title <input name="title" value="{{ values.title }}"></label>
   </div>
   <div class="row">
