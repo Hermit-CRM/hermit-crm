@@ -6,6 +6,9 @@ name: install-check
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   install-check:
     runs-on: ${{ matrix.os }}
