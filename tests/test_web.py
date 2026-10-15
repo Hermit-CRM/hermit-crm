@@ -1748,7 +1748,7 @@ def test_contact_page_sections_in_order_and_nav_marks_contacts(client, app):
     post_company(client, name="Acme")
     post_contact(client, "acme", first_name="Jane", last_name="Doe")
     page = client.get("/companies/acme/contacts/jane-doe").text
-    ids = ['id="details"', 'id="timeline"', 'id="quick-add"', 'id="tasks"', 'id="drafts"',
+    ids = ['id="details"', 'id="tasks"', 'id="quick-add"', 'id="timeline"', 'id="drafts"',
            'id="delete"']
     positions = [page.index(i) for i in ids]
     assert positions == sorted(positions)
