@@ -1,0 +1,27 @@
+name: install-check
+
+# Does `pip install hermitcrm` work for a new user, right now? The release
+# workflow runs the same check on every tag before PyPI; this is the manual
+# version, for before you tag, or after an upstream release you suspect.
+on:
+  workflow_dispatch:
+
+jobs:
+  install-check:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build sdist and wheel, then check them
+        run: scripts/install-check.sh
+      # The download is a third artifact, built by git archive rather than
+      # python -m build. dist/ is fresh on a runner, so release.sh's refusal
+      # to overwrite cannot trip here.
+      - name: Build and check the download
+        run: scripts/release.sh

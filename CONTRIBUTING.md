@@ -145,3 +145,18 @@ The archive comes from `git archive`, so it holds the tracked files at that comm
 and nothing else -- no `.secrets.toml`, no stray data folder, no editor backups. The
 other side of that coin is that uncommitted work is not in it; the script prints a
 warning when the tree is dirty, and it means what it says.
+
+Before it counts as built, the download goes through `scripts/install-check.sh`:
+installed in a brand-new virtualenv (it is what `uv tool install .` builds from),
+then `init --demo`, `check`, `rebuild`, `digest`, `doctor` and the web app, as a
+new user would. A wheel goes through the same check alongside it: the one you
+pass with `--wheel FILE`, or else one built from the download. If anything fails,
+the tarball and checksum are removed again and the script exits non-zero. The
+check needs network access (pip fetches the dependencies) and takes under a
+minute.
+
+Pushing a `v<version>` tag runs `.github/workflows/release.yml`, which runs
+the same check on the PyPI wheel and sdist before uploading them, then
+`release.sh --wheel` with that wheel for the GitHub release. To run the check
+on GitHub without tagging, start the `install-check` workflow by hand (Actions,
+install-check, Run workflow).
