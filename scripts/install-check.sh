@@ -36,16 +36,6 @@
 # into a throwaway venv, so nothing has to be set up first.
 set -eu
 
-cd "$(dirname "$0")/.."
-
-version=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/hermitcrm/__init__.py)
-[ -n "$version" ] || { echo "install-check: no __version__ in src/hermitcrm/__init__.py" >&2; exit 1; }
-
-work=${TMPDIR:-/tmp}/hermitcrm-install-check-$$
-rm -rf "$work"
-mkdir -p "$work"
-trap 'rm -rf "$work"' EXIT INT TERM
-
 step() { printf '\n== %s\n' "$1"; }
 die() { echo "install-check: $1" >&2; exit 1; }
 abspath() {
@@ -55,6 +45,8 @@ abspath() {
 
 # --- which artifacts ----------------------------------------------------------
 
+# Resolved before the cd below, so relative paths mean what they did where you
+# typed them.
 wheel=""
 sdist=""
 for f in "$@"; do
@@ -65,6 +57,16 @@ for f in "$@"; do
         *) die "not an artifact: $f (expected a .whl or a .tar.gz)" ;;
     esac
 done
+
+cd "$(dirname "$0")/.."
+
+version=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/hermitcrm/__init__.py)
+[ -n "$version" ] || { echo "install-check: no __version__ in src/hermitcrm/__init__.py" >&2; exit 1; }
+
+work=${TMPDIR:-/tmp}/hermitcrm-install-check-$$
+rm -rf "$work"
+mkdir -p "$work"
+trap 'rm -rf "$work"' EXIT INT TERM
 
 # Both or neither: checking one artifact and quietly rebuilding the other would
 # pass for something that was never going to be released.
