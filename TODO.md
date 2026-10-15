@@ -65,6 +65,15 @@ Beta (12-16 Oct):
       programming); fix install issues; three one-line quotes.
 - [ ] Submit to AlternativeTo and OpenAlternative.
 
+Repo page (14 Oct): README pitch, demo GIF, screenshots, agent install line,
+CONTRIBUTING "Where to start", good first issues #84-#87, release workflow
+attaches the download. Left, by hand in GitHub's settings:
+- [ ] About: homepage `https://hermitcrm.io`; topics `crm`, `open-source`,
+      `solopreneur`, `local-first`, `ai-native`, `macos`, `mcp`.
+- [ ] Settings > General > Social preview: upload `.github/social-preview.png`
+      (`website/build.py --share` regenerates it beside og.png).
+- [ ] Tag the next release (`v0.7.1` or `v0.8.0`) from main once this is merged.
+
 Public (19-27 Oct):
 - [ ] Mon 19 Oct: repo public, PyPI release, hermitcrm.io already live and indexable since 23 Sep.
       Put `Source` and `Issues` back in pyproject's `[project.urls]` (taken

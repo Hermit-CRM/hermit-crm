@@ -1,7 +1,28 @@
 # Hermit CRM
 
+**A free, local CRM for solopreneurs.** Your pipeline, contacts and
+conversations live as Markdown files in git on your own Mac, with a web app for
+you and a CLI and MCP server for your AI agent. No account, no cloud, Apache 2.0.
+
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/hermitcrm.svg)](https://pypi.org/project/hermitcrm/)
 [![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)](DISCLAIMER.md)
+[![Website](https://img.shields.io/badge/web-hermitcrm.io-1E8A60.svg)](https://hermitcrm.io)
+
+![Hermit CRM: the pipeline, a company with its drafts and timeline, the calendar and the reports](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/demo.gif)
+
+**Install it with your AI coding agent.** Paste this into Claude Code, Codex,
+Cursor or any other:
+
+```text
+Read https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/INSTALL.md and set up Hermit CRM for me.
+```
+
+Prefer to type the commands yourself? See [Install](#install).
+
+| Pipeline | A company | Calendar |
+|---|---|---|
+| [![The pipeline board with the follow-up radar above it](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/pipeline.png)](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/pipeline.png) | [![A company page: message drafts in three angles and the timeline of every email, call and meeting](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/company.png)](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/company.png) | [![The calendar: every next step on a month grid](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/calendar.png)](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/calendar.png) |
 
 > **Alpha software.** Hermit CRM is incomplete, it changes without notice, and
 > it has bugs nobody has found yet. It is free and comes with **no warranty of
@@ -38,8 +59,9 @@ files you own, Hermit CRM is for you.
 
 ## Install
 
-**With an AI assistant.** Unpack the download, open the folder in Claude Code,
-Codex, Cursor or another AI coding tool, and send it one message:
+**With an AI assistant.** Paste the line at the top of this page into Claude
+Code, Codex, Cursor or another AI coding tool, or unpack the download, open the
+folder in one and send it one message:
 
 > Read INSTALL.md and set up Hermit CRM for me.
 

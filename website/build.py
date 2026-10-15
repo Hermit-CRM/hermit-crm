@@ -17,7 +17,7 @@
 
     python3 build.py            build site/index.html, site/compare/, site/about/ and site/app-tokens.css once
     python3 build.py --watch    rebuild whenever content.toml, about.toml, style.css or the app's tokens change
-    python3 build.py --share    also render site/img/og.png (needs Playwright)
+    python3 build.py --share    also render site/img/og.png and .github/social-preview.png (needs Playwright)
     python3 build.py --release  build, then fail if any [TBC], "#" link or brief problem is left,
                                 or if /docs/ was not built from the release's own download
 
@@ -1247,33 +1247,44 @@ def crawl(site_url: str, pages: list[dict] = (), about: dict | None = None,
     print("built site/robots.txt and site/sitemap.xml")
 
 
+# The share images: og.png for links to the site, and the repository's social
+# preview, which GitHub wants at 1280 x 640 and takes only as an upload
+# (Settings > General > Social preview), so it is kept in the repo to upload.
+SHARE_IMAGES = [
+    (SITE / "img" / "og.png", 1200, 630),
+    (ROOT.parent / ".github" / "social-preview.png", 1280, 640),
+]
+
+
 def share(c: dict) -> None:
-    """Render the 1200 x 630 share image with Playwright."""
+    """Render the share images (og.png and the GitHub social preview) with Playwright."""
     from playwright.sync_api import sync_playwright  # pip install playwright
 
-    page_html = f"""<!doctype html><html><head><meta charset="utf-8">
+    tmp = SITE / "_share.html"
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch()
+            for out, w, h in SHARE_IMAGES:
+                page_html = f"""<!doctype html><html><head><meta charset="utf-8">
 <link rel="stylesheet" href="app-tokens.css"><link rel="stylesheet" href="style.css"><style>
-:root{{color-scheme:light}} body{{margin:0;width:1200px;height:630px;overflow:hidden}}
-.s{{width:1200px;height:630px;box-sizing:border-box;padding:96px 120px;display:flex;flex-direction:column;justify-content:space-between}}
+:root{{color-scheme:light}} body{{margin:0;width:{w}px;height:{h}px;overflow:hidden}}
+.s{{width:{w}px;height:{h}px;box-sizing:border-box;padding:96px 120px;display:flex;flex-direction:column;justify-content:space-between}}
 .s .brand svg{{width:58px;height:46px}} .s .brand span{{font-size:38px}}
 .s h1{{font-size:112px;line-height:1}} .s p{{margin:0;font-size:28px;color:var(--muted)}}
 </style></head><body><div class="s">
 <div class="brand">{MARK}<span>{md(c["header"]["name"])}</span></div>
 <div><h1>{md(c["hero"]["h1"])}</h1></div>
 <p>{md(c["share"]["tagline"])}</p></div></body></html>"""
-    tmp = SITE / "_share.html"
-    tmp.write_text(page_html, encoding="utf-8")
-    try:
-        with sync_playwright() as pw:
-            browser = pw.chromium.launch()
-            page = browser.new_page(viewport={"width": 1200, "height": 630})
-            page.goto(tmp.as_uri())
-            page.evaluate("document.fonts.ready")
-            page.screenshot(path=str(SITE / "img" / "og.png"))
+                tmp.write_text(page_html, encoding="utf-8")
+                page = browser.new_page(viewport={"width": w, "height": h})
+                page.goto(tmp.as_uri())
+                page.evaluate("document.fonts.ready")
+                page.screenshot(path=str(out))
+                page.close()
+                print(f"built {out.relative_to(ROOT.parent)}")
             browser.close()
     finally:
         tmp.unlink(missing_ok=True)
-    print("built site/img/og.png")
 
 
 def main() -> None:
