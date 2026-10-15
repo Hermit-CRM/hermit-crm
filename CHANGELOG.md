@@ -3,6 +3,43 @@
 All notable changes to Hermit CRM. Versions follow semantic versioning; a change to
 the data format always comes with an automatic migration.
 
+## 0.7.5 (2026-10-16)
+
+**A clearer contact page, editable tasks and a WhatsApp channel.** The contact
+page now says where things stand before anything else, a task's text and due
+date can be changed after it is made, and WhatsApp joins the channels an
+interaction can have.
+
+**Upgrading from 0.7.0.** Run the command the update notice names (usually
+`uv tool install hermitcrm@latest`), or unpack the new download and run
+`uv tool install --reinstall .` in it, then restart the app. The data format
+stays at 8: nothing in your folder is migrated or rewritten by the upgrade.
+
+- **Contact page.** A status strip on top shows the last touch, who is waiting
+  on whom (the same rule as the follow-up radar on Home), the person's next
+  task and the history in numbers. Under the name: "title at Company" with
+  stage and role badges. An action row offers Log interaction, Add note, Add
+  task, copy email, LinkedIn and Enrich. Fields are read-only with an Edit
+  box. The timeline shows a direction arrow and the first line of each body,
+  with the rest behind "more"; drafts, merge and delete are folded away.
+- **Editing a task.** An Edit button on the company, contact and Tasks pages
+  changes the text and due date of an open to-do.
+- **WhatsApp channel.** The interaction form's channel choice is a dropdown:
+  email, LinkedIn, call, WhatsApp and note. Reports, the CLI log summary and
+  the MCP `add_interaction` tool know the new channel. Meeting stays valid
+  (calendar imports) and is offered when editing a meeting.
+- **Company form.** Fields sit in labelled groups on a grid, each as wide as
+  it needs. The reason and requalify date show only for a stage that uses
+  them, or when they already hold something.
+- **Bcc and calendar import.** A mail from a new address of someone who looks
+  like a person already on file (same name, or the same first name where one
+  side has no last name) goes to the review inbox instead of creating a
+  duplicate contact. Assigning it logs on that contact.
+- Behind the scenes: a test guards the no-telemetry promise against FastAPI's
+  OpenTelemetry support, and no release ships until `scripts/install-check.sh`
+  has installed the wheel and the download in a clean virtualenv and run them
+  as a new user would. Pull requests get an automatic safety check.
+
 ## 0.7.0 (2026-10-09)
 
 **Stages are configurable.** The steps a deal goes through are yours to name
