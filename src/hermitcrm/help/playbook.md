@@ -101,6 +101,21 @@ approaches stay equal, the bot asks you, and says what was missing ("no
 employees"). Funding and positive signals are for research, not for this
 choice.
 
+### Opt-out line (optional)
+
+Beside `approaches:`, the front matter may hold one `opt_out` for the whole
+folder: the line the outreach bot adds at the end of a cold first email.
+One sentence for every language, or one per language code, falling back to
+`en`:
+
+```yaml
+opt_out:
+  en: "Not for you? Say so and I won't write again."
+  de: "Passt nicht? Sag kurz Bescheid, dann schreibe ich nicht mehr."
+```
+
+Without it, no such line is added.
+
 ### Personas
 
 A contact's title picks the persona: whole words, any case, and the longest

@@ -293,6 +293,18 @@ class Playbook:
             out.append(Approach(name, item, self.body[span[0]:span[2]] if span else ""))
         return out
 
+    def opt_out(self, language: str = "en") -> str:
+        """The opt-out line for a cold first email in `language`, or "" (none set).
+        A single sentence is used for every language; a map by language code
+        falls back to its `en` entry."""
+        value = self.front.get("opt_out") if not self.error else None
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, dict):
+            chosen = value.get(language) or value.get("en") or ""
+            return chosen.strip() if isinstance(chosen, str) else ""
+        return ""
+
     def approach(self, name: str) -> Approach | None:
         return next((o for o in self.approaches if _norm(o.name) == _norm(name)), None)
 
@@ -431,10 +443,27 @@ def _validate_approach(item, where: str) -> list[str]:
     return problems
 
 
+# Folder-wide keys beside `approaches`. `opt_out`: the line the outreach bot
+# adds to a cold first email, one sentence or one per language code
+# ({en: ..., de: ...}); absent means no such line (it is optional).
+FOLDER_KEYS = ("approaches", "opt_out")
+
+
+def _validate_opt_out(value) -> list[str]:
+    if isinstance(value, str) and value.strip():
+        return []
+    if isinstance(value, dict) and value and all(
+            isinstance(k, str) and isinstance(v, str) and v.strip() for k, v in value.items()):
+        return []
+    return ["opt_out: one sentence, or one per language (en: ..., de: ...)"]
+
+
 def validate_front(front: dict) -> list[str]:
     """One "<where>: <what>" line per problem in the front matter."""
-    problems = [f"{key}: not a playbook key (the front matter holds `approaches:`)"
-                for key in front if key != "approaches"]
+    problems = [f"{key}: not a playbook key (the front matter holds `approaches:` "
+                "and optionally `opt_out:`)" for key in front if key not in FOLDER_KEYS]
+    if "opt_out" in front:
+        problems += _validate_opt_out(front["opt_out"])
     approaches = front.get("approaches")
     if approaches is None:
         return problems + ["approaches: missing (run `hermitcrm playbook upgrade`)"]

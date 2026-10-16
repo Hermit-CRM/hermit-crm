@@ -35,18 +35,25 @@ everything the card shows; its body is the draft text, byte for byte, which
 the person may edit by hand. The keys are always written, in ITEM_KEYS
 order, so the same item gives the same bytes. Every step is one commit:
 
-    researching ──> drafted ──> ready ──> (later) sent ──> logged
-          \\            \\
-           └────────────┴──> skipped (skip_reason)
+    researching ──> drafted ──> ready ──> sent
+          \\            \\         \\
+           └────────────┴──────────┴──> skipped (skip_reason)
 
 `researching`: research is stored, the draft is not written yet (a run that
 stopped halfway leaves this). `drafted`: the draft is written and checked;
 `checks` lists what is still wrong ([] = every hard check passed). `ready`:
 the person approved it (the text they approved is the body; `edit_distance`
-says how much they changed). `skipped`: not to be sent, `skip_reason` says why
-(the person, or the bot when the AI gave no usable draft twice). An item in
-researching, drafted or ready is open: the contact and the company (and its
-likely duplicates) get no second one.
+says how much they changed; a check that still fails is kept in `checks`).
+`sent`: the person sent it. That happens by itself when an outbound
+interaction on the item's channel is logged for the contact after the item
+was marked ready (by hand, BCC import, the extension: people send from their
+own mail), or with `hermitcrm outreach sent`; nothing is logged for them.
+`skipped`: not to be sent, `skip_reason` is one of SKIP_REASONS (the person,
+or the bot with `bad-draft` when the AI gave no usable draft twice). `logged`
+is reserved for a later auto-log. An item in researching, drafted or ready is
+open: the contact and the company (and its likely duplicates) get no second
+one. A skipped contact comes back after the cooldown, except `bad-fit`, which
+keeps the company out.
 """
 
 from __future__ import annotations
@@ -71,12 +78,15 @@ DIR = "outreach"
 STATES = ("researching", "drafted", "ready", "skipped", "sent", "logged")
 OPEN_STATES = ("researching", "drafted", "ready")
 KINDS = ("first-touch", "reply-to-interest", "follow-up")
-BUILT_KINDS = ("first-touch",)  # what this version drafts; the others are later phases
+BUILT_KINDS = ("first-touch",)
+SKIP_REASONS = ("bad-fit", "wrong-person", "bad-timing", "bad-draft", "already-in-contact",
+                "other")  # what this version drafts; the others are later phases
 CHANNELS = ("email", "linkedin")
 LEVELS = ("scrape", "ai-web")
 BUILT_LEVELS = ("scrape",)
-# "One variable at a time": the template angles (messaging.py) unless config says more.
+# The template angles (messaging.py) plus `custom`; outreach_angles narrows them.
 TEMPLATE_ANGLES = ("scale", "unblock", "hook", "bridge", "decline")
+DEFAULT_ANGLES = (*TEMPLATE_ANGLES, "custom")
 FINDING_KINDS = ("company", "person", "trigger")
 CONFIDENCE = ("high", "medium", "low")
 USABLE = ("high", "medium")
@@ -91,8 +101,8 @@ ITEM_KEYS = (
     "state", "kind", "channel", "company", "contact", "approach", "angle", "language",
     "subject", "pitch", "research_level", "model", "attempts", "seconds", "checks",
     "flags", "norms", "findings", "proof_used", "proposals", "edit_distance",
-    "skip_reason", "batch", "created", "researched", "drafted", "ready", "skipped",
-    "ai_subject", "ai_pitch", "ai_body",
+    "skip_reason", "skip_note", "batch", "created", "researched", "drafted", "ready",
+    "sent", "sent_with", "skipped", "ai_subject", "ai_pitch", "ai_body",
 )
 FINDING_KEYS = ("text", "source", "kind", "confidence", "date", "stale", "used")
 _ID = re.compile(r"^[0-9A-Za-z][0-9A-Za-z-]*$")
@@ -374,7 +384,16 @@ def channel_rules(channel: str, messages: dict | None = None) -> dict:
 
 
 def norms_applied(norms: dict) -> list[str]:
-    return [f"{k}: {v}" for k, v in norms.items() if k not in ("opt_out",) and v != ""]
+    return [f"{k}: {v}" for k, v in norms.items() if v != ""]
+
+
+def opt_out_line(root, kind: str, channel: str, language: str, rules: dict) -> str:
+    """The line added to a cold first email: the playbook's `opt_out` in the
+    draft language, when the folder set one and the channel rules allow it.
+    Optional: "" means none is added."""
+    if channel != "email" or kind != "first-touch" or not rules.get("opt_out", True):
+        return ""
+    return playbook.load(root).opt_out(language)
 
 
 # ------------------------------------------------------------------ the brief
@@ -540,7 +559,7 @@ class CheckContext:
     findings: list[Finding] = field(default_factory=list)   # numbered 1..n in the prompt
     proof: list[str] = field(default_factory=list)
     offer_lines: list[str] = field(default_factory=list)    # the offer line, translations
-    angles: tuple = TEMPLATE_ANGLES
+    angles: tuple = DEFAULT_ANGLES
     opt_out: str = ""                                       # the line Python adds, if any
 
     @property
@@ -557,8 +576,11 @@ def check_text(subject: str, body: str, pitch: str, ctx: CheckContext) -> list[s
     parts = [("message", main)] + ([("pitch message", pitch)] if pitch else [])
     for label, text in parts:
         n = count_questions(text)
-        if n != 1:
-            problems.append(f"the {label} asks {n} questions; it must ask exactly one")
+        # A LinkedIn connection note may ask nothing; everything else asks one.
+        allowed = (0, 1) if ctx.channel == "linkedin" and label == "message" else (1,)
+        if n not in allowed:
+            problems.append(f"the {label} asks {n} questions; it must ask "
+                            + ("at most one" if allowed == (0, 1) else "exactly one"))
     if opens_with_i(body):
         problems.append(f"it opens with \"{opening_line(body).split()[0]}\"; open with "
                         "them or the finding, not yourself")
@@ -598,12 +620,20 @@ def check_text(subject: str, body: str, pitch: str, ctx: CheckContext) -> list[s
         if len((pitch or "").strip()) > most:
             problems.append(f"the pitch message is {len(pitch.strip())} characters; "
                             f"at most {most}")
-    if any(f.usable for f in ctx.findings):
-        gap = _GAP.search(whole)
-        if gap:
-            problems.append(f"it leaves a gap to fill ({gap.group(0)}) although the "
-                            "research found something to use")
+    # A gap refuses a draft. Only a fallback written without any usable finding
+    # keeps its gaps: it is shown as needing hand edits instead (hand_edits).
+    gap = _GAP.search(whole)
+    if gap and any(f.usable for f in ctx.findings):
+        problems.append(f"it leaves a gap to fill ({gap.group(0)})")
     return problems
+
+
+NEEDS_HAND_EDITS = "needs hand edits: fill the gaps marked [ ]"
+
+
+def hand_edits(subject: str, body: str, pitch: str) -> list[str]:
+    """The `[ ]` gaps a fallback draft leaves for the person to fill."""
+    return _GAP.findall("\n".join([subject or "", body or "", pitch or ""]))
 
 
 DRAFT_SCHEMA = {
@@ -724,10 +754,10 @@ SHAPES = {
 }
 CHANNEL_TEXT = {
     "email": ("Channel: email. A subject of at most {subject_max} characters; the body at "
-              "most {body_max_words} words, greeting and sign-off included. Do not write an "
-              "opt-out line: it is added for you."),
+              "most {body_max_words} words, greeting and sign-off included. Exactly one "
+              "question."),
     "linkedin": ("Channel: LinkedIn. body is the connection note: at most {note_max_chars} "
-                 "characters, no pitch, one question. pitch is the message sent once they "
+                 "characters, no pitch, at most one question. pitch is the message sent once they "
                  "accept: at most {pitch_max_chars} characters, the offer in one line, one "
                  "question. No subject."),
 }
@@ -742,8 +772,10 @@ def draft_prompt(kind: str, brief: Brief, ctx: CheckContext, approach, playbook_
         "You draft one sales message for a person to review, edit and send themselves. "
         "Nothing you write is sent automatically.",
         SHAPES[kind],
-        CHANNEL_TEXT[ctx.channel].format(**rules),
-        f"Angle: one of {', '.join(ctx.angles)} (the playbook's angles); say which in angle.",
+        CHANNEL_TEXT[ctx.channel].format(**rules)
+        + (" Do not write an opt-out line: one is added for you." if ctx.opt_out else ""),
+        f"Angle: one of {', '.join(ctx.angles)} (custom: your own, none of the playbook's "
+        "angles); say which in angle.",
         f"Language: {brief.language_name}. Culture norms (starting points; the playbook's "
         f"Voice section wins where it says otherwise): "
         + ("; ".join(norms_applied(brief.norms)) or "none") + "."
@@ -794,11 +826,9 @@ class AIDrafter:
         lang = messaging.draft_language(company, contact, messages=self.messages)
         norms = culture(lang, company.country, self.messages)
         rules = channel_rules(channel, self.messages)
-        opt_out = ""
-        if channel == "email" and kind == "first-touch" and rules.get("opt_out", True):
-            opt_out = str(norms.get("opt_out") or "").strip()
-        angles = tuple(a for a in (self.config.get("outreach_angles") or TEMPLATE_ANGLES)
-                       if a in ANGLES) or TEMPLATE_ANGLES
+        opt_out = opt_out_line(self.store.root, kind, channel, lang, rules)
+        angles = tuple(a for a in (self.config.get("outreach_angles") or DEFAULT_ANGLES)
+                       if a in ANGLES) or DEFAULT_ANGLES
         ctx = CheckContext(kind=kind, channel=channel, rules=rules,
                            findings=list(research.findings),
                            proof=approach.proof if approach is not None else [],
@@ -904,11 +934,14 @@ class Item:
     proposals: dict = field(default_factory=dict)
     edit_distance: int | None = None
     skip_reason: str = ""
+    skip_note: str = ""
     batch: str = ""
     created: datetime | None = None
     researched: datetime | None = None
     drafted: datetime | None = None
     ready: datetime | None = None
+    sent: datetime | None = None
+    sent_with: str = ""   # the interaction that marked it sent, "" for by hand
     skipped: datetime | None = None
     ai_subject: str = ""
     ai_pitch: str = ""
@@ -985,8 +1018,9 @@ def item_from_text(item_id: str, text: str) -> Item:
         proposals={str(k): str(v) for k, v in proposals.items()}
         if isinstance(proposals, dict) else {},
         edit_distance=_int_or_none(meta.get("edit_distance")),
-        skip_reason=s("skip_reason"), batch=s("batch"), created=when("created"),
-        researched=when("researched"), drafted=when("drafted"), ready=when("ready"),
+        skip_reason=s("skip_reason"), skip_note=s("skip_note"), batch=s("batch"),
+        created=when("created"), researched=when("researched"), drafted=when("drafted"),
+        ready=when("ready"), sent=when("sent"), sent_with=s("sent_with"),
         skipped=when("skipped"), ai_subject=s("ai_subject"), ai_pitch=s("ai_pitch"),
         ai_body=s("ai_body"), body=body)
 
@@ -1268,17 +1302,25 @@ def select(store: Store, where: list[str] | None = None, channel: str = "email",
             if not any(i.is_touch for i in c.interactions):
                 sel.high_fit_untouched += 1
 
-    open_items = [i for i in items(root) if i.is_open]
+    every = items(root)
+    open_items = [i for i in every if i.is_open]
     open_by_contact = {i.record: i.id for i in open_items}
     open_by_company: dict[str, str] = {}
     for i in open_items:
         open_by_company.setdefault(i.company, i.id)
+    # Skipped: back after the cooldown, except bad-fit, which keeps the company out.
+    skips = [i for i in every if i.state == "skipped"]
+    bad_fit = {i.company: i for i in reversed(skips) if i.skip_reason == "bad-fit"}
+    skipped_by_contact = {}
+    for i in reversed(skips):  # oldest first, so the newest wins
+        skipped_by_contact[i.record] = i
 
     ranked: list[Candidate] = []
     for company, contact in pairs:
         cand = Candidate(company, contact, fit=fit_value(company, fit_field))
         cand.reason = _excluded(store, cand, approaches, approach, channel, kind, cooldown,
-                                today, open_by_contact, open_by_company, dupes)
+                                today, open_by_contact, open_by_company, dupes,
+                                bad_fit, skipped_by_contact)
         if cand.fit is None and not cand.reason:
             cand.flags.append(f"no fit score ({fit_field} is empty)")
         (sel.excluded if cand.reason else ranked).append(cand)
@@ -1303,7 +1345,8 @@ def select(store: Store, where: list[str] | None = None, channel: str = "email",
 
 
 def _excluded(store, cand: Candidate, approaches, forced: str, channel, kind, cooldown,
-              today, open_by_contact, open_by_company, dupes) -> str:
+              today, open_by_contact, open_by_company, dupes, bad_fit=None,
+              skipped_by_contact=None) -> str:
     """Why this contact gets no item this time, or "" (and its approach and flags)."""
     company, contact = cand.company, cand.contact
     if company.is_sample:
@@ -1356,6 +1399,14 @@ def _excluded(store, cand: Candidate, approaches, forced: str, channel, kind, co
     for other in sorted(dupes.get(company.slug, {})):
         if other in open_by_company:
             return f"likely duplicate {other} has an open outreach item ({open_by_company[other]})"
+    if company.slug in (bad_fit or {}):
+        return f"skipped as bad-fit ({bad_fit[company.slug].id})"
+    skipped = (skipped_by_contact or {}).get(cand.record)
+    if skipped is not None and skipped.skipped is not None:
+        days = (today - skipped.skipped.date()).days
+        if days < cooldown:
+            return (f"skipped {days} days ago ({skipped.skip_reason or 'other'}); back "
+                    f"after the cooldown of {cooldown} days")
     outs = [i for i in _touches(company, contact.slug) if i.direction == "out"]
     recent = [i for i in outs if (today - i.date.date()).days < cooldown]
     if recent:
@@ -1387,10 +1438,12 @@ class BuildResult:
     lines: list[str] = field(default_factory=list)
 
 
-def default_enricher(config: dict):
+def default_enricher(config: dict, tier: str = "medium"):
+    """Enrich's AI CLI, on the medium tier unless asked (a regenerate may ask
+    for strong)."""
     from .routines import default_enricher as routine_enricher
 
-    return routine_enricher(config)
+    return routine_enricher(config).with_tier(tier)
 
 
 def research_level(config: dict | None, override: str = "") -> str:
@@ -1436,7 +1489,8 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
         item.findings = research.findings
         item.proposals = research.proposals
         item.flags += [n for n in research.notes if n not in item.flags]
-        if not any(f.usable for f in research.findings):
+        fallback = not any(f.usable for f in research.findings)
+        if fallback:
             item.flags.append("nothing usable found: the draft falls back to the "
                               "playbook's angles, gaps marked [ ]")
         item.researched = store.now() if now is None else now
@@ -1452,7 +1506,8 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
         item.language = draft.language
         item.seconds = int(round(time.monotonic() - clock))
         if draft.failed:
-            item.state, item.skip_reason = "skipped", f"no usable draft from the AI: {draft.failed}"
+            item.state, item.skip_reason = "skipped", "bad-draft"
+            item.skip_note = f"no usable draft from the AI: {draft.failed}"
             item.skipped = store.now() if now is None else now
             message = f"outreach: skip {item.record} (no usable draft)"
             out.lines.append(f"skipped: {cand.who} | {draft.failed}")
@@ -1465,6 +1520,8 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
             item.proof_used = draft.proof_used
             item.ai_subject, item.ai_pitch, item.ai_body = draft.subject, draft.pitch, draft.body
             item.drafted = store.now() if now is None else now
+            if fallback and hand_edits(draft.subject, draft.body, draft.pitch):
+                item.flags.append(NEEDS_HAND_EDITS)
             verdict = ("checks passed" if not draft.problems else
                        f"{len(draft.problems)} problem{'s' if len(draft.problems) > 1 else ''}")
             message = (f"outreach: draft {item.record} ({item.channel}, "
@@ -1489,26 +1546,28 @@ def check_item(store: Store, item: Item, config: dict | None = None) -> list[str
     edited it). The findings and proof it cites stay as the AI declared them."""
     company = store.get(item.company)
     messages = messaging.load_messages(store.root)
-    norms = culture(item.language or "en", company.country if company else "", messages)
     rules = channel_rules(item.channel, messages)
-    opt_out = (str(norms.get("opt_out") or "").strip()
-               if item.channel == "email" and item.kind == "first-touch"
-               and rules.get("opt_out", True) else "")
+    opt_out = opt_out_line(store.root, item.kind, item.channel, item.language or "en", rules)
     pb = playbook.load(store.root)
     approach = pb.approach(item.approach) if item.approach else None
     ctx = CheckContext(kind=item.kind, channel=item.channel, rules=rules,
                        findings=item.findings,
                        offer_lines=[approach.offer_line] if approach else [],
                        opt_out=opt_out)
-    return check_text(item.subject, item.body, item.pitch, ctx)
+    found = check_text(item.subject, item.body, item.pitch, ctx)
+    gaps = hand_edits(item.subject, item.body, item.pitch)
+    if gaps and not any(p.startswith("it leaves a gap") for p in found):
+        found.append(f"it still has gaps to fill by hand ({', '.join(gaps[:3])})")
+    return found
 
 
-def mark_ready(store: Store, item_id: str, anyway: bool = False, sender: Sender | None = None,
+def mark_ready(store: Store, item_id: str, sender: Sender | None = None,
                logger: Logger | None = None) -> tuple[Item, list[str]]:
     """The person approves the draft. The hard checks run again on the text as
-    it is now; a problem refuses unless `anyway`. The findings the draft used
-    go to the contact's notes (one note), the item becomes ready: one commit.
-    Nothing is sent (ManualSender) or logged (ManualLogger)."""
+    it is now; what still fails is a warning, returned and kept in `checks`
+    (the person decides). The findings the draft used go to the contact's
+    notes (one note), the item becomes ready: one commit. Nothing is sent
+    (ManualSender) or logged (ManualLogger)."""
     item = _refresh(store, item_id)
     if item.state != "drafted":
         raise OutreachError(f"{item.id} is {item.state}; only a drafted item can be "
@@ -1516,9 +1575,6 @@ def mark_ready(store: Store, item_id: str, anyway: bool = False, sender: Sender 
     if not item.body.strip():
         raise OutreachError(f"{item.id} has no text to approve")
     found = check_item(store, item)
-    if found and not anyway:
-        raise OutreachError("the draft still breaks these rules (edit the file, or use "
-                            "--anyway):\n" + "\n".join(f"- {p}" for p in found))
     company = store.get(item.company)
     if company is None or item.contact not in company.contacts:
         raise OutreachError(f"{item.record} is not in the CRM any more")
@@ -1542,18 +1598,54 @@ def mark_ready(store: Store, item_id: str, anyway: bool = False, sender: Sender 
     return item, found
 
 
-def skip(store: Store, item_id: str, reason: str) -> Item:
+def skip(store: Store, item_id: str, reason: str, note: str = "") -> Item:
+    """Not to be sent. `reason` is one of SKIP_REASONS (the quality report counts
+    them), `note` optional free text. One commit."""
     item = _refresh(store, item_id)
     if not item.is_open:
         raise OutreachError(f"{item.id} is {item.state}; only an open item can be skipped")
-    reason = " ".join((reason or "").split())
-    if not reason:
-        raise OutreachError("say why (--reason): it is what the quality report learns from")
+    reason = (reason or "").strip().lower()
+    if reason not in SKIP_REASONS:
+        raise OutreachError(f"say why with one of: {', '.join(SKIP_REASONS)} (--reason), "
+                            "plus --note for anything else")
     item.state, item.skip_reason, item.skipped = "skipped", reason, store.now()
+    item.skip_note = " ".join((note or "").split())
     with store.lock:
         write_item(store.root, item)
-        store.notify(f"outreach: skip {item.record}: {reason[:60]}", [item.path])
+        store.notify(f"outreach: skip {item.record}: {reason}", [item.path])
     return item
+
+
+def mark_sent(store: Store, item_id: str) -> Item:
+    """You sent it (`hermitcrm outreach sent`): the state only; nothing is
+    logged. Logging the message does the same by itself (sent_by_interaction)."""
+    item = _refresh(store, item_id)
+    if item.state not in ("drafted", "ready"):
+        raise OutreachError(f"{item.id} is {item.state}; only a drafted or ready item can "
+                            "be marked sent")
+    item.state, item.sent = "sent", store.now()
+    with store.lock:
+        write_item(store.root, item)
+        store.notify(f"outreach: sent {item.record} ({item.channel})", [item.path])
+    return item
+
+
+def sent_by_interaction(root: Path | str, company: str, it) -> list[Item]:
+    """The ready items an outbound interaction just logged marks sent: same
+    contact, same channel, logged at or after the item was marked ready. The
+    caller (Store.create_interaction) writes them in the interaction's commit;
+    an item's angle and approach are copied onto the interaction when it has
+    none, so the Messages tab compares bot messages with your own."""
+    if it.direction != "out" or not it.is_touch or not it.contact or it.date is None:
+        return []
+    out = []
+    for item in items(root):
+        if (item.state == "ready" and item.company == company and item.contact == it.contact
+                and item.channel == it.channel and item.ready is not None
+                and it.date >= item.ready):
+            item.state, item.sent, item.sent_with = "sent", it.date, it.id
+            out.append(item)
+    return out
 
 
 # ------------------------------------------------------------------- showing
@@ -1602,7 +1694,11 @@ def render_item(store: Store, item: Item) -> str:
     lines.append("Checks: passed" if not item.checks else "Checks: problems")
     lines += [f"- {p}" for p in item.checks]
     if item.skip_reason:
-        lines.append(f"Skipped: {item.skip_reason}")
+        lines.append(f"Skipped: {item.skip_reason}"
+                     + (f" ({item.skip_note})" if item.skip_note else ""))
+    if item.sent is not None:
+        lines.append(f"Sent: {item.sent:%Y-%m-%d %H:%M}"
+                     + (f" (logged as {item.sent_with})" if item.sent_with else " (by hand)"))
     if item.edit_distance is not None:
         lines.append(f"Edited before ready: {item.edit_distance} words")
     lines.append("")

@@ -153,8 +153,10 @@ def test_a_leftover_gap_is_refused_only_when_research_could_fill_it():
 
 
 def test_the_opt_out_line_is_added_for_cold_email_and_not_counted():
-    line = outreach.culture("en")["opt_out"]
-    draft = outreach.clean_answer(answer(), ctx(opt_out=line))
+    line = "Not relevant? Tell me and I won't write again."
+    # 114 words; 124 with the line, which does not count
+    draft = outreach.clean_answer(answer(GOOD.replace("Sam", "word " * 80 + "Sam")),
+                                  ctx(opt_out=line))
     assert draft.body.rstrip("\n").endswith(line) and draft.problems == []
 
 
@@ -252,7 +254,7 @@ def test_build_writes_checked_items_one_commit_per_step(folder):
     assert item.id == "2026-10-16T0900-email-lindenhof-data-mara-keller"
     assert item.approach == "Scaling the sales team" and item.language == "de"
     assert [f.used for f in item.findings] == [False, True]  # the CRM's line, the trigger
-    assert item.body.rstrip("\n").endswith(outreach.culture("de")["opt_out"])
+    assert item.body.rstrip("\n").endswith("Sam")  # no opt-out line unless the playbook has one
     assert item.ai_body == item.body and item.model and item.seconds is not None
     assert item.norms and item.norms[0].startswith("formality: informal: du")
 
@@ -271,7 +273,7 @@ def test_item_files_are_deterministic_and_keep_the_body_byte_for_byte(folder):
     odd = "Hi Mara,  \n\n\tThe second office caught my eye.\nWhere does it hurt most?\n\n\nSam\n"
     meta["checks"] = []
     path.write_text(text.decode().split("\n---\n", 1)[0] + "\n---\n" + odd, encoding="utf-8")
-    item, found = outreach.mark_ready(store, item.id, anyway=True)
+    item, found = outreach.mark_ready(store, item.id)
     assert split_file(path.read_text())[1] == odd
     assert outreach.get_item(root, item.id).body == odd
 
@@ -282,10 +284,6 @@ def test_ready_rechecks_the_text_and_records_the_edit(folder):
     item = result.items[0]
     path = root / item.path
     head, body = path.read_text().split("\n---\n", 1)
-    path.write_text(head + "\n---\n" + body.replace("deal size?", "deal size."),
-                    encoding="utf-8")
-    with pytest.raises(outreach.OutreachError, match="asks 0 questions"):
-        outreach.mark_ready(store, item.id)
     path.write_text(head + "\n---\n" + body.replace("caught my eye", "stood out"),
                     encoding="utf-8")
     before = len(commits(root))
@@ -311,13 +309,15 @@ def test_skip_is_one_commit_and_frees_the_contact(folder):
     result, _ = built(folder, limit=1)
     item = result.items[0]
     before = len(commits(root))
-    with pytest.raises(outreach.OutreachError, match="say why"):
-        outreach.skip(store, item.id, "  ")
-    skipped = outreach.skip(store, item.id, "They just hired a sales lead")
-    assert skipped.state == "skipped" and skipped.skip_reason == "They just hired a sales lead"
+    with pytest.raises(outreach.OutreachError, match="say why with one of: bad-fit"):
+        outreach.skip(store, item.id, "They just hired a sales lead")
+    skipped = outreach.skip(store, item.id, "bad-timing", "They just hired a sales lead")
+    assert (skipped.state, skipped.skip_reason, skipped.skip_note) == (
+        "skipped", "bad-timing", "They just hired a sales lead")
     assert len(commits(root)) == before + 1
-    sel = outreach.select(store, where=["stage=prospect"], limit=1)
-    assert [c.record for c in sel.picked] == ["lindenhof-data/mara-keller"]
+    assert commits(root)[0] == "outreach: skip lindenhof-data/mara-keller: bad-timing"
+    meta, _ = split_file((root / item.path).read_text())
+    assert meta["skip_reason"] == "bad-timing" and meta["skip_note"].startswith("They just")
 
 
 def test_a_draft_that_fails_twice_is_skipped_by_the_bot(folder):
@@ -325,7 +325,8 @@ def test_a_draft_that_fails_twice_is_skipped_by_the_bot(folder):
     result, _ = built(folder, limit=1, drafts=["no", "no"])
     item = result.items[0]
     assert item.state == "skipped"
-    assert item.skip_reason == "no usable draft from the AI: the AI returned no JSON object"
+    assert item.skip_reason == "bad-draft"
+    assert item.skip_note == "no usable draft from the AI: the AI returned no JSON object"
     assert commits(root)[0] == "outreach: skip lindenhof-data/mara-keller (no usable draft)"
 
 
@@ -364,7 +365,7 @@ def test_manual_sender_never_touches_the_network(folder, monkeypatch):
 @pytest.fixture
 def fake_cli(monkeypatch):
     fake = FakeAI()
-    monkeypatch.setattr(outreach, "default_enricher", lambda config: ai(fake))
+    monkeypatch.setattr(outreach, "default_enricher", lambda config, tier="medium": ai(fake))
     monkeypatch.setattr(scrape, "fetch", lambda url, timeout=10: fake_page(url))
     return fake
 
@@ -395,7 +396,7 @@ def test_done_when_build_writes_three_checked_items(tmp_path, fake_cli, capsys):
     assert cli.main(["outreach", "ready", first], root=root) == 0
     assert "Not sent." in capsys.readouterr().out
     second = sorted(i.id for i in found)[1]
-    assert cli.main(["outreach", "skip", second, "--reason", "wrong person"], root=root) == 0
+    assert cli.main(["outreach", "skip", second, "--reason", "wrong-person"], root=root) == 0
     assert cli.main(["outreach", "list", "--state", "ready"], root=root) == 0
     assert capsys.readouterr().out.count(" | ready | ") == 1
 
@@ -433,3 +434,153 @@ def test_no_owner_name_means_no_name_is_made_up(folder):
     drafter = outreach.AIDrafter(store, ai(fake), {"owner_name": ""})
     draft_once(store, drafter)
     assert "Sign with the sign-off only: no name" in fake.of("draft")[0]["prompt"]
+
+
+# ------------------------------------------------- maintainer decisions (16 Oct)
+
+
+def with_opt_out(root, front: str) -> None:
+    path = root / "MESSAGING.md"
+    text = path.read_text(encoding="utf-8")
+    path.write_text(text.replace("approaches:\n", front + "approaches:\n", 1), encoding="utf-8")
+
+
+def test_1_the_opt_out_line_is_optional_and_set_in_the_playbook(folder):
+    root, store = folder
+    drafter, fake = drafter_for(store, answer())
+    assert draft_once(store, drafter).body.rstrip("\n").endswith("Sam")  # none by default
+    assert "opt-out" not in fake.of("draft")[0]["prompt"]
+    with_opt_out(root, "opt_out:\n  en: Not for you? Say so and I won't write again.\n"
+                       "  de: Passt nicht? Sag kurz Bescheid, dann schreibe ich nicht mehr.\n")
+    assert outreach.playbook.validate_front(outreach.playbook.load(root).front) == []
+    drafter, fake = drafter_for(store, answer())
+    draft = draft_once(store, drafter)  # Mara is German
+    assert draft.body.rstrip("\n").endswith("dann schreibe ich nicht mehr.")
+    assert "one is added for you" in fake.of("draft")[0]["prompt"]
+    assert outreach.playbook.load(root).opt_out("fr") == \
+        "Not for you? Say so and I won't write again."  # falls back to en
+    # a save from Settings > Playbook keeps it
+    pb = outreach.playbook
+    text = (root / "MESSAGING.md").read_text(encoding="utf-8")
+    first = pb.parse(text).approaches[0]
+    saved, _ = pb.save_form(text, first.name, pb.form_values(first))
+    assert pb.parse(saved).opt_out("de").startswith("Passt nicht?")
+    bad = outreach.playbook.parse("---\napproaches: []\nopt_out: 5\n---\n")
+    assert outreach.playbook.validate_front(bad.front) == [
+        "opt_out: one sentence, or one per language (en: ..., de: ...)"]
+
+
+def test_2_any_gap_refuses_but_a_fallback_keeps_its_gaps_as_needs_hand_edits(folder):
+    gappy = GOOD.replace("The second office this autumn caught my eye.", "[Your opening.]")
+    assert "it leaves a gap to fill ([Your opening.])" in problems(answer(gappy))
+    # no usable finding: the gap stays, and the item says it needs hand edits
+    assert problems(answer(gappy, findings_used=()), findings=[FINDINGS[1]]) == []
+    root, store = folder
+
+    def fallback(prompt):
+        data = default_draft(prompt)
+        data["body"] = data["body"].replace("Teams at your stage often hit the same wall.",
+                                            "[One thing you noticed.]")
+        return data
+
+    store.update_company("lindenhof-data", product_oneliner="")
+    result, _ = built(folder, limit=1, research={"findings": []}, drafts=[fallback])
+    item = result.items[0]
+    assert item.checks == [] and outreach.NEEDS_HAND_EDITS in item.flags
+    ready, found = outreach.mark_ready(store, item.id)
+    assert found == ["it still has gaps to fill by hand ([One thing you noticed.])"]
+
+
+def test_3_a_linkedin_note_may_ask_nothing_the_message_after_asks_one():
+    pitch = "Thanks for connecting, Mara. We build sales teams. Where does it hurt most?"
+    note = "Hi Mara, the second office caught my eye. Good luck with it."
+    assert problems(answer(note, subject="", pitch=pitch), channel="linkedin") == []
+    found = problems(answer(note + " Busy? Hiring?", subject="", pitch=pitch),
+                     channel="linkedin")
+    assert "the message asks 2 questions; it must ask at most one" in found
+    found = problems(answer(note, subject="", pitch=pitch.replace("?", ".")),
+                     channel="linkedin")
+    assert "the pitch message asks 0 questions; it must ask exactly one" in found
+    assert any("asks 0 questions; it must ask exactly one" in p
+               for p in problems(answer(GOOD.replace("deal size?", "deal size."))))
+
+
+def test_5_custom_is_an_angle_too():
+    assert outreach.clean_answer(answer(angle="custom"), ctx()).problems == []
+    assert any(p.startswith("angle loud") for p in problems(answer(angle="loud")))
+
+
+def test_7_logging_the_message_after_ready_marks_it_sent_in_the_same_commit(folder):
+    root, store = folder
+    result, _ = built(folder, limit=2)
+    mara, daan = result.items
+    # drafted, not ready: logging does not touch it
+    store.create_interaction("kestrel-metrics", "email", "out", contact="daan-visser",
+                             subject="Hi", body="Sent from my mail.\n")
+    assert outreach.get_item(root, daan.id).state == "drafted"
+    outreach.mark_ready(store, mark := mara.id)
+    # another channel is not this message
+    store.create_interaction("lindenhof-data", "linkedin", "out", contact="mara-keller",
+                             body="Connected.\n")
+    assert outreach.get_item(root, mark).state == "ready"
+    it = store.create_interaction("lindenhof-data", "email", "out", contact="mara-keller",
+                                  subject=mara.subject, body=mara.body)
+    sent = outreach.get_item(root, mark)
+    assert (sent.state, sent.sent_with) == ("sent", it.id) and sent.sent == it.date
+    assert commits(root)[0].endswith(f"; outreach {mark} sent")
+    files = git(root, "show", "--name-only", "--format=", "HEAD").split()
+    assert sent.path in files and any(f.endswith(f"{it.id}.md") for f in files)
+    assert (it.angle, it.approach) == ("hook", "Scaling the sales team")
+    # sent is not open: the contact may get a later item, after the cooldown
+    sel = outreach.select(store, where=["stage=engaged,prospect"], limit=10)
+    reasons = {c.record: c.reason for c in sel.excluded}
+    assert reasons["lindenhof-data/mara-keller"].startswith("messaged 0 days ago")
+
+
+def test_7_outreach_sent_marks_it_by_hand_and_logs_nothing(folder):
+    root, store = folder
+    result, _ = built(folder, limit=1)
+    item = result.items[0]
+    interactions = len(store.get("lindenhof-data").interactions)
+    sent = outreach.mark_sent(store, item.id)
+    assert sent.state == "sent" and sent.sent_with == ""
+    assert commits(root)[0] == "outreach: sent lindenhof-data/mara-keller (email)"
+    assert len(store.get("lindenhof-data").interactions) == interactions
+    with pytest.raises(outreach.OutreachError, match="only a drafted or ready item"):
+        outreach.mark_sent(store, item.id)
+    assert "lindenhof-data/mara-keller" in [
+        c.record for c in outreach.select(store, where=["stage=prospect"]).picked]
+
+
+def test_8_ready_with_a_failing_check_warns_and_keeps_it(folder):
+    root, store = folder
+    result, _ = built(folder, limit=1)
+    item = result.items[0]
+    path = root / item.path
+    head, body = path.read_text().split("\n---\n", 1)
+    path.write_text(head + "\n---\n" + body.replace("deal size?", "deal size."),
+                    encoding="utf-8")
+    ready, found = outreach.mark_ready(store, item.id)
+    assert ready.state == "ready"
+    assert found == ["the message asks 0 questions; it must ask exactly one"]
+    assert outreach.get_item(root, item.id).checks == found
+
+
+def test_9_skip_reasons_and_when_a_skipped_contact_comes_back(folder):
+    root, store = folder
+    result, _ = built(folder, limit=2)
+    mara, daan = result.items
+    outreach.skip(store, mara.id, "bad-timing")
+    outreach.skip(store, daan.id, "bad-fit", "They sell to consumers")
+    sel = outreach.select(store, where=["stage=prospect"], limit=10)
+    reasons = {c.record: c.reason for c in sel.excluded}
+    assert reasons["lindenhof-data/mara-keller"] == (
+        "skipped 0 days ago (bad-timing); back after the cooldown of 30 days")
+    assert reasons["kestrel-metrics/daan-visser"] == f"skipped as bad-fit ({daan.id})"
+    # after the cooldown: bad-timing is back, bad-fit stays out
+    sel = outreach.select(store, where=["stage=prospect"], limit=10,
+                          config={"outreach_cooldown_days": 0})
+    assert "lindenhof-data/mara-keller" in [c.record for c in sel.picked]
+    assert "kestrel-metrics/daan-visser" not in [c.record for c in sel.picked]
+    assert outreach.SKIP_REASONS == ("bad-fit", "wrong-person", "bad-timing", "bad-draft",
+                                     "already-in-contact", "other")

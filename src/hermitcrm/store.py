@@ -118,8 +118,8 @@ DEFAULT_CONFIG = {
     "outreach_fit_field": "fit_score",
     "outreach_high_fit": 65,
     "outreach_batch_size": 10,
-    # The angles a draft may take; the template angles only, so results compare.
-    "outreach_angles": ["scale", "unblock", "hook", "bridge", "decline"],
+    # The angles a draft may take: the template angles and custom (your own).
+    "outreach_angles": ["scale", "unblock", "hook", "bridge", "decline", "custom"],
     "messaging_size_field": "fte_estimate",
     "messaging_team_field": "ae_count",
     "enrich_provider": "auto",
@@ -1516,7 +1516,18 @@ class Store:
         advance = target is not None and company.stage == entry and it.is_touch
         if advance:
             message += f"; stage {entry} -> {target}"
+        # An outreach item marked ready is sent once you log the message, by
+        # hand, BCC or the extension: same commit. It lends the interaction
+        # its angle and approach when the interaction has none.
+        from . import outreach
+        sent = outreach.sent_by_interaction(self.root, company_slug, it)
+        for item in sent:
+            it.angle = it.angle or item.angle
+            it.approach = it.approach or item.approach
+            message += f"; outreach {item.id} sent"
         with self.batch(message):
+            for item in sent:
+                self._touch(self.root / outreach.write_item(self.root, item))
             self.write_interaction(company_slug, it)
             company.interactions.append(it)
             company.interactions.sort(key=lambda i: (i.date or datetime.min, i.id),

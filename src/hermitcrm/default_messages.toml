@@ -147,7 +147,6 @@ unknown = "[Ce qui vous a frappé dans l'équipe.]"
 #   signoff    how it closes
 #   names      first name or title and surname
 #   cta        how direct the one question at the end can be
-#   opt_out    the line added to a cold first email (Python adds it, not the AI)
 
 [culture.en]
 formality = "informal: you, first name"
@@ -155,7 +154,6 @@ greeting = "Hi {first},"
 signoff = "Best,"
 names = "first name, no titles"
 cta = "a direct question is fine"
-opt_out = "If this isn't relevant, just tell me and I won't write again."
 
 [culture.de]
 formality = "informal: du (first contact too), first name"
@@ -163,7 +161,6 @@ greeting = "Hallo {first},"
 signoff = "Viele Grüße"
 names = "first name; no academic titles with du"
 cta = "direct, but with a reason for the question"
-opt_out = "Falls das nicht passt, sag kurz Bescheid, dann melde ich mich nicht mehr."
 
 [culture.nl]
 formality = "informal: je, first name"
@@ -171,7 +168,6 @@ greeting = "Hoi {first},"
 signoff = "Groet,"
 names = "first name"
 cta = "direct and to the point; Dutch readers value plain speaking"
-opt_out = "Is dit niet relevant, laat het me dan weten; dan stuur ik niets meer."
 
 [culture.fr]
 formality = "formal: vous on first contact"
@@ -179,7 +175,6 @@ greeting = "Bonjour {first},"
 signoff = "Bien à vous,"
 names = "first name with Bonjour; never tu"
 cta = "polite and indirect (Seriez-vous..., Qu'est-ce qui...)"
-opt_out = "Si ce n'est pas pertinent, dites-le-moi et je ne vous écrirai plus."
 
 # [outreach]: shared rules. calendar_links: a draft that contains one of these
 # is refused before they have answered (booking links lost real replies).
@@ -193,11 +188,11 @@ calendar_links = ["calendly.com", "cal.com/", "calendar.app.google", "calendar.g
 # [outreach.<channel>]: what a first touch on that channel may be.
 [outreach.email]
 subject_max = 60       # characters
-body_max_words = 120   # greeting and sign-off included, the opt-out line not
+body_max_words = 120   # greeting and sign-off included, the opt-out line not; one question
 links = false          # no links in a first touch
-opt_out = true         # add the culture's opt_out line to a cold first email
+opt_out = true         # add the playbook's opt_out line (if it has one) to a cold first email
 
 [outreach.linkedin]
-note_max_chars = 300   # LinkedIn's limit for a connection note; no pitch in it
-pitch_max_chars = 600  # the message after they accept, or to an existing connection
+note_max_chars = 300   # LinkedIn's limit for a connection note; no pitch, at most one question
+pitch_max_chars = 600  # the message after they accept, or to an existing connection; one question
 links = false
