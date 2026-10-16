@@ -11,8 +11,8 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 **A playbook for your outreach.** Settings > Playbook writes down what you
 sell, to whom and how you sound, in `MESSAGING.md`. It is the first part of
 the outreach bot: the parts that follow will pick companies and draft first
-messages from it, and they will not start while no approach is ready. The
-Help page that goes with it is [Playbook](/help/playbook).
+messages from it, and they will not start while no approach is ready.
+Help > Playbook explains every part.
 
 **Upgrading from 0.7.5.** Run the command the update notice names (usually
 `uv tool install hermitcrm@latest`), or unpack the new download and run
