@@ -5,8 +5,33 @@ Picks a batch of contacts, reads what their websites say, drafts a first message
 The outreach bot works from your [playbook](/help/playbook) (`MESSAGING.md`):
 what you sell, to whom, and how you write. It will not build anything until at
 least one approach in it is filled in (`hermitcrm playbook` says what is
-missing). In this version it runs from the command line; a page for it comes
-later.
+missing). It runs on the **Outreach** page (in the menu, next to Messages)
+and from the command line; both do the same steps and write the same files.
+
+## On the Outreach page
+
+- **Who**, **Channel**, **Batch size**: the filter (conditions separated by
+  `;`, for example `stage=prospect; country=DE`), email or LinkedIn, how many.
+  **Preview** shows who would get a draft and why not the others; no AI runs
+  and nothing is written. **Build queue** researches and drafts them one at a
+  time: each card appears when it is done and the page asks for the next one
+  by itself. **Stop** ends the batch; what was built stays.
+- **Tabs**: Drafts (to review), Ready (to send), Sent, Skipped.
+- **A card**: the person and company with their links, fit, flags, what
+  research found (with source and a confidence dot), the draft and its checks.
+  - **Save & check again** saves your edit and runs the checks on it. A check
+    that fails never blocks you.
+  - **Mark ready** approves the text as it is in the box (your edit and the
+    approval are one change). A failing check stays on the card as a warning.
+  - **Regenerate** writes a new draft from the same findings, optionally with
+    the stronger model. Remove a finding or **add your own** first to steer it;
+    one you add counts as a known fact.
+  - **Skip** with a reason; **Copy** copies the message.
+  - On a ready card: **Copy**, open your mail or LinkedIn, **Log it** (logging
+    the message marks the item sent), or **Mark sent** without logging.
+- **On a contact's page**: **Research & draft** builds one item for that
+  person on the channel you pick (it says why when the person is left out),
+  and while an item is open the page links to its card.
 
 ## The steps
 
