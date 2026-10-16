@@ -26,6 +26,7 @@ pyproject.toml and remain under their own licences:
   python-multipart    Apache-2.0
   python-frontmatter  MIT
   pyyaml              MIT
+  pypdf               BSD-3-Clause
 
 Installing Hermit CRM also pulls in the transitive dependencies of those
 packages (starlette, pydantic and others), likewise under their own licences.

@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}Playbook{% endblock %}
+{#- Settings > Playbook: MESSAGING.md as a form, one tab per approach. Each approach is
+    complete on its own; "Duplicate" copies all of it. The examples beside the
+    boxes are illustrations for any B2B approach, never defaults. -#}
+{% macro field(name, label, example='', span=12, rows=0, kind='text', error_key='') -%}
+{%- set err = errors.get(error_key or name) -%}
+<label class="span-{{ span }}">{{ label }}
+  {%- if rows %}<textarea name="{{ name }}" rows="{{ rows }}">{{ values.get(name, '') }}</textarea>
+  {%- elif kind == 'number' %}<input type="number" min="0" name="{{ name }}" value="{{ values.get(name, '') }}">
+  {%- else %}<input name="{{ name }}" value="{{ values.get(name, '') }}">{% endif %}
+  {%- if err %}<span class="small error">{{ err }}</span>{% endif %}
+  {%- if example %}<span class="small">{{ example }}</span>{% endif %}
+</label>
+{%- endmacro %}
+{% block content %}
+<h1>Playbook</h1>
+<p class="summary">What you sell, to whom, and how you write: the drafts, routines and the outreach bot read it from <code>MESSAGING.md</code>. Selling more than one thing, or to more than one audience? Give each its own approach; the bot picks the approach a company fits. <a class="how" href="/help/playbook">How it works</a> · <a href="/settings#playbook">Back to Settings</a></p>
+
+{% if pb_error %}
+<div class="errors"><p>The front matter of <code>MESSAGING.md</code> cannot be read: {{ pb_error }}. Fix it in the file (or ask your agent to); this page would overwrite it.</p></div>
+{% elif foreign %}
+<div class="errors"><p><code>MESSAGING.md</code> starts with a front matter of its own (no <code>approaches:</code>), so this page leaves it alone. See <a href="/help/playbook">How it works</a> for the format.</p></div>
+{% else %}
+
+{% if not set_up and exists %}
+<div class="card">
+  <p>Your <code>MESSAGING.md</code> is from before the playbook had approaches. Saving the form below sets it up and keeps every line you wrote. To add only the empty parts first:</p>
+  <form method="post" action="/settings/playbook/upgrade" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">Set up MESSAGING.md</button>
+  </form>
+</div>
+{% endif %}
+
+<nav class="approach-tabs" aria-label="Approaches">
+  {% for o in approaches %}
+  <a href="/settings/playbook?approach={{ loop.index0 }}"{% if loop.index0 == current %} aria-current="page"{% endif %}>{{ o.name }} <span class="approach-state {{ 'ready' if not approach_gaps[loop.index0] else 'pending' }}" title="{{ 'Ready for the outreach bot' if not approach_gaps[loop.index0] else 'Not ready yet' }}">{{ '✓' if not approach_gaps[loop.index0] else '·' }}</span></a>
+  {% endfor %}
+  <details class="new-approach">
+    <summary class="button">+ New approach</summary>
+    <form method="post" action="/settings/playbook/new" class="record-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Name<input name="name" required placeholder="For example: Team build-out"></label>
+      <label>Start from
+        <select name="copy_from">
+          <option value="">an empty approach</option>
+          {% for o in approaches %}<option value="{{ o.name }}"{% if loop.index0 == current %} selected{% endif %}>a copy of {{ o.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <button type="submit">Create</button>
+    </form>
+  </details>
+</nav>
+
+<div class="card playbook-meter">
+  <label class="approach-name">Name of this approach
+    <input name="name" form="playbook-form" value="{{ values.get('name', '') }}" required{% if rename %} autofocus data-select{% endif %}>
+    {%- if errors.get('name') %}<span class="small error">{{ errors.get('name') }}</span>{% endif %}
+    <span class="small">Only for you, to tell approaches apart; change it here and Save.</span></label>
+  <p><strong>{{ filled }} of {{ parts | length }} parts filled</strong>
+    <meter min="0" max="{{ parts | length }}" value="{{ filled }}" aria-label="approach filled">{{ filled }} of {{ parts | length }}</meter></p>
+  <ul class="small">{% for label, ok in parts %}<li>{{ '✓' if ok else '·' }} {{ label }}</li>{% endfor %}</ul>
+  {% if gaps %}<p class="small">The outreach bot will not use this approach yet. Missing: {{ gaps | join('; ') }}.</p>
+  {% else %}<p class="small">Ready for the outreach bot.</p>{% endif %}
+  <div class="approach-actions">
+    <form method="post" action="/settings/playbook/duplicate" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="approach" value="{{ approach.name }}">
+      <button type="submit" title="A new approach with everything of this one, to change what differs">Duplicate this approach</button>
+    </form>
+    {% if approaches | length > 1 %}
+    <form method="post" action="/settings/playbook/delete" class="inline" onsubmit="return confirm('Delete the approach {{ approach.name | e }} and everything in it? It stays in the git history.')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="approach" value="{{ approach.name }}">
+      <button type="submit" class="danger">Delete this approach</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if notice %}<div class="flash">{{ notice }}</div>{% endif %}
+{% if errors %}<div class="errors"><p>Not saved: fix the boxes marked below.</p></div>{% endif %}
+
+<form method="post" action="/settings/playbook" class="record-form" id="playbook-form" enctype="multipart/form-data" data-dirty="{{ '1' if dirty else '0' }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="approach" value="{{ approach.name }}">
+
+  <details class="card no-dirty" id="draft"{% if draft_open %} open{% endif %}>
+    <summary><strong>Draft it from my website or a document</strong></summary>
+    <p class="small">Give your website, a sales deck or a document (PDF, Word or .txt), or paste text. Hermit CRM reads it, and your AI CLI (Settings &gt; AI, run without tools) proposes each part of this approach from that alone. The proposal fills the boxes below; nothing is saved until you click Save. It never makes up a customer result.</p>
+    {% if not ai.available %}<p class="small">No AI CLI is set up: {{ ai.reason }}. <a href="/settings#enrichment">Settings &gt; AI</a></p>{% endif %}
+    {% if draft_error %}<div class="errors"><p>{{ draft_error }}</p></div>{% endif %}
+    <div class="form-grid">
+      <label class="span-6">Website<input name="source_url" value="{{ source_url }}" placeholder="example.com"><span class="small">The home page and up to four pages like About, Services and Pricing.</span></label>
+      <label class="span-6">Or a file<input type="file" name="source_file" accept=".pdf,.docx,.txt,.md,application/pdf,text/plain"><span class="small">PDF, Word (.docx) or .txt, up to 15 MB.</span></label>
+      <label class="span-12">Or text<textarea name="source_text" rows="4">{{ source_text }}</textarea></label>
+    </div>
+    <button type="submit" formaction="/settings/playbook/draft"{% if not ai.available %} disabled{% endif %}>Draft it</button>
+  </details>
+
+  <fieldset class="form-group"><legend>Offer</legend><div class="form-grid">
+    {{ field('offer_line', 'Offer line: what you sell, in one sentence',
+             'For example "We build booking software for clinics." or "I run your bookkeeping so you never miss a filing."') }}
+    {{ field('section_offer', 'More about the offer: the outcome, how it works, what you do not do',
+             'For example: the result a customer gets, the price model, how long it takes, who does what, and what you leave to others.', rows=4) }}
+  </div></fieldset>
+
+  <fieldset class="form-group"><legend>Ideal customer</legend><div class="form-grid">
+    {{ field('icp_industries', 'Industries', 'Short words, comma-separated: healthcare, b2b-saas, logistics. A company tagged with one counts as a match.', span=6) }}
+    {{ field('icp_countries', 'Countries', 'Two-letter codes: NL, DE, GB', span=6) }}
+    {%- set known = range_fields | map(attribute=0) | list %}
+    {%- for i in range_rows %}
+    {%- set chosen = values.get('range_%d_field' % i, '') %}
+    <label class="span-6">{% if loop.first %}A range on one of your fields{% else %}And on{% endif %}
+      <select name="range_{{ i }}_field">
+        <option value="">{{ 'pick a field' if range_fields or chosen else 'no company fields yet' }}</option>
+        {%- for key, label in range_fields %}<option value="{{ key }}"{% if key == chosen %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        {%- if chosen and chosen not in known %}<option value="{{ chosen }}" selected>{{ chosen }} (not in your fields)</option>{% endif %}
+      </select></label>
+    {{ field('range_%d_min' % i, 'from', span=3, kind='number', error_key='ranges') }}
+    {{ field('range_%d_max' % i, 'to', span=3, kind='number', error_key='ranges') }}
+    {%- endfor %}
+    <p class="small span-12">Any number your companies record: headcount, revenue, number of salespeople, locations. {% if range_fields %}Fill the empty row and Save to add another.{% else %}Add a field under <a href="/settings#fields">Settings &gt; Fields</a> first.{% endif %} A text field counts by its first number, so "~13" is 13.</p>
+    {{ field('icp_funding', 'Funding stage', 'bootstrapped, seed, series-a, private-equity', span=6) }}
+    {{ field('icp_signals', 'Positive signals', 'What makes now a good moment: hiring-sales, new-location, new-ceo, just-raised', span=6) }}
+  </div>
+  <p class="small">A company outside a range or country here does not get this approach. An empty field cannot decide: the bot asks you.</p></fieldset>
+
+  <fieldset class="form-group"><legend>Not a prospect</legend><div class="form-grid">
+    {{ field('section_disqualifiers', 'Reasons a company is not a prospect, one per line',
+             'For example "- They already have a Head of Sales", "- They work with an agency" or "- Public sector". The AI weighs these against what it finds and tells you why; you decide.', rows=3) }}
+    {{ field('dq_tag_present', 'Always leave out companies tagged', 'customer, competitor, do-not-contact. Checked by the app itself, no AI.', span=6) }}
+  </div></fieldset>
+
+  <fieldset class="form-group"><legend>Personas: who buys</legend><div class="form-grid">
+    {{ field('personas', 'One per line, name: job titles',
+             'For example "owner: Owner, Managing Director, Founder" and "ops: Operations Manager, COO". A contact\'s title picks the persona.', rows=3) }}
+    {{ field('section_personas', 'Per persona: their top problems, what they care about and ignore',
+             'For example "owner: no time for admin; cares about cost, ignores technical detail."', rows=4) }}
+  </div></fieldset>
+
+  <fieldset class="form-group"><legend>Proof</legend><div class="form-grid">
+    {{ field('section_proof', 'Customer results, one per line starting with "- "',
+             'For example "- A 40-person clinic cut no-shows by a third in three months." Drafts may cite only what is written here.', rows=4) }}
+  </div></fieldset>
+
+  <fieldset class="form-group"><legend>How you sell</legend><div class="form-grid">
+    {{ field('section_why', 'Why you', 'Why a customer picks you over doing it themselves, hiring someone, another provider or doing nothing.', rows=3) }}
+    <label class="span-12">Voice
+      <textarea name="section_voice" rows="4">{{ values.get('section_voice', '') }}</textarea>
+      <span class="small">For example "Plain and friendly, first names, informal address, no jargon. Sign off with my first name."
+        {% if sent_count %}Or let your AI describe it from your {{ sent_count }} most recent sent emails in the CRM.{% endif %}</span>
+    </label>
+    {% if sent_count %}<div class="form-row"><button type="submit" class="ai-action" formaction="/settings/playbook/voice"{% if not ai.available %} disabled title="Set up an AI CLI first"{% endif %}>✦ Learn my voice from my sent emails</button></div>{% endif %}
+    {% if voice_error %}<div class="errors span-12"><p>{{ voice_error }}</p></div>{% endif %}
+    {{ field('section_channels', 'Channels', 'For example "- email: one short paragraph and one question" and "- LinkedIn: two sentences, no link".', rows=3) }}
+    {{ field('section_donts', "Don'ts", 'For example "- No invented familiarity. - No claims without proof. - Never name competitors."', rows=3) }}
+  </div></fieldset>
+
+  <fieldset class="form-group"><legend>Lessons: what you tried</legend><div class="form-grid">
+    {{ field('lessons_worked', 'Worked', 'For example "- A question about how they hire got replies; a meeting ask did not."', span=4, rows=4) }}
+    {{ field('lessons_failed', "Didn't work", 'For example "- Mentioning price in the first message."', span=4, rows=4) }}
+    {{ field('lessons_open', 'Still testing', 'For example "- Whether email or LinkedIn works better in Germany."', span=4, rows=4) }}
+  </div>
+  <p class="small">Drafts follow what worked and avoid what did not.</p></fieldset>
+
+  <div class="save-bar">
+    <button type="submit"{% if pb_error %} disabled{% endif %}>Save {{ approach.name }}</button>
+    <span id="save-state" class="small" aria-live="polite"></span>
+    <span class="small">One commit to <code>MESSAGING.md</code>; your other approaches and notes are kept.</span>
+  </div>
+</form>
+<script>
+(function () {
+  var form = document.getElementById('playbook-form');
+  if (!form) return;
+  var state = document.getElementById('save-state');
+  var dirty = form.dataset.dirty === '1';
+  function show() {
+    state.textContent = dirty ? 'Unsaved changes' : 'No unsaved changes';
+    state.classList.toggle('dirty', dirty);
+  }
+  form.addEventListener('input', function (e) {
+    if (e.target.closest('.no-dirty')) return;
+    dirty = true; show();
+  });
+  form.addEventListener('submit', function () { dirty = false; });
+  window.addEventListener('beforeunload', function (e) {
+    if (dirty) { e.preventDefault(); e.returnValue = ''; }
+  });
+  document.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); form.requestSubmit(); }
+  });
+  show();
+  var select = document.querySelector('[data-select]');
+  if (select) { select.focus(); select.select(); }
+})();
+</script>
+{% endif %}
+{% endblock %}
