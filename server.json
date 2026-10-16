@@ -8,12 +8,12 @@
     "url": "https://github.com/Hermit-CRM/hermit-crm",
     "source": "github"
   },
-  "version": "0.7.0",
+  "version": "0.7.5",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "hermitcrm",
-      "version": "0.7.0",
+      "version": "0.7.5",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
