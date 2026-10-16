@@ -124,6 +124,27 @@ class Channel(str, Enum):
     NOTE = "note"  # a memo about a person: no direction, never a touch
 
 
+class Angle(str, Enum):
+    """The angle a message was written from: the messaging.py draft keys plus
+    `custom` (your own). Empty is "not known". The outreach bot's drafts carry
+    the same values, so its messages and yours compare on the Messages tab."""
+    SCALE = "scale"
+    UNBLOCK = "unblock"
+    HOOK = "hook"
+    BRIDGE = "bridge"
+    DECLINE = "decline"
+    CUSTOM = "custom"
+
+
+ANGLES = tuple(a.value for a in Angle)
+
+
+def normalise_angle(value) -> str:
+    """A hand-written angle as stored: trimmed and lower case. A value outside
+    ANGLES is kept as written (the Store refuses one on a new write)."""
+    return str(value or "").strip().lower() if not isinstance(value, Angle) else value.value
+
+
 class Direction(str, Enum):
     OUT = "out"
     IN = "in"
@@ -349,6 +370,8 @@ class Interaction:
     direction: str = ""
     contact: str = ""
     subject: str = ""
+    angle: str = ""     # one of ANGLES, or "" (not known)
+    approach: str = ""  # the playbook approach the message was for, or ""
     outcome: str = ""  # one of config outcomes, or "" (not yet known)
     source: str = "manual"
     message_id: str = ""  # dedup key of a BCC (Message-ID) or calendar (ical:…) import
@@ -913,9 +936,14 @@ def interaction_to_frontmatter(i: Interaction) -> dict:
         "direction": i.direction,
         "contact": i.contact,
         "subject": i.subject,
-        "outcome": i.outcome,
-        "source": i.source,
     }
+    # Omitted when empty, so a file written before they existed stays the same.
+    if i.angle:
+        meta["angle"] = i.angle
+    if i.approach:
+        meta["approach"] = i.approach
+    meta["outcome"] = i.outcome
+    meta["source"] = i.source
     if i.message_id:  # only BCC imports carry one
         meta["message_id"] = i.message_id
     return _with_extra(meta, i.extra, INTERACTION_KEYS)
@@ -935,8 +963,8 @@ CONTACT_KEYS = frozenset({
     "role", "language", "tasks", "created", "updated",
 })
 INTERACTION_KEYS = frozenset({
-    "date", "channel", "direction", "contact", "subject", "outcome", "source",
-    "message_id",
+    "date", "channel", "direction", "contact", "subject", "angle", "approach",
+    "outcome", "source", "message_id",
 })
 
 
@@ -1120,6 +1148,8 @@ def interaction_from_dict(meta: dict, body: str, id: str) -> Interaction:
                    else _enum(_str(meta, "direction"), Direction, "direction", False, errors)),
         contact=_str(meta, "contact").strip(),
         subject=_str(meta, "subject").strip(),
+        angle=normalise_angle(_str(meta, "angle")),
+        approach=_str(meta, "approach").strip(),
         outcome=_str(meta, "outcome").strip(),
         source=_enum(_str(meta, "source"), InteractionSource, "source", True, errors,
                      "manual"),
