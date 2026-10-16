@@ -161,7 +161,7 @@ def test_demo_loads_clean_with_every_stage_and_reports(tmp_path):
     store = Store(folder)
     assert store.load() == []
     companies = store.all()
-    assert len(companies) == 8
+    assert len(companies) == 13
     assert {c.stage for c in companies} == {"prospect", "engaged", "discovery", "offer",
                                             "won", "lost", "disqualified",
                                             "temp-disqualified"}
