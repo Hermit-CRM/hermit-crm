@@ -13,6 +13,9 @@ the data format always comes with an automatic migration.
 - **Adjust on a dashboard.** The Ask · Adjust button on `/d/<name>` now
   offers changes to that dashboard (add a widget, change what it shows, pin
   or rename it, make a copy), naming its file for your agent.
+- **Where a dashboard came from.** A dashboard page says when its file last
+  changed and in which commit, with Undo (back on the same page afterwards)
+  and a link to all changes. Nothing shows for a file that is not committed.
 
 ## 0.7.5 (2026-10-16)
 

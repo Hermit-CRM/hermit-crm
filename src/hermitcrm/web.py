@@ -2155,7 +2155,14 @@ def create_app(root: Path, config: dict | None = None,
 
         shown = dashboards.view(dash, columns, app.state.custom_fields, listing, report_for,
                                 dashboard_span)
-        return render(request, "dashboard.html", {**shown, "delta": reports.delta})
+        try:   # where it came from; never a reason for the page to fail
+            change = history.last_change(root, dash.file)
+        except Exception:
+            logger.exception("last change of %s", dash.file)
+            change = None
+        return render(request, "dashboard.html", {
+            **shown, "delta": reports.delta, "change": change,
+            "change_when": history.when_text(change.when, store.now()) if change else ""})
 
     @app.post("/companies/{slug}/interactions/{id}/outcome")
     def interaction_outcome(request: Request, slug: str, id: str,
@@ -3629,9 +3636,20 @@ def create_app(root: Path, config: dict | None = None,
     def yours(request: Request):
         return hub_page(request)
 
+    def undo_back(back: str) -> str:
+        """Where an undo from a dashboard page lands: that page while its file
+        is still there (an undone "create" removes it), else ""."""
+        slug = back[3:] if back.startswith("/d/") else ""
+        if dashboards.SLUG.fullmatch(slug) and (root / dashboards.DIR / f"{slug}.toml").is_file():
+            return back
+        return ""
+
     @app.post("/yours/undo")
-    def yours_undo(request: Request, csrf_token: str = Form(""), sha: str = Form("")):
-        """Undo one change: a new commit that reverses it (hermitcrm undo)."""
+    def yours_undo(request: Request, csrf_token: str = Form(""), sha: str = Form(""),
+                   back: str = Form("")):
+        """Undo one change: a new commit that reverses it (hermitcrm undo).
+        `back` (a dashboard page) is where a successful undo lands instead of
+        the hub, while that page still exists."""
         check_csrf(csrf_token)
         try:
             new, subject = history.undo(store, sha)
@@ -3642,8 +3660,12 @@ def create_app(root: Path, config: dict | None = None,
             return flashed("/yours?undo=1", str(exc), anchor=HUB_CHANGES)
         reload_everything()
         gitops.push_async()
-        return flashed("/yours?undo=1", f"Undone in a new commit {new}: {subject}. Undo that one "
-                       "to bring the change back.", anchor=HUB_CHANGES)
+        message = (f"Undone in a new commit {new}: {subject}. Undo that one to bring the "
+                   "change back.")
+        landing = undo_back(back)
+        if landing:
+            return flashed(landing, message)
+        return flashed("/yours?undo=1", message, anchor=HUB_CHANGES)
 
     # ------------------------------------------------------------------- help
 
