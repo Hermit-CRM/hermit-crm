@@ -143,7 +143,7 @@ def last_change(root: Path, path: str) -> Change | None:
         sha, stamp, parents, subject = proc.stdout.strip().split("\x1f", 3)
         later = _git(root, "log", "-1", "--format=%H", "--fixed-strings",
                      f"--grep=This reverts commit {sha}", f"{sha}..HEAD")
-    except (OSError, subprocess.SubprocessError, ValueError):
+    except Exception:  # git missing, timed out or odd output: the page shows no change
         return None
     return Change(sha=sha, when=datetime.fromtimestamp(int(stamp)), subject=subject,
                   files=[path], merge=len(parents.split()) > 1, first=not parents.split(),
