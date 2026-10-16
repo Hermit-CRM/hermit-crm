@@ -3,6 +3,17 @@
 All notable changes to Hermit CRM. Versions follow semantic versioning; a change to
 the data format always comes with an automatic migration.
 
+## Unreleased
+
+- **Trends on dashboards.** A new `trend` widget counts the rows of a list
+  page per week or month of one date column (messages sent, last touches,
+  tasks done) over a report period, and draws one bar per week or month,
+  empty ones as zero. Every number links to its rows. `hermitcrm help
+  adjust-dashboards` has the keys and an example.
+- **Adjust on a dashboard.** The Ask · Adjust button on `/d/<name>` now
+  offers changes to that dashboard (add a widget, change what it shows, pin
+  or rename it, make a copy), naming its file for your agent.
+
 ## 0.7.5 (2026-10-16)
 
 **A clearer contact page, editable tasks and a WhatsApp channel.** The contact

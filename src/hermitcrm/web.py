@@ -2121,14 +2121,20 @@ def create_app(root: Path, config: dict | None = None,
         numbers carry to /reports/rows. `all` is a custom period from the
         first day in the data."""
         today = store.today()
+        span = dashboard_span(period)
         if period == "all":
-            start = min(dashboards.first_day(store) or today, today)
-            span = reports.Period(start, today)
-            query = reports.period_query("custom", fmt_date(start), fmt_date(today))
+            query = reports.period_query("custom", fmt_date(span.start), fmt_date(today))
         else:
-            span = reports.period_for(period, today)
             query = reports.period_query(period)
         return build_report(span, today), query
+
+    def dashboard_span(period: str) -> reports.Period:
+        """The days a dashboard period covers, ending today; `all` runs from
+        the first day in the data."""
+        today = store.today()
+        if period == "all":
+            return reports.Period(min(dashboards.first_day(store) or today, today), today)
+        return reports.period_for(period, today)
 
     @app.get("/d/{slug}", response_class=HTMLResponse)
     def dashboard_page(request: Request, slug: str):
@@ -2147,7 +2153,8 @@ def create_app(root: Path, config: dict | None = None,
                 built[period] = dashboard_report(period)
             return built[period]
 
-        shown = dashboards.view(dash, columns, app.state.custom_fields, listing, report_for)
+        shown = dashboards.view(dash, columns, app.state.custom_fields, listing, report_for,
+                                dashboard_span)
         return render(request, "dashboard.html", {**shown, "delta": reports.delta})
 
     @app.post("/companies/{slug}/interactions/{id}/outcome")
