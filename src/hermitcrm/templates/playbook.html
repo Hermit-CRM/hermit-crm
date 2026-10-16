@@ -1,27 +1,31 @@
 {% extends "base.html" %}
 {% block title %}Playbook{% endblock %}
-{#- Settings > Playbook: MESSAGING.md as a form. Each box has an example beside
-    it; the examples are illustrations for any B2B offer, never defaults. -#}
-{% macro field(name, label, example, span=12, rows=0, kind='text') -%}
+{#- Settings > Playbook: MESSAGING.md as a form, one tab per offer. Each offer is
+    complete on its own; "Duplicate" copies all of it. The examples beside the
+    boxes are illustrations for any B2B offer, never defaults. -#}
+{% macro field(name, label, example='', span=12, rows=0, kind='text', error_key='') -%}
+{%- set err = errors.get(error_key or name) -%}
 <label class="span-{{ span }}">{{ label }}
   {%- if rows %}<textarea name="{{ name }}" rows="{{ rows }}">{{ values.get(name, '') }}</textarea>
   {%- elif kind == 'number' %}<input type="number" min="0" name="{{ name }}" value="{{ values.get(name, '') }}">
   {%- else %}<input name="{{ name }}" value="{{ values.get(name, '') }}">{% endif %}
-  {%- if errors.get(name) %}<span class="small error">{{ errors[name] }}</span>{% endif %}
+  {%- if err %}<span class="small error">{{ err }}</span>{% endif %}
   {%- if example %}<span class="small">{{ example }}</span>{% endif %}
 </label>
 {%- endmacro %}
 {% block content %}
 <h1>Playbook</h1>
-<p class="summary">What you sell, to whom, and how you write: the drafts, routines and the outreach bot read it from <code>MESSAGING.md</code>. Everything is optional except the four parts the outreach bot needs. <a class="how" href="/help/playbook">How it works</a> · <a href="/settings#messaging">Back to Settings</a></p>
+<p class="summary">What you sell, to whom, and how you write: the drafts, routines and the outreach bot read it from <code>MESSAGING.md</code>. Selling more than one thing, or to more than one audience? Give each its own offer; the bot picks the offer a company fits. <a class="how" href="/help/playbook">How it works</a> · <a href="/settings#playbook">Back to Settings</a></p>
 
 {% if pb_error %}
-<div class="errors"><p>The front matter of <code>MESSAGING.md</code> cannot be read: {{ pb_error }}. Fix it in the file (or ask your agent to); this form would overwrite it.</p></div>
-{% endif %}
+<div class="errors"><p>The front matter of <code>MESSAGING.md</code> cannot be read: {{ pb_error }}. Fix it in the file (or ask your agent to); this page would overwrite it.</p></div>
+{% elif foreign %}
+<div class="errors"><p><code>MESSAGING.md</code> starts with a front matter of its own (no <code>offers:</code>), so this page leaves it alone. See <a href="/help/playbook">How it works</a> for the format.</p></div>
+{% else %}
 
-{% if not has_front and exists %}
+{% if not set_up and exists %}
 <div class="card">
-  <p>Your <code>MESSAGING.md</code> is from before the playbook had these parts. Saving the form below adds them and keeps every line you wrote. To add only the empty parts first:</p>
+  <p>Your <code>MESSAGING.md</code> is from before the playbook had offers. Saving the form below sets it up and keeps every line you wrote. To add only the empty parts first:</p>
   <form method="post" action="/settings/playbook/upgrade" class="inline">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <button type="submit">Set up MESSAGING.md</button>
@@ -29,61 +33,92 @@
 </div>
 {% endif %}
 
+<nav class="offer-tabs" aria-label="Offers">
+  {% for o in offers %}
+  <a href="/settings/playbook?offer={{ loop.index0 }}"{% if loop.index0 == current %} aria-current="page"{% endif %}>{{ o.name }} <span class="offer-state {{ 'ready' if not offer_gaps[loop.index0] else 'pending' }}" title="{{ 'Ready for the outreach bot' if not offer_gaps[loop.index0] else 'Not ready yet' }}">{{ '✓' if not offer_gaps[loop.index0] else '·' }}</span></a>
+  {% endfor %}
+  <details class="new-offer">
+    <summary class="button">+ New offer</summary>
+    <form method="post" action="/settings/playbook/new" class="record-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Name<input name="name" required placeholder="For example: Team build-out"></label>
+      <label>Start from
+        <select name="copy_from">
+          <option value="">an empty offer</option>
+          {% for o in offers %}<option value="{{ o.name }}"{% if loop.index0 == current %} selected{% endif %}>a copy of {{ o.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <button type="submit">Create</button>
+    </form>
+  </details>
+</nav>
+
 <div class="card playbook-meter">
-  <p><strong>{{ filled }} of {{ parts | length }} parts filled</strong>
-    <meter min="0" max="{{ parts | length }}" value="{{ filled }}" aria-label="playbook filled">{{ filled }} of {{ parts | length }}</meter></p>
+  <p><strong>{{ offer.name }}: {{ filled }} of {{ parts | length }} parts filled</strong>
+    <meter min="0" max="{{ parts | length }}" value="{{ filled }}" aria-label="offer filled">{{ filled }} of {{ parts | length }}</meter></p>
   <ul class="small">{% for label, ok in parts %}<li>{{ '✓' if ok else '·' }} {{ label }}</li>{% endfor %}</ul>
-  {% if gaps %}
-  <p class="small">The outreach bot will not run yet. Missing: {{ gaps | join('; ') }}.</p>
-  {% else %}
-  <p class="small">Ready for the outreach bot.</p>
-  {% endif %}
+  {% if gaps %}<p class="small">The outreach bot will not use this offer yet. Missing: {{ gaps | join('; ') }}.</p>
+  {% else %}<p class="small">Ready for the outreach bot.</p>{% endif %}
+  <div class="offer-actions">
+    <form method="post" action="/settings/playbook/duplicate" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="offer" value="{{ offer.name }}">
+      <button type="submit" title="A new offer with everything of this one, to change what differs">Duplicate this offer</button>
+    </form>
+    {% if offers | length > 1 %}
+    <form method="post" action="/settings/playbook/delete" class="inline" onsubmit="return confirm('Delete the offer {{ offer.name | e }} and everything in it? It stays in the git history.')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="offer" value="{{ offer.name }}">
+      <button type="submit" class="danger">Delete this offer</button>
+    </form>
+    {% endif %}
+  </div>
 </div>
 
-<details class="card" id="draft"{% if draft_open %} open{% endif %}>
-  <summary><strong>Draft it from my website</strong></summary>
-  <p class="small">Paste the text of your website, a profile summary or a sales deck. Your AI CLI (Settings &gt; AI, run without tools) proposes each part from that text alone; the proposal fills the form below and nothing is saved until you click Save. It never makes up a customer result.</p>
-  {% if not ai.available %}<p class="small">No AI CLI is set up: {{ ai.reason }}. <a href="/settings#enrichment">Settings &gt; AI</a></p>{% endif %}
-  {% if draft_error %}<div class="errors"><p>{{ draft_error }}</p></div>{% endif %}
-  <form method="post" action="/settings/playbook/draft" class="record-form">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label>Text about your business<textarea name="source" rows="8">{{ source }}</textarea></label>
-    <button type="submit"{% if not ai.available %} disabled{% endif %}>Draft it</button>
-  </form>
-</details>
-
-{% if proposed %}<div class="flash">Proposed by {{ ai.provider or 'your AI CLI' }} from the text you pasted. Check every box, change what is not right, then Save. Nothing is saved yet.</div>{% endif %}
+{% if notice %}<div class="flash">{{ notice }}</div>{% endif %}
 {% if errors %}<div class="errors"><p>Not saved: fix the boxes marked below.</p></div>{% endif %}
 
-<form method="post" action="/settings/playbook" class="record-form">
+<form method="post" action="/settings/playbook" class="record-form" id="playbook-form" enctype="multipart/form-data" data-dirty="{{ '1' if dirty else '0' }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="offer" value="{{ offer.name }}">
+
+  <details class="card no-dirty" id="draft"{% if draft_open %} open{% endif %}>
+    <summary><strong>Draft it from my website or a document</strong></summary>
+    <p class="small">Give your website, a sales deck or a document (PDF, Word or .txt), or paste text. Hermit CRM reads it, and your AI CLI (Settings &gt; AI, run without tools) proposes each part of this offer from that alone. The proposal fills the boxes below; nothing is saved until you click Save. It never makes up a customer result.</p>
+    {% if not ai.available %}<p class="small">No AI CLI is set up: {{ ai.reason }}. <a href="/settings#enrichment">Settings &gt; AI</a></p>{% endif %}
+    {% if draft_error %}<div class="errors"><p>{{ draft_error }}</p></div>{% endif %}
+    <div class="form-grid">
+      <label class="span-6">Website<input name="source_url" value="{{ source_url }}" placeholder="example.com"><span class="small">The home page and up to four pages like About, Services and Pricing.</span></label>
+      <label class="span-6">Or a file<input type="file" name="source_file" accept=".pdf,.docx,.txt,.md,application/pdf,text/plain"><span class="small">PDF, Word (.docx) or .txt, up to 15 MB.</span></label>
+      <label class="span-12">Or text<textarea name="source_text" rows="4">{{ source_text }}</textarea></label>
+    </div>
+    <button type="submit" formaction="/settings/playbook/draft"{% if not ai.available %} disabled{% endif %}>Draft it</button>
+  </details>
 
   <fieldset class="form-group"><legend>Offer</legend><div class="form-grid">
+    {{ field('name', 'Name of this offer', 'Only for you, to tell offers apart.', span=6) }}
     {{ field('offer_line', 'Offer line: what you sell, in one sentence',
-             'For example "We build booking software for clinics." or "I run your bookkeeping so you never miss a filing." One offer per data folder; a second business gets a second folder.') }}
+             'For example "We build booking software for clinics." or "I run your bookkeeping so you never miss a filing."') }}
     {{ field('section_offer', 'More about the offer: the outcome, how it works, what you do not do',
              'For example: the result a customer gets, the price model, how long it takes, who does what, and what you leave to others.', rows=4) }}
   </div></fieldset>
 
   <fieldset class="form-group"><legend>Ideal customer</legend><div class="form-grid">
-    {{ field('icp_industries', 'Industries', 'Short words, comma-separated: healthcare, b2b-saas, logistics', span=6) }}
+    {{ field('icp_industries', 'Industries', 'Short words, comma-separated: healthcare, b2b-saas, logistics. A company tagged with one counts as a match.', span=6) }}
     {{ field('icp_countries', 'Countries', 'Two-letter codes: NL, DE, GB', span=6) }}
-    {{ field('icp_fte_min', 'People, from', '', span=3, kind='number') }}
-    {{ field('icp_fte_max', 'to', errors.get('icp_fte', ''), span=3, kind='number') }}
-    {{ field('icp_salespeople_min', 'Salespeople, from', '', span=3, kind='number') }}
-    {{ field('icp_salespeople_max', 'to', errors.get('icp_salespeople', ''), span=3, kind='number') }}
+    {{ field('icp_fte_min', 'People, from', span=3, kind='number', error_key='icp_fte') }}
+    {{ field('icp_fte_max', 'to', span=3, kind='number', error_key='icp_fte') }}
+    {{ field('icp_salespeople_min', 'Salespeople, from', span=3, kind='number', error_key='icp_salespeople') }}
+    {{ field('icp_salespeople_max', 'to', 'For example 0 to 0 for an offer to founders who sell themselves.', span=3, kind='number', error_key='icp_salespeople') }}
     {{ field('icp_funding', 'Funding stage', 'bootstrapped, seed, series-a, private-equity', span=6) }}
-    {{ field('icp_signals', 'Good moments to reach out', 'hiring-sales, new-location, new-ceo, just-raised', span=6) }}
-  </div></fieldset>
-
-  <fieldset class="form-group"><legend>Disqualifiers: companies these match are left out</legend><div class="form-grid">
-    {{ field('dq_fte_over', 'More people than', 'Too big for you', span=3, kind='number') }}
-    {{ field('dq_fte_under', 'Fewer people than', 'Too small for you', span=3, kind='number') }}
-    {{ field('dq_title_present', 'Someone there already has the title', 'Head of Sales, IT Director: they already have what you sell', span=6) }}
-    {{ field('dq_tag_present', 'Tagged', 'competitor, customer, do-not-contact', span=6) }}
-    <label class="span-6 check"><input type="checkbox" name="dq_no_salespeople"{% if values.get('dq_no_salespeople') %} checked{% endif %}> No salespeople (sales team size is 0)</label>
+    {{ field('icp_signals', 'Positive signals', 'What makes now a good moment: hiring-sales, new-location, new-ceo, just-raised', span=6) }}
   </div>
-  <p class="small">A company with that field empty stays in: an empty field cannot decide.</p></fieldset>
+  <p class="small">A company outside a range or country here does not get this offer. An empty field cannot decide: the bot asks you.</p></fieldset>
+
+  <fieldset class="form-group"><legend>Not a prospect</legend><div class="form-grid">
+    {{ field('dq_title_present', 'Leave out a company where someone already has the title', 'Head of Sales, IT Director: they already have what you sell. Checked on the contacts you have.', span=6) }}
+    {{ field('dq_tag_present', 'Leave out a company tagged', 'customer, competitor, do-not-contact', span=6) }}
+    {{ field('section_disqualifiers', 'Other reasons, one per line',
+             'Anything the app cannot check itself, for example "- They already work with an agency" or "- Public sector". The AI weighs these and tells you why; you decide.', rows=3) }}
+  </div></fieldset>
 
   <fieldset class="form-group"><legend>Personas: who buys</legend><div class="form-grid">
     {{ field('personas', 'One per line, name: job titles',
@@ -99,12 +134,53 @@
 
   <fieldset class="form-group"><legend>How you sell</legend><div class="form-grid">
     {{ field('section_why', 'Why you', 'Why a customer picks you over doing it themselves, hiring someone, another provider or doing nothing.', rows=3) }}
-    {{ field('section_voice', 'Voice', 'For example "Plain and friendly, first names, informal address, no jargon. Sign off with my first name."', rows=3) }}
+    <label class="span-12">Voice
+      <textarea name="section_voice" rows="4">{{ values.get('section_voice', '') }}</textarea>
+      <span class="small">For example "Plain and friendly, first names, informal address, no jargon. Sign off with my first name."
+        {% if sent_count %}Or let your AI describe it from your {{ sent_count }} most recent sent emails in the CRM:{% endif %}</span>
+    </label>
+    {% if sent_count %}<div class="span-12"><button type="submit" formaction="/settings/playbook/voice"{% if not ai.available %} disabled title="Set up an AI CLI first"{% endif %}>Learn my voice from my sent emails</button></div>{% endif %}
+    {% if voice_error %}<div class="errors span-12"><p>{{ voice_error }}</p></div>{% endif %}
     {{ field('section_channels', 'Channels', 'For example "- email: one short paragraph and one question" and "- LinkedIn: two sentences, no link".', rows=3) }}
     {{ field('section_donts', "Don'ts", 'For example "- No invented familiarity. - No claims without proof. - Never name competitors."', rows=3) }}
   </div></fieldset>
 
-  <button type="submit"{% if pb_error %} disabled{% endif %}>Save</button>
-  <span class="small">One commit to <code>MESSAGING.md</code>; the rest of the file (angles, slots, languages, What worked, your own headings) is kept.</span>
+  <fieldset class="form-group"><legend>Lessons: what you tried</legend><div class="form-grid">
+    {{ field('lessons_worked', 'Worked', 'For example "- A question about how they hire got replies; a meeting ask did not."', span=4, rows=4) }}
+    {{ field('lessons_failed', "Didn't work", 'For example "- Mentioning price in the first message."', span=4, rows=4) }}
+    {{ field('lessons_open', 'Still testing', 'For example "- Whether email or LinkedIn works better in Germany."', span=4, rows=4) }}
+  </div>
+  <p class="small">Drafts follow what worked and avoid what did not.</p></fieldset>
+
+  <div class="save-bar">
+    <button type="submit"{% if pb_error %} disabled{% endif %}>Save {{ offer.name }}</button>
+    <span id="save-state" class="small" aria-live="polite"></span>
+    <span class="small">One commit to <code>MESSAGING.md</code>; your other offers and notes are kept.</span>
+  </div>
 </form>
+<script>
+(function () {
+  var form = document.getElementById('playbook-form');
+  if (!form) return;
+  var state = document.getElementById('save-state');
+  var dirty = form.dataset.dirty === '1';
+  function show() {
+    state.textContent = dirty ? 'Unsaved changes' : 'No unsaved changes';
+    state.classList.toggle('dirty', dirty);
+  }
+  form.addEventListener('input', function (e) {
+    if (e.target.closest('.no-dirty')) return;
+    dirty = true; show();
+  });
+  form.addEventListener('submit', function () { dirty = false; });
+  window.addEventListener('beforeunload', function (e) {
+    if (dirty) { e.preventDefault(); e.returnValue = ''; }
+  });
+  document.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); form.requestSubmit(); }
+  });
+  show();
+})();
+</script>
+{% endif %}
 {% endblock %}

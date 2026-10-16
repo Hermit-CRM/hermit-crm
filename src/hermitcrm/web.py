@@ -54,7 +54,7 @@ from . import (adjust, bcc, brief, calendar_sync, capture, dashboards, disclaime
                fields as custom, filters, followups, history, messaging, migrations,
                pipeline, reports, sample, welcome)
 from . import layout
-from . import playbook
+from . import playbook, textsource
 from . import schedule, scrape, secrets, task_types, usertheme
 from . import stage_ops
 from . import stages as stages_mod
@@ -3056,9 +3056,10 @@ def create_app(root: Path, config: dict | None = None,
 
     def playbook_status() -> dict:
         pb = playbook.load(root)
-        parts = playbook.completeness(pb)
-        return {"filled": sum(ok for _, ok in parts), "total": len(parts),
-                "gaps": playbook.missing(pb)}
+        found = playbook.gaps(pb)
+        return {"offers": [o.name for o in pb.offers],
+                "ready": [o.name for o in playbook.ready_offers(pb)],
+                "problem": "; ".join(found.get("", []))}
 
     def stages_form_default() -> dict:
         counts = store.stage_counts()
@@ -3244,20 +3245,47 @@ def create_app(root: Path, config: dict | None = None,
 
     # ------------------------------------------------ Settings > Playbook
 
-    def playbook_page(request: Request, values: dict | None = None, status_code: int = 200,
-                      **extra):
-        pb = playbook.load(root)
-        parts = playbook.completeness(pb)
+    def playbook_text() -> str:
+        path = root / playbook.FILENAME
+        try:
+            return path.read_text(encoding="utf-8")
+        except OSError:
+            return ""
+
+    def playbook_page(request: Request, offer_name: str = "", index: int | None = None,
+                      values: dict | None = None, status_code: int = 200, **extra):
+        raw = playbook.parse(playbook_text()) if (root / playbook.FILENAME).exists() \
+            else playbook.Playbook()
+        # A file from before the offers is shown as it will be once saved.
+        pb = playbook.parse(playbook.upgrade_text(raw.text)) if not raw.error else raw
+        offers = pb.offers
+        current = 0
+        if offer_name:
+            current = next((i for i, o in enumerate(offers)
+                            if o.name.lower() == offer_name.lower()), 0)
+        elif index is not None and 0 <= index < len(offers):
+            current = index
         enricher = app.state.enricher
-        return render(request, "playbook.html", {
-            "values": values if values is not None else playbook.form_values(pb),
-            "errors": {}, "exists": pb.exists, "has_front": pb.has_front,
-            "pb_error": pb.error, "parts": parts, "filled": sum(ok for _, ok in parts),
-            "gaps": playbook.missing(pb), "source": "", "proposed": False,
-            "draft_open": False, "draft_error": "",
-            "ai": {"available": enricher.available, "provider": enricher.provider_name,
-                   "reason": "" if enricher.available else enricher.unavailable_reason()},
-            **extra}, status_code=status_code)
+        ctx = {"pb_error": raw.error, "exists": raw.exists, "set_up": raw.set_up,
+               "foreign": raw.has_front and not raw.error and not raw.set_up,
+               "offers": offers, "current": current, "errors": {}, "notice": "",
+               "offer_gaps": [playbook.offer_gaps(o) for o in offers],
+               "source_url": "", "source_text": "", "draft_open": False,
+               "draft_error": "", "voice_error": "", "dirty": False,
+               "sent_count": len(playbook.sent_emails(store)),
+               "ai": {"available": enricher.available, "provider": enricher.provider_name,
+                      "reason": "" if enricher.available
+                      else enricher.unavailable_reason()}}
+        if offers:
+            offer = offers[current]
+            parts = playbook.completeness(offer)
+            ctx.update({"offer": offer, "parts": parts,
+                        "filled": sum(ok for _, ok in parts),
+                        "gaps": playbook.offer_gaps(offer),
+                        "values": values if values is not None
+                        else playbook.form_values(offer)})
+        ctx.update(extra)
+        return render(request, "playbook.html", ctx, status_code=status_code)
 
     def playbook_commit(message: str, paths=None) -> None:
         try:
@@ -3266,45 +3294,139 @@ def create_app(root: Path, config: dict | None = None,
         except Exception:  # the file is saved; git can catch up
             logger.exception("could not commit %s", playbook.FILENAME)
 
+    def playbook_url(name: str = "") -> str:
+        offers = playbook.load(root).offers
+        i = next((i for i, o in enumerate(offers) if o.name.lower() == name.lower()), 0)
+        return f"/settings/playbook?offer={i}"
+
+    async def playbook_form(request: Request) -> tuple[dict, dict]:
+        """(the posted text fields, the uploaded files) after the CSRF check."""
+        form = await request.form()
+        check_csrf(str(form.get("csrf_token") or ""))
+        values, files = {}, {}
+        for key, value in form.multi_items():
+            if hasattr(value, "read"):
+                files[key] = value
+            elif key != "csrf_token":
+                values[key] = str(value)
+        return values, files
+
     @app.get("/settings/playbook", response_class=HTMLResponse)
-    def settings_playbook(request: Request):
-        return playbook_page(request)
+    def settings_playbook(request: Request, offer: int = 0):
+        return playbook_page(request, index=offer)
 
     @app.post("/settings/playbook", response_class=HTMLResponse)
     async def settings_playbook_save(request: Request):
-        form = await request.form()
-        check_csrf(str(form.get("csrf_token") or ""))
-        values = {k: str(v) for k, v in form.items() if k != "csrf_token"}
-        pb = playbook.load(root)
-        if pb.error:
-            return playbook_page(request, values, status_code=400)
-        front, sections, errors = playbook.from_form(values, pb.front)
+        values, _ = await playbook_form(request)
+        name = values.get("offer", "")
+        raw = playbook.parse(playbook_text())
+        if raw.error or (raw.has_front and not raw.set_up):
+            return playbook_page(request, name, values=values, status_code=400)
+        try:
+            text, errors = playbook.save_form(playbook_text(), name, values)
+        except playbook.PlaybookError as exc:
+            return flashed("/settings/playbook", str(exc))
         if errors:
-            return playbook_page(request, values, status_code=400, errors=errors)
-        if playbook.write(root, playbook.apply(pb.text, front, sections)):
-            playbook_commit("playbook: saved from Settings")
-            return flashed("/settings/playbook", "Playbook saved")
-        return flashed("/settings/playbook", "Nothing changed")
+            return playbook_page(request, name, values=values, status_code=400,
+                                 errors=errors, dirty=True)
+        new_name = playbook.from_form(values)[0]["name"] or name
+        if playbook.write(root, text):
+            playbook_commit(f"playbook: {new_name}")
+            return flashed(playbook_url(new_name), f"Saved {new_name}")
+        return flashed(playbook_url(new_name), "Nothing changed")
+
+    @app.post("/settings/playbook/draft", response_class=HTMLResponse)
+    async def settings_playbook_draft(request: Request):
+        values, files = await playbook_form(request)
+        name = values.get("offer", "")
+        url = values.get("source_url", "").strip()
+        pasted = values.get("source_text", "").strip()
+        keep = {"source_url": url, "source_text": pasted, "draft_open": True, "dirty": True}
+        try:
+            parts = []
+            upload = files.get("source_file")
+            if upload is not None and getattr(upload, "filename", ""):
+                parts.append(textsource.read_file(upload.filename, await upload.read()))
+            if url:
+                parts.append(await run_in_threadpool(textsource.read_website, url))
+            if pasted:
+                parts.append(pasted)
+            proposal = await run_in_threadpool(
+                playbook.propose, app.state.enricher, "\n\n".join(parts), name)
+        except (textsource.SourceError, EnrichError) as exc:
+            return playbook_page(request, name, values=values, status_code=400,
+                                 draft_error=str(exc), **keep)
+        if not proposal:
+            return playbook_page(request, name, values=values, draft_error=(
+                "The AI found nothing it could use in that text."), **keep)
+        # The proposal fills the boxes it has an answer for; the rest keep what
+        # is in the form. Nothing is written until Save.
+        merged = {**values, **proposal}
+        return playbook_page(request, name, values=merged, notice=(
+            f"Proposed by {app.state.enricher.provider_name or 'your AI CLI'}: "
+            f"{len(proposal)} boxes filled from what you gave. Check each one, change "
+            "what is not right, then Save. Nothing is saved yet."), **keep)
+
+    @app.post("/settings/playbook/voice", response_class=HTMLResponse)
+    async def settings_playbook_voice(request: Request):
+        values, _ = await playbook_form(request)
+        name = values.get("offer", "")
+        try:
+            proposal = await run_in_threadpool(
+                playbook.propose_voice, app.state.enricher, playbook.sent_emails(store))
+        except EnrichError as exc:
+            return playbook_page(request, name, values=values, status_code=400,
+                                 voice_error=str(exc), dirty=True)
+        return playbook_page(request, name, values={**values, **proposal}, dirty=True,
+                             notice="Voice proposed from your sent emails, in the Voice "
+                                    "box. Check it, then Save. Nothing is saved yet.")
+
+    @app.post("/settings/playbook/new")
+    def settings_playbook_new(request: Request, csrf_token: str = Form(""),
+                              name: str = Form(""), copy_from: str = Form("")):
+        check_csrf(csrf_token)
+        try:
+            text = playbook.add_offer(playbook_text(), name, copy_from=copy_from)
+        except playbook.PlaybookError as exc:
+            return flashed("/settings/playbook", f"Not created: {exc}")
+        name = " ".join(name.split())
+        playbook.write(root, text)
+        playbook_commit(f"playbook: new offer {name}")
+        return flashed(playbook_url(name), f"Created the offer {name}"
+                       + (f", a copy of {copy_from}" if copy_from else ""))
+
+    @app.post("/settings/playbook/duplicate")
+    def settings_playbook_duplicate(request: Request, csrf_token: str = Form(""),
+                                    offer: str = Form("")):
+        check_csrf(csrf_token)
+        text = playbook_text()
+        name = playbook.copy_name(playbook.parse(playbook.upgrade_text(text)), offer)
+        try:
+            text = playbook.add_offer(text, name, copy_from=offer)
+        except playbook.PlaybookError as exc:
+            return flashed("/settings/playbook", f"Not copied: {exc}")
+        playbook.write(root, text)
+        playbook_commit(f"playbook: {name}")
+        return flashed(playbook_url(name), f"Created {name}. Rename it and change what "
+                                           "differs.")
+
+    @app.post("/settings/playbook/delete")
+    def settings_playbook_delete(request: Request, csrf_token: str = Form(""),
+                                 offer: str = Form("")):
+        check_csrf(csrf_token)
+        try:
+            text = playbook.delete_offer(playbook_text(), offer)
+        except playbook.PlaybookError as exc:
+            return flashed("/settings/playbook", f"Not deleted: {exc}")
+        playbook.write(root, text)
+        playbook_commit(f"playbook: deleted offer {offer}")
+        return flashed("/settings/playbook", f"Deleted the offer {offer}; it stays in "
+                                             "the git history.")
 
     @app.post("/settings/playbook/upgrade")
     def settings_playbook_upgrade(request: Request, csrf_token: str = Form("")):
         check_csrf(csrf_token)
         return flashed("/settings/playbook", playbook.upgrade(root, commit=playbook_commit))
-
-    @app.post("/settings/playbook/draft", response_class=HTMLResponse)
-    def settings_playbook_draft(request: Request, csrf_token: str = Form(""),
-                                source: str = Form("")):
-        check_csrf(csrf_token)
-        current = playbook.form_values(playbook.load(root))
-        try:
-            proposal = playbook.propose(app.state.enricher, source)
-        except EnrichError as exc:
-            return playbook_page(request, current, status_code=400, source=source,
-                                 draft_open=True, draft_error=str(exc))
-        # The proposal fills the boxes it has an answer for; the rest keep what
-        # is saved. Nothing is written until Save.
-        values = {k: (v if v.strip() else current.get(k, "")) for k, v in proposal.items()}
-        return playbook_page(request, {**current, **values}, source=source, proposed=True)
 
     @app.post("/settings/enrichment")
     def settings_enrichment(request: Request, csrf_token: str = Form(""),

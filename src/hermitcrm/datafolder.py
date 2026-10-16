@@ -323,55 +323,93 @@ unknown = "[Something specific about the team.]"
 """
 
 
-# The demo folder's playbook: a made-up offer (fractional sales leadership),
-# there to show a filled playbook. It is example content only; a new folder
-# without --demo gets the empty headings.
-DEMO_PLAYBOOK_FRONT = {
-    "offer_line": "I work as your fractional Head of Sales: part-time, no minimum term.",
-    "icp": {"industries": ["b2b-saas", "robotics", "analytics"], "fte": [10, 80],
-            "salespeople": [1, 5], "countries": ["DE", "NL", "GB", "IE", "SE"],
-            "funding": ["seed", "series-a"],
-            "signals": ["founder-still-sells", "no-sales-leader", "hiring-sales"]},
-    "disqualifiers": [{"fte_over": 150},
-                      {"title_present": ["Head of Sales", "VP Sales", "CRO"]},
-                      {"no_salespeople": True}],
-    "personas": {"founder": {"titles": ["CEO", "Founder", "Co-Founder",
-                                        "Managing Director"]},
-                 "sales-lead": {"titles": ["Sales Lead", "Senior Account Executive",
-                                           "Account Executive"]}},
-}
-DEMO_PLAYBOOK_SECTIONS = {
-    "offer": "Two days a week I run sales for you: pipeline reviews, coaching your first "
-             "salespeople, a repeatable process and the hire of a full-time sales "
-             "leader when you are ready.\nMonthly fee, cancel any month. I do not run "
-             "lead generation or cold calling for you.",
-    "personas": "- founder: still closes most deals personally and has no time to "
-                "build a team. Cares about growth without a costly senior hire; "
-                "ignores tooling talk.\n- sales-lead: the first salesperson, without a "
-                "manager to learn from. Cares about a clear process and coaching.",
-    "proof": "- A made-up example: a 30-person software company doubled its qualified "
-             "pipeline in two quarters.\n- Another made-up example: the first two "
-             "salespeople reached quota in their fourth month.",
+# The demo folder's playbook: a made-up business (fractional sales leadership)
+# with two offers for two audiences, there to show a filled playbook. It is
+# example content only; a new folder without --demo gets one empty offer.
+_DEMO_SHARED = {
     "why": "Cheaper and quicker than hiring a full-time Head of Sales, and the process "
            "stays when I leave. An agency sells for you; I build the team that sells.",
-    "voice": "Plain, direct, short sentences. First names. No jargon, no buzzwords. "
-             "Sign off with my first name.",
+    "voice": "- Plain, direct, short sentences.\n- First names, informal address.\n"
+             "- No jargon, no buzzwords.\n- Sign off with my first name.",
     "channels": "- email: one short paragraph, one question about how they sell today.\n"
                 "- LinkedIn: two sentences, no link, a question about the team.",
     "donts": "- No invented familiarity (\"loved your post\" when none was read).\n"
              "- No \"I hope this finds you well\".\n- No claims without proof above.\n"
              "- Never name competitors.",
 }
+DEMO_OFFERS = [
+    ({"name": "Founder coaching",
+      "offer_line": "I coach founders who still do all the selling, so sales stops "
+                    "depending on their calendar.",
+      "icp": {"industries": ["b2b-saas", "analytics"], "fte": [5, 40],
+              "salespeople": [0, 0], "countries": ["DE", "NL", "GB", "IE", "SE"],
+              "funding": ["bootstrapped", "seed"],
+              "signals": ["founder-still-sells", "first-sales-hire-planned"]},
+      "disqualifiers": [{"tag_present": ["customer", "do-not-contact"]}],
+      "personas": {"founder": {"titles": ["CEO", "Founder", "Co-Founder",
+                                          "Managing Director"]}}},
+     {**_DEMO_SHARED,
+      "offer": "Two hours a week for three months: we turn how you sell into a "
+               "written process and get you ready for your first sales hire.\n"
+               "Fixed monthly fee. I do not sell for you.",
+      "personas": "- founder: closes every deal personally and has no time to build "
+                  "a team. Cares about getting time back; ignores tooling talk.",
+      "proof": "- A made-up example: a 12-person software company closed its first "
+               "deal without the founder in the room after eight weeks.",
+      "disqualifiers": "- They want someone to sell for them (lead generation, "
+                       "cold calling).",
+      "lessons": {"worked": "- A question about who closes deals today got the most "
+                            "replies (made-up example).",
+                  "open": "- Whether German founders prefer email or LinkedIn."}}),
+    ({"name": "Scaling the sales team",
+      "offer_line": "I work as your fractional Head of Sales: part-time, no minimum term.",
+      "icp": {"industries": ["b2b-saas", "robotics", "analytics"], "fte": [10, 150],
+              "salespeople": [1, 8], "countries": ["DE", "NL", "GB", "IE", "SE"],
+              "funding": ["seed", "series-a"],
+              "signals": ["no-sales-leader", "hiring-sales"]},
+      "disqualifiers": [{"title_present": ["Head of Sales", "VP Sales", "CRO"]},
+                        {"tag_present": ["customer", "do-not-contact"]}],
+      "personas": {"founder": {"titles": ["CEO", "Founder", "Co-Founder",
+                                          "Managing Director"]},
+                   "sales-lead": {"titles": ["Sales Lead", "Senior Account Executive",
+                                             "Account Executive"]}}},
+     {**_DEMO_SHARED,
+      "offer": "Two days a week I run sales for you: pipeline reviews, coaching your "
+               "salespeople, a repeatable process and the hire of a full-time sales "
+               "leader when you are ready.\nMonthly fee, cancel any month. I do not "
+               "run lead generation or cold calling for you.",
+      "personas": "- founder: still manages the salespeople and has no time for it. "
+                  "Cares about growth without a costly senior hire.\n- sales-lead: "
+                  "the first salesperson, without a manager to learn from. Cares "
+                  "about a clear process and coaching.",
+      "proof": "- A made-up example: a 30-person software company doubled its "
+               "qualified pipeline in two quarters.\n- Another made-up example: the "
+               "first two salespeople reached quota in their fourth month.",
+      "disqualifiers": "- A sales leader starts in the next three months.",
+      "lessons": {"failed": "- Asking for a meeting in the first message (made-up "
+                            "example)."}}),
+]
+# A new folder's playbook: the general notes without the old "What worked"
+# list, which every offer now has as its Lessons.
+NEW_MESSAGING = MESSAGING.split("## What worked")[0].rstrip("\n") + "\n"
 
 
 def new_playbook(demo: bool = False) -> str:
-    """MESSAGING.md for a new folder: the playbook with the outreach bot's front
-    matter and headings; filled with the made-up offer in a demo folder."""
+    """MESSAGING.md for a new folder: the general notes plus one empty offer;
+    in a demo folder the two made-up offers, filled in."""
     from . import playbook
 
+    text = playbook.upgrade_text(NEW_MESSAGING)
     if not demo:
-        return playbook.upgrade_text(MESSAGING)
-    return playbook.apply(MESSAGING, DEMO_PLAYBOOK_FRONT, DEMO_PLAYBOOK_SECTIONS)
+        return text
+    first = playbook.parse(text).offers[0].name
+    for i, (front, sections) in enumerate(DEMO_OFFERS):
+        if i == 0:
+            text = playbook.apply_offer(text, first, front, sections)
+        else:
+            text = playbook.add_offer(text, front["name"])
+            text = playbook.apply_offer(text, front["name"], front, sections)
+    return text
 
 
 # ------------------------------------------------------------------- init

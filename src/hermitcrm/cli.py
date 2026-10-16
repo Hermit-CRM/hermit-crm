@@ -1519,18 +1519,21 @@ def cmd_playbook(root: Path, action: str = "status", dry_run: bool = False,
     pb = playbook.load(root)
     if not pb.exists:
         return (f"No {playbook.FILENAME} in this folder.", 1)
+    found = playbook.gaps(pb)
+    if "" in found:
+        return ("The outreach bot will not run yet: " + "; ".join(found[""]) + ".", 1)
     lines = []
-    if not pb.has_front:
-        lines.append(f"{playbook.FILENAME} is not set up for the outreach bot yet: "
-                     "`hermitcrm playbook upgrade` adds what it needs and keeps every line.")
-    filled = playbook.completeness(pb)
-    lines.append(f"Filled: {sum(ok for _, ok in filled)} of {len(filled)} "
-                 f"({', '.join(label for label, ok in filled if ok) or 'nothing yet'}).")
-    gaps = playbook.missing(pb)
-    if gaps:
-        lines.append("The outreach bot will not run yet. Missing: " + "; ".join(gaps) + ".")
+    for offer in pb.offers:
+        filled = playbook.completeness(offer)
+        missing = found.get(offer.name) or []
+        lines.append(f"{offer.name}: {sum(ok for _, ok in filled)} of {len(filled)} parts "
+                     f"filled; " + ("ready." if not missing else
+                                    "not ready, missing " + "; ".join(missing) + "."))
+    ready = playbook.ready_offers(pb)
+    if not ready:
+        lines.append("The outreach bot will not run yet: no offer is ready.")
         return ("\n".join(lines), 1)
-    lines.append("Ready for the outreach bot.")
+    lines.append("Ready for the outreach bot: " + ", ".join(o.name for o in ready) + ".")
     return ("\n".join(lines), 0)
 
 
