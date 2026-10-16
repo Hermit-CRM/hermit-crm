@@ -2589,7 +2589,8 @@ def create_app(root: Path, config: dict | None = None,
         return flashed(back, f"Merged {drop} into {cslug}")
 
     @app.post("/companies/{slug}/stage")
-    def company_stage(request: Request, slug: str, stage: str = Form("")):
+    def company_stage(request: Request, slug: str, stage: str = Form(""),
+                      back: str = Form("")):
         company = need_company(slug)
         if store.stages.requires_reason(stage) and company.stage != stage:
             # A lost stage needs a reason: send the user to the form instead.
@@ -2602,7 +2603,8 @@ def create_app(root: Path, config: dict | None = None,
             store.update_company(slug, stage=stage)
         except ValidationError as exc:
             return flashed(f"/companies/{slug}", "; ".join(exc.errors.values()))
-        return goto("/")
+        # Back to the board it was moved on, filters kept: "/" is Home now.
+        return goto(safe_back(back, "/pipeline"))
 
     # --------------------------------------------------------------- contacts
 
