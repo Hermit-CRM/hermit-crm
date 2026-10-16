@@ -19,6 +19,7 @@ from __future__ import annotations
 import re
 import subprocess
 from datetime import datetime
+from urllib.parse import urlparse
 
 from hermitcrm import outreach, scrape
 from hermitcrm.cli import _writer
@@ -80,7 +81,8 @@ def default_draft(prompt):
 
 
 def fake_page(url: str) -> str:
-    if "linkedin.com" in url:
+    host = (urlparse(url).hostname or "").lower()
+    if host == "linkedin.com" or host.endswith(".linkedin.com"):
         raise scrape.ScrapeError("LinkedIn refused the anonymous request (HTTP 999); use "
                                  "the company website instead")
     return (f"<html lang='en'><head><title>Home | {url}</title>"
