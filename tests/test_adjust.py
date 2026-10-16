@@ -175,6 +175,8 @@ CASES = [
     ("claude", "é" * 240, "", ""),
     ("claude", "é" * 246, "", ""),
     ("nonsense", "x", "", ""),
+    ("claude", "Add to this dashboard (dashboards/monday-review.toml): [the deals by stage].",
+     "Monday review", "/d/monday-review"),
 ]
 
 
@@ -213,6 +215,8 @@ def test_the_script_and_the_module_share_their_constants():
     ("/contacts", "contacts"), ("/pipeline", "pipeline"), ("/tasks", "tasks"),
     ("/messages", "messages"), ("/reports", "reports"), ("/calendar", "calendar"),
     ("/settings", "settings"), ("/help/cli", "other"), ("/yours", "other"),
+    ("/d/monday-review", "dashboard"), ("/d/monday-review?tab=adjust", "dashboard"),
+    ("/d", "other"), ("/d/", "other"),
 ])
 def test_page_kinds(path, kind):
     assert adjust.page_kind(path) == kind
@@ -255,6 +259,40 @@ def test_starters_speak_the_users_data(demo):
     company = store.get("northwind-robotics")
     page = adjust.prefill(store, defs, {}, company=company)
     assert page["company_tag"] == company.tags[0]
+
+
+def test_dashboard_starters_name_the_file_and_fall_back_elsewhere():
+    values = {**adjust.DEFAULTS, "dashboard": "pipeline-health",
+              "dashboard_file": "dashboards/pipeline-health.toml"}
+    shown = adjust.starters_for("dashboard", values)
+    assert [s["id"] for s in shown] == ["dashboard-widget", "dashboard-change", "dashboard-pin",
+                                        "dashboard-copy"]
+    for s in shown:
+        assert "dashboards/pipeline-health.toml" in s["text"]
+    assert shown[0]["changes_file"] == "dashboards/pipeline-health.toml"
+    # without the page's slug (any other page) the slot falls back to DEFAULTS
+    plain = {k: v for k, v in adjust.DEFAULTS.items() if not k.startswith("dashboard")}
+    fallback = adjust.starter("dashboard-widget", plain)
+    assert "{" not in fallback["text"] and "dashboards/" in fallback["text"]
+    # "this dashboard" means nothing on the hub
+    assert not any(s["id"].startswith("dashboard-widget") for s in adjust.gallery(values))
+    for s in shown:
+        prompt = adjust.handoff("claude", FOLDER, s["text"], "Monday review",
+                                "/d/pipeline-health")
+        assert prompt["link"] and not prompt["too_long"]
+
+
+def test_the_adjust_tab_on_a_dashboard_offers_changes_to_it(demo):
+    app, client = make(demo)
+    text = client.get("/d/monday-review").text
+    tab = text.split('class="starters"', 1)[1].split("</div>", 1)[0]
+    assert "Add to this dashboard (dashboards/monday-review.toml)" in tab
+    assert "rename it to" in tab and "Make a copy of this dashboard" in tab
+    assert "Make a dashboard called" not in tab          # not "A Monday dashboard"
+    # a dashboard that does not exist has nothing to change
+    missing = client.get("/d/nothing-here")
+    tab = missing.text.split('class="starters"', 1)[1].split("</div>", 1)[0]
+    assert missing.status_code == 404 and "Add to this dashboard" not in tab
 
 
 # --------------------------------------------------------------------- hub
