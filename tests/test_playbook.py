@@ -545,3 +545,129 @@ def test_check_hints_at_a_range_on_a_field_the_folder_does_not_have(tmp_path):
         '[[field]]\nkey = "employees"\ntype = "number"\n', encoding="utf-8")
     assert playbook.check_lines(tmp_path) == ([], [])
     assert playbook.range_fields(tmp_path) == [("employees", "employees")]
+
+
+# ------------------------------------------------- saving keeps what you wrote
+
+HANDWRITTEN = """---
+approaches:
+  - name: Clinic software
+    offer_line: We build booking software for clinics.
+    icp: {industries: [healthcare]}
+    disqualifiers:
+      - tag_present: [competitor]
+      - country_in: [US]
+    personas:
+      Practice Lead: {titles: [Practice Manager], pains: [no-shows]}
+    examples: [{who: a made-up clinic, url: "https://clinic.example.com"}]
+---
+# Approach: Clinic software
+
+## Proof
+
+<!-- private: ask Dr. Example before naming them -->
+
+- A made-up clinic cut no-shows by a third.
+
+## Lessons
+
+My own intro line about what we learnt.
+
+### Worked
+
+- Short mails.
+
+### Notes from last year
+
+- Phone calls on Fridays.
+"""
+
+
+def test_saving_the_form_unchanged_keeps_every_byte():
+    """Comments, text under Lessons outside its three parts and an extra ###
+    part are not in the boxes, so an unchanged box must not rewrite them."""
+    text = playbook.upgrade_text(HANDWRITTEN)
+    approach = playbook.parse(text).approach("Clinic software")
+    new, errors = playbook.save_form(text, "Clinic software", playbook.form_values(approach))
+    assert errors == {} and new == text
+
+
+def test_saving_one_box_keeps_the_comments_and_the_rest_of_lessons():
+    text = playbook.upgrade_text(HANDWRITTEN)
+    approach = playbook.parse(text).approach("Clinic software")
+    values = {**playbook.form_values(approach),
+              "section_proof": "- Two made-up clinics cut no-shows.",
+              "lessons_worked": "- Short mails on Tuesdays."}
+    new, errors = playbook.save_form(text, "Clinic software", values)
+    assert errors == {}
+    for kept in ("<!-- private: ask Dr. Example before naming them -->",
+                 "My own intro line about what we learnt.",
+                 "### Notes from last year\n\n- Phone calls on Fridays.\n"):
+        assert kept in new, kept
+    saved = playbook.parse(new).approach("Clinic software")
+    assert saved.section("proof") == "- Two made-up clinics cut no-shows."
+    assert saved.lessons()["worked"] == "- Short mails on Tuesdays."
+    assert "- A made-up clinic cut no-shows by a third." not in new
+
+
+def test_saving_keeps_personas_disqualifiers_and_keys_the_form_does_not_show():
+    text = playbook.upgrade_text(HANDWRITTEN)
+    approach = playbook.parse(text).approach("Clinic software")
+    values = {**playbook.form_values(approach), "offer_line": "We build clinic booking."}
+    new, errors = playbook.save_form(text, "Clinic software", values)
+    assert errors == {}
+    saved = playbook.parse(new)
+    assert saved.error == ""
+    front = saved.approach("Clinic software").front
+    assert front["personas"] == {"Practice Lead": {"titles": ["Practice Manager"],
+                                                   "pains": ["no-shows"]}}
+    assert {"country_in": ["US"]} in front["disqualifiers"]
+    assert front["examples"] == [{"who": "a made-up clinic", "url": "https://clinic.example.com"}]
+
+
+def test_the_front_matter_always_reads_back_as_written():
+    front = {"approaches": [{"name": "X", "disqualifiers": [{"tag_present": ["a", "b"]}],
+                             "examples": [{"who": "x", "url": "y"}], "one": [{"k": "v, w: z"}]}]}
+    text = playbook.dump_front(front)
+    assert "- tag_present: [a, b]" in text
+    assert playbook.parse_front(text) == front
+
+
+def test_a_persona_name_in_any_script_can_be_saved():
+    front, _, errors = playbook.from_form({"name": "X", "personas": "営業: 部長"})
+    assert errors == {} and front["personas"] == {"営業": {"titles": ["部長"]}}
+
+
+def test_a_name_with_a_hash_in_it_works_and_a_closing_hash_is_refused():
+    text = playbook.add_approach(FILLED, "Training C#")
+    assert playbook.upgrade_text(text) == text  # the block is found: nothing added twice
+    pb = playbook.parse(text)
+    assert pb.approach("Training C#").block.startswith("# Approach: Training C#")
+    values = {**playbook.form_values(pb.approach("Training C#")), "offer_line": "We teach C#."}
+    new, errors = playbook.save_form(text, "Training C#", values)
+    assert errors == {} and playbook.parse(new).approach("Training C#").offer_line == "We teach C#."
+    assert "Clinic software" in [a.name for a in playbook.parse(
+        playbook.delete_approach(new, "Training C#")).approaches]
+    with pytest.raises(playbook.PlaybookError):
+        playbook.add_approach(FILLED, "Training #")
+
+
+def test_a_missing_block_is_an_error_not_a_crash():
+    text = FILLED.replace("# Approach: Clinic software", "# Something else")
+    # upgrade adds the block again, so a save still works...
+    assert playbook.parse(playbook.upgrade_text(text)).approach("Clinic software").block
+    # ...and a body edited between reading and writing fails with a reason.
+    with pytest.raises(playbook.PlaybookError, match="heading was not found"):
+        playbook._block_span("", "Clinic software")
+
+
+def test_check_and_upgrade_on_a_front_matter_that_is_not_ours(tmp_path):
+    folder = init_folder(tmp_path / "crm")
+    (folder / "MESSAGING.md").write_text("---\ntitle: my notes\n---\nbody\n", encoding="utf-8")
+    problems, hints = playbook.check_lines(folder)
+    assert problems == [] and "without `approaches:`" in hints[0]
+    (folder / "MESSAGING.md").write_text("---\nSome notes\n\n---\n\nmore: [\n", encoding="utf-8")
+    assert playbook.check_lines(folder)[0] == []
+    (folder / "MESSAGING.md").write_text("---\napproaches: [\n---\nbody\n", encoding="utf-8")
+    assert playbook.check_lines(folder)[0], "a broken playbook front matter is a problem"
+    assert "cannot be read" in playbook.upgrade(folder)

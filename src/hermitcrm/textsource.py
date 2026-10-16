@@ -34,6 +34,7 @@ from xml.etree import ElementTree
 from hermitcrm import scrape
 
 MAX_FILE_BYTES = 15 * 1024 * 1024
+MAX_XML_BYTES = 20 * 1024 * 1024  # a .docx unpacked: a small zip can hold gigabytes
 MAX_PAGES = 5            # the home page and up to four more
 MAX_CHARS = 30000        # what the playbook prompt takes at most
 
@@ -151,13 +152,26 @@ def read_website(url: str, fetcher=scrape.fetch) -> str:
 
 def _docx_text(data: bytes) -> str:
     ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    unreadable = SourceError("this is not a Word file Hermit CRM can read (.docx); "
+                             "save it as .docx or PDF, or paste the text")
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as z:
-            xml = z.read("word/document.xml")
-    except (zipfile.BadZipFile, KeyError):
-        raise SourceError("this is not a Word file Hermit CRM can read (.docx); "
-                          "save it as .docx or PDF, or paste the text") from None
-    root = ElementTree.fromstring(xml)
+            if z.getinfo("word/document.xml").file_size > MAX_XML_BYTES:
+                raise SourceError("this Word file is too large to read; save it as PDF, "
+                                  "or paste the text")
+            with z.open("word/document.xml") as f:
+                xml = f.read(MAX_XML_BYTES + 1)
+        if len(xml) > MAX_XML_BYTES:  # the size in the zip lied
+            raise SourceError("this Word file is too large to read; save it as PDF, "
+                              "or paste the text")
+        root = ElementTree.fromstring(xml)
+    except SourceError:
+        raise
+    except (zipfile.BadZipFile, KeyError, ElementTree.ParseError, RuntimeError,
+            NotImplementedError, EOFError, OSError, ValueError, zipfile.LargeZipFile):
+        # Not a zip, no document in it, broken XML, encrypted or packed in a
+        # way zipfile does not know.
+        raise unreadable from None
     paragraphs = []
     for p in root.iter(f"{ns}p"):
         text = "".join(t.text or "" for t in p.iter(f"{ns}t"))
@@ -178,8 +192,13 @@ def _pdf_text(data: bytes) -> str:
         if reader.is_encrypted:
             raise SourceError("this PDF is password-protected; paste its text instead")
         pages = [(page.extract_text() or "").strip() for page in reader.pages[:60]]
+    except SourceError:
+        raise
     except PdfReadError as exc:
         raise SourceError(f"this PDF cannot be read ({exc}); paste its text instead") from None
+    except Exception as exc:  # noqa: BLE001 -- pypdf raises many kinds on a broken file
+        raise SourceError(f"this PDF cannot be read ({type(exc).__name__}); "
+                          "paste its text instead") from None
     text = "\n\n".join(p for p in pages if p)
     if not text.strip():
         raise SourceError("this PDF has no text in it (a scan or only images); "
