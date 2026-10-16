@@ -19,7 +19,7 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Hermit CRM: A CRM for one. Free for Mac and Linux, Apache 2.0.">
-<meta property="article:modified_time" content="2026-10-09">
+<meta property="article:modified_time" content="2026-10-16">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#F5F1E8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#1C1B18" media="(prefers-color-scheme: dark)">
@@ -40,7 +40,7 @@
    "name": "Hermit CRM docs: every feature, for people and AI agents",
    "description": "How every part of Hermit CRM works: pipeline, contacts, mail capture, reports, the CLI, the MCP server and how your AI agent can change it.",
    "inLanguage": "en",
-   "version": "0.7.0",
+   "version": "0.7.5",
    "isPartOf": {
     "@id": "https://hermitcrm.io/#website"
    },
@@ -55,7 +55,7 @@
     "encodingFormat": "text/plain",
     "contentUrl": "https://hermitcrm.io/llms-full.txt"
    },
-   "dateModified": "2026-10-09"
+   "dateModified": "2026-10-16"
   },
   {
    "@type": "BreadcrumbList",
@@ -83,7 +83,7 @@
    "description": "Hermit CRM is a free, open-source CRM for founders, freelancers and anyone doing their own sales. It runs on your Mac or Linux computer and keeps every company, contact and conversation as a Markdown file in a git folder on your own disk. A local web app gives you a pipeline board, a calendar of next steps, message drafts and reports. AI tools such as Claude Code, Codex or Claude Desktop can read and update the pipeline through the files, a small CLI or the built-in MCP server. It is alpha software under the Apache License 2.0, with no warranty and no support.",
    "applicationCategory": "BusinessApplication",
    "operatingSystem": "macOS, Linux",
-   "softwareVersion": "0.7.0",
+   "softwareVersion": "0.7.5",
    "license": "https://www.apache.org/licenses/LICENSE-2.0",
    "isAccessibleForFree": true,
    "softwareHelp": {
@@ -121,7 +121,7 @@
     <nav class="crumbs" aria-label="Breadcrumb"><ol><li><a href="../">Hermit CRM</a></li><li aria-current="page">Hermit CRM docs</li></ol></nav>
     <h1 class="page-h1">Hermit CRM docs</h1>
     <p class="lead">The same pages as Help inside the app and <code>hermitcrm help &lt;topic&gt;</code> on the command line: how each part of Hermit CRM works, written for people and for the AI agents that work in your data folder.</p>
-    <p class="checked">For version 0.7.0, <time datetime="2026-10-09">9 October 2026</time>. All of it as one Markdown file: <a href="../llms-full.txt">llms-full.txt</a>.</p>
+    <p class="checked">For version 0.7.5, <time datetime="2026-10-16">16 October 2026</time>. All of it as one Markdown file: <a href="../llms-full.txt">llms-full.txt</a>.</p>
   </div>
 
   <nav class="docs-toc col" id="contents" aria-labelledby="contents-h">
@@ -175,6 +175,8 @@
 <p>One box per column, as on the Companies page: due, what, type (once you have task types), for (the company or person the task is for), company, stage, status and done on. The page shows open tasks until you pick a status; choose <code>done</code> (or both) to see finished ones with the day they were done. Filters, date buttons and sorting stay in the URL, so a view can be bookmarked, and <strong>Done</strong> brings you back to the same view.</p>
 <h3 id="tasks-adding-a-task">Adding a task</h3>
 <p><strong>Create task</strong> at the bottom takes a company (by name), an optional person (first name, last name or full name) and a due date. On a company page, <strong>Add task</strong> does the same with a list of its people.</p>
+<h3 id="tasks-changing-a-task">Changing a task</h3>
+<p><strong>Edit</strong> in a task&#x27;s row opens its text and due date; change either and <strong>Save</strong>. Clearing the date leaves the task undated. Changing a date can change which task is the next step. Done tasks have no Edit button: reopen one first. To change who a task is for, delete it and add it again.</p>
 <p>Related: <a href="#companies">Companies</a>, <a href="#calendar">Calendar</a></p>
   <p class="doc-up"><a href="#contents">Back to contents</a></p>
   </section>
@@ -225,9 +227,9 @@
   </section>
   <section class="doc" aria-labelledby="interactions">
 <h2 id="interactions">Interactions</h2>
-<p>An interaction is one touch with a person: an email, LinkedIn message, call or meeting, in or out, with the text kept verbatim. A <strong>note</strong> is an interaction too: a memo about the person, with no direction, that shows on their timeline but never counts as contact made (it does not move last touch, a prospect&#x27;s stage, follow-ups, outcomes or reports).</p>
+<p>An interaction is one touch with a person: an email, LinkedIn message, call, WhatsApp message or meeting, in or out, with the text kept verbatim. A <strong>note</strong> is an interaction too: a memo about the person, with no direction, that shows on their timeline but never counts as contact made (it does not move last touch, a prospect&#x27;s stage, follow-ups, outcomes or reports).</p>
 <h3 id="interactions-logging-one">Logging one</h3>
-<p>An interaction is always with a person, so the <strong>Log an interaction</strong> form sits on every contact page (the &quot;log&quot; link in a company&#x27;s contact list goes there), and on its own at <code>/companies/&lt;slug&gt;/interactions/new</code> where you pick the contact (the &quot;log interaction&quot; links on the Calendar open it). Fields: channel (<code>email</code>, <code>linkedin</code>, <code>call</code>, <code>meeting</code>, <code>note</code>, default linkedin), direction (<code>out</code> or <code>in</code>, default out; hidden for a note), date and time (default now, editable), subject, outcome and the body. The body is the pasted message or the call notes; it is stored byte for byte and never rewritten.</p>
+<p>An interaction is always with a person, so the <strong>Log an interaction</strong> form sits on every contact page (the &quot;log&quot; link in a company&#x27;s contact list goes there), and on its own at <code>/companies/&lt;slug&gt;/interactions/new</code> where you pick the contact (the &quot;log interaction&quot; links on the Calendar open it). Fields: channel (a dropdown: <code>email</code>, <code>linkedin</code>, <code>call</code>, <code>whatsapp</code>, <code>meeting</code>, <code>note</code>, default linkedin), direction (<code>out</code> or <code>in</code>, default out; hidden for a note), date and time (default now, editable), subject, outcome and the body. The body is the pasted message or the call notes; it is stored byte for byte and never rewritten.</p>
 <p>Logging an interaction (by hand or from the BCC and calendar imports) on a company in <strong>prospect</strong> moves it to <strong>engaged</strong>, in the same commit; a note does not. Other stages are left alone.</p>
 <p>Saving redirects to the contact&#x27;s page with the timeline scrolled to the new entry. Each entry has an edit link (<code>/companies/&lt;slug&gt;/interactions/&lt;id&gt;/edit</code>) where every field including the date can change; a date change renames the file.</p>
 <h3 id="interactions-outcome">Outcome</h3>
@@ -519,7 +521,7 @@ hermitcrm backup guard                     block history-rewriting git commands 
 hermitcrm add contact SLUG NAME [--title T] [--email E] [--phone P] [--role R] [--notes N]
                                         create a contact under a company; the name is split into first and last;
                                         --notes is logged as a note interaction on them
-hermitcrm add interaction SLUG --channel email|linkedin|call|meeting|note --direction in|out (not for a note)
+hermitcrm add interaction SLUG --channel email|linkedin|call|whatsapp|meeting|note --direction in|out (not for a note)
                                         [--contact CSLUG] [--subject S] [--date D] [--body TEXT|-]
                                         log an interaction; --body - reads it from stdin, and a prospect becomes engaged
                                         (the first open stage moves to the next)
@@ -670,7 +672,7 @@ columns = [&quot;name&quot;, &quot;stage&quot;, &quot;fit_score&quot;, &quot;cou
 <h3 id="data-format-contact-contacts-slug-md">Contact (<code>contacts/&lt;slug&gt;.md</code>)</h3>
 <p><code>first_name</code>, <code>last_name</code> (at least one), <code>slug</code>, <code>title</code>, <code>linkedin</code>, <code>email</code> (lower case), <code>phone</code>, <code>role</code> (champion, decision-maker, influencer, gatekeeper or empty), <code>created</code>, <code>updated</code>. No body since format 7: notes on a person are note interactions (<code>hermitcrm check</code> lists a body written by hand). A file that still has a single <code>name</code> key is read by splitting on the first space and rewritten with both keys on its next save.</p>
 <h3 id="data-format-interaction-interactions-id-md">Interaction (<code>interactions/&lt;id&gt;.md</code>)</h3>
-<p><code>date</code> (datetime), <code>channel</code> (email, linkedin, call, meeting, note), <code>direction</code> (out, in; empty for a note), <code>contact</code> (contact slug; empty only in older or imported files), <code>subject</code>, <code>outcome</code> (one line; see the configured outcomes), <code>result</code> (legacy: success, unsuccessful or empty), <code>source</code> (manual, bcc-import, calendar-import, migration), <code>message_id</code> (imports only: the mail&#x27;s Message-ID, or <code>ical:&lt;UID&gt;:&lt;RECURRENCE-ID&gt;:&lt;attendee&gt;</code> for a meeting). Body: the message or notes verbatim. Id: <code>YYYY-MM-DDTHHMM-&lt;channel&gt;-&lt;direction&gt;-&lt;contact or company&gt;</code> (a note: <code>YYYY-MM-DDTHHMM-note-&lt;contact&gt;</code>), <code>-2</code>, <code>-3</code> on collision. A note is a memo, not a touch: it never moves last touch, outcomes, follow-ups or reports.</p>
+<p><code>date</code> (datetime), <code>channel</code> (email, linkedin, call, whatsapp, meeting, note), <code>direction</code> (out, in; empty for a note), <code>contact</code> (contact slug; empty only in older or imported files), <code>subject</code>, <code>outcome</code> (one line; see the configured outcomes), <code>result</code> (legacy: success, unsuccessful or empty), <code>source</code> (manual, bcc-import, calendar-import, migration), <code>message_id</code> (imports only: the mail&#x27;s Message-ID, or <code>ical:&lt;UID&gt;:&lt;RECURRENCE-ID&gt;:&lt;attendee&gt;</code> for a meeting). Body: the message or notes verbatim. Id: <code>YYYY-MM-DDTHHMM-&lt;channel&gt;-&lt;direction&gt;-&lt;contact or company&gt;</code> (a note: <code>YYYY-MM-DDTHHMM-note-&lt;contact&gt;</code>), <code>-2</code>, <code>-3</code> on collision. A note is a memo, not a touch: it never moves last touch, outcomes, follow-ups or reports.</p>
 <h3 id="data-format-stage-history">Stage history</h3>
 <p><code>stage_history</code> is append-only, one map per stage change made through Hermit CRM: <code>{date: YYYY-MM-DD, from: &lt;stage&gt;, to: &lt;stage&gt;, reason: &lt;text&gt;}</code> (<code>reason</code> omitted when empty; <code>from</code> is <code>&#x27;&#x27;</code> for the stage a company was created in when that was not the entry stage, the first open one: <code>prospect</code> by default). A stage renamed in Settings is renamed in every entry. Merging combines both lists by date. It feeds the funnel, time in stage and closing dates on the Reports page. <code>hermitcrm backfill-history</code> reconstructs it from git for older companies.</p>
 <h3 id="data-format-slugs">Slugs</h3>
@@ -1132,7 +1134,7 @@ columns = [&quot;name&quot;, &quot;company_name&quot;, &quot;title&quot;, &quot;
 <p>Every value is a list of names in quotes.</p>
 <h3 id="adjust-layout-sections">Sections</h3>
 <p><code>sections</code> puts the sections you list first, in that order. <strong>Sections you do not list are not hidden</strong>: they follow in their default order. Only <code>hide_sections</code> hides a section. So a section that a later Hermit CRM adds always shows up. The page header (the name, the line under it, the stage and Disqualify) always stays on top and is not a section.</p>
-<div class="docs-table"><table><thead><tr><th>Page</th><th>Section names, in their default order</th></tr></thead><tbody><tr><td><code>[company]</code></td><td><code>enrich</code> (the Enrich and Fetch from URL buttons), <code>next-step</code> (the next step line), <code>details</code> (the edit form), <code>contacts</code>, <code>tasks</code>, <code>drafts</code> (message drafts), <code>merge</code>, <code>timeline</code></td></tr><tr><td><code>[contact]</code></td><td><code>details</code> (the edit form), <code>timeline</code> (interactions), <code>quick-add</code> (Log an interaction), <code>tasks</code>, <code>drafts</code>, <code>merge</code> (only shown when the company has two or more people), <code>delete</code></td></tr><tr><td><code>[home]</code></td><td><code>doing</code> (What needs doing), <code>to-file</code> (To file, only while there is something to file), <code>owed</code> (Replies you owe, only when you owe some), <code>going</code> (How it is going)</td></tr></tbody></table></div>
+<div class="docs-table"><table><thead><tr><th>Page</th><th>Section names, in their default order</th></tr></thead><tbody><tr><td><code>[company]</code></td><td><code>enrich</code> (the Enrich and Fetch from URL buttons), <code>next-step</code> (the next step line), <code>details</code> (the edit form), <code>contacts</code>, <code>tasks</code>, <code>drafts</code> (message drafts), <code>merge</code>, <code>timeline</code></td></tr><tr><td><code>[contact]</code></td><td><code>details</code> (the fields, with an Edit button), <code>tasks</code>, <code>quick-add</code> (Log an interaction), <code>timeline</code> (interactions), <code>drafts</code>, <code>merge</code> (only shown when the company has two or more people), <code>delete</code>. Merge and delete always sit in the closed More box at the bottom; their order applies inside it.</td></tr><tr><td><code>[home]</code></td><td><code>doing</code> (What needs doing), <code>to-file</code> (To file, only while there is something to file), <code>owed</code> (Replies you owe, only when you owe some), <code>going</code> (How it is going)</td></tr></tbody></table></div>
 <p>On Home the layout applies once the folder has companies. The empty-folder start cards and the Getting started block do not move.</p>
 <h3 id="adjust-layout-fields">Fields</h3>
 <p><code>hide_fields</code> hides a field on that record&#x27;s page: the header line, the edit form and the New form. It also leaves the list: hidden company fields leave the Companies list and the Pipeline filters, hidden contact fields the Contacts list. A hidden country or value per month leaves the Pipeline cards, and a hidden value or one-liner the meeting brief on the Calendar. Reports, <code>PIPELINE.md</code>, the CLI and Ask still see every field.</p>
