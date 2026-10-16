@@ -895,3 +895,8 @@ details.more-box > summary { color: var(--muted); }
   .status-strip > div:nth-child(3) { border-left: 0; }
   .status-strip > div:nth-child(n+3) { border-top: 1px solid var(--line); }
 }
+
+/* Settings > Playbook: the completeness meter */
+.playbook-meter ul { list-style: none; padding-left: 0; columns: 3 12em; margin: 6px 0; }
+.playbook-meter meter { vertical-align: middle; width: 160px; margin-left: 8px; }
+.small.error { color: var(--danger); }
