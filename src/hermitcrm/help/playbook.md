@@ -168,4 +168,4 @@ the end, and keeps every line you had, byte for byte (your "What worked"
 notes included). Running it again changes nothing. Saving Settings > Playbook
 does the same and fills it in at once.
 
-Related: [Messages](/help/messages), [Adjust messages](/help/adjust-messages), [Settings](/help/settings), [Enrich](/help/enrich), [CLI](/help/cli)
+Related: [Outreach bot](/help/outreach), [Messages](/help/messages), [Adjust messages](/help/adjust-messages), [Settings](/help/settings), [Enrich](/help/enrich), [CLI](/help/cli)
