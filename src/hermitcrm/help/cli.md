@@ -44,6 +44,17 @@ hermitcrm playbook [status]                per approach: what the playbook has a
                                         `hermitcrm help playbook`
 hermitcrm playbook upgrade [--dry-run]     add the front matter and missing headings to MESSAGING.md,
                                         keeping every line; one commit, and a second run changes nothing
+hermitcrm outreach preview [--where K=V ...] [--contact CO/PERSON] [--channel email|linkedin]
+                         [--limit N] [--approach NAME]
+                                        who an outreach batch would go to, and why not the rest; no AI,
+                                        nothing written
+hermitcrm outreach build (same flags) [--research scrape]
+                                        research, draft and check each contact: one item per contact in
+                                        outreach/, one commit per step; refused until the playbook is ready
+hermitcrm outreach list [--state S]        every item, newest first
+hermitcrm outreach show ID                 one item in full: links, findings, flags, checks, the draft
+hermitcrm outreach ready ID [--anyway]     approve a draft (the checks run again on your text); never sent
+hermitcrm outreach skip ID --reason TEXT   drop an item and say why
 ```
 
 ## Backups

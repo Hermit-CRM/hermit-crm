@@ -560,6 +560,10 @@ def cmd_check(store: Store) -> tuple[str, int]:
     pb_problems, pb_hints = playbook.check_lines(store.root)
     stray += pb_hints
     extension += pb_problems
+    # The outreach bot's items (outreach/<id>.md): one that cannot be read is
+    # left out of every list, so it is said here.
+    from hermitcrm import outreach
+    extension += outreach.problems(store.root)
     if not store.problems and not extension:
         n_companies = len(store.companies)
         n_contacts = sum(len(c.contacts) for c in store.companies.values())
@@ -1496,6 +1500,38 @@ def _build_parser() -> argparse.ArgumentParser:
     pb_up.add_argument("--dry-run", action="store_true", help="print the result, write nothing")
     p_playbook.set_defaults(action="status", dry_run=False)
 
+    p_out = sub.add_parser("outreach", help="the outreach bot: pick a batch, research, "
+                           "draft and check; you review, send and log (never sent)")
+    o_sub = p_out.add_subparsers(dest="action")
+    for verb, text in (("preview", "who a batch would go to and why not the rest; no AI, "
+                                   "no writes"),
+                       ("build", "research and draft the batch: one checked item per "
+                                 "contact in outreach/, one commit per step")):
+        o = o_sub.add_parser(verb, help=text)
+        o.add_argument("--where", action="append", default=[],
+                       help="a list filter, e.g. 'stage=prospect' or 'fit_score=>60' "
+                            "(company keys, or contact.title=...; repeatable)")
+        o.add_argument("--contact", action="append", default=[],
+                       help="company/contact instead of a filter (repeatable)")
+        o.add_argument("--channel", choices=["email", "linkedin"], default="email")
+        o.add_argument("--kind", default="first-touch", help="draft type (first-touch)")
+        o.add_argument("--limit", type=int, default=None, help="batch size (default 10)")
+        o.add_argument("--approach", default="", help="the playbook approach to use")
+        if verb == "build":
+            o.add_argument("--research", default="", help="research level (scrape)")
+    o_list = o_sub.add_parser("list", help="every item, newest first")
+    o_list.add_argument("--state", default="", help="only items in this state")
+    o_sub.add_parser("show", help="one item in full: the card").add_argument("id")
+    o_ready = o_sub.add_parser("ready", help="approve a drafted item (checks run again on "
+                               "the text as it is now); nothing is sent")
+    o_ready.add_argument("id")
+    o_ready.add_argument("--anyway", action="store_true",
+                         help="approve even though a hard check still fails")
+    o_skip = o_sub.add_parser("skip", help="do not send this one, and say why")
+    o_skip.add_argument("id")
+    o_skip.add_argument("--reason", required=True)
+    p_out.set_defaults(action="list", state="")
+
     p_help = sub.add_parser("help", help="how a feature works (the web app's /help pages)")
     p_help.add_argument("topic", nargs="?", default="",
                         help="a topic; none prints the index and lists the topics")
@@ -1534,6 +1570,61 @@ def cmd_playbook(root: Path, action: str = "status", dry_run: bool = False,
         lines.append("The outreach bot will not run yet: no approach is ready.")
         return ("\n".join(lines), 1)
     lines.append("Ready for the outreach bot: " + ", ".join(o.name for o in ready) + ".")
+    return ("\n".join(lines), 0)
+
+
+def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
+                 drafter=None) -> tuple[str, int]:
+    """`hermitcrm outreach preview|build|list|show|ready|skip`."""
+    from hermitcrm import outreach, routines
+
+    action = args.action or "list"
+    try:
+        if action == "list":
+            lines = outreach.list_lines(root, getattr(args, "state", ""))
+            return ("\n".join(lines) or "No outreach items yet. See: hermitcrm outreach "
+                    "preview --where 'stage=prospect'", 0)
+        if action == "show":
+            item = outreach.get_item(root, args.id)
+            if item is None:
+                return (f"no outreach item {args.id!r} (hermitcrm outreach list)", 1)
+            return (outreach.render_item(store, item), 0)
+        if action == "ready":
+            item, found = outreach.mark_ready(store, args.id, anyway=args.anyway)
+            text = f"{item.id} is ready: send it yourself, then log it as usual. Not sent."
+            if found:
+                text += "\nApproved with problems:\n" + "\n".join(f"- {p}" for p in found)
+            return (text, 0)
+        if action == "skip":
+            item = outreach.skip(store, args.id, args.reason)
+            return (f"{item.id} skipped: {item.skip_reason}", 0)
+        selection = outreach.select(store, where=args.where, channel=args.channel,
+                                    kind=args.kind, limit=args.limit, approach=args.approach,
+                                    contacts=args.contact, config=config)
+        if action == "preview":
+            return (selection.render() + "\n\nPreview only: no AI was run and nothing "
+                    "was written.", 0)
+        if selection.gate:
+            return (selection.gate, 1)
+        outreach.research_level(config, getattr(args, "research", ""))  # refuses ai-web
+        if not selection.picked:
+            return (selection.render() + "\n\nNothing to build.", 0)
+        if researcher is None or drafter is None:
+            enricher = outreach.default_enricher(config)
+            if not enricher.available:
+                return (f"The AI CLI is not available: {enricher.unavailable_reason()}", 1)
+            blocked = routines.ai_problem(enricher)
+            if blocked:
+                return (f"Refused: {blocked}", 1)
+            researcher = researcher or outreach.ScrapeResearcher(
+                enricher, today=store.today(), timeout=float(config.get("fetch_timeout", 10)))
+            drafter = drafter or outreach.AIDrafter(store, enricher, config)
+        result = outreach.build(store, selection, researcher, drafter, config)
+    except outreach.OutreachError as exc:
+        return (str(exc), 1)
+    lines = result.lines + ["", f"{len(result.items)} item(s) in outreach/. Review them "
+                            "(hermitcrm outreach show <id>), then ready or skip. Nothing "
+                            "was sent."]
     return ("\n".join(lines), 0)
 
 
@@ -1748,6 +1839,14 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
         print(text)
         if writes:
             _reload_server(config)
+        return code
+
+    if args.command == "outreach":
+        config = load_config(root)
+        if args.action in ("build", "ready", "skip"):
+            store.on_write = _writer(store, root, config)
+        text, code = cmd_outreach(store, root, config, args)
+        print(text, file=sys.stderr if code else sys.stdout)
         return code
 
     if args.command == "sample":

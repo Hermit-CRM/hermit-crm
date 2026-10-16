@@ -108,6 +108,18 @@ DEFAULT_CONFIG = {
     # When the one-time disclaimer was ticked (hermitcrm/disclaimer.py).
     # Empty means it has not been; the web app shows it until it is.
     "disclaimer_accepted": "",
+    # The outreach bot (hermitcrm/outreach.py, `hermitcrm outreach`). Research:
+    # "scrape" (free: the website and LinkedIn pages, then one small AI call).
+    # A contact messaged within the cooldown is left out of a batch; batches
+    # go highest fit first by the company field outreach_fit_field, and the
+    # preview counts companies at or above outreach_high_fit never contacted.
+    "outreach_research": "scrape",
+    "outreach_cooldown_days": 30,
+    "outreach_fit_field": "fit_score",
+    "outreach_high_fit": 65,
+    "outreach_batch_size": 10,
+    # The angles a draft may take; the template angles only, so results compare.
+    "outreach_angles": ["scale", "unblock", "hook", "bridge", "decline"],
     "messaging_size_field": "fte_estimate",
     "messaging_team_field": "ae_count",
     "enrich_provider": "auto",
