@@ -212,7 +212,7 @@ person can correct them.
    - is a reply to interest and does **not contain the offer line** from the
      playbook (normalised whitespace; a translated offer line per language can
      be set in the playbook)
-   - contains a **calendar link** (calendly, cal.com, Google/Microsoft booking
+   - contains a **calendar link** (Calendly and similar scheduling services, Google/Microsoft booking
      URLs, a configurable list) or **proposes a time slot** (weekday + time,
      dates with times, "this week at") in a first touch, a reply to interest
      or a follow-up
