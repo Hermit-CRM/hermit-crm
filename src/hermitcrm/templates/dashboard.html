@@ -16,7 +16,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <input type="hidden" name="sha" value="{{ change.sha }}">
     <input type="hidden" name="back" value="{{ dashboard.url }}">
-    <button type="submit" class="link" title="A new commit that reverses this one">Undo</button>
+    <button type="submit" class="link-button" title="A new commit that reverses this one">Undo</button>
   </form>{% endif %} &middot; <a href="/yours#changes">All changes</a></div>{% endif %}
 {% if problems %}
 <div class="errors dashboard-problems">
