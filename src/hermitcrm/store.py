@@ -41,6 +41,7 @@ except ImportError:  # pragma: no cover
 from . import fields as fields_mod
 from .stages import DEFAULT_STAGES, StageSet
 from .models import (
+    Angle,
     Channel,
     Company,
     Contact,
@@ -49,6 +50,7 @@ from .models import (
     Direction,
     Interaction,
     InteractionSource,
+    normalise_angle,
     Role,
     Source,
     Task,
@@ -239,8 +241,8 @@ CONTACT_COPY_FIELDS = (
 CONTACT_MERGE_FIELDS = tuple(
     f for f in CONTACT_COPY_FIELDS if f not in ("slug", "created", "updated", "tasks"))
 INTERACTION_COPY_FIELDS = (
-    "id", "date", "channel", "direction", "contact", "subject", "outcome",
-    "source", "message_id", "body",
+    "id", "date", "channel", "direction", "contact", "subject", "angle", "approach",
+    "outcome", "source", "message_id", "body",
 )
 
 
@@ -1463,7 +1465,8 @@ class Store:
     @_locked
     def create_interaction(self, company_slug: str, channel, direction, subject="",
                            contact="", date=None, outcome="", body="",
-                           source="manual", message_id="", custom=None) -> Interaction:
+                           source="manual", message_id="", custom=None, angle="",
+                           approach="") -> Interaction:
         company = self._current(company_slug)
         if company is None:
             raise ValidationError({"company": f"unknown company {company_slug!r}"})
@@ -1484,6 +1487,8 @@ class Store:
             direction=direction,
             contact=contact,
             subject=subject,
+            angle=self._coerce_enum(normalise_angle(angle), Angle, "angle", True, ""),
+            approach=(approach or "").strip(),
             outcome=self._coerce_outcome(outcome),
             source=self._coerce_enum(source, InteractionSource, "source", False),
             message_id=(message_id or "").strip(),
@@ -1544,6 +1549,11 @@ class Store:
             new.contact = contact
         if "subject" in fields:
             new.subject = (fields["subject"] or "").strip()
+        if "angle" in fields:
+            new.angle = self._coerce_enum(normalise_angle(fields["angle"]), Angle, "angle",
+                                          True, "")
+        if "approach" in fields:
+            new.approach = (fields["approach"] or "").strip()
         if "outcome" in fields:
             new.outcome = self._coerce_outcome(fields["outcome"], old.outcome)
         if "body" in fields:
