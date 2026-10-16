@@ -5,7 +5,8 @@ Context: [00-overview](00-overview.md). Follows
 
 ## Draft
 
-The AI CLI runs with **no tools**. Input: draft type, playbook body, contact
+The AI CLI runs with **no tools**, on the **medium** model tier by default
+(Regenerate can ask for a stronger one). Input: draft type, playbook body, contact
 brief, findings, culture norms, up to 3 examples (from phase 4), channel rules.
 Output JSON: `subject`, `body`, `angle`, `findings_used`, `proof_used`. `angle`
 uses the interaction field's values (part 02). Language: the contact's draft
@@ -25,12 +26,11 @@ In `default_messages.toml` under a new `[outreach.<channel>]`, overridable in
 
 | Channel | Default rules |
 |---|---|
-| email | subject ≤ 60 chars, body ≤ 120 words, exactly one question, no attachments or links in a first touch; opt-out line for cold email |
+| email | subject ≤ 60 chars, body ≤ 120 words, exactly one question, no attachments or links in a first touch; opt-out line **optional** (wording set per folder in the playbook, not counted in the word limit; compulsory only in later auto mode) |
 | linkedin | connection note ≤ 300 chars (LinkedIn's limit), no pitch; the pitch goes in a separate message variant ≤ 600 chars, sent after they accept / to existing connections |
 
-**One variable at a time:** for the first weeks use only the template angles so
-results can be compared. An optional A/B setting drafts two angles for the same
-persona in a batch.
+**Angles:** the five template angles plus `custom` are allowed. A/B testing
+(two angles per persona in a batch) moved to phase 4 (part 06).
 
 ## Hard checks in `clean_answer`
 
@@ -38,7 +38,7 @@ Deterministic, no AI. A draft is refused and retried **once**, then shown with
 the problem marked, when it:
 
 - asks more or fewer than exactly one question (count of `?` outside quotes,
-  per language)
+  per language); a LinkedIn connection note may have zero or one
 - opens with "I" (or Ich, Ik, Je)
 - is a reply to interest without the playbook's offer line (normalised
   whitespace; a translated offer line per language can be set in the playbook)
@@ -46,7 +46,8 @@ the problem marked, when it:
   URLs, a configurable list) or proposes a time slot (weekday + time, dates
   with times, "this week at") in a first touch, reply to interest or follow-up
 - breaks the channel's length, cites a finding or proof line not in the input,
-  or leaves a `[ ]` gap the research could fill
+  or leaves any `[ ]` gap (exception: a fallback draft made without usable
+  findings keeps its gaps and the card says it needs hand edits)
 
 Each of these broke in real messages from late September; that is why they are
 rules, not suggestions. All draft types share them.
@@ -59,10 +60,22 @@ check results, timestamps. Body: the draft text, byte for byte. Each step is
 one commit (git history, can be undone).
 
 ```
-state: researching -> drafted -> ready
+state: researching -> drafted -> ready -> sent
                           \-> skipped (reason)
-                 (later)        ready -> sent -> logged
+                 (later, auto-log)  ready -> logged
 ```
+
+- **ready → sent** happens by itself when an outbound interaction to that
+  contact is logged after the item was marked ready (by hand, BCC import or the
+  extension: people also send from Gmail directly), or by `outreach sent` /
+  a "Mark sent" button, which changes only the state and logs nothing. Only
+  `sent` and `skipped` items stop counting as open.
+- **Ready despite a failed check** is allowed: the card shows a warning and the
+  failed check is stored for the quality report.
+- **Skip reasons** are a fixed list (`bad-fit`, `wrong-person`, `bad-timing`,
+  `bad-draft`, `already-in-contact`, `other`) plus optional free text. A
+  skipped contact returns to future batches after the cooldown, except
+  `bad-fit`, which excludes them until the item is changed.
 
 Every item also records, for the quality report (part 06): ready or skipped
 (and why), edit distance between AI draft and the text marked ready, research
@@ -75,7 +88,7 @@ level, model, time taken.
 
 ## CLI
 
-`hermitcrm outreach preview|build|list|show|ready|skip`, same flags as the page.
+`hermitcrm outreach preview|build|list|show|ready|sent|skip`, same flags as the page.
 The MCP server gets `outreach_list` and `outreach_show` later.
 
 ## Tests
