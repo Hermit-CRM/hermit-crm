@@ -46,7 +46,59 @@
   {% for t, label, count in tabs %}<a href="/outreach?tab={{ t }}"{% if t == tab %} aria-current="page" class="on"{% endif %}>{{ label }} ({{ count }})</a>{% if not loop.last %} &middot; {% endif %}{% endfor %}
 </nav>
 
-{% if not cards %}
+{% if tab == 'drafts' and replies_waiting %}
+<p class="small"><a href="/outreach?tab=replies">{{ replies_waiting }} repl{{ 'y' if replies_waiting == 1 else 'ies' }} to interest</a> wait{{ 's' if replies_waiting == 1 }} for an answer.</p>
+{% endif %}
+
+{% if tab == 'replies' %}
+<section class="outreach-replies">
+  <p class="small">Replies you owe an answer, from the follow-up radar. A reply logged with the outcome <strong>interested</strong> is listed as it is; for the others, <strong>Check replies</strong> asks your AI CLI once per reply (no web, no tools) and you confirm what it says. The draft offers your first step and asks one question: no time slot, link or price.</p>
+  <form method="post" action="/outreach/replies/check" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="secondary"{% if ai_problem or not replies_unchecked %} disabled{% endif %} title="{% if ai_problem %}{{ ai_problem }}{% else %}{{ replies_unchecked }} not checked yet{% endif %}">Check replies ({{ replies_unchecked }})</button>
+  </form>
+  {% if reply_rows %}
+  <ul class="outreach-reply-list">
+  {% for row in reply_rows %}{% set r = row.reply %}{% set it = r.interaction %}
+    <li id="reply-{{ it.id }}" class="outreach-reply{% if r.verdict == 'not-interested' %} quiet{% endif %}">
+      <p><a href="/companies/{{ r.company.slug }}/contacts/{{ r.contact.slug }}">{{ r.contact.name }}</a> <span class="small">{{ r.company.name }} &middot; {{ it.label }} &middot; {{ fmt_date(it.date) }}{% if r.days %}, {{ r.days }} day{{ "s" if r.days != 1 }} ago{% endif %}</span>
+      {% if r.logged %}<span class="tag">interested (logged)</span>
+      {% elif r.verdict == 'interested' and r.by == 'you' %}<span class="tag">interested (you)</span>
+      {% elif r.verdict == 'interested' %}<span class="tag">AI: interested?</span>
+      {% elif r.verdict %}<span class="tag">{{ r.verdict }}{% if r.by == 'you' %} (you){% else %} (AI){% endif %}</span>
+      {% else %}<span class="tag">not checked</span>{% endif %}</p>
+      <blockquote class="small">{% if it.subject %}<strong>{{ it.subject }}</strong><br>{% endif %}{{ (it.body or '') | truncate(400) }}</blockquote>
+      {% if r.why %}<p class="small">AI: {{ r.why }}</p>{% endif %}
+      <div class="draft-actions">
+      {% if r.interested %}
+        <form method="post" action="/outreach/build" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="contact" value="{{ r.record }}">
+          <input type="hidden" name="kind" value="reply-to-interest">
+          <input type="hidden" name="back" value="/outreach?tab=replies">
+          <select name="channel" aria-label="Reply channel">{% for c in channels %}<option value="{{ c }}"{% if c == it.channel %} selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+          <button type="submit"{% if gate or ai_problem %} disabled{% endif %}>Draft a reply</button>
+        </form>
+      {% endif %}
+      {% if not r.logged and (r.verdict != 'interested' or r.by != 'you') %}
+        <form method="post" action="/outreach/replies/confirm" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="reply" value="{{ r.key }}">
+          <button type="submit" name="answer" value="yes" class="secondary">{% if r.to_confirm %}Confirm: interested{% else %}Interested{% endif %}</button>
+          {% if r.verdict != 'not-interested' %}<button type="submit" name="answer" value="no" class="secondary">Not interested</button>{% endif %}
+        </form>
+      {% endif %}
+      </div>
+    </li>
+  {% endfor %}
+  </ul>
+  {% elif not cards %}
+  <p class="empty">No replies owed. A reply you log on a contact shows up here until you answer it.</p>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if not cards and tab != 'replies' %}
 <p class="empty">{% if tab == 'drafts' %}No drafts to review. Preview a batch above, then build it.{% else %}Nothing here.{% endif %}</p>
 {% endif %}
 
@@ -58,6 +110,7 @@
     {% if ct and ct.title %}<span class="small">{{ ct.title }}</span>{% endif %}
     {% if ct and ct.linkedin %}<a href="{{ ct.linkedin | href }}" target="_blank" rel="noopener" class="small">LinkedIn &#8599;</a>{% endif %}
     <span class="tag">{{ i.channel }}</span> <span class="tag">{{ i.state }}</span>
+    {% if i.kind == 'reply-to-interest' %}<span class="tag">reply to interest</span>{% endif %}
   </p>
   <p class="small">
     {% if co %}<a href="/companies/{{ i.company }}">{{ co.name }}</a> &middot; {{ co.stage }}{% else %}{{ i.company }}{% endif %}
@@ -67,6 +120,10 @@
   </p>
   {% if i.flags %}<ul class="outreach-flags small">{% for f in i.flags %}<li>{{ f }}</li>{% endfor %}</ul>{% endif %}
 
+  {% if card.reply %}<details class="outreach-their-reply"{% if i.state == 'drafted' %} open{% endif %}><summary>Their reply, {{ fmt_date(card.reply.date) }}</summary>
+    <blockquote class="small">{% if card.reply.subject %}<strong>{{ card.reply.subject }}</strong><br>{% endif %}{{ card.reply.body }}</blockquote></details>{% endif %}
+
+  {% if i.kind != 'reply-to-interest' or i.findings %}
   <details class="outreach-findings"{% if i.state == 'drafted' %} open{% endif %}>
     <summary>Findings ({{ i.findings | length }}{% if i.findings %}, {{ i.findings | selectattr('used') | list | length }} used{% endif %})</summary>
     <form method="post" action="/outreach/{{ i.id }}/findings">
@@ -87,6 +144,7 @@
       {% endif %}
     </form>
   </details>
+  {% endif %}
 
   {% if i.state == 'drafted' %}
   <form method="post" action="/outreach/{{ i.id }}/ready">
