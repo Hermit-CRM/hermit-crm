@@ -71,7 +71,8 @@ change to the data format, add a numbered migration in
 - One logical change per commit, imperative subject line, a short body when the
   why is not obvious.
 - Commits written with an AI assistant start with `ai: `.
-- Update `CHANGELOG.md` for anything a user would notice.
+- Update the changelog, `src/hermitcrm/help/changelog.md` (a Help page, so the app
+  and the website show it too), for anything a user would notice.
 - **Every commit must be signed off** (`git commit -s`). See below.
 
 ## Sign your work (DCO)
@@ -131,9 +132,10 @@ produced from a prompt naming someone else's project.
 scripts/release.sh          # or: scripts/release.sh <commit>
 ```
 
-Bump `__version__` in `src/hermitcrm/__init__.py` and move the CHANGELOG heading
-first; the script reads the version from there and refuses to overwrite a tarball
-that already exists, so a forgotten bump fails loudly instead of quietly shipping
+Bump `__version__` in `src/hermitcrm/__init__.py` and add the version's heading
+to `src/hermitcrm/help/changelog.md` first (the GitHub release takes its notes
+from that section). The script reads the version from `__init__.py` and refuses
+to overwrite a tarball that already exists, so a forgotten bump fails loudly instead of quietly shipping
 0.3.0 twice.
 
 It writes `dist/hermitcrm-<version>.tar.gz`, which unpacks to

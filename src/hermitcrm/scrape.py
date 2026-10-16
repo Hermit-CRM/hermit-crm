@@ -31,6 +31,7 @@ What a page can give us:
 from __future__ import annotations
 
 import html
+import http.client
 import json
 import re
 import urllib.error
@@ -171,7 +172,10 @@ def parse_page(url: str, text: str) -> PageFacts:
 
 def fetch(url: str, timeout: float = 10) -> str:
     """GET one page as text. Raises ScrapeError with a plain-language reason."""
-    parsed = urlparse(url)
+    try:
+        parsed = urlparse(url)
+    except ValueError:  # an unclosed [ of an IPv6 address
+        raise ScrapeError(f"not a web address: {url!r}") from None
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
         raise ScrapeError(f"not a web address: {url!r}")
     req = urllib.request.Request(url, headers={
@@ -195,6 +199,10 @@ def fetch(url: str, timeout: float = 10) -> str:
         raise ScrapeError(f"could not reach {url}: {exc.reason}")
     except TimeoutError:
         raise ScrapeError(f"{url} did not answer within {int(timeout)} s")
+    except (ValueError, UnicodeError, OSError, http.client.HTTPException) as exc:
+        # A typo'd address (a space, a bad port, an over-long name) or a
+        # connection dropped mid-answer: urllib raises these unwrapped.
+        raise ScrapeError(f"could not read {url}: {exc}") from None
     try:
         return raw.decode(charset, errors="replace")
     except LookupError:

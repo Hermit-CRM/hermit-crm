@@ -25,6 +25,7 @@ dependencies = [
     "python-multipart",
     "python-frontmatter",
     "pyyaml",
+    "pypdf",
 ]
 
 [project.optional-dependencies]

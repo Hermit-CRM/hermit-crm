@@ -161,7 +161,7 @@ def test_removing_every_field_commits_the_removal(client, folder):
 
 
 def test_the_cli_wizard_commits_its_answers(folder):
-    answers = iter(["Jane Doe", "jane@example.com", "n", "", "n"])
+    answers = iter(["Jane Doe", "jane@example.com", "n", "", "", "n"])
     code = cli.cmd_setup(folder, ask=lambda prompt="": next(answers),
                          ask_secret=lambda prompt="": "", say=lambda *a: None,
                          platform="linux")

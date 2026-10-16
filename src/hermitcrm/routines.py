@@ -836,7 +836,9 @@ def draft_prompt(store: Store, routine: Routine, pick: Pick, config: dict) -> st
     ]
     playbook = Path(root) / "MESSAGING.md"
     try:
-        text = playbook.read_text(encoding="utf-8").strip()
+        # The body only: the front matter is for Python, not instructions.
+        from hermitcrm.playbook import body_for_ai
+        text = body_for_ai(playbook.read_text(encoding="utf-8")).strip()
     except OSError:
         text = ""
     if text:
