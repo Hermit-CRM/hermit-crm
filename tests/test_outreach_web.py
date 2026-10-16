@@ -19,10 +19,9 @@ fakes; all names are made up."""
 
 from __future__ import annotations
 
-from urllib.parse import parse_qs, urlparse
-
 import pytest
 from fastapi.testclient import TestClient
+from starlette.datastructures import URL, QueryParams
 
 from hermitcrm import outreach
 from hermitcrm.datafolder import init_folder
@@ -62,8 +61,7 @@ def commits(root) -> list[str]:
 
 
 def query(response) -> dict:
-    url = urlparse(response.headers["location"])
-    return {k: v[0] for k, v in parse_qs(url.query).items()}
+    return dict(QueryParams(URL(response.headers["location"]).query))
 
 
 def build_one(client, **form):
@@ -123,7 +121,7 @@ def test_build_makes_one_item_per_request_and_counts_down(client, root, fake):
     assert len(built) == 2 and {i.batch for i in built} == {q["batch"]}
     assert len({i.record for i in built}) == 2
     # the page continues the batch by itself while something is left
-    page = client.get("/outreach?" + urlparse(second.headers["location"]).query)
+    page = client.get("/outreach?" + URL(second.headers["location"]).query)
     assert "requestSubmit" in page.text and "Build the next one" in page.text
     # the last one says so and stops
     third = build_one(client, limit="3", left="1", batch=q["batch"])
