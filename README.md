@@ -105,7 +105,7 @@ that works without activating the virtualenv.
 **BCC capture** (the tracking address and its app password) and an **online
 copy** (an optional private git remote; local backups start with
 `schedule install` or Settings > Backup). Skip any of them; rerun with `hermitcrm setup` or open the
-Settings page (`/settings`) in the web app. Add `--demo` for eight fictional companies,
+Settings page (`/settings`) in the web app. Add `--demo` for thirteen fictional companies,
 `--no-setup` to skip the questions. Instead of `--data` you can set
 `HERMITCRM_DATA=~/crm` or run commands from inside the folder.
 

@@ -127,6 +127,7 @@ or call with a body, newest first.
 | `company_name` | text | |
 | `contact` | text | the person's name |
 | `channel` | fixed values | `email`, `linkedin`, `call` |
+| `angle` | fixed values | `scale`, `unblock`, `hook`, `bridge`, `decline`, `custom`, or empty |
 | `country` | fixed values | the company's country |
 | `stage` | fixed values | the company's stage |
 | `status` | fixed values | the outcome: your outcomes (Settings), or `unknown` while you wait |

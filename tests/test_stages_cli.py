@@ -115,7 +115,7 @@ def test_move_reorders_and_a_first_move_writes_the_implied_history_first(demo, c
     code, out, _ = run(demo, capsys, "add", "inbox", "--apply")
     assert configured(demo)[-1:] != ["inbox"]
     code, out, _ = run(demo, capsys, "move", "inbox", "--first")
-    assert ("The entry stage changes from prospect to inbox; 1 company gets its start "
+    assert ("The entry stage changes from prospect to inbox; 6 companies get their start "
             "written into stage_history first.") in out
     code, out, _ = run(demo, capsys, "move", "inbox", "--first", "--apply")
     assert code == 0 and configured(demo)[0] == "inbox"

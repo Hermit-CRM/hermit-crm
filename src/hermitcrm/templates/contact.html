@@ -37,6 +37,17 @@
     {% endif %}
   </span>
 </div>
+{% if outreach_open %}{% set oi = outreach_open %}
+<p class="outreach-open small">Outreach: a {{ oi.kind }} by {{ oi.channel }} is <strong>{{ oi.state }}</strong>. <a href="/outreach?tab={{ 'ready' if oi.state == 'ready' else 'drafts' }}#item-{{ oi.id }}">Review it on Outreach</a></p>
+{% else %}
+<form method="post" action="/outreach/build" class="inline outreach-start">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="contact" value="{{ company.slug }}/{{ contact.slug }}">
+  <input type="hidden" name="back" value="/companies/{{ company.slug }}/contacts/{{ contact.slug }}">
+  <select name="channel" aria-label="Outreach channel">{% for c in outreach_channels %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
+  <button type="submit" class="secondary" title="Research {{ contact.first_name or contact.name }} and draft a first touch with your AI CLI; you review it on Outreach. Nothing is sent.">Research &amp; draft</button>
+</form>
+{% endif %}
 <dl class="status-strip">
   <div>
     <dt>Last touch</dt>
