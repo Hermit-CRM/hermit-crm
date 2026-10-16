@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{# The outreach bot's page (spec part 04, hermitcrm/outreach.py). Nothing here is
+   ever sent: you send it yourself, then log it (logging it marks the item sent). #}
+{% block title %}Outreach{% endblock %}
+{% block content %}
+<h1>Outreach</h1>
+<p class="small">Research and draft first touches with your AI CLI, review each one, then send it yourself. Nothing is sent from here. Logging the message on the contact marks its item sent. <a href="/help/outreach">How it works</a></p>
+
+{% if gate %}
+<p class="warning-box">The outreach bot will not run yet: {{ gate }}. <a href="/settings/playbook">Settings &gt; Playbook</a></p>
+{% elif ai_problem %}
+<p class="warning-box">{{ ai_problem }}</p>
+{% endif %}
+
+<form class="outreach-build" method="post" action="/outreach/build" id="outreach-build">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="batch" value="{{ form.batch }}">
+  <input type="hidden" name="left" value="{{ form.left or '' }}">
+  <label>Who <input name="where" value="{{ form.where }}" placeholder="stage=prospect; country=DE" size="32"></label>
+  <label>Channel <select name="channel">{% for c in channels %}<option value="{{ c }}"{% if c == form.channel %} selected{% endif %}>{{ c }}</option>{% endfor %}</select></label>
+  <label>Batch size <input name="limit" type="number" min="1" max="50" value="{{ form.limit }}"></label>
+  <label>Research <select name="research">{% for l in levels %}<option value="{{ l }}"{% if l not in built_levels %} disabled{% endif %}>{{ l }}{% if l not in built_levels %} (later){% endif %}</option>{% endfor %}</select></label>
+  <label class="check"><input type="checkbox" name="strong" value="1"{% if form.strong %} checked{% endif %}> stronger model</label>
+  <button type="submit" formmethod="get" formaction="/outreach" name="preview" value="1" class="secondary">Preview</button>
+  <button type="submit"{% if gate or ai_problem %} disabled{% endif %}>{% if form.left %}Build the next one{% else %}Build queue{% endif %}</button>
+  {% if form.left %}<a href="/outreach" class="small" id="outreach-stop">Stop</a> <span class="small">Building: {{ form.left }} left</span>{% endif %}
+</form>
+
+{% if preview_error %}<p class="error">{{ preview_error }}</p>{% endif %}
+{% if preview %}
+<section class="outreach-preview">
+  <h2>Preview: {{ preview.picked | length }} would get a draft</h2>
+  <p class="small">No AI was run and nothing was written. High-fit companies ({{ preview.fit_field }} &ge; {{ preview.high_fit_threshold }}) never contacted: {{ preview.high_fit_untouched }} of {{ preview.high_fit }}.</p>
+  {% if preview.picked %}<ol>{% for c in preview.picked %}
+    <li>{{ c.who }} &middot; {% if c.fit is not none %}fit {{ c.fit }}{% else %}no fit score{% endif %} &middot; {{ c.approach or 'no approach' }}{% if c.flags %} <span class="small">({{ c.flags | join('; ') }})</span>{% endif %}</li>
+  {% endfor %}</ol>{% endif %}
+  {% if preview.over_limit %}<p class="small">Over this batch's limit: {{ preview.over_limit | map(attribute='who') | join(', ') }}</p>{% endif %}
+  {% if preview.excluded %}<details><summary>Not this time ({{ preview.excluded | length }})</summary><ul>
+    {% for c in preview.excluded %}<li>{{ c.who }}: {{ c.reason }}</li>{% endfor %}
+  </ul></details>{% endif %}
+  {% if preview.duplicates %}<p class="small">Likely duplicates: {% for a, b, why in preview.duplicates %}<a href="/companies/{{ a }}/merge">{{ a }} / {{ b }}</a> ({{ why }}){% if not loop.last %}; {% endif %}{% endfor %}</p>{% endif %}
+</section>
+{% endif %}
+
+<nav class="outreach-tabs" aria-label="Outreach items">
+  {% for t, label, count in tabs %}<a href="/outreach?tab={{ t }}"{% if t == tab %} aria-current="page" class="on"{% endif %}>{{ label }} ({{ count }})</a>{% if not loop.last %} &middot; {% endif %}{% endfor %}
+</nav>
+
+{% if not cards %}
+<p class="empty">{% if tab == 'drafts' %}No drafts to review. Preview a batch above, then build it.{% else %}Nothing here.{% endif %}</p>
+{% endif %}
+
+<div class="drafts outreach-cards">
+{% for card in cards %}{% set i = card.item %}{% set co = card.company %}{% set ct = card.contact %}
+<article class="draft outreach-card" id="item-{{ i.id }}">
+  <p class="draft-head">
+    {% if ct %}<a href="/companies/{{ i.company }}/contacts/{{ i.contact }}">{{ ct.name }}</a>{% else %}{{ i.contact }}{% endif %}
+    {% if ct and ct.title %}<span class="small">{{ ct.title }}</span>{% endif %}
+    {% if ct and ct.linkedin %}<a href="{{ ct.linkedin | href }}" target="_blank" rel="noopener" class="small">LinkedIn &#8599;</a>{% endif %}
+    <span class="tag">{{ i.channel }}</span> <span class="tag">{{ i.state }}</span>
+  </p>
+  <p class="small">
+    {% if co %}<a href="/companies/{{ i.company }}">{{ co.name }}</a> &middot; {{ co.stage }}{% else %}{{ i.company }}{% endif %}
+    &middot; {% if card.fit is not none %}fit {{ card.fit }}{% else %}no fit score{% endif %}
+    {% if co and co.website %}&middot; <a href="{{ co.website | href }}" target="_blank" rel="noopener">website &#8599;</a>{% endif %}
+    &middot; {{ i.approach or 'no approach' }}{% if i.angle %} &middot; angle {{ i.angle }}{% endif %}{% if i.language %} &middot; {{ i.language }}{% endif %}
+  </p>
+  {% if i.flags %}<ul class="outreach-flags small">{% for f in i.flags %}<li>{{ f }}</li>{% endfor %}</ul>{% endif %}
+
+  <details class="outreach-findings"{% if i.state == 'drafted' %} open{% endif %}>
+    <summary>Findings ({{ i.findings | length }}{% if i.findings %}, {{ i.findings | selectattr('used') | list | length }} used{% endif %})</summary>
+    <form method="post" action="/outreach/{{ i.id }}/findings">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <ol>{% for f in i.findings %}
+        <li><span class="confidence confidence-{{ f.confidence }}" title="confidence: {{ f.confidence }}">&#9679;</span>
+          {{ f.text }}{% if f.date %} <span class="small">({{ f.date }}{% if f.stale %}, stale{% endif %})</span>{% endif %}
+          <span class="small">&middot; {% if f.source.startswith('http') %}<a href="{{ f.source }}" target="_blank" rel="noopener">{{ f.source | replace('https://', '') | truncate(40) }}</a>{% else %}{{ f.source }}{% endif %}{% if f.used %} &middot; <strong>used</strong>{% endif %}</span>
+          {% if i.state == 'drafted' %}<label class="check inline-check small"><input type="checkbox" name="remove" value="{{ loop.index }}"> remove</label>{% endif %}
+        </li>{% endfor %}
+      </ol>
+      {% if i.state == 'drafted' %}
+      <div class="outreach-add">
+      <input name="add" placeholder="add your own: something you know about them" aria-label="Add a finding of your own">
+      <select name="kind" aria-label="kind of finding">{% for k in finding_kinds %}<option value="{{ k }}">{{ k }}</option>{% endfor %}</select>
+      <button type="submit" class="secondary">Save findings</button>
+      </div>
+      {% endif %}
+    </form>
+  </details>
+
+  {% if i.state == 'drafted' %}
+  <form method="post" action="/outreach/{{ i.id }}/ready">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% if i.channel == 'email' %}<label>subject <input name="subject" value="{{ i.subject }}"></label>{% endif %}
+    <textarea name="body" rows="9" spellcheck="true" aria-label="Draft for {{ ct.name if ct else i.contact }}" id="body-{{ i.id }}">{{ i.body }}</textarea>
+    {% if i.channel != 'email' %}<label class="small">after they accept</label>
+    <textarea name="pitch" rows="5" spellcheck="true" aria-label="Message after they accept">{{ i.pitch }}</textarea>{% endif %}
+    {% if i.checks %}<ul class="outreach-checks warning">{% for c in i.checks %}<li>{{ c }}</li>{% endfor %}</ul>
+    {% else %}<p class="small outreach-checks ok">Checks passed.</p>{% endif %}
+    {% if i.proof_used %}<p class="small">Proof: {{ i.proof_used | join('; ') }}</p>{% endif %}
+    <div class="draft-actions">
+      <button type="submit" title="{% if i.checks %}Allowed with a failing check: it is kept as a warning{% else %}Approve this text{% endif %}">Mark ready</button>
+      <button type="submit" formaction="/outreach/{{ i.id }}/check" class="secondary">Save &amp; check again</button>
+      <button type="button" class="secondary" data-copy-target="body-{{ i.id }}">Copy</button>
+    </div>
+  </form>
+  <div class="draft-actions">
+    <form method="post" action="/outreach/{{ i.id }}/regenerate" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="secondary"{% if ai_problem %} disabled title="{{ ai_problem }}"{% endif %}>Regenerate</button>
+      <label class="check inline-check small"><input type="checkbox" name="strong" value="1"> stronger model</label>
+    </form>
+    <form method="post" action="/outreach/{{ i.id }}/skip" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <select name="reason" aria-label="Why skip" required><option value="">why skip?</option>{% for r in skip_reasons %}<option value="{{ r }}">{{ r }}</option>{% endfor %}</select>
+      <input name="note" placeholder="note (optional)" size="18">
+      <button type="submit" class="secondary">Skip</button>
+    </form>
+  </div>
+  {% elif i.state == 'ready' %}
+  {% if i.channel == 'email' %}<p><strong>{{ i.subject }}</strong></p>{% endif %}
+  <pre class="outreach-text" id="body-{{ i.id }}">{{ i.body }}</pre>
+  {% if i.pitch %}<p class="small">after they accept</p><pre class="outreach-text">{{ i.pitch }}</pre>{% endif %}
+  {% if i.checks %}<ul class="outreach-checks warning">{% for c in i.checks %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
+  <div class="draft-actions">
+    <button type="button" data-copy-target="body-{{ i.id }}">Copy</button>
+    {% if i.channel == 'email' and ct and ct.email %}<a class="button secondary" href="mailto:{{ ct.email }}?subject={{ i.subject | urlencode }}">Open in mail</a>{% endif %}
+    {% if i.channel == 'linkedin' and ct and ct.linkedin %}<a class="button secondary" href="{{ ct.linkedin | href }}" target="_blank" rel="noopener">Open LinkedIn</a>{% endif %}
+    <a class="button secondary" href="/companies/{{ i.company }}/contacts/{{ i.contact }}?channel={{ i.channel }}#quick-add">Log it</a>
+    <form method="post" action="/outreach/{{ i.id }}/sent" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="secondary" title="The state only: nothing is logged">Mark sent</button>
+    </form>
+    <form method="post" action="/outreach/{{ i.id }}/skip" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <select name="reason" aria-label="Why skip" required><option value="">why skip?</option>{% for r in skip_reasons %}<option value="{{ r }}">{{ r }}</option>{% endfor %}</select>
+      <button type="submit" class="secondary">Skip</button>
+    </form>
+  </div>
+  {% else %}
+  {% if i.channel == 'email' and i.subject %}<p><strong>{{ i.subject }}</strong></p>{% endif %}
+  {% if i.body %}<details><summary>The message</summary><pre class="outreach-text">{{ i.body }}</pre></details>{% endif %}
+  <p class="small">{% if i.state == 'skipped' %}Skipped: {{ i.skip_reason }}{% if i.skip_note %} ({{ i.skip_note }}){% endif %}{% if i.skipped %}, {{ fmt_datetime(i.skipped) | replace('T', ' ') }}{% endif %}
+    {% elif i.sent %}Sent {{ fmt_datetime(i.sent) | replace('T', ' ') }}{% if i.sent_with %}, logged{% else %}, marked by hand{% endif %}{% endif %}
+    {% if i.edit_distance is not none %} &middot; {{ i.edit_distance }} word{{ 's' if i.edit_distance != 1 }} edited{% endif %}</p>
+  {% endif %}
+  <p class="small quiet">{{ i.id }}{% if i.model %} &middot; {{ i.model }}{% endif %}{% if i.seconds is not none %} &middot; {{ i.seconds }}s{% endif %}{% if i.norms %} &middot; norms: {{ i.norms | join('; ') }}{% endif %}</p>
+</article>
+{% endfor %}
+</div>
+
+<script>
+(function () {
+  document.querySelectorAll("[data-copy-target]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var el = document.getElementById(button.getAttribute("data-copy-target"));
+      var text = el ? (el.value !== undefined ? el.value : el.textContent) : "";
+      function done(ok) { button.textContent = ok ? "Copied" : "Copy failed"; }
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(function () { done(true); },
+                                                 function () { done(false); });
+      } else {
+        var area = document.createElement("textarea");
+        area.value = text; document.body.appendChild(area); area.select();
+        var ok = false;
+        try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+        area.remove(); done(ok);
+      }
+    });
+  });
+  {% if form.left and not gate and not ai_problem %}
+  // The batch builds one contact per request: send the next one, unless Stop.
+  var stopped = false;
+  var stop = document.getElementById("outreach-stop");
+  if (stop) stop.addEventListener("click", function () { stopped = true; });
+  window.setTimeout(function () {
+    if (!stopped) document.getElementById("outreach-build").requestSubmit();
+  }, 800);
+  {% endif %}
+})();
+</script>
+{% endblock %}
