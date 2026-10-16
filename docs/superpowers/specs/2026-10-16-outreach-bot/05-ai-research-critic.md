@@ -7,9 +7,11 @@ is refused.
 
 ## Follow-up drafts
 
-Trigger: an outbound message with no reply after `outreach_followup_days`
-(default 7), from `followups.py` "waiting on them". Shape: short, no calendar
-invite, an easy way out:
+Trigger: an outbound message with no reply after `followup_nudge_days`
+(default 5), the same setting that puts it under "waiting on them" in
+`followups.py`. Decided: no separate `outreach_followup_days`; one setting for
+"they have not answered", so the radar and the bot never disagree. Shape:
+short, no calendar invite, an easy way out:
 
 > quick follow-up, no calendar invite: is [topic] a priority at {company} right
 > now, or not really? A short 'not now' is fine too, then I'll close the loop.

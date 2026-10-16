@@ -16,6 +16,12 @@
 # Each finding is printed as one readable line naming the file and the reason.
 # A red cross does not mean the change is bad, only that a person must look closely.
 #
+# Who it checks:
+# Only pull requests from forks, which is how outside contributors send changes.
+# Pull requests from branches in this repository (the maintainer's own work and
+# Dependabot) need write access to create, so the check is skipped for them.
+# A skipped check counts as passed, so the required check on main stays green.
+#
 # How it stays safe:
 # - It runs on "pull_request" (never "pull_request_target"), so code from a fork
 #   gets no secrets and only read access to this repository.
@@ -35,6 +41,7 @@ permissions:
 
 jobs:
   pr-safety-check:
+    if: github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

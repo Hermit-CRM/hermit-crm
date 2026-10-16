@@ -17,25 +17,38 @@ Context: [00-overview](00-overview.md). Needs phase 1 (parts 02-03).
   - findings with source links and a confidence dot; remove one or add your own
   - the draft (editable), its type and angle, which findings and proof it
     uses, the check results
-  - buttons: **Mark ready**, **Regenerate** (optionally "stronger model"),
-    **Skip** (with a reason), **Copy**
+  - buttons: **Mark ready** (allowed with a failed check: warning shown),
+    **Check again** (re-runs the hard checks on the edited text; from phase 3
+    also the critic; checks never block an edit and do not run while typing),
+    **Regenerate** (optionally "stronger model"), **Skip** (reason from the
+    fixed list in part 03, optional free text), **Copy**, and on Ready items
+    **Mark sent** (state only, no interaction)
 - **Ready** is the working list for sending by hand: copy button and the
   contact's links.
 
-**Mark ready** changes the state and appends the findings used to the contact's
-notes under a dated heading (`### Research 2026-10-16 (scrape)`, one line per
-finding with its source), in the same commit. It does **not** log an
+**Mark ready** changes the state and saves the findings used as one `note`
+interaction on the contact (one line per finding with its source; what the CRM
+already knew is left out), in the same commit. Built in phase 1
+(`outreach.mark_ready`); the page calls it. A note interaction rather than a
+`### Research` heading in the contact's notes, so it is dated, shows on the
+timeline and needs no second notes format. It does **not** log an
 interaction; the person logs it as usual.
 
 **Contact page:** a "Research & draft" button (with channel picker), and an
-outreach card while an item is open for that contact.
+outreach card while an item is open for that contact. The button picks the draft
+type from the history (no outbound yet → first touch; unanswered outbound →
+follow-up; interested reply → reply to interest); the person can override it.
 
 ## Reply-to-interest drafts
 
 Source: an inbound reply that shows interest, from `followups.py` "replies
 owed". The AI classifies the reply (no tools) and the person confirms.
+Classification runs on demand ("Check replies" button), once per reply, and the
+result is stored; replies logged with outcome `interested` need no AI.
 
-Shape: the offer line, one proof line, "the first call is free, no pitch", and
+Shape: the offer line, one proof line, the playbook's **first step offer**
+(new optional field in the Offer section, e.g. "the first call is free, no
+pitch"; left out when empty, since not every seller offers a free call), and
 one question. **No** time slot, booking link, price, or days per week. A meeting
 is proposed only after they answer the question. Replies to interest stay
 semi-automatic even in a later auto mode.
@@ -56,12 +69,21 @@ the offer line as a slot; overridable in `messages.toml`.
 
 - web: the page renders on the demo folder; a card's buttons change only the
   state
-- Mark ready appends findings to the contact notes deterministically, in the
-  same commit
+- Mark ready saves the findings as one note interaction, in the same commit
 - "Mark ready" writes no interaction
 
-## Open question
+## Interest detection (decided 16 Oct 2026)
 
-**Interest detection.** The AI classifies an inbound reply as interest and the
-person confirms. Should an outcome value (e.g. `interested`) also be added to
-`outcomes` in `config.toml`, so the radar can use it without AI?
+The AI classifies an inbound reply as interest and the person confirms. **Also**
+add an `interested` outcome value to the default `outcomes` in `config.toml`, so
+the radar finds replies to interest without AI (users without an AI CLI can set
+it by hand when logging). Order matters: the first outcome is what a reply
+counts as and the last is what silence counts as (`models.message_status`), so
+`interested` goes in the middle: `successful, interested, unsuccessful`. Never
+append it at the end. Existing folders keep their own `config.toml`; offer
+the value, never add it silently. `outcomes` lives in `config.toml`, not in
+front matter, so no migration is needed; an interaction's `outcome` value is
+already free text.
+
+Test: an inbound interaction with outcome `interested` appears in the
+Replies to interest tab with no AI call.
