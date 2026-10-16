@@ -43,6 +43,13 @@
     {% endfor %}
   </table>
   <p class="small"><a href="{{ w.url }}">{{ w.total }} in all</a>{% if w.more %} &middot; {{ w.more }} more value{{ '' if w.more == 1 else 's' }} not shown{% endif %}</p>
+  {% elif w.type == 'trend' %}
+  <table class="report trend">
+    {% for b in w.bars %}
+    <tr><td class="nowrap">{% if w.every == 'week' %}<span class="small">week of</span> {% endif %}{{ b.label or fmt_date(b.start) }}</td><td class="num">{% if b.count %}<a class="rows" href="{{ b.url }}" title="open these from this {{ w.every }} on">{{ b.count }}</a>{% else %}0{% endif %}</td><td class="bar-cell">{{ rs.bar(b.count, w.max) }}</td></tr>
+    {% endfor %}
+  </table>
+  <p class="small"><a href="{{ w.url }}">{{ w.total }} in all</a> by {{ w.label }} date, {{ fmt_date(w.start) }} to {{ fmt_date(w.end) }}. A number opens the rows from that {{ w.every }} on.{% if w.clamped %} The newest {{ w.bars | length }} {{ w.every }}s are shown; {{ w.clamped }} older {{ 'one is' if w.clamped == 1 else 'ones are' }} left out.{% endif %}</p>
   {% elif w.type == 'report' %}
   {% set p = w.report.period %}
   <p class="small">{{ fmt_date(p.start) }} to {{ fmt_date(p.end) }} ({{ p.days }}d). Click a number for the rows behind it.</p>
