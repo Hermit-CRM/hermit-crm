@@ -35,7 +35,7 @@ HERE = Path(__file__).resolve().parent
 TOPICS = [
     "index", "pipeline", "calendar", "tasks", "companies", "contacts", "interactions",
     "messages", "playbook", "reports", "adjust", "settings", "import", "extension", "enrich", "ask",
-    "merge", "cli", "backups", "data-format", "ai-agents", "feedback", "disclaimer",
+    "merge", "cli", "backups", "data-format", "ai-agents", "feedback", "disclaimer", "changelog",
     # Make it yours: one recipe per kind of change, read by the user's own agent
     # after `adjust` (the rules).
     "adjust-fields", "adjust-look", "adjust-messages", "adjust-connect", "adjust-feature",

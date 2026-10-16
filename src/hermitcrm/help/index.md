@@ -33,5 +33,6 @@ page for the screen you are on; `hermitcrm help <topic>` prints the same text.
 - [AI agents](/help/ai-agents): how an AI session should read and write the folder, and the MCP server (`hermitcrm mcp`) that lets a client with no shell do it.
 - [Feedback](/help/feedback): tell whoever gave you Hermit CRM what worked and what did not.
 - [Disclaimer](/help/disclaimer): no warranty, your backups, your integrations, and what the name is not licensed for.
+- [Changelog](/help/changelog): what changed in each version, and how to upgrade.
 
 Related: [Settings](/help/settings), [CLI](/help/cli), [AI agents](/help/ai-agents)
