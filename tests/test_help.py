@@ -206,3 +206,19 @@ def test_every_make_it_yours_recipe_is_titled_alike():
     for topic in helpdocs.topics():
         if topic.startswith("adjust"):
             assert helpdocs.title_of(helpdocs.read(topic)).startswith("Make it yours"), topic
+
+
+def test_the_changelog_is_a_help_page_for_this_version(client):
+    """The one changelog: Help > Changelog, `hermitcrm help changelog`, the
+    website's /changelog/ and the GitHub release notes (release.yml takes the
+    version's section) all read src/hermitcrm/help/changelog.md."""
+    from hermitcrm import __version__
+    text = helpdocs.read("changelog")
+    headings = re.findall(r"^## (\S+) \((\d{4}-\d{2}-\d{2})\)$", text, re.M)
+    assert headings[0][0] == __version__, "the newest changelog section is not this version"
+    assert len({v for v, _ in headings}) == len(headings), "a version is listed twice"
+    r = client.get("/help/changelog")
+    assert r.status_code == 200 and "<h1>Changelog</h1>" in r.text
+    assert f'id="{__version__.replace(".", "-")}-' in r.text
+    workflow = (Path(__file__).resolve().parent.parent / ".github/workflows/release.yml").read_text()
+    assert "src/hermitcrm/help/changelog.md" in workflow
