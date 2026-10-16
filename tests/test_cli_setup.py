@@ -203,4 +203,4 @@ def test_setup_your_offer_step(folder):
                          platform="linux") == 0
     assert "4/4 Your offer (optional)" in "\n".join(out)
     assert any(line.startswith("Saved to MESSAGING.md: offer line") for line in out)
-    assert playbook.readiness(folder) == []
+    assert playbook.require_ready(folder)

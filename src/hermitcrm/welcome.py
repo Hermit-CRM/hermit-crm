@@ -133,7 +133,7 @@ def _has_offer(store) -> bool:
     from hermitcrm import playbook
 
     root = getattr(store, "root", None)
-    return bool(root and playbook.load(root).offer_line)
+    return bool(root and any(o.offer_line for o in playbook.load(root).offers))
 
 
 def progress(all_steps: list[Step]) -> tuple[int, int]:
