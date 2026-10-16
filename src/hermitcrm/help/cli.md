@@ -36,8 +36,13 @@ hermitcrm mcp                              serve this folder to AI clients over 
 hermitcrm report [--days N | --from D --to D] [--md]
                                         the Reports page as text tables (Markdown with --md)
 hermitcrm check                            validate every file (records, fields.toml, layout.toml, dashboards/,
-                                        routines.toml, theme.css, messages.toml, config.toml); exit 1 and
-                                        one "file: where: what" line per problem
+                                        routines.toml, theme.css, messages.toml, config.toml, the front
+                                        matter of MESSAGING.md); exit 1 and one "file: where: what" line
+                                        per problem
+hermitcrm playbook [status]                what the playbook has and what the outreach bot still needs
+                                        (exit 1 while it is not ready); see `hermitcrm help playbook`
+hermitcrm playbook upgrade [--dry-run]     add the front matter and missing headings to MESSAGING.md,
+                                        keeping every line; one commit, and a second run changes nothing
 ```
 
 ## Backups

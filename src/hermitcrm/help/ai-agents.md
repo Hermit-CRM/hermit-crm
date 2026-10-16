@@ -22,7 +22,9 @@ see **Connecting over MCP** at the end.
    (drafting a reply, judging tone). Never read all interactions.
 6. Never edit `PIPELINE.md` by hand; it is generated.
 7. For outreach wording, read `MESSAGING.md` (the playbook) and
-   `messages.toml` (if present) before drafting anything.
+   `messages.toml` (if present) before drafting anything. Its front matter
+   and headings are described in `hermitcrm help playbook`; cite only the
+   proof written there.
 8. For how a feature works, run `hermitcrm help <topic>` (`hermitcrm help` lists
    the topics).
 
