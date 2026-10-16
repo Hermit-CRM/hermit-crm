@@ -1253,7 +1253,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_init = sub.add_parser("init", help="create a new data folder (a git repo)")
     p_init.add_argument("dir", type=Path)
-    p_init.add_argument("--demo", action="store_true", help="add eight fictional companies")
+    p_init.add_argument("--demo", action="store_true", help="add thirteen fictional companies")
     p_init.add_argument("--no-setup", action="store_true",
                         help="skip the setup questions (also skipped without a terminal)")
 

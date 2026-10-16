@@ -493,23 +493,36 @@ def init_folder(target: str | Path, demo: bool = False, now: datetime | None = N
 # ------------------------------------------------------------------- demo
 
 DEMO_COMPANIES = [
-    # (name, website, country, source, fte, ae, oneliner, tags, score)
+    # (name, website, country, source, fte, ae, oneliner, tags, score, fit)
     ("Northwind Robotics", "https://northwind-robotics.example.com", "DE", "referral",
-     "~45", 3, "Warehouse picking robots for mid-size retailers", ["robotics", "demo"], 8),
+     "~45", 3, "Warehouse picking robots for mid-size retailers", ["robotics", "demo"], 8, 78),
     ("Bluefin Analytics", "https://bluefin-analytics.example.com", "NL", "linkedin-search",
-     "~18", 1, "Churn dashboards for subscription apps", ["saas", "demo"], 7),
+     "~18", 1, "Churn dashboards for subscription apps", ["saas", "demo"], 7, 70),
     ("Copperleaf Studio", "https://copperleaf-studio.example.org", "FR", "event",
-     "~9", None, "Brand design studio for food start-ups", ["agency", "demo"], 5),
+     "~9", None, "Brand design studio for food start-ups", ["agency", "demo"], 5, 40),
     ("Tallpine Software", "https://tallpine-software.example.com", "GB", "list",
-     "", None, "Scheduling software for clinics", ["saas", "demo"], None),
+     "", None, "Scheduling software for clinics", ["saas", "demo"], None, None),
     ("Quartzline Logistics", "https://quartzline-logistics.example.com", "US", "inbound",
-     "~120", 6, "Freight tracking for small shippers", ["logistics", "demo"], 9),
+     "~120", 6, "Freight tracking for small shippers", ["logistics", "demo"], 9, 85),
     ("Emberoak Foods", "https://emberoak-foods.example.org", "SE", "network",
-     "~30", 2, "Plant-based ready meals", ["food", "demo"], 4),
+     "~30", 2, "Plant-based ready meals", ["food", "demo"], 4, 35),
     ("Driftwood Media", "https://driftwood-media.example.com", "NL", "list",
-     "~4", None, "Podcast production for B2B brands", ["media", "demo"], 2),
+     "~4", None, "Podcast production for B2B brands", ["media", "demo"], 2, 20),
     ("Glasshouse Health", "https://glasshouse-health.example.com", "IE", "event",
-     "~25", 1, "Patient intake forms for dental clinics", ["healthtech", "demo"], 6),
+     "~25", 1, "Patient intake forms for dental clinics", ["healthtech", "demo"], 6, 66),
+    # Prospects for the outreach bot: never contacted, so `hermitcrm outreach
+    # preview` has a batch to show (and one likely duplicate, one do-not-contact).
+    ("Lindenhof Data", "https://lindenhof-data.example.com", "DE", "list",
+     "~22", 1, "Data pipelines for mid-size insurers", ["analytics", "demo"], None, 82),
+    ("Kestrel Metrics", "https://kestrel-metrics.example.org", "NL", "linkedin-search",
+     "~12", 0, "Usage analytics for B2B apps", ["analytics", "demo"], None, 74),
+    ("Saltmarsh Labs", "https://saltmarsh-labs.example.com", "IE", "list",
+     "~60", 3, "Inspection robots for food producers", ["robotics", "demo"], None, 68),
+    ("Saltmarsh Labs AI", "https://saltmarsh-ai.example.com", "IE", "list",
+     "", None, "Inspection robots for food producers", ["robotics", "demo"], None, 66),
+    ("Ravenmoor Systems", "https://ravenmoor-systems.example.org", "FR", "event",
+     "~15", 1, "Booking software for climbing gyms", ["analytics", "do-not-contact", "demo"],
+     None, 71),
 ]
 
 
@@ -523,6 +536,8 @@ DEMO_FIELDS = [
                     help="as written, e.g. ~13", show_in=["detail", "companies"]),
     fields.FieldDef(key="ae_count", label="AE count", type="number",
                     show_in=["detail"]),
+    fields.FieldDef(key="fit_score", label="fit", type="number", help="0 to 100",
+                    show_in=["detail", "companies"]),
 ]
 
 SAMPLE_NOTES = """This is a **sample account**. Northwind Robotics, its people and everything
@@ -573,12 +588,13 @@ class _Demo:
         return (self.today + timedelta(days=days)).isoformat()
 
     def company(self, index: int, days_ago: int, sample: bool = False) -> str:
-        name, site, country, source, fte, ae, oneliner, tags, score = DEMO_COMPANIES[index]
+        name, site, country, source, fte, ae, oneliner, tags, score, fit = DEMO_COMPANIES[index]
         self.at(days_ago)
         if sample:
             custom, notes, tags = {"sample": True}, SAMPLE_NOTES, ["robotics", "sample"]
         else:
-            custom = {"fte_estimate": fte, "ae_count": ae, "my_score": score}
+            custom = {"fte_estimate": fte, "ae_count": ae, "my_score": score,
+                      "fit_score": fit}
             notes = f"Demo company. {oneliner}.\n"
         return self.store.create_company(name, website=site, country=country, source=source,
                                          product_oneliner=oneliner, tags=tags,
@@ -727,9 +743,24 @@ class _Demo:
                   next_step="Check in after their funding round", next_step_due=self.due(30))
         return s
 
+    def prospects(self) -> list[str]:
+        """Never contacted: what an outreach batch is for."""
+        made = []
+        for index, days_ago, people in (
+                (8, 20, [("Mara", "Keller", "CEO & Co-Founder")]),
+                (9, 19, [("Daan", "Visser", "Founder")]),
+                (10, 18, [("Niamh", "Walsh", "Head of Sales"), ("Ciaran", "Doyle", "CEO")]),
+                (11, 17, [("Sean", "Brady", "Co-Founder")]),
+                (12, 16, [("Ines", "Moreau", "Founder")])):
+            s = self.company(index, days_ago)
+            for first, last, title in people:
+                self.person(s, days_ago, first, last, title)
+            made.append(s)
+        return made
+
 
 def load_demo(path: Path, now: datetime) -> Store:
-    """Eight fictional companies spread over the last six weeks, every stage,
+    """Thirteen fictional companies spread over the last six weeks, every stage,
     and the sample account's dashboard and paused routine."""
     from . import sample
 
@@ -740,7 +771,8 @@ def load_demo(path: Path, now: datetime) -> Store:
     demo = _Demo(store, now.date())
     with demo.backdated():
         for build in (demo.northwind, demo.bluefin, demo.copperleaf, demo.tallpine,
-                      demo.quartzline, demo.emberoak, demo.driftwood, demo.glasshouse):
+                      demo.quartzline, demo.emberoak, demo.driftwood, demo.glasshouse,
+                      demo.prospects):
             build()
     store.load()
     return store
