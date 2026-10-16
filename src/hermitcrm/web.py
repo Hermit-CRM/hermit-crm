@@ -1317,13 +1317,19 @@ def create_app(root: Path, config: dict | None = None,
         """The Adjust tab: who gets the request, the page it is about, and the
         starters that fit the page."""
         kind = adjust.page_kind(request.url.path)
+        if kind == "dashboard" and ctx.get("missing"):
+            kind = "other"   # no such dashboard: nothing on screen to change
         company = ctx.get("company") if kind in ("company", "contact") else None
         on_hub = request.url.path == "/yours"
+        values = starter_values(company)
+        if kind == "dashboard":
+            slug = request.url.path.rstrip("/").rsplit("/", 1)[-1]
+            values = {**values, "dashboard": slug, "dashboard_file": f"dashboards/{slug}.toml"}
         return {
             "handoff": adjust.agent_info(config, root),
             "adjust_path": "" if on_hub else adjust.page_path(request.url.path,
                                                                request.url.query),
-            "page_starters": adjust.starters_for(kind, starter_values(company)),
+            "page_starters": adjust.starters_for(kind, values),
         }
 
     def off_board_stages() -> dict[str, int]:
