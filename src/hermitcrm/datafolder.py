@@ -323,6 +323,57 @@ unknown = "[Something specific about the team.]"
 """
 
 
+# The demo folder's playbook: a made-up offer (fractional sales leadership),
+# there to show a filled playbook. It is example content only; a new folder
+# without --demo gets the empty headings.
+DEMO_PLAYBOOK_FRONT = {
+    "offer_line": "I work as your fractional Head of Sales: part-time, no minimum term.",
+    "icp": {"industries": ["b2b-saas", "robotics", "analytics"], "fte": [10, 80],
+            "salespeople": [1, 5], "countries": ["DE", "NL", "GB", "IE", "SE"],
+            "funding": ["seed", "series-a"],
+            "signals": ["founder-still-sells", "no-sales-leader", "hiring-sales"]},
+    "disqualifiers": [{"fte_over": 150},
+                      {"title_present": ["Head of Sales", "VP Sales", "CRO"]},
+                      {"no_salespeople": True}],
+    "personas": {"founder": {"titles": ["CEO", "Founder", "Co-Founder",
+                                        "Managing Director"]},
+                 "sales-lead": {"titles": ["Sales Lead", "Senior Account Executive",
+                                           "Account Executive"]}},
+}
+DEMO_PLAYBOOK_SECTIONS = {
+    "offer": "Two days a week I run sales for you: pipeline reviews, coaching your first "
+             "salespeople, a repeatable process and the hire of a full-time sales "
+             "leader when you are ready.\nMonthly fee, cancel any month. I do not run "
+             "lead generation or cold calling for you.",
+    "personas": "- founder: still closes most deals personally and has no time to "
+                "build a team. Cares about growth without a costly senior hire; "
+                "ignores tooling talk.\n- sales-lead: the first salesperson, without a "
+                "manager to learn from. Cares about a clear process and coaching.",
+    "proof": "- A made-up example: a 30-person software company doubled its qualified "
+             "pipeline in two quarters.\n- Another made-up example: the first two "
+             "salespeople reached quota in their fourth month.",
+    "why": "Cheaper and quicker than hiring a full-time Head of Sales, and the process "
+           "stays when I leave. An agency sells for you; I build the team that sells.",
+    "voice": "Plain, direct, short sentences. First names. No jargon, no buzzwords. "
+             "Sign off with my first name.",
+    "channels": "- email: one short paragraph, one question about how they sell today.\n"
+                "- LinkedIn: two sentences, no link, a question about the team.",
+    "donts": "- No invented familiarity (\"loved your post\" when none was read).\n"
+             "- No \"I hope this finds you well\".\n- No claims without proof above.\n"
+             "- Never name competitors.",
+}
+
+
+def new_playbook(demo: bool = False) -> str:
+    """MESSAGING.md for a new folder: the playbook with the outreach bot's front
+    matter and headings; filled with the made-up offer in a demo folder."""
+    from . import playbook
+
+    if not demo:
+        return playbook.upgrade_text(MESSAGING)
+    return playbook.apply(MESSAGING, DEMO_PLAYBOOK_FRONT, DEMO_PLAYBOOK_SECTIONS)
+
+
 # ------------------------------------------------------------------- init
 
 
@@ -384,7 +435,7 @@ def init_folder(target: str | Path, demo: bool = False, now: datetime | None = N
     guard.write(path)
     write_skill(path)
     if not (path / "MESSAGING.md").exists():
-        (path / "MESSAGING.md").write_text(MESSAGING, encoding="utf-8")
+        (path / "MESSAGING.md").write_text(new_playbook(demo), encoding="utf-8")
     migrations.write_format(path, migrations.LATEST)
 
     from . import pipeline
