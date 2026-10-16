@@ -11,6 +11,13 @@
 <h1>{{ dashboard.title }}</h1>
 {% if dashboard.description %}<p class="oneliner">{{ dashboard.description }}</p>{% endif %}
 <p class="page-actions"><a class="button" href="/yours">Adjust</a></p>
+{% if change %}<div class="small dashboard-history">Last changed {{ change_when }}: &ldquo;{{ change.subject }}&rdquo;
+  {%- if change.can_undo %} &middot; <form method="post" action="/yours/undo" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="sha" value="{{ change.sha }}">
+    <input type="hidden" name="back" value="{{ dashboard.url }}">
+    <button type="submit" class="link" title="A new commit that reverses this one">Undo</button>
+  </form>{% endif %} &middot; <a href="/yours#changes">All changes</a></div>{% endif %}
 {% if problems %}
 <div class="errors dashboard-problems">
   <strong>{{ problems | length }} problem{{ '' if problems | length == 1 else 's' }} in <code>{{ dashboard.file }}</code>.</strong>
