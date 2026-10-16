@@ -146,3 +146,25 @@ def test_llms_txt_lists_every_topic_and_llms_full_has_them_all():
         assert f"\n## {title}\n" in full
     assert full.startswith("# Hermit CRM docs\n")
     assert "](/" not in full, "a site-relative link was left in llms-full.txt"
+
+
+def test_changelog_has_its_own_page_from_the_download(tmp_path):
+    tarball = make_tarball(tmp_path, "9.9.0", {
+        "src/hermitcrm/help/changelog.md": "# Changelog\n\nNewest first.\n\n"
+                                           "Related: [Settings](/help/settings)\n\n"
+                                           "## 9.9.0 (2026-10-03)\n\n- See [Playbook](/help/playbook).\n"})
+    docs = build.docs_from_tarball(tarball)
+    assert "changelog" not in [t for t, *_ in docs["topics"]], "the changelog is not a docs topic"
+    c = content()
+    hub, pages = build.load_compare()
+    page = build.render_changelog(c, hub, docs)
+    assert page.count("<h1") == 1 and '<h2 id="9-9-0-2026-10-03">' in page
+    assert 'href="../docs/#playbook"' in page and 'href="../docs/#settings"' in page
+    assert not re.findall(r'href="/(?!/)', page), "a link into the app was left on the page"
+    assert 'aria-label="Breadcrumb"' in page and '"dateModified": "2026-10-03"' in page
+    site = c["page"]["site_url"].rstrip("/")
+    assert f"- [Changelog]({site}/changelog/): " in build.llms_txt(c, hub, pages, build.load_about(), docs)
+    assert 'href="../changelog/"' in build.render_docs(c, hub, docs)
+    # A download from before the changelog was a Help page gets no page (and
+    # nothing is written).
+    assert build.build_changelog(c, hub, build.Docs(docs, changelog=None)) is False

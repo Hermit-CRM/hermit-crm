@@ -558,11 +558,12 @@ def page_head(c: dict, hub: dict, *, title: str, description: str, path: str, ro
 
 
 def page_foot(hub: dict, compare_link: str, about_link: str, docs_link: str, stats_link: str,
-              notice: bool = True) -> str:
+              notice: bool = True, changelog_link: str = "../changelog/") -> str:
     """Footer of a page below the home page. The prices-and-trademarks notice is
     for the comparison pages; the About page leaves it out."""
     text = (hub["footer"]["text"].replace("{compare}", compare_link)
-            .replace("{about}", about_link).replace("{docs}", docs_link).replace("{stats}", stats_link))
+            .replace("{about}", about_link).replace("{docs}", docs_link).replace("{stats}", stats_link)
+            .replace("{changelog}", changelog_link))
     return ('<footer class="site-footer col">\n'
             + (f'  <p class="notice">{md(hub["notice"]["text"])}</p>\n' if notice else "")
             + f'  <p>{md(text)}</p>\n</footer>\n</body>\n</html>\n')
@@ -656,7 +657,8 @@ def render_compare(c: dict, hub: dict, p: dict, pages: list[dict]) -> str:
 {section("others", f'    <ul class="others">{chr(10)}{others}{chr(10)}    </ul>')}
 </main>
 
-""" + page_foot(hub, "../", "../../about/", "../../docs/", "../../stats/"))
+""" + page_foot(hub, "../", "../../about/", "../../docs/", "../../stats/",
+                          changelog_link="../../changelog/"))
 
 
 def render_hub(c: dict, hub: dict, pages: list[dict]) -> str:
@@ -839,13 +841,15 @@ def build_stats(c: dict, hub: dict) -> None:
 # copied by hand. They are taken from the download the site offers, so the docs
 # describe the version people get, not work on main that is not released yet.
 # The index is left out (the contents list replaces it), and so is feedback,
-# which is a form inside the app.
-DOCS_SKIP = ("index", "feedback")
+# which is a form inside the app. The changelog gets a page of its own,
+# /changelog/, built from the same download.
+DOCS_SKIP = ("index", "feedback", "changelog")
 
 
 class Docs(dict):
     """version, date (or None), source ("download" or "working tree"), path,
-    topics [(topic, title, summary, markdown)] and render (the app's converter)."""
+    topics [(topic, title, summary, markdown)], changelog (its Markdown, or None
+    for a release from before it was a Help page) and render (the app's converter)."""
 
 
 def load_help(folder: Path):
@@ -884,7 +888,8 @@ def read_help(folder: Path, version: str, **info) -> Docs:
         if text is None or topic in DOCS_SKIP:
             continue
         topics.append((topic, mod.title_of(text) or topic, first_paragraph(text), text))
-    return Docs(version=version, topics=topics, render=mod.render, **info)
+    return Docs(version=version, topics=topics, changelog=mod.read("changelog"),
+                render=mod.render, **info)
 
 
 def docs_from_tarball(tarball: Path, label: str = "") -> Docs:
@@ -1047,6 +1052,61 @@ def build_docs(c: dict, hub: dict) -> Docs:
     return docs
 
 
+# ── Changelog (/changelog/) ──────────────────────────────────────────
+# The app's Help > Changelog, from the same download as /docs/, so it ends at
+# the version people get. Its links to other Help pages go to /docs/.
+def render_changelog(c: dict, hub: dict, docs: Docs) -> str:
+    site, lab, ch = c["page"]["site_url"].rstrip("/"), hub["labels"], c["changelog"]
+    path, root = "/changelog/", "../"
+    url = site + path
+    names = {t for t, *_ in docs["topics"]}
+    text = docs["changelog"]
+    text = text.split("\n", 1)[1] if text.startswith("# ") else text  # the page has its own h1
+    # The converter only takes "#" and absolute links, so Help links become
+    # anchors first and then point at /docs/ (the page has no anchors of its own).
+    body = docs["render"](docs_links(text, names, "")).replace('href="#', 'href="../docs/#')
+    body = body.replace("<table>", '<div class="docs-table"><table>').replace("</table>", "</table></div>")
+    page = {"@type": "WebPage", "@id": url, "url": url, "name": flat(ch["title"]),
+            "description": flat(ch["description"]), "inLanguage": "en",
+            "isPartOf": {"@id": f"{site}/#website"}, "about": {"@id": f"{site}/#software"},
+            "breadcrumb": {"@id": f"{url}#breadcrumb"}}
+    if docs["date"]:
+        page["dateModified"] = docs["date"].isoformat()
+    ld = jsonld(page, breadcrumbs(url, [(lab["breadcrumb_home"], f"{site}/"), (ch["h1"], url)]),
+                software(c, hub), website(c))
+    return (page_head(c, hub, title=ch["title"], description=flat(ch["description"]), path=path,
+                      root=root, ld=ld, modified=docs["date"])
+            + f"""
+<main id="main">
+  <div class="page-top col">
+    {crumbs(hub, root, ch["h1"], None)}
+    <h1 class="page-h1">{md(ch["h1"])}</h1>
+    <p class="lead">{md(ch["lead"])}</p>
+  </div>
+
+  <div class="docs col">
+  <section class="doc">
+{body}
+  </section>
+  </div>
+</main>
+
+""" + page_foot(hub, "../compare/", "../about/", "../docs/", "../stats/", notice=False,
+                changelog_link="./"))
+
+
+def build_changelog(c: dict, hub: dict, docs: Docs) -> bool:
+    """Write site/changelog/index.html, or leave it out for a download from
+    before the changelog was a Help page."""
+    if not docs.get("changelog"):
+        print("  no changelog in the download: site/changelog/ not built")
+        return False
+    (SITE / "changelog").mkdir(exist_ok=True)
+    (SITE / "changelog" / "index.html").write_text(render_changelog(c, hub, docs), encoding="utf-8")
+    print("built site/changelog/")
+    return True
+
+
 def llms_txt(c: dict, hub: dict, pages: list[dict], about: dict, docs: Docs) -> str:
     """llms.txt (llmstxt.org): a plain summary with links, for AI tools that read a site.
     The docs come first: they say what Hermit CRM does, feature by feature."""
@@ -1067,6 +1127,8 @@ def llms_txt(c: dict, hub: dict, pages: list[dict], about: dict, docs: Docs) -> 
     lines += ["", plain(y["safety"]), "",
               "## Pages", "", f"- [Home]({site}/): what it is, how to install it, questions and answers",
              f"- [Docs]({site}/docs/): {plain(d['description'])}",
+             *([f"- [Changelog]({site}/changelog/): {plain(c['changelog']['description'])}"]
+               if docs.get("changelog") else []),
              f"- [Hermit CRM compared]({site}/compare/): {plain(hub['page']['description'])}",
              f"- [About]({site}/about/): {plain(about['page']['description'])}",
              f"- [Stats]({site}/stats/): {plain(c['stats']['llms'])}; "
@@ -1137,6 +1199,7 @@ def check(c: dict, pages: list[dict] | None = None, hub: dict | None = None,
     if about:
         snippets.append(("about", about["page"]["title"], about["page"]["description"]))
     snippets.append(("docs", c["docs"]["title"], c["docs"]["description"]))
+    snippets.append(("changelog", c["changelog"]["title"], c["changelog"]["description"]))
     snippets.append(("stats", c["stats"]["title"], c["stats"]["description"]))
     for where, title, description in snippets:
         if len(flat(title)) > 65:
@@ -1203,6 +1266,7 @@ def build() -> tuple[dict, list[str], list[str]]:
     about = build_about(c, hub, pages) if hub else None
     docs = build_docs(c, hub) if hub else None
     if hub:
+        build_changelog(c, hub, docs)
         build_stats(c, hub)
         LLMS.write_text(llms_txt(c, hub, pages, about, docs), encoding="utf-8")
         print("built site/llms.txt")
@@ -1239,6 +1303,8 @@ def crawl(site_url: str, pages: list[dict] = (), about: dict | None = None,
     if docs:
         lastmod = f"<lastmod>{docs['date'].isoformat()}</lastmod>" if docs["date"] else ""
         urls.append(f"  <url><loc>{html.escape(site_url)}/docs/</loc>{lastmod}</url>")
+        if docs.get("changelog"):
+            urls.append(f"  <url><loc>{html.escape(site_url)}/changelog/</loc>{lastmod}</url>")
     if stats:
         urls.append(f"  <url><loc>{html.escape(site_url)}/stats/</loc><changefreq>daily</changefreq></url>")
     sitemap.write_text('<?xml version="1.0" encoding="UTF-8"?>\n'

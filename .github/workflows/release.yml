@@ -67,7 +67,7 @@ jobs:
           version=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/hermitcrm/__init__.py)
           scripts/release.sh --wheel "$RUNNER_TEMP"/pypi/*.whl
           echo "VERSION=$version" >> "$GITHUB_ENV"
-      - name: Release notes from CHANGELOG.md
+      - name: Release notes from the changelog (a Help page)
         run: |
           {
             echo "**Install on a Mac:** paste this into Claude Code, Codex, Cursor or another AI coding agent:"
@@ -78,7 +78,7 @@ jobs:
             echo
             echo "Or download \`hermitcrm-$VERSION.tar.gz\` below, check it with \`shasum -a 256 -c hermitcrm-$VERSION.tar.gz.sha256\`, unpack it, open the folder in your AI coding tool and say *Read INSTALL.md and set up Hermit CRM for me.* Already installed? \`uv tool install hermitcrm@latest\`."
             echo
-            awk -v h="## $VERSION " 'index($0, h) == 1 {on = 1; next} on && /^## / {exit} on' CHANGELOG.md
+            awk -v h="## $VERSION " 'index($0, h) == 1 {on = 1; next} on && /^## / {exit} on' src/hermitcrm/help/changelog.md
           } > notes.md
           cat notes.md
       # The download goes up, not the PyPI sdist: both are named

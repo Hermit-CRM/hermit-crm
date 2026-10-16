@@ -54,6 +54,7 @@ from . import (adjust, bcc, brief, calendar_sync, capture, dashboards, disclaime
                fields as custom, filters, followups, history, messaging, migrations,
                pipeline, reports, sample, welcome)
 from . import layout
+from . import playbook, textsource
 from . import schedule, scrape, secrets, task_types, usertheme
 from . import stage_ops
 from . import stages as stages_mod
@@ -3031,6 +3032,7 @@ def create_app(root: Path, config: dict | None = None,
             "fields_form": {"toml": (root / custom.FILENAME).read_text(encoding="utf-8")
                             if (root / custom.FILENAME).exists() else ""},
             "custom_field_defs": app.state.custom_fields,
+            "playbook_status": playbook_status(),
             "messaging_form": {
                 "size_field": str(config.get("messaging_size_field") or ""),
                 "team_field": str(config.get("messaging_team_field") or "")},
@@ -3071,6 +3073,13 @@ def create_app(root: Path, config: dict | None = None,
         ctx.update(inbox_context())
         ctx.update(extra)
         return ctx
+
+    def playbook_status() -> dict:
+        pb = playbook.load(root)
+        found = playbook.gaps(pb)
+        return {"approaches": [o.name for o in pb.approaches],
+                "ready": [o.name for o in playbook.ready_approaches(pb)],
+                "problem": "; ".join(found.get("", []))}
 
     def stages_form_default() -> dict:
         counts = store.stage_counts()
@@ -3253,6 +3262,195 @@ def create_app(root: Path, config: dict | None = None,
             return setup_invalid(request, result, "messaging")
         config_saved()
         return flashed("/settings", result.text(), anchor="messaging")
+
+    # ------------------------------------------------ Settings > Playbook
+
+    def playbook_text() -> str:
+        path = root / playbook.FILENAME
+        try:
+            return path.read_text(encoding="utf-8")
+        except OSError:
+            return ""
+
+    def playbook_page(request: Request, approach_name: str = "", index: int | None = None,
+                      values: dict | None = None, status_code: int = 200, **extra):
+        raw = playbook.parse(playbook_text()) if (root / playbook.FILENAME).exists() \
+            else playbook.Playbook()
+        # A file from before the approaches is shown as it will be once saved.
+        pb = playbook.parse(playbook.upgrade_text(raw.text)) if not raw.error else raw
+        approaches = pb.approaches
+        current = 0
+        if approach_name:
+            current = next((i for i, o in enumerate(approaches)
+                            if o.name.lower() == approach_name.lower()), 0)
+        elif index is not None and 0 <= index < len(approaches):
+            current = index
+        enricher = app.state.enricher
+        ctx = {"pb_error": raw.error, "exists": raw.exists, "set_up": raw.set_up,
+               "foreign": raw.has_front and not raw.error and not raw.set_up,
+               "approaches": approaches, "current": current, "errors": {}, "notice": "",
+               "approach_gaps": [playbook.approach_gaps(o) for o in approaches],
+               "source_url": "", "source_text": "", "draft_open": False,
+               "draft_error": "", "voice_error": "", "dirty": False, "rename": False,
+               "sent_count": len(playbook.sent_emails(store)),
+               "ai": {"available": enricher.available, "provider": enricher.provider_name,
+                      "reason": "" if enricher.available
+                      else enricher.unavailable_reason()}}
+        if approaches:
+            approach = approaches[current]
+            parts = playbook.completeness(approach)
+            values = values if values is not None else playbook.form_values(approach)
+            ctx.update({"approach": approach, "parts": parts,
+                        "filled": sum(ok for _, ok in parts),
+                        "gaps": playbook.approach_gaps(approach), "values": values,
+                        "range_fields": playbook.range_fields(root),
+                        "range_rows": playbook.range_rows(values)})
+        ctx.update(extra)
+        return render(request, "playbook.html", ctx, status_code=status_code)
+
+    def playbook_commit(message: str, paths=None) -> None:
+        try:
+            gitops.commit(message, [playbook.FILENAME])
+            gitops.push_async()
+        except Exception:  # the file is saved; git can catch up
+            logger.exception("could not commit %s", playbook.FILENAME)
+
+    def playbook_url(name: str = "", rename: bool = False) -> str:
+        approaches = playbook.load(root).approaches
+        i = next((i for i, o in enumerate(approaches) if o.name.lower() == name.lower()), 0)
+        return f"/settings/playbook?approach={i}" + ("&rename=1" if rename else "")
+
+    async def playbook_form(request: Request) -> tuple[dict, dict]:
+        """(the posted text fields, the uploaded files) after the CSRF check."""
+        form = await request.form()
+        check_csrf(str(form.get("csrf_token") or ""))
+        values, files = {}, {}
+        for key, value in form.multi_items():
+            if hasattr(value, "read"):
+                files[key] = value
+            elif key != "csrf_token":
+                values[key] = str(value)
+        return values, files
+
+    @app.get("/settings/playbook", response_class=HTMLResponse)
+    def settings_playbook(request: Request, approach: int = 0, rename: int = 0):
+        return playbook_page(request, index=approach, rename=bool(rename))
+
+    @app.post("/settings/playbook", response_class=HTMLResponse)
+    async def settings_playbook_save(request: Request):
+        values, _ = await playbook_form(request)
+        name = values.get("approach", "")
+        raw = playbook.parse(playbook_text())
+        if raw.error or (raw.has_front and not raw.set_up):
+            return playbook_page(request, name, values=values, status_code=400)
+        try:
+            text, errors = playbook.save_form(playbook_text(), name, values)
+        except playbook.PlaybookError as exc:
+            return flashed("/settings/playbook", str(exc))
+        if errors:
+            return playbook_page(request, name, values=values, status_code=400,
+                                 errors=errors, dirty=True)
+        new_name = playbook.from_form(values)[0]["name"] or name
+        if playbook.write(root, text):
+            playbook_commit(f"playbook: {new_name}")
+            return flashed(playbook_url(new_name), f"Saved {new_name}")
+        return flashed(playbook_url(new_name), "Nothing changed")
+
+    @app.post("/settings/playbook/draft", response_class=HTMLResponse)
+    async def settings_playbook_draft(request: Request):
+        values, files = await playbook_form(request)
+        name = values.get("approach", "")
+        url = values.get("source_url", "").strip()
+        pasted = values.get("source_text", "").strip()
+        keep = {"source_url": url, "source_text": pasted, "draft_open": True, "dirty": True}
+        try:
+            parts = []
+            upload = files.get("source_file")
+            if upload is not None and getattr(upload, "filename", ""):
+                # One byte over the limit is enough to refuse it, and parsing a
+                # PDF takes long enough to belong off the event loop.
+                data = await upload.read(textsource.MAX_FILE_BYTES + 1)
+                parts.append(await run_in_threadpool(textsource.read_file, upload.filename, data))
+            if url:
+                parts.append(await run_in_threadpool(textsource.read_website, url))
+            if pasted:
+                parts.append(pasted)
+            proposal = await run_in_threadpool(
+                playbook.propose, app.state.enricher, "\n\n".join(parts), name)
+        except (textsource.SourceError, EnrichError) as exc:
+            return playbook_page(request, name, values=values, status_code=400,
+                                 draft_error=str(exc), **keep)
+        if not proposal:
+            return playbook_page(request, name, values=values, draft_error=(
+                "The AI found nothing it could use in that text."), **keep)
+        # The proposal fills the boxes it has an answer for; the rest keep what
+        # is in the form. Nothing is written until Save.
+        merged = {**values, **proposal}
+        return playbook_page(request, name, values=merged, notice=(
+            f"Proposed by {app.state.enricher.provider_name or 'your AI CLI'}: "
+            f"{len(proposal)} boxes filled from what you gave. Check each one, change "
+            "what is not right, then Save. Nothing is saved yet."), **keep)
+
+    @app.post("/settings/playbook/voice", response_class=HTMLResponse)
+    async def settings_playbook_voice(request: Request):
+        values, _ = await playbook_form(request)
+        name = values.get("approach", "")
+        try:
+            proposal = await run_in_threadpool(
+                playbook.propose_voice, app.state.enricher, playbook.sent_emails(store))
+        except EnrichError as exc:
+            return playbook_page(request, name, values=values, status_code=400,
+                                 voice_error=str(exc), dirty=True)
+        return playbook_page(request, name, values={**values, **proposal}, dirty=True,
+                             notice="Voice proposed from your sent emails, in the Voice "
+                                    "box. Check it, then Save. Nothing is saved yet.")
+
+    @app.post("/settings/playbook/new")
+    def settings_playbook_new(request: Request, csrf_token: str = Form(""),
+                              name: str = Form(""), copy_from: str = Form("")):
+        check_csrf(csrf_token)
+        try:
+            text = playbook.add_approach(playbook_text(), name, copy_from=copy_from)
+        except playbook.PlaybookError as exc:
+            return flashed("/settings/playbook", f"Not created: {exc}")
+        name = " ".join(name.split())
+        playbook.write(root, text)
+        playbook_commit(f"playbook: new approach {name}")
+        return flashed(playbook_url(name), f"Created the approach {name}"
+                       + (f", a copy of {copy_from}" if copy_from else ""))
+
+    @app.post("/settings/playbook/duplicate")
+    def settings_playbook_duplicate(request: Request, csrf_token: str = Form(""),
+                                    approach: str = Form("")):
+        check_csrf(csrf_token)
+        text = playbook_text()
+        name = playbook.copy_name(playbook.parse(playbook.upgrade_text(text)), approach)
+        try:
+            text = playbook.add_approach(text, name, copy_from=approach)
+        except playbook.PlaybookError as exc:
+            return flashed("/settings/playbook", f"Not copied: {exc}")
+        playbook.write(root, text)
+        playbook_commit(f"playbook: {name}")
+        return flashed(playbook_url(name, rename=True),
+                       f"Created {name}. Give it its own name above and change what differs.")
+
+    @app.post("/settings/playbook/delete")
+    def settings_playbook_delete(request: Request, csrf_token: str = Form(""),
+                                 approach: str = Form("")):
+        check_csrf(csrf_token)
+        try:
+            text = playbook.delete_approach(playbook_text(), approach)
+        except playbook.PlaybookError as exc:
+            return flashed("/settings/playbook", f"Not deleted: {exc}")
+        playbook.write(root, text)
+        playbook_commit(f"playbook: deleted approach {approach}")
+        return flashed("/settings/playbook", f"Deleted the approach {approach}; it stays in "
+                                             "the git history.")
+
+    @app.post("/settings/playbook/upgrade")
+    def settings_playbook_upgrade(request: Request, csrf_token: str = Form("")):
+        check_csrf(csrf_token)
+        return flashed("/settings/playbook", playbook.upgrade(root, commit=playbook_commit))
 
     @app.post("/settings/enrichment")
     def settings_enrichment(request: Request, csrf_token: str = Form(""),
