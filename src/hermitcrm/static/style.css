@@ -559,7 +559,7 @@ code.report-key { font-size: 11px; color: var(--faint); }
 .widget.wide { grid-column: 1 / -1; }
 .dashboard-history { color: var(--muted); margin: 0 0 8px; }
 .dashboard-history form.inline { display: inline; }
-.dashboard-history button.link { font: inherit; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+.dashboard-history .link-button { font: inherit; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
 .widget h2 { margin: 0 0 8px; }
 .widget h2 a { color: inherit; text-decoration: none; }
 .widget h2 a:hover { color: var(--accent); }

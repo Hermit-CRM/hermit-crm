@@ -3638,11 +3638,11 @@ def create_app(root: Path, config: dict | None = None,
 
     def undo_back(back: str) -> str:
         """Where an undo from a dashboard page lands: that page while its file
-        is still there (an undone "create" removes it), else ""."""
+        is still there (an undone "create" removes it), else "". The answer is
+        looked up among the dashboards on disk, so `back` never builds a path."""
         slug = back[3:] if back.startswith("/d/") else ""
-        if dashboards.SLUG.fullmatch(slug) and (root / dashboards.DIR / f"{slug}.toml").is_file():
-            return back
-        return ""
+        dash = dashboards.get(root, slug) if dashboards.SLUG.fullmatch(slug) else None
+        return dash.url if dash is not None else ""
 
     @app.post("/yours/undo")
     def yours_undo(request: Request, csrf_token: str = Form(""), sha: str = Form(""),
