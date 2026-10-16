@@ -13,7 +13,7 @@ Every record is a Markdown file with YAML front matter in a fixed key order; the
   CLAUDE.md, AGENTS.md        rules for AI agents
   .claude/settings.json       git commands Claude Code may not run (see Backups and undo)
   .claude/skills/hermit/SKILL.md  the /hermit skill: Claude Code runs `hermitcrm help adjust` (Make it yours)
-  MESSAGING.md                your outreach playbook
+  MESSAGING.md                your outreach playbook (hermitcrm help playbook)
   dashboards/<name>.toml      optional pages of your own at /d/<name> (see Dashboards)
   inbox/                      BCC and calendar items waiting for a decision
   routines.toml               optional routines: a morning brief, AI drafts (see Routines)

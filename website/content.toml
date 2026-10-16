@@ -296,12 +296,22 @@ description    = "How every part of Hermit CRM works: pipeline, contacts, mail c
 h1             = "Hermit CRM docs"
 lead           = "The same pages as Help inside the app and `hermitcrm help <topic>` on the command line: how each part of Hermit CRM works, written for people and for the AI agents that work in your data folder."
 version_label  = "For version"
-text_note      = "All of it as one Markdown file: [llms-full.txt](../llms-full.txt)."
+text_note      = "All of it as one Markdown file: [llms-full.txt](../llms-full.txt). What changed in each version: [Changelog](../changelog/)."
 contents       = "Contents"
 recipes        = "Make it yours: recipes"
 recipes_note   = "What your own AI agent follows when you ask it to change Hermit CRM. Start with [Make it yours](#adjust)."
 back           = "Back to contents"
 llms_intro     = "What Hermit CRM does, feature by feature: the app's own Help pages for the released version. Read the AI agents page first if you will work in a data folder or over MCP."
+
+
+# ── Changelog (/changelog/) ──────────────────────────────────────────
+# The words around it; the versions themselves are the app's Help >
+# Changelog (src/hermitcrm/help/changelog.md), taken from the download.
+[changelog]
+title       = "Hermit CRM changelog: what changed in each version"
+description = "What is new in each Hermit CRM release, newest first, with how to upgrade and whether your data folder is migrated."
+h1          = "Changelog"
+lead        = "The same page as Help > Changelog inside the app and `hermitcrm help changelog`: what changed in each version, newest first."
 
 
 # ── Stats page (/stats/) ─────────────────────────────────────────────
@@ -330,7 +340,7 @@ llms        = "the site's own numbers, updated daily: visitors, downloads, GitHu
 [footer]
 # {github} is replaced by a link to [links].github labelled with
 # [header].github_label, {sha256} by a link to [links].sha256.
-text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · {github} · {sha256} · [Docs](docs/) · [Stats](stats/) · [Compare](compare/) · [About](about/) · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
+text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · {github} · {sha256} · [Docs](docs/) · [Changelog](changelog/) · [Stats](stats/) · [Compare](compare/) · [About](about/) · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
 
 
 # ── Share image (og.png, 1200 x 630) ─────────────────────────────────

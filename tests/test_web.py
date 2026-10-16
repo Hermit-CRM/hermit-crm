@@ -233,7 +233,7 @@ def test_the_home_page_only_shows_the_next_seven_days(client, app):
 
 def test_the_walkthrough_ticks_itself_from_the_data(client, app, repo):
     page = client.get("/welcome").text
-    assert "of 11</strong> done" in page
+    assert "of 12</strong> done" in page
     before = int(page.split("<strong>")[1].split(" of")[0])
 
     post_company(client, name="Acme")
