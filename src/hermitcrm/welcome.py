@@ -67,11 +67,11 @@ def steps(store, config: dict, setup_state: dict, ai_available: bool,
              "Your name signs the drafts, and your addresses are how Hermit CRM "
              "tells mail you sent from mail you received.",
              "Open Settings", "/settings#you", bool(setup_state.get("you"))),
-        Step("offer", "Say what you sell",
+        Step("approach", "Say what you sell",
              "One sentence on what you sell, who buys it and one result a customer "
              "got. The drafts and the outreach bot read it from your playbook, "
              "MESSAGING.md; the rest of the playbook can wait.",
-             "Open the playbook", "/settings/playbook", _has_offer(store)),
+             "Open the playbook", "/settings/playbook", _has_approach(store)),
         Step("company", "Add your first company",
              "A company is a folder with a file in it. Everything else hangs off one.",
              "Add a company", "/companies/new", bool(companies)),
@@ -129,11 +129,11 @@ def steps(store, config: dict, setup_state: dict, ai_available: bool,
     ]
 
 
-def _has_offer(store) -> bool:
+def _has_approach(store) -> bool:
     from hermitcrm import playbook
 
     root = getattr(store, "root", None)
-    return bool(root and any(o.offer_line for o in playbook.load(root).offers))
+    return bool(root and any(o.offer_line for o in playbook.load(root).approaches))
 
 
 def progress(all_steps: list[Step]) -> tuple[int, int]:

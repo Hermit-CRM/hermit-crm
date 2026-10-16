@@ -13,9 +13,9 @@
 # limitations under the License.
 
 
-"""The playbook (MESSAGING.md: offers in the front matter, an offer block per
-offer in the body): validation, the readiness gate, persona matching, picking
-the offer for a company, offers added, copied and deleted, and the
+"""The playbook (MESSAGING.md: approaches in the front matter, an approach block per
+approach in the body): validation, the readiness gate, persona matching, picking
+the approach for a company, approaches added, copied and deleted, and the
 byte-for-byte upgrade. All names are made up."""
 
 import subprocess
@@ -28,15 +28,14 @@ from hermitcrm.enrich import EnrichError
 from hermitcrm.models import Company, Contact
 
 FILLED = """---
-offers:
+approaches:
   - name: Clinic software
     offer_line: "We build booking software for clinics."
     icp:
       industries: [healthcare]
-      fte: [5, 200]
       countries: [NL, BE]
+      ranges: {employees: [5, 200]}
     disqualifiers:
-      - title_present: ["IT Director"]
       - tag_present: [competitor]
     personas:
       owner: {titles: ["Owner", "Practice Manager"]}
@@ -45,7 +44,7 @@ offers:
 
 General notes.
 
-# Offer: Clinic software
+# Approach: Clinic software
 
 ## Proof
 
@@ -59,25 +58,25 @@ General notes.
 """
 
 TWO = """---
-offers:
+approaches:
   - name: Founder coaching
     offer_line: I coach founders.
-    icp: {salespeople: [0, 0], countries: [DE, NL]}
+    icp: {countries: [DE, NL], ranges: {ae_count: [0, 0]}}
     personas: {founder: {titles: [CEO]}}
   - name: Team build-out
     offer_line: I build your sales team.
-    icp: {salespeople: [1, 10], countries: [DE, NL]}
+    icp: {countries: [DE, NL], ranges: {ae_count: [1, 10]}}
     disqualifiers:
-      - title_present: [Head of Sales]
+      - tag_present: [has-sales-leader]
     personas: {founder: {titles: [CEO]}}
 ---
-# Offer: Founder coaching
+# Approach: Founder coaching
 
 ## Proof
 
 - A made-up founder got a day a week back.
 
-# Offer: Team build-out
+# Approach: Team build-out
 
 ## Proof
 
@@ -102,10 +101,10 @@ def test_filled_front_matter_is_valid_and_ready():
     pb = playbook.parse(FILLED)
     assert pb.set_up and not pb.error
     assert playbook.validate_front(pb.front) == []
-    offer, = pb.offers
-    assert playbook.offer_gaps(offer) == []
-    assert offer.proof == ["A made-up clinic cut no-shows by a third."]
-    assert offer.lessons() == {"worked": "- Short mails.", "failed": "", "open": ""}
+    approach, = pb.approaches
+    assert playbook.approach_gaps(approach) == []
+    assert approach.proof == ["A made-up clinic cut no-shows by a third."]
+    assert approach.lessons() == {"worked": "- Short mails.", "failed": "", "open": ""}
 
 
 def test_a_list_of_offer_lines_is_refused():
@@ -113,39 +112,41 @@ def test_a_list_of_offer_lines_is_refused():
                           "offer_line:\n      - one line\n      - another line")
     pb = playbook.parse(text)
     assert any(playbook.ONE_LINE in p for p in playbook.validate_front(pb.front))
-    assert any("offer line" in g for g in playbook.offer_gaps(pb.offers[0]))
+    assert any("offer line" in g for g in playbook.approach_gaps(pb.approaches[0]))
 
 
 @pytest.mark.parametrize("item, says", [
-    ("- title_present: CEO", "title_present takes a list"),
-    ("- fte_over: 100", "fte_over is not a hard disqualifier"),
+    ("- tag_present: customer", "tag_present takes a list"),
+    ("- title_present: [CEO]", "title_present is not a hard disqualifier"),
     ("- no_salespeople: true", "write it in the Disqualifiers section as text"),
-    ("- {title_present: [a], tag_present: [b]}", "must be one `key: [...]`"),
+    ("- {tag_present: [a], fte_over: [b]}", "must be one `key: [...]`"),
 ])
 def test_disqualifier_vocabulary(item, says):
-    text = FILLED.replace('- title_present: ["IT Director"]', item)
+    text = FILLED.replace("- tag_present: [competitor]", item)
     problems = playbook.validate_front(playbook.parse(text).front)
     assert any(says in p for p in problems), problems
 
 
 @pytest.mark.parametrize("old, new, says", [
-    ("fte: [5, 200]", "fte: [200, 5]", "icp.fte: must be [min, max]"),
+    ("employees: [5, 200]", "employees: [200, 5]", "icp.ranges.employees: must be [min, max]"),
+    ("ranges: {employees: [5, 200]}", "fte: [5, 200]", "icp.fte: not an ICP key"),
+    ("ranges: {employees: [5, 200]}", "ranges: [5, 200]", "icp.ranges: must be field"),
     ("countries: [NL, BE]", "countries: [NL, Narnia]", "not a two-letter country code"),
     ("industries: [healthcare]", "industries: healthcare", "icp.industries: must be a list"),
-    ("    offer_line:", "    offer_lines: x\n    offer_line:", "offer_lines: not an offer key"),
+    ("    offer_line:", "    offer_lines: x\n    offer_line:", "offer_lines: not an approach key"),
     ('owner: {titles: ["Owner", "Practice Manager"]}', "owner: {pains: [time]}",
      "personas.owner: has no titles"),
     ("  - name: Clinic software", "  - name: ''", "has no name"),
-    ("offers:", "offer_line: x\noffers:", "offer_line: not a playbook key"),
+    ("approaches:", "offer_line: x\napproaches:", "offer_line: not a playbook key"),
 ])
 def test_front_matter_problems_are_named(old, new, says):
     problems = playbook.validate_front(playbook.parse(FILLED.replace(old, new)).front)
     assert any(says in p for p in problems), problems
 
 
-def test_two_offers_cannot_share_a_name():
+def test_two_approaches_cannot_share_a_name():
     text = TWO.replace("name: Team build-out", "name: founder  COACHING")
-    assert any("two offers are called" in p
+    assert any("two approaches are called" in p
                for p in playbook.validate_front(playbook.parse(text).front))
 
 
@@ -158,7 +159,7 @@ def test_check_reports_problems_and_hints(folder):
         encoding="utf-8")
     text, code = cli.cmd_check(cli.build_store(folder))
     assert code == 1 and playbook.ONE_LINE in text and "MESSAGING.md: front matter: " in text
-    (folder / "MESSAGING.md").write_text("---\noffers: [unclosed\n---\n", encoding="utf-8")
+    (folder / "MESSAGING.md").write_text("---\napproaches: [unclosed\n---\n", encoding="utf-8")
     text, code = cli.cmd_check(cli.build_store(folder))
     assert code == 1 and "not valid YAML" in text
 
@@ -169,7 +170,7 @@ def test_check_reports_problems_and_hints(folder):
 def test_gate_blocks_an_empty_playbook(folder):
     with pytest.raises(playbook.NotReady) as exc:
         playbook.require_ready(folder)
-    assert len(exc.value.gaps[playbook.DEFAULT_OFFER]) == 4
+    assert len(exc.value.gaps[playbook.DEFAULT_APPROACH]) == 4
     message = str(exc.value)
     assert "offer line" in message and "persona" in message and "proof" in message
     assert "/settings/playbook" in message
@@ -187,29 +188,29 @@ def test_gate_blocks_a_missing_file_and_one_without_front_matter(tmp_path):
     ('"We build booking software for clinics."', '""', "offer line"),
     ("- A made-up clinic cut no-shows by a third.", "<!-- a result -->", "proof line"),
     ('owner: {titles: ["Owner", "Practice Manager"]}', "owner: {titles: []}", "persona"),
-    ("      industries: [healthcare]\n      fte: [5, 200]\n      countries: [NL, BE]\n",
-     "      industries: []\n", "ideal customer"),
+    ("      industries: [healthcare]\n      countries: [NL, BE]\n"
+     "      ranges: {employees: [5, 200]}\n", "      industries: []\n", "ideal customer"),
 ])
 def test_gate_names_each_gap(tmp_path, old, new, gap):
     (tmp_path / "MESSAGING.md").write_text(FILLED.replace(old, new), encoding="utf-8")
     pb = playbook.load(tmp_path)
-    gaps = [g for g in playbook.offer_gaps(pb.offers[0]) if "front matter" not in g]
+    gaps = [g for g in playbook.approach_gaps(pb.approaches[0]) if "front matter" not in g]
     assert len(gaps) == 1 and gap in gaps[0]
     with pytest.raises(playbook.NotReady):
         playbook.require_ready(tmp_path)
 
 
-def test_gate_passes_with_one_ready_offer_and_names_the_other(tmp_path):
+def test_gate_passes_with_one_ready_approach_and_names_the_other(tmp_path):
     text = TWO.replace("- A made-up team hit quota.", "")
     (tmp_path / "MESSAGING.md").write_text(text, encoding="utf-8")
     assert [o.name for o in playbook.require_ready(tmp_path)] == ["Founder coaching"]
     with pytest.raises(playbook.NotReady, match="Team build-out: one proof line"):
-        playbook.require_ready(tmp_path, offer="team build-out")
-    with pytest.raises(playbook.NotReady, match="an offer called"):
-        playbook.require_ready(tmp_path, offer="Nope")
+        playbook.require_ready(tmp_path, approach="team build-out")
+    with pytest.raises(playbook.NotReady, match="an approach called"):
+        playbook.require_ready(tmp_path, approach="Nope")
 
 
-def test_the_demo_folder_has_two_ready_offers(tmp_path):
+def test_the_demo_folder_has_two_ready_approaches(tmp_path):
     folder = init_folder(tmp_path / "demo", demo=True)
     ready = playbook.require_ready(folder)
     assert [o.name for o in ready] == ["Founder coaching", "Scaling the sales team"]
@@ -217,12 +218,12 @@ def test_the_demo_folder_has_two_ready_offers(tmp_path):
     pb = playbook.load(folder)
     assert playbook.validate_front(pb.front) == []
     assert all(line in pb.text.splitlines() for line in NEW_MESSAGING.splitlines())
-    assert "## What worked" not in pb.text  # Lessons, per offer, instead
+    assert "## What worked" not in pb.text  # Lessons, per approach, instead
 
 
-def test_a_new_folder_has_one_empty_offer_and_no_what_worked(folder):
+def test_a_new_folder_has_one_empty_approach_and_no_what_worked(folder):
     pb = playbook.load(folder)
-    assert [o.name for o in pb.offers] == [playbook.DEFAULT_OFFER]
+    assert [o.name for o in pb.approaches] == [playbook.DEFAULT_APPROACH]
     assert pb.text == playbook.upgrade_text(NEW_MESSAGING)
     assert "## What worked" not in pb.text
 
@@ -249,7 +250,7 @@ def test_persona_matching_by_title(title, persona):
     assert playbook.match_persona(title, PERSONAS) == persona
 
 
-# ---------------------------------------- disqualifiers and picking the offer
+# ---------------------------------------- disqualifiers and picking the approach
 
 
 def company(fte="", ae=None, titles=(), tags=(), country="DE"):
@@ -264,39 +265,45 @@ def company(fte="", ae=None, titles=(), tags=(), country="DE"):
     return co
 
 
-def test_hard_disqualifiers():
-    offer = playbook.parse(FILLED).offers[0]
-    assert not playbook.disqualify(company(titles=["CEO"]), offer).excluded
-    assert playbook.disqualify(company(titles=["IT Director, EMEA"]), offer).reasons == [
-        "already has a IT Director"]
-    assert playbook.disqualify(company(tags=["Competitor"]), offer).reasons == [
+def test_hard_disqualifiers_are_tags_only():
+    approach = playbook.parse(FILLED).approaches[0]
+    assert not playbook.disqualify(company(titles=["IT Director"]), approach).excluded
+    assert playbook.disqualify(company(tags=["Competitor"]), approach).reasons == [
         "tagged competitor"]
-    assert playbook.disqualify(company(), offer).unchecked == [
-        "not checked: no contact titles"]
 
 
-@pytest.mark.parametrize("co, offer", [
+def test_ranges_use_the_folders_own_fields():
+    approach = playbook.parse(FILLED).approaches[0]
+    co = company()
+    co.extra["employees"] = "~40"          # a text field counts by its first number
+    assert playbook.fit(co, approach)[0][0] == "employees 40 (wants 5-200)"
+    co.extra["employees"] = 900
+    assert playbook.fit(co, approach)[1][0] == "employees 900, wants 5-200"
+    assert playbook.fit(company(country="NL"), approach)[2] == ["no employees"]
+
+
+@pytest.mark.parametrize("co, approach", [
     (company(ae=0), "Founder coaching"),
     (company(ae=3), "Team build-out"),
-    (company(ae=3, titles=["Head of Sales"]), ""),   # disqualified for the one it fits
+    (company(ae=3, tags=["has-sales-leader"]), ""),   # disqualified for the one it fits
     (company(ae=3, country="FR"), ""),                # outside every ICP
 ])
-def test_pick_offer_by_fit(co, offer):
-    pick = playbook.pick_offer(co, playbook.parse(TWO).offers)
-    assert pick.offer == offer and not pick.unclear
+def test_pick_approach_by_fit(co, approach):
+    pick = playbook.pick_approach(co, playbook.parse(TWO).approaches)
+    assert pick.approach == approach and not pick.unclear
 
 
-def test_pick_offer_asks_when_an_empty_field_cannot_decide():
-    pick = playbook.pick_offer(company(), playbook.parse(TWO).offers)
-    assert pick.offer == "" and pick.unclear == ["Founder coaching", "Team build-out"]
-    assert "no number of salespeople" in pick.why
+def test_pick_approach_asks_when_an_empty_field_cannot_decide():
+    pick = playbook.pick_approach(company(), playbook.parse(TWO).approaches)
+    assert pick.approach == "" and pick.unclear == ["Founder coaching", "Team build-out"]
+    assert "no ae count" in pick.why
 
 
-def test_pick_offer_says_why_an_offer_was_left_out():
-    pick = playbook.pick_offer(company(ae=3, titles=["Head of Sales"]),
-                               playbook.parse(TWO).offers)
-    assert pick.left_out == {"Founder coaching": ["3 salespeople, wants 0 salespeople"],
-                             "Team build-out": ["already has a Head of Sales"]}
+def test_pick_approach_says_why_an_approach_was_left_out():
+    pick = playbook.pick_approach(company(ae=3, tags=["has-sales-leader"]),
+                                  playbook.parse(TWO).approaches)
+    assert pick.left_out == {"Founder coaching": ["ae count 3, wants 0"],
+                             "Team build-out": ["tagged has-sales-leader"]}
 
 
 # ------------------------------------------------------------------- upgrade
@@ -307,7 +314,7 @@ OLD_FILES = [
     "# My notes\r\n\r\nNo trailing newline, Windows line ends",
     "",
     "## Proof\n\n- something we already wrote\n",
-    "---\noffers:\n  - name: Kept\n    offer_line: as written\n---\n# Offer: Kept\n\n"
+    "---\napproaches:\n  - name: Kept\n    offer_line: as written\n---\n# Approach: Kept\n\n"
     "## Proof\n\n- mine\n",
 ]
 
@@ -321,7 +328,7 @@ def test_upgrade_keeps_every_byte_and_is_idempotent(old):
         assert playbook.split(new)[1].startswith(old)       # byte for byte, in place
     else:
         assert new.startswith(old.rstrip("\n"))             # its front matter too
-        assert playbook.parse(new).offers[0].proof == ["mine"]
+        assert playbook.parse(new).approaches[0].proof == ["mine"]
     assert playbook.upgrade_text(new) == new
     for _, title, _ in playbook.SECTIONS:
         assert f"## {title}\n" in new
@@ -356,7 +363,7 @@ def test_existing_folders_are_not_changed_by_other_commands(folder):
 
 def test_status_command(folder, capsys):
     assert cli.main(["playbook", "status"], root=folder) == 1
-    assert "no offer is ready" in capsys.readouterr().out
+    assert "no approach is ready" in capsys.readouterr().out
     (folder / "MESSAGING.md").write_text(TWO.replace("- A made-up team hit quota.", ""),
                                          encoding="utf-8")
     assert cli.main(["playbook"], root=folder) == 0
@@ -365,79 +372,82 @@ def test_status_command(folder, capsys):
     assert "Team build-out: " in out and "not ready, missing one proof line" in out
 
 
-# --------------------------------------------------------- offers, the form
+# --------------------------------------------------------- approaches, the form
 
 
 def test_form_round_trip_keeps_the_rest_of_the_file():
     text = playbook.upgrade_text(MESSAGING)
     values = {"name": "Brand design", "offer_line": "  We  design   brands. ",
               "icp_industries": "food, Food, retail", "icp_countries": "fr, be",
-              "icp_fte_min": "2", "icp_fte_max": "40", "dq_tag_present": "customer",
+              "range_0_field": "employees", "range_0_min": "2", "range_0_max": "40",
+              "range_1_field": "", "range_1_min": "", "range_1_max": "",
+              "dq_tag_present": "customer",
               "personas": "Brand Owner: CMO, Founder\n\nbuyer: Head of Marketing",
               "section_proof": "- A made-up launch sold out in a week.",
               "section_voice": "Warm and short.", "section_disqualifiers": "- Agencies",
               "lessons_failed": "- Long mails."}
-    new, errors = playbook.save_form(text, playbook.DEFAULT_OFFER, values)
+    new, errors = playbook.save_form(text, playbook.DEFAULT_APPROACH, values)
     assert errors == {}
-    offer, = playbook.parse(new).offers
-    assert offer.name == "Brand design" and offer.offer_line == "We design brands."
-    assert offer.icp["industries"] == ["food", "retail"] and offer.icp["countries"] == ["FR", "BE"]
-    assert offer.icp["fte"] == [2, 40] and offer.icp["salespeople"] == []
-    assert offer.disqualifiers == [{"tag_present": ["customer"]}]
-    assert offer.personas == {"brand-owner": {"titles": ["CMO", "Founder"]},
+    approach, = playbook.parse(new).approaches
+    assert approach.name == "Brand design" and approach.offer_line == "We design brands."
+    assert approach.icp["industries"] == ["food", "retail"] and approach.icp["countries"] == ["FR", "BE"]
+    assert approach.icp["ranges"] == {"employees": [2, 40]}
+    assert approach.disqualifiers == [{"tag_present": ["customer"]}]
+    assert approach.personas == {"brand-owner": {"titles": ["CMO", "Founder"]},
                               "buyer": {"titles": ["Head of Marketing"]}}
-    assert offer.section("voice") == "Warm and short."
-    assert offer.section("disqualifiers") == "- Agencies"
-    assert offer.lessons()["failed"] == "- Long mails."
-    assert "# Offer: Brand design" in new and "# Offer: My offer" not in new
+    assert approach.section("voice") == "Warm and short."
+    assert approach.section("disqualifiers") == "- Agencies"
+    assert approach.lessons()["failed"] == "- Long mails."
+    assert "# Approach: Brand design" in new and "# Approach: My approach" not in new
     assert MESSAGING in new
     # Saving the same values again writes the same bytes.
-    again, _ = playbook.save_form(new, "Brand design", playbook.form_values(offer))
+    again, _ = playbook.save_form(new, "Brand design", playbook.form_values(approach))
     assert again == new
 
 
 def test_form_errors_and_kept_keys():
     old = {"name": "X", "personas": {"buyer": {"titles": ["CEO"], "pains": ["time"]}}}
     front, _, errors = playbook.from_form(
-        {"name": "X", "icp_fte_min": "50", "icp_fte_max": "5",
+        {"name": "X", "range_0_field": "employees", "range_0_min": "50", "range_0_max": "5",
          "personas": "buyer: CEO, COO\njust a line"}, old)
-    assert set(errors) == {"icp_fte", "personas"}
+    assert set(errors) == {"ranges", "personas"}
+    assert "ranges" in playbook.from_form({"name": "X", "range_0_min": "3"})[2]
     assert front["personas"]["buyer"] == {"titles": ["CEO", "COO"], "pains": ["time"]}
     assert "name" in playbook.from_form({"name": "a: b"})[2]
 
 
-def test_save_refuses_a_name_another_offer_has():
+def test_save_refuses_a_name_another_approach_has():
     new, errors = playbook.save_form(TWO, "Team build-out", {
-        **playbook.form_values(playbook.parse(TWO).offer("Team build-out")),
+        **playbook.form_values(playbook.parse(TWO).approach("Team build-out")),
         "name": "Founder Coaching"})
-    assert new == TWO and "already an offer called" in errors["name"]
+    assert new == TWO and "already an approach called" in errors["name"]
 
 
-def test_add_copy_and_delete_offers():
-    text = playbook.add_offer(TWO, "Workshops")
+def test_add_copy_and_delete_approaches():
+    text = playbook.add_approach(TWO, "Workshops")
     pb = playbook.parse(text)
-    assert [o.name for o in pb.offers] == ["Founder coaching", "Team build-out", "Workshops"]
-    assert playbook.offer_gaps(pb.offer("Workshops"))  # empty
-    copied = playbook.add_offer(text, "Team build-out (UK)", copy_from="Team build-out")
-    twin, source = (playbook.parse(copied).offer(n)
+    assert [o.name for o in pb.approaches] == ["Founder coaching", "Team build-out", "Workshops"]
+    assert playbook.approach_gaps(pb.approach("Workshops"))  # empty
+    copied = playbook.add_approach(text, "Team build-out (UK)", copy_from="Team build-out")
+    twin, source = (playbook.parse(copied).approach(n)
                     for n in ("Team build-out (UK)", "Team build-out"))
     assert twin.icp == source.icp and twin.proof == source.proof == ["A made-up team hit quota."]
     assert {k: v for k, v in twin.front.items() if k != "name"} == {
         k: v for k, v in source.front.items() if k != "name"}
     assert playbook.copy_name(playbook.parse(copied), "Team build-out") == "Copy of Team build-out"
-    gone = playbook.delete_offer(copied, "Team build-out")
+    gone = playbook.delete_approach(copied, "Team build-out")
     pb = playbook.parse(gone)
-    assert [o.name for o in pb.offers] == ["Founder coaching", "Workshops", "Team build-out (UK)"]
-    assert pb.offer("Team build-out (UK)").proof == ["A made-up team hit quota."]
-    assert "# Offer: Team build-out\n" not in gone
+    assert [o.name for o in pb.approaches] == ["Founder coaching", "Workshops", "Team build-out (UK)"]
+    assert pb.approach("Team build-out (UK)").proof == ["A made-up team hit quota."]
+    assert "# Approach: Team build-out\n" not in gone
     assert playbook.validate_front(pb.front) == []
-    with pytest.raises(playbook.PlaybookError, match="already an offer"):
-        playbook.add_offer(TWO, "founder coaching")
-    with pytest.raises(playbook.PlaybookError, match="at least one offer"):
-        playbook.delete_offer(FILLED, "Clinic software")
+    with pytest.raises(playbook.PlaybookError, match="already an approach"):
+        playbook.add_approach(TWO, "founder coaching")
+    with pytest.raises(playbook.PlaybookError, match="at least one approach"):
+        playbook.delete_approach(FILLED, "Clinic software")
 
 
-def test_the_ai_reads_the_body_and_only_its_offer():
+def test_the_ai_reads_the_body_and_only_its_approach():
     whole = playbook.body_for_ai(FILLED)
     assert whole.startswith("# Messaging playbook") and "offer_line" not in whole
     one = playbook.body_for_ai(TWO, "Team build-out")
@@ -475,7 +485,7 @@ def test_draft_proposes_without_tools_and_writes_nothing(tmp_path):
     values = playbook.propose(fake, "Example Roofing fixes roofs. " * 3, "Roof repair")
     (prompt, schema, tools), = fake.calls
     assert tools == "" and "Example Roofing" in prompt and "Never invent" in prompt
-    assert 'offer called "Roof repair"' in prompt
+    assert 'approach called "Roof repair"' in prompt
     assert values["offer_line"] == "We fix leaky roofs."
     assert values["icp_countries"] == "NL"
     assert values["personas"] == "facility-manager: Facility Manager"
@@ -517,11 +527,21 @@ def test_voice_from_sent_emails(folder):
 # --------------------------------------------------------------------- setup
 
 
-def test_setup_step_saves_the_offer(folder):
+def test_setup_step_saves_the_approach(folder):
     saved = playbook.save_basics(folder, "We clean offices.", "property, retail",
                                  "Office Manager, COO", "A made-up client saved 10 hours a week.",
                                  commit=cli.GitOps(folder, push_enabled=False).commit)
     assert saved == ["offer line", "industries", "buyer titles", "a customer result"]
-    assert [o.name for o in playbook.require_ready(folder)] == [playbook.DEFAULT_OFFER]
+    assert [o.name for o in playbook.require_ready(folder)] == [playbook.DEFAULT_APPROACH]
     assert git(folder, "log", "-1", "--format=%s").strip() == "playbook: your offer"
     assert playbook.save_basics(folder) == []
+
+
+def test_check_hints_at_a_range_on_a_field_the_folder_does_not_have(tmp_path):
+    (tmp_path / "MESSAGING.md").write_text(FILLED, encoding="utf-8")
+    problems, hints = playbook.check_lines(tmp_path)
+    assert problems == [] and len(hints) == 1 and "'employees'" in hints[0]
+    (tmp_path / "fields.toml").write_text(
+        '[[field]]\nkey = "employees"\ntype = "number"\n', encoding="utf-8")
+    assert playbook.check_lines(tmp_path) == ([], [])
+    assert playbook.range_fields(tmp_path) == [("employees", "employees")]

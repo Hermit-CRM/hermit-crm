@@ -1523,15 +1523,15 @@ def cmd_playbook(root: Path, action: str = "status", dry_run: bool = False,
     if "" in found:
         return ("The outreach bot will not run yet: " + "; ".join(found[""]) + ".", 1)
     lines = []
-    for offer in pb.offers:
-        filled = playbook.completeness(offer)
-        missing = found.get(offer.name) or []
-        lines.append(f"{offer.name}: {sum(ok for _, ok in filled)} of {len(filled)} parts "
+    for approach in pb.approaches:
+        filled = playbook.completeness(approach)
+        missing = found.get(approach.name) or []
+        lines.append(f"{approach.name}: {sum(ok for _, ok in filled)} of {len(filled)} parts "
                      f"filled; " + ("ready." if not missing else
                                     "not ready, missing " + "; ".join(missing) + "."))
-    ready = playbook.ready_offers(pb)
+    ready = playbook.ready_approaches(pb)
     if not ready:
-        lines.append("The outreach bot will not run yet: no offer is ready.")
+        lines.append("The outreach bot will not run yet: no approach is ready.")
         return ("\n".join(lines), 1)
     lines.append("Ready for the outreach bot: " + ", ".join(o.name for o in ready) + ".")
     return ("\n".join(lines), 0)

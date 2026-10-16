@@ -262,11 +262,11 @@
 {{ group_start('crm') }}
 <section class="setup-step" id="playbook">
   <div class="setting-head"><h2>Playbook</h2>{{ status(playbook_status.ready, 'ready', 'not ready') }}{{ how('/help/playbook') }}</div>
-  <p class="summary">What you sell, to whom, and how you write (<code>MESSAGING.md</code>), one part per offer.
+  <p class="summary">What you sell, to whom, and how you write (<code>MESSAGING.md</code>), one part per approach.
   {%- if playbook_status.problem %} {{ playbook_status.problem }}.
   {%- elif playbook_status.ready %} Ready for the outreach bot: {{ playbook_status.ready | join(', ') }}.
-  {%- else %} No offer is ready for the outreach bot yet.{% endif %}
-  {%- set waiting = playbook_status.offers | reject('in', playbook_status.ready) | list %}
+  {%- else %} No approach is ready for the outreach bot yet.{% endif %}
+  {%- set waiting = playbook_status.approaches | reject('in', playbook_status.ready) | list %}
   {%- if waiting and playbook_status.ready %} Not ready yet: {{ waiting | join(', ') }}.{% endif %}</p>
   <p><a class="button" href="/settings/playbook">Open the playbook</a></p>
 </section>

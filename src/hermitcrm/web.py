@@ -3057,8 +3057,8 @@ def create_app(root: Path, config: dict | None = None,
     def playbook_status() -> dict:
         pb = playbook.load(root)
         found = playbook.gaps(pb)
-        return {"offers": [o.name for o in pb.offers],
-                "ready": [o.name for o in playbook.ready_offers(pb)],
+        return {"approaches": [o.name for o in pb.approaches],
+                "ready": [o.name for o in playbook.ready_approaches(pb)],
                 "problem": "; ".join(found.get("", []))}
 
     def stages_form_default() -> dict:
@@ -3252,38 +3252,39 @@ def create_app(root: Path, config: dict | None = None,
         except OSError:
             return ""
 
-    def playbook_page(request: Request, offer_name: str = "", index: int | None = None,
+    def playbook_page(request: Request, approach_name: str = "", index: int | None = None,
                       values: dict | None = None, status_code: int = 200, **extra):
         raw = playbook.parse(playbook_text()) if (root / playbook.FILENAME).exists() \
             else playbook.Playbook()
-        # A file from before the offers is shown as it will be once saved.
+        # A file from before the approaches is shown as it will be once saved.
         pb = playbook.parse(playbook.upgrade_text(raw.text)) if not raw.error else raw
-        offers = pb.offers
+        approaches = pb.approaches
         current = 0
-        if offer_name:
-            current = next((i for i, o in enumerate(offers)
-                            if o.name.lower() == offer_name.lower()), 0)
-        elif index is not None and 0 <= index < len(offers):
+        if approach_name:
+            current = next((i for i, o in enumerate(approaches)
+                            if o.name.lower() == approach_name.lower()), 0)
+        elif index is not None and 0 <= index < len(approaches):
             current = index
         enricher = app.state.enricher
         ctx = {"pb_error": raw.error, "exists": raw.exists, "set_up": raw.set_up,
                "foreign": raw.has_front and not raw.error and not raw.set_up,
-               "offers": offers, "current": current, "errors": {}, "notice": "",
-               "offer_gaps": [playbook.offer_gaps(o) for o in offers],
+               "approaches": approaches, "current": current, "errors": {}, "notice": "",
+               "approach_gaps": [playbook.approach_gaps(o) for o in approaches],
                "source_url": "", "source_text": "", "draft_open": False,
-               "draft_error": "", "voice_error": "", "dirty": False,
+               "draft_error": "", "voice_error": "", "dirty": False, "rename": False,
                "sent_count": len(playbook.sent_emails(store)),
                "ai": {"available": enricher.available, "provider": enricher.provider_name,
                       "reason": "" if enricher.available
                       else enricher.unavailable_reason()}}
-        if offers:
-            offer = offers[current]
-            parts = playbook.completeness(offer)
-            ctx.update({"offer": offer, "parts": parts,
+        if approaches:
+            approach = approaches[current]
+            parts = playbook.completeness(approach)
+            values = values if values is not None else playbook.form_values(approach)
+            ctx.update({"approach": approach, "parts": parts,
                         "filled": sum(ok for _, ok in parts),
-                        "gaps": playbook.offer_gaps(offer),
-                        "values": values if values is not None
-                        else playbook.form_values(offer)})
+                        "gaps": playbook.approach_gaps(approach), "values": values,
+                        "range_fields": playbook.range_fields(root),
+                        "range_rows": playbook.range_rows(values)})
         ctx.update(extra)
         return render(request, "playbook.html", ctx, status_code=status_code)
 
@@ -3294,10 +3295,10 @@ def create_app(root: Path, config: dict | None = None,
         except Exception:  # the file is saved; git can catch up
             logger.exception("could not commit %s", playbook.FILENAME)
 
-    def playbook_url(name: str = "") -> str:
-        offers = playbook.load(root).offers
-        i = next((i for i, o in enumerate(offers) if o.name.lower() == name.lower()), 0)
-        return f"/settings/playbook?offer={i}"
+    def playbook_url(name: str = "", rename: bool = False) -> str:
+        approaches = playbook.load(root).approaches
+        i = next((i for i, o in enumerate(approaches) if o.name.lower() == name.lower()), 0)
+        return f"/settings/playbook?approach={i}" + ("&rename=1" if rename else "")
 
     async def playbook_form(request: Request) -> tuple[dict, dict]:
         """(the posted text fields, the uploaded files) after the CSRF check."""
@@ -3312,13 +3313,13 @@ def create_app(root: Path, config: dict | None = None,
         return values, files
 
     @app.get("/settings/playbook", response_class=HTMLResponse)
-    def settings_playbook(request: Request, offer: int = 0):
-        return playbook_page(request, index=offer)
+    def settings_playbook(request: Request, approach: int = 0, rename: int = 0):
+        return playbook_page(request, index=approach, rename=bool(rename))
 
     @app.post("/settings/playbook", response_class=HTMLResponse)
     async def settings_playbook_save(request: Request):
         values, _ = await playbook_form(request)
-        name = values.get("offer", "")
+        name = values.get("approach", "")
         raw = playbook.parse(playbook_text())
         if raw.error or (raw.has_front and not raw.set_up):
             return playbook_page(request, name, values=values, status_code=400)
@@ -3338,7 +3339,7 @@ def create_app(root: Path, config: dict | None = None,
     @app.post("/settings/playbook/draft", response_class=HTMLResponse)
     async def settings_playbook_draft(request: Request):
         values, files = await playbook_form(request)
-        name = values.get("offer", "")
+        name = values.get("approach", "")
         url = values.get("source_url", "").strip()
         pasted = values.get("source_text", "").strip()
         keep = {"source_url": url, "source_text": pasted, "draft_open": True, "dirty": True}
@@ -3370,7 +3371,7 @@ def create_app(root: Path, config: dict | None = None,
     @app.post("/settings/playbook/voice", response_class=HTMLResponse)
     async def settings_playbook_voice(request: Request):
         values, _ = await playbook_form(request)
-        name = values.get("offer", "")
+        name = values.get("approach", "")
         try:
             proposal = await run_in_threadpool(
                 playbook.propose_voice, app.state.enricher, playbook.sent_emails(store))
@@ -3386,41 +3387,41 @@ def create_app(root: Path, config: dict | None = None,
                               name: str = Form(""), copy_from: str = Form("")):
         check_csrf(csrf_token)
         try:
-            text = playbook.add_offer(playbook_text(), name, copy_from=copy_from)
+            text = playbook.add_approach(playbook_text(), name, copy_from=copy_from)
         except playbook.PlaybookError as exc:
             return flashed("/settings/playbook", f"Not created: {exc}")
         name = " ".join(name.split())
         playbook.write(root, text)
-        playbook_commit(f"playbook: new offer {name}")
-        return flashed(playbook_url(name), f"Created the offer {name}"
+        playbook_commit(f"playbook: new approach {name}")
+        return flashed(playbook_url(name), f"Created the approach {name}"
                        + (f", a copy of {copy_from}" if copy_from else ""))
 
     @app.post("/settings/playbook/duplicate")
     def settings_playbook_duplicate(request: Request, csrf_token: str = Form(""),
-                                    offer: str = Form("")):
+                                    approach: str = Form("")):
         check_csrf(csrf_token)
         text = playbook_text()
-        name = playbook.copy_name(playbook.parse(playbook.upgrade_text(text)), offer)
+        name = playbook.copy_name(playbook.parse(playbook.upgrade_text(text)), approach)
         try:
-            text = playbook.add_offer(text, name, copy_from=offer)
+            text = playbook.add_approach(text, name, copy_from=approach)
         except playbook.PlaybookError as exc:
             return flashed("/settings/playbook", f"Not copied: {exc}")
         playbook.write(root, text)
         playbook_commit(f"playbook: {name}")
-        return flashed(playbook_url(name), f"Created {name}. Rename it and change what "
-                                           "differs.")
+        return flashed(playbook_url(name, rename=True),
+                       f"Created {name}. Give it its own name above and change what differs.")
 
     @app.post("/settings/playbook/delete")
     def settings_playbook_delete(request: Request, csrf_token: str = Form(""),
-                                 offer: str = Form("")):
+                                 approach: str = Form("")):
         check_csrf(csrf_token)
         try:
-            text = playbook.delete_offer(playbook_text(), offer)
+            text = playbook.delete_approach(playbook_text(), approach)
         except playbook.PlaybookError as exc:
             return flashed("/settings/playbook", f"Not deleted: {exc}")
         playbook.write(root, text)
-        playbook_commit(f"playbook: deleted offer {offer}")
-        return flashed("/settings/playbook", f"Deleted the offer {offer}; it stays in "
+        playbook_commit(f"playbook: deleted approach {approach}")
+        return flashed("/settings/playbook", f"Deleted the approach {approach}; it stays in "
                                              "the git history.")
 
     @app.post("/settings/playbook/upgrade")

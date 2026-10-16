@@ -14,13 +14,17 @@
 
 """The playbook: what the outreach bot knows about the seller (MESSAGING.md).
 
-MESSAGING.md stays the one playbook. It holds one or more offers, each
-complete on its own (one business can sell founder coaching to one audience
-and a team build-out to another). Python reads a YAML front matter: per offer
-its name, offer line, ideal customer (ICP), hard disqualifiers and personas.
-The AI reads the body: the general notes (angles, slots, languages) and, per
-offer, a `# Offer: <name>` block whose `## ` headings hold the rest (Offer,
-Personas, Proof, Why you, Voice, Channels, Don'ts, Disqualifiers, Lessons).
+MESSAGING.md stays the one playbook. It holds one or more approaches: an
+approach is one offer to one audience, complete on its own (one business can
+sell founder coaching to one audience and a team build-out to another). Python
+reads a YAML front matter: per approach its name, offer line, ideal customer
+(ICP), hard disqualifiers and personas. The AI reads the body: the general
+notes (angles, slots, languages) and, per approach, a `# Approach: <name>`
+block whose `## ` headings hold the rest (Offer, Personas, Proof, Why you,
+Voice, Channels, Don'ts, Disqualifiers, Lessons).
+
+"Approach", not "offer", because the pipeline already has an "offer" stage and
+each approach has an offer of its own (the `offer_line` and `## Offer`).
 
 The file is a data-folder file, not a record, so it has no migration:
 `upgrade_text` adds the front matter and the missing headings and keeps every
@@ -29,7 +33,7 @@ Playbook).
 
 Nothing here knows about one business, industry or language: the vocabulary
 is generic B2B, every part is optional except the readiness minimum
-(`offer_gaps`), and the example content lives in the demo folder only.
+(`approach_gaps`), and the example content lives in the demo folder only.
 """
 
 from __future__ import annotations
@@ -42,27 +46,28 @@ from pathlib import Path
 import yaml
 
 FILENAME = "MESSAGING.md"
-DEFAULT_OFFER = "My offer"
-OFFER_PREFIX = "Offer: "
+DEFAULT_APPROACH = "My approach"
+APPROACH_PREFIX = "Approach: "
 
-OFFER_KEYS = ("name", "offer_line", "icp", "disqualifiers", "personas")
+APPROACH_KEYS = ("name", "offer_line", "icp", "disqualifiers", "personas")
 ICP_LISTS = ("industries", "countries", "funding", "signals")
-ICP_RANGES = ("fte", "salespeople")
-ICP_KEYS = ("industries", "fte", "salespeople", "countries", "funding", "signals")
+# `ranges` maps one of the folder's own company fields (fields.toml) to
+# [min, max]: a headcount, a number of salespeople, a revenue band, whatever
+# that folder records. Nothing about size is built in.
+ICP_KEYS = ("industries", "countries", "ranges", "funding", "signals")
 PERSONA_KEYS = ("titles", "pains", "cares", "ignores")
 
-# The hard disqualifiers: few, and only what Python can decide for certain on
-# known fields. Everything else is the free-text Disqualifiers section, which
-# the AI weighs and a person confirms. Company size and the number of
-# salespeople are the ICP's ranges, not disqualifiers.
+# The hard disqualifiers: only what Python can decide for certain on your own
+# data, the company's tags. Everything else (they already have a Head of
+# Sales, they work with an agency) is the free-text Disqualifiers section,
+# which the AI weighs and a person confirms. Size is an ICP range.
 DISQUALIFIERS = {
-    "title_present": "a contact at the company already has one of these titles",
     "tag_present": "the company has one of these tags",
 }
 
-ONE_LINE = "one offer line per offer; add a second offer for a second line"
+ONE_LINE = "one offer line per approach; add a second approach for a second line"
 
-# The sections of an offer's body block: (key, heading, the hint written under
+# The sections of an approach's body block: (key, heading, the hint written under
 # it). The hint is an HTML comment: it guides whoever edits the file and is
 # left out of what the section is read as.
 SECTIONS = [
@@ -90,10 +95,10 @@ SECTIONS = [
      "\"I hope this finds you well\", no claims without proof, never name "
      "competitors."),
     ("disqualifiers", "Disqualifiers",
-     "Other reasons a company is not a prospect for this offer, one per line. "
+     "Other reasons a company is not a prospect for this approach, one per line. "
      "The AI weighs these and says why; you decide."),
     ("lessons", "Lessons",
-     "What you tried for this offer: what worked, what did not, and what you do "
+     "What you tried for this approach: what worked, what did not, and what you do "
      "not know yet. Drafts follow what worked and avoid what did not."),
 ]
 SECTION_TITLES = {key: title for key, title, _ in SECTIONS}
@@ -101,16 +106,16 @@ SECTION_HINTS = {key: hint for key, _, hint in SECTIONS}
 LESSONS = [("worked", "Worked"), ("failed", "Didn't work"), ("open", "Still testing")]
 
 FRONT_COMMENT = ("# Read by Hermit CRM's outreach bot: `hermitcrm help playbook`. "
-                 "One entry per offer.")
+                 "One entry per approach.")
 
 _COMMENT = re.compile(r"<!--.*?-->", re.S)
 _HEADING = re.compile(r"^(#{1,3}) +(.+?) *#* *$")
 
 
-def empty_offer(name: str = DEFAULT_OFFER) -> dict:
+def empty_approach(name: str = DEFAULT_APPROACH) -> dict:
     return {"name": name, "offer_line": "",
-            "icp": {"industries": [], "fte": [], "salespeople": [], "countries": [],
-                    "funding": [], "signals": []},
+            "icp": {"industries": [], "countries": [], "ranges": {}, "funding": [],
+                    "signals": []},
             "disqualifiers": [], "personas": {}}
 
 
@@ -119,7 +124,7 @@ class PlaybookError(Exception):
 
 
 class NotReady(Exception):
-    """The readiness gate: no offer (or not the one asked for) has its minimum."""
+    """The readiness gate: no approach (or not the one asked for) has its minimum."""
 
     def __init__(self, gaps: dict[str, list[str]]):
         self.gaps = dict(gaps)
@@ -198,8 +203,8 @@ def _span(text: str, level: int, title: str, start: int = 0,
     return None
 
 
-def _offer_span(body: str, name: str) -> tuple[int, int, int] | None:
-    return _span(body, 1, OFFER_PREFIX + name)
+def _approach_span(body: str, name: str) -> tuple[int, int, int] | None:
+    return _span(body, 1, APPROACH_PREFIX + name)
 
 
 def _clean(text: str) -> str:
@@ -216,10 +221,10 @@ def proof_lines(text: str) -> list[str]:
 
 
 @dataclass
-class Offer:
+class Approach:
     name: str
     front: dict = field(default_factory=dict)
-    block: str = ""  # the `# Offer: <name>` block of the body ("" if absent)
+    block: str = ""  # the `# Approach: <name>` block of the body ("" if absent)
 
     @property
     def offer_line(self) -> str:
@@ -273,23 +278,23 @@ class Playbook:
 
     @property
     def set_up(self) -> bool:
-        """Set up for the outreach bot: a front matter with a list of offers."""
-        return self.has_front and not self.error and isinstance(self.front.get("offers"), list)
+        """Set up for the outreach bot: a front matter with a list of approaches."""
+        return self.has_front and not self.error and isinstance(self.front.get("approaches"), list)
 
     @property
-    def offers(self) -> list[Offer]:
-        items = self.front.get("offers")
+    def approaches(self) -> list[Approach]:
+        items = self.front.get("approaches")
         out = []
         for item in items if isinstance(items, list) else []:
             if not isinstance(item, dict):
                 continue
             name = str(item.get("name") or "").strip()
-            span = _offer_span(self.body, name) if name else None
-            out.append(Offer(name, item, self.body[span[0]:span[2]] if span else ""))
+            span = _approach_span(self.body, name) if name else None
+            out.append(Approach(name, item, self.body[span[0]:span[2]] if span else ""))
         return out
 
-    def offer(self, name: str) -> Offer | None:
-        return next((o for o in self.offers if _norm(o.name) == _norm(name)), None)
+    def approach(self, name: str) -> Approach | None:
+        return next((o for o in self.approaches if _norm(o.name) == _norm(name)), None)
 
 
 def parse(text: str) -> Playbook:
@@ -310,16 +315,16 @@ def load(root: Path | str) -> Playbook:
     return parse(text)
 
 
-def body_for_ai(text: str, offer: str = "") -> str:
+def body_for_ai(text: str, approach: str = "") -> str:
     """What an AI is given to read: the body, never the front matter. With an
-    offer, the general notes plus that offer's block only."""
+    approach, the general notes plus that approach's block only."""
     body = split(text)[1]
-    if not offer:
+    if not approach:
         return body
     blocks = [h for h in _headings(body) if h[2] == 1 and _norm(h[3]).startswith(
-        _norm(OFFER_PREFIX))]
+        _norm(APPROACH_PREFIX))]
     general = body[:blocks[0][0]] if blocks else body
-    span = _offer_span(body, offer)
+    span = _approach_span(body, approach)
     return general + (body[span[0]:span[2]] if span else "")
 
 
@@ -334,26 +339,31 @@ def _is_int(value) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
-def _validate_offer(item, where: str) -> list[str]:
+def _bounds(value) -> bool:
+    return (isinstance(value, list) and len(value) == 2
+            and all(_is_int(v) and v >= 0 for v in value) and value[0] <= value[1])
+
+
+def _validate_approach(item, where: str) -> list[str]:
     from hermitcrm.models import ISO_3166_ALPHA2
 
     if not isinstance(item, dict):
-        return [f"{where}: must be a list of keys ({', '.join(OFFER_KEYS)})"]
+        return [f"{where}: must be a list of keys ({', '.join(APPROACH_KEYS)})"]
     problems = []
     for key in item:
-        if key not in OFFER_KEYS:
-            problems.append(f"{where}.{key}: not an offer key (known: {', '.join(OFFER_KEYS)})")
+        if key not in APPROACH_KEYS:
+            problems.append(f"{where}.{key}: not an approach key (known: {', '.join(APPROACH_KEYS)})")
     name = item.get("name")
     if not isinstance(name, str) or not name.strip():
         problems.append(f"{where}: has no name")
     elif "\n" in name.strip() or ":" in name:
         problems.append(f"{where}.name: one line without a colon")
-    offer = item.get("offer_line")
-    if isinstance(offer, list):
+    line = item.get("offer_line")
+    if isinstance(line, list):
         problems.append(f"{where}.offer_line: {ONE_LINE}")
-    elif offer is not None and not isinstance(offer, str):
+    elif line is not None and not isinstance(line, str):
         problems.append(f"{where}.offer_line: must be one sentence of text")
-    elif isinstance(offer, str) and "\n" in offer.strip():
+    elif isinstance(line, str) and "\n" in line.strip():
         problems.append(f"{where}.offer_line: must be one line ({ONE_LINE})")
 
     icp = item.get("icp")
@@ -364,14 +374,17 @@ def _validate_offer(item, where: str) -> list[str]:
             if key not in ICP_KEYS:
                 problems.append(f"{where}.icp.{key}: not an ICP key "
                                 f"(known: {', '.join(ICP_KEYS)})")
-            elif value in (None, []):
+            elif value in (None, [], {}):
                 continue
-            elif key in ICP_RANGES:
-                if not (isinstance(value, list) and len(value) == 2
-                        and all(_is_int(v) and v >= 0 for v in value)
-                        and value[0] <= value[1]):
-                    problems.append(f"{where}.icp.{key}: must be [min, max], two whole "
-                                    "numbers, min not above max")
+            elif key == "ranges":
+                if not isinstance(value, dict):
+                    problems.append(f"{where}.icp.ranges: must be field: [min, max] pairs, "
+                                    "like {employees: [5, 50]}")
+                    continue
+                for fkey, bounds in value.items():
+                    if not _bounds(bounds):
+                        problems.append(f"{where}.icp.ranges.{fkey}: must be [min, max], two "
+                                        "whole numbers, min not above max")
             elif not _strings(value):
                 problems.append(f"{where}.icp.{key}: must be a list of words, like [one, two]")
             elif key == "countries":
@@ -420,21 +433,21 @@ def _validate_offer(item, where: str) -> list[str]:
 
 def validate_front(front: dict) -> list[str]:
     """One "<where>: <what>" line per problem in the front matter."""
-    problems = [f"{key}: not a playbook key (the front matter holds `offers:`)"
-                for key in front if key != "offers"]
-    offers = front.get("offers")
-    if offers is None:
-        return problems + ["offers: missing (run `hermitcrm playbook upgrade`)"]
-    if not isinstance(offers, list):
-        return problems + ["offers: must be a list, one `- name: ...` per offer"]
+    problems = [f"{key}: not a playbook key (the front matter holds `approaches:`)"
+                for key in front if key != "approaches"]
+    approaches = front.get("approaches")
+    if approaches is None:
+        return problems + ["approaches: missing (run `hermitcrm playbook upgrade`)"]
+    if not isinstance(approaches, list):
+        return problems + ["approaches: must be a list, one `- name: ...` per approach"]
     seen = set()
-    for n, item in enumerate(offers, 1):
+    for n, item in enumerate(approaches, 1):
         name = item.get("name") if isinstance(item, dict) else None
-        where = f"offers[{n}]" + (f" ({name})" if isinstance(name, str) and name else "")
-        problems += _validate_offer(item, where)
+        where = f"approaches[{n}]" + (f" ({name})" if isinstance(name, str) and name else "")
+        problems += _validate_approach(item, where)
         if isinstance(name, str) and name.strip():
             if _norm(name) in seen:
-                problems.append(f"{where}: two offers are called {name.strip()!r}")
+                problems.append(f"{where}: two approaches are called {name.strip()!r}")
             seen.add(_norm(name))
     return problems
 
@@ -450,31 +463,55 @@ def check_lines(root: Path | str) -> tuple[list[str], list[str]]:
                     "`hermitcrm playbook upgrade` or open Settings > Playbook)"]
     if pb.error:
         return [f"{FILENAME}: front matter: {pb.error}"], []
-    return [f"{FILENAME}: front matter: {p}" for p in validate_front(pb.front)], []
+    hints = []
+    known = {d.key for d in _company_fields(root)}
+    for approach in pb.approaches:
+        for fkey in (approach.icp.get("ranges") or {}) if isinstance(
+                approach.icp.get("ranges"), dict) else {}:
+            if fkey not in known:
+                hints.append(f"{FILENAME}: {approach.name}: the range on {fkey!r} names no "
+                             "company field in fields.toml, so no company can match it")
+    return [f"{FILENAME}: front matter: {p}" for p in validate_front(pb.front)], hints
+
+
+def _company_fields(root: Path | str) -> list:
+    from hermitcrm import fields
+
+    try:
+        return fields.for_scope(fields.load(root), "company")
+    except Exception:  # a broken fields.toml is `check`'s to report, not this
+        return []
+
+
+def range_fields(root: Path | str) -> list[tuple[str, str]]:
+    """(key, label) of the company fields an ICP range can use: the folder's own
+    number and text fields (a text field counts by the first number in it, so
+    "~13" is 13)."""
+    return [(d.key, d.label) for d in _company_fields(root) if d.type in ("number", "text")]
 
 
 # ---------------------------------------------------------------- readiness
 
 
-def offer_gaps(offer: Offer) -> list[str]:
-    """What an offer's readiness minimum still lacks, in words; [] when ready."""
+def approach_gaps(approach: Approach) -> list[str]:
+    """What an approach's readiness minimum still lacks, in words; [] when ready."""
     out = []
-    if _validate_offer(offer.front, "offer"):
+    if _validate_approach(approach.front, "approach"):
         out.append("its front matter has problems (run `hermitcrm check`)")
-    if not offer.offer_line or isinstance(offer.front.get("offer_line"), list):
+    if not approach.offer_line or isinstance(approach.front.get("offer_line"), list):
         out.append("an offer line (what you sell, in one sentence)")
-    if not any(offer.icp.get(k) for k in ICP_KEYS):
-        out.append("an ideal customer profile (at least one of industries, size, "
-                   "countries, funding or positive signals)")
-    if not any(isinstance(s, dict) and s.get("titles") for s in offer.personas.values()):
+    if not any(approach.icp.get(k) for k in ICP_KEYS):
+        out.append("an ideal customer profile (at least one of industries, countries, "
+                   "a range, funding or positive signals)")
+    if not any(isinstance(s, dict) and s.get("titles") for s in approach.personas.values()):
         out.append("one persona with the job titles it matches")
-    if not offer.proof:
+    if not approach.proof:
         out.append("one proof line (a customer result)")
     return out
 
 
 def gaps(pb: Playbook) -> dict[str, list[str]]:
-    """Per offer name, what it lacks. A file that is not set up, or whose front
+    """Per approach name, what it lacks. A file that is not set up, or whose front
     matter cannot be read, is one entry under ""."""
     if pb.error:
         return {"": [f"the front matter of {FILENAME} cannot be read ({pb.error})"]}
@@ -483,40 +520,40 @@ def gaps(pb: Playbook) -> dict[str, list[str]]:
     if not pb.set_up:
         return {"": [f"{FILENAME} is not set up for the outreach bot yet "
                      "(`hermitcrm playbook upgrade`)"]}
-    if not pb.offers:
-        return {"": ["an offer"]}
-    return {o.name: offer_gaps(o) for o in pb.offers}
+    if not pb.approaches:
+        return {"": ["an approach"]}
+    return {o.name: approach_gaps(o) for o in pb.approaches}
 
 
-def ready_offers(pb: Playbook) -> list[Offer]:
+def ready_approaches(pb: Playbook) -> list[Approach]:
     if pb.error or not pb.set_up:
         return []
-    return [o for o in pb.offers if not offer_gaps(o)]
+    return [o for o in pb.approaches if not approach_gaps(o)]
 
 
-def gate_message(gaps_by_offer: dict[str, list[str]]) -> str:
+def gate_message(gaps_by_approach: dict[str, list[str]]) -> str:
     parts = [(f"{name}: " if name else "") + "; ".join(missing)
-             for name, missing in gaps_by_offer.items() if missing]
+             for name, missing in gaps_by_approach.items() if missing]
     return ("The outreach bot needs a filled playbook first. Missing: "
             + " | ".join(parts) + ". Fill it in under Settings > Playbook "
             "(/settings/playbook) or see `hermitcrm help playbook`.")
 
 
-def require_ready(root: Path | str, offer: str = "") -> list[Offer]:
+def require_ready(root: Path | str, approach: str = "") -> list[Approach]:
     """The readiness gate for the outreach page and `hermitcrm outreach build`:
-    the ready offers (just the one asked for, with `offer`), or NotReady saying
-    what is missing. With no offer named, one ready offer is enough; the bot
+    the ready approaches (just the one asked for, with `approach`), or NotReady saying
+    what is missing. With no approach named, one ready approach is enough; the bot
     then works with the ready ones only."""
     pb = load(root)
     found = gaps(pb)
-    if offer:
-        match = pb.offer(offer)
+    if approach:
+        match = pb.approach(approach)
         if match is None:
-            raise NotReady({"": [f"an offer called {offer!r}"]})
+            raise NotReady({"": [f"an approach called {approach!r}"]})
         if found.get(match.name):
             raise NotReady({match.name: found[match.name]})
         return [match]
-    ready = ready_offers(pb)
+    ready = ready_approaches(pb)
     if not ready:
         raise NotReady(found)
     return ready
@@ -530,19 +567,19 @@ COMPLETENESS = [
 ]
 
 
-def completeness(offer: Offer) -> list[tuple[str, bool]]:
-    """(label, filled) per part of an offer, for the meter on Settings > Playbook."""
+def completeness(approach: Approach) -> list[tuple[str, bool]]:
+    """(label, filled) per part of an approach, for the meter on Settings > Playbook."""
     filled = {
-        "offer_line": bool(offer.offer_line),
-        "icp": any(offer.icp.get(k) for k in ICP_KEYS),
+        "offer_line": bool(approach.offer_line),
+        "icp": any(approach.icp.get(k) for k in ICP_KEYS),
         "personas": any(isinstance(s, dict) and s.get("titles")
-                        for s in offer.personas.values()),
-        "proof": bool(offer.proof),
-        "disqualifiers": bool(offer.disqualifiers or offer.section("disqualifiers")),
-        "lessons": any(offer.lessons().values()),
+                        for s in approach.personas.values()),
+        "proof": bool(approach.proof),
+        "disqualifiers": bool(approach.disqualifiers or approach.section("disqualifiers")),
+        "lessons": any(approach.lessons().values()),
     }
     for key in ("why", "voice", "channels", "donts"):
-        filled[key] = bool(offer.section(key))
+        filled[key] = bool(approach.section(key))
     return [(label, filled[key]) for key, label in COMPLETENESS]
 
 
@@ -581,39 +618,27 @@ class Disqualified:
         return bool(self.reasons)
 
 
-def _facts(company) -> tuple[int | None, int | None, list[str], set[str], str]:
+def _number(value) -> int | None:
     from hermitcrm.messaging import fte_number
 
-    extra = getattr(company, "extra", None) or {}
-    fte = fte_number(str(extra.get("fte_estimate") or ""))
-    ae = extra.get("ae_count")
-    titles = [" ".join((c.title or "").lower().split())
-              for c in getattr(company, "contacts", {}).values()]
+    if _is_int(value):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    return fte_number(str(value or "")) if value not in (None, "") else None
+
+
+def disqualify(company, approach: Approach) -> Disqualified:
+    """The hard disqualifiers of an approach applied to a company (its tags).
+    The free-text Disqualifiers section is the AI's to weigh, not this
+    function's."""
     tags = {t.lower() for t in getattr(company, "tags", []) or []}
-    return fte, (ae if _is_int(ae) else None), titles, tags, str(company.country or "").upper()
-
-
-def disqualify(company, offer: Offer) -> Disqualified:
-    """The hard disqualifiers of an offer applied to a company. An empty field
-    cannot decide: the company stays in and `unchecked` says why. The
-    free-text Disqualifiers section is the AI's to weigh, not this function's."""
-    _, _, titles, tags, _ = _facts(company)
     out = Disqualified()
-    for item in offer.disqualifiers:
+    for item in approach.disqualifiers:
         if not isinstance(item, dict) or len(item) != 1:
             continue
         (key, value), = item.items()
-        if not _strings(value):
-            continue
-        if key == "title_present":
-            if not any(titles):
-                out.unchecked.append("not checked: no contact titles")
-                continue
-            hit = next((w for w in value if any(_title_pattern(w).search(t)
-                                                 for t in titles)), None)
-            if hit:
-                out.reasons.append(f"already has a {hit.strip()}")
-        elif key == "tag_present":
+        if key == "tag_present" and _strings(value):
             hit = next((v for v in value if v.strip().lower() in tags), None)
             if hit:
                 out.reasons.append(f"tagged {hit.strip()}")
@@ -625,24 +650,28 @@ def _in_range(value: int | None, bounds, what: str) -> tuple[str, str]:
     if not (isinstance(bounds, list) and len(bounds) == 2 and all(map(_is_int, bounds))):
         return "", ""
     lo, hi = bounds
-    label = f"{lo}-{hi} {what}" if lo != hi else f"{lo} {what}"
+    label = f"{lo}-{hi}" if lo != hi else f"{lo}"
     if value is None:
-        return "unknown", f"no number of {what}"
+        return "unknown", f"no {what}"
     if lo <= value <= hi:
-        return "match", f"{value} {what} (wants {label})"
-    return "miss", f"{value} {what}, wants {label}"
+        return "match", f"{what} {value} (wants {label})"
+    return "miss", f"{what} {value}, wants {label}"
 
 
-def fit(company, offer: Offer) -> tuple[list[str], list[str], list[str]]:
-    """(matches, misses, unknowns) of a company against an offer's ICP, on the
-    fields Hermit CRM knows: headcount, number of salespeople, country, and
-    industries as tags. Funding and positive signals are for research."""
-    fte, ae, _, tags, country = _facts(company)
+def fit(company, approach: Approach) -> tuple[list[str], list[str], list[str]]:
+    """(matches, misses, unknowns) of a company against an approach's ICP, on
+    what Hermit CRM knows: the ranges on the folder's own fields, the country,
+    and industries as tags. Funding and positive signals are for research."""
+    extra = getattr(company, "extra", None) or {}
+    tags = {t.lower() for t in getattr(company, "tags", []) or []}
+    country = str(getattr(company, "country", "") or "").upper()
     matches, misses, unknown = [], [], []
-    for state, reason in (_in_range(fte, offer.icp.get("fte"), "people"),
-                          _in_range(ae, offer.icp.get("salespeople"), "salespeople")):
+    ranges = approach.icp.get("ranges")
+    for fkey, bounds in (ranges.items() if isinstance(ranges, dict) else []):
+        state, reason = _in_range(_number(extra.get(fkey)), bounds,
+                                  str(fkey).replace("_", " "))
         {"match": matches, "miss": misses, "unknown": unknown}.get(state, []).append(reason)
-    countries = [c.strip().upper() for c in offer.icp.get("countries") or []
+    countries = [c.strip().upper() for c in approach.icp.get("countries") or []
                  if isinstance(c, str)]
     if countries:
         if not country:
@@ -651,7 +680,7 @@ def fit(company, offer: Offer) -> tuple[list[str], list[str], list[str]]:
             matches.append(f"in {country}")
         else:
             misses.append(f"in {country}, wants {', '.join(countries)}")
-    industries = [i.strip().lower() for i in offer.icp.get("industries") or []
+    industries = [i.strip().lower() for i in approach.icp.get("industries") or []
                   if isinstance(i, str)]
     hit = next((i for i in industries if i in tags), None)
     if hit:
@@ -661,25 +690,25 @@ def fit(company, offer: Offer) -> tuple[list[str], list[str], list[str]]:
 
 @dataclass
 class Pick:
-    offer: str = ""                       # "" = no offer fits, or unclear
+    approach: str = ""                       # "" = no approach fits, or unclear
     why: list[str] = field(default_factory=list)
-    unclear: list[str] = field(default_factory=list)   # offers it could be; ask
-    left_out: dict[str, list[str]] = field(default_factory=dict)  # offer -> reasons
+    unclear: list[str] = field(default_factory=list)   # approaches it could be; ask
+    left_out: dict[str, list[str]] = field(default_factory=dict)  # approach -> reasons
 
 
-def pick_offer(company, offers: list[Offer]) -> Pick:
-    """The offer a company gets, by ideal-customer fit: offers it is
+def pick_approach(company, approaches: list[Approach]) -> Pick:
+    """The approach a company gets, by ideal-customer fit: approaches it is
     disqualified for or misses the ICP of are left out; of the rest, the one
     with the most matches. A tie is unclear (an empty field could not decide)
-    and the person picks; one offer left is that offer."""
+    and the person picks; one approach left is that approach."""
     pick, candidates = Pick(), []
-    for offer in offers:
-        dq = disqualify(company, offer)
-        matches, misses, unknown = fit(company, offer)
+    for approach in approaches:
+        dq = disqualify(company, approach)
+        matches, misses, unknown = fit(company, approach)
         if dq.excluded or misses:
-            pick.left_out[offer.name] = dq.reasons + misses
+            pick.left_out[approach.name] = dq.reasons + misses
         else:
-            candidates.append((len(matches), offer, matches, unknown + dq.unchecked))
+            candidates.append((len(matches), approach, matches, unknown + dq.unchecked))
     if not candidates:
         return pick
     candidates.sort(key=lambda c: -c[0])
@@ -689,7 +718,7 @@ def pick_offer(company, offers: list[Offer]) -> Pick:
         pick.unclear = [c[1].name for c in tied]
         pick.why = sorted({u for c in tied for u in c[3]})
         return pick
-    pick.offer = best[1].name
+    pick.approach = best[1].name
     pick.why = best[2] + [u for u in best[3] if u.startswith("not checked")]
     return pick
 
@@ -699,22 +728,22 @@ def pick_offer(company, offers: list[Offer]) -> Pick:
 
 def dump_front(front: dict) -> str:
     """The front matter's YAML, keys in a fixed order: same data, same bytes."""
-    offers = []
-    for item in front.get("offers") or []:
+    approaches = []
+    for item in front.get("approaches") or []:
         if not isinstance(item, dict):
-            offers.append(item)
+            approaches.append(item)
             continue
-        ordered = {k: item[k] for k in OFFER_KEYS if k in item}
+        ordered = {k: item[k] for k in APPROACH_KEYS if k in item}
         ordered.update({k: v for k, v in item.items() if k not in ordered})
         if isinstance(ordered.get("icp"), dict):
             icp = ordered["icp"]
             ordered["icp"] = {**{k: icp[k] for k in ICP_KEYS if k in icp},
                               **{k: v for k, v in icp.items() if k not in ICP_KEYS}}
-        offers.append(ordered)
-    data = {"offers": offers, **{k: v for k, v in front.items() if k != "offers"}}
+        approaches.append(ordered)
+    data = {"approaches": approaches, **{k: v for k, v in front.items() if k != "approaches"}}
     text = yaml.safe_dump(data, sort_keys=False, allow_unicode=True,
                           default_flow_style=None, width=1000)
-    # `- title_present: [...]` reads better than PyYAML's `- {title_present: [...]}`.
+    # `- tag_present: [...]` reads better than PyYAML's `- {tag_present: [...]}`.
     text = re.sub(r"(?m)^(\s*)- \{(\w+): (.*)\}$", r"\1- \2: \3", text)
     return FRONT_COMMENT + "\n" + text
 
@@ -735,8 +764,8 @@ def _section_block(key: str, content: str = "") -> str:
     return text
 
 
-def _offer_block(name: str) -> str:
-    parts = [f"# {OFFER_PREFIX}{name}\n"]
+def _approach_block(name: str) -> str:
+    parts = [f"# {APPROACH_PREFIX}{name}\n"]
     for key, _, _ in SECTIONS:
         parts.append(_section_block(key, _lessons_text({}) if key == "lessons" else ""))
     return "\n".join(parts)
@@ -751,7 +780,7 @@ def _append(body: str, block: str) -> str:
 
 
 def _fill_block(block: str, sections: dict) -> str:
-    """An offer block with the given sections rewritten (heading, hint, text) and
+    """An approach block with the given sections rewritten (heading, hint, text) and
     every missing heading appended; its other text is kept."""
     for key, _, _ in SECTIONS:
         span = _span(block, 2, SECTION_TITLES[key])
@@ -770,7 +799,7 @@ def _fill_block(block: str, sections: dict) -> str:
 
 
 def _fill_block_missing(block: str) -> str:
-    """Append only the headings an offer block lacks (for the upgrade: nothing
+    """Append only the headings an approach block lacks (for the upgrade: nothing
     already there is rewritten, not even its blank lines)."""
     missing = [key for key, title, _ in SECTIONS if _span(block, 2, title) is None]
     if not missing:
@@ -784,13 +813,13 @@ def _fill_block_missing(block: str) -> str:
 
 
 def upgrade_text(text: str) -> str:
-    """Add the front matter with one offer (when there is none) and, for every
-    offer, its block or its missing headings, at the end. Every existing byte
+    """Add the front matter with one approach (when there is none) and, for every
+    approach, its block or its missing headings, at the end. Every existing byte
     stays where and as it was, and a second run returns the text unchanged.
-    A front matter of someone else's (no `offers:`) is left alone."""
+    A front matter of someone else's (no `approaches:`) is left alone."""
     source, body = split(text)
     if source is None:
-        front = {"offers": [empty_offer()]}
+        front = {"approaches": [empty_approach()]}
         head, body = "---\n" + dump_front(front) + "---\n", text
     else:
         head = text[: len(text) - len(body)]
@@ -798,14 +827,14 @@ def upgrade_text(text: str) -> str:
             front = parse_front(source)
         except PlaybookError:
             return text
-    offers = front.get("offers")
-    for item in offers if isinstance(offers, list) else []:
+    approaches = front.get("approaches")
+    for item in approaches if isinstance(approaches, list) else []:
         name = str(item.get("name") or "").strip() if isinstance(item, dict) else ""
         if not name:
             continue
-        span = _offer_span(body, name)
+        span = _approach_span(body, name)
         if span is None:
-            body = _append(body, _offer_block(name))
+            body = _append(body, _approach_block(name))
             continue
         start, _, end = span
         body = body[:start] + _fill_block_missing(body[start:end]) + body[end:]
@@ -819,81 +848,81 @@ def _with_front(front: dict, body: str) -> str:
 def _front_and_body(text: str) -> tuple[dict, str]:
     source, body = split(upgrade_text(text))
     front = parse_front(source)
-    if not isinstance(front.get("offers"), list):
-        raise PlaybookError("the front matter has no list of offers")
+    if not isinstance(front.get("approaches"), list):
+        raise PlaybookError("the front matter has no list of approaches")
     return front, body
 
 
 def _index(front: dict, name: str) -> int:
-    for i, item in enumerate(front["offers"]):
+    for i, item in enumerate(front["approaches"]):
         if isinstance(item, dict) and _norm(item.get("name") or "") == _norm(name):
             return i
-    raise PlaybookError(f"no offer called {name!r}")
+    raise PlaybookError(f"no approach called {name!r}")
 
 
 def _taken(front: dict, name: str) -> bool:
     return any(_norm(o.get("name") or "") == _norm(name)
-               for o in front["offers"] if isinstance(o, dict))
+               for o in front["approaches"] if isinstance(o, dict))
 
 
-def apply_offer(text: str, name: str, offer_front: dict,
+def apply_approach(text: str, name: str, approach_front: dict,
                 sections: dict | None = None) -> str:
-    """The playbook with one offer rewritten: its entry in the front matter and
+    """The playbook with one approach rewritten: its entry in the front matter and
     the given sections of its block (a new name renames both). Everything else
     in the file is kept."""
     front, body = _front_and_body(text)
     i = _index(front, name)
-    new_name = str(offer_front.get("name") or name).strip()
+    new_name = str(approach_front.get("name") or name).strip()
     if _norm(new_name) != _norm(name) and _taken(front, new_name):
-        raise PlaybookError(f"there is already an offer called {new_name!r}")
-    front["offers"][i] = {**offer_front, "name": new_name}
-    start, content, end = _offer_span(body, name)
+        raise PlaybookError(f"there is already an approach called {new_name!r}")
+    front["approaches"][i] = {**approach_front, "name": new_name}
+    start, content, end = _approach_span(body, name)
     block = body[start:end]
     if new_name != name:
-        block = f"# {OFFER_PREFIX}{new_name}\n" + block[content - start:]
+        block = f"# {APPROACH_PREFIX}{new_name}\n" + block[content - start:]
     body = body[:start] + _fill_block(block, sections or {}) + body[end:]
     return _with_front(front, body)
 
 
-def add_offer(text: str, name: str, copy_from: str = "") -> str:
-    """A new offer at the end: empty, or a copy of another one (its front
+def add_approach(text: str, name: str, copy_from: str = "") -> str:
+    """A new approach at the end: empty, or a copy of another one (its front
     matter entry and its whole block, under the new name)."""
     name = " ".join((name or "").split())
     if not name or ":" in name:
-        raise PlaybookError("give the offer a name (one line, no colon)")
+        raise PlaybookError("give the approach a name (one line, no colon)")
     front, body = _front_and_body(text)
     if _taken(front, name):
-        raise PlaybookError(f"there is already an offer called {name!r}")
+        raise PlaybookError(f"there is already an approach called {name!r}")
     if copy_from:
-        source = copy.deepcopy(front["offers"][_index(front, copy_from)])
+        source = copy.deepcopy(front["approaches"][_index(front, copy_from)])
         source["name"] = name
-        front["offers"].append(source)
-        _, content, end = _offer_span(body, copy_from)
-        block = f"# {OFFER_PREFIX}{name}\n" + body[content:end].rstrip("\n") + "\n"
+        front["approaches"].append(source)
+        _, content, end = _approach_span(body, copy_from)
+        block = f"# {APPROACH_PREFIX}{name}\n" + body[content:end].rstrip("\n") + "\n"
     else:
-        front["offers"].append(empty_offer(name))
-        block = _offer_block(name)
+        front["approaches"].append(empty_approach(name))
+        block = _approach_block(name)
     return _with_front(front, _append(body, block))
 
 
 def copy_name(front_or_pb, name: str) -> str:
     """"Copy of <name>", made unique."""
-    names = {_norm(o.name) for o in front_or_pb.offers}
+    names = {_norm(o.name) for o in front_or_pb.approaches}
     candidate, n = f"Copy of {name}", 2
     while _norm(candidate) in names:
         candidate, n = f"Copy of {name} ({n})", n + 1
     return candidate
 
 
-def delete_offer(text: str, name: str) -> str:
-    """The playbook without one offer (front matter entry and block). The last
-    offer cannot go: a playbook has at least one."""
+def delete_approach(text: str, name: str) -> str:
+    """The playbook without one approach (front matter entry and block). The last
+    approach cannot go: a playbook has at least one."""
     front, body = _front_and_body(text)
     i = _index(front, name)
-    if len(front["offers"]) == 1:
-        raise PlaybookError("a playbook keeps at least one offer; rename this one instead")
-    del front["offers"][i]
-    start, _, end = _offer_span(body, name)
+    if len(front["approaches"]) == 1:
+        raise PlaybookError("a playbook keeps at least one approach; rename this one instead")
+    del front["approaches"][i]
+    start, _, end = _approach_span(body, name)
     before, after = body[:start].rstrip("\n"), body[end:]
     body = (before + "\n" if before else "") + ("\n" + after if after.strip() else "")
     return _with_front(front, body)
@@ -923,13 +952,13 @@ def upgrade(root: Path | str, commit=None) -> str:
     new = upgrade_text(old)
     if new == old:
         if parse(old).has_front and not parse(old).set_up:
-            return (f"{FILENAME} has a front matter of its own (no `offers:`), so it was "
+            return (f"{FILENAME} has a front matter of its own (no `approaches:`), so it was "
                     "left alone; see `hermitcrm help playbook`.")
         return f"{FILENAME} is already set up for the outreach bot; nothing changed."
     path.write_text(new, encoding="utf-8")
     if commit is not None:
         commit("playbook: set up MESSAGING.md for the outreach bot", [FILENAME])
-    what = ("the front matter and an offer block" if split(old)[0] is None
+    what = ("the front matter and an approach block" if split(old)[0] is None
             else "the missing headings")
     return (f"Added {what} to {FILENAME}; every line you had is kept. "
             "Fill it in under Settings > Playbook.")
@@ -942,35 +971,43 @@ def _csv(values) -> str:
     return ", ".join(str(v) for v in values or [] if str(v).strip())
 
 
-def _range_parts(value) -> tuple[str, str]:
-    if isinstance(value, list) and len(value) == 2:
-        return str(value[0]), str(value[1])
-    return "", ""
+_RANGE_KEY = re.compile(r"^range_(\d+)_field$")
 
 
-def form_values(offer: Offer) -> dict[str, str]:
-    """An offer as the strings of the Settings > Playbook form."""
-    icp = offer.icp
-    values = {"name": offer.name,
-              "offer_line": offer.offer_line if isinstance(offer.front.get("offer_line"), str)
+def range_rows(values: dict) -> list[int]:
+    """The row numbers of the form's range rows: every filled one, plus one
+    empty row to add another."""
+    used = sorted({int(m.group(1)) for k in values if (m := _RANGE_KEY.match(k))
+                   and str(values.get(k) or "").strip()})
+    return used + [max(used, default=-1) + 1]
+
+
+def form_values(approach: Approach) -> dict[str, str]:
+    """An approach as the strings of the Settings > Playbook form."""
+    icp = approach.icp
+    values = {"name": approach.name,
+              "offer_line": approach.offer_line if isinstance(approach.front.get("offer_line"), str)
               else ""}
     for key in ICP_LISTS:
         values[f"icp_{key}"] = _csv(icp.get(key))
-    for key in ICP_RANGES:
-        values[f"icp_{key}_min"], values[f"icp_{key}_max"] = _range_parts(icp.get(key))
+    ranges = icp.get("ranges") if isinstance(icp.get("ranges"), dict) else {}
+    for i, (fkey, bounds) in enumerate(ranges.items()):
+        values[f"range_{i}_field"] = str(fkey)
+        if isinstance(bounds, list) and len(bounds) == 2:
+            values[f"range_{i}_min"], values[f"range_{i}_max"] = map(str, bounds)
     disq: dict = {}
-    for item in offer.disqualifiers:
+    for item in approach.disqualifiers:
         if isinstance(item, dict) and len(item) == 1:
             disq.update(item)
     for key in DISQUALIFIERS:
         values[f"dq_{key}"] = _csv(disq.get(key))
     values["personas"] = "\n".join(
-        f"{name}: {_csv(spec.get('titles'))}" for name, spec in offer.personas.items()
+        f"{name}: {_csv(spec.get('titles'))}" for name, spec in approach.personas.items()
         if isinstance(spec, dict))
     for key, _, _ in SECTIONS:
         if key != "lessons":
-            values[f"section_{key}"] = offer.section(key)
-    for key, text in offer.lessons().items():
+            values[f"section_{key}"] = approach.section(key)
+    for key, text in approach.lessons().items():
         values[f"lessons_{key}"] = text
     return values
 
@@ -990,8 +1027,8 @@ def _slug(name: str) -> str:
 
 
 def from_form(values: dict, old: dict | None = None) -> tuple[dict, dict, dict]:
-    """(offer front matter, sections, errors per field) from the form's strings.
-    `old` is the offer's current front matter: keys the form has no box for (a
+    """(approach front matter, sections, errors per field) from the form's strings.
+    `old` is the approach's current front matter: keys the form has no box for (a
     persona's pains, an ICP key of an agent's) are kept."""
     old = old or {}
     errors: dict[str, str] = {}
@@ -999,28 +1036,34 @@ def from_form(values: dict, old: dict | None = None) -> tuple[dict, dict, dict]:
 
     name = " ".join(get("name").split()) or str(old.get("name") or "")
     if not name or ":" in name:
-        errors["name"] = "a name for this offer, one line without a colon"
+        errors["name"] = "a name for this approach, one line without a colon"
     icp = dict(old.get("icp") or {}) if isinstance(old.get("icp"), dict) else {}
     for key in ICP_LISTS:
         items = _split_csv(get(f"icp_{key}"))
         icp[key] = [i.upper() for i in items] if key == "countries" else items
-    for key in ICP_RANGES:
-        lo, hi = get(f"icp_{key}_min"), get(f"icp_{key}_max")
-        if not lo and not hi:
-            icp[key] = []
+    icp.pop("ranges", None)
+    ranges: dict = {}
+    rows = sorted({int(m.group(1)) for k in values
+                   if (m := re.match(r"^range_(\d+)_(field|min|max)$", k))})
+    for i in rows:
+        fkey, lo, hi = get(f"range_{i}_field"), get(f"range_{i}_min"), get(f"range_{i}_max")
+        if not fkey:
+            if lo or hi:
+                errors["ranges"] = "pick the field each range is about"
             continue
         try:
             lo_n = int(lo) if lo else 0
             hi_n = int(hi) if hi else None
         except ValueError:
-            errors[f"icp_{key}"] = "whole numbers only"
+            errors["ranges"] = "whole numbers only"
             continue
         if hi_n is None:
-            errors[f"icp_{key}"] = "give a maximum as well (a large number for no limit)"
+            errors["ranges"] = "give a maximum as well (a large number for no limit)"
         elif lo_n < 0 or lo_n > hi_n:
-            errors[f"icp_{key}"] = "the minimum must be 0 or more and not above the maximum"
+            errors["ranges"] = "the minimum must be 0 or more and not above the maximum"
         else:
-            icp[key] = [lo_n, hi_n]
+            ranges[fkey] = [lo_n, hi_n]
+    icp["ranges"] = ranges
     icp = {k: icp[k] for k in ICP_KEYS if k in icp} | {k: v for k, v in icp.items()
                                                        if k not in ICP_KEYS}
     disq = []
@@ -1058,15 +1101,15 @@ def from_form(values: dict, old: dict | None = None) -> tuple[dict, dict, dict]:
 
 
 def save_form(text: str, name: str, values: dict) -> tuple[str, dict]:
-    """(new text, errors) for one offer's form; the text is unchanged on errors."""
-    offer = parse(upgrade_text(text)).offer(name)
-    if offer is None:
-        raise PlaybookError(f"no offer called {name!r}")
-    front, sections, errors = from_form(values, offer.front)
+    """(new text, errors) for one approach's form; the text is unchanged on errors."""
+    approach = parse(upgrade_text(text)).approach(name)
+    if approach is None:
+        raise PlaybookError(f"no approach called {name!r}")
+    front, sections, errors = from_form(values, approach.front)
     if errors:
         return text, errors
     try:
-        return apply_offer(text, offer.name, front, sections), {}
+        return apply_approach(text, approach.name, front, sections), {}
     except PlaybookError as exc:
         return text, {"name": str(exc)}
 
@@ -1103,10 +1146,10 @@ VOICE_SCHEMA = {"type": "object", "properties": {"voice": {"type": "string"}},
 SOURCE_LIMIT = 30000
 
 
-def draft_prompt(source: str, offer_name: str = "") -> str:
-    focus = (f"Propose the parts for their offer called \"{offer_name}\"; if the text "
-             "describes several offers, use only what belongs to that one.\n\n"
-             if offer_name and _norm(offer_name) != _norm(DEFAULT_OFFER) else "")
+def draft_prompt(source: str, approach_name: str = "") -> str:
+    focus = (f"Propose the parts for their approach called \"{approach_name}\"; if the text "
+             "describes several approaches, use only what belongs to that one.\n\n"
+             if approach_name and _norm(approach_name) != _norm(DEFAULT_APPROACH) else "")
     return (
         "You help someone write the sales playbook for their own business. Below is "
         "text about it (their website, a profile, a sales deck or a document). "
@@ -1179,7 +1222,7 @@ def _ai_ready(enricher, what: str) -> None:
         raise EnrichError(problem.replace("routines that draft need", f"{what} needs"))
 
 
-def propose(enricher, source: str, offer_name: str = "") -> dict[str, str]:
+def propose(enricher, source: str, approach_name: str = "") -> dict[str, str]:
     """Run the AI CLI with no tools on the text; the proposal as form values.
     Raises EnrichError when the CLI is missing, fails or cannot run toolless."""
     from hermitcrm.enrich import EnrichError
@@ -1187,7 +1230,7 @@ def propose(enricher, source: str, offer_name: str = "") -> dict[str, str]:
     _ai_ready(enricher, "drafting the playbook")
     if not (source or "").strip():
         raise EnrichError("give a website address, a file or some text first")
-    data = enricher.runner(draft_prompt(source, offer_name), DRAFT_SCHEMA, tools="")
+    data = enricher.runner(draft_prompt(source, approach_name), DRAFT_SCHEMA, tools="")
     return draft_values(data)
 
 
@@ -1261,16 +1304,16 @@ def propose_voice(enricher, emails: list[str]) -> dict[str, str]:
 
 def save_basics(root: Path | str, offer_line: str = "", industries: str = "",
                 titles: str = "", result: str = "", commit=None) -> list[str]:
-    """The "Your offer" setup step, into the first offer: what you sell, to whom
+    """The "Your offer" setup step, into the first approach: what you sell, to whom
     (industries and the buyer's titles) and one customer result. Empty answers
     keep what is there. Returns what was saved, in words ([] when nothing)."""
     path = Path(root) / FILENAME
     old = path.read_text(encoding="utf-8") if path.exists() else ""
     pb = parse(upgrade_text(old))
-    if pb.error or not pb.set_up or not pb.offers:
+    if pb.error or not pb.set_up or not pb.approaches:
         raise PlaybookError(pb.error or f"{FILENAME} has a front matter of its own")
-    offer = pb.offers[0]
-    values, saved = form_values(offer), []
+    approach = pb.approaches[0]
+    values, saved = form_values(approach), []
     if offer_line.strip():
         values["offer_line"], saved = offer_line, saved + ["offer line"]
     if industries.strip():
@@ -1287,7 +1330,7 @@ def save_basics(root: Path | str, offer_line: str = "", industries: str = "",
         saved.append("a customer result")
     if not saved:
         return []
-    text, errors = save_form(pb.text, offer.name, values)
+    text, errors = save_form(pb.text, approach.name, values)
     if errors:
         raise PlaybookError("; ".join(errors.values()))
     if write(root, text) and commit is not None:

@@ -324,8 +324,8 @@ unknown = "[Something specific about the team.]"
 
 
 # The demo folder's playbook: a made-up business (fractional sales leadership)
-# with two offers for two audiences, there to show a filled playbook. It is
-# example content only; a new folder without --demo gets one empty offer.
+# with two approaches for two audiences, there to show a filled playbook. It is
+# example content only; a new folder without --demo gets one empty approach.
 _DEMO_SHARED = {
     "why": "Cheaper and quicker than hiring a full-time Head of Sales, and the process "
            "stays when I leave. An agency sells for you; I build the team that sells.",
@@ -337,12 +337,13 @@ _DEMO_SHARED = {
              "- No \"I hope this finds you well\".\n- No claims without proof above.\n"
              "- Never name competitors.",
 }
-DEMO_OFFERS = [
+DEMO_APPROACHES = [
     ({"name": "Founder coaching",
       "offer_line": "I coach founders who still do all the selling, so sales stops "
                     "depending on their calendar.",
-      "icp": {"industries": ["b2b-saas", "analytics"], "fte": [5, 40],
-              "salespeople": [0, 0], "countries": ["DE", "NL", "GB", "IE", "SE"],
+      "icp": {"industries": ["b2b-saas", "analytics"],
+              "countries": ["DE", "NL", "GB", "IE", "SE"],
+              "ranges": {"fte_estimate": [5, 40], "ae_count": [0, 0]},
               "funding": ["bootstrapped", "seed"],
               "signals": ["founder-still-sells", "first-sales-hire-planned"]},
       "disqualifiers": [{"tag_present": ["customer", "do-not-contact"]}],
@@ -363,12 +364,12 @@ DEMO_OFFERS = [
                   "open": "- Whether German founders prefer email or LinkedIn."}}),
     ({"name": "Scaling the sales team",
       "offer_line": "I work as your fractional Head of Sales: part-time, no minimum term.",
-      "icp": {"industries": ["b2b-saas", "robotics", "analytics"], "fte": [10, 150],
-              "salespeople": [1, 8], "countries": ["DE", "NL", "GB", "IE", "SE"],
+      "icp": {"industries": ["b2b-saas", "robotics", "analytics"],
+              "countries": ["DE", "NL", "GB", "IE", "SE"],
+              "ranges": {"fte_estimate": [10, 150], "ae_count": [1, 8]},
               "funding": ["seed", "series-a"],
               "signals": ["no-sales-leader", "hiring-sales"]},
-      "disqualifiers": [{"title_present": ["Head of Sales", "VP Sales", "CRO"]},
-                        {"tag_present": ["customer", "do-not-contact"]}],
+      "disqualifiers": [{"tag_present": ["customer", "do-not-contact"]}],
       "personas": {"founder": {"titles": ["CEO", "Founder", "Co-Founder",
                                           "Managing Director"]},
                    "sales-lead": {"titles": ["Sales Lead", "Senior Account Executive",
@@ -385,30 +386,31 @@ DEMO_OFFERS = [
       "proof": "- A made-up example: a 30-person software company doubled its "
                "qualified pipeline in two quarters.\n- Another made-up example: the "
                "first two salespeople reached quota in their fourth month.",
-      "disqualifiers": "- A sales leader starts in the next three months.",
+      "disqualifiers": "- They already have a Head of Sales, VP Sales or CRO.\n"
+                       "- A sales leader starts in the next three months.",
       "lessons": {"failed": "- Asking for a meeting in the first message (made-up "
                             "example)."}}),
 ]
 # A new folder's playbook: the general notes without the old "What worked"
-# list, which every offer now has as its Lessons.
+# list, which every approach now has as its Lessons.
 NEW_MESSAGING = MESSAGING.split("## What worked")[0].rstrip("\n") + "\n"
 
 
 def new_playbook(demo: bool = False) -> str:
-    """MESSAGING.md for a new folder: the general notes plus one empty offer;
-    in a demo folder the two made-up offers, filled in."""
+    """MESSAGING.md for a new folder: the general notes plus one empty approach;
+    in a demo folder the two made-up approaches, filled in."""
     from . import playbook
 
     text = playbook.upgrade_text(NEW_MESSAGING)
     if not demo:
         return text
-    first = playbook.parse(text).offers[0].name
-    for i, (front, sections) in enumerate(DEMO_OFFERS):
+    first = playbook.parse(text).approaches[0].name
+    for i, (front, sections) in enumerate(DEMO_APPROACHES):
         if i == 0:
-            text = playbook.apply_offer(text, first, front, sections)
+            text = playbook.apply_approach(text, first, front, sections)
         else:
-            text = playbook.add_offer(text, front["name"])
-            text = playbook.apply_offer(text, front["name"], front, sections)
+            text = playbook.add_approach(text, front["name"])
+            text = playbook.apply_approach(text, front["name"], front, sections)
     return text
 
 
