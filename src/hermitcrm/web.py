@@ -96,6 +96,7 @@ from .models import (
     parse_date,
     slugify,
     split_name,
+    with_interested,
 )
 from .stages import DEFAULT_STAGES, StageSet
 from .store import (
@@ -2734,6 +2735,7 @@ def create_app(root: Path, config: dict | None = None,
                                    if i.is_open and i.company == company.slug
                                    and i.contact == contact.slug), None),
             "outreach_channels": outreach.CHANNELS,
+            "outreach_kind": outreach.kind_for(store, company, contact),
             **draft_context(request, company, contact),
             **extra,
         }
@@ -3044,6 +3046,8 @@ def create_app(root: Path, config: dict | None = None,
                               "message_window_days": str(config.get("message_window_days")
                                                          or 14),
                               "silent_days": str(config.get("silent_days") or 14)},
+            "outcomes_offer": with_interested(
+                setup_steps.parse_outcomes(config.get("outcomes") or [])),
             "task_types_form": {"rows": app.state.task_types},
             "stages_form": stages_form_default(),
             "agent_choices": [("", "the tool above ("
@@ -3794,13 +3798,23 @@ def create_app(root: Path, config: dict | None = None,
     # contact per request, so cards appear as they finish with no background
     # work: the page sends the next request itself while `left` > 0.
 
-    OUTREACH_TABS = (("drafts", "Drafts", ("researching", "drafted")),
+    # Replies to interest first: that is where deals leak. Its tab holds the
+    # replies owed (outreach.replies) and the open reply-to-interest drafts;
+    # Drafts holds the first touches.
+    OUTREACH_TABS = (("replies", "Replies to interest", ("researching", "drafted")),
+                     ("drafts", "Drafts", ("researching", "drafted")),
                      ("ready", "Ready", ("ready",)),
                      ("sent", "Sent", ("sent", "logged")),
                      ("skipped", "Skipped", ("skipped",)))
 
+    def in_tab(item, tab: str) -> bool:
+        states = next(s for t, _, s in OUTREACH_TABS if t == tab)
+        if tab in ("replies", "drafts"):
+            return item.state in states and (item.kind == outreach.REPLY) == (tab == "replies")
+        return item.state in states
+
     def outreach_tab(item) -> str:
-        return next(t for t, _, states in OUTREACH_TABS if item.state in states)
+        return next(t for t, _, _ in OUTREACH_TABS if in_tab(item, t))
 
     def outreach_where(text: str) -> list[str]:
         """The filter box: conditions separated by ";" (`stage=prospect;
@@ -3812,9 +3826,19 @@ def create_app(root: Path, config: dict | None = None,
         contact = company.contacts.get(item.contact) if company is not None else None
         fit_field = str(config.get("outreach_fit_field")
                         or outreach.CONFIG_DEFAULTS["outreach_fit_field"])
+        reply = next((i for i in company.interactions if i.id == item.reply_to), None) \
+            if company is not None and item.reply_to else None
         return {"item": item, "company": company, "contact": contact,
                 "fit": outreach.fit_value(company, fit_field) if company else None,
-                "fit_field": fit_field}
+                "fit_field": fit_field, "reply": reply}
+
+    def outreach_replies(every) -> list:
+        """The replies owed for the Replies tab, each with its open item (if
+        any). A reply you or the AI found not interested is listed last."""
+        open_by = {i.record: i for i in every if i.is_open}
+        rows = [{"reply": r, "item": open_by.get(r.record)} for r in outreach.replies(store)]
+        rows.sort(key=lambda row: row["reply"].verdict == "not-interested")
+        return rows
 
     def outreach_ai_problem(tier: str = "medium") -> str:
         enricher = app.state.enricher.with_tier(tier)
@@ -3854,10 +3878,14 @@ def create_app(root: Path, config: dict | None = None,
         if tab not in {t for t, _, _ in OUTREACH_TABS}:
             tab = "drafts"
         every = outreach.items(root)
-        states = next(s for t, _, s in OUTREACH_TABS if t == tab)
-        shown = [i for i in every if i.state in states]
-        if tab == "drafts":   # the oldest draft first: review in the order built
+        shown = [i for i in every if in_tab(i, tab)]
+        if tab in ("drafts", "replies"):   # the oldest draft first: review in the order built
             shown.reverse()
+        reply_rows = outreach_replies(every)
+        waiting = [r for r in reply_rows if r["item"] is None
+                   and (r["reply"].interested or r["reply"].to_confirm)]
+        counts = {t: sum(1 for i in every if in_tab(i, t)) for t, _, _ in OUTREACH_TABS}
+        counts["replies"] += len(waiting)
         preview, preview_error = None, ""
         if params.get("preview"):
             try:
@@ -3868,9 +3896,12 @@ def create_app(root: Path, config: dict | None = None,
                 preview_error = str(exc)
         _, gate = outreach._ready_approaches(root)
         return render(request, "outreach.html", {
-            "tabs": [(t, label, sum(1 for i in every if i.state in s))
-                     for t, label, s in OUTREACH_TABS],
+            "tabs": [(t, label, counts[t]) for t, label, _ in OUTREACH_TABS],
             "tab": tab, "cards": [outreach_card(i) for i in shown],
+            "reply_rows": [r for r in reply_rows if r["item"] is None] if tab == "replies"
+            else [],
+            "replies_waiting": len(waiting),
+            "replies_unchecked": sum(1 for r in reply_rows if r["reply"].unchecked),
             "form": form, "preview": preview, "preview_error": preview_error,
             "gate": gate, "ai_problem": outreach_ai_problem(),
             "skip_reasons": outreach.SKIP_REASONS, "finding_kinds": outreach.FINDING_KINDS,
@@ -3884,10 +3915,14 @@ def create_app(root: Path, config: dict | None = None,
                              where: str = Form(""), channel: str = Form("email"),
                              limit: str = Form(""), strong: str = Form(""),
                              left: str = Form(""), batch: str = Form(""),
-                             contact: str = Form(""), back: str = Form("")):
+                             contact: str = Form(""), back: str = Form(""),
+                             kind: str = Form(outreach.FIRST_TOUCH)):
         """Research and draft the next contact of the batch (one per request).
-        `contact` ("company/contact"): the contact page's Research & draft."""
+        `contact` ("company/contact"): the contact page's Research & draft, or a
+        reply on the Replies tab (`kind` reply-to-interest)."""
         check_csrf(csrf_token)
+        if kind not in outreach.BUILT_KINDS or (kind == outreach.REPLY and not contact):
+            kind = outreach.FIRST_TOUCH
         form = outreach_form({"where": where, "channel": channel, "limit": limit,
                               "strong": strong, "left": left, "batch": batch})
         if not left.strip():   # the first click: the whole batch is still to build
@@ -3898,8 +3933,8 @@ def create_app(root: Path, config: dict | None = None,
             outreach.research_level(config)  # refuses a level not built yet
             selection = await run_in_threadpool(
                 outreach.select, store, where=outreach_where(form["where"]),
-                channel=form["channel"], limit=1, contacts=[contact] if contact else None,
-                config=config)
+                channel=form["channel"], kind=kind, limit=1,
+                contacts=[contact] if contact else None, config=config)
         except outreach.OutreachError as exc:
             return flashed(back if contact else f"/outreach?{outreach_query(stop)}",
                            f"Not built: {exc}")
@@ -3935,6 +3970,41 @@ def create_app(root: Path, config: dict | None = None,
         if remaining:
             line += f". Building the next one ({remaining} left)…"
         return flashed(f"/outreach?{query}", line, anchor=f"item-{item.id}")
+
+    @app.post("/outreach/replies/check")
+    async def outreach_check_replies(request: Request, csrf_token: str = Form("")):
+        """Check replies: the AI (no tools) judges each reply owed that was not
+        logged as interested nor checked before. One commit; you confirm."""
+        check_csrf(csrf_token)
+        blocked = outreach_ai_problem()
+        if blocked:
+            return flashed("/outreach?tab=replies", f"Not checked: {blocked}")
+        result = await run_in_threadpool(outreach.check_replies, store,
+                                         app.state.enricher.with_tier("medium"))
+        found = sum(1 for r in result.checked if r.verdict == "interested")
+        text = (f"Checked {len(result.checked)} repl{'y' if len(result.checked) == 1 else 'ies'}"
+                f": {found} look{'s' if found == 1 else ''} interested. Confirm each one."
+                if result.checked else "No new replies to check.")
+        if result.failed:
+            text += (f" {len(result.failed)} could not be checked "
+                     f"({result.failed[0][1]}); try again later.")
+        return flashed("/outreach?tab=replies", text)
+
+    @app.post("/outreach/replies/confirm")
+    async def outreach_confirm_reply(request: Request, csrf_token: str = Form(""),
+                                     reply: str = Form(""), answer: str = Form("")):
+        """You decide about one reply: interested (answer=yes) or not (no)."""
+        check_csrf(csrf_token)
+        if answer not in ("yes", "no"):
+            raise HTTPException(status_code=400, detail="answer yes or no")
+        try:
+            found = await run_in_threadpool(outreach.confirm_reply, store, reply,
+                                            answer == "yes")
+        except outreach.OutreachError as exc:
+            return flashed("/outreach?tab=replies", str(exc))
+        text = (f"{found.contact.name}: interested. Draft a reply when you are ready."
+                if found.interested else f"{found.contact.name}: not interested.")
+        return flashed("/outreach?tab=replies", text, anchor=f"reply-{found.interaction.id}")
 
     OUTREACH_ACTIONS = ("check", "ready", "regenerate", "skip", "sent", "findings")
 

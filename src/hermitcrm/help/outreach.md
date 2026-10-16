@@ -16,7 +16,8 @@ and from the command line; both do the same steps and write the same files.
   and nothing is written. **Build queue** researches and drafts them one at a
   time: each card appears when it is done and the page asks for the next one
   by itself. **Stop** ends the batch; what was built stays.
-- **Tabs**: Drafts (to review), Ready (to send), Sent, Skipped.
+- **Tabs**: Replies to interest (first: that is where deals leak), Drafts
+  (first touches to review), Ready (to send), Sent, Skipped.
 - **A card**: the person and company with their links, fit, flags, what
   research found (with source and a confidence dot), the draft and its checks.
   - **Save & check again** saves your edit and runs the checks on it. A check
@@ -31,7 +32,35 @@ and from the command line; both do the same steps and write the same files.
     the message marks the item sent), or **Mark sent** without logging.
 - **On a contact's page**: **Research & draft** builds one item for that
   person on the channel you pick (it says why when the person is left out),
-  and while an item is open the page links to its card.
+  and while an item is open the page links to its card. The draft type comes
+  from the history: someone who replied with interest gets **Draft a reply**
+  (a reply to interest), everyone else a first touch; you can change it.
+
+## Replies to interest
+
+Someone answered and wants to know more. The tab lists every reply you owe an
+answer (the follow-up radar's "you owe a reply", per person, from the day it
+came in) and what is known about it:
+
+- **Logged with the outcome `interested`**: listed as it is, no AI needed.
+  Set the outcome when you log the reply (Settings > Outcomes offers the
+  value to a folder that set its own list before it existed).
+- **Otherwise, Check replies** asks your AI CLI, with no tools and no web,
+  once per reply: interested, not interested or unclear. The answer is kept in
+  `outreach/replies.json` (one commit) and never changes the interaction. An
+  "interested" from the AI waits for you: **Confirm: interested** or **Not
+  interested**. You can also mark any reply yourself.
+- **Draft a reply** on an interested reply builds a reply-to-interest draft:
+  no research, their reply is the context. It says the approach's offer line,
+  one proof line, the playbook's **first step offer** (`first_step_offer`,
+  left out when empty: not everyone offers a free first call) and asks one
+  question. No time slot, booking link, link or price: a meeting comes after
+  they answer. The wording template per language is
+  `[outreach.reply_to_interest.<lang>]` in `messages.toml`.
+
+The card shows their reply above the draft; Regenerate, Skip, Mark ready and
+the rest work as on a first touch. Once you send and log your answer, the
+reply leaves the list.
 
 ## The steps
 
@@ -84,7 +113,9 @@ and from the command line; both do the same steps and write the same files.
   cannot reach (email needs an address, LinkedIn a profile URL); a contact with
   an open item (researching, drafted or ready); a contact you messaged or
   skipped in the last `outreach_cooldown_days` (30); a company skipped as
-  `bad-fit`; for a first touch, anyone you messaged before.
+  `bad-fit`; for a first touch, anyone you messaged before. A reply to
+  interest needs an interested reply owed, and skips the cooldown and the fit
+  test: they asked (the approach is the one the conversation started with).
 - **One item per company**, likely duplicates included: the same website
   domain, or names that are the same once `-ai`, `-hq`, `GmbH` and the like are
   dropped. The preview lists such pairs; merge them on the company page.
@@ -123,7 +154,13 @@ breaks one is written again once; if it still breaks it, it is shown with the
 problem marked. Only a fallback draft, written when research found nothing
 usable, keeps its gaps: it says "needs hand edits".
 
-The angle is one of the five template angles or `custom`. Drafts use the
+A reply to interest is checked for the offer line (it must be there word for
+word), one proof line, exactly one question, and no link, time, price or day
+rate (`€900`, `2 days a week`); on LinkedIn it is a message of up to 600
+characters, not a connection note.
+
+The angle is one of the five template angles or `custom` (a reply has none).
+Drafts use the
 medium model; `build --strong` uses the strong one.
 
 **Opt-out line** (optional): set `opt_out` in the playbook's front matter, one
@@ -135,7 +172,8 @@ count towards the 120 words. Without it, nothing is added.
 
 `outreach/<id>.md`, one per item. The front matter holds `state`
 (`researching`, `drafted`, `ready`, `sent`, `skipped`; `logged` is for later), the
-channel, contact, company, approach, angle, findings, check results, flags,
+channel, contact, company, the reply it answers (`reply_to`), approach, angle,
+findings, check results, flags,
 timestamps, the AI's original text and how much you changed it. The body is
 the message, byte for byte. `hermitcrm check` reports a file it cannot read.
 

@@ -67,6 +67,7 @@ approaches:
 |---|---|
 | `name` | The approach's name, unique in the file; its body block is `# Approach: <name>`. |
 | `offer_line` | What you sell, in one sentence. One per approach: a list is refused. |
+| `first_step_offer` | Optional. The first step a reply to interest offers, in one sentence ("The first call is free and all about you, without a sales pitch."). Left out of the draft when empty. |
 | `icp` | The ideal customer: `industries`, `countries`, `funding`, `signals` (lists of short words) and `ranges` (below). Leave any of them empty. |
 | `disqualifiers` | Hard reasons a company is not a prospect for this approach (below). |
 | `personas` | Per buyer type, the job `titles` that belong to it. Optional `pains`, `cares` and `ignores` lists. |

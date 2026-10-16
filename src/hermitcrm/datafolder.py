@@ -370,6 +370,7 @@ DEMO_APPROACHES = [
                   "open": "- Whether German founders prefer email or LinkedIn."}}),
     ({"name": "Scaling the sales team",
       "offer_line": "I work as your fractional Head of Sales: part-time, no minimum term.",
+      "first_step_offer": "The first call is free and all about you, without a sales pitch.",
       "icp": {"industries": ["b2b-saas", "robotics", "analytics"],
               "countries": ["DE", "NL", "GB", "IE", "SE"],
               "ranges": {"fte_estimate": [10, 150], "ae_count": [1, 8]},
