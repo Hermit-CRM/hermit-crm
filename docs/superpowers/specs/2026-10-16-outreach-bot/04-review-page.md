@@ -60,8 +60,14 @@ the offer line as a slot; overridable in `messages.toml`.
   same commit
 - "Mark ready" writes no interaction
 
-## Open question
+## Interest detection (decided 16 Oct 2026)
 
-**Interest detection.** The AI classifies an inbound reply as interest and the
-person confirms. Should an outcome value (e.g. `interested`) also be added to
-`outcomes` in `config.toml`, so the radar can use it without AI?
+The AI classifies an inbound reply as interest and the person confirms. **Also**
+add an `interested` outcome value to the default `outcomes` in `config.toml`, so
+the radar finds replies to interest without AI (users without an AI CLI can set
+it by hand when logging). Existing folders keep their own `config.toml`; offer
+the value, never add it silently. If this changes stored front-matter values,
+add a numbered migration plus tests (CLAUDE.md).
+
+Test: an inbound interaction with outcome `interested` appears in the
+Replies to interest tab with no AI call.
