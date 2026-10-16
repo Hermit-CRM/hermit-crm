@@ -26,9 +26,12 @@ Context: [00-overview](00-overview.md). Needs phase 1 (parts 02-03).
 - **Ready** is the working list for sending by hand: copy button and the
   contact's links.
 
-**Mark ready** changes the state and appends the findings used to the contact's
-notes under a dated heading (`### Research 2026-10-16 (scrape)`, one line per
-finding with its source), in the same commit. It does **not** log an
+**Mark ready** changes the state and saves the findings used as one `note`
+interaction on the contact (one line per finding with its source; what the CRM
+already knew is left out), in the same commit. Built in phase 1
+(`outreach.mark_ready`); the page calls it. A note interaction rather than a
+`### Research` heading in the contact's notes, so it is dated, shows on the
+timeline and needs no second notes format. It does **not** log an
 interaction; the person logs it as usual.
 
 **Contact page:** a "Research & draft" button (with channel picker), and an
@@ -66,8 +69,7 @@ the offer line as a slot; overridable in `messages.toml`.
 
 - web: the page renders on the demo folder; a card's buttons change only the
   state
-- Mark ready appends findings to the contact notes deterministically, in the
-  same commit
+- Mark ready saves the findings as one note interaction, in the same commit
 - "Mark ready" writes no interaction
 
 ## Interest detection (decided 16 Oct 2026)
@@ -75,9 +77,13 @@ the offer line as a slot; overridable in `messages.toml`.
 The AI classifies an inbound reply as interest and the person confirms. **Also**
 add an `interested` outcome value to the default `outcomes` in `config.toml`, so
 the radar finds replies to interest without AI (users without an AI CLI can set
-it by hand when logging). Existing folders keep their own `config.toml`; offer
-the value, never add it silently. If this changes stored front-matter values,
-add a numbered migration plus tests (CLAUDE.md).
+it by hand when logging). Order matters: the first outcome is what a reply
+counts as and the last is what silence counts as (`models.message_status`), so
+`interested` goes in the middle: `successful, interested, unsuccessful`. Never
+append it at the end. Existing folders keep their own `config.toml`; offer
+the value, never add it silently. `outcomes` lives in `config.toml`, not in
+front matter, so no migration is needed; an interaction's `outcome` value is
+already free text.
 
 Test: an inbound interaction with outcome `interested` appears in the
 Replies to interest tab with no AI call.
