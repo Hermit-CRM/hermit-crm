@@ -284,7 +284,11 @@ class ClaudeProvider(Provider):
         argv = [self.binary, "-p", "--output-format", "json",
                 "--json-schema", json.dumps(schema or {}),
                 "--allowedTools", self.tools if self.tools is not None
-                else "WebSearch,WebFetch"]
+                else "WebSearch,WebFetch",
+                # The prompt is built from the data folder alone: no user, project
+                # or local settings, so no CLAUDE.md (the user's own instructions
+                # would leak into drafts for this business). The login still works.
+                "--setting-sources", ""]
         if self.tools == "":
             # --allowedTools only says what needs no approval: Claude still reads
             # files with its read-only tools. --tools "" takes every tool away.
@@ -295,8 +299,11 @@ class ClaudeProvider(Provider):
 
     def env(self, environ):
         # A nested session inherits CLAUDECODE; an API key would bypass the login.
-        return {k: v for k, v in environ.items()
-                if k not in ("CLAUDECODE", "ANTHROPIC_API_KEY")}
+        env = {k: v for k, v in environ.items()
+               if k not in ("CLAUDECODE", "ANTHROPIC_API_KEY")}
+        # --setting-sources "" leaves auto-memory on: keep the user's memory out too.
+        env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] = "1"
+        return env
 
     def parse(self, stdout, out_file_text=""):
         try:
@@ -321,6 +328,9 @@ class CodexProvider(Provider):
 
     Not installed when this was written: flags follow the Codex CLI docs. Web
     search is not switched on here (see README).
+
+    TODO: Codex still reads the user's own ~/.codex/AGENTS.md. No documented flag
+    skips it, and a temporary CODEX_HOME would also lose the login (auth.json).
     """
 
     name, default_binary = "codex", "codex"
