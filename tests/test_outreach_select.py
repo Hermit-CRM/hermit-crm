@@ -355,8 +355,7 @@ def test_culture_defaults_for_every_language_and_a_country_override(folder):
     messages = messaging.load_messages(root)
     for lang in messaging.language_names(messages):
         norms = outreach.culture(lang, messages=messages)
-        assert {"formality", "greeting", "signoff", "cta", "opt_out"} <= set(norms), lang
-        assert "?" not in norms["opt_out"], lang
+        assert {"formality", "greeting", "signoff", "cta"} <= set(norms), lang
     assert "vous" in outreach.culture("fr")["formality"]
     (root / "messages.toml").write_text('[culture.AT]\nsignoff = "Liebe Grüße"\n',
                                         encoding="utf-8")

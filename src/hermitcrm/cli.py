@@ -1519,17 +1519,22 @@ def _build_parser() -> argparse.ArgumentParser:
         o.add_argument("--approach", default="", help="the playbook approach to use")
         if verb == "build":
             o.add_argument("--research", default="", help="research level (scrape)")
+            o.add_argument("--strong", action="store_true",
+                           help="draft on the strong model tier (default: medium)")
     o_list = o_sub.add_parser("list", help="every item, newest first")
     o_list.add_argument("--state", default="", help="only items in this state")
     o_sub.add_parser("show", help="one item in full: the card").add_argument("id")
-    o_ready = o_sub.add_parser("ready", help="approve a drafted item (checks run again on "
-                               "the text as it is now); nothing is sent")
-    o_ready.add_argument("id")
-    o_ready.add_argument("--anyway", action="store_true",
-                         help="approve even though a hard check still fails")
+    o_sub.add_parser("ready", help="approve a drafted item (checks run again on the text "
+                     "as it is now; a failing one is a warning); nothing is sent"
+                     ).add_argument("id")
+    o_sub.add_parser("sent", help="you sent it yourself (logging it does this too); "
+                     "logs nothing").add_argument("id")
     o_skip = o_sub.add_parser("skip", help="do not send this one, and say why")
     o_skip.add_argument("id")
-    o_skip.add_argument("--reason", required=True)
+    o_skip.add_argument("--reason", required=True,
+                        choices=["bad-fit", "wrong-person", "bad-timing", "bad-draft",
+                                 "already-in-contact", "other"])
+    o_skip.add_argument("--note", default="", help="anything else, in your words")
     p_out.set_defaults(action="list", state="")
 
     p_help = sub.add_parser("help", help="how a feature works (the web app's /help pages)")
@@ -1590,14 +1595,20 @@ def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
                 return (f"no outreach item {args.id!r} (hermitcrm outreach list)", 1)
             return (outreach.render_item(store, item), 0)
         if action == "ready":
-            item, found = outreach.mark_ready(store, args.id, anyway=args.anyway)
-            text = f"{item.id} is ready: send it yourself, then log it as usual. Not sent."
+            item, found = outreach.mark_ready(store, args.id)
+            text = (f"{item.id} is ready: send it yourself, then log it as usual (that "
+                    "marks it sent). Not sent.")
             if found:
-                text += "\nApproved with problems:\n" + "\n".join(f"- {p}" for p in found)
+                text += ("\nWarning: it still breaks these rules (kept on the item):\n"
+                         + "\n".join(f"- {p}" for p in found))
             return (text, 0)
+        if action == "sent":
+            item = outreach.mark_sent(store, args.id)
+            return (f"{item.id} is sent. Nothing was logged: log the message as usual.", 0)
         if action == "skip":
-            item = outreach.skip(store, args.id, args.reason)
-            return (f"{item.id} skipped: {item.skip_reason}", 0)
+            item = outreach.skip(store, args.id, args.reason, getattr(args, "note", ""))
+            return (f"{item.id} skipped: {item.skip_reason}"
+                    + (f" ({item.skip_note})" if item.skip_note else ""), 0)
         selection = outreach.select(store, where=args.where, channel=args.channel,
                                     kind=args.kind, limit=args.limit, approach=args.approach,
                                     contacts=args.contact, config=config)
@@ -1610,7 +1621,8 @@ def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
         if not selection.picked:
             return (selection.render() + "\n\nNothing to build.", 0)
         if researcher is None or drafter is None:
-            enricher = outreach.default_enricher(config)
+            enricher = outreach.default_enricher(
+                config, "strong" if getattr(args, "strong", False) else "medium")
             if not enricher.available:
                 return (f"The AI CLI is not available: {enricher.unavailable_reason()}", 1)
             blocked = routines.ai_problem(enricher)
@@ -1843,7 +1855,7 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
 
     if args.command == "outreach":
         config = load_config(root)
-        if args.action in ("build", "ready", "skip"):
+        if args.action in ("build", "ready", "sent", "skip"):
             store.on_write = _writer(store, root, config)
         text, code = cmd_outreach(store, root, config, args)
         print(text, file=sys.stderr if code else sys.stdout)

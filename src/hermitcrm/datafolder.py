@@ -81,7 +81,7 @@ CONFIG_DOCS = {
     "outreach_fit_field": "Which of your company fields holds a fit score (0 to 100); outreach batches go highest first. Empty or missing: no fit order, the card says so.",
     "outreach_high_fit": "The fit score from which the outreach preview counts a company as high fit (and says how many were never contacted).",
     "outreach_batch_size": "How many contacts an outreach batch takes when you do not say (--limit).",
-    "outreach_angles": "The angles an outreach draft may take. The template angles only by default, so results can be compared; add custom to allow your own.",
+    "outreach_angles": "The angles an outreach draft may take: the five template angles and custom (your own). Leave some out to compare fewer at a time.",
     "messaging_size_field": "Which of your fields holds a headcount, for the drafts that mention team size; empty means the size line always uses its 'unknown' wording.",
     "messaging_team_field": "Which of your fields holds a count of sales people, for the drafts that mention the team; empty means the team line always uses its 'unknown' wording.",
     "enrich_provider": "AI CLI for Enrich: auto, claude, codex, gemini, grok or custom.",
