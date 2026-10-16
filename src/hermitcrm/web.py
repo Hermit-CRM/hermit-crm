@@ -77,6 +77,7 @@ from .importer import (
 )
 from .gitops import GitOps
 from .models import (
+    ANGLES,
     Channel,
     Company,
     DEFAULT_OUTCOMES,
@@ -351,6 +352,7 @@ class MessageRow:
         self.contact_slug = it.contact
         self.channel = it.channel
         self.subject = it.subject
+        self.angle = it.angle
         self.body = it.body
         self.preview = " ".join(it.body.split())
         self.status = status
@@ -369,6 +371,7 @@ def message_columns(statuses: list[str], defs: list | None = None,
         Column("company_name", "company"),
         Column("contact", "contact"),
         Column("channel", "channel", "enum", CHANNELS),
+        Column("angle", "angle", "enum", list(ANGLES)),
         Column("country", "country", "enum", COUNTRIES),
         Column("stage", "stage", "enum", (stages or DEFAULT_STAGES).names),
         Column("status", "outcome", "enum", statuses),
@@ -1255,6 +1258,7 @@ def create_app(root: Path, config: dict | None = None,
         preview=followups.first_line,
         stage_exits=stage_exits,
         stage_keeps=lambda name: stage_keeps(store.stages, name),
+        angles=list(ANGLES),
         stages=list(store.stages.names),   # config_reloaded keeps it current in place
         sources=SOURCES,
         countries=COUNTRIES,
@@ -1435,6 +1439,7 @@ def create_app(root: Path, config: dict | None = None,
             "contact": contact or "",
             "date": fmt_datetime(store.now()),
             "subject": "",
+            "angle": "",
             "outcome": "",
             "body": body or "",
         }
@@ -2823,13 +2828,14 @@ def create_app(root: Path, config: dict | None = None,
         contact: str = Form(""),
         date: str = Form(""),
         subject: str = Form(""),
+        angle: str = Form(""),
         outcome: str = Form(""),
         body: str = Form(""),
     ):
         company = need_company(slug)
         values = {"channel": channel, "direction": direction, "contact": contact,
-                  "date": date, "subject": subject, "outcome": outcome,
-                  "body": body}
+                  "date": date, "subject": subject, "angle": angle,
+                  "outcome": outcome, "body": body}
         extra, shown, custom_errors = await custom_submitted(request, "interaction")
         try:
             errors = dict(custom_errors)
@@ -2857,7 +2863,7 @@ def create_app(root: Path, config: dict | None = None,
             raise HTTPException(status_code=404, detail=f"unknown interaction {id!r}")
         values = {
             "channel": it.channel, "direction": it.direction, "contact": it.contact,
-            "date": fmt_datetime(it.date), "subject": it.subject,
+            "date": fmt_datetime(it.date), "subject": it.subject, "angle": it.angle,
             "outcome": it.outcome, "body": it.body,
         }
         return render(request, "interaction_edit.html",
@@ -2873,6 +2879,7 @@ def create_app(root: Path, config: dict | None = None,
         contact: str = Form(""),
         date: str = Form(""),
         subject: str = Form(""),
+        angle: str = Form(""),
         outcome: str = Form(""),
         body: str = Form(""),
     ):
@@ -2880,8 +2887,8 @@ def create_app(root: Path, config: dict | None = None,
         if not any(i.id == id for i in company.interactions):
             raise HTTPException(status_code=404, detail=f"unknown interaction {id!r}")
         values = {"channel": channel, "direction": direction, "contact": contact,
-                  "date": date, "subject": subject, "outcome": outcome,
-                  "body": body}
+                  "date": date, "subject": subject, "angle": angle,
+                  "outcome": outcome, "body": body}
         extra, shown, custom_errors = await custom_submitted(request, "interaction")
         try:
             if custom_errors:
