@@ -1456,10 +1456,13 @@ def research_level(config: dict | None, override: str = "") -> str:
 
 
 def build(store: Store, selection: Selection, researcher: Researcher, drafter: Drafter,
-          config: dict | None = None, now: datetime | None = None) -> BuildResult:
+          config: dict | None = None, now: datetime | None = None,
+          batch: str = "") -> BuildResult:
     """Research and draft every picked contact. Each step of each item is one
     commit (`store.notify`): the research, then the draft. A crash halfway
-    leaves the items written so far, each committed."""
+    leaves the items written so far, each committed. `batch` names the run
+    (the Outreach page builds one contact per request and passes the same
+    one); empty = from the start time and the channel."""
     root = Path(store.root)
     config = config if config is not None else load_config(root)
     if selection.gate:
@@ -1470,7 +1473,7 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
     pb = playbook.load(root)
     out = BuildResult()
     started = now or store.now()
-    batch = f"{started:%Y-%m-%dT%H%M}-{selection.channel}"
+    batch = batch or f"{started:%Y-%m-%dT%H%M}-{selection.channel}"
     for cand in selection.picked:
         clock = time.monotonic()
         when = store.now() if now is None else now
@@ -1502,36 +1505,50 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
                            fit=cand.fit, flags=cand.flags)
         draft = drafter.draft(selection.kind, cand.company, cand.contact, research,
                               selection.channel, approach=approach, brief=brief)
-        item.model, item.attempts = draft.model, draft.attempts
-        item.language = draft.language
         item.seconds = int(round(time.monotonic() - clock))
+        message = _apply_draft(item, draft, fallback, store.now() if now is None else now)
         if draft.failed:
-            item.state, item.skip_reason = "skipped", "bad-draft"
-            item.skip_note = f"no usable draft from the AI: {draft.failed}"
-            item.skipped = store.now() if now is None else now
-            message = f"outreach: skip {item.record} (no usable draft)"
             out.lines.append(f"skipped: {cand.who} | {draft.failed}")
         else:
-            for n in draft.findings_used:
-                item.findings[n - 1].used = True
-            item.state = "drafted"
-            item.angle, item.subject, item.pitch = draft.angle, draft.subject, draft.pitch
-            item.body, item.checks, item.norms = draft.body, draft.problems, draft.norms
-            item.proof_used = draft.proof_used
-            item.ai_subject, item.ai_pitch, item.ai_body = draft.subject, draft.pitch, draft.body
-            item.drafted = store.now() if now is None else now
-            if fallback and hand_edits(draft.subject, draft.body, draft.pitch):
-                item.flags.append(NEEDS_HAND_EDITS)
-            verdict = ("checks passed" if not draft.problems else
-                       f"{len(draft.problems)} problem{'s' if len(draft.problems) > 1 else ''}")
-            message = (f"outreach: draft {item.record} ({item.channel}, "
-                       f"{item.angle or 'no angle'}): {verdict}")
-            out.lines.append(f"drafted: {cand.who} | {item.channel} | {verdict} | {item.id}")
+            out.lines.append(f"drafted: {cand.who} | {item.channel} | "
+                             f"{_verdict(draft.problems)} | {item.id}")
         with store.lock:
             write_item(root, item)
             store.notify(message, [item.path])
         out.items.append(item)
     return out
+
+
+def _verdict(problems: list[str]) -> str:
+    return ("checks passed" if not problems else
+            f"{len(problems)} problem{'s' if len(problems) > 1 else ''}")
+
+
+def _apply_draft(item: Item, draft: Draft, fallback: bool, when: datetime) -> str:
+    """Put a draft (or the AI's failure to write one) on the item; returns the
+    commit message. Shared by build and regenerate."""
+    item.model, item.attempts = draft.model, draft.attempts
+    item.language = draft.language
+    if draft.failed:
+        item.state, item.skip_reason = "skipped", "bad-draft"
+        item.skip_note = f"no usable draft from the AI: {draft.failed}"
+        item.skipped = when
+        return f"outreach: skip {item.record} (no usable draft)"
+    for f in item.findings:
+        f.used = False
+    for n in draft.findings_used:
+        item.findings[n - 1].used = True
+    item.state = "drafted"
+    item.angle, item.subject, item.pitch = draft.angle, draft.subject, draft.pitch
+    item.body, item.checks, item.norms = draft.body, draft.problems, draft.norms
+    item.proof_used = draft.proof_used
+    item.ai_subject, item.ai_pitch, item.ai_body = draft.subject, draft.pitch, draft.body
+    item.drafted = when
+    item.flags = [f for f in item.flags if f != NEEDS_HAND_EDITS]
+    if fallback and hand_edits(draft.subject, draft.body, draft.pitch):
+        item.flags.append(NEEDS_HAND_EDITS)
+    return (f"outreach: draft {item.record} ({item.channel}, "
+            f"{item.angle or 'no angle'}): {_verdict(draft.problems)}")
 
 
 def _refresh(store: Store, item_id: str) -> Item:
@@ -1562,16 +1579,19 @@ def check_item(store: Store, item: Item, config: dict | None = None) -> list[str
 
 
 def mark_ready(store: Store, item_id: str, sender: Sender | None = None,
-               logger: Logger | None = None) -> tuple[Item, list[str]]:
+               logger: Logger | None = None, subject: str | None = None,
+               body: str | None = None, pitch: str | None = None) -> tuple[Item, list[str]]:
     """The person approves the draft. The hard checks run again on the text as
     it is now; what still fails is a warning, returned and kept in `checks`
     (the person decides). The findings the draft used go to the contact's
     notes (one note), the item becomes ready: one commit. Nothing is sent
-    (ManualSender) or logged (ManualLogger)."""
+    (ManualSender) or logged (ManualLogger). `subject`, `body`, `pitch`: the
+    text as edited on the Outreach page, saved in the same commit."""
     item = _refresh(store, item_id)
     if item.state != "drafted":
         raise OutreachError(f"{item.id} is {item.state}; only a drafted item can be "
                             "marked ready")
+    _edit(item, subject, body, pitch)
     if not item.body.strip():
         raise OutreachError(f"{item.id} has no text to approve")
     found = check_item(store, item)
@@ -1627,6 +1647,104 @@ def mark_sent(store: Store, item_id: str) -> Item:
     with store.lock:
         write_item(store.root, item)
         store.notify(f"outreach: sent {item.record} ({item.channel})", [item.path])
+    return item
+
+
+def _edit(item: Item, subject: str | None, body: str | None, pitch: str | None) -> None:
+    """The text as typed in a browser. Only a textarea's line endings change
+    (\r\n to \n); the rest is kept byte for byte. A subject is one line."""
+    if subject is not None:
+        item.subject = " ".join(subject.replace("\r", " ").replace("\n", " ").split()) \
+            if item.channel == "email" else ""
+    if body is not None:
+        item.body = body.replace("\r\n", "\n").replace("\r", "\n")
+    if pitch is not None:
+        item.pitch = pitch.replace("\r\n", "\n").replace("\r", "\n") \
+            if item.channel != "email" else ""
+
+
+def save_text(store: Store, item_id: str, subject: str | None = None,
+              body: str | None = None, pitch: str | None = None) -> tuple[Item, list[str]]:
+    """Save the edited text and run the hard checks on it again ("Check
+    again"). What fails is kept in `checks`; it never blocks the edit. One
+    commit."""
+    item = _refresh(store, item_id)
+    if item.state != "drafted":
+        raise OutreachError(f"{item.id} is {item.state}; only a drafted item can be "
+                            "edited")
+    _edit(item, subject, body, pitch)
+    if not item.body.strip():
+        raise OutreachError("not saved: the message is empty")
+    item.checks = check_item(store, item)
+    message = f"outreach: edit {item.record} ({item.channel}): {_verdict(item.checks)}"
+    with store.lock:
+        write_item(store.root, item)
+        store.notify(message, [item.path])
+    return item, item.checks
+
+
+def redraft(store: Store, item_id: str, drafter: Drafter,
+            config: dict | None = None) -> Item:
+    """Regenerate: a new draft from the same findings (yours included), the
+    old text and the AI's old text replaced. One commit. A draft the AI
+    cannot write leaves the item skipped as bad-draft, as a build does."""
+    item = _refresh(store, item_id)
+    if item.state != "drafted":
+        raise OutreachError(f"{item.id} is {item.state}; only a drafted item can be "
+                            "regenerated")
+    if item.kind not in BUILT_KINDS:
+        raise OutreachError(f"{item.kind} drafts come in a later version")
+    company = store.get(item.company)
+    contact = company.contacts.get(item.contact) if company is not None else None
+    if contact is None:
+        raise OutreachError(f"{item.record} is not in the CRM any more")
+    config = config if config is not None else load_config(store.root)
+    approach = playbook.load(store.root).approach(item.approach) if item.approach else None
+    research = Research(findings=item.findings, level=item.research_level)
+    brief = make_brief(store, company, contact, approach, research,
+                       fit=fit_value(company, str(_config(config, "outreach_fit_field"))),
+                       flags=[f for f in item.flags if f != NEEDS_HAND_EDITS])
+    clock = time.monotonic()
+    draft = drafter.draft(item.kind, company, contact, research, item.channel,
+                          approach=approach, brief=brief)
+    item.seconds = int(round(time.monotonic() - clock))
+    fallback = not any(f.usable for f in item.findings)
+    message = _apply_draft(item, draft, fallback, store.now())
+    if not draft.failed:
+        message = message.replace("outreach: draft", "outreach: regenerate", 1)
+    with store.lock:
+        write_item(store.root, item)
+        store.notify(message, [item.path])
+    return item
+
+
+YOURS = "you"   # the source of a finding the person added by hand
+
+
+def set_findings(store: Store, item_id: str, remove: list[int] | None = None,
+                 add: str = "", kind: str = "company") -> Item:
+    """Remove findings (by number, 1-based, as shown) and/or add one of your
+    own (source "you", confidence high: you know it). A regenerate uses the
+    list as it is now. One commit."""
+    item = _refresh(store, item_id)
+    if item.state != "drafted":
+        raise OutreachError(f"{item.id} is {item.state}; only a drafted item's findings "
+                            "can change")
+    drop = {n for n in remove or [] if 1 <= n <= len(item.findings)}
+    gone = [item.findings[n - 1].text for n in sorted(drop)]
+    item.findings = [f for n, f in enumerate(item.findings, 1) if n not in drop]
+    text = " ".join((add or "").split())
+    if text:
+        item.findings.append(Finding(text=text, source=YOURS,
+                                     kind=_choice(kind, FINDING_KINDS, "company"),
+                                     confidence="high", date=f"{store.today():%Y-%m}"))
+    if not gone and not text:
+        return item
+    what = ([f"removed {len(gone)}"] if gone else []) + (["added 1"] if text else [])
+    message = f"outreach: findings {item.record}: {', '.join(what)}"
+    with store.lock:
+        write_item(store.root, item)
+        store.notify(message, [item.path])
     return item
 
 
