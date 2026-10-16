@@ -20,6 +20,7 @@ page for the screen you are on; `hermitcrm help <topic>` prints the same text.
 - [Interactions](/help/interactions): logging email, LinkedIn, call, WhatsApp and meeting touches; outcomes; To file.
 - [Messages](/help/messages): every sent message with its outcome.
 - [Playbook](/help/playbook): what you sell and to whom (`MESSAGING.md`), for the drafts and the outreach bot.
+- [Outreach bot](/help/outreach): a batch of researched, checked first messages for you to review, send and log (`hermitcrm outreach`).
 - [Reports](/help/reports): activity, funnel, outcomes, messages, sources, hygiene.
 - [Settings](/help/settings): you, BCC capture, calendar, backup, enrichment, outcomes, schedule, phone and MCP access, support, about.
 - [Import](/help/import): bulk import from CSV, TSV, .xlsx or a pasted table.

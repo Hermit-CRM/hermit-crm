@@ -46,8 +46,8 @@ BASELINE_30D = """\
 |---|---|---|---|
 | interactions | 9 | 4 | +5 |
 | companies touched | 5 | 3 | +2 |
-| new companies | 0 | 8 | −8 |
-| new contacts | 0 | 9 | −9 |
+| new companies | 5 | 8 | −3 |
+| new contacts | 6 | 9 | −3 |
 
 | week | email out | email in | linkedin out | linkedin in | call out | call in | whatsapp out | whatsapp in | meeting out | meeting in | total |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -62,7 +62,7 @@ BASELINE_30D = """\
 
 | stage | entered | previous | delta |
 |---|---|---|---|
-| prospect | 0 | 8 | −8 |
+| prospect | 5 | 8 | −3 |
 | engaged | 3 | 3 | ±0 |
 | discovery | 3 | 0 | +3 |
 | offer | 2 | 0 | +2 |
@@ -73,14 +73,14 @@ BASELINE_30D = """\
 
 | from | to | reached from | reached to | conversion |
 |---|---|---|---|---|
-| prospect | engaged | 8 | 6 | 75% |
+| prospect | engaged | 13 | 6 | 46% |
 | engaged | discovery | 6 | 3 | 50% |
 | discovery | offer | 3 | 2 | 67% |
 | offer | won | 2 | 1 | 50% |
 
 | stage | companies | median days |
 |---|---|---|
-| prospect | 8 | 13 |
+| prospect | 13 | 17 |
 | engaged | 6 | 6 |
 | discovery | 3 | 20 |
 | offer | 2 | 8 |
@@ -91,7 +91,7 @@ BASELINE_30D = """\
 
 | pipeline stage | companies | EUR/month |
 |---|---|---|
-| prospect | 1 | 0 |
+| prospect | 6 | 0 |
 | engaged | 1 | 0 |
 | discovery | 1 | 1,500 |
 | offer | 1 | 4,000 |
@@ -135,6 +135,9 @@ sent: 4 (previous 3, +1) | successful 1 | unsuccessful 2 | unknown 1 | successfu
 
 | source | created | won |
 |---|---|---|
+| list | 3 | 0 |
+| event | 1 | 0 |
+| linkedin-search | 1 | 0 |
 | inbound | 0 | 1 |
 
 ## Hygiene
@@ -143,10 +146,15 @@ sent: 4 (previous 3, +1) | successful 1 | unsuccessful 2 | unknown 1 | successfu
 |---|---|---|---|
 | bluefin-analytics | discovery | 2026-09-12 | Send case study |
 
-| silent 14+ days (2) | stage | days |
+| silent 14+ days (7) | stage | days |
 |---|---|---|
 | tallpine-software | prospect | 39 |
 | bluefin-analytics | discovery | 20 |
+| lindenhof-data | prospect | 20 |
+| kestrel-metrics | prospect | 19 |
+| saltmarsh-labs | prospect | 18 |
+| saltmarsh-labs-ai | prospect | 17 |
+| ravenmoor-systems | prospect | 16 |
 
 | contacts without email (0) | company |
 |---|---|
@@ -162,8 +170,8 @@ BASELINE_90D = """\
 |---|---|---|---|
 | interactions | 13 | 0 | +13 |
 | companies touched | 6 | 0 | +6 |
-| new companies | 8 | 0 | +8 |
-| new contacts | 9 | 0 | +9 |
+| new companies | 13 | 0 | +13 |
+| new contacts | 15 | 0 | +15 |
 
 | week | email out | email in | linkedin out | linkedin in | call out | call in | whatsapp out | whatsapp in | meeting out | meeting in | total |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -186,7 +194,7 @@ BASELINE_90D = """\
 
 | stage | entered | previous | delta |
 |---|---|---|---|
-| prospect | 8 | 0 | +8 |
+| prospect | 13 | 0 | +13 |
 | engaged | 6 | 0 | +6 |
 | discovery | 3 | 0 | +3 |
 | offer | 2 | 0 | +2 |
@@ -197,14 +205,14 @@ BASELINE_90D = """\
 
 | from | to | reached from | reached to | conversion |
 |---|---|---|---|---|
-| prospect | engaged | 8 | 6 | 75% |
+| prospect | engaged | 13 | 6 | 46% |
 | engaged | discovery | 6 | 3 | 50% |
 | discovery | offer | 3 | 2 | 67% |
 | offer | won | 2 | 1 | 50% |
 
 | stage | companies | median days |
 |---|---|---|
-| prospect | 8 | 13 |
+| prospect | 13 | 17 |
 | engaged | 6 | 6 |
 | discovery | 3 | 20 |
 | offer | 2 | 8 |
@@ -215,7 +223,7 @@ BASELINE_90D = """\
 
 | pipeline stage | companies | EUR/month |
 |---|---|---|
-| prospect | 1 | 0 |
+| prospect | 6 | 0 |
 | engaged | 1 | 0 |
 | discovery | 1 | 1,500 |
 | offer | 1 | 4,000 |
@@ -259,10 +267,10 @@ sent: 7 (previous 0, +7) | successful 3 | unsuccessful 3 | unknown 1 | successfu
 
 | source | created | won |
 |---|---|---|
-| event | 2 | 0 |
-| list | 2 | 0 |
+| list | 5 | 0 |
+| event | 3 | 0 |
+| linkedin-search | 2 | 0 |
 | inbound | 1 | 1 |
-| linkedin-search | 1 | 0 |
 | network | 1 | 0 |
 | referral | 1 | 0 |
 
@@ -272,10 +280,15 @@ sent: 7 (previous 0, +7) | successful 3 | unsuccessful 3 | unknown 1 | successfu
 |---|---|---|---|
 | bluefin-analytics | discovery | 2026-09-12 | Send case study |
 
-| silent 14+ days (2) | stage | days |
+| silent 14+ days (7) | stage | days |
 |---|---|---|
 | tallpine-software | prospect | 39 |
 | bluefin-analytics | discovery | 20 |
+| lindenhof-data | prospect | 20 |
+| kestrel-metrics | prospect | 19 |
+| saltmarsh-labs | prospect | 18 |
+| saltmarsh-labs-ai | prospect | 17 |
+| ravenmoor-systems | prospect | 16 |
 
 | contacts without email (0) | company |
 |---|---|

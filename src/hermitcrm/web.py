@@ -58,7 +58,7 @@ from . import playbook, textsource
 from . import schedule, scrape, secrets, task_types, usertheme
 from . import stage_ops
 from . import stages as stages_mod
-from . import routines
+from . import outreach, routines
 from . import help as helpdocs
 from . import setup as setup_steps
 from .filters import Column
@@ -77,6 +77,7 @@ from .importer import (
 )
 from .gitops import GitOps
 from .models import (
+    ANGLES,
     Channel,
     Company,
     DEFAULT_OUTCOMES,
@@ -351,6 +352,7 @@ class MessageRow:
         self.contact_slug = it.contact
         self.channel = it.channel
         self.subject = it.subject
+        self.angle = it.angle
         self.body = it.body
         self.preview = " ".join(it.body.split())
         self.status = status
@@ -369,6 +371,7 @@ def message_columns(statuses: list[str], defs: list | None = None,
         Column("company_name", "company"),
         Column("contact", "contact"),
         Column("channel", "channel", "enum", CHANNELS),
+        Column("angle", "angle", "enum", list(ANGLES)),
         Column("country", "country", "enum", COUNTRIES),
         Column("stage", "stage", "enum", (stages or DEFAULT_STAGES).names),
         Column("status", "outcome", "enum", statuses),
@@ -1255,6 +1258,7 @@ def create_app(root: Path, config: dict | None = None,
         preview=followups.first_line,
         stage_exits=stage_exits,
         stage_keeps=lambda name: stage_keeps(store.stages, name),
+        angles=list(ANGLES),
         stages=list(store.stages.names),   # config_reloaded keeps it current in place
         sources=SOURCES,
         countries=COUNTRIES,
@@ -1441,6 +1445,7 @@ def create_app(root: Path, config: dict | None = None,
             "contact": contact or "",
             "date": fmt_datetime(store.now()),
             "subject": "",
+            "angle": "",
             "outcome": "",
             "body": body or "",
         }
@@ -2745,6 +2750,10 @@ def create_app(root: Path, config: dict | None = None,
             "interaction": interaction_values(company, contact=contact.slug, channel=channel),
             "summary": contact_summary(company, contact, interactions, store.today()),
             "editing": editing or values is not None,
+            "outreach_open": next((i for i in outreach.items(root)
+                                   if i.is_open and i.company == company.slug
+                                   and i.contact == contact.slug), None),
+            "outreach_channels": outreach.CHANNELS,
             **draft_context(request, company, contact),
             **extra,
         }
@@ -2843,13 +2852,14 @@ def create_app(root: Path, config: dict | None = None,
         contact: str = Form(""),
         date: str = Form(""),
         subject: str = Form(""),
+        angle: str = Form(""),
         outcome: str = Form(""),
         body: str = Form(""),
     ):
         company = need_company(slug)
         values = {"channel": channel, "direction": direction, "contact": contact,
-                  "date": date, "subject": subject, "outcome": outcome,
-                  "body": body}
+                  "date": date, "subject": subject, "angle": angle,
+                  "outcome": outcome, "body": body}
         extra, shown, custom_errors = await custom_submitted(request, "interaction")
         try:
             errors = dict(custom_errors)
@@ -2877,7 +2887,7 @@ def create_app(root: Path, config: dict | None = None,
             raise HTTPException(status_code=404, detail=f"unknown interaction {id!r}")
         values = {
             "channel": it.channel, "direction": it.direction, "contact": it.contact,
-            "date": fmt_datetime(it.date), "subject": it.subject,
+            "date": fmt_datetime(it.date), "subject": it.subject, "angle": it.angle,
             "outcome": it.outcome, "body": it.body,
         }
         return render(request, "interaction_edit.html",
@@ -2893,6 +2903,7 @@ def create_app(root: Path, config: dict | None = None,
         contact: str = Form(""),
         date: str = Form(""),
         subject: str = Form(""),
+        angle: str = Form(""),
         outcome: str = Form(""),
         body: str = Form(""),
     ):
@@ -2900,8 +2911,8 @@ def create_app(root: Path, config: dict | None = None,
         if not any(i.id == id for i in company.interactions):
             raise HTTPException(status_code=404, detail=f"unknown interaction {id!r}")
         values = {"channel": channel, "direction": direction, "contact": contact,
-                  "date": date, "subject": subject, "outcome": outcome,
-                  "body": body}
+                  "date": date, "subject": subject, "angle": angle,
+                  "outcome": outcome, "body": body}
         extra, shown, custom_errors = await custom_submitted(request, "interaction")
         try:
             if custom_errors:
@@ -3795,6 +3806,211 @@ def create_app(root: Path, config: dict | None = None,
         who = contact.name if contact else (company.name if company else draft.record)
         return flashed(back, f"Logged the message to {who} as sent" if sent
                        else f"Draft for {who} discarded", anchor="routine-drafts")
+
+    # ---------------------------------------------------------------- outreach
+    # The Outreach page (spec part 04): build a batch, review each card, mark it
+    # ready, skip or send it by hand. Every write is outreach.py's (one commit
+    # per step); this layer reads forms and renders. A batch is built one
+    # contact per request, so cards appear as they finish with no background
+    # work: the page sends the next request itself while `left` > 0.
+
+    OUTREACH_TABS = (("drafts", "Drafts", ("researching", "drafted")),
+                     ("ready", "Ready", ("ready",)),
+                     ("sent", "Sent", ("sent", "logged")),
+                     ("skipped", "Skipped", ("skipped",)))
+
+    def outreach_tab(item) -> str:
+        return next(t for t, _, states in OUTREACH_TABS if item.state in states)
+
+    def outreach_where(text: str) -> list[str]:
+        """The filter box: conditions separated by ";" (`stage=prospect;
+        country=DE`), each as `hermitcrm outreach --where` takes it."""
+        return [part.strip() for part in str(text or "").split(";") if part.strip()]
+
+    def outreach_card(item) -> dict:
+        company = store.get(item.company)
+        contact = company.contacts.get(item.contact) if company is not None else None
+        fit_field = str(config.get("outreach_fit_field")
+                        or outreach.CONFIG_DEFAULTS["outreach_fit_field"])
+        return {"item": item, "company": company, "contact": contact,
+                "fit": outreach.fit_value(company, fit_field) if company else None,
+                "fit_field": fit_field}
+
+    def outreach_ai_problem(tier: str = "medium") -> str:
+        enricher = app.state.enricher.with_tier(tier)
+        if not enricher.available:
+            return f"The AI CLI is not available: {enricher.unavailable_reason()}"
+        return routines.ai_problem(enricher)
+
+    def outreach_form(params) -> dict:
+        try:
+            limit = int(params.get("limit") or 0)
+        except ValueError:
+            limit = 0
+        default_limit = int(config.get("outreach_batch_size")
+                            or outreach.CONFIG_DEFAULTS["outreach_batch_size"])
+        try:
+            left = max(0, int(params.get("left") or 0))
+        except ValueError:
+            left = 0
+        channel = params.get("channel", "email")
+        return {"where": params.get("where", ""),
+                "channel": channel if channel in outreach.CHANNELS else "email",
+                "limit": limit if limit > 0 else default_limit,
+                "strong": params.get("strong", "") in ("1", "on", "true"),
+                "left": left, "batch": params.get("batch", "")}
+
+    def outreach_query(form: dict, **extra) -> str:
+        values = {"where": form["where"], "channel": form["channel"],
+                  "limit": form["limit"], "strong": "1" if form["strong"] else "",
+                  "left": form["left"] or "", "batch": form["batch"], **extra}
+        return urlencode({k: v for k, v in values.items() if v not in ("", None, 0)})
+
+    @app.get("/outreach", response_class=HTMLResponse)
+    def outreach_page(request: Request):
+        params = request.query_params
+        form = outreach_form(params)
+        tab = params.get("tab", "drafts")
+        if tab not in {t for t, _, _ in OUTREACH_TABS}:
+            tab = "drafts"
+        every = outreach.items(root)
+        states = next(s for t, _, s in OUTREACH_TABS if t == tab)
+        shown = [i for i in every if i.state in states]
+        if tab == "drafts":   # the oldest draft first: review in the order built
+            shown.reverse()
+        preview, preview_error = None, ""
+        if params.get("preview"):
+            try:
+                preview = outreach.select(store, where=outreach_where(form["where"]),
+                                          channel=form["channel"], limit=form["limit"],
+                                          config=config)
+            except outreach.OutreachError as exc:
+                preview_error = str(exc)
+        _, gate = outreach._ready_approaches(root)
+        return render(request, "outreach.html", {
+            "tabs": [(t, label, sum(1 for i in every if i.state in s))
+                     for t, label, s in OUTREACH_TABS],
+            "tab": tab, "cards": [outreach_card(i) for i in shown],
+            "form": form, "preview": preview, "preview_error": preview_error,
+            "gate": gate, "ai_problem": outreach_ai_problem(),
+            "skip_reasons": outreach.SKIP_REASONS, "finding_kinds": outreach.FINDING_KINDS,
+            "channels": outreach.CHANNELS, "levels": outreach.LEVELS,
+            "built_levels": outreach.BUILT_LEVELS,
+            "continue_query": outreach_query(form) if form["left"] else "",
+        })
+
+    @app.post("/outreach/build")
+    async def outreach_build(request: Request, csrf_token: str = Form(""),
+                             where: str = Form(""), channel: str = Form("email"),
+                             limit: str = Form(""), strong: str = Form(""),
+                             left: str = Form(""), batch: str = Form(""),
+                             contact: str = Form(""), back: str = Form("")):
+        """Research and draft the next contact of the batch (one per request).
+        `contact` ("company/contact"): the contact page's Research & draft."""
+        check_csrf(csrf_token)
+        form = outreach_form({"where": where, "channel": channel, "limit": limit,
+                              "strong": strong, "left": left, "batch": batch})
+        if not left.strip():   # the first click: the whole batch is still to build
+            form["left"] = form["limit"]
+        back = safe_back(back, "/outreach") if contact else "/outreach"
+        stop = {**form, "left": 0}
+        try:
+            outreach.research_level(config)  # refuses a level not built yet
+            selection = await run_in_threadpool(
+                outreach.select, store, where=outreach_where(form["where"]),
+                channel=form["channel"], limit=1, contacts=[contact] if contact else None,
+                config=config)
+        except outreach.OutreachError as exc:
+            return flashed(back if contact else f"/outreach?{outreach_query(stop)}",
+                           f"Not built: {exc}")
+        if selection.gate:
+            return flashed(back, f"Not built: {selection.gate}")
+        if not selection.picked:
+            why = (f": {selection.excluded[0].reason}" if contact and selection.excluded
+                   else "")
+            done = "Nothing to build" if not form["batch"] else "Batch done: nobody else to draft"
+            return flashed(back if contact else f"/outreach?{outreach_query(stop)}",
+                           f"{done}{why}.")
+        tier = "strong" if form["strong"] else "medium"
+        blocked = outreach_ai_problem(tier)
+        if blocked:
+            return flashed(back, f"Not built: {blocked}")
+        enricher = app.state.enricher.with_tier(tier)
+        researcher = outreach.ScrapeResearcher(
+            enricher, fetcher=getattr(app.state, "outreach_fetcher", None),
+            today=store.today(), timeout=float(config.get("fetch_timeout", 10)))
+        drafter = outreach.AIDrafter(store, enricher, config)
+        batch_id = form["batch"] or f"{store.now():%Y-%m-%dT%H%M}-{form['channel']}"
+        try:
+            result = await run_in_threadpool(outreach.build, store, selection, researcher,
+                                              drafter, config, None, batch_id)
+        except outreach.OutreachError as exc:
+            return flashed(back, f"Not built: {exc}")
+        item = result.items[0]
+        line = (f"{selection.picked[0].who}: "
+                + ("drafted" if item.state == "drafted" else f"skipped ({item.skip_note})"))
+        remaining = 0 if contact else max(0, form["left"] - 1)
+        query = outreach_query({**form, "left": remaining, "batch": batch_id},
+                               tab=outreach_tab(item))
+        if remaining:
+            line += f". Building the next one ({remaining} left)…"
+        return flashed(f"/outreach?{query}", line, anchor=f"item-{item.id}")
+
+    OUTREACH_ACTIONS = ("check", "ready", "regenerate", "skip", "sent", "findings")
+
+    @app.post("/outreach/{item_id}/{what}")
+    async def outreach_action(request: Request, item_id: str, what: str,
+                              csrf_token: str = Form(""), subject: str | None = Form(None),
+                              body: str | None = Form(None), pitch: str | None = Form(None),
+                              reason: str = Form(""), note: str = Form(""),
+                              strong: str = Form(""), remove: list[str] = Form([]),
+                              add: str = Form(""), kind: str = Form("company")):
+        check_csrf(csrf_token)
+        if what not in OUTREACH_ACTIONS:
+            raise HTTPException(status_code=404, detail=f"unknown action {what!r}")
+        item = outreach.get_item(root, item_id)
+        if item is None:
+            raise HTTPException(status_code=404, detail=f"unknown outreach item {item_id!r}")
+        anchor = f"item-{item.id}"
+        try:
+            if what == "check":
+                item, found = await run_in_threadpool(outreach.save_text, store, item.id,
+                                                      subject, body, pitch)
+                text = ("Saved. Checks passed." if not found else
+                        f"Saved. {len(found)} check"
+                        f"{'s still fail' if len(found) > 1 else ' still fails'} (see the card).")
+            elif what == "ready":
+                item, found = await run_in_threadpool(
+                    lambda: outreach.mark_ready(store, item_id, subject=subject, body=body,
+                                                pitch=pitch))
+                text = ("Ready to send. Send it yourself, then log it: logging it marks "
+                        "it sent." + (f" Warning: {'; '.join(found)}." if found else ""))
+            elif what == "regenerate":
+                tier = "strong" if strong else "medium"
+                blocked = outreach_ai_problem(tier)
+                if blocked:
+                    return flashed(f"/outreach?tab={outreach_tab(item)}",
+                                   f"Not regenerated: {blocked}", anchor=anchor)
+                drafter = outreach.AIDrafter(store, app.state.enricher.with_tier(tier),
+                                             config)
+                item = await run_in_threadpool(outreach.redraft, store, item.id, drafter,
+                                               config)
+                text = ("Regenerated." if item.state == "drafted" else
+                        f"The AI gave no usable draft; skipped ({item.skip_note}).")
+            elif what == "skip":
+                item = await run_in_threadpool(outreach.skip, store, item.id, reason, note)
+                text = f"Skipped: {item.skip_reason}."
+            elif what == "sent":
+                item = await run_in_threadpool(outreach.mark_sent, store, item.id)
+                text = "Marked sent (nothing was logged)."
+            else:
+                numbers = [int(n) for n in remove if str(n).strip().isdigit()]
+                item = await run_in_threadpool(outreach.set_findings, store, item.id,
+                                               numbers, add, kind)
+                text = "Findings saved. Regenerate to use them."
+        except outreach.OutreachError as exc:
+            return flashed(f"/outreach?tab={outreach_tab(item)}", str(exc), anchor=anchor)
+        return flashed(f"/outreach?tab={outreach_tab(item)}", text, anchor=anchor)
 
     # ---------------------------------------------------------- make it yours
 

@@ -33,7 +33,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from .models import COUNTRY_CODE_ALIASES, DEFAULT_OUTCOMES
+from .models import COUNTRY_CODE_ALIASES, DEFAULT_OUTCOMES, normalise_angle
 from .store import build_file, split_file
 from .updates import UPGRADE_HINT
 
@@ -350,6 +350,21 @@ def m8_adjust_skill(data_dir: Path, meta_by_path: dict, write: bool) -> list[str
     return changed
 
 
+def m9_angle(meta: dict) -> dict:
+    """Interactions gained an optional `angle`. A hand-written one is trimmed
+    and put in lower case; an empty one is dropped (the app omits it when
+    empty). A file without `angle` is returned as it is."""
+    if "angle" not in meta:
+        return meta
+    raw = meta["angle"]
+    if raw is None or not str(raw).strip():
+        return {k: v for k, v in meta.items() if k != "angle"}
+    value = normalise_angle(raw)
+    if value == raw:
+        return meta
+    return {k: (value if k == "angle" else v) for k, v in meta.items()}
+
+
 MIGRATIONS = [
     Migration(1, "rename gijs_score to my_score", "companies/*/company.md", m1_my_score),
     Migration(2, "country UK→GB, USA→US", "companies/*/company.md", m2_country_codes),
@@ -365,6 +380,8 @@ MIGRATIONS = [
               folder=m7_contact_notes),
     Migration(8, "agents learn to adjust Hermit (/hermit skill)", "CLAUDE.md",
               folder=m8_adjust_skill),
+    Migration(9, "interactions get an optional angle", "companies/*/interactions/*.md",
+              m9_angle),
 ]
 LATEST = MIGRATIONS[-1].version
 

@@ -186,8 +186,9 @@ def test_group_widget_bars_follow_the_stage_order_and_link_to_their_rows(client,
     for url, label, n in bars:
         url = html.unescape(url)
         assert query(url) == [("f_stage", label)]
-        assert len(company_slugs(client.get(url).text)) == int(n) == 1
-    assert "7 in all" in group and 'class="bar"' in group
+        assert len(company_slugs(client.get(url).text)) == int(n)
+        assert int(n) == (6 if label == "prospect" else 1)
+    assert "12 in all" in group and 'class="bar"' in group
 
 
 def test_group_on_tags_counts_each_tag_and_on_free_text_matches_exactly(client, folder):
@@ -209,8 +210,8 @@ filters = { stage = ["engaged", "discovery", "offer"] }
     bars = re.findall(r'<tr><td><a href="([^"]+)">([^<]*)</a></td><td class="num">'
                       r'<a class="rows" href="[^"]+">(\d+)</a>', tags)
     assert [(label, int(n)) for _, label, n in bars] == \
-        [("demo", 7), ("saas", 2), ("agency", 1)]
-    assert "4 more values not shown" in tags
+        [("demo", 12), ("analytics", 3), ("robotics", 3)]
+    assert "6 more values not shown" in tags
     for url, _, n in bars:
         assert len(company_slugs(client.get(html.unescape(url)).text)) == int(n)
     step_bars = re.findall(r'<tr><td><a href="([^"]+)">([^<]*)</a>', steps)
@@ -409,7 +410,7 @@ show_in = ["detail", "companies"]
     group = widgets_of(client.get("/d/segments").text)[0]
     assert re.search(r'<a href="/companies\?f_segment=smb">smb</a></td><td class="num">'
                      r'<a class="rows" href="[^"]+">2</a>', group)
-    assert re.search(r'<span title="[^"]*">\(empty\)</span></td><td class="num">5</td>', group)
+    assert re.search(r'<span title="[^"]*">\(empty\)</span></td><td class="num">10</td>', group)
 
 
 def test_report_widget_reuses_the_reports_section_and_its_rows(client, folder):
@@ -688,8 +689,8 @@ def test_file_level_problems(folder):
         "dashboards/single.toml: top level: write each widget as a [[widget]] table (two "
         "brackets)",
         "dashboards/unknown-key.toml: widget 1: unknown filter key value_eur_month; the "
-        "companies list has: name, country, stage, source, my_score, fte_estimate, tags, "
-        "last_touch, next_step, next_step_due",
+        "companies list has: name, country, stage, source, my_score, fte_estimate, "
+        "fit_score, tags, last_touch, next_step, next_step_due",
     ]
 
 
@@ -825,7 +826,7 @@ def test_no_dashboards_folder_is_todays_behaviour(client, folder, capsys):
     assert dashboards.load_all(folder) == [] and dashboards.pins(folder) == []
     assert dashboards.validate(folder) == [] and dashboards.built_items(folder) == []
     assert cli.main(["--data", str(folder), "check"]) == 0
-    assert capsys.readouterr().out.startswith("OK: 8 companies")
+    assert capsys.readouterr().out.startswith("OK: 13 companies")
     (folder / "dashboards").mkdir()
     (folder / "dashboards" / "README.md").write_text("notes, not a dashboard\n")
     assert dashboards.load_all(folder) == [] and dashboards.validate(folder) == []
@@ -870,7 +871,7 @@ def test_store_rebuild_migrate_and_doctor_leave_the_folder_alone(folder, tmp_pat
     commit_dashboard(folder, MONDAY, "ai: adjust: dashboard Monday review")
     before = (folder / "dashboards" / "monday-review.toml").read_bytes()
     store = Store(folder, clock=lambda: FIXED_NOW)
-    assert store.load() == [] and len(store.companies) == 8
+    assert store.load() == [] and len(store.companies) == 13
     assert cli.main(["--data", str(folder), "rebuild"]) == 0
     # A pending migration scans the folder for its files; dashboards are not among them.
     migrations.write_format(folder, migrations.LATEST - 1)
