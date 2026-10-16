@@ -39,8 +39,9 @@ hermitcrm check                            validate every file (records, fields.
                                         routines.toml, theme.css, messages.toml, config.toml, the front
                                         matter of MESSAGING.md); exit 1 and one "file: where: what" line
                                         per problem
-hermitcrm playbook [status]                what the playbook has and what the outreach bot still needs
-                                        (exit 1 while it is not ready); see `hermitcrm help playbook`
+hermitcrm playbook [status]                per offer: what the playbook has and what the outreach bot
+                                        still needs (exit 1 while no offer is ready); see
+                                        `hermitcrm help playbook`
 hermitcrm playbook upgrade [--dry-run]     add the front matter and missing headings to MESSAGING.md,
                                         keeping every line; one commit, and a second run changes nothing
 ```
