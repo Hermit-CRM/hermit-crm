@@ -190,7 +190,7 @@ def cmd_setup(root: Path, ask=input, ask_secret=None, say=print, runner=subproce
 
     try:
         config = load_config(root)
-        say("\n1/3 You")
+        say("\n1/4 You")
         for _ in range(3):
             name = prompt("Your name", str(config.get("owner_name") or ""))
             current = ", ".join(config.get("my_addresses") or []) or str(
@@ -203,7 +203,7 @@ def cmd_setup(root: Path, ask=input, ask_secret=None, say=print, runner=subproce
                 break
         config = load_config(root)
 
-        say("\n2/3 BCC capture: mail you BCC or forward is logged automatically.")
+        say("\n2/4 BCC capture: mail you BCC or forward is logged automatically.")
         if _yes(ask("Set up BCC capture now? [y/N]: "), False):
             owner = str(config.get("owner_email") or "")
             address = prompt("BCC address", str(config.get("bcc_address") or "")
@@ -228,7 +228,7 @@ def cmd_setup(root: Path, ask=input, ask_secret=None, say=print, runner=subproce
         else:
             say("Skipped; rerun `hermitcrm setup` or open /setup in the web app.")
 
-        say("\n3/3 Online copy (optional): push the data folder to a private git remote.\n"
+        say("\n3/4 Online copy (optional): push the data folder to a private git remote.\n"
             "Local backups start with `hermitcrm schedule install` or Settings > Backup.")
         url = ask("Git remote URL (empty to skip): ").strip()
         if url:
@@ -238,6 +238,24 @@ def cmd_setup(root: Path, ask=input, ask_secret=None, say=print, runner=subproce
             result = st.save_backup(root, url, runner=runner, push=push)
             saved()
             say("; ".join(list(result.errors.values()) + result.messages))
+        else:
+            say("Skipped.")
+
+        say("\n4/4 Your offer (optional): what you sell and to whom, for the drafts and "
+            "the outreach bot.\nThe rest of the playbook is in Settings > Playbook.")
+        offer = ask("What you sell, in one sentence (empty to skip): ").strip()
+        if offer:
+            from hermitcrm import playbook
+            industries = ask("Industries you sell to (comma-separated, empty to skip): ")
+            titles = ask("Job titles of the people who buy (comma-separated, "
+                         "empty to skip): ")
+            result = ask("One result a customer got (empty to skip): ")
+            try:
+                saved = playbook.save_basics(root, offer, industries, titles, result,
+                                             commit=gitops.commit)
+                say("Saved to MESSAGING.md: " + ", ".join(saved) + ".")
+            except playbook.PlaybookError as exc:
+                say(f"Not saved: {exc}. Fill it in under Settings > Playbook.")
         else:
             say("Skipped.")
 
@@ -536,6 +554,12 @@ def cmd_check(store: Store) -> tuple[str, int]:
     # A company in a stage config.toml does not list loads fine; it is said, not failed.
     off_board = store.stage_warnings()
     stray += off_board
+    # MESSAGING.md's front matter (the outreach bot's playbook). A file from
+    # before it is a hint; a front matter that is wrong is a problem.
+    from hermitcrm import playbook
+    pb_problems, pb_hints = playbook.check_lines(store.root)
+    stray += pb_hints
+    extension += pb_problems
     if not store.problems and not extension:
         n_companies = len(store.companies)
         n_contacts = sum(len(c.contacts) for c in store.companies.values())
@@ -546,7 +570,8 @@ def cmd_check(store: Store) -> tuple[str, int]:
                 f"{n_interactions} interactions, no problems"]),
             0,
         )
-    lines = [f"{p.path}: {p.message}" for p in store.problems] + extension + off_board
+    lines = [f"{p.path}: {p.message}" for p in store.problems] + extension + off_board \
+        + pb_hints
     return ("\n".join(lines), 1)
 
 
@@ -1461,11 +1486,52 @@ def _build_parser() -> argparse.ArgumentParser:
         r_sub.add_parser(verb, help=text).add_argument("name")
     p_routines.set_defaults(action="list", name="", apply=False, try_ai=False)
 
+    p_playbook = sub.add_parser("playbook", help="MESSAGING.md, the playbook: status "
+                                "(what the outreach bot still needs) or upgrade")
+    pb_sub = p_playbook.add_subparsers(dest="action")
+    pb_sub.add_parser("status", help="what is filled in and what the bot still needs "
+                      "(the default)")
+    pb_up = pb_sub.add_parser("upgrade", help="add the front matter and the missing "
+                              "headings, keeping every line; one commit")
+    pb_up.add_argument("--dry-run", action="store_true", help="print the result, write nothing")
+    p_playbook.set_defaults(action="status", dry_run=False)
+
     p_help = sub.add_parser("help", help="how a feature works (the web app's /help pages)")
     p_help.add_argument("topic", nargs="?", default="",
                         help="a topic; none prints the index and lists the topics")
 
     return parser
+
+
+def cmd_playbook(root: Path, action: str = "status", dry_run: bool = False,
+                 commit=None) -> tuple[str, int]:
+    """`hermitcrm playbook status|upgrade`."""
+    from hermitcrm import playbook
+
+    if action == "upgrade":
+        if dry_run:
+            path = root / playbook.FILENAME
+            old = path.read_text(encoding="utf-8") if path.exists() else ""
+            new = playbook.upgrade_text(old)
+            return (new if new != old else
+                    f"{playbook.FILENAME} is already set up; nothing would change.\n", 0)
+        return (playbook.upgrade(root, commit=commit), 0)
+    pb = playbook.load(root)
+    if not pb.exists:
+        return (f"No {playbook.FILENAME} in this folder.", 1)
+    lines = []
+    if not pb.has_front:
+        lines.append(f"{playbook.FILENAME} is not set up for the outreach bot yet: "
+                     "`hermitcrm playbook upgrade` adds what it needs and keeps every line.")
+    filled = playbook.completeness(pb)
+    lines.append(f"Filled: {sum(ok for _, ok in filled)} of {len(filled)} "
+                 f"({', '.join(label for label, ok in filled if ok) or 'nothing yet'}).")
+    gaps = playbook.missing(pb)
+    if gaps:
+        lines.append("The outreach bot will not run yet. Missing: " + "; ".join(gaps) + ".")
+        return ("\n".join(lines), 1)
+    lines.append("Ready for the outreach bot.")
+    return ("\n".join(lines), 0)
 
 
 def cmd_help(topic: str = "") -> tuple[str, int]:
@@ -1608,6 +1674,13 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
     if args.command == "check":
         text, code = cmd_check(store)
         print(text)
+        return code
+
+    if args.command == "playbook":
+        gitops = GitOps(root, push_enabled=False)
+        text, code = cmd_playbook(root, args.action, dry_run=args.dry_run,
+                                  commit=gitops.commit)
+        print(text, end="" if text.endswith("\n") else "\n")
         return code
 
     if args.command == "undo":

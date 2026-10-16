@@ -68,6 +68,7 @@ def test_setup_all_steps(folder, tmp_path):
     ask = scripted(["Jane Doe", "jane@gmail.com, jane@example.com",
                     "y", "", "", "y",          # BCC: accept suggestion + host, test
                     str(bare),                 # backup
+                    "",                        # your offer: skipped
                     "y"])                      # calendar
     secret = scripted(["app pw 1234", "https://cal.example.com/secret-xyz.ics"])
     code = cli.cmd_setup(folder, ask=ask, ask_secret=secret, say=out.append,
@@ -91,7 +92,7 @@ def test_setup_all_steps(folder, tmp_path):
 
 def test_setup_skip_bcc_and_backup_and_retry_invalid(folder):
     out = []
-    ask = scripted(["", "", "Jane", "jane@example.com", "n", "", "n"])
+    ask = scripted(["", "", "Jane", "jane@example.com", "n", "", "", "n"])
     code = cli.cmd_setup(folder, ask=ask, ask_secret=scripted([]), say=out.append,
                          platform="linux")
     assert code == 0
@@ -111,7 +112,7 @@ def test_setup_keychain_on_macos_and_github_warning(folder):
         return subprocess.CompletedProcess(argv, 0, "", "")
 
     ask = scripted(["Jane", "jane@example.com", "y", "jane+crm@example.com",
-                    "imap.example.com", "", "n", "git@github.com:me/crm.git", "n"])
+                    "imap.example.com", "", "n", "git@github.com:me/crm.git", "", "n"])
     code = cli.cmd_setup(folder, ask=ask, ask_secret=scripted(["pw"]), say=out.append,
                          runner=runner, platform="darwin", push=lambda: (False, "no access"))
     text = "\n".join(out)
@@ -157,7 +158,7 @@ def test_setup_offers_the_linux_keyring_only_when_it_answers(folder, monkeypatch
     def run_setup(runner, keyring_answer=()):
         out, prompts = [], []
         answers = scripted(["Jane", "jane@example.com", "y", "jane+crm@example.com",
-                            "imap.example.com", *keyring_answer, "n", "", "n"])
+                            "imap.example.com", *keyring_answer, "n", "", "", "n"])
 
         def ask(prompt=""):
             prompts.append(prompt)
@@ -189,3 +190,17 @@ def test_setup_offers_the_linux_keyring_only_when_it_answers(folder, monkeypatch
     assert "pw" not in " ".join(" ".join(argv) for argv, _ in calls)
     assert not (folder / ".secrets.toml").exists() or \
         "bcc_password" not in (folder / ".secrets.toml").read_text()
+
+
+def test_setup_your_offer_step(folder):
+    from hermitcrm import playbook
+
+    out = []
+    ask = scripted(["Jane", "jane@example.com", "n", "",
+                    "We repair delivery bikes.", "logistics", "Fleet Manager",
+                    "A made-up courier had no bike off the road for a month.", "n"])
+    assert cli.cmd_setup(folder, ask=ask, ask_secret=scripted([]), say=out.append,
+                         platform="linux") == 0
+    assert "4/4 Your offer (optional)" in "\n".join(out)
+    assert any(line.startswith("Saved to MESSAGING.md: offer line") for line in out)
+    assert playbook.readiness(folder) == []
