@@ -2,7 +2,7 @@
 
 > How every part of Hermit CRM works: pipeline, contacts, mail capture, reports, the CLI, the MCP server and how your AI agent can change it.
 
-For version 0.7.0, 2026-10-09. The same text as https://hermitcrm.io/docs/ and as `hermitcrm help <topic>` in the app.
+For version 0.7.5, 2026-10-16. The same text as https://hermitcrm.io/docs/ and as `hermitcrm help <topic>` in the app.
 
 ## Pipeline
 
@@ -130,6 +130,13 @@ the same view.
 **Create task** at the bottom takes a company (by name), an optional person (first
 name, last name or full name) and a due date. On a company page, **Add task** does the same with a
 list of its people.
+
+### Changing a task
+
+**Edit** in a task's row opens its text and due date; change either and
+**Save**. Clearing the date leaves the task undated. Changing a date can change
+which task is the next step. Done tasks have no Edit button: reopen one first.
+To change who a task is for, delete it and add it again.
 
 Related: [Companies](https://hermitcrm.io/docs/#companies), [Calendar](https://hermitcrm.io/docs/#calendar)
 
@@ -329,7 +336,7 @@ Related: [Companies](https://hermitcrm.io/docs/#companies), [Interactions](https
 
 ## Interactions
 
-An interaction is one touch with a person: an email, LinkedIn message, call or meeting, in or out, with the text kept verbatim. A **note** is an interaction too: a memo about the person, with no direction, that shows on their timeline but never counts as contact made (it does not move last touch, a prospect's stage, follow-ups, outcomes or reports).
+An interaction is one touch with a person: an email, LinkedIn message, call, WhatsApp message or meeting, in or out, with the text kept verbatim. A **note** is an interaction too: a memo about the person, with no direction, that shows on their timeline but never counts as contact made (it does not move last touch, a prospect's stage, follow-ups, outcomes or reports).
 
 ### Logging one
 
@@ -337,7 +344,8 @@ An interaction is always with a person, so the **Log an interaction** form
 sits on every contact page (the "log" link in a company's contact list goes
 there), and on its own at `/companies/<slug>/interactions/new` where you pick
 the contact (the "log interaction" links on the Calendar open it). Fields:
-channel (`email`, `linkedin`, `call`, `meeting`, `note`, default linkedin),
+channel (a dropdown: `email`, `linkedin`, `call`, `whatsapp`, `meeting`,
+`note`, default linkedin),
 direction (`out` or `in`, default out; hidden for a note), date and time
 (default now, editable), subject, outcome and the body.
 The body is the pasted message or the call notes; it is stored byte for byte
@@ -1262,7 +1270,7 @@ hermitcrm add company NAME [--country NL] [--website URL] [--stage S] [--set FIE
 hermitcrm add contact SLUG NAME [--title T] [--email E] [--phone P] [--role R] [--notes N]
                                         create a contact under a company; the name is split into first and last;
                                         --notes is logged as a note interaction on them
-hermitcrm add interaction SLUG --channel email|linkedin|call|meeting|note --direction in|out (not for a note)
+hermitcrm add interaction SLUG --channel email|linkedin|call|whatsapp|meeting|note --direction in|out (not for a note)
                                         [--contact CSLUG] [--subject S] [--date D] [--body TEXT|-]
                                         log an interaction; --body - reads it from stdin, and a prospect becomes engaged
                                         (the first open stage moves to the next)
@@ -1638,7 +1646,7 @@ both keys on its next save.
 
 ### Interaction (`interactions/<id>.md`)
 
-`date` (datetime), `channel` (email, linkedin, call, meeting, note), `direction`
+`date` (datetime), `channel` (email, linkedin, call, whatsapp, meeting, note), `direction`
 (out, in; empty for a note), `contact` (contact slug; empty only in older or
 imported files), `subject`,
 `outcome` (one line; see the configured outcomes), `result` (legacy: success,
@@ -3015,7 +3023,7 @@ Disqualify) always stays on top and is not a section.
 | Page | Section names, in their default order |
 |---|---|
 | `[company]` | `enrich` (the Enrich and Fetch from URL buttons), `next-step` (the next step line), `details` (the edit form), `contacts`, `tasks`, `drafts` (message drafts), `merge`, `timeline` |
-| `[contact]` | `details` (the edit form), `timeline` (interactions), `quick-add` (Log an interaction), `tasks`, `drafts`, `merge` (only shown when the company has two or more people), `delete` |
+| `[contact]` | `details` (the fields, with an Edit button), `tasks`, `quick-add` (Log an interaction), `timeline` (interactions), `drafts`, `merge` (only shown when the company has two or more people), `delete`. Merge and delete always sit in the closed More box at the bottom; their order applies inside it. |
 | `[home]` | `doing` (What needs doing), `to-file` (To file, only while there is something to file), `owed` (Replies you owe, only when you owe some), `going` (How it is going) |
 
 On Home the layout applies once the folder has companies. The empty-folder
