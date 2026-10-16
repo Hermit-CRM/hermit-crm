@@ -8,14 +8,14 @@ Hermit CRM is a free, open-source CRM for founders, freelancers and anyone doing
 
 What Hermit CRM does, feature by feature: the app's own Help pages for the released version. Read the AI agents page first if you will work in a data folder or over MCP.
 
-- [All docs in one file](https://hermitcrm.io/llms-full.txt): every topic below as Markdown, for version 0.7.0
+- [All docs in one file](https://hermitcrm.io/llms-full.txt): every topic below as Markdown, for version 0.7.5
 - [Docs](https://hermitcrm.io/docs/): the same as one web page
 - [Pipeline](https://hermitcrm.io/docs/#pipeline): The board at /pipeline: one column per open stage, cards you can move with a dropdown, closed companies in lists below. The stages are yours to name and order (Settings > Deal stages); this page describes the defaults.
 - [Calendar](https://hermitcrm.io/docs/#calendar): /calendar: meetings this week, your tasks on their due date, and accounts going quiet. The list of all tasks, with filters, is on the Tasks page.
 - [Tasks](https://hermitcrm.io/docs/#tasks): /tasks: every task for every company and its people in one table.
 - [Companies](https://hermitcrm.io/docs/#companies): /companies lists every company; /companies/<slug> is the account page with its fields, contacts, drafts, merge and timeline.
 - [Contacts](https://hermitcrm.io/docs/#contacts): /contacts lists every person across companies; a contact page holds the fields, this person's interactions and three message drafts.
-- [Interactions](https://hermitcrm.io/docs/#interactions): An interaction is one touch with a person: an email, LinkedIn message, call or meeting, in or out, with the text kept verbatim. A note is an interaction too: a memo about the person, with no direction, that shows on their timeline but never counts as contact made (it does not move last touch, a prospect's stage, follow-ups, outcomes or reports).
+- [Interactions](https://hermitcrm.io/docs/#interactions): An interaction is one touch with a person: an email, LinkedIn message, call, WhatsApp message or meeting, in or out, with the text kept verbatim. A note is an interaction too: a memo about the person, with no direction, that shows on their timeline but never counts as contact made (it does not move last touch, a prospect's stage, follow-ups, outcomes or reports).
 - [Messages](https://hermitcrm.io/docs/#messages): /messages: every message you sent, newest first, with what came of it.
 - [Reports](https://hermitcrm.io/docs/#reports): /reports: numbers for a period, each with the change against the previous period of the same length.
 - [Make it yours](https://hermitcrm.io/docs/#adjust): Describe a change to Hermit CRM and your own AI agent builds it in your data folder; this page is the rules that agent follows, and the first thing it reads.
