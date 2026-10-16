@@ -47,12 +47,12 @@ design leaves a place for it.
 | Findings | "Mark ready" appends the findings used to the contact's notes |
 | Cost cap | None |
 | Seller knowledge | `MESSAGING.md`, extended; the bot refuses to run without its minimum |
-| Offers per data folder | One or more (revised 16 Oct, part 01): each offer complete on its own, the bot picks the offer by ICP fit, a tie asks the person. A separate business = a second data folder |
+| Approaches per data folder | One or more (revised 16 Oct, part 01): each approach complete on its own, the bot picks the approach by ICP fit, a tie asks the person. A separate business = a second data folder |
 | German first contact | `du` |
 | Critic | Starts lenient. Hard rules are deterministic checks in `clean_answer`, not critic scores |
 | Default call to action | One diagnostic question, not a meeting ask. A meeting only after they answer |
-| Disqualifiers | Two hard checks (title present, tag present) plus free text the AI weighs; size and salespeople are ICP ranges (revised 16 Oct, part 01) |
-| Learning from sent messages | Compare the proposed draft with the message actually sent and feed the difference into the offer's Lessons: part 06, once drafts are stored (part 03) |
+| Disqualifiers | Free text the AI weighs, plus one hard check (tag present); size, number of salespeople and the like are ICP ranges on the folder's own fields (revised 16 Oct, part 01) |
+| Learning from sent messages | Compare the proposed draft with the message actually sent and feed the difference into the approach's Lessons: part 06, once drafts are stored (part 03) |
 
 ## Pipeline
 
@@ -91,9 +91,9 @@ class Logger(Protocol):              # ManualLogger now: does nothing
 | Contact `linkedin`, `email`, `phone`; company `website`, `country`, `fit_score`, `fte_estimate`, `ae_count` | Card links, channel check, fit, disqualifiers |
 
 The bot adds **no** front-matter keys to companies or contacts. The
-front-matter changes are `angle` and `offer` on interactions (part 02), with
-their own migration: `offer` names the playbook offer a message was for, so the
-Messages statistics can be read per offer.
+front-matter changes are `angle` and `approach` on interactions (part 02), with
+their own migration: `approach` names the playbook approach a message was for, so the
+Messages statistics can be read per approach.
 
 ## Rules that apply to every part
 

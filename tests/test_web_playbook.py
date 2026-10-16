@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-"""Settings > Playbook: one tab per offer, new / duplicate / delete, the
+"""Settings > Playbook: one tab per approach, new / duplicate / delete, the
 upgrade button, "Draft it from my website or a document" and "Learn my voice"
 (proposals, never writes). All names are made up."""
 
@@ -58,8 +58,8 @@ def token(client):
 
 
 def form(client, **values):
-    return {"csrf_token": token(client), "offer": playbook.DEFAULT_OFFER,
-            "name": playbook.DEFAULT_OFFER, **values}
+    return {"csrf_token": token(client), "approach": playbook.DEFAULT_APPROACH,
+            "name": playbook.DEFAULT_APPROACH, **values}
 
 
 def fake_ai(client, answer):
@@ -76,15 +76,15 @@ def fake_ai(client, answer):
     return calls
 
 
-def test_page_shows_the_offer_meter_and_what_is_missing(client):
+def test_page_shows_the_approach_meter_and_what_is_missing(client):
     page = client.get("/settings/playbook")
     assert page.status_code == 200
-    assert "My offer: 0 of 10 parts filled" in page.text
-    assert "will not use this offer yet" in page.text
+    assert "0 of 10 parts filled" in page.text and 'value="My approach"' in page.text
+    assert "will not use this approach yet" in page.text
     assert 'class="save-bar"' in page.text and "Positive signals" in page.text
     assert 'formaction="/settings/playbook/draft"' in page.text
     settings = client.get("/settings").text
-    assert 'href="/settings/playbook"' in settings and "No offer is ready" in settings
+    assert 'href="/settings/playbook"' in settings and "No approach is ready" in settings
 
 
 def test_save_writes_one_commit_and_keeps_the_rest(client, folder):
@@ -95,7 +95,7 @@ def test_save_writes_one_commit_and_keeps_the_rest(client, folder):
                   lessons_worked="- Asking about the roof first.")
     before = commits(folder)
     r = client.post("/settings/playbook", data=values)
-    assert r.status_code == 303 and r.headers["location"].startswith("/settings/playbook?offer=0")
+    assert r.status_code == 303 and r.headers["location"].startswith("/settings/playbook?approach=0")
     assert commits(folder) == before + 1
     assert git(folder, "log", "-1", "--format=%s").strip() == "playbook: Solar for offices"
     assert git(folder, "status", "--porcelain") == ""
@@ -103,14 +103,35 @@ def test_save_writes_one_commit_and_keeps_the_rest(client, folder):
     page = client.get("/settings/playbook").text
     assert "Ready for the outreach bot." in page and "Asking about the roof first." in page
     # The same form again changes nothing and commits nothing.
-    client.post("/settings/playbook", data={**values, "offer": "Solar for offices"})
+    client.post("/settings/playbook", data={**values, "approach": "Solar for offices"})
     assert commits(folder) == before + 1
+
+
+def test_ranges_offer_the_folders_own_fields(client, folder):
+    page = client.get("/settings/playbook").text
+    assert "no company fields yet" in page and "Settings &gt; Fields" in page
+    (folder / "fields.toml").write_text(
+        '[[field]]\nkey = "employees"\nlabel = "Employees"\ntype = "number"\n'
+        '[[field]]\nkey = "founded"\ntype = "date"\n', encoding="utf-8")
+    client.post("/settings/playbook", data=form(
+        client, range_0_field="employees", range_0_min="5", range_0_max="50"))
+    assert playbook.load(folder).approaches[0].icp["ranges"] == {"employees": [5, 50]}
+    page = client.get("/settings/playbook").text
+    assert '<option value="employees" selected>Employees</option>' in page
+    assert 'name="range_1_field"' in page            # an empty row to add another
+    assert 'value="founded"' not in page             # a date is not a range
+
+
+def test_not_a_prospect_is_one_box_plus_tags(client):
+    page = client.get("/settings/playbook").text
+    assert "Reasons a company is not a prospect" in page
+    assert "dq_title_present" not in page and 'name="dq_tag_present"' in page
 
 
 def test_bad_values_are_shown_not_saved(client, folder):
     before = (folder / "MESSAGING.md").read_text(encoding="utf-8")
-    r = client.post("/settings/playbook", data=form(client, icp_fte_min="90",
-                                                    icp_fte_max="9"))
+    r = client.post("/settings/playbook", data=form(client, range_0_field="ae_count",
+                                                    range_0_min="90", range_0_max="9"))
     assert r.status_code == 400 and "Not saved" in r.text
     assert 'data-dirty="1"' in r.text and 'value="90"' in r.text
     assert (folder / "MESSAGING.md").read_text(encoding="utf-8") == before
@@ -127,21 +148,29 @@ def test_new_duplicate_and_delete(client, folder):
     client.post("/settings/playbook", data=form(client, offer_line="We coach founders.",
                                                 lessons_failed="- Long mails."))
     r = client.post("/settings/playbook/new", data={
-        "csrf_token": token(client), "name": "Team build-out", "copy_from": "My offer"})
-    assert r.status_code == 303 and "offer=1" in r.headers["location"]
+        "csrf_token": token(client), "name": "Team build-out", "copy_from": "My approach"})
+    assert r.status_code == 303 and "approach=1" in r.headers["location"]
     pb = playbook.load(folder)
-    twin = pb.offer("Team build-out")
+    twin = pb.approach("Team build-out")
     assert twin.offer_line == "We coach founders." and twin.lessons()["failed"] == "- Long mails."
     r = client.post("/settings/playbook/duplicate", data={
-        "csrf_token": token(client), "offer": "Team build-out"})
-    assert "offer=2" in r.headers["location"]
-    assert [o.name for o in playbook.load(folder).offers] == [
-        "My offer", "Team build-out", "Copy of Team build-out"]
-    page = client.get("/settings/playbook?offer=2").text
+        "csrf_token": token(client), "approach": "Team build-out"})
+    assert "approach=2&rename=1" in r.headers["location"]
+    assert [o.name for o in playbook.load(folder).approaches] == [
+        "My approach", "Team build-out", "Copy of Team build-out"]
+    page = client.get("/settings/playbook?approach=2&rename=1").text
     assert 'aria-current="page">Copy of Team build-out' in page
+    # The copy's name sits at the top, focused and selected to type over.
+    assert 'value="Copy of Team build-out" required autofocus data-select' in page
+    client.post("/settings/playbook", data=form(
+        client, approach="Copy of Team build-out", name="Scaling", offer_line="x"))
+    assert [o.name for o in playbook.load(folder).approaches] == [
+        "My approach", "Team build-out", "Scaling"]
+    client.post("/settings/playbook", data=form(
+        client, approach="Scaling", name="Copy of Team build-out", offer_line="x"))
     client.post("/settings/playbook/delete", data={"csrf_token": token(client),
-                                                   "offer": "My offer"})
-    assert [o.name for o in playbook.load(folder).offers] == [
+                                                   "approach": "My approach"})
+    assert [o.name for o in playbook.load(folder).approaches] == [
         "Team build-out", "Copy of Team build-out"]
     r = client.post("/settings/playbook/new", data={
         "csrf_token": token(client), "name": "team BUILD-out"})
@@ -149,10 +178,10 @@ def test_new_duplicate_and_delete(client, folder):
     assert git(folder, "status", "--porcelain") == ""
 
 
-def test_the_last_offer_cannot_be_deleted(client, folder):
+def test_the_last_approach_cannot_be_deleted(client, folder):
     before = (folder / "MESSAGING.md").read_text(encoding="utf-8")
     r = client.post("/settings/playbook/delete", data={"csrf_token": token(client),
-                                                       "offer": "My offer"})
+                                                       "approach": "My approach"})
     assert r.status_code == 303 and "at%20least%20one" in r.headers["location"]
     assert (folder / "MESSAGING.md").read_text(encoding="utf-8") == before
 
@@ -161,7 +190,7 @@ def test_an_old_playbook_is_upgraded_only_on_request(client, folder):
     (folder / "MESSAGING.md").write_text(MESSAGING, encoding="utf-8")
     git(folder, "commit", "-qam", "old playbook")
     page = client.get("/settings/playbook").text
-    assert "Set up MESSAGING.md" in page and "My offer: 0 of 10" in page
+    assert "Set up MESSAGING.md" in page and 'value="My approach"' in page
     assert (folder / "MESSAGING.md").read_text(encoding="utf-8") == MESSAGING  # a look changes nothing
     r = client.post("/settings/playbook/upgrade", data={"csrf_token": token(client)})
     assert r.status_code == 303
@@ -172,7 +201,7 @@ def test_saving_an_old_playbook_sets_it_up_and_keeps_its_lines(client, folder):
     (folder / "MESSAGING.md").write_text(MESSAGING, encoding="utf-8")
     client.post("/settings/playbook", data=form(client, offer_line="We coach founders."))
     text = (folder / "MESSAGING.md").read_text(encoding="utf-8")
-    assert MESSAGING in text and playbook.parse(text).offers[0].offer_line == "We coach founders."
+    assert MESSAGING in text and playbook.parse(text).approaches[0].offer_line == "We coach founders."
 
 
 def test_draft_from_a_website_and_a_file_fills_the_form_and_saves_nothing(
@@ -223,6 +252,6 @@ def test_learn_my_voice_from_sent_emails(client, folder):
     assert (folder / "MESSAGING.md").read_text(encoding="utf-8") == before
 
 
-def test_welcome_has_the_offer_step(client):
+def test_welcome_has_the_approach_step(client):
     page = client.get("/welcome").text
     assert "Say what you sell" in page and 'href="/settings/playbook"' in page
