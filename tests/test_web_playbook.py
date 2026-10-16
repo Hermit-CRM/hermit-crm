@@ -255,3 +255,26 @@ def test_learn_my_voice_from_sent_emails(client, folder):
 def test_welcome_has_the_approach_step(client):
     page = client.get("/welcome").text
     assert "Say what you sell" in page and 'href="/settings/playbook"' in page
+
+
+def test_a_typo_in_the_address_or_a_broken_file_is_a_message_not_a_500(client):
+    fake_ai(client, {"offer_line": "x"})
+    r = client.post("/settings/playbook/draft", data=form(client, source_url="https://exa mple.com"))
+    assert r.status_code == 400 and "exa mple.com" in r.text
+    r = client.post("/settings/playbook/draft", data=form(client),
+                    files={"source_file": ("deck.docx", b"PK\x03\x04broken", "application/zip")})
+    assert r.status_code == 400 and "not a Word file" in r.text
+
+
+def test_an_approach_named_with_a_hash_can_be_saved_and_deleted(client, folder):
+    r = client.post("/settings/playbook/new", data={"csrf_token": token(client),
+                                                    "name": "Training C#"})
+    assert r.status_code == 303
+    r = client.post("/settings/playbook", data=form(
+        client, approach="Training C#", name="Training C#", offer_line="We teach C#."))
+    assert r.status_code == 303
+    assert playbook.load(folder).approach("Training C#").offer_line == "We teach C#."
+    r = client.post("/settings/playbook/delete", data={"csrf_token": token(client),
+                                                       "approach": "Training C#"})
+    assert r.status_code == 303
+    assert [a.name for a in playbook.load(folder).approaches] == ["My approach"]

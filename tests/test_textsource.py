@@ -79,6 +79,13 @@ def docx(*paragraphs):
     return buf.getvalue()
 
 
+def zipped(name, data):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr(name, data)
+    return buf.getvalue()
+
+
 def pdf(text):
     """A one-page PDF with one line of text, written by hand (no library)."""
     stream = f"BT /F1 12 Tf 72 720 Td ({text}) Tj ET".encode()
@@ -117,7 +124,26 @@ def test_files(name, data, expected):
     ("broken.docx", b"not a zip", "not a Word file"),
     ("empty.txt", b"", "empty"),
     ("scan.pdf", pdf(""), "no text in it"),
+    ("broken.docx", zipped("word/document.xml", b"<w:document><unclosed"), "not a Word file"),
+    ("other.docx", zipped("something.xml", b"<x/>"), "not a Word file"),
+    ("broken.pdf", b"%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 9 0 R >> endobj\n"
+                   b"trailer << /Root 1 0 R >>\n%%EOF", "PDF cannot be read|no text"),
 ])
 def test_files_that_cannot_be_read_say_why(name, data, says):
     with pytest.raises(textsource.SourceError, match=says):
         textsource.read_file(name, data)
+
+
+def test_a_docx_that_unpacks_to_too_much_is_refused_before_it_is_read():
+    bomb = zipped("word/document.xml", b"<w:document>" + b" " * (textsource.MAX_XML_BYTES + 10)
+                  + b"</w:document>")
+    assert len(bomb) < 100_000  # small on disk...
+    with pytest.raises(textsource.SourceError, match="too large"):
+        textsource.read_file("bomb.docx", bomb)  # ...and never unpacked whole
+
+
+@pytest.mark.parametrize("url", ["https://exa mple.com", "https://example.com:abc",
+                                 "https://" + "a" * 70 + ".example.com", "https://[::1"])
+def test_a_typo_in_the_address_is_a_scrape_error(url):
+    with pytest.raises(scrape.ScrapeError):
+        scrape.fetch(url, timeout=2)

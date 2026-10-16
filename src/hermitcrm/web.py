@@ -3347,7 +3347,10 @@ def create_app(root: Path, config: dict | None = None,
             parts = []
             upload = files.get("source_file")
             if upload is not None and getattr(upload, "filename", ""):
-                parts.append(textsource.read_file(upload.filename, await upload.read()))
+                # One byte over the limit is enough to refuse it, and parsing a
+                # PDF takes long enough to belong off the event loop.
+                data = await upload.read(textsource.MAX_FILE_BYTES + 1)
+                parts.append(await run_in_threadpool(textsource.read_file, upload.filename, data))
             if url:
                 parts.append(await run_in_threadpool(textsource.read_website, url))
             if pasted:

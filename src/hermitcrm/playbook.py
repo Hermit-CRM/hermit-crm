@@ -109,7 +109,7 @@ FRONT_COMMENT = ("# Read by Hermit CRM's outreach bot: `hermitcrm help playbook`
                  "One entry per approach.")
 
 _COMMENT = re.compile(r"<!--.*?-->", re.S)
-_HEADING = re.compile(r"^(#{1,3}) +(.+?) *#* *$")
+_HEADING = re.compile(r"^(#{1,3}) +(.+?)(?: +#+)? *$")
 
 
 def empty_approach(name: str = DEFAULT_APPROACH) -> dict:
@@ -461,6 +461,11 @@ def check_lines(root: Path | str) -> tuple[list[str], list[str]]:
     if not pb.has_front:
         return [], [f"{FILENAME}: not set up for the outreach bot (run "
                     "`hermitcrm playbook upgrade` or open Settings > Playbook)"]
+    if not pb.set_up and "approaches" not in (split(pb.text)[0] or ""):
+        # Not ours (a front matter of its own, or a `---` rule read as one): the
+        # page and `upgrade` leave it alone, so `check` does not call it broken.
+        return [], [f"{FILENAME}: has a front matter without `approaches:`, so the outreach "
+                    "bot does not read it (see `hermitcrm help playbook`)"]
     if pb.error:
         return [f"{FILENAME}: front matter: {pb.error}"], []
     hints = []
@@ -744,7 +749,14 @@ def dump_front(front: dict) -> str:
     text = yaml.safe_dump(data, sort_keys=False, allow_unicode=True,
                           default_flow_style=None, width=1000)
     # `- tag_present: [...]` reads better than PyYAML's `- {tag_present: [...]}`.
-    text = re.sub(r"(?m)^(\s*)- \{(\w+): (.*)\}$", r"\1- \2: \3", text)
+    # Only for a one-key mapping whose value is a flow list, and only when the
+    # result still reads back as the same data (anything else stays as dumped).
+    nicer = re.sub(r"(?m)^(\s*)- \{(\w+): (\[.*\])\}$", r"\1- \2: \3", text)
+    try:
+        if nicer != text and yaml.safe_load(nicer) == data:
+            text = nicer
+    except yaml.YAMLError:
+        pass
     return FRONT_COMMENT + "\n" + text
 
 
@@ -756,8 +768,10 @@ def _lessons_text(parts: dict[str, str]) -> str:
     return "\n".join(blocks)
 
 
-def _section_block(key: str, content: str = "") -> str:
-    text = f"## {SECTION_TITLES[key]}\n\n<!-- {SECTION_HINTS[key]} -->\n"
+def _section_block(key: str, content: str = "", comments: list[str] | None = None) -> str:
+    """A section: heading, its comments (the stock hint for a new one) and text."""
+    notes = [f"<!-- {SECTION_HINTS[key]} -->"] if comments is None else comments
+    text = f"## {SECTION_TITLES[key]}\n" + "".join(f"\n{c}\n" for c in notes)
     content = content.strip("\n")
     if content.strip():
         text += f"\n{content}\n"
@@ -779,22 +793,52 @@ def _append(body: str, block: str) -> str:
     return body + block
 
 
+def _replace(block: str, span: tuple[int, int, int], new: str) -> str:
+    start, _, end = span
+    return block[:start] + new + ("\n" if end < len(block) else "") + block[end:]
+
+
+def _fill_lessons(block: str, parts: dict) -> str:
+    """Rewrite only the given ### parts of Lessons (keeping their comments) and add
+    the ones that are missing; any other text under Lessons stays as it is."""
+    for key, title in LESSONS:
+        if key not in parts:
+            continue
+        content = (parts.get(key) or "").strip("\n")
+        text = f"\n{content}\n" if content.strip() else ""
+        span = _span(block, 2, SECTION_TITLES["lessons"])
+        sub = _span(block, 3, title, span[1], span[2])
+        if sub is None:
+            before, after = block[:span[2]].rstrip("\n"), block[span[2]:]
+            block = before + f"\n\n### {title}\n" + text + ("\n" if after else "") + after
+            continue
+        comments = _COMMENT.findall(block[sub[1]:sub[2]])
+        block = _replace(block, sub, f"### {title}\n" + "".join(f"\n{c}\n" for c in comments) + text)
+    return block
+
+
 def _fill_block(block: str, sections: dict) -> str:
-    """An approach block with the given sections rewritten (heading, hint, text) and
-    every missing heading appended; its other text is kept."""
+    """An approach block with the given sections rewritten and every missing heading
+    appended. A rewritten section keeps its comments; Lessons is rewritten per
+    ### part (`sections["lessons"]` holds only the parts to change). The other
+    text is kept byte for byte."""
     for key, _, _ in SECTIONS:
         span = _span(block, 2, SECTION_TITLES[key])
         if key not in sections and span is not None:
             continue
-        content = sections.get(key, {} if key == "lessons" else "")
         if key == "lessons":
-            content = _lessons_text(content if isinstance(content, dict) else {})
-        new = _section_block(key, content)
+            parts = sections.get(key) if isinstance(sections.get(key), dict) else {}
+            if span is None:
+                block = _append(block, _section_block(key, _lessons_text(parts)))
+            else:
+                block = _fill_lessons(block, parts)
+            continue
+        content = sections.get(key, "")
         if span is None:
-            block = _append(block, new)
+            block = _append(block, _section_block(key, content))
         else:
-            start, _, end = span
-            block = block[:start] + new + ("\n" if end < len(block) else "") + block[end:]
+            comments = _COMMENT.findall(block[span[1]:span[2]])
+            block = _replace(block, span, _section_block(key, content, comments))
     return block
 
 
@@ -841,8 +885,38 @@ def upgrade_text(text: str) -> str:
     return head + body
 
 
-def _with_front(front: dict, body: str) -> str:
+def _with_front(front: dict, body: str, text: str = "") -> str:
+    """The file with this front matter and body. When the front matter's data is
+    what `text` (the file before) already has, its bytes are kept as they were."""
+    if text:
+        source, old_body = split(upgrade_text(text))
+        try:
+            if source is not None and parse_front(source) == front:
+                return text_head(upgrade_text(text), old_body) + body
+        except PlaybookError:
+            pass
     return "---\n" + dump_front(front) + "---\n" + body
+
+
+def text_head(text: str, body: str) -> str:
+    """The front matter part of a text, `---` lines included."""
+    return text[: len(text) - len(body)]
+
+
+def _block_span(body: str, name: str) -> tuple[int, int, int]:
+    span = _approach_span(body, name)
+    if span is None:
+        raise PlaybookError(f"the `# {APPROACH_PREFIX}{name}` heading was not found in {FILENAME}")
+    return span
+
+
+def name_problem(name: str) -> str:
+    """Why a name cannot be an approach's, or ""."""
+    if not name or ":" in name:
+        return "a name for this approach, one line without a colon"
+    if re.search(r"\s#+$", name):
+        return "a name that does not end in a separate #"
+    return ""
 
 
 def _front_and_body(text: str) -> tuple[dict, str]:
@@ -876,20 +950,20 @@ def apply_approach(text: str, name: str, approach_front: dict,
     if _norm(new_name) != _norm(name) and _taken(front, new_name):
         raise PlaybookError(f"there is already an approach called {new_name!r}")
     front["approaches"][i] = {**approach_front, "name": new_name}
-    start, content, end = _approach_span(body, name)
+    start, content, end = _block_span(body, name)
     block = body[start:end]
     if new_name != name:
         block = f"# {APPROACH_PREFIX}{new_name}\n" + block[content - start:]
     body = body[:start] + _fill_block(block, sections or {}) + body[end:]
-    return _with_front(front, body)
+    return _with_front(front, body, text)
 
 
 def add_approach(text: str, name: str, copy_from: str = "") -> str:
     """A new approach at the end: empty, or a copy of another one (its front
     matter entry and its whole block, under the new name)."""
     name = " ".join((name or "").split())
-    if not name or ":" in name:
-        raise PlaybookError("give the approach a name (one line, no colon)")
+    if name_problem(name):
+        raise PlaybookError(f"give the approach {name_problem(name)}")
     front, body = _front_and_body(text)
     if _taken(front, name):
         raise PlaybookError(f"there is already an approach called {name!r}")
@@ -897,7 +971,7 @@ def add_approach(text: str, name: str, copy_from: str = "") -> str:
         source = copy.deepcopy(front["approaches"][_index(front, copy_from)])
         source["name"] = name
         front["approaches"].append(source)
-        _, content, end = _approach_span(body, copy_from)
+        _, content, end = _block_span(body, copy_from)
         block = f"# {APPROACH_PREFIX}{name}\n" + body[content:end].rstrip("\n") + "\n"
     else:
         front["approaches"].append(empty_approach(name))
@@ -922,7 +996,7 @@ def delete_approach(text: str, name: str) -> str:
     if len(front["approaches"]) == 1:
         raise PlaybookError("a playbook keeps at least one approach; rename this one instead")
     del front["approaches"][i]
-    start, _, end = _approach_span(body, name)
+    start, _, end = _block_span(body, name)
     before, after = body[:start].rstrip("\n"), body[end:]
     body = (before + "\n" if before else "") + ("\n" + after if after.strip() else "")
     return _with_front(front, body)
@@ -951,6 +1025,9 @@ def upgrade(root: Path | str, commit=None) -> str:
         old = ""
     new = upgrade_text(old)
     if new == old:
+        if parse(old).error:
+            return (f"{FILENAME}: the front matter cannot be read ({parse(old).error}); "
+                    "fix it by hand, nothing changed.")
         if parse(old).has_front and not parse(old).set_up:
             return (f"{FILENAME} has a front matter of its own (no `approaches:`), so it was "
                     "left alone; see `hermitcrm help playbook`.")
@@ -1023,7 +1100,7 @@ def _split_csv(text: str) -> list[str]:
 
 
 def _slug(name: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    return re.sub(r"[^\w]+", "-", name.lower()).strip("-_")
 
 
 def from_form(values: dict, old: dict | None = None) -> tuple[dict, dict, dict]:
@@ -1035,8 +1112,8 @@ def from_form(values: dict, old: dict | None = None) -> tuple[dict, dict, dict]:
     get = lambda k: str(values.get(k) or "").strip()  # noqa: E731
 
     name = " ".join(get("name").split()) or str(old.get("name") or "")
-    if not name or ":" in name:
-        errors["name"] = "a name for this approach, one line without a colon"
+    if name_problem(name):
+        errors["name"] = name_problem(name)
     icp = dict(old.get("icp") or {}) if isinstance(old.get("icp"), dict) else {}
     for key in ICP_LISTS:
         items = _split_csv(get(f"icp_{key}"))
@@ -1071,6 +1148,10 @@ def from_form(values: dict, old: dict | None = None) -> tuple[dict, dict, dict]:
         items = _split_csv(get(f"dq_{key}"))
         if items:
             disq.append({key: items})
+    # Entries the form has no box for (an agent's, or a kind this version does
+    # not know) stay as they are; `hermitcrm check` names any it cannot use.
+    disq += [item for item in old.get("disqualifiers") or []
+             if not (isinstance(item, dict) and len(item) == 1 and next(iter(item)) in DISQUALIFIERS)]
 
     old_personas = old.get("personas") if isinstance(old.get("personas"), dict) else {}
     personas = {}
@@ -1078,7 +1159,10 @@ def from_form(values: dict, old: dict | None = None) -> tuple[dict, dict, dict]:
         if not line.strip():
             continue
         pname, sep, rest = line.partition(":")
-        pname = _slug(pname)
+        raw = " ".join(pname.split())
+        # The key as it is in the file when it is there (with its pains and
+        # cares), otherwise a slug of what was typed.
+        pname = raw if raw in old_personas else _slug(raw)
         if not sep or not pname or not _split_csv(rest):
             errors["personas"] = (f"line {n}: write it as name: Title, Title "
                                   "(for example buyer: CEO, Founder)")
@@ -1100,6 +1184,16 @@ def from_form(values: dict, old: dict | None = None) -> tuple[dict, dict, dict]:
     return front, sections, errors
 
 
+def _without_empty(value):
+    """The same data with empty lists, mappings and strings left out."""
+    if isinstance(value, dict):
+        out = {k: _without_empty(v) for k, v in value.items()}
+        return {k: v for k, v in out.items() if v not in ([], {}, "", None)}
+    if isinstance(value, list):
+        return [_without_empty(v) for v in value]
+    return value
+
+
 def save_form(text: str, name: str, values: dict) -> tuple[str, dict]:
     """(new text, errors) for one approach's form; the text is unchanged on errors."""
     approach = parse(upgrade_text(text)).approach(name)
@@ -1108,8 +1202,23 @@ def save_form(text: str, name: str, values: dict) -> tuple[str, dict]:
     front, sections, errors = from_form(values, approach.front)
     if errors:
         return text, errors
+    # A form that adds only empty keys (`countries: []`) leaves the entry as it
+    # is, so the front matter keeps its bytes too.
+    if _without_empty(front) == _without_empty(approach.front):
+        front = approach.front
+    # Only the boxes that changed are written back: a box shows its section
+    # without comments and Lessons without text outside its three parts, so
+    # rewriting an unchanged box would drop those.
+    shown = form_values(approach)
+    norm = lambda v: str(v or "").replace("\r\n", "\n").strip()  # noqa: E731
+    changed = {key: value for key, value in sections.items()
+               if key != "lessons" and value != norm(shown.get(f"section_{key}"))}
+    lessons = {key: value for key, value in sections["lessons"].items()
+               if value != norm(shown.get(f"lessons_{key}"))}
+    if lessons:
+        changed["lessons"] = lessons
     try:
-        return apply_approach(text, approach.name, front, sections), {}
+        return apply_approach(text, approach.name, front, changed), {}
     except PlaybookError as exc:
         return text, {"name": str(exc)}
 
