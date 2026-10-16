@@ -196,3 +196,24 @@ opt_out = true         # add the playbook's opt_out line (if it has one) to a co
 note_max_chars = 300   # LinkedIn's limit for a connection note; no pitch, at most one question
 pitch_max_chars = 600  # the message after they accept, or to an existing connection; one question
 links = false
+
+# [outreach.reply_to_interest.<language>]: the shape of a reply to someone who
+# answered and showed interest. The AI writes it in its own words around the
+# offer line; a line whose slot is empty is left out (no first step offer, say).
+# Never a time slot, a booking link or a price: they answer the question first.
+# Slots: {first} {offer_line} {proof} {first_step_offer} {question}
+[outreach.reply_to_interest.en]
+template = "Hi {first},\nThanks for your reply. {offer_line}\n{proof}\n{first_step_offer}\n{question}"
+question = "What would you most like to improve first?"
+
+[outreach.reply_to_interest.de]
+template = "Hallo {first},\ndanke für deine Antwort. {offer_line}\n{proof}\n{first_step_offer}\n{question}"
+question = "Was möchtest du als Erstes verbessern?"
+
+[outreach.reply_to_interest.nl]
+template = "Hoi {first},\nDank voor je reactie. {offer_line}\n{proof}\n{first_step_offer}\n{question}"
+question = "Wat wil je als eerste verbeteren?"
+
+[outreach.reply_to_interest.fr]
+template = "Bonjour {first},\nMerci pour votre réponse. {offer_line}\n{proof}\n{first_step_offer}\n{question}"
+question = "Qu'aimeriez-vous améliorer en premier ?"

@@ -434,6 +434,16 @@
   <div class="setting-head"><h2>Outcomes</h2>{{ how('/help/settings#outcomes') }}{{ describe('outcomes') }}</div>
   <p class="summary">One per line, in order. The <strong>first</strong> is what a detected reply counts as; the <strong>last</strong> is what silence past the message window counts as.</p>
   {{ step_errors('outcomes') }}
+  {% if outcomes_offer %}
+  <form method="post" action="/settings/outcomes" class="inline outcomes-offer">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="outcomes" value="{{ outcomes_offer | join('\n') }}">
+    <input type="hidden" name="message_window_days" value="{{ outcomes_form.message_window_days }}">
+    <input type="hidden" name="silent_days" value="{{ outcomes_form.silent_days }}">
+    <p class="small">New: an <strong>interested</strong> outcome, for a reply that shows interest. Set it when you log such a reply and the Outreach page lists it under Replies to interest, no AI needed. It goes in the middle, so replies and silence count as before: {{ outcomes_offer | join(', ') }}.
+    <button type="submit" class="secondary">Add interested</button></p>
+  </form>
+  {% endif %}
   <form method="post" action="/settings/outcomes" class="record-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div class="row">
