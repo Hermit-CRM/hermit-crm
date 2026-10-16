@@ -11,7 +11,7 @@
 {% set groups = [
   ('general', 'General', ['make-it-yours', 'you', 'enrichment', 'appearance', 'support', 'about']),
   ('mail', 'Email & calendar', ['bcc', 'calendar']),
-  ('crm', 'Your CRM', ['fields', 'messaging', 'task-types', 'stages', 'outcomes']),
+  ('crm', 'Your CRM', ['playbook', 'fields', 'messaging', 'task-types', 'stages', 'outcomes']),
   ('backup', 'Backup', ['backup']),
   ('advanced', 'Advanced', ['schedule', 'access', 'mcp', 'doctor']),
 ] %}
@@ -260,6 +260,12 @@
 
 {# ================================================================ Your CRM #}
 {{ group_start('crm') }}
+<section class="setup-step" id="playbook">
+  <div class="setting-head"><h2>Playbook</h2>{{ status(not playbook_status.gaps, 'ready', 'not ready') }}{{ how('/help/playbook') }}</div>
+  <p class="summary">What you sell, to whom, and how you write (<code>MESSAGING.md</code>). {{ playbook_status.filled }} of {{ playbook_status.total }} parts filled.{% if playbook_status.gaps %} The outreach bot still needs: {{ playbook_status.gaps | join('; ') }}.{% endif %}</p>
+  <p><a class="button" href="/settings/playbook">Open the playbook</a></p>
+</section>
+
 <section class="setup-step" id="fields">
   <div class="setting-head"><h2>Fields</h2>{{ how('/help/settings#fields') }}{{ describe('fields') }}</div>
   <p class="summary">Fields of your own, on top of the ones Hermit CRM has. Their values live in your records' front matter; <code>fields.toml</code> describes them.</p>

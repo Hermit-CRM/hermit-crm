@@ -54,6 +54,7 @@ from . import (adjust, bcc, brief, calendar_sync, capture, dashboards, disclaime
                fields as custom, filters, followups, history, messaging, migrations,
                pipeline, reports, sample, welcome)
 from . import layout
+from . import playbook
 from . import schedule, scrape, secrets, task_types, usertheme
 from . import stage_ops
 from . import stages as stages_mod
@@ -3011,6 +3012,7 @@ def create_app(root: Path, config: dict | None = None,
             "fields_form": {"toml": (root / custom.FILENAME).read_text(encoding="utf-8")
                             if (root / custom.FILENAME).exists() else ""},
             "custom_field_defs": app.state.custom_fields,
+            "playbook_status": playbook_status(),
             "messaging_form": {
                 "size_field": str(config.get("messaging_size_field") or ""),
                 "team_field": str(config.get("messaging_team_field") or "")},
@@ -3051,6 +3053,12 @@ def create_app(root: Path, config: dict | None = None,
         ctx.update(inbox_context())
         ctx.update(extra)
         return ctx
+
+    def playbook_status() -> dict:
+        pb = playbook.load(root)
+        parts = playbook.completeness(pb)
+        return {"filled": sum(ok for _, ok in parts), "total": len(parts),
+                "gaps": playbook.missing(pb)}
 
     def stages_form_default() -> dict:
         counts = store.stage_counts()
@@ -3233,6 +3241,70 @@ def create_app(root: Path, config: dict | None = None,
             return setup_invalid(request, result, "messaging")
         config_saved()
         return flashed("/settings", result.text(), anchor="messaging")
+
+    # ------------------------------------------------ Settings > Playbook
+
+    def playbook_page(request: Request, values: dict | None = None, status_code: int = 200,
+                      **extra):
+        pb = playbook.load(root)
+        parts = playbook.completeness(pb)
+        enricher = app.state.enricher
+        return render(request, "playbook.html", {
+            "values": values if values is not None else playbook.form_values(pb),
+            "errors": {}, "exists": pb.exists, "has_front": pb.has_front,
+            "pb_error": pb.error, "parts": parts, "filled": sum(ok for _, ok in parts),
+            "gaps": playbook.missing(pb), "source": "", "proposed": False,
+            "draft_open": False, "draft_error": "",
+            "ai": {"available": enricher.available, "provider": enricher.provider_name,
+                   "reason": "" if enricher.available else enricher.unavailable_reason()},
+            **extra}, status_code=status_code)
+
+    def playbook_commit(message: str, paths=None) -> None:
+        try:
+            gitops.commit(message, [playbook.FILENAME])
+            gitops.push_async()
+        except Exception:  # the file is saved; git can catch up
+            logger.exception("could not commit %s", playbook.FILENAME)
+
+    @app.get("/settings/playbook", response_class=HTMLResponse)
+    def settings_playbook(request: Request):
+        return playbook_page(request)
+
+    @app.post("/settings/playbook", response_class=HTMLResponse)
+    async def settings_playbook_save(request: Request):
+        form = await request.form()
+        check_csrf(str(form.get("csrf_token") or ""))
+        values = {k: str(v) for k, v in form.items() if k != "csrf_token"}
+        pb = playbook.load(root)
+        if pb.error:
+            return playbook_page(request, values, status_code=400)
+        front, sections, errors = playbook.from_form(values, pb.front)
+        if errors:
+            return playbook_page(request, values, status_code=400, errors=errors)
+        if playbook.write(root, playbook.apply(pb.text, front, sections)):
+            playbook_commit("playbook: saved from Settings")
+            return flashed("/settings/playbook", "Playbook saved")
+        return flashed("/settings/playbook", "Nothing changed")
+
+    @app.post("/settings/playbook/upgrade")
+    def settings_playbook_upgrade(request: Request, csrf_token: str = Form("")):
+        check_csrf(csrf_token)
+        return flashed("/settings/playbook", playbook.upgrade(root, commit=playbook_commit))
+
+    @app.post("/settings/playbook/draft", response_class=HTMLResponse)
+    def settings_playbook_draft(request: Request, csrf_token: str = Form(""),
+                                source: str = Form("")):
+        check_csrf(csrf_token)
+        current = playbook.form_values(playbook.load(root))
+        try:
+            proposal = playbook.propose(app.state.enricher, source)
+        except EnrichError as exc:
+            return playbook_page(request, current, status_code=400, source=source,
+                                 draft_open=True, draft_error=str(exc))
+        # The proposal fills the boxes it has an answer for; the rest keep what
+        # is saved. Nothing is written until Save.
+        values = {k: (v if v.strip() else current.get(k, "")) for k, v in proposal.items()}
+        return playbook_page(request, {**current, **values}, source=source, proposed=True)
 
     @app.post("/settings/enrichment")
     def settings_enrichment(request: Request, csrf_token: str = Form(""),

@@ -5,7 +5,7 @@
 The playbook is the one place Hermit CRM learns about your business. The
 outreach drafts, routines and your own AI agent read it. It works for any
 B2B offer (a service, software, an agency); every part is optional except the
-minimum the outreach bot needs (see [Ready for the outreach bot](#ready-for-the-outreach-bot)).
+minimum the outreach bot needs (below, under "Ready for the outreach bot").
 
 Fill it in under **Settings > Playbook** (`/settings/playbook`): one box per
 part, an example beside each, and a meter that shows how much is filled. Or

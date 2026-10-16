@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""The eleven-step walkthrough at /welcome.
+"""The twelve-step walkthrough at /welcome.
 
 Each step knows whether it is done by asking the data, not by remembering that
 you clicked something: "your first company" is done when a company exists,
@@ -67,6 +67,11 @@ def steps(store, config: dict, setup_state: dict, ai_available: bool,
              "Your name signs the drafts, and your addresses are how Hermit CRM "
              "tells mail you sent from mail you received.",
              "Open Settings", "/settings#you", bool(setup_state.get("you"))),
+        Step("offer", "Say what you sell",
+             "One sentence on what you sell, who buys it and one result a customer "
+             "got. The drafts and the outreach bot read it from your playbook, "
+             "MESSAGING.md; the rest of the playbook can wait.",
+             "Open the playbook", "/settings/playbook", _has_offer(store)),
         Step("company", "Add your first company",
              "A company is a folder with a file in it. Everything else hangs off one.",
              "Add a company", "/companies/new", bool(companies)),
@@ -122,6 +127,13 @@ def steps(store, config: dict, setup_state: dict, ai_available: bool,
              "change is one commit you can undo.",
              "Try the look", "/yours?starter=look#describe", adjusted),
     ]
+
+
+def _has_offer(store) -> bool:
+    from hermitcrm import playbook
+
+    root = getattr(store, "root", None)
+    return bool(root and playbook.load(root).offer_line)
 
 
 def progress(all_steps: list[Step]) -> tuple[int, int]:
