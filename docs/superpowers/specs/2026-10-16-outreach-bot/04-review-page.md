@@ -17,8 +17,12 @@ Context: [00-overview](00-overview.md). Needs phase 1 (parts 02-03).
   - findings with source links and a confidence dot; remove one or add your own
   - the draft (editable), its type and angle, which findings and proof it
     uses, the check results
-  - buttons: **Mark ready**, **Regenerate** (optionally "stronger model"),
-    **Skip** (with a reason), **Copy**
+  - buttons: **Mark ready** (allowed with a failed check: warning shown),
+    **Check again** (re-runs the hard checks on the edited text; from phase 3
+    also the critic; checks never block an edit and do not run while typing),
+    **Regenerate** (optionally "stronger model"), **Skip** (reason from the
+    fixed list in part 03, optional free text), **Copy**, and on Ready items
+    **Mark sent** (state only, no interaction)
 - **Ready** is the working list for sending by hand: copy button and the
   contact's links.
 
@@ -28,14 +32,20 @@ finding with its source), in the same commit. It does **not** log an
 interaction; the person logs it as usual.
 
 **Contact page:** a "Research & draft" button (with channel picker), and an
-outreach card while an item is open for that contact.
+outreach card while an item is open for that contact. The button picks the draft
+type from the history (no outbound yet → first touch; unanswered outbound →
+follow-up; interested reply → reply to interest); the person can override it.
 
 ## Reply-to-interest drafts
 
 Source: an inbound reply that shows interest, from `followups.py` "replies
 owed". The AI classifies the reply (no tools) and the person confirms.
+Classification runs on demand ("Check replies" button), once per reply, and the
+result is stored; replies logged with outcome `interested` need no AI.
 
-Shape: the offer line, one proof line, "the first call is free, no pitch", and
+Shape: the offer line, one proof line, the playbook's **first step offer**
+(new optional field in the Offer section, e.g. "the first call is free, no
+pitch"; left out when empty, since not every seller offers a free call), and
 one question. **No** time slot, booking link, price, or days per week. A meeting
 is proposed only after they answer the question. Replies to interest stay
 semi-automatic even in a later auto mode.

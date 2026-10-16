@@ -42,6 +42,9 @@ showing "n = 4, too few" instead.
   the card asks (wrong tone, wrong pain, too long, bad finding). Answers appear
   in the quality report and point to the playbook section to fix.
 
+- **A/B (moved here from phase 1).** An optional setting drafts two angles for
+  the same persona in a batch, so the report can compare them.
+
 ## Tests
 
 - report: a cell under 10 results is hidden; one dimension at a time
