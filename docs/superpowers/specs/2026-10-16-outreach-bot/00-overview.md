@@ -1,21 +1,22 @@
 # Outreach bot: overview
 
-Status: proposal, not built. Written 16 Oct 2026, revised the same day after a
-review of a real pipeline (369 companies, ~24 real conversations, 4 positive
-replies, 0 won).
+Status (17 Oct 2026): parts 01-04 are built and merged; part 05 is planned
+(`PLAN-05.md`), parts 06-07 are not started. Written 16 Oct 2026, revised the
+same day after a review of a real pipeline (369 companies, ~24 real
+conversations, 4 positive replies, 0 won).
 
 **How to read this spec.** Read this file, then only the part for the phase
 being built. Each part holds its own scope, tests and open questions.
 
-| Part | Phase | Scope |
-|---|---|---|
-| [01-playbook](01-playbook.md) | 0 | What the bot knows about the seller (`MESSAGING.md`) |
-| [02-select-research](02-select-research.md) | 1 | `angle` field, picking the batch, research, the contact brief |
-| [03-draft-check-store](03-draft-check-store.md) | 1 | First-touch drafts, `clean_answer`, `outreach/` files, CLI |
-| [04-review-page](04-review-page.md) | 2 | Outreach page, Ready list, reply-to-interest |
-| [05-ai-research-critic](05-ai-research-critic.md) | 3 | Follow-ups, `ai-web` research, critic, bookmarklet |
-| [06-quality](06-quality.md) | 4 | Data cleanup, quality report, learning from results |
-| [07-auto-later](07-auto-later.md) | 5-6 | Auto-log, then full auto (not designed in detail) |
+| Part | Phase | Scope | State |
+|---|---|---|---|
+| [01-playbook](01-playbook.md) | 0 | What the bot knows about the seller (`MESSAGING.md`) | Merged (PR #107) |
+| [02-select-research](02-select-research.md) | 1 | `angle` field, picking the batch, research, the contact brief | Merged (PR #109) |
+| [03-draft-check-store](03-draft-check-store.md) | 1 | First-touch drafts, `clean_answer`, `outreach/` files, CLI | Merged (PR #109) |
+| [04-review-page](04-review-page.md) | 2 | Outreach page, Ready list, reply-to-interest | Merged (04a PR #111, 04b PR #112) |
+| [05-ai-research-critic](05-ai-research-critic.md) | 3 | Follow-ups, `ai-web` research, critic, bookmarklet | Planned, see `PLAN-05.md` |
+| [06-quality](06-quality.md) | 4 | Data cleanup, quality report, learning from results | Not started |
+| [07-auto-later](07-auto-later.md) | 5-6 | Auto-log, then full auto (not designed in detail) | Not started |
 
 ## Goal
 
