@@ -513,7 +513,9 @@ td.bar-cell { width: 35%; }
 .periods a.active { font-weight: 600; text-decoration: none; color: inherit; }
 
 .update-notice { font-size: 0.85em; padding: 0 0.5em; }
-footer { margin: 2em 24px 1em; color: var(--muted); }   /* 24px: the same edge as main */
+/* 24px: the same edge as main. footer.small, because .small { margin: 2px 0 } outranks a bare footer. */
+footer.small { margin: 2em 24px 1em; }
+footer { color: var(--muted); }
 
 /* settings (the former setup page) */
 .start-cards { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
