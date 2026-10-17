@@ -111,11 +111,15 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); }
 
 @media (max-width: 760px) {
   body { display: block; }
-  nav.sidebar { position: static; height: auto; flex-direction: row; flex-wrap: wrap;
+  /* One swipeable row: thirteen links wrapped into five rows took a third of the
+     screen before the page title. The half-cut link at the edge says it scrolls. */
+  nav.sidebar { position: static; height: auto; flex-direction: row; flex-wrap: nowrap;
+    overflow-x: auto; align-items: center; padding: 6px 12px; scrollbar-width: none;
     border-right: 0; border-bottom: 1px solid var(--line); }
-  nav.sidebar .brand { width: 100%; padding-bottom: 6px; }
-  nav.sidebar a:not(.brand), nav.sidebar .nav-button { width: auto; }
-  .sidebar-foot { margin: 0; padding: 0; border: 0; display: flex; flex-wrap: wrap; }
+  nav.sidebar::-webkit-scrollbar { display: none; }
+  nav.sidebar .brand { width: auto; flex: none; padding: 6px 12px 6px 0; }
+  nav.sidebar a:not(.brand), nav.sidebar .nav-button { width: auto; flex: none; white-space: nowrap; }
+  .sidebar-foot { margin: 0; padding: 0; border: 0; display: flex; flex: none; flex-wrap: nowrap; }
   /* Too narrow to centre anything: search takes the room, Ask keeps its corner. */
   .topbar { padding: 8px 16px; grid-template-columns: 1fr auto; }
   .topbar .search { grid-column: 1; justify-self: stretch; }
