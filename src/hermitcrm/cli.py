@@ -1522,7 +1522,9 @@ def _build_parser() -> argparse.ArgumentParser:
         o.add_argument("--limit", type=int, default=None, help="batch size (default 10)")
         o.add_argument("--approach", default="", help="the playbook approach to use")
         if verb == "build":
-            o.add_argument("--research", default="", help="research level (scrape)")
+            o.add_argument("--research", default="",
+                           help="research level: scrape (default), or ai-web (also "
+                                "searches the web; Claude Code only)")
             o.add_argument("--strong", action="store_true",
                            help="draft on the strong model tier (default: medium)")
     o_list = o_sub.add_parser("list", help="every item, newest first")
@@ -1621,7 +1623,7 @@ def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
                     "was written.", 0)
         if selection.gate:
             return (selection.gate, 1)
-        outreach.research_level(config, getattr(args, "research", ""))  # refuses ai-web
+        level = outreach.research_level(config, getattr(args, "research", ""))
         if not selection.picked:
             return (selection.render() + "\n\nNothing to build.", 0)
         if researcher is None or drafter is None:
@@ -1632,8 +1634,11 @@ def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
             blocked = routines.ai_problem(enricher)
             if blocked:
                 return (f"Refused: {blocked}", 1)
-            researcher = researcher or outreach.ScrapeResearcher(
-                enricher, today=store.today(), timeout=float(config.get("fetch_timeout", 10)))
+            if level == "ai-web" and researcher is None and enricher.web_only_problem():
+                return (f"Refused: {enricher.web_only_problem()}", 1)
+            researcher = researcher or outreach.researcher_for(
+                level, enricher, today=store.today(),
+                timeout=float(config.get("fetch_timeout", 10)))
             drafter = drafter or outreach.AIDrafter(store, enricher, config)
         result = outreach.build(store, selection, researcher, drafter, config)
     except outreach.OutreachError as exc:

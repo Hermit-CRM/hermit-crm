@@ -236,6 +236,12 @@ def model_label(model: str) -> str:
     return MODEL_LABELS.get(model, model) if model else "the default model"
 
 
+# The `tools` value of a run that may use web search and fetch and nothing
+# else: no files, no shell, no MCP servers (ai-web research reads strangers'
+# pages, so it gets the least a web search needs).
+WEB_ONLY = "web"
+
+
 class Provider:
     """One CLI: how to call it, what environment it gets, how to read its output."""
 
@@ -255,6 +261,10 @@ class Provider:
     # switch for it). Where the AI reads text from strangers (routines), a CLI
     # without one is refused rather than run with its tools on.
     no_tools = ""
+
+    # How a run with tools=WEB_ONLY is held to web search and fetch only, in
+    # words ("" = this CLI has no switch for it, so such a run is refused).
+    web_only = ""
 
     def build_argv(self, schema_path: str, model: str, out_path: str = "",
                    prompt: str = "", schema: dict | None = None) -> list[str]:
@@ -279,12 +289,19 @@ class ClaudeProvider(Provider):
 
     name, default_binary = "claude", "claude"
     no_tools = "no tools at all (--tools \"\")"
+    web_only = "only WebSearch and WebFetch (--tools), and no MCP servers (--strict-mcp-config)"
 
     def build_argv(self, schema_path, model, out_path="", prompt="", schema=None):
+        web = self.tools == WEB_ONLY
         argv = [self.binary, "-p", "--output-format", "json",
                 "--json-schema", json.dumps(schema or {}),
-                "--allowedTools", self.tools if self.tools is not None
-                else "WebSearch,WebFetch"]
+                "--allowedTools", "WebSearch,WebFetch" if web or self.tools is None
+                else self.tools]
+        if web:
+            # --tools takes the built-in set away, unlike --allowedTools; the MCP
+            # servers of the user's own config (mail, files, calendars) stay out of
+            # a run that reads pages written by strangers.
+            argv += ["--tools", "WebSearch,WebFetch", "--strict-mcp-config"]
         if self.tools == "":
             # --allowedTools only says what needs no approval: Claude still reads
             # files with its read-only tools. --tools "" takes every tool away.
@@ -586,6 +603,17 @@ class Enricher:
         who = "your custom command" if provider.name == "custom" else provider.name
         return (f"{who} can't run without tools, so routines that draft need Claude Code "
                 "or Codex: set enrich_provider to claude or codex (Settings, AI)")
+
+    def web_only_problem(self) -> str:
+        """Why a run that may only search and fetch the web cannot go to this
+        CLI, else "". Only Claude (--tools WebSearch,WebFetch) has a switch for
+        it; the others run with whatever else they can reach (files, a shell)."""
+        provider = self.provider
+        if provider is None or provider.web_only:
+            return ""
+        who = "your custom command" if provider.name == "custom" else provider.name
+        return (f"{who} can't be limited to web search only, so ai-web research needs "
+                "Claude Code: set enrich_provider to claude (Settings, AI), or use scrape")
 
     # --- transport
 

@@ -3879,6 +3879,12 @@ def create_app(root: Path, config: dict | None = None,
             return f"The AI CLI is not available: {enricher.unavailable_reason()}"
         return routines.ai_problem(enricher)
 
+    def outreach_level() -> str:
+        """The folder's research level (`outreach_research`), scrape unless it names
+        another one that exists."""
+        level = str(config.get("outreach_research") or "").strip().lower()
+        return level if level in outreach.LEVELS else "scrape"
+
     def outreach_form(params) -> dict:
         try:
             limit = int(params.get("limit") or 0)
@@ -3892,7 +3898,9 @@ def create_app(root: Path, config: dict | None = None,
             left = 0
         channel = params.get("channel", "email")
         kind = params.get("kind", "")
+        level = params.get("research", "")
         return {"where": params.get("where", ""),
+                "research": level if level in outreach.LEVELS else outreach_level(),
                 "kind": kind if kind in outreach.BUILT_KINDS and kind != outreach.REPLY
                 else outreach.FIRST_TOUCH,
                 "channel": channel if channel in outreach.CHANNELS else "email",
@@ -3907,6 +3915,8 @@ def create_app(root: Path, config: dict | None = None,
                   "left": form["left"] or "", "batch": form["batch"],
                   "approach": form["approach"],
                   "kind": form["kind"] if form["kind"] != outreach.FIRST_TOUCH else "",
+                  "research": form["research"] if form["research"] != outreach_level()
+                  else "",
                   **extra}
         return urlencode({k: v for k, v in values.items() if v not in ("", None, 0)})
 
@@ -3953,6 +3963,7 @@ def create_app(root: Path, config: dict | None = None,
             "skip_reasons": outreach.SKIP_REASONS, "finding_kinds": outreach.FINDING_KINDS,
             "channels": outreach.CHANNELS, "levels": outreach.LEVELS,
             "built_levels": outreach.BUILT_LEVELS,
+            "ai_web_problem": app.state.enricher.web_only_problem(),
             "continue_query": outreach_query(form) if form["left"] else "",
         })
 
@@ -3963,7 +3974,7 @@ def create_app(root: Path, config: dict | None = None,
                              left: str = Form(""), batch: str = Form(""),
                              contact: str = Form(""), back: str = Form(""),
                              kind: str = Form(outreach.FIRST_TOUCH),
-                             approach: str = Form("")):
+                             approach: str = Form(""), research: str = Form("")):
         """Research and draft the next contact of the batch (one per request).
         `contact` ("company/contact"): the contact page's Research & draft, or a
         reply on the Replies tab (`kind` reply-to-interest)."""
@@ -3972,13 +3983,13 @@ def create_app(root: Path, config: dict | None = None,
             kind = outreach.FIRST_TOUCH
         form = outreach_form({"where": where, "channel": channel, "limit": limit,
                               "strong": strong, "left": left, "batch": batch,
-                              "approach": approach, "kind": kind})
+                              "approach": approach, "kind": kind, "research": research})
         if not left.strip():   # the first click: the whole batch is still to build
             form["left"] = form["limit"]
         back = safe_back(back, "/outreach") if contact else "/outreach"
         stop = {**form, "left": 0}
         try:
-            outreach.research_level(config)  # refuses a level not built yet
+            level = outreach.research_level(config, form["research"])
             selection = await run_in_threadpool(
                 outreach.select, store, where=outreach_where(form["where"]),
                 channel=form["channel"], kind=kind, limit=1,
@@ -4000,8 +4011,10 @@ def create_app(root: Path, config: dict | None = None,
         if blocked:
             return flashed(back, f"Not built: {blocked}")
         enricher = app.state.enricher.with_tier(tier)
-        researcher = outreach.ScrapeResearcher(
-            enricher, fetcher=getattr(app.state, "outreach_fetcher", None),
+        if level == "ai-web" and enricher.web_only_problem():
+            return flashed(back, f"Not built: {enricher.web_only_problem()}")
+        researcher = outreach.researcher_for(
+            level, enricher, fetcher=getattr(app.state, "outreach_fetcher", None),
             today=store.today(), timeout=float(config.get("fetch_timeout", 10)))
         drafter = outreach.AIDrafter(store, enricher, config)
         batch_id = form["batch"] or f"{store.now():%Y-%m-%dT%H%M}-{form['channel']}"

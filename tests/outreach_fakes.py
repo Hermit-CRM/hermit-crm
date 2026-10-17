@@ -44,7 +44,7 @@ class FakeAI:
         self.calls = []
 
     def __call__(self, prompt, schema, **kwargs):
-        kind = ("research" if schema is outreach.RESEARCH_SCHEMA else
+        kind = ("research" if schema in (outreach.RESEARCH_SCHEMA, outreach.AI_WEB_SCHEMA) else
                 "classify" if schema is outreach.CLASSIFY_SCHEMA else "draft")
         self.calls.append({"kind": kind, "prompt": prompt, "schema": schema, **kwargs})
         if kind == "research":

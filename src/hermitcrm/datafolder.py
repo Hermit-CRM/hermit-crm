@@ -76,7 +76,7 @@ CONFIG_DOCS = {
     "welcome_done": "Walkthrough steps you ticked yourself, the ones Hermit CRM cannot see happen.",
     "welcome_dismissed": "Stop showing the walkthrough as the home page; it stays under Help.",
     "disclaimer_accepted": "When you ticked the one-time disclaimer, as local time. Empty means the web app still shows it. Never sent anywhere.",
-    "outreach_research": "How the outreach bot researches a contact: scrape (free: the website and LinkedIn pages, then one small AI call). ai-web comes later.",
+    "outreach_research": "How the outreach bot researches a contact: scrape (free: the website and LinkedIn pages, then one small AI call) or ai-web (scrape first, then an AI run that may search and read the web, Claude Code only).",
     "outreach_cooldown_days": "The outreach bot leaves out anyone you messaged within this many days.",
     "outreach_fit_field": "Which of your company fields holds a fit score (0 to 100); outreach batches go highest first. Empty or missing: no fit order, the card says so.",
     "outreach_high_fit": "The fit score from which the outreach preview counts a company as high fit (and says how many were never contacted).",
