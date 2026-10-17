@@ -1,6 +1,6 @@
 # Import and export
 
-`/import` (and `hermitcrm import FILE`): companies or contacts from a spreadsheet, previewed before anything is written. [Export](#export) takes everything out again.
+`/import` (and `hermitcrm import FILE`): companies or contacts from a spreadsheet, previewed before anything is written. Export, below, takes everything out again.
 
 ## Input
 

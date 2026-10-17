@@ -25,7 +25,7 @@ Use (19 Sep - 3 Oct):
 - [ ] Start using the Product Hunt account (comment on other launches).
 
 Build (5-9 Oct):
-- [ ] `hermitcrm export`: zip of CSVs (companies, contacts, interactions,
+- [x] `hermitcrm export`: zip of CSVs (companies, contacts, interactions,
       tasks, stage history) or one JSON file; profiles generic / hubspot /
       pipedrive; user fields and unknown keys as columns; `--excel` (UTF-8
       BOM); formula-cell escaping that the importer undoes; Settings → Data →
