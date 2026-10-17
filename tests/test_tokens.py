@@ -177,6 +177,15 @@ def test_default_colours_meet_the_contrast_rules(fg, bg, minimum, scheme):
     assert ratio >= minimum, f"{fg} on {bg}: {ratio:.2f}"
 
 
+def test_faint_is_never_a_text_colour():
+    """--faint is 3:1 on the page and 2.99:1 on the sidebar: fine for icons and
+    borders, not for words (DESIGN.md: text is 4.5:1). Words use --muted."""
+    css = re.sub(r"/\*.*?\*/", "", STYLE, flags=re.S)
+    words = [line.strip() for line in css.splitlines()
+             if re.search(r"(?:^|[;{\s])color:\s*var\(--faint\)", line) and ".icon" not in line]
+    assert words == []
+
+
 def test_titles_have_a_font_token_of_their_own():
     """Page titles, the wordmark and the Home numbers are in the website's serif; a
     user's theme.css puts them back in sans with one line: --title-font: var(--sans)."""
