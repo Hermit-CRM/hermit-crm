@@ -690,11 +690,11 @@ def local_path(path: str) -> str:
     (browsers read it as `/`) or a control character (they drop tabs and
     newlines, so a tab between two slashes is `//host`) makes it "/".
     """
-    parts = urlparse(path)
-    if (not path.startswith("/") or path.startswith("//") or "\\" in path
-            or parts.scheme or parts.netloc or any(ord(ch) < 32 for ch in path)):
-        return "/"
-    return path
+    if (path.startswith("/") and not path.startswith("//") and "\\" not in path
+            and not any(ord(ch) < 32 for ch in path)
+            and not urlparse(path).netloc and not urlparse(path).scheme):
+        return path
+    return "/"
 
 
 def goto(path: str) -> RedirectResponse:

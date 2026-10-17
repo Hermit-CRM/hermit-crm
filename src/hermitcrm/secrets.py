@@ -199,15 +199,16 @@ def os_store_save(store: str, service: str, account: str, value: str, label: str
         stdin = value
     else:
         return False
+    where = {KEYCHAIN: "the Keychain", SECRET_SERVICE: "the Secret Service"}[store]
     try:
         proc = runner(args, input=stdin, capture_output=True, text=True, timeout=20)
     except (OSError, subprocess.TimeoutExpired) as exc:
         # Not the exception's text: a timeout's message spells out the whole
         # command, and on a Mac that command ends in the secret.
-        logger.info("saving %s in %s failed: %s", service, store, type(exc).__name__)
+        logger.info("saving %s in %s failed: %s", service, where, type(exc).__name__)
         return False
     if proc.returncode != 0:
-        logger.info("saving %s in %s failed: exit status %s", service, store,
+        logger.info("saving %s in %s failed: exit status %s", service, where,
                     proc.returncode)
     return proc.returncode == 0
 
