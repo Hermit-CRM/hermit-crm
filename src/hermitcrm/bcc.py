@@ -55,7 +55,7 @@ from urllib.parse import urlparse
 from . import secrets
 from .models import (
     ValidationError, fmt_datetime, normalise_email, normalise_website, slugify,
-    split_name, unique_slug,
+    split_name, unique_slug, valid_email,
 )
 from .store import Store, build_file, normalise_body, split_file
 
@@ -198,7 +198,7 @@ def _addresses(values: Iterable[str]) -> list[tuple[str, str]]:
     out = []
     for name, addr in getaddresses([str(v) for v in values if v]):
         addr = normalise_email(addr)
-        if "@" in addr:
+        if valid_email(addr):
             out.append((" ".join(name.replace("*", "").split()), addr))
     return out
 

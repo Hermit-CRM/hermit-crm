@@ -72,6 +72,7 @@ from .models import (
     parse_tags,
     slugify,
     unique_slug,
+    valid_email,
 )
 
 DEFAULT_CONFIG = {
@@ -554,7 +555,7 @@ class Store:
     def _coerce_email(value: str | None) -> str:
         # Validate writes here; normalise_email also loads legacy files.
         value = normalise_email(value)
-        if value and (value.count("@") != 1 or not all(value.split("@"))):
+        if value and not valid_email(value):
             raise ValidationError({
                 "email": "email must contain exactly one @ with text on both sides",
             })
