@@ -528,7 +528,8 @@ def test_the_card_shows_the_scores_and_the_reason_next_to_the_checks(client, roo
     assert "Critic 2/5" in page
     assert "relevance 4, personal 2, tone 5, honesty 4" in page
     assert "The opener is generic." in page
-    assert page.index("Checks passed.") < page.index("Critic 2/5")
+    assert "Checks passed." not in page
+    assert '<details class="small outreach-critic"' in page
     assert "asks the AI critic to score it again" in page
 
 

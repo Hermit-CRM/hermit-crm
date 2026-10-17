@@ -221,11 +221,10 @@
     <textarea name="body" rows="9" spellcheck="true" aria-label="Draft for {{ ct.name if ct else i.contact }}" id="body-{{ i.id }}">{{ i.body }}</textarea>
     {% if i.channel != 'email' %}<label class="small">after they accept</label>
     <textarea name="pitch" rows="5" spellcheck="true" aria-label="Message after they accept">{{ i.pitch }}</textarea>{% endif %}
-    <label class="small outreach-note">Why this change? (optional, kept with the edit)
+    <label class="small outreach-note" data-note-for="{{ i.id }}" hidden>Why this change? (optional) Your reason is kept with the edit and helps improve the AI's next drafts.
       <input name="note" maxlength="500" placeholder="e.g. too formal for a founder, or the trigger is old news"></label>
-    {% if i.checks %}<ul class="outreach-checks warning">{% for c in i.checks %}<li>{{ c }}</li>{% endfor %}</ul>
-    {% else %}<p class="small outreach-checks ok">Checks passed.</p>{% endif %}
-    {% if i.critic %}<p class="small outreach-critic" title="Scored by the AI, 1 (bad) to 5 (good). A guide, not a rule: it never blocks anything."><strong>Critic {{ i.critic_score }}/5</strong> (lowest): {% for name in critic_scores %}{{ name }} {{ i.critic[name] }}{% if not loop.last %}, {% endif %}{% endfor %}{% if i.critic_reason %}. {{ i.critic_reason }}{% endif %}</p>{% endif %}
+    {% if i.checks %}<ul class="outreach-checks warning">{% for c in i.checks %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
+    {% if i.critic %}<details class="small outreach-critic" title="Scored by the AI, 1 (bad) to 5 (good). A guide, not a rule: it never blocks anything."><summary><strong>Critic {{ i.critic_score }}/5</strong></summary><p>Lowest: {% for name in critic_scores %}{{ name }} {{ i.critic[name] }}{% if not loop.last %}, {% endif %}{% endfor %}{% if i.critic_reason %}. {{ i.critic_reason }}{% endif %}</p></details>{% endif %}
     {% if i.proof_used %}<p class="small">Proof: {{ i.proof_used | join('; ') }}</p>{% endif %}
     <div class="draft-actions">
       <button type="submit" title="{% if i.checks %}Allowed with a failing check: it is kept as a warning{% else %}Approve this text{% endif %}">Mark ready</button>
@@ -253,7 +252,7 @@
   <pre class="outreach-text" id="body-{{ i.id }}">{{ i.body }}</pre>
   {% if i.pitch %}<p class="small">after they accept</p><pre class="outreach-text">{{ i.pitch }}</pre>{% endif %}
   {% if i.checks %}<ul class="outreach-checks warning">{% for c in i.checks %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
-  {% if i.critic %}<p class="small outreach-critic" title="Scored by the AI, 1 (bad) to 5 (good). A guide, not a rule: it never blocks anything."><strong>Critic {{ i.critic_score }}/5</strong> (lowest): {% for name in critic_scores %}{{ name }} {{ i.critic[name] }}{% if not loop.last %}, {% endif %}{% endfor %}{% if i.critic_reason %}. {{ i.critic_reason }}{% endif %}</p>{% endif %}
+  {% if i.critic %}<details class="small outreach-critic" title="Scored by the AI, 1 (bad) to 5 (good). A guide, not a rule: it never blocks anything."><summary><strong>Critic {{ i.critic_score }}/5</strong></summary><p>Lowest: {% for name in critic_scores %}{{ name }} {{ i.critic[name] }}{% if not loop.last %}, {% endif %}{% endfor %}{% if i.critic_reason %}. {{ i.critic_reason }}{% endif %}</p></details>{% endif %}
   <div class="draft-actions">
     <button type="button" data-copy-target="body-{{ i.id }}">Copy</button>
     {% if i.channel == 'email' and ct and ct.email %}<a class="button secondary" href="mailto:{{ ct.email }}?subject={{ i.subject | urlencode }}">Open in mail</a>{% endif %}
@@ -285,6 +284,17 @@
 
 <script>
 (function () {
+  // The "why this change?" box appears only once the text differs from what was loaded.
+  document.querySelectorAll("form[action$='/ready']").forEach(function (form) {
+    var note = form.querySelector("[data-note-for]");
+    var fields = form.querySelectorAll("textarea, input[name=subject]");
+    function changed() {
+      return Array.prototype.some.call(fields, function (f) { return f.value !== f.defaultValue; });
+    }
+    function sync() { if (note) note.hidden = !changed(); }
+    fields.forEach(function (f) { f.addEventListener("input", sync); });
+    sync();
+  });
   document.querySelectorAll("[data-copy-target]").forEach(function (button) {
     button.addEventListener("click", function () {
       var el = document.getElementById(button.getAttribute("data-copy-target"));
