@@ -196,3 +196,63 @@ opt_out = true         # add the playbook's opt_out line (if it has one) to a co
 note_max_chars = 300   # LinkedIn's limit for a connection note; no pitch, at most one question
 pitch_max_chars = 600  # the message after they accept, or to an existing connection; one question
 links = false
+
+# [outreach.reply.<language>]: a reply to someone who answered with interest.
+# They asked what you offer, so the reply says it before anything else: your
+# offer line, one proof line, your first step (when the playbook has one) and
+# one question. No time slot, booking link, price or days per week: a meeting
+# comes after they answer. The AI follows this shape; without an AI CLI it is
+# the draft itself. Slots, filled from the playbook and [culture.*]:
+#   {greeting} {offer_line} {proof} {first_step} {question} {signoff} {name}
+# An empty slot (no proof, no first step) is left out cleanly.
+[outreach.reply.en]
+text = """
+{greeting}
+
+Thanks for getting back to me. {offer_line} {proof} {first_step}
+
+{question}
+
+{signoff}
+{name}
+"""
+question = "What would you most like to change first?"
+
+[outreach.reply.de]
+text = """
+{greeting}
+
+Danke für deine Antwort. {offer_line} {proof} {first_step}
+
+{question}
+
+{signoff}
+{name}
+"""
+question = "Was würdest du als Erstes ändern wollen?"
+
+[outreach.reply.nl]
+text = """
+{greeting}
+
+Dank voor je reactie. {offer_line} {proof} {first_step}
+
+{question}
+
+{signoff}
+{name}
+"""
+question = "Wat zou je als eerste willen veranderen?"
+
+[outreach.reply.fr]
+text = """
+{greeting}
+
+Merci pour votre réponse. {offer_line} {proof} {first_step}
+
+{question}
+
+{signoff}
+{name}
+"""
+question = "Qu'est-ce que vous aimeriez changer en premier ?"

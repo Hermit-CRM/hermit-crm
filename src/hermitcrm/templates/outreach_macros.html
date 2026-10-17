@@ -1,0 +1,154 @@
+{# The Outreach page's parts. Import "with context" (the forms need csrf_token). #}
+
+{% macro source_link(f) -%}
+{%- if f.source == 'crm' %}<span class="small">from the CRM</span>
+{%- elif f.source == 'you' %}<span class="small">added by you</span>
+{%- else %}<a class="small" href="{{ f.source | href }}" target="_blank" rel="noopener">{{ f.source | replace('https://', '') | replace('http://', '') | truncate(48) }} &#8599;</a>{% endif -%}
+{%- endmacro %}
+
+{% macro card(c) -%}
+{%- set item = c.item %}{% set co = c.company %}{% set p = c.contact %}
+<article class="card outreach-card state-{{ item.state }}" id="item-{{ item.id }}" data-item="{{ item.id }}" data-tab="{{ c.tab }}">
+  <header class="oc-head">
+    <div class="oc-who">
+      {% if p %}<strong><a href="/companies/{{ co.slug }}/contacts/{{ p.slug }}">{{ p.name }}</a></strong>{% if p.title %}, {{ p.title }}{% endif %}
+      {% if p.linkedin %}<a href="{{ p.linkedin | href }}" target="_blank" rel="noopener">LinkedIn &#8599;</a>{% endif %}
+      {% if p.email %}<a href="mailto:{{ p.email }}">{{ p.email }}</a>{% endif %}
+      {% else %}<strong>{{ item.record }}</strong> <span class="small error">not in the CRM any more</span>{% endif %}
+      {% if co %}<div class="small"><a href="/companies/{{ co.slug }}">{{ co.name }}</a> &middot; {{ co.stage }} &middot; {{ 'fit ' ~ c.fit if c.fit is not none else 'no fit score' }}{% if co.website %} &middot; <a href="{{ co.website | href }}" target="_blank" rel="noopener">website &#8599;</a>{% endif %}</div>{% endif %}
+    </div>
+    <div class="oc-meta small">
+      <span class="oc-state">{{ item.state }}</span> &middot; {{ kind_labels.get(item.kind, item.kind) }} by {{ item.channel }}
+      {%- if item.approach %} &middot; approach: {{ item.approach }}{% endif %}
+      {%- if item.angle %} &middot; angle: {{ item.angle }}{% endif %}
+      {%- if item.language %} &middot; {{ item.language }}{% endif %}
+      {%- if item.model %} &middot; {{ item.model }}{% endif %}
+    </div>
+  </header>
+
+  {% if item.flags %}<ul class="oc-flags">{% for f in item.flags %}<li>{{ f }}</li>{% endfor %}</ul>{% endif %}
+
+  {% if c.reply %}<details class="oc-reply" open><summary>Their reply, {{ fmt_date(c.reply.date) }}{% if c.reply.subject %}: {{ c.reply.subject }}{% endif %}</summary><pre>{{ c.reply.body }}</pre></details>{% endif %}
+
+  {% if item.state in ('researching', 'drafted') %}
+  <div class="oc-findings">
+    <h4>Findings{% if not item.findings %}: none{% endif %}</h4>
+    {% if item.findings %}<ol>
+      {% for f in item.findings %}<li>
+        <span class="conf conf-{{ f.confidence }}" title="{{ f.confidence }} confidence"></span>
+        {{ f.text }} {{ source_link(f) }}
+        {%- if f.stale %} <span class="tag" title="older than about 90 days: never the opening line">stale</span>{% endif %}
+        {%- if f.used %} <span class="tag used" title="the draft uses it; Mark ready adds it to the contact's notes">used</span>{% endif %}
+        <form method="post" action="/outreach/{{ item.id }}/findings/{{ loop.index }}/remove" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="link-button" title="Remove this finding">remove</button>
+        </form>
+      </li>{% endfor %}
+    </ol>{% endif %}
+    <details class="oc-add"><summary>Add your own finding</summary>
+      <form method="post" action="/outreach/{{ item.id }}/findings/add" class="row">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label class="grow">What you know<input name="text" required></label>
+        <label class="grow">Source (a link, optional)<input name="source" placeholder="https://"></label>
+        <button type="submit">Add</button>
+      </form>
+    </details>
+    {% for key, value in item.proposals | dictsort %}
+    <form method="post" action="/outreach/{{ item.id }}/proposals/{{ key }}" class="oc-proposal small">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      Research found a {{ key }} for an empty field: <strong>{{ value }}</strong>
+      <button type="submit">Save to the record</button>
+    </form>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if item.state == 'drafted' %}
+  <form method="post" action="/outreach/{{ item.id }}/check" class="oc-draft">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% if item.channel == 'email' %}<label>Subject<input name="subject" value="{{ item.subject }}"></label>{% endif %}
+    <label>{{ 'Connection note' if item.channel == 'linkedin' and item.kind == 'first-touch' else 'Message' }}
+      <textarea name="body" rows="{{ [item.body.count('\n') + 2, 6] | max }}">{{ item.body }}</textarea></label>
+    {% if item.channel == 'linkedin' and item.kind == 'first-touch' %}
+    <label>Message after they accept<textarea name="pitch" rows="{{ [item.pitch.count('\n') + 2, 4] | max }}">{{ item.pitch }}</textarea></label>
+    {% endif %}
+    <p class="small">
+      {% if item.proof_used %}Proof: {{ item.proof_used | join(' | ') }}. {% endif %}
+      {% if item.findings | selectattr('used') | list %}Uses finding {{ item.findings | selectattr('used') | map(attribute='text') | map('truncate', 40) | join('; ') }}. {% endif %}
+      {% if item.norms %}<span title="{{ item.norms | join('; ') }}">Culture norms applied ({{ item.norms | length }})</span>{% endif %}
+    </p>
+    {% if item.checks %}<div class="warning-box oc-checks"><strong>{{ item.checks | length }} check{{ 's' if item.checks | length > 1 }} fail{{ 's' if item.checks | length == 1 }}</strong> (you can still mark it ready):
+      <ul>{% for p in item.checks %}<li>{{ p }}</li>{% endfor %}</ul></div>
+    {% else %}<p class="small oc-passed">Checks passed.</p>{% endif %}
+    <div class="oc-actions">
+      {#- Check again first: Enter in the subject submits the first button. #}
+      <button type="submit" title="Saves your edits and runs the checks on them again">Check again</button>
+      <button type="submit" class="primary" formaction="/outreach/{{ item.id }}/ready" title="Saves your edits; adds the findings it uses to the contact's notes. Nothing is sent or logged.">Mark ready</button>
+      <button type="button" data-copy title="Copy the subject and the message">Copy</button>
+    </div>
+  </form>
+  {% endif %}
+
+  {% if item.state in ('researching', 'drafted') %}
+  <div class="oc-more">
+    <form method="post" action="/outreach/{{ item.id }}/regenerate" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" title="A new draft on the same findings; your edits are replaced">{{ 'Regenerate' if item.state == 'drafted' else 'Draft it now' }}</button>
+      <label class="inline small"><input type="checkbox" name="strong" value="1"> stronger model</label>
+    </form>
+    <details class="oc-skip"><summary class="button">Skip</summary>
+      <form method="post" action="/outreach/{{ item.id }}/skip" class="row">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>Why<select name="reason" required><option value="">choose</option>{% for r in skip_reasons %}<option value="{{ r }}">{{ skip_labels.get(r, r) }}</option>{% endfor %}</select></label>
+        <label class="grow">Note (optional)<input name="note"></label>
+        <button type="submit">Skip</button>
+      </form>
+    </details>
+  </div>
+  {% endif %}
+
+  {% if item.state == 'ready' %}
+  <div class="oc-ready">
+    {% if item.subject %}<p><strong>Subject:</strong> {{ item.subject }}</p>{% endif %}
+    <pre>{{ item.body }}</pre>
+    {% if item.pitch %}<p class="small">After they accept:</p><pre>{{ item.pitch }}</pre>{% endif %}
+    {% if item.checks %}<p class="warning-box small">Marked ready with {{ item.checks | length }} failing check{{ 's' if item.checks | length > 1 }}: {{ item.checks | join('; ') }}</p>{% endif %}
+    <div class="oc-actions">
+      <button type="button" data-copy data-copy-text="{{ c.copy }}">Copy</button>
+      {% if item.pitch %}<button type="button" data-copy data-copy-text="{{ item.pitch }}">Copy the message after they accept</button>{% endif %}
+      {% if p and item.channel == 'email' and p.email %}<a class="button" href="mailto:{{ p.email }}">Open in your mail app</a>{% endif %}
+      {% if p and p.linkedin %}<a class="button" href="{{ p.linkedin | href }}" target="_blank" rel="noopener">Open LinkedIn &#8599;</a>{% endif %}
+      <form method="post" action="/outreach/{{ item.id }}/sent" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" title="Changes the state only; nothing is logged. Logging the message does this by itself.">Mark sent</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if item.state == 'skipped' %}
+  <p class="small">Skipped{% if item.skipped %} {{ fmt_date(item.skipped) }}{% endif %}: {{ skip_labels.get(item.skip_reason, item.skip_reason) }}{% if item.skip_note %} &middot; {{ item.skip_note }}{% endif %}</p>
+  {% endif %}
+</article>
+{%- endmacro %}
+
+{% macro preview(sel) -%}
+<section class="outreach-preview card" id="preview">
+  <h2>Preview: {{ sel.picked | length }} of up to {{ sel.limit }}</h2>
+  {% if sel.gate %}<p class="warning-box">{{ sel.gate }}</p>{% endif %}
+  <p class="small">High-fit companies ({{ sel.fit_field }} &ge; {{ sel.high_fit_threshold }}) never contacted: {{ sel.high_fit_untouched }} of {{ sel.high_fit }}.</p>
+  {% if sel.picked %}<table>
+    <tr><th>#</th><th>Contact</th><th>Fit</th><th>Approach</th><th>Flags</th></tr>
+    {% for c in sel.picked %}<tr><td>{{ loop.index }}</td>
+      <td><a href="/companies/{{ c.company.slug }}/contacts/{{ c.contact.slug }}">{{ c.contact.name }}</a> <span class="small">{{ c.company.name }}</span></td>
+      <td>{{ c.fit if c.fit is not none else '-' }}</td>
+      <td>{{ c.approach or '-' }}{% if c.persona %} <span class="small">({{ c.persona }})</span>{% endif %}</td>
+      <td class="small">{{ c.flags | join('; ') }}</td></tr>{% endfor %}
+  </table>{% else %}<p class="empty">Nobody would get a draft now.</p>{% endif %}
+  {% if sel.over_limit %}<p class="small">Over this batch's limit: {{ sel.over_limit | map(attribute='who') | join(', ') }}</p>{% endif %}
+  {% if sel.excluded %}<details><summary>Not this time ({{ sel.excluded | length }})</summary><ul class="small">
+    {% for c in sel.excluded %}<li>{{ c.who }}: {{ c.reason }}</li>{% endfor %}</ul></details>{% endif %}
+  {% if sel.duplicates %}<details><summary>Likely duplicates ({{ sel.duplicates | length }})</summary><ul class="small">
+    {% for a, b, why in sel.duplicates %}<li>{{ a }} / {{ b }}: {{ why }} &middot; <a href="/companies/{{ a }}/merge">merge</a></li>{% endfor %}</ul></details>{% endif %}
+</section>
+{%- endmacro %}

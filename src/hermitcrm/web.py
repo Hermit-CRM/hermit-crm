@@ -58,7 +58,7 @@ from . import playbook, textsource
 from . import schedule, scrape, secrets, task_types, usertheme
 from . import stage_ops
 from . import stages as stages_mod
-from . import routines
+from . import outreach_web, routines
 from . import help as helpdocs
 from . import setup as setup_steps
 from .filters import Column
@@ -1481,6 +1481,9 @@ def create_app(root: Path, config: dict | None = None,
          "Every person, with the company they belong to."),
         ("/messages", "Messages", "messages",
          "What you sent, and whether it was answered."),
+        ("/outreach", "Outreach", "outreach",
+         "Drafts the outreach bot wrote for you to review: replies to interest, first "
+         "touches, the ones ready to send."),
         ("/extension", "Extension", "capture",
          "Save the page you are looking at as a company or a contact."),
         ("/reports", "Reports", "reports",
@@ -2731,6 +2734,7 @@ def create_app(root: Path, config: dict | None = None,
             "summary": contact_summary(company, contact, interactions, store.today()),
             "editing": editing or values is not None,
             **draft_context(request, company, contact),
+            **outreach_web.contact_context(root, company, contact),
             **extra,
         }
 
@@ -3782,6 +3786,12 @@ def create_app(root: Path, config: dict | None = None,
         who = contact.name if contact else (company.name if company else draft.record)
         return flashed(back, f"Logged the message to {who} as sent" if sent
                        else f"Draft for {who} discarded", anchor="routine-drafts")
+
+    # ---------------------------------------------------------- outreach bot
+
+    outreach_web.register(app, store=store, root=root, config=config, render=render,
+                          check_csrf=check_csrf, flashed=flashed, safe_back=safe_back,
+                          config_saved=config_saved)
 
     # ---------------------------------------------------------- make it yours
 

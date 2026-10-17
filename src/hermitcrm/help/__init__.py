@@ -120,7 +120,7 @@ def topic_for(path: str) -> str:
     if head == "d":  # a dashboard: how they are made
         return "adjust-dashboards"
     if head in ("calendar", "tasks", "messages", "reports", "import", "extension",
-                "contacts"):
+                "contacts", "outreach"):
         return head
     if head == "companies":
         tail = parts[-1]

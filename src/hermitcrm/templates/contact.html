@@ -60,6 +60,19 @@
     {% else %}<dd class="empty">no touches yet</dd>{% endif %}
   </div>
 </dl>
+<div class="outreach-box" id="outreach">
+  {% if outreach_item %}
+  <p class="card small">Outreach: a {{ outreach_kind_labels.get(outreach_item.kind, outreach_item.kind) | lower }} by {{ outreach_item.channel }} is <strong>{{ outreach_item.state }}</strong>{% if outreach_item.checks and outreach_item.state == 'drafted' %} ({{ outreach_item.checks | length }} check{{ 's' if outreach_item.checks | length > 1 }} fail){% endif %}.
+    <a href="/outreach?tab={{ outreach_tab }}#item-{{ outreach_item.id }}">Open the card</a></p>
+  {% else %}
+  <form method="post" action="/companies/{{ company.slug }}/contacts/{{ contact.slug }}/outreach" class="inline outreach-start">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" title="The outreach bot researches and drafts one message in the background; you review it on the Outreach page. Nothing is sent.">Research &amp; draft</button>
+    <label class="inline small">type <select name="kind">{% for k in outreach_kinds %}<option value="{{ k }}"{% if k == outreach_kind %} selected{% endif %}>{{ outreach_kind_labels[k] }}{% if k == outreach_kind %} (suggested){% endif %}{% if k not in outreach_built %} (later version){% endif %}</option>{% endfor %}</select></label>
+    <label class="inline small">by <select name="channel">{% for ch in ('email', 'linkedin') %}<option value="{{ ch }}"{% if ch == outreach_channel %} selected{% endif %}>{{ 'LinkedIn' if ch == 'linkedin' else 'email' }}</option>{% endfor %}</select></label>
+  </form>
+  {% endif %}
+</div>
 {% for section in sections %}{% if section == 'details' %}
 <section id="details">
   <h2>Details</h2>
