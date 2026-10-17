@@ -27,10 +27,10 @@ SITE = """<html lang="de"><head><title>Acme – Procurement AI</title>
  "address":{"addressCountry":"Germany"},"numberOfEmployees":{"value":42}}</script>
 </head><body><a href="/about">About</a><a href="https://www.linkedin.com/company/acme-gmbh/">LI</a></body></html>"""
 
-LINKEDIN = """<html><head><title>Quill | LinkedIn</title>
-<meta property="og:description" content="Quill | 1,234 followers on LinkedIn. Bookkeeping for small breweries. | Long text">
+LINKEDIN = """<html><head><title>Inkwell | LinkedIn</title>
+<meta property="og:description" content="Inkwell | 1,234 followers on LinkedIn. Bookkeeping for small breweries. | Long text">
 <script type="application/ld+json">{"@graph":[{"@type":"Organization","numberOfEmployees":{"value":45},
- "sameAs":"https://quillhq.example","address":{"addressCountry":"SE"}}]}</script></head><body></body></html>"""
+ "sameAs":"https://inkwell.example","address":{"addressCountry":"SE"}}]}</script></head><body></body></html>"""
 
 BARE = "<html><head><title>Foo Ltd - Home</title></head><body>We employ 11-50 employees.</body></html>"
 
@@ -59,13 +59,13 @@ def test_propose_from_website_fills_only_empty_fields():
 
 
 def test_propose_from_linkedin_page():
-    company = Company(name="Quill", slug="quill")
-    proposal = propose_from_url(company, "https://www.linkedin.com/company/quill/?trk=x",
+    company = Company(name="Inkwell", slug="inkwell")
+    proposal = propose_from_url(company, "https://www.linkedin.com/company/inkwell/?trk=x",
                                 custom_keys={"fte_estimate"},
                                 fetcher=lambda url: LINKEDIN)
     assert proposal.fields == {
-        "website": "https://quillhq.example",
-        "linkedin": "https://www.linkedin.com/company/quill",
+        "website": "https://inkwell.example",
+        "linkedin": "https://www.linkedin.com/company/inkwell",
         "country": "SE",
         "fte_estimate": "~45",
         "product_oneliner": "Bookkeeping for small breweries.",

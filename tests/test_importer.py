@@ -41,16 +41,16 @@ SAMPLE = (
     "Skarvik\t\t\t\tcore\t82\tSweden\tStockholm\t\t21\t\t3\tNils Ekdahl\t"
     "Founder / CEO\thttps://www.linkedin.com/sales/lead/ACwAAABx\t"
     "linkedin.com/in/nils-ekdahl\tPlanning software for ferry operators.\n"
-    "Cirrusly AI (YC S23)\tno personalization\t\t\tcore\t78\tGermany\t\t"
-    "https://getcirrusly.ai/\t~13\t\t2\tLukas Brenner\tCo-Founder\t\t"
+    "Cirrusly AI (Batch 7)\tno personalization\t\t\tcore\t78\tGermany\t\t"
+    "https://getcirrusly.example/\t~13\t\t2\tLukas Brenner\tCo-Founder\t\t"
     "linkedin.com/in/lukas-brenner\tWeather data for event planners.\n"
     "orvelo\t\talready have VP sales\t5\tcore\t65\tFrance\tParis\t"
     "https://www.orvelo.example/\t42\t42\t2\tLuka Maric\tCo Founder\t\t\t"
     "Booking tool for climbing gyms.\n"
     ", \t\topen HoS job\t6\tcore\t70\tGermany\tBerlin\thttps://hi.lumenhire.example.com/li\t32\t"
     "32\t2\tJonas zur Linde\tCEO\t\t\tPhone agents for dental clinics.\n"
-    "Quill\t\tInteresting!\t9\tcore\t72\tSweden\tStockholm\thttps://quillhq.example\t\t\t5\t"
-    "Adam Jensen\tFounder & CEO\t\t\tBookkeeping for small breweries.\n"
+    "Inkwell\t\tInteresting!\t9\tcore\t72\tSweden\tStockholm\thttps://inkwell.example\t\t\t5\t"
+    "Petra Nyberg\tFounder & CEO\t\t\tBookkeeping for small breweries.\n"
 )
 
 
@@ -103,7 +103,7 @@ def test_plan_maps_columns_and_keeps_extras(store):
         "slug": "nils-ekdahl",
     }
     cirrusly = plan.rows[1]
-    assert cirrusly.slug == "cirrusly-ai-yc-s23" and cirrusly.custom["fte_estimate"] == "~13"
+    assert cirrusly.slug == "cirrusly-ai-batch-7" and cirrusly.custom["fte_estimate"] == "~13"
     assert "- LI invite: no personalization" in cirrusly.notes
     orvelo = plan.rows[2]
     assert orvelo.fields["country"] == "FR"  # any ISO country maps now
@@ -114,20 +114,20 @@ def test_plan_maps_columns_and_keeps_extras(store):
 
 
 def test_plan_fills_only_empty_fields_of_existing_company(store):
-    store.create_company("Quill", website="https://quillhq.example", custom={"my_score": 7},
+    store.create_company("Inkwell", website="https://inkwell.example", custom={"my_score": 7},
                          tags=["priority"], notes="Old notes.\n")
-    store.create_contact("quill", "Adam", "Jensen")
+    store.create_contact("inkwell", "Petra", "Nyberg")
     plan = plan_import(store, SAMPLE, defs=DEFS)
-    quill = plan.rows[4]
-    assert quill.action == "update" and quill.slug == "quill"
-    assert quill.custom["fit_score"] == 72 and quill.fields["country"] == "SE"
+    inkwell = plan.rows[4]
+    assert inkwell.action == "update" and inkwell.slug == "inkwell"
+    assert inkwell.custom["fit_score"] == 72 and inkwell.fields["country"] == "SE"
     # a custom field that already holds a value is not overwritten either
-    assert "my_score" not in quill.custom and "website" not in quill.fields
-    assert "fit_score" in quill.reason
-    assert quill.fields["tags"] == ["core", "priority"]
-    assert quill.fields["notes"].startswith("Old notes.\n\nImported fields")
-    assert "- Interesting!" in quill.fields["notes"]
-    assert quill.contact_action == "exists"
+    assert "my_score" not in inkwell.custom and "website" not in inkwell.fields
+    assert "fit_score" in inkwell.reason
+    assert inkwell.fields["tags"] == ["core", "priority"]
+    assert inkwell.fields["notes"].startswith("Old notes.\n\nImported fields")
+    assert "- Interesting!" in inkwell.fields["notes"]
+    assert inkwell.contact_action == "exists"
 
 
 def test_plan_rejects_tables_without_a_name_column(store):
@@ -174,10 +174,10 @@ APOLLO = (
     "First Name,Last Name,Title,Company,Company Name for Emails,Email,Email Status,"
     "Seniority,Departments,Person Linkedin Url,Website,Company Linkedin Url,"
     "# Employees,Country\n"
-    'Lukas,Brenner,Co-Founder,Cirrusly AI,Cirrusly,lukas@getcirrusly.ai,Verified,Founder,'
-    '"C-Suite, Sales",http://www.linkedin.com/in/lukas-brenner,https://getcirrusly.ai,'
+    'Lukas,Brenner,Co-Founder,Cirrusly AI,Cirrusly,lukas@getcirrusly.example,Verified,Founder,'
+    '"C-Suite, Sales",http://www.linkedin.com/in/lukas-brenner,https://getcirrusly.example,'
     "http://www.linkedin.com/company/cirrusly-ai,13,Germany\n"
-    "Mia,Holm,VP Sales,Quill,Quill,mia@quillhq.example,Verified,VP,Sales,,http://www.quillhq.example,,5,Sweden\n"
+    "Mia,Falk,VP Sales,Inkwell,Inkwell,mia@inkwell.example,Verified,VP,Sales,,http://www.inkwell.example,,5,Sweden\n"
 )
 
 
@@ -268,13 +268,13 @@ def test_contacts_mode_matches_by_email_by_name_and_by_domain(store):
 
 def test_contacts_mode_derives_company_from_email_domain(store):
     plan = plan_import(store, "First Name,Last Name,Email,Company\n"
-                              "Eva,Lind,eva@lindqvist-labs.se,\n", mode="contacts")
+                              "Eva,Lind,eva@fjord-labs.example,\n", mode="contacts")
     row = plan.rows[0]
-    assert row.action == "create" and row.name == "Lindqvist-labs"
-    assert row.fields["website"] == "https://lindqvist-labs.se"
-    assert any("derived from lindqvist-labs.se" in w for w in row.warnings)
+    assert row.action == "create" and row.name == "Fjord-labs"
+    assert row.fields["website"] == "https://fjord-labs.example"
+    assert any("derived from fjord-labs.example" in w for w in row.warnings)
     assert name_from_domain("mail.acme.co.uk") == "Acme"
-    assert name_from_domain("getcirrusly.ai") == "Getcirrusly"
+    assert name_from_domain("getcirrusly.example") == "Getcirrusly"
 
 
 def test_contacts_mode_existing_company_by_slug_fills_empty_fields_only(store):
@@ -283,15 +283,15 @@ def test_contacts_mode_existing_company_by_slug_fills_empty_fields_only(store):
     It used to fill a built-in `fte_estimate`; there is no such field now, so
     it is kept as a note rather than silently dropped.
     """
-    store.create_company("Quill", country="SE")
+    store.create_company("Inkwell", country="SE")
     plan = plan_import(store, APOLLO)
     lukas, mia = plan.rows
     assert lukas.action == "create" and lukas.slug == "cirrusly-ai"
     assert lukas.fields["linkedin"] == "https://www.linkedin.com/company/cirrusly-ai"
     assert "fte_estimate" not in lukas.fields
     assert lukas.contact["title"] == "Co-Founder" and lukas.contact["role"] == "decision-maker"
-    assert mia.action == "update" and mia.slug == "quill"
-    assert mia.fields == {"website": "http://www.quillhq.example"}
+    assert mia.action == "update" and mia.slug == "inkwell"
+    assert mia.fields == {"website": "http://www.inkwell.example"}
     assert "- Seniority: VP" in mia.contact["notes"]
     assert plan.mapping["Company Name for Emails"] == "notes"
 
