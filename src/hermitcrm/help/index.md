@@ -23,7 +23,7 @@ page for the screen you are on; `hermitcrm help <topic>` prints the same text.
 - [Outreach bot](/help/outreach): a batch of researched, checked first messages for you to review, send and log (`hermitcrm outreach`).
 - [Reports](/help/reports): activity, funnel, outcomes, messages, sources, hygiene.
 - [Settings](/help/settings): you, BCC capture, calendar, backup, enrichment, outcomes, schedule, phone and MCP access, support, about.
-- [Import](/help/import): bulk import from CSV, TSV, .xlsx or a pasted table.
+- [Import and export](/help/import): bulk import from CSV, TSV, .xlsx or a pasted table; export everything as CSV or JSON.
 - [Extension](/help/extension): turn the page you are looking at into a company, from a bookmarklet.
 - [Enrich](/help/enrich): "Fetch from URL" (no AI) and Enrich (an AI CLI).
 - [Ask the Hermit](/help/ask): ask a question about the page you are on or the whole CRM.

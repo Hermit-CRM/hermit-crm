@@ -41,7 +41,8 @@ from typing import Callable
 from urllib.parse import parse_qsl as _parse_qsl, quote, urlencode, urlparse
 
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.responses import (HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse,
+                               Response, StreamingResponse)
 from fastapi.staticfiles import StaticFiles
 from markupsafe import Markup, escape
 from starlette.concurrency import run_in_threadpool
@@ -1891,6 +1892,19 @@ def create_app(root: Path, config: dict | None = None,
         mapping = {h: str(form[f"map_{i}"]) for i, h in enumerate(headers)
                    if h and f"map_{i}" in form}
         return mapping or None
+
+    @app.get("/export.zip")
+    def export_zip(profile: str = "generic", excel: bool = False):
+        """Everything as a zip of CSVs, streamed. Reads only: no write, no commit."""
+        from hermitcrm import export
+        if profile not in export.PROFILES:
+            return PlainTextResponse(f"unknown profile {profile!r}", status_code=400)
+        name = export.default_name(store)
+        return StreamingResponse(
+            export.zip_chunks(store, app.state.custom_fields, profile, excel),
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{name}"',
+                     "Cache-Control": "no-store"})
 
     @app.post("/import/preview", response_class=HTMLResponse)
     async def import_preview(request: Request):
