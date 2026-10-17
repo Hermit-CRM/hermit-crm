@@ -3,6 +3,7 @@
    ever sent: you send it yourself, then log it (logging it marks the item sent). #}
 {% block title %}Outreach{% endblock %}
 {% block content %}
+{% from "macros.html" import fix_with_ai %}
 <h1>Outreach</h1>
 <p class="small">Research and draft first touches with your AI CLI, review each one, then send it yourself. Nothing is sent from here. Logging the message on the contact marks its item sent. <a href="/help/outreach">How it works</a></p>
 
@@ -28,10 +29,12 @@
   {% if form.left %}<a href="/outreach" class="small" id="outreach-stop">Stop</a> <span class="small">Building: {{ form.left }} left</span>{% endif %}
 </form>
 
-{% if preview_error %}<p class="error">{{ preview_error }}</p>{% endif %}
+{% if preview_error %}<p class="error">{{ preview_error }} {{ fix_with_ai(fix_request) }}</p>{% endif %}
 {% if preview %}
 <section class="outreach-preview">
   <h2>Preview: {{ preview.picked | length }} would get a draft</h2>
+  {% for note in preview.notes %}<p class="warning-box">{{ note }} {{ fix_with_ai(note_requests[loop.index0]) }}</p>
+  {% endfor %}
   <p class="small">No AI was run and nothing was written. High-fit companies ({{ preview.fit_field }} &ge; {{ preview.high_fit_threshold }}) never contacted: {{ preview.high_fit_untouched }} of {{ preview.high_fit }}.</p>
   {% if preview.picked %}<ol>{% for c in preview.picked %}
     <li>{{ c.who }} &middot; {% if c.fit is not none %}fit {{ c.fit }}{% else %}no fit score{% endif %} &middot; {{ c.approach or 'no approach' }}{% if c.flags %} <span class="small">({{ c.flags | join('; ') }})</span>{% endif %}</li>

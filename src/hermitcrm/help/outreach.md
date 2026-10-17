@@ -145,6 +145,11 @@ land on the card, sourced to the profile. The page text itself is not stored.
 - **The filter** is the Companies page's (`stage=prospect`, `country=DE,NL`,
   `fit_score=>60`, `tags=saas`). A contact key works too (`contact.title=CEO`).
   Or name people outright: `--contact acme/jane-doe`.
+  The comparison goes inside the value, after the `=`: `fte_estimate=>24`, not
+  `fte_estimate >24`. `>` and `<` compare numbers only on a number field; on a text
+  field they compare letter by letter (100 counts as smaller than 24), and the preview
+  says so. A filter that does not work shows what to type instead and an
+  **Explain and fix with AI** link that opens Ask · Adjust with the problem filled in.
 - **Order**: highest fit first, by the company field `outreach_fit_field`
   (default `fit_score`, 0 to 100). A company without one comes last, with "no
   fit score" on its card; the bot never makes one up. Within a company, someone
