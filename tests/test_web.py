@@ -2030,11 +2030,16 @@ def test_every_table_on_the_company_page_scrolls_in_a_box_of_its_own(client, app
     assert page.count('<div class="table-scroll"><table') == tables
 
 
+def test_a_wide_table_scrolls_in_its_own_box_at_every_width():
+    """Messages is 1420px of table in a 1024px column: at 1280px the whole page scrolled
+    sideways, and Companies did at any window under about 1140px."""
+    phone, wide = phone_and_wide_css()
+    assert effective(wide, ".table-scroll") == {"overflow-x": "auto"}
+
+
 def test_the_phone_rules_that_keep_the_company_page_on_the_screen():
     """They all sit in @media (max-width: 760px): above that the page is as it was."""
     phone, wide = phone_and_wide_css()
-    assert effective(phone, ".table-scroll") == {"overflow-x": "auto"}
-    assert effective(wide, ".table-scroll") == {}
     # The Disqualify menu hung from its button's right edge and ran off the left
     # of the screen; on a phone it spans the header row instead.
     assert effective(phone, ".record-meta")["position"] == "relative"
