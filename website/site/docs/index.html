@@ -40,7 +40,7 @@
    "name": "Hermit CRM docs: every feature, for people and AI agents",
    "description": "How every part of Hermit CRM works: pipeline, contacts, mail capture, reports, the CLI, the MCP server and how your AI agent can change it.",
    "inLanguage": "en",
-   "version": "0.7.5",
+   "version": "0.8.0",
    "isPartOf": {
     "@id": "https://hermitcrm.io/#website"
    },
@@ -83,7 +83,7 @@
    "description": "Hermit CRM is a free, open-source CRM for founders, freelancers and anyone doing their own sales. It runs on your Mac or Linux computer and keeps every company, contact and conversation as a Markdown file in a git folder on your own disk. A local web app gives you a pipeline board, a calendar of next steps, message drafts and reports. AI tools such as Claude Code, Codex or Claude Desktop can read and update the pipeline through the files, a small CLI or the built-in MCP server. It is alpha software under the Apache License 2.0, with no warranty and no support.",
    "applicationCategory": "BusinessApplication",
    "operatingSystem": "macOS, Linux",
-   "softwareVersion": "0.7.5",
+   "softwareVersion": "0.8.0",
    "license": "https://www.apache.org/licenses/LICENSE-2.0",
    "isAccessibleForFree": true,
    "softwareHelp": {
@@ -121,12 +121,12 @@
     <nav class="crumbs" aria-label="Breadcrumb"><ol><li><a href="../">Hermit CRM</a></li><li aria-current="page">Hermit CRM docs</li></ol></nav>
     <h1 class="page-h1">Hermit CRM docs</h1>
     <p class="lead">The same pages as Help inside the app and <code>hermitcrm help &lt;topic&gt;</code> on the command line: how each part of Hermit CRM works, written for people and for the AI agents that work in your data folder.</p>
-    <p class="checked">For version 0.7.5, <time datetime="2026-10-16">16 October 2026</time>. All of it as one Markdown file: <a href="../llms-full.txt">llms-full.txt</a>.</p>
+    <p class="checked">For version 0.8.0, <time datetime="2026-10-16">16 October 2026</time>. All of it as one Markdown file: <a href="../llms-full.txt">llms-full.txt</a>. What changed in each version: <a href="../changelog/">Changelog</a>.</p>
   </div>
 
   <nav class="docs-toc col" id="contents" aria-labelledby="contents-h">
     <h2 class="label" id="contents-h">Contents</h2>
-    <ul><li><a href="#pipeline">Pipeline</a></li><li><a href="#calendar">Calendar</a></li><li><a href="#tasks">Tasks</a></li><li><a href="#companies">Companies</a></li><li><a href="#contacts">Contacts</a></li><li><a href="#interactions">Interactions</a></li><li><a href="#messages">Messages</a></li><li><a href="#reports">Reports</a></li><li><a href="#adjust">Make it yours</a></li><li><a href="#settings">Settings</a></li><li><a href="#import">Import</a></li><li><a href="#extension">Extension</a></li><li><a href="#enrich">Enrich</a></li><li><a href="#ask">Ask the Hermit</a></li><li><a href="#merge">Merge</a></li><li><a href="#cli">CLI</a></li><li><a href="#backups">Backups and undo</a></li><li><a href="#data-format">Data format</a></li><li><a href="#ai-agents">AI agents</a></li><li><a href="#disclaimer">Disclaimer</a></li></ul>
+    <ul><li><a href="#pipeline">Pipeline</a></li><li><a href="#calendar">Calendar</a></li><li><a href="#tasks">Tasks</a></li><li><a href="#companies">Companies</a></li><li><a href="#contacts">Contacts</a></li><li><a href="#interactions">Interactions</a></li><li><a href="#messages">Messages</a></li><li><a href="#playbook">Playbook</a></li><li><a href="#reports">Reports</a></li><li><a href="#adjust">Make it yours</a></li><li><a href="#settings">Settings</a></li><li><a href="#import">Import</a></li><li><a href="#extension">Extension</a></li><li><a href="#enrich">Enrich</a></li><li><a href="#ask">Ask the Hermit</a></li><li><a href="#merge">Merge</a></li><li><a href="#cli">CLI</a></li><li><a href="#backups">Backups and undo</a></li><li><a href="#data-format">Data format</a></li><li><a href="#ai-agents">AI agents</a></li><li><a href="#disclaimer">Disclaimer</a></li></ul>
     <h3 class="label">Make it yours: recipes</h3>
     <p class="docs-note">What your own AI agent follows when you ask it to change Hermit CRM. Start with <a href="#adjust">Make it yours</a>.</p>
     <ul><li><a href="#adjust-fields">Make it yours: fields</a></li><li><a href="#adjust-look">Make it yours: the look</a></li><li><a href="#adjust-messages">Make it yours: messages</a></li><li><a href="#adjust-connect">Make it yours: bring data in</a></li><li><a href="#adjust-feature">Make it yours: something Hermit can&#x27;t do yet</a></li><li><a href="#adjust-dashboards">Make it yours: dashboards</a></li><li><a href="#adjust-bulk">Make it yours: bulk changes</a></li><li><a href="#adjust-layout">Make it yours: page layout</a></li><li><a href="#adjust-routines">Make it yours: routines</a></li><li><a href="#adjust-stages">Make it yours: deal stages</a></li></ul>
@@ -258,6 +258,63 @@
 <p>A message&#x27;s status is its outcome when one was set by hand; otherwise it is derived: a later inbound interaction from the same contact (or a company-level one) makes it the first configured outcome (default <code>successful</code>); no reply within <code>message_window_days</code> (default 14) makes it the last one (default <code>unsuccessful</code>); before that it is <code>unknown</code>. Derived values are marked &quot;(auto)&quot;. The buttons in the last column set or clear the outcome by hand (commit <code>interaction: &lt;company&gt; &lt;id&gt; outcome &lt;value&gt;</code>; the same field the interaction form edits, so both places always agree), and &quot;edit&quot; opens the interaction.</p>
 <p>The outcome list and the window are set on the Settings page. The Reports page breaks message outcomes down by language, channel and the most reused texts.</p>
 <p>Related: <a href="#interactions">Interactions</a>, <a href="#reports">Reports</a>, <a href="#settings">Settings</a></p>
+  <p class="doc-up"><a href="#contents">Back to contents</a></p>
+  </section>
+  <section class="doc" aria-labelledby="playbook">
+<h2 id="playbook">Playbook</h2>
+<p><code>MESSAGING.md</code> in your data folder: what you sell, to whom, and how you write, per approach.</p>
+<p>The playbook is the one place Hermit CRM learns about your business. The outreach drafts, routines and your own AI agent read it. It works for any B2B business (a service, software, an agency); every part is optional except the minimum the outreach bot needs (below, under &quot;Ready for the outreach bot&quot;).</p>
+<p>Fill it in under <strong>Settings &gt; Playbook</strong> (<code>/settings/playbook</code>): one tab per approach, one box per part with an example beside it, a meter that shows how much is filled, and a Save button that stays in view. Or edit <code>MESSAGING.md</code> yourself, or ask your AI agent to.</p>
+<h3 id="playbook-approaches">Approaches</h3>
+<p>An approach is one offer to one audience. Most people have one. If you sell different things to different companies (coaching to founders who still sell themselves, building the team for companies that already have salespeople), give each its own approach. Each approach is complete on its own: offer line, ideal customer, personas, proof, voice, channels, don&#x27;ts, disqualifiers and lessons.</p>
+<ul><li><strong>New approach</strong> starts empty or as a copy of another one; <strong>Duplicate this approach</strong> copies everything, so you only change what differs.</li><li>The outreach bot picks the approach a company fits (see &quot;Which approach a company gets&quot;), and drafts with that approach&#x27;s parts only.</li><li>An approach that is not filled in yet is simply not used; the others are.</li></ul>
+<p>For a separate business with its own pipeline, use a second data folder (<code>hermitcrm init</code>) instead: one folder keeps one pipeline and one set of message statistics.</p>
+<h3 id="playbook-two-halves">Two halves</h3>
+<ul><li><strong>The front matter</strong> (the YAML between the two <code>---</code> lines at the top) is for Hermit CRM itself: per approach its name, offer line, ideal customer, hard disqualifiers and personas. The app reads it to pick and sort prospects; an AI is never given it as instructions.</li><li><strong>The body</strong> (everything below) is for people and AI: the general notes on angles, slots and languages, then one <code># Approach: &lt;name&gt;</code> block per approach with the rest.</li></ul>
+<h3 id="playbook-the-front-matter">The front matter</h3>
+<pre><code>---
+approaches:
+  - name: Booking software
+    offer_line: &quot;We build booking software for clinics.&quot;
+    icp:
+      industries: [healthcare, dental]
+      countries: [NL, BE, DE]  # two-letter codes
+      ranges:                  # your own company fields: [min, max]
+        employees: [5, 200]
+      funding: [bootstrapped, seed]
+      signals: [new-location, hiring-reception]   # positive signals
+    disqualifiers:
+      - tag_present: [customer, do-not-contact]
+    personas:
+      owner: {titles: [&quot;Owner&quot;, &quot;Practice Manager&quot;, &quot;Managing Director&quot;]}
+      ops: {titles: [&quot;Operations Manager&quot;, &quot;COO&quot;]}
+---</code></pre>
+<div class="docs-table"><table><thead><tr><th>Key</th><th>What it holds</th></tr></thead><tbody><tr><td><code>name</code></td><td>The approach&#x27;s name, unique in the file; its body block is <code># Approach: &lt;name&gt;</code>.</td></tr><tr><td><code>offer_line</code></td><td>What you sell, in one sentence. One per approach: a list is refused.</td></tr><tr><td><code>icp</code></td><td>The ideal customer: <code>industries</code>, <code>countries</code>, <code>funding</code>, <code>signals</code> (lists of short words) and <code>ranges</code> (below). Leave any of them empty.</td></tr><tr><td><code>disqualifiers</code></td><td>Hard reasons a company is not a prospect for this approach (below).</td></tr><tr><td><code>personas</code></td><td>Per buyer type, the job <code>titles</code> that belong to it. Optional <code>pains</code>, <code>cares</code> and <code>ignores</code> lists.</td></tr></tbody></table></div>
+<h4 id="playbook-ranges-on-your-own-fields">Ranges on your own fields</h4>
+<p>Hermit CRM has no built-in headcount or team size: what a company &quot;is&quot; lives in the fields you defined yourself (<a href="#adjust-fields">Adjust fields</a>, <code>fields.toml</code>). <code>ranges</code> maps one of those company fields to <code>[min, max]</code>, as many as you like: a headcount, a revenue band, the number of salespeople, the number of locations. A number field is read as it is; a text field by the first number in it, so <code>~13</code> counts as 13. <code>hermitcrm check</code> warns when a range names a field the folder does not have.</p>
+<h4 id="playbook-not-a-prospect">Not a prospect</h4>
+<p>Write every reason a company is not a prospect for this approach in its <code>## Disqualifiers</code> section, one per line (&quot;they already have a Head of Sales&quot;, &quot;they work with an agency&quot;, &quot;public sector&quot;). The AI weighs those against what it finds and says why; you decide.</p>
+<p>One check the app makes itself, without AI: <code>tag_present</code> leaves out every company with one of these tags (<code>customer</code>, <code>do-not-contact</code>).</p>
+<h4 id="playbook-which-approach-a-company-gets">Which approach a company gets</h4>
+<p>The ideal customer decides, on what Hermit CRM knows: your ranges, the country, and industries as tags. An approach whose range or countries the company falls outside, or whose tags rule it out, is left out. Of the rest, the one with the most matches wins. An empty field cannot decide: when two approaches stay equal, the bot asks you, and says what was missing (&quot;no employees&quot;). Funding and positive signals are for research, not for this choice.</p>
+<h4 id="playbook-personas">Personas</h4>
+<p>A contact&#x27;s title picks the persona: whole words, any case, and the longest matching title wins, so <code>Head of Sales Operations</code> is not taken for <code>Head of Sales</code>. A title no persona lists gets no persona.</p>
+<h3 id="playbook-the-body">The body</h3>
+<p>Each approach block holds these <code>## </code> headings. A comment under each heading says what goes there; the text you write below it is what counts.</p>
+<div class="docs-table"><table><thead><tr><th>Heading</th><th>What goes there</th></tr></thead><tbody><tr><td><code>## Offer</code></td><td>The outcome a customer gets, how an engagement works, what you do not do.</td></tr><tr><td><code>## Personas</code></td><td>Per persona: the top 2-3 problems, what they care about and ignore.</td></tr><tr><td><code>## Proof</code></td><td>Customer results, one per line starting with <code>- </code>. Drafts may cite only these.</td></tr><tr><td><code>## Why you</code></td><td>Why you rather than doing it themselves, hiring, another provider or nothing.</td></tr><tr><td><code>## Voice</code></td><td>Tone, words you use and avoid, sign-off, formal or informal address.</td></tr><tr><td><code>## Channels</code></td><td>Per channel: what a first message is for, its length, what it asks.</td></tr><tr><td><code>## Don&#x27;ts</code></td><td>What a message must never do.</td></tr><tr><td><code>## Disqualifiers</code></td><td>Other reasons a company is not a prospect, for the AI to weigh.</td></tr><tr><td><code>## Lessons</code></td><td><code>### Worked</code>, <code>### Didn&#x27;t work</code> and <code>### Still testing</code>: what you tried. Drafts follow what worked and avoid what did not.</td></tr></tbody></table></div>
+<p>Write them in any language; a draft is still written in the contact&#x27;s language.</p>
+<h3 id="playbook-ready-for-the-outreach-bot">Ready for the outreach bot</h3>
+<p>An approach is ready when it has an offer line, something in the ideal customer profile, one persona with titles and one proof line. The outreach bot runs when at least one approach is ready, and uses the ready ones only. <code>hermitcrm playbook</code> (or <code>hermitcrm playbook status</code>) says per approach what is filled and what is missing; Settings &gt; Playbook shows the same.</p>
+<h3 id="playbook-draft-it-from-my-website-or-a-document">Draft it from my website or a document</h3>
+<p>On Settings &gt; Playbook, give your website address, upload a PDF, Word (.docx) or text file (a sales deck, a one-pager), or paste text, and click <strong>Draft it</strong>. Hermit CRM reads the website&#x27;s home page and up to four pages of the same site that describe the business (About, Services, Pricing and the like). Your AI CLI (the one under Settings &gt; AI, run without any tools) then proposes every part of the approach from that text alone. The proposal fills the form; nothing is saved until you click Save. It never invents proof: a result your text does not state stays empty.</p>
+<h3 id="playbook-learn-my-voice-from-my-sent-emails">Learn my voice from my sent emails</h3>
+<p>When the CRM has emails you sent (logged by hand, by BCC capture or the extension), <strong>Learn my voice from my sent emails</strong> gives your most recent ones (the quoted thread below each left out) to your AI CLI, which describes your voice in the Voice box. Check it, then Save.</p>
+<h3 id="playbook-a-playbook-from-before">A playbook from before</h3>
+<p>A data folder created before the playbook had approaches keeps its <code>MESSAGING.md</code> exactly as it is; nothing changes on its own. <code>hermitcrm check</code> says &quot;not set up for the outreach bot&quot; (a hint, not an error). To set it up:</p>
+<pre><code>hermitcrm playbook upgrade --dry-run   # print the result, write nothing
+hermitcrm playbook upgrade             # one commit</code></pre>
+<p>It adds the front matter with one approach at the top and that approach&#x27;s block at the end, and keeps every line you had, byte for byte (your &quot;What worked&quot; notes included). Running it again changes nothing. Saving Settings &gt; Playbook does the same and fills it in at once.</p>
+<p>Related: <a href="#messages">Messages</a>, <a href="#adjust-messages">Adjust messages</a>, <a href="#settings">Settings</a>, <a href="#enrich">Enrich</a>, <a href="#cli">CLI</a></p>
   <p class="doc-up"><a href="#contents">Back to contents</a></p>
   </section>
   <section class="doc" aria-labelledby="reports">
@@ -505,8 +562,14 @@ hermitcrm mcp                              serve this folder to AI clients over 
 hermitcrm report [--days N | --from D --to D] [--md]
                                         the Reports page as text tables (Markdown with --md)
 hermitcrm check                            validate every file (records, fields.toml, layout.toml, dashboards/,
-                                        routines.toml, theme.css, messages.toml, config.toml); exit 1 and
-                                        one &quot;file: where: what&quot; line per problem</code></pre>
+                                        routines.toml, theme.css, messages.toml, config.toml, the front
+                                        matter of MESSAGING.md); exit 1 and one &quot;file: where: what&quot; line
+                                        per problem
+hermitcrm playbook [status]                per approach: what the playbook has and what the outreach bot
+                                        still needs (exit 1 while no approach is ready); see
+                                        `hermitcrm help playbook`
+hermitcrm playbook upgrade [--dry-run]     add the front matter and missing headings to MESSAGING.md,
+                                        keeping every line; one commit, and a second run changes nothing</code></pre>
 <h3 id="cli-backups">Backups</h3>
 <pre><code>hermitcrm backup [run] [--quiet]           back up now: new commits, uncommitted edits, a rewrite kept aside
 hermitcrm backup status                    where the backup is, its size, the last run; exit 1 on a warning
@@ -627,7 +690,7 @@ hermitcrm backup restore snapshots/&lt;time&gt; --apply</code></pre>
   CLAUDE.md, AGENTS.md        rules for AI agents
   .claude/settings.json       git commands Claude Code may not run (see Backups and undo)
   .claude/skills/hermit/SKILL.md  the /hermit skill: Claude Code runs `hermitcrm help adjust` (Make it yours)
-  MESSAGING.md                your outreach playbook
+  MESSAGING.md                your outreach playbook (hermitcrm help playbook)
   dashboards/&lt;name&gt;.toml      optional pages of your own at /d/&lt;name&gt; (see Dashboards)
   inbox/                      BCC and calendar items waiting for a decision
   routines.toml               optional routines: a morning brief, AI drafts (see Routines)
@@ -692,7 +755,7 @@ columns = [&quot;name&quot;, &quot;stage&quot;, &quot;fit_score&quot;, &quot;cou
 <p>The data folder is plain files in git, so an agent works in it like a person would: read what is needed, edit front matter, commit. Run <code>hermitcrm</code> commands from the folder, or add <code>--data &lt;folder&gt;</code>.</p>
 <p>An agent with a shell in the folder should use the commands below. An AI client with no shell -- Claude Desktop, ChatGPT, Cursor -- connects over MCP instead; see <strong>Connecting over MCP</strong> at the end.</p>
 <h3 id="ai-agents-reading-cheapest-first">Reading, cheapest first</h3>
-<ol><li>Read <code>PIPELINE.md</code> first. For a pipeline review it is usually enough: one line per company, about 30 tokens each.</li><li>For one account, run <code>hermitcrm show &lt;slug&gt;</code> rather than opening its files.</li><li>For &quot;what happened recently&quot;, run <code>hermitcrm digest --days 7</code>.</li><li>For numbers (activity, funnel, outcomes, messages), run <code>hermitcrm report --days 30 --md</code>.</li><li>Open interaction files directly only when the exact wording matters (drafting a reply, judging tone). Never read all interactions.</li><li>Never edit <code>PIPELINE.md</code> by hand; it is generated.</li><li>For outreach wording, read <code>MESSAGING.md</code> (the playbook) and <code>messages.toml</code> (if present) before drafting anything.</li><li>For how a feature works, run <code>hermitcrm help &lt;topic&gt;</code> (<code>hermitcrm help</code> lists the topics).</li></ol>
+<ol><li>Read <code>PIPELINE.md</code> first. For a pipeline review it is usually enough: one line per company, about 30 tokens each.</li><li>For one account, run <code>hermitcrm show &lt;slug&gt;</code> rather than opening its files.</li><li>For &quot;what happened recently&quot;, run <code>hermitcrm digest --days 7</code>.</li><li>For numbers (activity, funnel, outcomes, messages), run <code>hermitcrm report --days 30 --md</code>.</li><li>Open interaction files directly only when the exact wording matters (drafting a reply, judging tone). Never read all interactions.</li><li>Never edit <code>PIPELINE.md</code> by hand; it is generated.</li><li>For outreach wording, read <code>MESSAGING.md</code> (the playbook) and <code>messages.toml</code> (if present) before drafting anything. Its front matter and headings are described in <code>hermitcrm help playbook</code>; cite only the proof written there.</li><li>For how a feature works, run <code>hermitcrm help &lt;topic&gt;</code> (<code>hermitcrm help</code> lists the topics).</li></ol>
 <h3 id="ai-agents-creating-a-record">Creating a record</h3>
 <p>Three commands cover every kind of record, so an agent never has to write YAML by hand:</p>
 <pre><code>hermitcrm add company &quot;Acme BV&quot; --country NL --website acme.example.com
@@ -1290,7 +1353,7 @@ hermitcrm check</code></pre>
 </main>
 
 <footer class="site-footer col">
-  <p>Hermit CRM · Apache License 2.0 · alpha, no warranty · <a href="../compare/">All comparisons</a> · <a href="./">Docs</a> · <a href="../stats/">Stats</a> · <a href="../about/">About</a> · Built by <a href="https://www.linkedin.com/in/gijsbos">Gijs Bos</a></p>
+  <p>Hermit CRM · Apache License 2.0 · alpha, no warranty · <a href="../compare/">All comparisons</a> · <a href="./">Docs</a> · <a href="../changelog/">Changelog</a> · <a href="../stats/">Stats</a> · <a href="../about/">About</a> · Built by <a href="https://www.linkedin.com/in/gijsbos">Gijs Bos</a></p>
 </footer>
 </body>
 </html>
