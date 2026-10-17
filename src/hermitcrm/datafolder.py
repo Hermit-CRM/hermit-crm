@@ -70,6 +70,7 @@ CONFIG_DOCS = {
     "silent_days": "A company with no interaction for this many days counts as silent.",
     "followup_reply_days": "Days before a message they sent and you have not answered shows on the follow-up radar.",
     "followup_nudge_days": "Days before a message you sent and nobody answered shows on the follow-up radar.",
+    "keep_in_touch_days": "Days without any interaction before someone outside an open deal shows under Keep in touch on Home.",
     "push_enabled": "Push to the git remote after each commit (when a remote exists).",
     "remote": "Name of the git remote to push to.",
     "backup_dir": "Where `hermitcrm backup` keeps its repository that only grows; empty means ~/.hermitcrm/backups/<folder>-<hash>.git. Must be outside this folder.",

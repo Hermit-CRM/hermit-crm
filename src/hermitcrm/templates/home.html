@@ -2,7 +2,7 @@
 {% import "macros.html" as m %}
 {# With companies in the folder, the sections come in layout.toml's order
    (help: adjust-layout); their names, in the default order: doing, to-file,
-   owed, going. The empty-folder start and Getting started do not move. #}
+   owed, keep-in-touch, going. The empty-folder start and Getting started do not move. #}
 {% block title %}Hermit CRM{% endblock %}
 {% block content %}
 <h1>Hermit CRM</h1>
@@ -56,6 +56,22 @@
   </tr>
   {% endfor %}
 </table>
+{% endif %}
+{% elif section == 'keep-in-touch' %}
+{% if keep_in_touch %}
+<h2 id="keep-in-touch">Keep in touch ({{ keep_in_touch | length }}) <span class="small">not spoken to in {{ keep_in_touch_days }}+ days, outside an open deal</span></h2>
+<table>
+  <tr><th>who</th><th>company</th><th>quiet for</th><th>last touch</th></tr>
+  {% for k in keep_in_touch[:8] %}
+  <tr>
+    <td><a href="{{ k.href }}">{{ k.contact.name }}</a></td>
+    <td><a href="/companies/{{ k.company.slug }}">{{ k.company.name }}</a> <span class="small">{{ k.company.stage }}</span></td>
+    <td>{{ k.days }}d</td>
+    <td class="small">{{ fmt_date(k.interaction.date) }} {{ k.interaction.label }}: {{ k.summary }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% if keep_in_touch | length > 8 %}<p class="small">And {{ keep_in_touch | length - 8 }} more: <code>hermitcrm keep-in-touch</code> lists them all.</p>{% endif %}
 {% endif %}
 {% elif section == 'going' %}
 <h2 id="going">How it is going <span class="small">last 30 days</span></h2>

@@ -231,6 +231,26 @@ def test_the_home_page_only_shows_the_next_seven_days(client, app):
     assert 'href="/calendar"' in page          # the rest is one click away
 
 
+def test_home_lists_people_to_keep_in_touch_with(client, app):
+    post_company(client, name="Acme", stage="won")
+    post_contact(client, "acme", first_name="Jane", last_name="Roe")
+    post_interaction(client, "acme", channel="email", direction="out",
+                     contact="jane-roe",
+                     date=str(TODAY - timedelta(days=200)) + "T09:00",
+                     subject="Rollout done", body="All live.")
+    page = client.get("/").text
+    section = page.split('id="keep-in-touch"')[1].split("</table>")[0]
+    assert "Keep in touch (1)" in section and "180+ days" in section
+    assert 'href="/companies/acme/contacts/jane-roe"' in section
+    assert "200d" in section and "Rollout done" in section
+    assert page.index('id="keep-in-touch"') < page.index('id="going"')
+
+
+def test_home_keep_in_touch_is_absent_when_nobody_is_on_it(client):
+    post_company(client, name="Acme", stage="won")
+    assert 'id="keep-in-touch"' not in client.get("/").text
+
+
 def test_the_walkthrough_ticks_itself_from_the_data(client, app, repo):
     page = client.get("/welcome").text
     assert "of 12</strong> done" in page

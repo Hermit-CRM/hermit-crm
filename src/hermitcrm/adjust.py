@@ -765,7 +765,7 @@ def validate_config(root: Path) -> list[str]:
                             "non-empty name")
         elif len({o.lower() for o in items}) != len(items):
             problems.append("config.toml: outcomes: an outcome is there twice")
-    for key in ("silent_days", "message_window_days"):
+    for key in ("silent_days", "message_window_days", "keep_in_touch_days"):
         if key in data and (not isinstance(data[key], int) or isinstance(data[key], bool)
                             or data[key] < 1):
             problems.append(f"config.toml: {key}: must be a whole number of days, 1 or more")
