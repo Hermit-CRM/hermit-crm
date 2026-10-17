@@ -148,7 +148,7 @@
 
 <header class="site-header wide">
   <a class="brand" href="../../" aria-label="Hermit CRM home"><svg viewBox="4.5 10.5 55 43" aria-hidden="true" focusable="false"><rect x="7" y="13" width="50" height="38" rx="7" fill="none" stroke="currentColor" stroke-width="5"/><circle cx="24" cy="27" r="5.5" fill="#1E8A60"/><path d="M16 43 a8 8 0 0 1 16 0 z" fill="#1E8A60"/><rect x="38" y="25" width="12" height="4" rx="2" fill="currentColor"/><rect x="38" y="34" width="8" height="4" rx="2" fill="currentColor"/></svg><span>Hermit CRM</span></a>
-  <nav class="site-nav" aria-label="Site"><a href="../../docs/">Docs</a><a href="../../about/">About</a><a href="../../">Download</a></nav>
+  <nav class="site-nav" aria-label="Site"><a href="../../features/">Features</a><a href="../../docs/">Docs</a><a href="../../compare/" class="nav-more" aria-current="page">Compare</a><a href="../../about/" class="nav-more">About</a><a href="https://github.com/Hermit-CRM/hermit-crm">GitHub</a></nav>
 </header>
 
 <main id="main">
@@ -170,12 +170,12 @@
       <thead><tr><td></td><th scope="col">Hermit CRM</th><th scope="col">Attio</th></tr></thead>
       <tbody>
         <tr><th scope="row">Price for one person</th><td data-label="Hermit CRM">Free and open source. There is no paid plan.</td><td data-label="Attio">Free for up to 3 seats and 50,000 records. Plus €31 a seat a month billed yearly, or €39 monthly. Pro €74 a seat a month billed yearly, or €93 monthly.</td></tr>
-        <tr><th scope="row">Where your data lives</th><td data-label="Hermit CRM">In a folder on your own computer.</td><td data-label="Attio">In Attio's cloud.</td></tr>
-        <tr><th scope="row">Data format</th><td data-label="Hermit CRM">Markdown files with YAML front matter: one per company, contact and conversation. Readable without the app.</td><td data-label="Attio">Records in Attio's database, with objects and attributes you define. Export to CSV.</td></tr>
+        <tr><th scope="row">Where your data lives</th><td data-label="Hermit CRM">In a folder on your own computer.</td><td data-label="Attio">In Attio’s cloud.</td></tr>
+        <tr><th scope="row">Data format</th><td data-label="Hermit CRM">Markdown files with YAML front matter: one per company, contact and conversation. Readable without the app.</td><td data-label="Attio">Records in Attio’s database, with objects and attributes you define. Export to CSV.</td></tr>
         <tr><th scope="row">Works offline</th><td data-label="Hermit CRM">Yes. It runs on your computer. Mail import, enrichment and Ask Hermit need the internet.</td><td data-label="Attio">No. It is a hosted service.</td></tr>
         <tr><th scope="row">Team use</th><td data-label="Hermit CRM">No. It is built for one person.</td><td data-label="Attio">Yes. Workspaces, seats and permissions.</td></tr>
         <tr><th scope="row">AI tools</th><td data-label="Hermit CRM">Your AI tool reads the files, runs the CLI or connects to the local MCP server. No API key, no OAuth. Ask Hermit uses the AI command line tool you already have.</td><td data-label="Attio">Built-in AI with monthly credits per seat, an API and an official MCP server.</td></tr>
-        <tr><th scope="row">Email and calendar</th><td data-label="Hermit CRM">BCC or forward mail to a Gmail address you choose, and it is logged on the right contact. Past meetings come from your calendar's ICS link. No inbox sync.</td><td data-label="Attio">Gmail and Outlook sync. Contacts and companies are created from your mail and calendar.</td></tr>
+        <tr><th scope="row">Email and calendar</th><td data-label="Hermit CRM">BCC or forward mail to a Gmail address you choose, and it is logged on the right contact. Past meetings come from your calendar’s ICS link. No inbox sync.</td><td data-label="Attio">Gmail and Outlook sync. Contacts and companies are created from your mail and calendar.</td></tr>
         <tr><th scope="row">History and undo</th><td data-label="Hermit CRM">Every change is a git commit, so every earlier version is kept and can be restored.</td><td data-label="Attio">Activity history on each record.</td></tr>
         <tr><th scope="row">Source code</th><td data-label="Hermit CRM">Open source, Apache License 2.0.</td><td data-label="Attio">Closed source.</td></tr>
         <tr><th scope="row">Runs on</th><td data-label="Hermit CRM">macOS and Linux, in your browser. No Windows and no mobile app.</td><td data-label="Attio">Browser, iOS and Android.</td></tr>
@@ -216,7 +216,7 @@
     <h2 class="label" id="switch">Moving from Attio to Hermit CRM</h2>
     <ol class="steps">
       <li><span>In Attio, export the companies and people lists you want as CSV.</span></li>
-      <li><span>In Hermit CRM, choose <strong>Import a spreadsheet</strong> on the home page and upload each file. It recognises Attio's column names, shows a preview, and writes nothing until you confirm.</span></li>
+      <li><span>In Hermit CRM, choose <strong>Import a spreadsheet</strong> on the home page and upload each file. It recognises Attio’s column names, shows a preview, and writes nothing until you confirm.</span></li>
       <li><span>Custom fields you need can be added in Settings. Columns without a field are kept in the notes, so nothing is lost.</span></li>
     </ol>
   </section>
@@ -226,7 +226,7 @@
     <h3>Is Hermit CRM an alternative to Attio?</h3>
     <p>For one person, yes. Both give you companies, contacts and a pipeline. Attio is a hosted CRM for teams with automatic mail sync; Hermit CRM is a free local app for one person, with the data in plain files.</p>
     <h3>Can I import my Attio data into Hermit CRM?</h3>
-    <p>Companies and people, yes. Export them from Attio as CSV and import them in Hermit CRM, which recognises Attio's column names. Columns it has no field for are kept as notes.</p>
+    <p>Companies and people, yes. Export them from Attio as CSV and import them in Hermit CRM, which recognises Attio’s column names. Columns it has no field for are kept as notes.</p>
     <h3>Which works better with AI tools?</h3>
     <p>Both work with Claude and other assistants. Attio does it through its hosted MCP server and API, with your account and OAuth. Hermit CRM does it on your computer: an agent reads the Markdown files directly, or uses the CLI or the local MCP server, and every change it makes is a git commit you can undo.</p>
   </section>
@@ -254,8 +254,8 @@
 </main>
 
 <footer class="site-footer col">
-  <p class="notice">Product names are trademarks of their owners. Hermit CRM is not affiliated with any of them. Prices come from each vendor's public pricing page on the date shown, per seat and usually before VAT; they change often, so check the vendor's page before you decide. Found a mistake? Message <a href="https://www.linkedin.com/in/gijsbos">Gijs Bos</a> and it will be corrected.</p>
-  <p>Hermit CRM · Apache License 2.0 · alpha, no warranty · <a href="../">All comparisons</a> · <a href="../../docs/">Docs</a> · <a href="../../changelog/">Changelog</a> · <a href="../../stats/">Stats</a> · <a href="../../about/">About</a> · Built by <a href="https://www.linkedin.com/in/gijsbos">Gijs Bos</a></p>
+  <p class="notice">Product names are trademarks of their owners. Hermit CRM is not affiliated with any of them. Prices come from each vendor’s public pricing page on the date shown, per seat and usually before VAT; they change often, so check the vendor’s page before you decide. Found a mistake? Message <a href="https://www.linkedin.com/in/gijsbos">Gijs Bos</a> and it will be corrected.</p>
+  <p>Hermit CRM · Apache License 2.0 · alpha, no warranty · <a href="../">All comparisons</a> · <a href="../../features/">Features</a> · <a href="../../docs/">Docs</a> · <a href="../../changelog/">Changelog</a> · <a href="../../stats/">Stats</a> · <a href="../../about/">About</a> · Built by <a href="https://www.linkedin.com/in/gijsbos">Gijs Bos</a></p>
 </footer>
 </body>
 </html>
