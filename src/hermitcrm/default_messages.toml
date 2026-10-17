@@ -217,3 +217,26 @@ question = "Wat wil je als eerste verbeteren?"
 [outreach.reply_to_interest.fr]
 template = "Bonjour {first},\nMerci pour votre réponse. {offer_line}\n{proof}\n{first_step_offer}\n{question}"
 question = "Qu'aimeriez-vous améliorer en premier ?"
+
+# [outreach.follow_up.<language>]: the shape of a follow-up to a message that got
+# no answer. The AI writes it in its own words and fills {topic} from the first
+# message; `topic` below is only the placeholder used until then. No calendar
+# invite, no link, no time slot, one question, an easy way out.
+# Slots: {first} {company} {topic} {offer_line} {question}. A line whose slots
+# are all empty is left out; the default wording has no {offer_line} line, add
+# one in messages.toml to repeat the offer.
+[outreach.follow_up.en]
+template = "Hi {first},\nQuick follow-up, no calendar invite: is {topic} a priority at {company} right now, or not really? A short 'not now' is fine too, then I'll close the loop."
+topic = "the topic of my first message"
+
+[outreach.follow_up.de]
+template = "Hallo {first},\nkurzes Follow-up, ohne Kalendereinladung: Ist {topic} bei {company} gerade ein Thema, oder eher nicht? Ein kurzes „Jetzt nicht“ reicht auch, dann schließe ich das Thema ab."
+topic = "das Thema meiner ersten Nachricht"
+
+[outreach.follow_up.nl]
+template = "Hoi {first},\nKorte follow-up, zonder agenda-uitnodiging: is {topic} bij {company} op dit moment een prioriteit, of niet echt? Een kort ‘nu niet’ is ook prima, dan sluit ik het af."
+topic = "het onderwerp van mijn eerste bericht"
+
+[outreach.follow_up.fr]
+template = "Bonjour {first},\nUn bref suivi, sans invitation au calendrier : {topic} est-il une priorité chez {company} en ce moment, ou pas vraiment ? Un simple « pas maintenant » suffit aussi, je clôture alors le sujet."
+topic = "le sujet de mon premier message"
