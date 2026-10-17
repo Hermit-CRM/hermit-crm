@@ -32,8 +32,10 @@ from __future__ import annotations
 
 import html
 import http.client
+import ipaddress
 import json
 import re
+import socket
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -170,6 +172,60 @@ def parse_page(url: str, text: str) -> PageFacts:
 # ----------------------------------------------------------------- fetching
 
 
+def _not_global(host: str, resolve=socket.getaddrinfo) -> str:
+    """The first address `host` resolves to that is not on the public
+    internet (loopback, private, link-local, ...), or "" when there is none.
+
+    A name that does not resolve is left to the request itself to fail on.
+    """
+    host = host.strip("[]").split("%")[0]  # "[::1]", "fe80::1%en0"
+    try:
+        addresses = [ipaddress.ip_address(host)]
+    except ValueError:
+        try:
+            infos = resolve(host, None)
+        except (OSError, UnicodeError):
+            return ""
+        addresses = []
+        for info in infos:
+            try:
+                addresses.append(ipaddress.ip_address(str(info[4][0]).split("%")[0]))
+            except ValueError:
+                continue
+    for addr in addresses:
+        mapped = getattr(addr, "ipv4_mapped", None)  # ::ffff:127.0.0.1
+        if not addr.is_global or (mapped is not None and not mapped.is_global):
+            return str(addr)
+    return ""
+
+
+class _RedirectGuard(urllib.request.HTTPRedirectHandler):
+    """Follow a redirect only to a host on the public internet.
+
+    The address the user typed may be their own intranet on purpose; a site
+    that sends us on to 127.0.0.1, 169.254.169.254 or 10.x has no such
+    excuse, and what we fetch there would end up in an AI prompt.
+    """
+
+    def __init__(self, resolve=socket.getaddrinfo):
+        super().__init__()
+        self.resolve = resolve
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        host = urlparse(newurl).hostname or ""
+        bad = _not_global(host, self.resolve) if host else ""
+        if bad:
+            raise ScrapeError(f"{req.full_url} tried to send us on to {host} "
+                              f"({bad}), an address on your own computer or "
+                              "network; Hermit CRM only follows a redirect to "
+                              "a public website")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _opener() -> urllib.request.OpenerDirector:
+    return urllib.request.build_opener(_RedirectGuard())
+
+
 def fetch(url: str, timeout: float = 10) -> str:
     """GET one page as text. Raises ScrapeError with a plain-language reason."""
     try:
@@ -184,7 +240,7 @@ def fetch(url: str, timeout: float = 10) -> str:
         "Accept-Language": "en,de;q=0.8,nl;q=0.7",
     })
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with _opener().open(req, timeout=timeout) as resp:
             ctype = resp.headers.get("Content-Type", "")
             if "html" not in ctype and "xml" not in ctype and ctype:
                 raise ScrapeError(f"{url} is not an HTML page ({ctype.split(';')[0]})")
