@@ -247,7 +247,7 @@ def fetch(url: str, timeout: float = 10) -> str:
             raw = resp.read(MAX_BYTES)
             charset = resp.headers.get_content_charset() or "utf-8"
     except urllib.error.HTTPError as exc:
-        if "linkedin.com" in parsed.netloc and exc.code in (999, 403, 429):
+        if _is_linkedin(url) and exc.code in (999, 403, 429):
             raise ScrapeError("LinkedIn refused the anonymous request "
                               f"(HTTP {exc.code}); use the company website instead")
         raise ScrapeError(f"{url} answered HTTP {exc.code}")
@@ -269,7 +269,9 @@ def fetch(url: str, timeout: float = 10) -> str:
 
 
 def _is_linkedin(url: str) -> bool:
-    return "linkedin.com" in urlparse(url).netloc.lower()
+    """linkedin.com or a subdomain of it; not `notlinkedin.com`, not a path."""
+    host = (urlparse(url).hostname or "").lower()
+    return host == "linkedin.com" or host.endswith(".linkedin.com")
 
 
 def _company_linkedin(links: list[str], base: str) -> str:
@@ -349,6 +351,7 @@ PROFILE_PLACE = re.compile(
     r"·\s*(?:Location|Standort|Localisation|Locatie)\s*:\s*([^·]+)", re.I)
 
 
+_PROFILE_PREFIX = "https://www.linkedin.com/in/"
 _PROFILE_PATH = re.compile(r"^/in/([\w%.~-]+)", re.I)
 _COMPANY_PATH = re.compile(r"^/company/([\w%.~-]+)", re.I)
 
@@ -386,7 +389,7 @@ def profile_url(url: str) -> str:
     profile comes back unchanged.
     """
     m = _PROFILE_PATH.match(_linkedin_path(url))
-    return "https://www.linkedin.com/in/" + m.group(1) if m else url
+    return _PROFILE_PREFIX + m.group(1) if m else url
 
 
 def company_page_url(href: str) -> str:
@@ -405,10 +408,10 @@ def name_from_handle(url: str) -> str:
     `ines-vega-8a1b2c3d` spells a name plus LinkedIn's suffix. `inesvega` or an
     internal id does not, and there a wrong guess is worse than none.
     """
-    m = re.match(r"https://www\.linkedin\.com/in/(.+)$", profile_url(url))
-    if not m:
+    canonical = profile_url(url)
+    if not canonical.startswith(_PROFILE_PREFIX):
         return ""
-    words = [w for w in unquote(m.group(1)).split("-") if w]
+    words = [w for w in unquote(canonical[len(_PROFILE_PREFIX):]).split("-") if w]
     while words and any(ch.isdigit() for ch in words[-1]):
         words.pop()
     if len(words) < 2 or not all(w.isalpha() for w in words):

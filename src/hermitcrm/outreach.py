@@ -73,6 +73,7 @@ from .models import (
     ANGLES, INTERESTED, ValidationError, normalise_website, parse_datetime, slugify,
     unique_slug,
 )
+from .paths import contained
 from .store import Store, build_file, load_config, normalise_body, split_file
 
 DIR = "outreach"
@@ -1203,7 +1204,7 @@ def outreach_dir(root: Path | str) -> Path:
 def item_path(root: Path | str, item_id: str) -> Path | None:
     if not _ID.match(item_id or ""):
         return None
-    return outreach_dir(root) / f"{item_id}.md"
+    return contained(outreach_dir(root), f"{item_id}.md")
 
 
 def get_item(root: Path | str, item_id: str) -> Item | None:

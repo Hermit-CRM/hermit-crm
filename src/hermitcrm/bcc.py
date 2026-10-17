@@ -57,6 +57,7 @@ from .models import (
     ValidationError, fmt_datetime, normalise_email, normalise_website, slugify,
     split_name, unique_slug, valid_email,
 )
+from .paths import contained
 from .store import Store, build_file, normalise_body, split_file
 
 logger = logging.getLogger("crm.bcc")
@@ -648,7 +649,7 @@ class Inbox:
     def _path(self, item_id: str) -> Path | None:
         if not re.fullmatch(r"[0-9A-Za-z-]+", item_id or ""):
             return None
-        return self.dir / f"{item_id}.md"
+        return contained(self.dir, f"{item_id}.md")
 
     def count(self) -> int:
         return len(list(self.dir.glob("*.md"))) if self.dir.is_dir() else 0
