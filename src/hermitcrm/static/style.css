@@ -988,3 +988,7 @@ button.is-busy::before {
 @keyframes busy-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { button.is-busy::before { animation-duration: 3s; } }
 .outreach-card .outreach-email { margin-left: 4px; }
+
+/* --- "Explain and fix with AI" under a filter problem (macros.html, adjust.js) --- */
+.fix-with-ai { font: inherit; font-size: 12px; color: var(--accent); background: none; border: 0; padding: 0; margin-left: 4px; cursor: pointer; text-decoration: underline; }
+.fix-with-ai[hidden] { display: none; }
