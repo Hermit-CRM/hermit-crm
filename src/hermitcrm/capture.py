@@ -276,6 +276,25 @@ def contact_slug_in(company: Company, url: str) -> str:
     return ""
 
 
+# What "Add to research" offers to read, in the order the AI sees it: the query
+# key the bookmarklet sends, and the label the page shows and the AI reads.
+PAGE_PIECES = (("top", "Top card"), ("about", "About"),
+               ("act", "Recent posts and comments by them"))
+
+
+def page_pieces(page: dict) -> list[tuple[str, str, str]]:
+    """(key, label, text) per piece of a profile the bookmarklet read, with the
+    text the person can trim before it is added. Pieces it did not send are ''."""
+    return [(key, label, (page.get(key) or "").strip()) for key, label in PAGE_PIECES]
+
+
+def page_text(pieces: dict) -> str:
+    """The pieces, as submitted, as one labelled text for the AI to read."""
+    parts = [f"{label}:\n{(pieces.get(key) or '').strip()}" for key, label in PAGE_PIECES
+             if (pieces.get(key) or "").strip()]
+    return "\n\n".join(parts)
+
+
 BOOKMARKLET_JS = Path(__file__).parent / "static" / "bookmarklet.js"
 
 

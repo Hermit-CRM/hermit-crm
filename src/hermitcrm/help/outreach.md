@@ -95,6 +95,15 @@ the radar read the same setting, so they never disagree.
   A LinkedIn follow-up is a message in the conversation, so it only works if they
   accepted your connection; the bot cannot know that.
 
+## Add what you see on their LinkedIn profile
+
+LinkedIn blocks anonymous reads, so the bot gets little about a person from it. You
+can add it yourself: on their profile, logged in, click the Hermit CRM
+bookmarklet ([Extension](/help/extension)). For someone already in the CRM whose card
+is drafted, it opens **Add to research** with the top card, About and their own
+recent posts and comments; trim what you like, press the button, and the findings
+land on the card, sourced to the profile. The page text itself is not stored.
+
 ## The steps
 
 1. **Preview**: who a batch would go to, and why not the others. No AI, nothing
