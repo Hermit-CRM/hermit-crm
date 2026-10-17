@@ -196,9 +196,9 @@ th, td {
   vertical-align: top;
 }
 th { background: var(--subtle); font-weight: 600; }
-/* On a phone a wide table scrolls inside its own box instead of pushing the whole
-   page sideways. Above 760px the box is a plain div and changes nothing. */
-@media (max-width: 760px) { .table-scroll { overflow-x: auto; } }
+/* A wide table scrolls inside its own box at every width instead of pushing the
+   whole page sideways (Messages is 1420px of table; Companies, 1140px). */
+.table-scroll { overflow-x: auto; }
 
 /* forms */
 form.record-form, form.interaction-form {
