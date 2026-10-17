@@ -9,6 +9,9 @@ the data format always comes with an automatic migration.
   on both sides, across the web app, CLI, MCP and imports. Contact forms show the
   error beside the email field. Empty emails remain allowed and existing files
   with invalid emails still load without being rewritten.
+- Skip addresses that fail that rule when reading BCC mail, calendar attendees
+  and contact-import email lists, so a bad address does not interrupt importing
+  and committing valid contacts.
 
 ## 0.7.0 (2026-10-09)
 

@@ -250,6 +250,12 @@ def normalise_email(s: str | None) -> str:
     return (s or "").strip().lower()
 
 
+def valid_email(s: str | None) -> bool:
+    """A non-empty contact email: exactly one @ with text on both sides."""
+    s = normalise_email(s)
+    return s.count("@") == 1 and all(s.split("@"))
+
+
 def parse_tags(value) -> list[str]:
     if value is None or value == "":
         return []

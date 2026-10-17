@@ -18,7 +18,7 @@ import io
 import zipfile
 
 from hermitcrm.importer import (
-    apply_import, decode_upload, detect_mode, map_country, name_from_domain,
+    _first_email, apply_import, decode_upload, detect_mode, map_country, name_from_domain,
     normalise_linkedin, parse_table, plan_import, xlsx_to_text,
 )
 from hermitcrm.fields import FieldDef
@@ -194,6 +194,16 @@ def test_detect_mode():
     assert detect_mode(["Email", "Company", "fit_score"], DEFS) == "companies"
     # ...and without that definition it is just an unrecognised column
     assert detect_mode(["Email", "Company", "fit_score"]) == "contacts"
+
+
+@pytest.mark.parametrize("value, expected", [
+    ('"x@y"@acme.example.com; Nova@Example.COM', "nova@example.com"),
+    ("@example.com, nova@example.com", "nova@example.com"),
+    ('"x@y"@example.com @example.com nova@', ""),
+    ("", ""),
+])
+def test_first_email_skips_invalid_addresses(value, expected):
+    assert _first_email(value) == expected
 
 
 def test_contacts_mode_hubspot_creates_company_once_and_skips_freemail(store, messages):
