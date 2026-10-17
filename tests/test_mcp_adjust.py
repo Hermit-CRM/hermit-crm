@@ -96,7 +96,7 @@ def undo_id(text):
 
 
 def test_the_tool_list_has_the_make_it_yours_tools(tools):
-    assert len(tools) == 17
+    assert len(tools) == 18
     assert set(NEW_TOOLS) <= set(tools)
     rules = {"adjust_write": ["checked", "nothing is written", "paused", "ONE", "undo"],
              "bulk_preview": ["Writes nothing", "ALWAYS show it to the user", "preview_id"],

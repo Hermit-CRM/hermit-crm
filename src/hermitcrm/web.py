@@ -893,6 +893,9 @@ def create_app(root: Path, config: dict | None = None,
         "nudge_after": int(config.get("followup_nudge_days",
                                       DEFAULT_CONFIG["followup_nudge_days"])),
     }
+    # Keep in touch on the home page; a dict so config_reloaded can update it.
+    keep_in_touch_days = {"after": int(config.get("keep_in_touch_days",
+                                                  DEFAULT_CONFIG["keep_in_touch_days"]))}
     outcomes = [str(o) for o in (config.get("outcomes") or DEFAULT_OUTCOMES)]
     configured_types = task_types.from_config(config.get("task_types"))
     # `clock` is what makes "today" injectable: every route asks the store for
@@ -1032,6 +1035,8 @@ def create_app(root: Path, config: dict | None = None,
                                            DEFAULT_CONFIG["followup_reply_days"])),
                 "nudge_after": int(cfg.get("followup_nudge_days",
                                            DEFAULT_CONFIG["followup_nudge_days"]))},
+            "keep_in_touch": {"after": int(cfg.get("keep_in_touch_days",
+                                                   DEFAULT_CONFIG["keep_in_touch_days"]))},
         }
 
     def config_reloaded() -> None:
@@ -1085,6 +1090,7 @@ def create_app(root: Path, config: dict | None = None,
         app.state.enricher = derived["enricher"]
         app.state.custom_fields = derived["custom_fields"]
         followup_days.update(derived["followups"])
+        keep_in_touch_days.update(derived["keep_in_touch"])
         cal_url_cache.clear()
         current_setup_state(refresh=True)
         watched[custom.FILENAME] = file_stamp(custom.FILENAME)
@@ -1650,6 +1656,8 @@ def create_app(root: Path, config: dict | None = None,
             "today": today,
             "due_soon": due_soon,
             "followups": followups.radar(store, today, **followup_days),
+            "keep_in_touch": followups.keep_in_touch(store, today, **keep_in_touch_days),
+            "keep_in_touch_days": keep_in_touch_days["after"],
             "totals": report["activity"]["totals"],
             "previous": report["activity"]["previous"],
             "funnel": report["funnel"],
