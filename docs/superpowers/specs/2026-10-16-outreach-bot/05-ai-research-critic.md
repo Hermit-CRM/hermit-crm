@@ -1,6 +1,7 @@
 # Part 05 · Phase 3: follow-ups, ai-web research, critic, bookmarklet
 
-Context: [00-overview](00-overview.md). Needs phases 1-2.
+Context: [00-overview](00-overview.md). Needs phases 1-2. Built (17 Oct 2026);
+the plan and its decisions are in [PLAN-05](PLAN-05.md).
 
 **Done when:** each works on the demo folder; a CLI that cannot be restricted
 is refused.
