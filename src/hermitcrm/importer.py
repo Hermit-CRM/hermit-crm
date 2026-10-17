@@ -746,9 +746,10 @@ class _ContactPlanner:
             first, last = split_name(get("name"))
         first, last = " ".join(first.split()), " ".join(last.split())
         email = _first_email(get("email"))
-        if not first and not last:
-            return RowPlan(row=index, name="", slug="", action="skip",
-                           reason="no contact name", warnings=warnings)
+        if not first and not last:   # name the row's company, so the preview says which row
+            return RowPlan(row=index, name=" ".join(get("company").split()).strip(" ,;"),
+                           slug="", action="skip", reason="no contact name",
+                           warnings=warnings)
 
         # --- company
         company_name = " ".join(get("company").split()).strip(" ,;")

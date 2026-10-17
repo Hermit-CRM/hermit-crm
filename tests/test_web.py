@@ -604,8 +604,20 @@ def test_stage_dropdown_moves_company_and_redirects_to_board(client, repo):
     post_company(client, name="Acme GmbH")
     resp = client.post("/companies/acme/stage", data={"stage": "offer"})
     assert resp.status_code == 303
-    assert resp.headers["location"] == "/"
+    assert resp.headers["location"] == "/pipeline"   # not Home, which is "/" now
     assert last_commit(repo) == "company: acme stage prospect -> offer"
+
+
+def test_stage_dropdown_returns_to_the_filtered_board(client):
+    post_company(client, name="Acme GmbH")
+    form = client.get("/pipeline?country=DE").text.split('class="stage-form"')[1]
+    assert 'name="back" value="/pipeline?country=DE"' in form
+    resp = client.post("/companies/acme/stage",
+                       data={"stage": "offer", "back": "/pipeline?country=DE"})
+    assert resp.headers["location"] == "/pipeline?country=DE"
+    resp = client.post("/companies/acme/stage",
+                       data={"stage": "engaged", "back": "https://example.com/"})
+    assert resp.headers["location"] == "/pipeline"
 
 
 def test_unknown_company_is_404(client):
@@ -664,7 +676,7 @@ def test_acceptance_flow(client, app, repo):
 
     # 5. stage change from the board dropdown
     resp = client.post("/companies/mueller-soehne/stage", data={"stage": "discovery"})
-    assert resp.status_code == 303 and resp.headers["location"] == "/"
+    assert resp.status_code == 303 and resp.headers["location"] == "/pipeline"
     assert last_commit(repo) == "company: mueller-soehne stage engaged -> discovery"
     text = company_file(repo, "mueller-soehne").read_text(encoding="utf-8")
     assert "stage: discovery" in text and f"stage_changed: {TODAY}" in text
