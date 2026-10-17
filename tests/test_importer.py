@@ -359,3 +359,27 @@ def test_xlsx_upload_reads_first_sheet(store):
         decode_upload(b"PK\x03\x04 not really a zip")
     assert decode_upload("name\nCafé\n".encode("cp1252")) == "name\nCafé\n"
     assert decode_upload("name\nCafé\n".encode("utf-16")) == "name\nCafé\n"
+
+
+def test_a_role_column_is_taken_at_its_word_and_without_one_the_title_decides(store):
+    with_column = plan_import(store, "first_name,last_name,company,title,role\n"
+                                     "Ada,Example,Example Co,CEO,\n", mode="contacts")
+    assert "role" not in with_column.rows[0].contact
+    without = plan_import(store, "first_name,last_name,company,title\n"
+                                 "Ada,Example,Example Co,CEO\n", mode="contacts")
+    assert without.rows[0].contact["role"] == "decision-maker"
+
+
+def test_contacts_mode_fills_your_own_contact_fields(store):
+    defs = [FieldDef(key="pet", applies_to="contact"),
+            FieldDef(key="shoe", type="number", applies_to="contact")]
+    plan = plan_import(store, "first_name,company,pet,shoe\nAda,Example Co,cat,big\n",
+                       mode="contacts", defs=defs)
+    row = plan.rows[0]
+    assert row.contact["custom"] == {"pet": "cat"}
+    assert any("shoe" in w for w in row.warnings)   # not a number: kept in notes
+    apply_import(store, plan)
+    store.load()
+    contact = store.companies["example"].contacts["ada"]
+    assert contact.extra["pet"] == "cat"
+    assert "shoe: big" in store.companies["example"].contact_notes("ada")
