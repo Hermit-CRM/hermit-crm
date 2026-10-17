@@ -29,7 +29,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "httpx"]
+dev = ["pytest", "pytest-xdist", "httpx"]
 
 [project.urls]
 Homepage = "https://hermitcrm.io"

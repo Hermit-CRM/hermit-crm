@@ -10,7 +10,8 @@ store, `models.py`, `web.py` + `templates/` + `static/`, `migrations.py`,
 The spec is `docs/ARCHITECTURE.md`.
 
 - Set up with `python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'`.
-- `.venv/bin/pytest` must pass before any commit.
+- `.venv/bin/pytest` must pass before any commit. `-n auto` runs it in
+  parallel (about 4x faster); drop it when debugging one test.
 - Commit messages for AI-made changes start with "ai:".
 - No new runtime dependencies without discussion.
 - Never put real people, companies or email addresses in code, tests or docs;

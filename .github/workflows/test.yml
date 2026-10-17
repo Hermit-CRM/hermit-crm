@@ -6,6 +6,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+# A new push to a pull request cancels the run it supersedes. Runs on main and
+# manual runs always finish.
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # The pinned versions in uv.lock, so CI and contributors test the same thing.
   # --locked fails the job if pyproject.toml changed without `uv lock`.
@@ -31,7 +37,7 @@ jobs:
       - name: Test
         env:
           HERMITCRM_NO_UPDATE_CHECK: "1"
-        run: uv run --locked pytest -q
+        run: uv run --locked pytest -q -n auto
 
   # Users never get uv.lock: `uv tool install` and pip resolve the newest
   # versions. This job does the same, so an upstream release that breaks
@@ -53,7 +59,7 @@ jobs:
       - name: Test
         env:
           HERMITCRM_NO_UPDATE_CHECK: "1"
-        run: python -m pytest -q
+        run: python -m pytest -q -n auto
 
   # The Linux Secret Service for real: secret-tool against no daemon (must read
   # as "no keyring"), then against an unlocked gnome-keyring. The pytest job

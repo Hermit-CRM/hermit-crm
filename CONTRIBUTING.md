@@ -58,8 +58,11 @@ Python 3.11 is the oldest supported version; avoid syntax newer than that.
 ## Tests
 
 ```bash
-.venv/bin/pytest
+.venv/bin/pytest -n auto
 ```
+
+`-n auto` runs the tests in parallel (pytest-xdist); drop it to debug a single
+test or to read output in order.
 
 The suite must pass before every commit. Tests run in `tmp_path` folders and
 never touch the network or your own data. Add a test with every change; for a
