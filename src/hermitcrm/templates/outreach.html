@@ -21,7 +21,7 @@
   <label>Channel <select name="channel">{% for c in channels %}<option value="{{ c }}"{% if c == form.channel %} selected{% endif %}>{{ c }}</option>{% endfor %}</select></label>
   <label>Batch size <input name="limit" type="number" min="1" max="50" value="{{ form.limit }}"></label>
   <label>Approach <select name="approach"><option value="">the best fit per company</option>{% for a in approaches %}<option value="{{ a }}"{% if a == form.approach %} selected{% endif %}>{{ a }}</option>{% endfor %}{% if form.approach and form.approach not in approaches %}<option value="{{ form.approach }}" selected>{{ form.approach }}</option>{% endif %}</select></label>
-  <label>Research <select name="research">{% for l in levels %}<option value="{{ l }}"{% if l not in built_levels %} disabled{% endif %}>{{ l }}{% if l not in built_levels %} (later){% endif %}</option>{% endfor %}</select></label>
+  <label>Research <select name="research">{% for l in levels %}{% set off = l not in built_levels or (l == 'ai-web' and ai_web_problem) %}<option value="{{ l }}"{% if l == form.research %} selected{% endif %}{% if off %} disabled{% endif %}{% if l == 'ai-web' and ai_web_problem %} title="{{ ai_web_problem }}"{% endif %}>{{ l }}{% if l not in built_levels %} (later){% elif l == 'ai-web' and ai_web_problem %} (Claude Code only){% endif %}</option>{% endfor %}</select></label>
   <label class="check"><input type="checkbox" name="strong" value="1"{% if form.strong %} checked{% endif %}> stronger model</label>
   <button type="submit" formmethod="get" formaction="/outreach" name="preview" value="1" class="secondary">Preview</button>
   <button type="submit"{% if gate or ai_problem %} disabled{% endif %}>{% if form.left %}Build the next one{% else %}Build queue{% endif %}</button>
@@ -193,10 +193,11 @@
     <textarea name="pitch" rows="5" spellcheck="true" aria-label="Message after they accept">{{ i.pitch }}</textarea>{% endif %}
     {% if i.checks %}<ul class="outreach-checks warning">{% for c in i.checks %}<li>{{ c }}</li>{% endfor %}</ul>
     {% else %}<p class="small outreach-checks ok">Checks passed.</p>{% endif %}
+    {% if i.critic %}<p class="small outreach-critic" title="Scored by the AI, 1 (bad) to 5 (good). A guide, not a rule: it never blocks anything."><strong>Critic {{ i.critic_score }}/5</strong> (lowest): {% for name in critic_scores %}{{ name }} {{ i.critic[name] }}{% if not loop.last %}, {% endif %}{% endfor %}{% if i.critic_reason %}. {{ i.critic_reason }}{% endif %}</p>{% endif %}
     {% if i.proof_used %}<p class="small">Proof: {{ i.proof_used | join('; ') }}</p>{% endif %}
     <div class="draft-actions">
       <button type="submit" title="{% if i.checks %}Allowed with a failing check: it is kept as a warning{% else %}Approve this text{% endif %}">Mark ready</button>
-      <button type="submit" formaction="/outreach/{{ i.id }}/check" class="secondary">Save &amp; check again</button>
+      <button type="submit" formaction="/outreach/{{ i.id }}/check" class="secondary" title="Saves your edit, runs the checks and asks the AI critic to score it again (an AI call)">Save &amp; check again</button>
       <button type="button" class="secondary" data-copy-target="body-{{ i.id }}">Copy</button>
     </div>
   </form>
@@ -218,6 +219,7 @@
   <pre class="outreach-text" id="body-{{ i.id }}">{{ i.body }}</pre>
   {% if i.pitch %}<p class="small">after they accept</p><pre class="outreach-text">{{ i.pitch }}</pre>{% endif %}
   {% if i.checks %}<ul class="outreach-checks warning">{% for c in i.checks %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
+  {% if i.critic %}<p class="small outreach-critic" title="Scored by the AI, 1 (bad) to 5 (good). A guide, not a rule: it never blocks anything."><strong>Critic {{ i.critic_score }}/5</strong> (lowest): {% for name in critic_scores %}{{ name }} {{ i.critic[name] }}{% if not loop.last %}, {% endif %}{% endfor %}{% if i.critic_reason %}. {{ i.critic_reason }}{% endif %}</p>{% endif %}
   <div class="draft-actions">
     <button type="button" data-copy-target="body-{{ i.id }}">Copy</button>
     {% if i.channel == 'email' and ct and ct.email %}<a class="button secondary" href="mailto:{{ ct.email }}?subject={{ i.subject | urlencode }}">Open in mail</a>{% endif %}
