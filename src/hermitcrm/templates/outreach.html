@@ -24,7 +24,7 @@
   <label>Research <select name="research">{% for l in levels %}{% set off = l not in built_levels or (l == 'ai-web' and ai_web_problem) %}<option value="{{ l }}"{% if l == form.research %} selected{% endif %}{% if off %} disabled{% endif %}{% if l == 'ai-web' and ai_web_problem %} title="{{ ai_web_problem }}"{% endif %}>{{ l }}{% if l not in built_levels %} (later){% elif l == 'ai-web' and ai_web_problem %} (Claude Code only){% endif %}</option>{% endfor %}</select></label>
   <label class="check"><input type="checkbox" name="strong" value="1"{% if form.strong %} checked{% endif %}> stronger model</label>
   <button type="submit" formmethod="get" formaction="/outreach" name="preview" value="1" class="secondary">Preview</button>
-  <button type="submit"{% if gate or ai_problem %} disabled{% endif %}>{% if form.left %}Build the next one{% else %}Build queue{% endif %}</button>
+  <button type="submit" data-busy="Building…"{% if gate or ai_problem %} disabled{% endif %}>{% if form.left %}Build the next one{% else %}Build queue{% endif %}</button>
   {% if form.left %}<a href="/outreach" class="small" id="outreach-stop">Stop</a> <span class="small">Building: {{ form.left }} left</span>{% endif %}
 </form>
 
@@ -139,6 +139,7 @@
     {% if ct %}<a href="/companies/{{ i.company }}/contacts/{{ i.contact }}">{{ ct.name }}</a>{% else %}{{ i.contact }}{% endif %}
     {% if ct and ct.title %}<span class="small">{{ ct.title }}</span>{% endif %}
     {% if ct and ct.linkedin %}<a href="{{ ct.linkedin | href }}" target="_blank" rel="noopener" class="small">LinkedIn &#8599;</a>{% endif %}
+    {% if ct and ct.email %}<a href="mailto:{{ ct.email }}" class="small outreach-email">{{ ct.email }}</a>{% endif %}
     <span class="tag">{{ i.channel }}</span> <span class="tag">{{ i.state }}</span>
     {% if i.kind == 'reply-to-interest' %}<span class="tag">reply to interest</span>{% endif %}
   </p>
