@@ -2116,6 +2116,44 @@ def set_findings(store: Store, item_id: str, remove: list[int] | None = None,
     return item
 
 
+PROPOSAL_FIELDS = {"linkedin": "contact", "website": "company", "country": "company"}
+
+
+def proposal_open(company, contact, key: str) -> bool:
+    """True when the record the proposal `key` is for still has that field
+    empty (somebody may have filled it since research ran)."""
+    if PROPOSAL_FIELDS.get(key) == "contact":
+        return contact is not None and not getattr(contact, key, "")
+    return company is not None and not getattr(company, key, "")
+
+
+def accept_proposal(store: Store, item_id: str, key: str) -> Item:
+    """Write what research proposed for an empty field (the company's website
+    or country, the contact's LinkedIn URL) to the record, Enrich-style: only
+    on the person's say-so. The record change and the item (without that
+    proposal) are one commit. A field that has a value by now is left alone."""
+    item = _refresh(store, item_id)
+    value = item.proposals.get(key)
+    if key not in PROPOSAL_FIELDS or not value:
+        raise OutreachError(f"{item.id} proposes nothing for {key!r}")
+    company = store.get(item.company)
+    contact = company.contacts.get(item.contact) if company is not None else None
+    if company is None or contact is None:
+        raise OutreachError(f"{item.record} is not in the CRM any more")
+    if not proposal_open(company, contact, key):
+        raise OutreachError(f"the {key} is already filled in; nothing was changed")
+    message = f"outreach: {item.record}: {key} from research"
+    with store.batch(message):
+        if PROPOSAL_FIELDS[key] == "contact":
+            store.update_contact(item.company, item.contact, message=message, **{key: value})
+        else:
+            store.update_company(item.company, message=message, **{key: value})
+        del item.proposals[key]
+        write_item(store.root, item)
+        store.notify(message, [item.path])
+    return item
+
+
 def sent_by_interaction(root: Path | str, company: str, it) -> list[Item]:
     """The ready items an outbound interaction just logged marks sent: same
     contact, same channel, logged at or after the item was marked ready. The

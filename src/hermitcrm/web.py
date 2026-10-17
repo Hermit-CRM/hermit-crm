@@ -3848,7 +3848,10 @@ def create_app(root: Path, config: dict | None = None,
                         or outreach.CONFIG_DEFAULTS["outreach_fit_field"])
         reply = next((i for i in company.interactions if i.id == item.reply_to), None) \
             if company is not None and item.reply_to else None
+        proposals = [(k, v) for k, v in sorted(item.proposals.items())
+                     if outreach.proposal_open(company, contact, k)]
         return {"item": item, "company": company, "contact": contact,
+                "proposals": proposals,
                 "fit": outreach.fit_value(company, fit_field) if company else None,
                 "fit_field": fit_field, "reply": reply}
 
@@ -3882,12 +3885,14 @@ def create_app(root: Path, config: dict | None = None,
                 "channel": channel if channel in outreach.CHANNELS else "email",
                 "limit": limit if limit > 0 else default_limit,
                 "strong": params.get("strong", "") in ("1", "on", "true"),
-                "left": left, "batch": params.get("batch", "")}
+                "left": left, "batch": params.get("batch", ""),
+                "approach": params.get("approach", "").strip()}
 
     def outreach_query(form: dict, **extra) -> str:
         values = {"where": form["where"], "channel": form["channel"],
                   "limit": form["limit"], "strong": "1" if form["strong"] else "",
-                  "left": form["left"] or "", "batch": form["batch"], **extra}
+                  "left": form["left"] or "", "batch": form["batch"],
+                  "approach": form["approach"], **extra}
         return urlencode({k: v for k, v in values.items() if v not in ("", None, 0)})
 
     @app.get("/outreach", response_class=HTMLResponse)
@@ -3911,11 +3916,12 @@ def create_app(root: Path, config: dict | None = None,
             try:
                 preview = outreach.select(store, where=outreach_where(form["where"]),
                                           channel=form["channel"], limit=form["limit"],
-                                          config=config)
+                                          approach=form["approach"], config=config)
             except outreach.OutreachError as exc:
                 preview_error = str(exc)
-        _, gate = outreach._ready_approaches(root)
+        ready, gate = outreach._ready_approaches(root)
         return render(request, "outreach.html", {
+            "approaches": [a.name for a in ready],
             "tabs": [(t, label, counts[t]) for t, label, _ in OUTREACH_TABS],
             "tab": tab, "cards": [outreach_card(i) for i in shown],
             "reply_rows": [r for r in reply_rows if r["item"] is None] if tab == "replies"
@@ -3936,7 +3942,8 @@ def create_app(root: Path, config: dict | None = None,
                              limit: str = Form(""), strong: str = Form(""),
                              left: str = Form(""), batch: str = Form(""),
                              contact: str = Form(""), back: str = Form(""),
-                             kind: str = Form(outreach.FIRST_TOUCH)):
+                             kind: str = Form(outreach.FIRST_TOUCH),
+                             approach: str = Form("")):
         """Research and draft the next contact of the batch (one per request).
         `contact` ("company/contact"): the contact page's Research & draft, or a
         reply on the Replies tab (`kind` reply-to-interest)."""
@@ -3944,7 +3951,8 @@ def create_app(root: Path, config: dict | None = None,
         if kind not in outreach.BUILT_KINDS or (kind == outreach.REPLY and not contact):
             kind = outreach.FIRST_TOUCH
         form = outreach_form({"where": where, "channel": channel, "limit": limit,
-                              "strong": strong, "left": left, "batch": batch})
+                              "strong": strong, "left": left, "batch": batch,
+                              "approach": approach})
         if not left.strip():   # the first click: the whole batch is still to build
             form["left"] = form["limit"]
         back = safe_back(back, "/outreach") if contact else "/outreach"
@@ -3954,6 +3962,7 @@ def create_app(root: Path, config: dict | None = None,
             selection = await run_in_threadpool(
                 outreach.select, store, where=outreach_where(form["where"]),
                 channel=form["channel"], kind=kind, limit=1,
+                approach="" if contact else form["approach"],
                 contacts=[contact] if contact else None, config=config)
         except outreach.OutreachError as exc:
             return flashed(back if contact else f"/outreach?{outreach_query(stop)}",
@@ -4026,7 +4035,8 @@ def create_app(root: Path, config: dict | None = None,
                 if found.interested else f"{found.contact.name}: not interested.")
         return flashed("/outreach?tab=replies", text, anchor=f"reply-{found.interaction.id}")
 
-    OUTREACH_ACTIONS = ("check", "ready", "regenerate", "skip", "sent", "findings")
+    OUTREACH_ACTIONS = ("check", "ready", "regenerate", "skip", "sent", "findings",
+                        "proposal")
 
     @app.post("/outreach/{item_id}/{what}")
     async def outreach_action(request: Request, item_id: str, what: str,
@@ -4034,7 +4044,8 @@ def create_app(root: Path, config: dict | None = None,
                               body: str | None = Form(None), pitch: str | None = Form(None),
                               reason: str = Form(""), note: str = Form(""),
                               strong: str = Form(""), remove: list[str] = Form([]),
-                              add: str = Form(""), kind: str = Form("company")):
+                              add: str = Form(""), kind: str = Form("company"),
+                              key: str = Form("")):
         check_csrf(csrf_token)
         if what not in OUTREACH_ACTIONS:
             raise HTTPException(status_code=404, detail=f"unknown action {what!r}")
@@ -4073,6 +4084,9 @@ def create_app(root: Path, config: dict | None = None,
             elif what == "sent":
                 item = await run_in_threadpool(outreach.mark_sent, store, item.id)
                 text = "Marked sent (nothing was logged)."
+            elif what == "proposal":
+                item = await run_in_threadpool(outreach.accept_proposal, store, item.id, key)
+                text = f"Saved the {key} to the record."
             else:
                 numbers = [int(n) for n in remove if str(n).strip().isdigit()]
                 item = await run_in_threadpool(outreach.set_findings, store, item.id,

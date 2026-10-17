@@ -271,7 +271,108 @@ def test_every_post_checks_csrf_and_ids(client, root):
 
 
 def outreach_actions():
-    return ("check", "ready", "regenerate", "skip", "sent", "findings")
+    return ("check", "ready", "regenerate", "skip", "sent", "findings", "proposal")
+
+
+# ------------------------------------------------- research proposals
+
+
+def with_proposals(client, root, has_country="", **proposals):
+    """A drafted card for Mara whose company has `has_country` (none by default) and
+    no website, and research proposing `proposals` for empty fields."""
+    item = drafted(client, root)
+    client.app.state.store.update_company("lindenhof-data", message="test: clear",
+                                          country=has_country, website="")
+    item.proposals = dict(proposals)
+    outreach.write_item(root, item)
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "test: proposals")
+    return item
+
+
+def company_of(root):
+    store = Store(root)
+    store.load()
+    return store.get("lindenhof-data")
+
+
+def test_a_research_proposal_is_written_only_on_the_button(client, root):
+    item = with_proposals(client, root, website="https://lindenhof.example.com")
+    item.proposals["country"] = "DE"
+    outreach.write_item(root, item)
+    git(root, "commit", "-qam", "test: more proposals")
+    page = client.get("/outreach").text
+    assert page.count("Save to the record") == 2
+    assert "https://lindenhof.example.com" in page and ">DE<" in page
+    assert company_of(root).country == "" and company_of(root).website == ""
+    before = commits(root)
+    response = post(client, f"/outreach/{item.id}/proposal", key="country")
+    assert response.status_code == 303 and "country" in query(response)["flash"]
+    assert company_of(root).country == "DE" and company_of(root).website == ""
+    assert outreach.get_item(root, item.id).proposals == {
+        "website": "https://lindenhof.example.com"}
+    assert len(commits(root)) == len(before) + 1
+    assert commits(root)[0].startswith("outreach: ")
+    touched = git(root, "show", "--name-only", "--format=", "HEAD").split()
+    assert item.path in touched and len(touched) == 2 and "companies/lindenhof-data/" in touched[0] + touched[1]
+    assert "Save to the record" in client.get("/outreach").text   # the website one stays
+
+
+def test_a_proposal_for_a_field_that_has_a_value_is_neither_offered_nor_written(client, root):
+    item = with_proposals(client, root, has_country="NL", country="DE")
+    assert "Save to the record" not in client.get("/outreach").text
+    before = commits(root)
+    response = post(client, f"/outreach/{item.id}/proposal", key="country")
+    assert "already" in query(response)["flash"]
+    assert company_of(root).country == "NL" and commits(root) == before
+
+
+def test_a_proposal_that_was_never_made_is_refused(client, root):
+    item = with_proposals(client, root, website="https://lindenhof.example.com")
+    before = commits(root)
+    for key in ("country", "name", ""):
+        response = post(client, f"/outreach/{item.id}/proposal", key=key)
+        assert "Save to the record" not in query(response)["flash"]
+        assert company_of(root).country == "" and commits(root) == before
+
+
+def test_a_linkedin_proposal_goes_to_the_contact(client, root):
+    item = with_proposals(client, root, linkedin="https://www.linkedin.com/in/mara-keller-x")
+    client.app.state.store.update_contact("lindenhof-data", "mara-keller",
+                                          message="test: clear", linkedin="")
+    post(client, f"/outreach/{item.id}/proposal", key="linkedin")
+    store = Store(root)
+    store.load()
+    contact = store.get("lindenhof-data").contacts["mara-keller"]
+    assert contact.linkedin == "https://www.linkedin.com/in/mara-keller-x"
+    assert outreach.get_item(root, item.id).proposals == {}
+
+
+# ------------------------------------------------------------ approach picker
+
+
+def test_the_bar_offers_the_playbook_approaches(client):
+    page = client.get("/outreach").text
+    assert 'name="approach"' in page and "the best fit per company" in page
+    assert "Founder coaching" in page and "Scaling the sales team" in page
+
+
+def test_the_chosen_approach_reaches_preview_and_build(client, root):
+    page = client.get("/outreach", params={"preview": "1", "where": "stage=prospect",
+                                           "approach": "Scaling the sales team"}).text
+    assert "Scaling the sales team</option>" in page and "selected" in page.split(
+        "Scaling the sales team</option>")[0].rsplit("<option", 1)[1]
+    response = build_one(client, limit="2", approach="Scaling the sales team")
+    assert query(response)["approach"] == "Scaling the sales team"   # a batch keeps going with it
+    assert {i.approach for i in items(root)} == {"Scaling the sales team"}
+
+
+def test_an_unknown_approach_says_so_and_builds_nothing(client, root, fake):
+    response = build_one(client, approach="Selling ice")
+    assert "Not built" in query(response)["flash"] and "Selling ice" in query(response)["flash"]
+    assert items(root) == [] and fake.calls == []
+    page = client.get("/outreach", params={"preview": "1", "approach": "Selling ice"}).text
+    assert "Selling ice" in page
 
 
 # --------------------------------------------------------------- contact page
