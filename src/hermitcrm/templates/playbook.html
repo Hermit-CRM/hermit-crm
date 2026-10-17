@@ -94,7 +94,7 @@
       <label class="span-6">Or a file<input type="file" name="source_file" accept=".pdf,.docx,.txt,.md,application/pdf,text/plain"><span class="small">PDF, Word (.docx) or .txt, up to 15 MB.</span></label>
       <label class="span-12">Or text<textarea name="source_text" rows="4">{{ source_text }}</textarea></label>
     </div>
-    <button type="submit" formaction="/settings/playbook/draft"{% if not ai.available %} disabled{% endif %}>Draft it</button>
+    <button type="submit" formaction="/settings/playbook/draft" data-busy="Drafting… reading your source"{% if not ai.available %} disabled{% endif %}>Draft it</button>
   </details>
 
   <fieldset class="form-group"><legend>Offer</legend><div class="form-grid">
@@ -152,7 +152,7 @@
       <span class="small">For example "Plain and friendly, first names, informal address, no jargon. Sign off with my first name."
         {% if sent_count %}Or let your AI describe it from your {{ sent_count }} most recent sent emails in the CRM.{% endif %}</span>
     </label>
-    {% if sent_count %}<div class="form-row"><button type="submit" class="ai-action" formaction="/settings/playbook/voice"{% if not ai.available %} disabled title="Set up an AI CLI first"{% endif %}>✦ Learn my voice from my sent emails</button></div>{% endif %}
+    {% if sent_count %}<div class="form-row"><button type="submit" class="ai-action" formaction="/settings/playbook/voice" data-busy="Learning your voice…"{% if not ai.available %} disabled title="Set up an AI CLI first"{% endif %}>✦ Learn my voice from my sent emails</button></div>{% endif %}
     {% if voice_error %}<div class="errors span-12"><p>{{ voice_error }}</p></div>{% endif %}
     {{ field('section_channels', 'Channels', 'For example "- email: one short paragraph and one question" and "- LinkedIn: two sentences, no link".', rows=3) }}
     {{ field('section_donts', "Don'ts", 'For example "- No invented familiarity. - No claims without proof. - Never name competitors."', rows=3) }}

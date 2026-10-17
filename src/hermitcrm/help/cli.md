@@ -53,6 +53,9 @@ hermitcrm outreach build (same flags) [--research scrape] [--strong]
                                         outreach/, one commit per step; refused until the playbook is ready
 hermitcrm outreach list [--state S]        every item, newest first
 hermitcrm outreach show ID                 one item in full: links, findings, flags, checks, the draft
+hermitcrm outreach edits [--positive] [--noted]
+                                        your tracked edits as Markdown: the AI's original, each change
+                                        with your explainer, and how the message was answered
 hermitcrm outreach ready ID                approve a draft (the checks run again on your text; a failing
                                         one is a warning); never sent
 hermitcrm outreach sent ID                 you sent it (logging the message does this too); logs nothing
