@@ -119,6 +119,7 @@ DEFAULT_CONFIG = {
     "outreach_fit_field": "fit_score",
     "outreach_high_fit": 65,
     "outreach_batch_size": 10,
+    "outreach_critic_threshold": 2,
     # The angles a draft may take: the template angles and custom (your own).
     "outreach_angles": ["scale", "unblock", "hook", "bridge", "decline", "custom"],
     "messaging_size_field": "fte_estimate",
