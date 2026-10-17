@@ -170,6 +170,17 @@ def test_claude_argv_env_and_structured_output(monkeypatch):
     assert "CLAUDECODE" not in run.seen["env"] and "ANTHROPIC_API_KEY" not in run.seen["env"]
 
 
+def test_claude_run_skips_the_users_own_instructions_and_memory(monkeypatch):
+    """No CLAUDE.md or auto-memory of whoever runs it: the prompt is the data folder."""
+    run = FakeRun(CLAUDE_STDOUT)
+    monkeypatch.setattr(subprocess, "run", run)
+    for tools in (None, ""):
+        Enricher(provider="claude", command="claude-cli", timeout=5,
+                 which=ALL)._run_cli("the prompt", {"type": "object"}, tools=tools)
+        argv = run.seen["argv"]
+        assert argv[argv.index("--setting-sources") + 1] == ""
+        assert run.seen["env"]["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] == "1"
+
 def test_claude_without_model_uses_the_medium_default(monkeypatch):
     run = FakeRun(CLAUDE_STDOUT)
     monkeypatch.setattr(subprocess, "run", run)
