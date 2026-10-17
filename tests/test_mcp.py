@@ -138,6 +138,12 @@ def test_followups_and_brief_answer_on_an_empty_folder(tools):
     text, failed = call(tools, "brief")
     assert not failed and "No meetings with known companies" in text
 
+    text, failed = call(tools, "keep_in_touch")
+    assert not failed and "Nobody to catch up with" in text and "180 days" in text
+
+    text, failed = call(tools, "keep_in_touch", after="soon")
+    assert failed and "after must be a whole number" in text
+
 
 # ------------------------------------------------------------------ writes
 

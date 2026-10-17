@@ -145,3 +145,88 @@ def test_first_line_keeps_a_body_that_is_only_a_greeting():
     assert followups.first_line("Hi Jane,") == "Hi Jane,"
     assert followups.first_line("") == ""
     assert followups.first_line("x" * 200).endswith("…")
+
+
+# ---------------------------------------------------------------- keep in touch
+
+
+def test_keep_in_touch_lists_people_outside_open_deals_quiet_for_long(seeded):
+    seeded.update_company("acme", stage="won")
+    seeded.create_interaction("acme", channel="email", direction="in",
+                              contact="jane-roe", date=days_ago(200),
+                              subject="Thanks for the rollout", body="All live.")
+
+    rows = followups.keep_in_touch(seeded, TODAY)
+    assert [(r.company.slug, r.contact.slug, r.days) for r in rows] == [
+        ("acme", "jane-roe", 200)]
+    assert rows[0].summary == "Thanks for the rollout"
+    assert rows[0].href == "/companies/acme/contacts/jane-roe"
+    # under the threshold, nobody; the threshold is inclusive
+    assert followups.keep_in_touch(seeded, TODAY, after=201) == []
+    assert len(followups.keep_in_touch(seeded, TODAY, after=200)) == 1
+
+
+def test_keep_in_touch_leaves_out_open_deals(seeded):
+    """Acme stays in prospect: the radar and the silent list own it."""
+    seeded.create_interaction("acme", channel="email", direction="out",
+                              contact="jane-roe", date=days_ago(300), body="Still keen?")
+    assert followups.keep_in_touch(seeded, TODAY) == []
+
+
+def test_keep_in_touch_counts_the_latest_touch_in_either_direction(seeded):
+    seeded.update_company("acme", stage="lost", lost_reason="no budget")
+    seeded.create_interaction("acme", channel="email", direction="out",
+                              contact="jane-roe", date=days_ago(400), body="Proposal.")
+    seeded.create_interaction("acme", channel="call", direction="in",
+                              contact="jane-roe", date=days_ago(30), body="Caught up.")
+    assert followups.keep_in_touch(seeded, TODAY) == []
+
+
+def test_notes_and_company_level_touches_do_not_count(seeded):
+    seeded.update_company("acme", stage="won")
+    seeded.create_interaction("acme", channel="email", direction="out",
+                              contact="jane-roe", date=days_ago(250), body="Hello.")
+    seeded.create_interaction("acme", channel="note", direction="", contact="jane-roe",
+                              date=days_ago(2), body="Saw her at a conference.")
+    seeded.create_interaction("acme", channel="email", direction="out",
+                              date=days_ago(3), body="Newsletter to the team.")
+
+    assert [r.days for r in followups.keep_in_touch(seeded, TODAY)] == [250]
+
+
+def test_keep_in_touch_leaves_out_never_contacted_and_do_not_contact(seeded):
+    seeded.update_company("acme", stage="won")
+    seeded.update_company("borduro", stage="won")
+    seeded.create_contact("acme", first_name="Sam", last_name="Poe")  # never contacted
+    seeded.create_interaction("acme", channel="email", direction="out",
+                              contact="jane-roe", date=days_ago(200), body="Hello.")
+    seeded.create_interaction("borduro", channel="email", direction="out",
+                              contact="jane-roe", date=days_ago(200), body="Hello.")
+    assert [r.company.slug for r in followups.keep_in_touch(seeded, TODAY)] == [
+        "acme", "borduro"]
+
+    # tagged on the person
+    seeded.companies["acme"].contacts["jane-roe"].extra["tags"] = ["Do-Not-Contact"]
+    # tagged on the company
+    seeded.update_company("borduro", tags="do-not-contact")
+    assert followups.keep_in_touch(seeded, TODAY) == []
+
+
+def test_keep_in_touch_sorts_longest_quiet_first(seeded):
+    seeded.update_company("acme", stage="won")
+    seeded.update_company("borduro", stage="temp-disqualified")
+    seeded.create_interaction("acme", channel="email", direction="out",
+                              contact="jane-roe", date=days_ago(190), body="Hello.")
+    seeded.create_interaction("borduro", channel="meeting", direction="out",
+                              contact="jane-roe", date=days_ago(500), body="Lunch.")
+
+    rows = followups.keep_in_touch(seeded, TODAY)
+    assert [(r.company.slug, r.days) for r in rows] == [("borduro", 500), ("acme", 190)]
+    text = followups.render_keep_in_touch(rows, 180)
+    assert text.startswith("## Not spoken to in 180+ days (2)")
+    assert "- borduro/jane-roe | Jane Roe | Borduro (temp-disqualified) | 500d | meeting out: Lunch." in text
+
+
+def test_render_keep_in_touch_says_so_when_there_is_nobody():
+    assert "Nobody to catch up with" in followups.render_keep_in_touch([], 90)
+    assert "last 90 days" in followups.render_keep_in_touch([], 90)

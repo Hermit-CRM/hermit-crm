@@ -341,6 +341,14 @@ def test_main_digest_default_days(tmp_path, capsys):
     assert captured.out.strip() == "Summary: 0 interactions | companies touched: 0"
 
 
+def test_main_keep_in_touch(tmp_path, capsys):
+    fixed_store(tmp_path)
+    code = crm.main(["keep-in-touch", "--after", "90"], root=tmp_path)
+    assert code == 0
+    assert "everyone outside an open deal heard from you in the last 90 days" in \
+        capsys.readouterr().out
+
+
 def test_cli_add_company_contact_and_interaction(tmp_path, capsys):
     fixed_store(tmp_path)
 

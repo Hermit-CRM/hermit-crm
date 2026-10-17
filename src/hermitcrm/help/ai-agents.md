@@ -156,6 +156,7 @@ The tools, reads first:
 | `digest` | Interactions in the last N days. |
 | `report` | Activity, funnel, time in stage, outcomes, hygiene. |
 | `followups` | Threads you owe a reply, then ones you are waiting on. |
+| `keep_in_touch` | People outside an open deal you have not spoken to in a while. |
 | `brief` | Each upcoming meeting with the record behind it. |
 | `add_company` | Create a company; returns the slug. |
 | `add_contact` | Create a contact under a company. |

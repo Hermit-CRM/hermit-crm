@@ -396,6 +396,15 @@ def cmd_followups(store: Store, config: dict, reply_after: int | None = None,
     return followups.render(rows)
 
 
+def cmd_keep_in_touch(store: Store, config: dict, after: int | None = None) -> str:
+    """People outside an open deal you have not spoken to in a while; the
+    same rows as Keep in touch on the home page, all of them."""
+    from hermitcrm import followups
+
+    after = int(config["keep_in_touch_days"]) if after is None else after
+    return followups.render_keep_in_touch(followups.keep_in_touch(store, after=after), after)
+
+
 # ------------------------------------------------------------------- digest
 
 
@@ -1361,6 +1370,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_followups.add_argument("--nudge-after", type=int, default=None,
                              help="days before an unanswered outbound message counts")
 
+    p_keep = sub.add_parser("keep-in-touch",
+                            help="people outside an open deal you have not spoken to in a while")
+    p_keep.add_argument("--after", type=int, default=None,
+                        help="days without an interaction (default: keep_in_touch_days, 180)")
+
     p_digest = sub.add_parser("digest", help="recent interactions, oldest first")
     p_digest.add_argument("--days", type=int, default=7)
 
@@ -1844,6 +1858,10 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
 
     if args.command == "followups":
         print(cmd_followups(store, load_config(root), args.reply_after, args.nudge_after))
+        return 0
+
+    if args.command == "keep-in-touch":
+        print(cmd_keep_in_touch(store, load_config(root), args.after))
         return 0
 
     if args.command == "digest":

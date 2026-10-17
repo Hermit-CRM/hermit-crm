@@ -185,7 +185,7 @@ radar, `serve --host`, capture bookmarklet, pre-meeting brief). What is left:
       `lost_reason`, message outcomes and sources are all already stored, and
       nobody else can do this well because nobody else has the full history.
       It is a report, not an agent.
-- [ ] Keep-in-touch cadence for the network, separate from the deal pipeline.
+- [x] Keep-in-touch cadence for the network, separate from the deal pipeline.
       `silent_days` is deal-shaped; "people I have not spoken to in six months"
       is a different and useful list.
 - [ ] Proposal or quote generated from the company record. Genuine value for a
