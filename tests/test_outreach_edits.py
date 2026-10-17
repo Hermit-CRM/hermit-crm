@@ -199,3 +199,12 @@ def test_the_edits_report_leaves_out_other_answers_and_says_when_empty(client, r
          body=item.body.replace("caught my eye", "stood out"), note="plainer verb")
     assert cli.main(["outreach", "edits", "--positive"], root=root) == 0
     assert "plainer verb" not in capsys.readouterr().out
+
+
+def test_the_explainer_box_starts_hidden_and_says_it_helps_the_ai(client, root):
+    drafted(client, root)
+    page = client.get("/outreach").text
+    assert 'data-note-for=' in page and 'outreach-note" data-note-for' in page
+    box = page[page.index("data-note-for"):]
+    assert box[:box.index(">")].endswith("hidden")            # revealed by the page script on an edit
+    assert "helps improve the AI" in page
