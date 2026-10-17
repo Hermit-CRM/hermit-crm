@@ -107,6 +107,7 @@ label.check input { display: inline-block; width: auto; margin: 0; flex: none; }
 main, footer { grid-column: 2; }
 
 input, select, textarea, button { color: inherit; }
+input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); }
 
 @media (max-width: 760px) {
   body { display: block; }
