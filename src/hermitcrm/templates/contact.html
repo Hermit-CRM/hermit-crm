@@ -38,15 +38,15 @@
   </span>
 </div>
 {% if outreach_open %}{% set oi = outreach_open %}
-<p class="outreach-open small">Outreach: a {{ oi.kind }} by {{ oi.channel }} is <strong>{{ oi.state }}</strong>. <a href="/outreach?tab={{ 'ready' if oi.state == 'ready' else ('replies' if oi.kind == 'reply-to-interest' else 'drafts') }}#item-{{ oi.id }}">Review it on Outreach</a></p>
+<p class="outreach-open small">Outreach: a {{ oi.kind }} by {{ oi.channel }} is <strong>{{ oi.state }}</strong>. <a href="/outreach?tab={{ 'ready' if oi.state == 'ready' else ('replies' if oi.kind == 'reply-to-interest' else ('follow-ups' if oi.kind == 'follow-up' else 'drafts')) }}#item-{{ oi.id }}">Review it on Outreach</a></p>
 {% else %}
 <form method="post" action="/outreach/build" class="inline outreach-start">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <input type="hidden" name="contact" value="{{ company.slug }}/{{ contact.slug }}">
   <input type="hidden" name="back" value="/companies/{{ company.slug }}/contacts/{{ contact.slug }}">
   <select name="channel" aria-label="Outreach channel">{% for c in outreach_channels %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
-  <select name="kind" aria-label="Draft type"><option value="first-touch"{% if outreach_kind == 'first-touch' %} selected{% endif %}>first touch</option><option value="reply-to-interest"{% if outreach_kind == 'reply-to-interest' %} selected{% endif %}>reply to interest</option></select>
-  <button type="submit" class="secondary" title="{% if outreach_kind == 'reply-to-interest' %}{{ contact.first_name or contact.name }} replied with interest: draft an answer{% else %}Research {{ contact.first_name or contact.name }} and draft a first touch{% endif %} with your AI CLI; you review it on Outreach. Nothing is sent.">{% if outreach_kind == 'reply-to-interest' %}Draft a reply{% else %}Research &amp; draft{% endif %}</button>
+  <select name="kind" aria-label="Draft type"><option value="first-touch"{% if outreach_kind == 'first-touch' %} selected{% endif %}>first touch</option><option value="reply-to-interest"{% if outreach_kind == 'reply-to-interest' %} selected{% endif %}>reply to interest</option><option value="follow-up"{% if outreach_kind == 'follow-up' %} selected{% endif %}>follow-up</option></select>
+  <button type="submit" class="secondary" title="{% if outreach_kind == 'reply-to-interest' %}{{ contact.first_name or contact.name }} replied with interest: draft an answer{% elif outreach_kind == 'follow-up' %}Your last message to {{ contact.first_name or contact.name }} has had no answer: draft a short follow-up{% else %}Research {{ contact.first_name or contact.name }} and draft a first touch{% endif %} with your AI CLI; you review it on Outreach. Nothing is sent.">{% if outreach_kind == 'reply-to-interest' %}Draft a reply{% elif outreach_kind == 'follow-up' %}Draft a follow-up{% else %}Research &amp; draft{% endif %}</button>
 </form>
 {% endif %}
 <dl class="status-strip">
