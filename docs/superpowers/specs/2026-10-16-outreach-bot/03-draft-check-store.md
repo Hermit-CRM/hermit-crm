@@ -40,7 +40,7 @@ the problem marked, when it:
 - asks more or fewer than exactly one question (count of `?` outside quotes,
   per language); a LinkedIn connection note may have zero or one
 - opens with "I" (or Ich, Ik, Je)
-- is a reply to interest without the playbook's offer line (normalised
+- is a reply to interest without the approach's offer line (normalised
   whitespace; a translated offer line per language can be set in the playbook)
 - contains a calendar link (Calendly and similar, Google/Microsoft booking
   URLs, a configurable list) or proposes a time slot (weekday + time, dates
