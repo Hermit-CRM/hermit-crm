@@ -8,6 +8,15 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Filter problems explain themselves.** A filter typed like a sentence
+  (`fte_estimate >24`, `fit_score>=70`, `country: DE`) now says what to type
+  (`fte_estimate=>24`) instead of "unknown filter key". An unknown key suggests
+  the closest one and lists the keys with their type (`fte_estimate (text)`).
+  Comparing a text field with a number (`>24`), which compares letter by letter
+  and drops 100 or more, gets a note on the Outreach preview and in `hermitcrm
+  set` dry runs. On Outreach each problem has an **Explain and fix with AI** link
+  that opens Ask · Adjust with it filled in. The page's csrf token and empty
+  parameters no longer travel into the Ask · Adjust prompt.
 - **Trends on dashboards.** A new `trend` widget counts the rows of a list
   page per week or month of one date column (messages sent, last touches,
   tasks done) over a report period, and draws one bar per week or month,

@@ -197,6 +197,21 @@
     });
   });
 
+  // "Explain and fix with AI" under a filter problem: open Ask · Adjust on the
+  // Adjust tab with the request filled in. The user still presses the button.
+  document.querySelectorAll("button[data-fix]").forEach(function (button) {
+    var details = document.querySelector("details[data-ask]");
+    var tab = document.getElementById("ask-tab-adjust");
+    var area = document.getElementById("adjust-request");
+    if (!details || !tab || !area) return;   // no Adjust tab on this page: stay hidden
+    button.hidden = false;
+    button.addEventListener("click", function () {
+      details.open = true;
+      tab.click();
+      fill(area, button.dataset.fix);
+    });
+  });
+
   // The hub's family chips filter the idea cards in place.
   document.querySelectorAll("[data-chips]").forEach(function (chips) {
     chips.querySelectorAll("a[data-family]").forEach(function (chip) {

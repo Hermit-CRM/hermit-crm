@@ -579,6 +579,11 @@ def test_ask_adjust_on_every_page(demo):
     # the flash is not part of the page the agent hears about
     page = client.get("/companies?flash=Saved&f_stage=prospect").text
     assert 'data-path="/companies?f_stage=prospect"' in page
+    # nor is the page's csrf token, which a GET form (Outreach's Preview) puts in the address
+    page = client.get("/companies?csrf_token=AWzv-II1&f_stage=prospect").text
+    assert 'data-path="/companies?f_stage=prospect"' in page and "AWzv" not in page.split(
+        'id="adjust-form"')[1].split("</details>")[0]
+    assert 'name="page" value="/companies?f_stage=prospect"' in page   # the Ask tab's page too
     # the sidebar: the Yours group above Settings, then the pins
     sidebar = page.split("</nav>")[0]
     assert sidebar.index("Make it yours") < sidebar.index('data-tour="settings"')
