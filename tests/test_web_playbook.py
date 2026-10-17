@@ -83,6 +83,9 @@ def test_page_shows_the_approach_meter_and_what_is_missing(client):
     assert "will not use this approach yet" in page.text
     assert 'class="save-bar"' in page.text and "Positive signals" in page.text
     assert 'formaction="/settings/playbook/draft"' in page.text
+    # the slow AI buttons say that they are working once clicked (static/busy.js)
+    assert 'formaction="/settings/playbook/draft" data-busy="' in page.text
+    assert '/static/busy.js' in page.text
     settings = client.get("/settings").text
     assert 'href="/settings/playbook"' in settings and "No approach is ready" in settings
 

@@ -967,3 +967,15 @@ form.outreach-build label.check { padding-bottom: 6px; }
 .confidence-medium { color: var(--warn); }
 .confidence-low { color: var(--muted); }
 .outreach-open, form.outreach-start { margin: 6px 0; }
+
+/* A button that has been clicked and is waiting for the AI (static/busy.js) */
+button.is-busy { cursor: progress; opacity: .85; }
+button.is-busy::before {
+  content: ""; display: inline-block; width: .9em; height: .9em; margin-right: .5em;
+  vertical-align: -.1em; border: 2px solid currentColor; border-right-color: transparent;
+  border-radius: 50%; animation: busy-spin .8s linear infinite;
+}
+.busy-note { margin-left: 8px; color: var(--muted); }
+@keyframes busy-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { button.is-busy::before { animation-duration: 3s; } }
+.outreach-card .outreach-email { margin-left: 4px; }

@@ -429,3 +429,25 @@ def test_page_pieces_and_text_keep_the_order_and_skip_empty_ones():
     assert capture.page_text({"top": "Top", "about": "  ", "act": "Posts"}) == (
         "Top card:\nTop\n\nRecent posts and comments by them:\nPosts")
     assert capture.page_text({}) == ""
+
+
+# ------------------------------------------------- the contact on the card
+
+
+def test_a_card_shows_the_contacts_email_next_to_linkedin(client, root):
+    client.app.state.store.update_contact("lindenhof-data", "mara-keller",
+                                          email="mara@example.com")
+    item = drafted(client, root)
+    page = client.get("/outreach", params={"tab": "drafts"}).text
+    card = page[page.index(f'id="item-{item.id}"'):]
+    head = card[:card.index("</p>")]
+    assert 'href="mailto:mara@example.com"' in head and "mara@example.com</a>" in head
+    assert head.index("LinkedIn") < head.index("mara@example.com")
+
+
+def test_a_card_without_an_email_shows_no_mailto(client, root):
+    item = drafted(client, root)
+    client.app.state.store.update_contact("lindenhof-data", "mara-keller", email="")
+    page = client.get("/outreach", params={"tab": "drafts"}).text
+    card = page[page.index(f'id="item-{item.id}"'):]
+    assert "mailto:" not in card[:card.index("</p>")]
