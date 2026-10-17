@@ -39,6 +39,7 @@ except ImportError:  # pragma: no cover
     fcntl = None
 
 from . import fields as fields_mod
+from .paths import contained
 from .stages import DEFAULT_STAGES, StageSet
 from .models import (
     Angle,
@@ -373,7 +374,15 @@ class Store:
         self.problems.append(Problem(path=self._rel(path), message=message))
 
     def company_dir(self, slug: str) -> Path:
-        return self.companies_dir / slug
+        return contained(self.companies_dir, slug)
+
+    def contact_file(self, company_slug: str, slug: str) -> Path:
+        folder = contained(self.company_dir(company_slug), "contacts")
+        return contained(folder, f"{slug}.md")
+
+    def interaction_file(self, company_slug: str, id: str) -> Path:
+        folder = contained(self.company_dir(company_slug), "interactions")
+        return contained(folder, f"{id}.md")
 
     def _notify(self, message: str) -> None:
         if self._batch is not None:
@@ -547,7 +556,7 @@ class Store:
 
     @_locked
     def write_contact(self, company_slug: str, contact: Contact) -> Path:
-        path = self.company_dir(company_slug) / "contacts" / f"{contact.slug}.md"
+        path = self.contact_file(company_slug, contact.slug)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(build_file(contact_to_frontmatter(contact), contact.notes),
                         encoding="utf-8")
@@ -556,7 +565,7 @@ class Store:
 
     @_locked
     def write_interaction(self, company_slug: str, it: Interaction) -> Path:
-        path = self.company_dir(company_slug) / "interactions" / f"{it.id}.md"
+        path = self.interaction_file(company_slug, it.id)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(build_file(interaction_to_frontmatter(it), it.body),
                         encoding="utf-8")
@@ -1336,19 +1345,18 @@ class Store:
         merged.created = min(created) if created else a.created
         merged.updated = self.now()
         self.write_contact(company_slug, merged)
-        folder = self.company_dir(company_slug) / "interactions"
         for it in company.interactions:
             if it.contact != drop:
                 continue
             moved = Interaction(**{k: getattr(it, k) for k in INTERACTION_COPY_FIELDS})
             moved.contact = keep
-            old_path = folder / f"{it.id}.md"
+            old_path = self.interaction_file(company_slug, it.id)
             moved.id = self._interaction_id(company_slug, moved, exclude=it.id)
             self.write_interaction(company_slug, moved)
             if moved.id != it.id and old_path.exists():
                 self._touch(old_path)
                 old_path.unlink()
-        dropped = self.company_dir(company_slug) / "contacts" / f"{drop}.md"
+        dropped = self.contact_file(company_slug, drop)
         self._touch(dropped)
         dropped.unlink(missing_ok=True)
         self.reload_company(company_slug)
@@ -1371,7 +1379,7 @@ class Store:
         name = f"{first_name} {last_name}".strip()
         now = self.now()
         existing = set(company.contacts)
-        contacts_dir = self.company_dir(company_slug) / "contacts"
+        contacts_dir = contained(self.company_dir(company_slug), "contacts")
         if contacts_dir.is_dir():
             existing |= {p.stem for p in contacts_dir.glob("*.md")}
         contact = Contact(
@@ -1464,7 +1472,7 @@ class Store:
         with self.batch(message):
             for id in linked:
                 self.update_interaction(company_slug, id, contact="")
-            gone = self.company_dir(company_slug) / "contacts" / f"{cslug}.md"
+            gone = self.contact_file(company_slug, cslug)
             self._touch(gone)
             gone.unlink(missing_ok=True)
             company.contacts.pop(cslug, None)
@@ -1477,10 +1485,10 @@ class Store:
     def _interaction_id(self, company_slug: str, it: Interaction,
                         exclude: str | None = None) -> str:
         base = it.base_id()
-        folder = self.company_dir(company_slug) / "interactions"
         candidate, n = base, 1
         while True:
-            if candidate == exclude or not (folder / f"{candidate}.md").exists():
+            if candidate == exclude or not self.interaction_file(
+                    company_slug, candidate).exists():
                 return candidate
             n += 1
             candidate = f"{base}-{n}"
@@ -1593,8 +1601,7 @@ class Store:
         if "body" in fields:
             new.body = normalise_body(fields["body"])
 
-        folder = self.company_dir(company_slug) / "interactions"
-        old_path = folder / f"{old.id}.md"
+        old_path = self.interaction_file(company_slug, old.id)
         desired = new.base_id()
         suffix = old.id[len(desired) + 1:]
         keeps_id = old.id == desired or (
@@ -1628,7 +1635,7 @@ class Store:
         it = next((i for i in company.interactions if i.id == id), None)
         if it is None:
             raise ValidationError({"id": f"unknown interaction {id!r}"})
-        gone = self.company_dir(company_slug) / "interactions" / f"{id}.md"
+        gone = self.interaction_file(company_slug, id)
         self._touch(gone)
         gone.unlink(missing_ok=True)
         company.interactions = [i for i in company.interactions if i.id != id]

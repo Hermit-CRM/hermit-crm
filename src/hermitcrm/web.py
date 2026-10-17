@@ -76,6 +76,7 @@ from .importer import (
     plan_import,
 )
 from .gitops import GitOps
+from .paths import contained
 from .models import (
     ANGLES,
     Channel,
@@ -680,8 +681,24 @@ def contact_label(company: Company, slug: str) -> str:
     return contact.name if contact else slug
 
 
+def local_path(path: str) -> str:
+    """`path` when it stays on this site; "/" when it could send the browser away.
+
+    Every redirect goes through here. Callers build their paths from slugs and
+    ids, or take a `back` through safe_back, so this is the check that still
+    holds when one of them forgets: a scheme, a host, `//host`, a backslash
+    (browsers read it as `/`) or a control character (they drop tabs and
+    newlines, so a tab between two slashes is `//host`) makes it "/".
+    """
+    if (path.startswith("/") and not path.startswith("//") and "\\" not in path
+            and not any(ord(ch) < 32 for ch in path)
+            and not urlparse(path).netloc and not urlparse(path).scheme):
+        return path
+    return "/"
+
+
 def goto(path: str) -> RedirectResponse:
-    return RedirectResponse(path, status_code=303)
+    return RedirectResponse(local_path(path), status_code=303)
 
 
 def flashed(path: str, message: str, anchor: str = "") -> RedirectResponse:
@@ -815,11 +832,12 @@ def record_version(root: Path, slug: str, cslug: str = "") -> str:
     The edit forms send it back, so a save made from a page opened before
     another process changed the record is caught instead of reverting it.
     """
-    folder = Path(root) / "companies" / slug
-    path = folder / "contacts" / f"{cslug}.md" if cslug else folder / "company.md"
     try:
+        folder = contained(Path(root) / "companies", slug)
+        path = contained(folder, "contacts", f"{cslug}.md") if cslug \
+            else contained(folder, "company.md")
         return hashlib.sha1(path.read_bytes()).hexdigest()[:16]
-    except OSError:
+    except (OSError, ValidationError):
         return ""
 
 
@@ -4292,7 +4310,10 @@ def create_app(root: Path, config: dict | None = None,
         """Re-read the data folder: the records, the fields that describe them,
         the draft wording and config.toml (see reload_everything)."""
         reload_everything()
-        return goto(request.headers.get("referer") or "/")
+        # Back to the page it was pressed on: the Referer's path, never its host.
+        referer = urlparse(request.headers.get("referer", ""))
+        back = referer.path + (f"?{referer.query}" if referer.query else "")
+        return goto(safe_back(back, "/"))
 
     @app.get("/health")
     def health():

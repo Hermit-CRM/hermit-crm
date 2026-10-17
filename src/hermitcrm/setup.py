@@ -60,7 +60,9 @@ IMAP_HOSTS = {
     "mac.com": "imap.mail.me.com",
 }
 GMAIL_DOMAINS = ("gmail.com", "googlemail.com")
-_EMAIL = re.compile(r"^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$")
+# The labels of the domain exclude ".", so a dot has one way to match; with the
+# dot allowed in every class a long "a.a.a." tail backtracked quadratically.
+_EMAIL = re.compile(r"^[^@\s,;<>]+@[^@\s,;<>.]+(?:\.[^@\s,;<>.]+)+$")
 
 
 # ----------------------------------------------------------- config.toml io
