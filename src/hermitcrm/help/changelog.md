@@ -16,6 +16,10 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 - **Adjust on a dashboard.** The Ask · Adjust button on `/d/<name>` now
   offers changes to that dashboard (add a widget, change what it shows, pin
   or rename it, make a copy), naming its file for your agent.
+- **Keep in touch.** Home lists the people outside an open deal you have
+  not spoken to in 180 days or more (`keep_in_touch_days` in `config.toml`),
+  longest first. Do-not-contact and people you never contacted are left
+  out. Also `hermitcrm keep-in-touch` and the MCP tool `keep_in_touch`.
 - **Where a dashboard came from.** A dashboard page says when its file last
   changed and in which commit, with Undo (back on the same page afterwards)
   and a link to all changes. Nothing shows for a file that is not committed.
