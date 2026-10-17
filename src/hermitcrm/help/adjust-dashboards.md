@@ -1,6 +1,6 @@
 # Make it yours: dashboards
 
-Pages of your own at `/d/<name>`: lists, counts, bars and report sections, written as `dashboards/<name>.toml` by you or your AI agent, and pinned in the sidebar if you like.
+Pages of your own at `/d/<name>`: lists, counts, bars, trends over time and report sections, written as `dashboards/<name>.toml` by you or your AI agent, and pinned in the sidebar if you like.
 
 This page is the recipe an AI agent follows when someone asks for a
 dashboard. It is complete: you can write any dashboard from it without
@@ -14,6 +14,7 @@ reading Hermit's code.
 - "A page with every message I sent on LinkedIn in the last month that got no
   answer."
 - "Count the companies tagged priority per stage."
+- "Messages I sent per week this quarter."
 
 A dashboard only reads. It never changes a record, so it is safe to try.
 
@@ -45,6 +46,7 @@ on exactly the records you counted.
 | `list` | `scope`, `filters`, `columns`, `sort`, `limit`, `when` | rows of a list page; the first column links to the record |
 | `count` | `scope`, `filters`, `when` | one number, linking to those records |
 | `group` | `scope`, `by`, `filters`, `limit`, `when` | how many rows per value of `by`, as bars; each bar links to its rows |
+| `trend` | `scope`, `by`, `every`, `period`, `filters`, `when` | how many rows per week or month of the date column `by`, as bars, oldest first |
 | `report` | `section`, `period` | one section of the Reports page; every number links to the rows behind it |
 
 - `scope`: which list page: `companies`, `contacts`, `messages` or `tasks`.
@@ -61,8 +63,21 @@ on exactly the records you counted.
   Without it, rows come in the list page's own order.
 - `limit`: how many rows a list shows (default 20; the rest are one click
   away), or how many bars a group draws (default 20). At most 50.
-- `by` (group only): the column to count per value. A list value such as
+- `by` (group): the column to count per value. A list value such as
   `tags` counts once per tag.
+- `by` (trend): a **date** column of the scope (the columns of kind date in
+  the tables below, and date fields of your own that the list shows):
+  companies `last_touch`, `next_step_due`; contacts `last_touch`; messages
+  `date`; tasks `due`, `done_on`. Rows with an empty date are left out.
+- `every` (trend only): `week` (the default; weeks start on Monday) or
+  `month`.
+- `period` (trend and report): `7d`, `30d`, `90d`, `quarter`, `ytd` or `all`,
+  the same periods as Reports (see below). A trend's default is `90d`; a
+  report's is `30d`. Every period ends today, so a trend counts what already
+  happened: dates in the future (a task due next week) are not in it. The
+  first bar is a whole week or month, so it can start a few days before the
+  period does. A trend draws at most 50 bars: with `all` by week, only the
+  newest 50 weeks show, and the widget says how many it left out.
 - `when` (tasks only): the Tasks page's date buttons, one or a list of
   `overdue`, `today`, `week` (the next 7 days), `later` and `none` (no date).
   These follow the calendar, unlike a fixed date in a filter.
@@ -212,6 +227,36 @@ The sample account (`hermitcrm sample add`, and `init --demo`) writes its own
 dashboard". When the user asks for a Monday review and that file is there,
 change it in place rather than writing a second one. Once it is changed it is
 the user's, and `hermitcrm sample remove` leaves it.
+
+## Example: messages per week
+
+"Messages I sent per week this quarter, and how many on LinkedIn."
+
+```toml
+title = "Outreach"
+
+[[widget]]
+type = "trend"
+title = "Messages sent per week"
+scope = "messages"
+by = "date"
+every = "week"
+period = "quarter"
+
+[[widget]]
+type = "trend"
+title = "LinkedIn messages per month"
+scope = "messages"
+by = "date"
+every = "month"
+period = "ytd"
+filters = { channel = "linkedin" }
+```
+
+Empty weeks show as zero, so gaps stay visible. Each number links to the
+Messages page with the widget's filters from that week on (a list page
+cannot filter one week only yet), so the page can list more rows than the
+bar counts.
 
 ## Example: partners
 
