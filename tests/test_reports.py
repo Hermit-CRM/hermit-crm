@@ -404,16 +404,18 @@ def test_outcomes_fall_back_to_stage_changed(store):
 def test_messages(seeded):
     m = reports.messages(seeded, reports.period_for("7d", TODAY), TODAY, window_days=14)
     assert m["total"]["sent"] == 2 and m["previous_sent"] == 1
-    # No config on the store: the default outcomes successful / unsuccessful.
-    assert m["statuses"] == ["successful", "unsuccessful", "unknown"]
-    assert m["total"]["counts"] == {"successful": 1, "unsuccessful": 0, "unknown": 1}
+    # No config on the store: the default outcomes successful / interested / unsuccessful.
+    assert m["statuses"] == ["successful", "interested", "unsuccessful", "unknown"]
+    assert m["total"]["counts"] == {"successful": 1, "interested": 0, "unsuccessful": 0,
+                                    "unknown": 1}
     assert m["total"]["rate"] == 1.0
     assert {r["key"]: r["sent"] for r in m["by_language"]} == {"de": 1, "en": 1}
     assert [r["key"] for r in m["by_channel"]] == ["linkedin"]
     assert len(m["reused"]) == 1
     r = m["reused"][0]
     assert (r["key"], r["sent"], r["counts"], r["rate"], r["uses"], r["preview"]) == (
-        "hi there, quick question", 2, {"successful": 1, "unsuccessful": 0, "unknown": 1},
+        "hi there, quick question", 2,
+        {"successful": 1, "interested": 0, "unsuccessful": 0, "unknown": 1},
         1.0, 2, "hi there, quick question")
     short = reports.messages(seeded, reports.period_for("7d", TODAY), TODAY, window_days=3)
     assert short["total"]["counts"]["unsuccessful"] == 1 and short["total"]["rate"] == 0.5
