@@ -116,6 +116,17 @@ def prompt_for(agent: str, request: str, page_title: str = "", path: str = "") -
     return f'Run "hermitcrm help adjust" first and follow it. {asked}{request}'
 
 
+def filter_help_request(page: str, where: str, problem: str) -> str:
+    """The Adjust request behind "Explain and fix with AI" under a filter problem.
+    Short on purpose: the whole prompt has to fit LINK_LIMIT bytes to open as a
+    link, so the quoted filter and problem are clipped (the agent can rerun them)."""
+    def clip(text: str, width: int) -> str:
+        text = one_line(text)
+        return text if len(text) <= width else text[:width - 1].rstrip() + "…"
+    return (f'Filter "{clip(where, 50)}" on {page} failed: {clip(problem, 150)} '
+            "Explain what is wrong and the fix. If it needs a field change, ask me first.")
+
+
 def byte_size(text: str) -> int:
     return len(text.encode("utf-8"))
 
@@ -195,9 +206,11 @@ def page_kind(path: str) -> str:
 
 def page_path(path: str, query: str = "") -> str:
     """The page as the agent should hear of it: path and query, minus the
-    one-time bits (a flash message, the tour)."""
+    one-time bits (a flash message, the tour), the page's csrf token (a GET form puts
+    it in the address; it must not end up in a prompt) and empty parameters."""
     pairs = [p for p in (query or "").split("&")
-             if p and p.split("=", 1)[0] not in ("flash", "tour")]
+             if p and p.split("=", 1)[0] not in ("flash", "tour", "csrf_token")
+             and p.partition("=")[2]]
     return path + ("?" + "&".join(pairs) if pairs else "")
 
 

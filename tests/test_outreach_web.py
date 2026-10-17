@@ -19,13 +19,14 @@ fakes; all names are made up."""
 
 from __future__ import annotations
 
+import html
 import re
 
 import pytest
 from fastapi.testclient import TestClient
 from starlette.datastructures import URL, QueryParams
 
-from hermitcrm import outreach
+from hermitcrm import adjust, outreach
 from hermitcrm.datafolder import init_folder
 from hermitcrm.store import Store, load_config, split_file
 from hermitcrm.web import create_app
@@ -105,6 +106,42 @@ def test_preview_runs_no_ai_and_writes_nothing(client, root, fake):
 def test_a_bad_filter_says_why(client):
     page = client.get("/outreach", params={"preview": "1", "where": "nonsense=1"})
     assert "unknown filter key" in page.text
+
+
+def test_a_filter_typed_like_a_comparison_says_what_to_type(client):
+    page = client.get("/outreach", params={"preview": "1", "where": "fit_score >24"})
+    assert "should be &#39;fit_score=&gt;24&#39;" in page.text
+    assert "unknown filter key" not in page.text
+
+
+def test_a_filter_problem_offers_the_ai_link(client):
+    page = client.get("/outreach", params={"preview": "1", "where": "fit_score >24"}).text
+    button = re.search(r'<button type="button" class="fix-with-ai" data-fix="([^"]*)" hidden>',
+                       page)
+    assert button and "Explain and fix with AI" in page
+    request = html.unescape(button[1])
+    assert "fit_score >24" in request and "fit_score=>24" in request
+    assert adjust.handoff("claude", "/x", request, "Outreach", "/outreach?preview=1")["link"]
+    # no problem, no button
+    ok = client.get("/outreach", params={"preview": "1", "where": "stage=prospect"}).text
+    assert "fix-with-ai" not in ok.replace(".fix-with-ai", "")
+
+
+def test_the_request_fits_a_deep_link_even_for_a_long_problem():
+    long = "unknown filter key 'x'. " + "Company keys: " + ", ".join(f"key_{n} (text)" for n in range(60))
+    request = adjust.filter_help_request("Outreach", "x" * 200, long)
+    path = "/outreach?preview=1&where=" + "x" * 60 + "&kind=first-touch&channel=email&limit=10"
+    assert not adjust.handoff("claude", "/Users/me/Code/CRM", request, "Outreach", path)["too_long"]
+
+
+def test_a_text_field_compared_with_a_number_leaves_a_note(client, root):
+    (root / "fields.toml").write_text(
+        '[[field]]\nkey = "fte_estimate"\ntype = "text"\napplies_to = "company"\n'
+        'show_in = ["companies"]\n', encoding="utf-8")
+    client.post("/reload", data={}, follow_redirects=False)
+    page = client.get("/outreach", params={"preview": "1",
+                                           "where": "stage=prospect;fte_estimate=>24"}).text
+    assert "compares alphabetically" in page and "fix-with-ai" in page
 
 
 # -------------------------------------------------------------------- build
