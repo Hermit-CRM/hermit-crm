@@ -967,6 +967,28 @@ form.outreach-build label.check { padding-bottom: 6px; }
 .confidence-medium { color: var(--warn); }
 .confidence-low { color: var(--muted); }
 .outreach-open, form.outreach-start { margin: 6px 0; }
+.outreach-history { margin: 8px 0; }
+.outreach-original { opacity: .85; }
+.outreach-edits { margin: 6px 0; padding-left: 20px; }
+.outreach-edits li { margin-bottom: 8px; }
+.outreach-edit-note { margin: 2px 0 4px; font-style: italic; }
+.outreach-diff ins { background: color-mix(in srgb, var(--ok) 22%, transparent); text-decoration: none; }
+.outreach-diff del, .outreach-edits p del { background: color-mix(in srgb, var(--warn) 22%, transparent); }
+.outreach-edits p ins { background: color-mix(in srgb, var(--ok) 22%, transparent); text-decoration: none; }
+label.outreach-note { display: block; margin: 6px 0; }
+
+/* A button that has been clicked and is waiting for the AI (static/busy.js) */
+button.is-busy { cursor: progress; opacity: .85; }
+button.is-busy::before {
+  content: ""; display: inline-block; width: .9em; height: .9em; margin-right: .5em;
+  vertical-align: -.1em; border: 2px solid currentColor; border-right-color: transparent;
+  border-radius: 50%; animation: busy-spin .8s linear infinite;
+}
+.busy-note { margin-left: 8px; color: var(--muted); }
+@keyframes busy-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { button.is-busy::before { animation-duration: 3s; } }
+.outreach-card .outreach-email { margin-left: 4px; }
+
 /* --- "Explain and fix with AI" under a filter problem (macros.html, adjust.js) --- */
 .fix-with-ai { font: inherit; font-size: 12px; color: var(--accent); background: none; border: 0; padding: 0; margin-left: 4px; cursor: pointer; text-decoration: underline; }
 .fix-with-ai[hidden] { display: none; }

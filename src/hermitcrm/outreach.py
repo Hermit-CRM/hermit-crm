@@ -58,6 +58,7 @@ keeps the company out.
 
 from __future__ import annotations
 
+import difflib
 import json
 import re
 import tempfile
@@ -71,8 +72,8 @@ from urllib.parse import urlparse
 from . import followups, messaging, playbook
 from .enrich import WEB_ONLY, EnrichError
 from .models import (
-    ANGLES, INTERESTED, ValidationError, normalise_website, parse_datetime, slugify,
-    unique_slug,
+    ANGLES, INTERESTED, ValidationError, fmt_datetime, normalise_website, parse_datetime,
+    slugify, unique_slug,
 )
 from .paths import contained
 from .store import Store, build_file, load_config, normalise_body, split_file
@@ -117,8 +118,12 @@ ITEM_KEYS = (
     "critic", "critic_reason", "critic_model", "flags", "norms", "findings", "proof_used",
     "proposals", "edit_distance",
     "skip_reason", "skip_note", "batch", "created", "researched", "drafted", "ready",
-    "sent", "sent_with", "skipped", "ai_subject", "ai_pitch", "ai_body",
+    "sent", "sent_with", "skipped", "ai_subject", "ai_pitch", "ai_body", "edits", "earlier",
 )
+EDIT_KEYS = ("at", "words", "note", "subject", "pitch", "body")
+EARLIER_KEYS = ("model", "drafted", "replaced", "why", "ai_subject", "ai_pitch", "ai_body",
+                "edits")
+NOTE_MAX = 500   # characters in the explainer of one tracked edit
 FINDING_KEYS = ("text", "source", "kind", "confidence", "date", "stale", "used")
 _ID = re.compile(r"^[0-9A-Za-z][0-9A-Za-z-]*$")
 
@@ -1377,6 +1382,68 @@ class ManualLogger:
 
 
 @dataclass
+class TrackedEdit:
+    """One saved change to the text, with the person's reason for it. `subject`,
+    `pitch` and `body` are the text *after* the change; what it changed is the
+    difference with the edit before it (or with the AI's original for the
+    first). Append-only: an edit is never rewritten."""
+
+    at: str            # YYYY-MM-DDTHH:MM
+    words: int         # words added, removed or changed since the version before
+    note: str = ""     # the explainer: why this change (optional, one paragraph)
+    subject: str = ""
+    pitch: str = ""
+    body: str = ""
+
+    def to_dict(self) -> dict:
+        return {k: getattr(self, k) for k in EDIT_KEYS}
+
+    @classmethod
+    def from_dict(cls, data) -> "TrackedEdit | None":
+        if not isinstance(data, dict) or data.get("body") in (None, ""):
+            return None
+        at = data.get("at")
+        return cls(at=fmt_datetime(at) if isinstance(at, datetime) else str(at or ""),
+                   words=_int_or_none(data.get("words")) or 0,
+                   note=" ".join(str(data.get("note") or "").split()),
+                   subject=str(data.get("subject") or ""), pitch=str(data.get("pitch") or ""),
+                   body=str(data.get("body") or ""))
+
+
+@dataclass
+class Earlier:
+    """A generation the person replaced with Regenerate: the AI's original of
+    that time, every tracked edit made to it, and why it was replaced."""
+
+    ai_subject: str = ""
+    ai_pitch: str = ""
+    ai_body: str = ""
+    model: str = ""
+    drafted: str = ""
+    replaced: str = ""
+    why: str = ""
+    edits: list[TrackedEdit] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        data = {k: getattr(self, k) for k in EARLIER_KEYS if k != "edits"}
+        data["edits"] = [e.to_dict() for e in self.edits]
+        return data
+
+    @classmethod
+    def from_dict(cls, data) -> "Earlier | None":
+        if not isinstance(data, dict) or data.get("ai_body") in (None, ""):
+            return None
+        def text(key):
+            value = data.get(key)
+            return fmt_datetime(value) if isinstance(value, datetime) else str(value or "")
+        edits = [e for e in (TrackedEdit.from_dict(x) for x in data.get("edits") or [])
+                 if e is not None] if isinstance(data.get("edits"), list) else []
+        return cls(ai_subject=text("ai_subject"), ai_pitch=text("ai_pitch"),
+                   ai_body=text("ai_body"), model=text("model"), drafted=text("drafted"),
+                   replaced=text("replaced"), why=" ".join(text("why").split()), edits=edits)
+
+
+@dataclass
 class Item:
     id: str = ""
     state: str = "researching"
@@ -1418,6 +1485,8 @@ class Item:
     ai_subject: str = ""
     ai_pitch: str = ""
     ai_body: str = ""
+    edits: list[TrackedEdit] = field(default_factory=list)   # append-only, see track_edit
+    earlier: list[Earlier] = field(default_factory=list)     # regenerated away, oldest first
     body: str = ""
 
     @property
@@ -1443,6 +1512,8 @@ class Item:
             value = getattr(self, key)
             if key == "findings":
                 value = [f.to_dict() for f in value]
+            elif key in ("edits", "earlier"):
+                value = [x.to_dict() for x in value]
             meta[key] = value
         return meta
 
@@ -1508,7 +1579,12 @@ def item_from_text(item_id: str, text: str) -> Item:
         created=when("created"), researched=when("researched"), drafted=when("drafted"),
         ready=when("ready"), sent=when("sent"), sent_with=s("sent_with"),
         skipped=when("skipped"), ai_subject=s("ai_subject"), ai_pitch=s("ai_pitch"),
-        ai_body=s("ai_body"), body=body)
+        ai_body=s("ai_body"),
+        edits=[e for e in (TrackedEdit.from_dict(x) for x in meta.get("edits") or [])
+               if e is not None] if isinstance(meta.get("edits"), list) else [],
+        earlier=[e for e in (Earlier.from_dict(x) for x in meta.get("earlier") or [])
+                 if e is not None] if isinstance(meta.get("earlier"), list) else [],
+        body=body)
 
 
 def outreach_dir(root: Path | str) -> Path:
@@ -1559,11 +1635,39 @@ def item_text(item: Item) -> str:
     return build_file(item.to_frontmatter(), item.body)
 
 
+def keeps_original(old: Item, new: Item) -> bool:
+    """May `new` replace `old` on disk? The AI's original is written once: it
+    changes only when Regenerate moves the old one, with every edit made to it,
+    into `earlier` (one entry more, and nothing else touched). Tracked edits
+    are append-only."""
+    if not old.ai_body:
+        return True    # nothing drafted yet: the first draft sets the original
+    if new.earlier != old.earlier:      # a regenerate: one more generation, the rest as it was
+        moved = new.earlier[-1] if len(new.earlier) == len(old.earlier) + 1 else None
+        return (moved is not None and new.earlier[:-1] == old.earlier
+                and (moved.ai_subject, moved.ai_pitch, moved.ai_body)
+                == (old.ai_subject, old.ai_pitch, old.ai_body)
+                and moved.edits[:len(old.edits)] == old.edits)
+    return ((new.ai_subject, new.ai_pitch, new.ai_body)
+            == (old.ai_subject, old.ai_pitch, old.ai_body)
+            and new.edits[:len(old.edits)] == old.edits)
+
+
 def write_item(root: Path | str, item: Item) -> str:
-    """Write the item's file; returns its path relative to the folder."""
+    """Write the item's file; returns its path relative to the folder. Refuses
+    a write that would change the AI's original or rewrite a tracked edit."""
     folder = outreach_dir(root)
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / f"{item.id}.md").write_text(item_text(item), encoding="utf-8")
+    path = folder / f"{item.id}.md"
+    if path.exists():
+        try:
+            old = item_from_text(item.id, path.read_text(encoding="utf-8"))
+        except (ValidationError, ValueError, OSError):
+            old = None   # a file that cannot be read is `check`'s to report
+        if old is not None and not keeps_original(old, item):
+            raise OutreachError(f"{item.id}: the AI's original and the tracked edits cannot "
+                                "be changed (regenerate for a new draft)")
+    path.write_text(item_text(item), encoding="utf-8")
     return item.path
 
 
@@ -2466,17 +2570,20 @@ def check_item(store: Store, item: Item, config: dict | None = None) -> list[str
 
 def mark_ready(store: Store, item_id: str, sender: Sender | None = None,
                logger: Logger | None = None, subject: str | None = None,
-               body: str | None = None, pitch: str | None = None) -> tuple[Item, list[str]]:
+               body: str | None = None, pitch: str | None = None,
+               note: str = "") -> tuple[Item, list[str]]:
     """The person approves the draft. The hard checks run again on the text as
     it is now; what still fails is a warning, returned and kept in `checks`
     (the person decides). The findings the draft used go to the contact's
     notes (one note), the item becomes ready: one commit. Nothing is sent
     (ManualSender) or logged (ManualLogger). `subject`, `body`, `pitch`: the
-    text as edited on the Outreach page, saved in the same commit."""
+    text as edited on the Outreach page, saved in the same commit; a changed
+    text is a tracked edit with `note` as its explainer."""
     item = _refresh(store, item_id)
     if item.state != "drafted":
         raise OutreachError(f"{item.id} is {item.state}; only a drafted item can be "
                             "marked ready")
+    note = _clean_note(note)
     _edit(item, subject, body, pitch)
     if not item.body.strip():
         raise OutreachError(f"{item.id} has no text to approve")
@@ -2485,6 +2592,7 @@ def mark_ready(store: Store, item_id: str, sender: Sender | None = None,
     if company is None or item.contact not in company.contacts:
         raise OutreachError(f"{item.record} is not in the CRM any more")
     now = store.now()
+    track_edit(item, note, now)
     item.state, item.ready, item.checks = "ready", now, found
     item.edit_distance = edit_distance(item.ai_subject + "\n" + item.ai_body + item.ai_pitch,
                                        item.subject + "\n" + item.body + item.pitch)
@@ -2549,6 +2657,95 @@ def _edit(item: Item, subject: str | None, body: str | None, pitch: str | None) 
             if item.channel != "email" else ""
 
 
+def _clean_note(note: str | None) -> str:
+    """The explainer of an edit: one paragraph in the person's words."""
+    text = " ".join((note or "").split())
+    if len(text) > NOTE_MAX:
+        raise OutreachError(f"not saved: the explainer is {len(text)} characters; keep it "
+                            f"under {NOTE_MAX}")
+    return text
+
+
+def _all_words(subject: str, body: str, pitch: str) -> str:
+    return subject + "\n" + body + pitch
+
+
+def last_version(item: Item) -> tuple[str, str, str]:
+    """(subject, pitch, body) the next tracked edit is measured against: the
+    latest edit, or the AI's original."""
+    if item.edits:
+        last = item.edits[-1]
+        return last.subject, last.pitch, last.body
+    return item.ai_subject, item.ai_pitch, item.ai_body
+
+
+def track_edit(item: Item, note: str, when: datetime) -> bool:
+    """Append the text as it is now as a tracked edit when it differs from the
+    last tracked version (the AI's original, or the edit before). Covers a
+    change made in the browser and one made to the file by hand. The original
+    is never touched. Returns whether an edit was added."""
+    if not item.ai_body:
+        return False
+    subject, pitch, body = last_version(item)
+    if (item.subject, item.pitch, item.body) == (subject, pitch, body):
+        return False
+    item.edits.append(TrackedEdit(
+        at=fmt_datetime(when),
+        words=edit_distance(_all_words(subject, body, pitch),
+                            _all_words(item.subject, item.body, item.pitch)),
+        note=note, subject=item.subject, pitch=item.pitch, body=item.body))
+    return True
+
+
+def diff_parts(before: str, after: str) -> list[tuple[str, str]]:
+    """The change between two texts as (kind, text) runs, kind `same`, `del` or
+    `add`, split on words with the white space kept (for the card's markup).
+    White space alone between two changes is part of one change, so
+    "caught my eye" to "stood out" reads as one removal and one addition."""
+    a, b = re.findall(r"\s+|\S+", before or ""), re.findall(r"\s+|\S+", after or "")
+    ops = difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes()
+    out: list[tuple[str, str]] = []
+    gone = came = ""
+    pending = ""      # white space seen since the last change, kept if another follows
+
+    def flush():
+        nonlocal gone, came
+        if gone:
+            out.append(("del", gone))
+        if came:
+            out.append(("add", came))
+        gone = came = ""
+
+    for n, (op, i1, i2, j1, j2) in enumerate(ops):
+        text = "".join(a[i1:i2])
+        if op == "equal":
+            if (gone or came) and not text.strip() and n + 1 < len(ops):
+                pending = text      # between two changes: part of both
+                continue
+            flush()
+            out.append(("same", text))
+            continue
+        if pending:
+            gone, came = gone + pending, came + pending
+            pending = ""
+        gone += text
+        came += "".join(b[j1:j2])
+    flush()
+    return out
+
+
+def edit_steps(item: Item) -> list[dict]:
+    """The item's tracked edits for the card: for each, the edit, the text it
+    started from and the body diff against it. Oldest first."""
+    steps, (subject, pitch, body) = [], (item.ai_subject, item.ai_pitch, item.ai_body)
+    for e in item.edits:
+        steps.append({"edit": e, "body": diff_parts(body, e.body),
+                      "subject": diff_parts(subject, e.subject) if subject != e.subject else [],
+                      "pitch": diff_parts(pitch, e.pitch) if pitch != e.pitch else []})
+        subject, pitch, body = e.subject, e.pitch, e.body
+    return steps
+
+
 def _critic_on_edit(store: Store, item: Item, critic: Critic | None, config: dict | None,
                     why_not: str) -> None:
     """"Check again" asks the critic about the text as it is now (scores only: no
@@ -2583,18 +2780,21 @@ def _critic_on_edit(store: Store, item: Item, critic: Critic | None, config: dic
 def save_text(store: Store, item_id: str, subject: str | None = None,
               body: str | None = None, pitch: str | None = None,
               critic: Critic | None = None, config: dict | None = None,
-              why_not: str = "") -> tuple[Item, list[str]]:
+              why_not: str = "", note: str = "") -> tuple[Item, list[str]]:
     """Save the edited text and run the hard checks on it again ("Check
     again"), and the `critic` when one is given (`why_not` says why there is
     none). What fails is kept in `checks`; it never blocks the edit, and the
-    critic's score never becomes a check. One commit."""
+    critic's score never becomes a check. A changed text is also one tracked
+    edit, with `note` as its explainer (see track_edit). One commit."""
     item = _refresh(store, item_id)
     if item.state != "drafted":
         raise OutreachError(f"{item.id} is {item.state}; only a drafted item can be "
                             "edited")
+    note = _clean_note(note)
     _edit(item, subject, body, pitch)
     if not item.body.strip():
         raise OutreachError("not saved: the message is empty")
+    track_edit(item, note, store.now())
     item.checks = check_item(store, item)
     _critic_on_edit(store, item, critic, config if config is not None else load_config(store.root),
                     why_not)
@@ -2616,15 +2816,18 @@ def _item_brief(store: Store, item: Item, company, contact, approach,
 
 
 def redraft(store: Store, item_id: str, drafter: Drafter,
-            config: dict | None = None, critic: Critic | None = None) -> Item:
-    """Regenerate: a new draft from the same findings (yours included), the
-    old text and the AI's old text replaced. One commit. A draft the AI
+            config: dict | None = None, critic: Critic | None = None,
+            why: str = "") -> Item:
+    """Regenerate: a new draft from the same findings (yours included). The
+    AI's old text, with every tracked edit made to it and your `why`, moves to
+    `earlier`; the new text is the new original. One commit. A draft the AI
     cannot write leaves the item skipped as bad-draft, as a build does. A
     `critic` scores the new draft in the same step."""
     item = _refresh(store, item_id)
     if item.state != "drafted":
         raise OutreachError(f"{item.id} is {item.state}; only a drafted item can be "
                             "regenerated")
+    why = _clean_note(why)
     if item.kind not in BUILT_KINDS:
         raise OutreachError(f"{item.kind} drafts come in a later version")
     company = store.get(item.company)
@@ -2659,6 +2862,13 @@ def redraft(store: Store, item_id: str, drafter: Drafter,
     if reviewed is not None:
         draft = reviewed.draft
     item.seconds = int(round(time.monotonic() - clock))
+    if not draft.failed and item.ai_body:
+        track_edit(item, "", store.now())   # a change made to the file by hand
+        item.earlier.append(Earlier(
+            ai_subject=item.ai_subject, ai_pitch=item.ai_pitch, ai_body=item.ai_body,
+            model=item.model, drafted=fmt_datetime(item.drafted),
+            replaced=fmt_datetime(store.now()), why=why, edits=item.edits))
+        item.edits = []
     message = _apply_draft(item, draft, fallback, store.now(),
                            angle=earlier.angle if earlier is not None else None)
     if reviewed is not None and not draft.failed:
@@ -2860,6 +3070,11 @@ def render_item(store: Store, item: Item) -> str:
                      + (f" (logged as {item.sent_with})" if item.sent_with else " (by hand)"))
     if item.edit_distance is not None:
         lines.append(f"Edited before ready: {item.edit_distance} words")
+    if item.edits or item.earlier:
+        lines.append(f"Tracked edits: {len(item.edits)}"
+                     + (f" ({len(item.earlier)} earlier draft(s) regenerated away)"
+                        if item.earlier else "")
+                     + " | hermitcrm outreach edits")
     lines.append("")
     if item.subject:
         lines.append(f"Subject: {item.subject}")
@@ -2867,3 +3082,82 @@ def render_item(store: Store, item: Item) -> str:
     if item.pitch:
         lines += ["", "--- after they accept ---", item.pitch.rstrip("\n")]
     return "\n".join(lines)
+
+
+# ------------------------------------------------- learning from tracked edits
+#
+# What the edits are for: the AI's original, what the person changed it to, why
+# (the explainer), and whether the message got a positive answer. `edits_report`
+# puts those side by side as Markdown, to read, to paste into MESSAGING.md, or
+# to hand to the AI that improves the playbook. Nothing here feeds the drafter
+# by itself.
+
+POSITIVE, ANSWERED, NO_ANSWER, NOT_SENT = "positive", "replied", "no reply", "not sent"
+
+
+def response_to(store: Store, item: Item) -> str:
+    """How the contact answered a sent item: `positive` (an inbound message
+    after it, logged with the outcome `interested`, or successful), `replied`,
+    `no reply`, or `not sent` (the item never went out)."""
+    if item.state != "sent":
+        return NOT_SENT
+    company = store.get(item.company)
+    if company is None:
+        return NO_ANSWER
+    since = item.sent or item.ready
+    answers = [i for i in company.interactions
+               if i.direction == "in" and i.contact == item.contact and i.date is not None
+               and (since is None or i.date >= since)]
+    if any((i.outcome or "").strip().lower() in (INTERESTED, "successful") for i in answers):
+        return POSITIVE
+    return ANSWERED if answers else NO_ANSWER
+
+
+def _quote(text: str) -> list[str]:
+    return ["> " + line if line else ">" for line in (text or "").rstrip("\n").split("\n")]
+
+
+def _marked(parts: list[tuple[str, str]]) -> str:
+    """A diff as text: {+added+} and [-removed-]."""
+    return "".join({"same": t, "add": "{+" + t + "+}", "del": "[-" + t + "-]"}[k]
+                   for k, t in parts)
+
+
+def edits_report(store: Store, positive_only: bool = False, with_notes_only: bool = False
+                 ) -> list[str]:
+    """Every item with tracked edits (or regenerated away drafts), newest first,
+    as Markdown: how it was answered, the AI's original, each edit with its
+    explainer and the change, and the text that went out. `positive_only`
+    keeps the messages that got a positive answer; `with_notes_only` the ones
+    where at least one edit has an explainer."""
+    lines: list[str] = []
+    for item in items(store.root):
+        if not (item.edits or item.earlier):
+            continue
+        answer = response_to(store, item)
+        notes = [e.note for e in item.edits] + [x.why for x in item.earlier] + \
+            [e.note for x in item.earlier for e in x.edits]
+        if (positive_only and answer != POSITIVE) or (with_notes_only and not any(notes)):
+            continue
+        lines += [f"## {item.record} ({item.channel}, {item.kind}, "
+                  f"{item.angle or 'no angle'}, {item.language or '-'}) : {answer}", "",
+                  f"id {item.id} | state {item.state} | model {item.model or '-'}", ""]
+        for number, old in enumerate(item.earlier, 1):
+            lines += [f"Regenerated away (draft {number}), because: {old.why or '-'}",
+                      *_quote(old.ai_body), ""]
+            for e in old.edits:
+                lines += [f"- edit {e.at}, {e.words} word(s): {e.note or '(no explainer)'}"]
+            lines.append("")
+        lines += ["AI original:", *_quote(item.ai_body), ""]
+        if item.ai_subject:
+            lines += [f"AI subject: {item.ai_subject}", ""]
+        for n, step in enumerate(edit_steps(item), 1):
+            e = step["edit"]
+            lines += [f"Edit {n} ({e.at}, {e.words} word(s)): {e.note or '(no explainer)'}",
+                      "", _marked(step["body"]), ""]
+            if step["subject"]:
+                lines += [f"Subject: {_marked(step['subject'])}", ""]
+        if item.edits:
+            lines += ["What went out:" if item.state == "sent" else "Final text:",
+                      *_quote(item.body), ""]
+    return lines

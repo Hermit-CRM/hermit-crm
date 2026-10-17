@@ -1530,6 +1530,12 @@ def _build_parser() -> argparse.ArgumentParser:
     o_list = o_sub.add_parser("list", help="every item, newest first")
     o_list.add_argument("--state", default="", help="only items in this state")
     o_sub.add_parser("show", help="one item in full: the card").add_argument("id")
+    o_edits = o_sub.add_parser("edits", help="the tracked edits: the AI's original, what "
+                               "you changed and why, and how it was answered (Markdown)")
+    o_edits.add_argument("--positive", action="store_true",
+                         help="only messages that got a positive answer")
+    o_edits.add_argument("--noted", action="store_true",
+                         help="only items where an edit has an explainer")
     o_sub.add_parser("ready", help="approve a drafted item (checks run again on the text "
                      "as it is now; a failing one is a warning); nothing is sent"
                      ).add_argument("id")
@@ -1586,7 +1592,7 @@ def cmd_playbook(root: Path, action: str = "status", dry_run: bool = False,
 
 def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
                  drafter=None, critic=None) -> tuple[str, int]:
-    """`hermitcrm outreach preview|build|list|show|ready|skip`."""
+    """`hermitcrm outreach preview|build|list|show|edits|ready|skip`."""
     from hermitcrm import outreach, routines
 
     action = args.action or "list"
@@ -1600,6 +1606,11 @@ def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
             if item is None:
                 return (f"no outreach item {args.id!r} (hermitcrm outreach list)", 1)
             return (outreach.render_item(store, item), 0)
+        if action == "edits":
+            lines = outreach.edits_report(store, positive_only=args.positive,
+                                          with_notes_only=args.noted)
+            return ("\n".join(lines).rstrip("\n") or "No tracked edits yet: they appear when "
+                    "you change a draft on the Outreach page.", 0)
         if action == "ready":
             item, found = outreach.mark_ready(store, args.id)
             text = (f"{item.id} is ready: send it yourself, then log it as usual (that "
