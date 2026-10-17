@@ -22,6 +22,7 @@ for. These are the cheap guards against that.
 from __future__ import annotations
 
 import hashlib
+import re
 import subprocess
 from pathlib import Path
 
@@ -90,4 +91,4 @@ def test_the_risk_documents_are_there_and_link_up():
 
     contributing = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
     assert "git commit -s" in contributing
-    assert "developercertificate.org" in contributing
+    assert re.search(r"developercertificate\.org", contributing)

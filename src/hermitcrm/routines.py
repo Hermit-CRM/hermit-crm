@@ -53,6 +53,7 @@ from .enrich import EnrichError
 from .models import (
     ValidationError, fmt_date, fmt_datetime, parse_datetime, slugify, unique_slug,
 )
+from .paths import contained
 from .store import Store, build_file, load_config, normalise_body, split_file
 
 logger = logging.getLogger("crm.routines")
@@ -685,7 +686,7 @@ def drafts_dir(root: Path | str) -> Path:
 def _draft_path(root: Path | str, draft_id: str) -> Path | None:
     if not re.fullmatch(r"[0-9A-Za-z-]+", draft_id or ""):
         return None
-    return drafts_dir(root) / f"{draft_id}.md"
+    return contained(drafts_dir(root), f"{draft_id}.md")
 
 
 def _read_draft(file: Path) -> Draft:

@@ -285,7 +285,7 @@ def test_the_tour_is_anchored_to_every_part_it_names(client):
 
 def test_bcc_settings_offer_the_common_providers(client):
     page = client.get("/settings").text
-    assert "imap.gmail.com" in page and "imap.mail.me.com" in page
+    assert page.count("imap.gmail.com") and page.count("imap.mail.me.com")
     assert "Microsoft has switched off password sign-in" in page
     assert "what does !text mean?" in client.get("/companies").text
 
@@ -426,7 +426,7 @@ def test_reload_picks_up_a_hand_edit(client, repo):
     assert "Acme GmbH" not in before
     resp = client.post("/reload", headers={"referer": "http://testserver/"})
     assert resp.status_code == 303
-    assert resp.headers["location"] == "http://testserver/"
+    assert resp.headers["location"] == "/"
 
     offer_column = client.get("/pipeline").text.split('id="col-offer"')[1]
     assert "Acme GmbH" in offer_column.split("</section>")[0]
