@@ -31,6 +31,8 @@ hermitcrm show SLUG [--bodies N | --all]   one company: fields, notes, contacts,
 hermitcrm digest [--days 7]                recent interactions oldest first, 150 characters of body each
 hermitcrm followups [--reply-after N] [--nudge-after N]
                                         threads you owe a reply, then ones you are waiting on
+hermitcrm keep-in-touch [--after N]        people outside an open deal you have not spoken to in N days
+                                        (default keep_in_touch_days, 180), longest first
 hermitcrm brief [--days 7]                 each upcoming meeting with its stage, next step, contacts and last 3 interactions
 hermitcrm mcp                              serve this folder to AI clients over MCP (stdio); see the AI agents topic
 hermitcrm report [--days N | --from D --to D] [--md]

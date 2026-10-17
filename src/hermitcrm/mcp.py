@@ -166,6 +166,11 @@ def build_tools(root: Path, store) -> list[Tool]:
         )
         return radar.render(rows)
 
+    def keep_in_touch_tool(args: dict) -> str:
+        config = load_config(root)
+        after = as_int(args.get("after"), "after", int(config["keep_in_touch_days"]))
+        return radar.render_keep_in_touch(radar.keep_in_touch(fresh(), after=after), after)
+
     def brief_tool(args: dict) -> str:
         from . import bcc
 
@@ -581,6 +586,13 @@ def build_tools(root: Path, store) -> list[Tool]:
                      "nudge_after": text("integer", "Days before an unanswered "
                                                     "outbound message counts.")}),
              followups_tool),
+        Tool("keep_in_touch",
+             "People outside any open deal (won, lost, closed or parked companies) "
+             "you have not spoken to in a while, longest first. Leaves out "
+             "do-not-contact and people never contacted.",
+             schema({"after": text("integer", "Days without an interaction; default "
+                                              "keep_in_touch_days (180).")}),
+             keep_in_touch_tool),
         Tool("brief",
              "For each upcoming meeting, the company behind it: stage, open next "
              "step, contacts and the last three interactions.",

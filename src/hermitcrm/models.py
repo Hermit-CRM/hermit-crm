@@ -370,6 +370,19 @@ class Contact:
         return f"{self.first_name} {self.last_name}".strip()
 
 
+# The tag that keeps a company or a person out of outreach and off the
+# keep-in-touch list. On a contact it lives in an extra `tags:` list.
+DO_NOT_CONTACT = "do-not-contact"
+
+
+def do_not_contact(company, contact: Contact | None = None) -> bool:
+    """True when the company, or this contact, is tagged do-not-contact."""
+    if DO_NOT_CONTACT in {str(t).lower() for t in company.tags or []}:
+        return True
+    ctags = contact.extra.get("tags") if contact is not None else None
+    return isinstance(ctags, list) and DO_NOT_CONTACT in {str(t).lower() for t in ctags}
+
+
 def split_name(full: str) -> tuple[str, str]:
     """'Jane van Doe' -> ('Jane', 'van Doe'); a single word is a first name."""
     parts = (full or "").split()

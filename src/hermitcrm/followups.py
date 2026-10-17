@@ -22,6 +22,10 @@ date and a body -- and nothing read them for this before.
 This module is the one place that logic lives. `hermitcrm followups`, the web
 home page and the MCP server all call `radar()`, so the three front doors cannot
 disagree about who is overdue.
+
+It also holds the radar's slower cousin, `keep_in_touch()`: the people outside
+any open deal you have not spoken to in months. The radar is about threads in
+the pipeline; this list is about the network around it.
 """
 
 from __future__ import annotations
@@ -29,11 +33,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from .models import Contact, Direction, Interaction
+from .models import Contact, Direction, Interaction, do_not_contact
 from .store import Store
 
 REPLY = "reply"    # they wrote last; you owe an answer
 NUDGE = "nudge"    # you wrote last; nothing came back
+KEEP_IN_TOUCH_DAYS = 180  # config.toml `keep_in_touch_days` when unset
 
 
 @dataclass
@@ -186,4 +191,73 @@ def render(rows: list[Followup]) -> str:
             out.append("")
         out.append(f"## Waiting on them ({len(waiting)})")
         out += [f"- {r.slug} | {r.who or 'company'} | {r.days}d | {r.summary}" for r in waiting]
+    return "\n".join(out)
+
+
+# ---------------------------------------------------------------- keep in touch
+
+
+@dataclass
+class Lapsed:
+    """One row of the keep-in-touch list: a person and your last touch with them."""
+
+    company: object            # Company; annotated loosely to avoid a cycle
+    contact: Contact
+    interaction: Interaction   # the latest touch with this person, either direction
+    days: int                  # since that interaction
+
+    @property
+    def href(self) -> str:
+        return f"/companies/{self.company.slug}/contacts/{self.contact.slug}"
+
+    @property
+    def summary(self) -> str:
+        subject = self.interaction.subject or first_line(self.interaction.body)
+        return subject or self.interaction.label
+
+
+def keep_in_touch(store: Store, today: date | None = None,
+                  after: int = KEEP_IN_TOUCH_DAYS) -> list[Lapsed]:
+    """People you have not spoken to in `after` days or more, longest first.
+
+    Per person, not per company: the last touch is the latest interaction
+    logged against that contact, in either direction (notes do not count; they
+    are memos). Left out: anyone at a company in an open stage (the pipeline,
+    the radar and the silent list own those), anyone tagged do-not-contact
+    (on the company or the person), people you never had any contact with
+    (nothing to keep up), and the made-up sample account.
+    """
+    today = today or store.today()
+    rows: list[Lapsed] = []
+    for company in store.companies.values():
+        if company.is_active or company.is_sample:
+            continue
+        touches: dict[str, Interaction] = {}
+        for it in company.interactions:
+            if not (it.date and it.is_touch and it.contact):
+                continue
+            seen = touches.get(it.contact)
+            if seen is None or it.date > seen.date:
+                touches[it.contact] = it
+        for cslug, it in touches.items():
+            contact = company.contacts.get(cslug)
+            if contact is None or do_not_contact(company, contact):
+                continue
+            days = (today - it.date.date()).days
+            if days >= after:
+                rows.append(Lapsed(company=company, contact=contact,
+                                   interaction=it, days=days))
+    rows.sort(key=lambda r: (-r.days, r.contact.name.lower(), r.company.name.lower()))
+    return rows
+
+
+def render_keep_in_touch(rows: list[Lapsed], after: int) -> str:
+    """The keep-in-touch list as text, for the CLI and for an agent over MCP."""
+    if not rows:
+        return (f"Nobody to catch up with: everyone outside an open deal "
+                f"heard from you in the last {after} days.")
+    out = [f"## Not spoken to in {after}+ days ({len(rows)})"]
+    out += [f"- {r.company.slug}/{r.contact.slug} | {r.contact.name} | {r.company.name} "
+            f"({r.company.stage}) | {r.days}d | {r.interaction.label}: {r.summary}"
+            for r in rows]
     return "\n".join(out)

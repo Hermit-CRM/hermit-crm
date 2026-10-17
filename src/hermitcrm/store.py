@@ -95,6 +95,9 @@ DEFAULT_CONFIG = {
     # other. Reply-owed is deliberately the shorter of the two.
     "followup_reply_days": 1,
     "followup_nudge_days": 5,
+    # Keep in touch (hermitcrm/followups.py): people outside an open deal you
+    # have not spoken to in this many days.
+    "keep_in_touch_days": 180,
     "push_enabled": True,
     "remote": "origin",
     # Where `hermitcrm backup` keeps its repository that only grows. Empty means

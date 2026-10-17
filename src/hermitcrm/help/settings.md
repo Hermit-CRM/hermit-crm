@@ -244,6 +244,8 @@ The outcome choices for interactions, one per line, in order: the first is
 what a detected reply counts as, the last what silence past the message
 window counts as. Also here: `message_window_days` (default 14) and
 `silent_days` (default 14, the Calendar's silent list and `PIPELINE.md`).
+Keep in touch on Home reads `keep_in_touch_days` (default 180), set in
+`config.toml` only.
 Duplicates and an empty list are refused. The default is `successful`,
 `interested`, `unsuccessful`: `interested` marks a reply that shows interest
 (the Outreach page's Replies to interest). A folder that set its own list

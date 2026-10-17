@@ -70,8 +70,8 @@ from urllib.parse import urlparse
 from . import followups, messaging, playbook
 from .enrich import EnrichError
 from .models import (
-    ANGLES, INTERESTED, ValidationError, normalise_website, parse_datetime, slugify,
-    unique_slug,
+    ANGLES, DO_NOT_CONTACT, INTERESTED, ValidationError, do_not_contact,
+    normalise_website, parse_datetime, slugify, unique_slug,
 )
 from .store import Store, build_file, load_config, normalise_body, split_file
 
@@ -93,7 +93,6 @@ FINDING_KINDS = ("company", "person", "trigger")
 CONFIDENCE = ("high", "medium", "low")
 USABLE = ("high", "medium")
 STALE_DAYS = 90
-DO_NOT_CONTACT = "do-not-contact"
 # Dropped from a company's name before comparing it with another's: the parts
 # that make `acme-robotics` and `acme-robotics-ai` one company twice. Legal
 # forms (GmbH, Ltd, BV...) go through slugify(strip_legal=True).
@@ -1685,9 +1684,7 @@ def _excluded(store, cand: Candidate, approaches, forced: str, channel, kind, co
         return "the sample account is made up"
     if not store.stages.is_open(company.stage):
         return f"its company is {company.stage} (a closed or parked stage)"
-    tags = {t.lower() for t in company.tags or []}
-    ctags = contact.extra.get("tags") if isinstance(contact.extra.get("tags"), list) else []
-    if DO_NOT_CONTACT in tags or DO_NOT_CONTACT in {str(t).lower() for t in ctags}:
+    if do_not_contact(company, contact):
         return f"tagged {DO_NOT_CONTACT}"
     if reply and cand.record not in (interest or {}):
         return ("no reply showing interest to answer (log their reply with the outcome "
