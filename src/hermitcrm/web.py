@@ -3822,15 +3822,18 @@ def create_app(root: Path, config: dict | None = None,
     # replies owed (outreach.replies) and the open reply-to-interest drafts;
     # Drafts holds the first touches.
     OUTREACH_TABS = (("replies", "Replies to interest", ("researching", "drafted")),
+                     ("follow-ups", "Follow-ups", ("researching", "drafted")),
                      ("drafts", "Drafts", ("researching", "drafted")),
                      ("ready", "Ready", ("ready",)),
                      ("sent", "Sent", ("sent", "logged")),
                      ("skipped", "Skipped", ("skipped",)))
 
+    OUTREACH_KIND_TAB = {outreach.REPLY: "replies", outreach.FOLLOW_UP: "follow-ups"}
+
     def in_tab(item, tab: str) -> bool:
         states = next(s for t, _, s in OUTREACH_TABS if t == tab)
-        if tab in ("replies", "drafts"):
-            return item.state in states and (item.kind == outreach.REPLY) == (tab == "replies")
+        if tab in ("replies", "follow-ups", "drafts"):
+            return item.state in states and OUTREACH_KIND_TAB.get(item.kind, "drafts") == tab
         return item.state in states
 
     def outreach_tab(item) -> str:
@@ -3863,6 +3866,13 @@ def create_app(root: Path, config: dict | None = None,
         rows.sort(key=lambda row: row["reply"].verdict == "not-interested")
         return rows
 
+    def outreach_due(every) -> list:
+        """The follow-ups due that have no open item yet, oldest first (the
+        radar's "waiting on them", per person)."""
+        open_by = {i.record for i in every if i.is_open}
+        return [f for f in outreach.due_followups(store, config=config)
+                if f"{f.company.slug}/{f.contact.slug}" not in open_by]
+
     def outreach_ai_problem(tier: str = "medium") -> str:
         enricher = app.state.enricher.with_tier(tier)
         if not enricher.available:
@@ -3881,7 +3891,10 @@ def create_app(root: Path, config: dict | None = None,
         except ValueError:
             left = 0
         channel = params.get("channel", "email")
+        kind = params.get("kind", "")
         return {"where": params.get("where", ""),
+                "kind": kind if kind in outreach.BUILT_KINDS and kind != outreach.REPLY
+                else outreach.FIRST_TOUCH,
                 "channel": channel if channel in outreach.CHANNELS else "email",
                 "limit": limit if limit > 0 else default_limit,
                 "strong": params.get("strong", "") in ("1", "on", "true"),
@@ -3892,7 +3905,9 @@ def create_app(root: Path, config: dict | None = None,
         values = {"where": form["where"], "channel": form["channel"],
                   "limit": form["limit"], "strong": "1" if form["strong"] else "",
                   "left": form["left"] or "", "batch": form["batch"],
-                  "approach": form["approach"], **extra}
+                  "approach": form["approach"],
+                  "kind": form["kind"] if form["kind"] != outreach.FIRST_TOUCH else "",
+                  **extra}
         return urlencode({k: v for k, v in values.items() if v not in ("", None, 0)})
 
     @app.get("/outreach", response_class=HTMLResponse)
@@ -3909,14 +3924,17 @@ def create_app(root: Path, config: dict | None = None,
         reply_rows = outreach_replies(every)
         waiting = [r for r in reply_rows if r["item"] is None
                    and (r["reply"].interested or r["reply"].to_confirm)]
+        due_rows = outreach_due(every)
         counts = {t: sum(1 for i in every if in_tab(i, t)) for t, _, _ in OUTREACH_TABS}
         counts["replies"] += len(waiting)
+        counts["follow-ups"] += len(due_rows)
         preview, preview_error = None, ""
         if params.get("preview"):
             try:
                 preview = outreach.select(store, where=outreach_where(form["where"]),
-                                          channel=form["channel"], limit=form["limit"],
-                                          approach=form["approach"], config=config)
+                                          channel=form["channel"], kind=form["kind"],
+                                          limit=form["limit"], approach=form["approach"],
+                                          config=config)
             except outreach.OutreachError as exc:
                 preview_error = str(exc)
         ready, gate = outreach._ready_approaches(root)
@@ -3926,6 +3944,8 @@ def create_app(root: Path, config: dict | None = None,
             "tab": tab, "cards": [outreach_card(i) for i in shown],
             "reply_rows": [r for r in reply_rows if r["item"] is None] if tab == "replies"
             else [],
+            "due_rows": due_rows if tab == "follow-ups" else [],
+            "nudge_days": outreach.nudge_days(config),
             "replies_waiting": len(waiting),
             "replies_unchecked": sum(1 for r in reply_rows if r["reply"].unchecked),
             "form": form, "preview": preview, "preview_error": preview_error,
@@ -3952,7 +3972,7 @@ def create_app(root: Path, config: dict | None = None,
             kind = outreach.FIRST_TOUCH
         form = outreach_form({"where": where, "channel": channel, "limit": limit,
                               "strong": strong, "left": left, "batch": batch,
-                              "approach": approach})
+                              "approach": approach, "kind": kind})
         if not left.strip():   # the first click: the whole batch is still to build
             form["left"] = form["limit"]
         back = safe_back(back, "/outreach") if contact else "/outreach"

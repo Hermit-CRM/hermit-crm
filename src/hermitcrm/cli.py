@@ -1515,8 +1515,10 @@ def _build_parser() -> argparse.ArgumentParser:
                        help="company/contact instead of a filter (repeatable)")
         o.add_argument("--channel", choices=["email", "linkedin"], default="email")
         o.add_argument("--kind", default="first-touch",
-                       help="draft type: first-touch, or reply-to-interest (answers a reply "
-                            "logged with the outcome interested or confirmed on Outreach)")
+                       help="draft type: first-touch, reply-to-interest (answers a reply "
+                            "logged with the outcome interested or confirmed on Outreach), "
+                            "or follow-up (a message of yours with no answer after "
+                            "followup_nudge_days)")
         o.add_argument("--limit", type=int, default=None, help="batch size (default 10)")
         o.add_argument("--approach", default="", help="the playbook approach to use")
         if verb == "build":
