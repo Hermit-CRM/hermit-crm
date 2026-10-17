@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{# "Add to research" (spec part 05, hermitcrm/outreach.py add_page): the bookmarklet read
+   a LinkedIn profile whose contact has an outreach card. Nothing is written by showing this page. #}
+{% block title %}Add to research{% endblock %}
+{% block content %}
+<h1>Add to research</h1>
+<p>{{ contact.name }}{% if contact.title %}, {{ contact.title }}{% endif %} at {{ company.name }} is already in the CRM, and has an outreach card ({{ item.state }}).</p>
+
+{% if item.state != 'drafted' %}
+<p class="warning-box">This card is {{ item.state }}, so it cannot take research now{% if item.state == 'ready' %}: it is approved as it stands. Skip it or send it, then research again for the next message{% else %}: the bot is still on it. Try again when its draft is there{% endif %}.
+<a href="{{ back }}">Open the card</a></p>
+{% else %}
+<p class="small">Read in your own tab, from the profile you are looking at. Trim anything you do not want read; the AI turns what is left into findings, each sourced to this profile, that you can remove like any other. The text itself is not kept. It is read by the AI as data, not instructions, with no tools. Nothing is sent anywhere else.</p>
+{% if ai_problem %}<p class="warning-box">{{ ai_problem }}</p>{% endif %}
+<form method="post" action="/outreach/{{ item.id }}/page" class="record-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="url" value="{{ url }}">
+  {% for key, label, text in pieces %}
+  <label>{{ label }}{% if not text %} <span class="small">(nothing read: the page may not have shown it)</span>{% endif %}
+    <textarea name="{{ key }}" rows="{{ 8 if text else 3 }}" spellcheck="false">{{ text }}</textarea>
+  </label>
+  {% endfor %}
+  <div class="draft-actions">
+    <button type="submit"{% if ai_problem %} disabled title="{{ ai_problem }}"{% endif %}>Add to research</button>
+    <a class="button secondary" href="{{ back }}">Cancel</a>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

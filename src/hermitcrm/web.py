@@ -2212,6 +2212,26 @@ def create_app(root: Path, config: dict | None = None,
     def capture_new_moved(url: str = ""):
         return goto(("/extension/new?url=" + quote(url, safe="")) if url else "/extension")
 
+    def outreach_add_page(request: Request, found, cslug: str, page: dict):
+        """"Add to research": the bookmarklet read a profile whose contact has an
+        open outreach item. A drafted card gets a page to trim what was read and
+        add it; a researching or ready one says why it cannot take research now.
+        None when there is no open item or nothing was read (today's way).
+        Nothing is written here."""
+        pieces = capture.page_pieces(page)
+        if not any(text for _, _, text in pieces):
+            return None
+        open_items = [i for i in outreach.items(root)
+                      if i.company == found.existing.slug and i.contact == cslug and i.is_open]
+        if not open_items:
+            return None
+        item = next((i for i in open_items if i.state == "drafted"), open_items[0])
+        contact = found.existing.contacts[cslug]
+        return render(request, "outreach_add.html", {
+            "item": item, "contact": contact, "company": found.existing, "pieces": pieces,
+            "url": found.url, "ai_problem": outreach_ai_problem(),
+            "back": f"/outreach?tab={outreach_tab(item)}#item-{item.id}"})
+
     @app.get("/extension/new", response_class=HTMLResponse)
     def extension_new(request: Request, url: str = ""):
         """Read a page and open the new-company form with it filled in.
@@ -2235,6 +2255,11 @@ def create_app(root: Path, config: dict | None = None,
         if found.kind == "person":
             if found.existing is not None:
                 cslug = capture.contact_slug_in(found.existing, found.url)
+                if cslug and page.get("v"):
+                    # Someone you have: a card waiting for research can take this page.
+                    card = outreach_add_page(request, found, cslug, page)
+                    if card is not None:
+                        return card
                 where = (f"/companies/{found.existing.slug}/contacts/{cslug}" if cslug
                          else f"/companies/{found.existing.slug}")
                 return flashed(where, f"{found.name or 'That profile'} is already "
@@ -4069,6 +4094,38 @@ def create_app(root: Path, config: dict | None = None,
         text = (f"{found.contact.name}: interested. Draft a reply when you are ready."
                 if found.interested else f"{found.contact.name}: not interested.")
         return flashed("/outreach?tab=replies", text, anchor=f"reply-{found.interaction.id}")
+
+    @app.post("/outreach/{item_id}/page")
+    async def outreach_page(item_id: str, csrf_token: str = Form(""), url: str = Form(""),
+                            top: str = Form(""), about: str = Form(""), act: str = Form("")):
+        """Add to research: what the bookmarklet read on the contact's own LinkedIn
+        profile, as trimmed on the Add page, becomes findings on the card. One AI
+        call (no tools); the page text itself is not kept."""
+        check_csrf(csrf_token)
+        item = outreach.get_item(root, item_id)
+        if item is None:
+            raise HTTPException(status_code=404, detail=f"unknown outreach item {item_id!r}")
+        back = f"/outreach?tab={outreach_tab(item)}"
+        anchor = f"item-{item.id}"
+        company = store.get(item.company)
+        contact = company.contacts.get(item.contact) if company is not None else None
+        if contact is None or not capture.same_profile(contact.linkedin, url):
+            return flashed(back, "Not added: that page is not this contact's LinkedIn profile.",
+                           anchor=anchor)
+        blocked = outreach_ai_problem()
+        if blocked:
+            return flashed(back, f"Not added: {blocked}", anchor=anchor)
+        text = capture.page_text({"top": top, "about": about, "act": act})
+        try:
+            item, added = await run_in_threadpool(
+                outreach.add_page, store, item.id, scrape.profile_url(url), text,
+                app.state.enricher.with_tier("medium"))
+        except outreach.OutreachError as exc:
+            return flashed(back, f"Not added: {exc}", anchor=anchor)
+        say = (f"Added {added} finding{'s' if added != 1 else ''} from LinkedIn. Regenerate "
+               "to use them." if added else
+               "Nothing usable on that page that the card does not already have.")
+        return flashed(f"/outreach?tab={outreach_tab(item)}", say, anchor=anchor)
 
     OUTREACH_ACTIONS = ("check", "ready", "regenerate", "skip", "sent", "findings",
                         "proposal")

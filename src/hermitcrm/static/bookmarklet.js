@@ -27,8 +27,13 @@
 //   (no <h1>: each one from the Experience heading on)
 //   lab   aria-labels in the top card that say something ("Current company: X")
 //   mail  the address in an open Contact info dialog
+// v=3 adds two more, for "Add to research" on someone who is already saved:
+//   about  the About section's text
+//   act    the text of the posts and comments by the person in Activity
+//   (the likes, reposts and other people's posts it shows are left out)
 // Each piece is cut to a budget of encoded characters, because the app
-// refuses a request head over 16 KB.
+// refuses a request head over 16 KB. Together they are held to LIMIT: when
+// they are over it, act shrinks first, then about, then exp.
 (function () {
   var B = '__BASE__', d = document, L = location.href, E = encodeURIComponent;
   var q = 'url=' + E(L);
@@ -80,10 +85,36 @@
       if (/^[^:\n]{2,40}:/.test(t) && lab.length < 6) { lab.push(t); }
     });
     var m = d.querySelector('[role=dialog] a[href^="mailto:"]');
-    q += '&v=2&h1=' + cut(text(h), 300) + '&title=' + cut(d.title, 300);
-    q += '&top=' + cut(topText, 3000) + '&exp=' + cut(expText, 3000);
-    q += '&co=' + cut(co.join('\n'), 1500) + '&lab=' + cut(lab.join('\n'), 1000);
-    q += m ? '&mail=' + cut(m.getAttribute('href'), 200) : '';
+    // About and Activity: the section if the page has the hooks, else the text
+    // between its heading and the next one (a heading is a line of only that word).
+    var HEAD = '(About|Info|Over|\u00dcber|\u00c0 propos|Acerca de|Activity|Activiteit|Aktivit\u00e4t|Activit\u00e9|Featured|Uitgelicht|Hervorgehoben|Experience|Ervaring|Berufserfahrung|Erfahrung|Exp\u00e9rience|Education|Opleiding|Ausbildung|Formation|Skills|Vaardigheden|Kenntnisse|Comp\u00e9tences|Interests|Interesses|Interessen|Int\u00e9r\u00eats)';
+    var between = function (names) {
+      var a = all.search(new RegExp('(^|\\n) *' + names + ' *\\n', 'i'));
+      if (a < 0) { return ''; }
+      var rest = all.slice(a).replace(/^\s+/, '').split('\n').slice(1).join('\n');
+      var z = rest.search(new RegExp('\\n *' + HEAD + ' *\\n', 'i'));
+      return z < 0 ? rest : rest.slice(0, z);
+    };
+    var ab = d.getElementById('about');
+    var aboutText = ab ? text(ab.closest('section') || ab.parentElement) : between('(About|Info|Over|\u00dcber|\u00c0 propos|Acerca de)');
+    var ac = d.getElementById('content_collections');
+    var actItems = ac ? Array.from((ac.closest('section') || ac.parentElement).querySelectorAll('li')).map(text) : between('(Activity|Activiteit|Aktivit\u00e4t|Activit\u00e9)').split(/\n\s*\n/);
+    // Only what the person wrote: a post or comment of theirs, not a reaction
+    // ("... likes this"), a repost or a post of someone else's they reacted to.
+    var REACTED = /(^|\n)[^\n]{0,80}\b(likes|celebrates|supports|loves|finds this|reposted|curious about|liked|gefeliciteerd|gef\u00e4llt|aime|recommande)\b/i;
+    var actText = actItems.filter(function (t) { return t && t.trim() && !REACTED.test(t.slice(0, 200)); }).slice(0, 6).join('\n\n');
+    var LIMIT = 12500, left = LIMIT - q.length;
+    var base = '&v=3&h1=' + cut(text(h), 300) + '&title=' + cut(d.title, 300);
+    base += '&co=' + cut(co.join('\n'), 1500) + '&lab=' + cut(lab.join('\n'), 1000);
+    base += m ? '&mail=' + cut(m.getAttribute('href'), 200) : '';
+    base += '&top=' + cut(topText, 3000);
+    left -= base.length;
+    var ex = cut(expText, Math.max(0, Math.min(3000, left)));
+    left -= ex.length;
+    var ba = cut(aboutText, Math.max(0, Math.min(1500, left)));
+    left -= ba.length;
+    var ba2 = cut(actText, Math.max(0, Math.min(3000, left)));
+    q += base + '&exp=' + ex + '&about=' + ba + '&act=' + ba2;
   }
   window.open(B + '/extension/new?' + q, '_blank');
 })();

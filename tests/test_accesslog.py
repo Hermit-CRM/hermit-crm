@@ -57,6 +57,15 @@ def test_a_capture_is_logged_without_what_it_read(uvicorn_logging, capsys):
     assert "ines-vega" not in out and "Ines" not in out and "Compliance" not in out
 
 
+def test_add_to_research_is_logged_without_the_profile_text(uvicorn_logging, capsys):
+    """The Add page is the same request, now with About and activity in its query."""
+    logging.config.dictConfig(accesslog.log_config())
+    access_line(CAPTURE + "&v=3&about=We+build+data+tools&act=Posted+about+hiring")
+    out = capsys.readouterr().out
+    assert "GET /extension/new" in out and "200" in out
+    assert "data+tools" not in out and "hiring" not in out and "ines-vega" not in out
+
+
 def test_an_old_bookmarklet_capture_is_kept_out_too(uvicorn_logging, capsys):
     logging.config.dictConfig(accesslog.log_config())
     access_line("/capture/new?url=https%3A%2F%2Fwww.linkedin.com%2Fin%2Fines-vega")

@@ -45,6 +45,23 @@ person's headline is never read as a company's one-liner -- that produced
 sentences like "Most companies don't have a lead problem... - Experience: ...
 - 500+ connections on LinkedIn", which is how the profile path was found.
 
+## Add to research: someone you have, with a card waiting
+
+When the profile is already in the CRM and its contact has an outreach card that
+is **drafted**, the bookmarklet does not just take you to the contact. It opens
+**Add to research**: the top card, the **About** section and the text of the
+**posts and comments by them** from their Activity (their likes, reposts and
+other people's posts are left out), each in a box you can trim. Press the
+button and the AI (no tools; it reads the text as data) turns what is left into
+findings sourced to that profile. They join the card's findings (duplicates are
+skipped), you can remove them like any other, and **Regenerate** uses them. This
+is the reliable way to get person-level detail, because LinkedIn blocks
+anonymous fetches. The text you trimmed is not kept, only the findings; the
+card's message is not touched. It needs your AI CLI. A card that is still
+researching or already ready says it cannot take research now. Take the
+bookmarklet again from this page: older ones do not send About or Activity (the
+top card still works).
+
 ## The bookmarklet
 
 The `/extension` page has a link to drag to your bookmarks bar. It points at the

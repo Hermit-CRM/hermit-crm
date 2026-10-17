@@ -2692,6 +2692,53 @@ def set_findings(store: Store, item_id: str, remove: list[int] | None = None,
     return item
 
 
+PAGE_TEXT_LIMIT = 9000   # what is read from a profile page the person adds (top card, About, activity)
+
+
+def add_page(store: Store, item_id: str, url: str, text: str, enricher) -> tuple[Item, int]:
+    """Add what a LinkedIn profile you are looking at says to a drafted card
+    (the bookmarklet's "Add to research"): one AI call with no tools reads that
+    one page, and the findings it can source to the page's own address are added
+    as person findings (duplicates by text skipped). One commit when something
+    is added. The page text is never stored, only the findings, which can be
+    removed like any other; the card's text is untouched. Returns the item and
+    how many findings were added."""
+    item = _refresh(store, item_id)
+    if item.state != "drafted":
+        raise OutreachError(f"{item.id} is {item.state}; only a drafted item can take "
+                            "more research")
+    url = (url or "").strip()
+    text = (text or "").strip()[:PAGE_TEXT_LIMIT]
+    if not _HTTP.match(url) or not text:
+        raise OutreachError("nothing to add: the page gave no address or no text")
+    company = store.get(item.company)
+    contact = company.contacts.get(item.contact) if company is not None else None
+    if contact is None:
+        raise OutreachError(f"{item.record} is not in the CRM any more")
+    today = store.today()
+    try:
+        data = enricher.runner(research_prompt(company, contact, [(url, text)], today),
+                               RESEARCH_SCHEMA, tools="")
+    except EnrichError as exc:
+        raise OutreachError(f"the AI could not read the page: {exc}") from exc
+    raw = data.get("findings") if isinstance(data, dict) else None
+    known = {_norm_space(f.text) for f in item.findings}
+    added = []
+    for finding in keep_findings(raw, [url], today):
+        finding.kind = "person"
+        if _norm_space(finding.text) not in known:
+            known.add(_norm_space(finding.text))
+            added.append(finding)
+    if not added:
+        return item, 0
+    item.findings += added
+    message = f"outreach: findings {item.record}: added {len(added)} from LinkedIn"
+    with store.lock:
+        write_item(store.root, item)
+        store.notify(message, [item.path])
+    return item, len(added)
+
+
 PROPOSAL_FIELDS = {"linkedin": "contact", "website": "company", "country": "company"}
 
 
