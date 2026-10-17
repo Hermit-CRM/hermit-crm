@@ -49,7 +49,7 @@ FILENAME = "MESSAGING.md"
 DEFAULT_APPROACH = "My approach"
 APPROACH_PREFIX = "Approach: "
 
-APPROACH_KEYS = ("name", "offer_line", "icp", "disqualifiers", "personas")
+APPROACH_KEYS = ("name", "offer_line", "first_step", "icp", "disqualifiers", "personas")
 ICP_LISTS = ("industries", "countries", "funding", "signals")
 # `ranges` maps one of the folder's own company fields (fields.toml) to
 # [min, max]: a headcount, a number of salespeople, a revenue band, whatever
@@ -232,6 +232,13 @@ class Approach:
         return value.strip() if isinstance(value, str) else ""
 
     @property
+    def first_step(self) -> str:
+        """The first step a reply to interest offers ("the first call is free,
+        no pitch"), or "": optional, since not every seller offers one."""
+        value = self.front.get("first_step")
+        return " ".join(value.split()) if isinstance(value, str) else ""
+
+    @property
     def icp(self) -> dict:
         value = self.front.get("icp")
         return value if isinstance(value, dict) else {}
@@ -377,6 +384,11 @@ def _validate_approach(item, where: str) -> list[str]:
         problems.append(f"{where}.offer_line: must be one sentence of text")
     elif isinstance(line, str) and "\n" in line.strip():
         problems.append(f"{where}.offer_line: must be one line ({ONE_LINE})")
+    step = item.get("first_step")
+    if step is not None and not isinstance(step, str):
+        problems.append(f"{where}.first_step: must be one sentence of text")
+    elif isinstance(step, str) and "\n" in step.strip():
+        problems.append(f"{where}.first_step: must be one line")
 
     icp = item.get("icp")
     if icp is not None and not isinstance(icp, dict):
@@ -1093,7 +1105,8 @@ def form_values(approach: Approach) -> dict[str, str]:
     icp = approach.icp
     values = {"name": approach.name,
               "offer_line": approach.offer_line if isinstance(approach.front.get("offer_line"), str)
-              else ""}
+              else "",
+              "first_step": approach.first_step}
     for key in ICP_LISTS:
         values[f"icp_{key}"] = _csv(icp.get(key))
     ranges = icp.get("ranges") if isinstance(icp.get("ranges"), dict) else {}
@@ -1201,10 +1214,14 @@ def from_form(values: dict, old: dict | None = None) -> tuple[dict, dict, dict]:
         spec.pop("titles", None)
         personas[pname] = {"titles": _split_csv(rest), **spec}
 
-    front = {"name": name, "offer_line": " ".join(get("offer_line").split()), "icp": icp,
-             "disqualifiers": disq, "personas": personas}
+    front = {"name": name, "offer_line": " ".join(get("offer_line").split())}
+    # Optional: written only when it holds something (an emptied box drops
+    # it), so an approach without one keeps its bytes.
+    if get("first_step"):
+        front["first_step"] = " ".join(get("first_step").split())
+    front |= {"icp": icp, "disqualifiers": disq, "personas": personas}
     for key, value in old.items():
-        if key not in front:
+        if key not in front and key != "first_step":
             front[key] = value
     norm = lambda v: str(v or "").replace("\r\n", "\n").strip()  # noqa: E731
     sections: dict = {key: norm(values.get(f"section_{key}"))

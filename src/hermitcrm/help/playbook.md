@@ -48,6 +48,7 @@ message statistics.
 approaches:
   - name: Booking software
     offer_line: "We build booking software for clinics."
+    first_step: "The first call is free and about your practice, not a demo."  # optional
     icp:
       industries: [healthcare, dental]
       countries: [NL, BE, DE]  # two-letter codes
@@ -67,6 +68,7 @@ approaches:
 |---|---|
 | `name` | The approach's name, unique in the file; its body block is `# Approach: <name>`. |
 | `offer_line` | What you sell, in one sentence. One per approach: a list is refused. |
+| `first_step` | Optional. The first step you offer someone who replied with interest, in one sentence ("The first call is free and all about you, without a sales pitch."). A reply to interest says it after the offer line; without it, the reply leaves it out. |
 | `icp` | The ideal customer: `industries`, `countries`, `funding`, `signals` (lists of short words) and `ranges` (below). Leave any of them empty. |
 | `disqualifiers` | Hard reasons a company is not a prospect for this approach (below). |
 | `personas` | Per buyer type, the job `titles` that belong to it. Optional `pains`, `cares` and `ignores` lists. |
