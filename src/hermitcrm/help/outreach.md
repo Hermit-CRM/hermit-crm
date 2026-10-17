@@ -10,8 +10,11 @@ and from the command line; both do the same steps and write the same files.
 
 ## On the Outreach page
 
-- **Who**, **Channel**, **Batch size**: the filter (conditions separated by
-  `;`, for example `stage=prospect; country=DE`), email or LinkedIn, how many.
+- **Who**, **Channel**, **Batch size**, **Approach**: the filter (conditions
+  separated by `;`, for example `stage=prospect; country=DE`), email or LinkedIn,
+  how many, and which playbook approach to use. Left on "the best fit per
+  company" it picks one per company, as the command line does without
+  `--approach`.
   **Preview** shows who would get a draft and why not the others; no AI runs
   and nothing is written. **Build queue** researches and drafts them one at a
   time: each card appears when it is done and the page asks for the next one
@@ -28,6 +31,8 @@ and from the command line; both do the same steps and write the same files.
     the stronger model. Remove a finding or **add your own** first to steer it;
     one you add counts as a known fact.
   - **Skip** with a reason; **Copy** copies the message.
+  - **Save to the record** shows when research found a website, LinkedIn URL or
+    country for a field that is empty; it writes that one value and nothing else.
   - On a ready card: **Copy**, open your mail or LinkedIn, **Log it** (logging
     the message marks the item sent), or **Mark sent** without logging.
 - **On a contact's page**: **Research & draft** builds one item for that
@@ -134,7 +139,7 @@ tools lists the facts on them. Every finding has its source; one without is
 dropped. A finding older than about 90 days is marked stale and never opens a
 message. Nothing found: the draft uses the playbook's angles and marks gaps
 `[like this]`. A website, LinkedIn URL or country found for an empty field is
-proposed on the card, never written.
+proposed on the card (a **Save to the record** button), never written without it.
 
 ## The draft and its checks
 

@@ -19,6 +19,7 @@
   <label>Who <input name="where" value="{{ form.where }}" placeholder="stage=prospect; country=DE" size="32"></label>
   <label>Channel <select name="channel">{% for c in channels %}<option value="{{ c }}"{% if c == form.channel %} selected{% endif %}>{{ c }}</option>{% endfor %}</select></label>
   <label>Batch size <input name="limit" type="number" min="1" max="50" value="{{ form.limit }}"></label>
+  <label>Approach <select name="approach"><option value="">the best fit per company</option>{% for a in approaches %}<option value="{{ a }}"{% if a == form.approach %} selected{% endif %}>{{ a }}</option>{% endfor %}{% if form.approach and form.approach not in approaches %}<option value="{{ form.approach }}" selected>{{ form.approach }}</option>{% endif %}</select></label>
   <label>Research <select name="research">{% for l in levels %}<option value="{{ l }}"{% if l not in built_levels %} disabled{% endif %}>{{ l }}{% if l not in built_levels %} (later){% endif %}</option>{% endfor %}</select></label>
   <label class="check"><input type="checkbox" name="strong" value="1"{% if form.strong %} checked{% endif %}> stronger model</label>
   <button type="submit" formmethod="get" formaction="/outreach" name="preview" value="1" class="secondary">Preview</button>
@@ -119,6 +120,14 @@
     &middot; {{ i.approach or 'no approach' }}{% if i.angle %} &middot; angle {{ i.angle }}{% endif %}{% if i.language %} &middot; {{ i.language }}{% endif %}
   </p>
   {% if i.flags %}<ul class="outreach-flags small">{% for f in i.flags %}<li>{{ f }}</li>{% endfor %}</ul>{% endif %}
+  {% for key, value in card.proposals %}
+  <form method="post" action="/outreach/{{ i.id }}/proposal" class="outreach-proposal small">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="key" value="{{ key }}">
+    Research found a {{ key }} for an empty field: <strong>{{ value }}</strong>
+    <button type="submit" class="secondary">Save to the record</button>
+  </form>
+  {% endfor %}
 
   {% if card.reply %}<details class="outreach-their-reply"{% if i.state == 'drafted' %} open{% endif %}><summary>Their reply, {{ fmt_date(card.reply.date) }}</summary>
     <blockquote class="small">{% if card.reply.subject %}<strong>{{ card.reply.subject }}</strong><br>{% endif %}{{ card.reply.body }}</blockquote></details>{% endif %}
