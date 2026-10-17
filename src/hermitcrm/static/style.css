@@ -941,6 +941,12 @@ form.outreach-build { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items
 .outreach-card .tag { background: var(--subtle); border-radius: 3px; padding: 0 5px; font-size: 12px; }
 .outreach-card form.inline { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .outreach-card form.inline select, .outreach-card form.inline input { width: auto; margin: 0; }
+form.outreach-skip { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin-top: 6px; padding: 8px; background: var(--subtle); border-radius: 4px; }
+form.outreach-skip[hidden] { display: none; }
+form.outreach-skip input { width: auto; margin: 0; }
+.outreach-skip-reasons { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.outreach-norms { margin-top: 8px; }
+.outreach-norms ul { margin: 2px 0; padding-left: 18px; }
 .outreach-add { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .outreach-add input { flex: 1 1 240px; width: auto; margin: 0; }
 .outreach-add select { width: auto; margin: 0; }

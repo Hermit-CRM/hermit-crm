@@ -161,8 +161,18 @@
 {% endmacro %}
 {% macro diff(parts) %}{% for kind, text in parts %}{% if kind == 'add' %}<ins>{{ text }}</ins>{% elif kind == 'del' %}<del>{{ text }}</del>{% else %}{{ text }}{% endif %}{% endfor %}{% endmacro %}
 
+{% macro skip_panel(i) %}
+  <form method="post" action="/outreach/{{ i.id }}/skip" class="outreach-skip" id="skip-{{ i.id }}" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <span class="small">Why skip? Pick one to skip.</span>
+    <input name="note" placeholder="note (optional, type it first)" size="26" aria-label="Skip note">
+    <span class="outreach-skip-reasons">{% for r in skip_reasons %}<button type="submit" name="reason" value="{{ r }}" class="secondary">{{ r }}</button>{% endfor %}</span>
+    <button type="button" class="secondary" data-skip-cancel="{{ i.id }}">Cancel</button>
+  </form>
+{% endmacro %}
+
 <div class="drafts outreach-cards">
-{% for card in cards %}{% set i = card.item %}{% set co = card.company %}{% set ct = card.contact %}
+{% for card in cards %}{% set i = card.item %}{% set co = card.company %}{% set ct = card.contact %}{% set has_findings = i.kind != 'reply-to-interest' or i.findings %}
 <article class="draft outreach-card" id="item-{{ i.id }}">
   <p class="draft-head">
     {% if ct %}<a href="/companies/{{ i.company }}/contacts/{{ i.contact }}">{{ ct.name }}</a>{% else %}{{ i.contact }}{% endif %}
@@ -191,7 +201,7 @@
   {% if card.reply %}<details class="outreach-their-reply"{% if i.state == 'drafted' %} open{% endif %}><summary>Their reply, {{ fmt_date(card.reply.date) }}</summary>
     <blockquote class="small">{% if card.reply.subject %}<strong>{{ card.reply.subject }}</strong><br>{% endif %}{{ card.reply.body }}</blockquote></details>{% endif %}
 
-  {% if i.kind != 'reply-to-interest' or i.findings %}
+  {% if has_findings %}
   <details class="outreach-findings"{% if i.state == 'drafted' %} open{% endif %}>
     <summary>Findings ({{ i.findings | length }}{% if i.findings %}, {{ i.findings | selectattr('used') | list | length }} used{% endif %})</summary>
     <form method="post" action="/outreach/{{ i.id }}/findings">
@@ -211,6 +221,8 @@
       </div>
       {% endif %}
     </form>
+    {% if i.norms %}<div class="outreach-norms small"><strong>Norms applied</strong>
+      <ul>{% for n in i.norms %}<li>{{ n }}</li>{% endfor %}</ul></div>{% endif %}
   </details>
   {% endif %}
 
@@ -230,20 +242,16 @@
       <button type="submit" title="{% if i.checks %}Allowed with a failing check: it is kept as a warning{% else %}Approve this text{% endif %}">Mark ready</button>
       <button type="submit" formaction="/outreach/{{ i.id }}/check" class="secondary" title="Saves your edit, runs the checks and asks the AI critic to score it again (an AI call)">Save &amp; check again</button>
       <button type="button" class="secondary" data-copy-target="body-{{ i.id }}">Copy</button>
+      <button type="button" class="secondary" data-skip-toggle="{{ i.id }}" aria-controls="skip-{{ i.id }}" aria-expanded="false">Skip</button>
     </div>
   </form>
+  {{ skip_panel(i) }}
   <div class="draft-actions">
     <form method="post" action="/outreach/{{ i.id }}/regenerate" class="inline">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="secondary"{% if ai_problem %} disabled title="{{ ai_problem }}"{% endif %}>Regenerate</button>
       <label class="check inline-check small"><input type="checkbox" name="strong" value="1"> stronger model</label>
       <input name="note" maxlength="500" placeholder="what was wrong? (optional)" size="22" aria-label="What was wrong with this draft">
-    </form>
-    <form method="post" action="/outreach/{{ i.id }}/skip" class="inline">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <select name="reason" aria-label="Why skip" required><option value="">why skip?</option>{% for r in skip_reasons %}<option value="{{ r }}">{{ r }}</option>{% endfor %}</select>
-      <input name="note" placeholder="note (optional)" size="18">
-      <button type="submit" class="secondary">Skip</button>
     </form>
   </div>
   {{ history(card) }}
@@ -262,12 +270,9 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="secondary" title="The state only: nothing is logged">Mark sent</button>
     </form>
-    <form method="post" action="/outreach/{{ i.id }}/skip" class="inline">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <select name="reason" aria-label="Why skip" required><option value="">why skip?</option>{% for r in skip_reasons %}<option value="{{ r }}">{{ r }}</option>{% endfor %}</select>
-      <button type="submit" class="secondary">Skip</button>
-    </form>
+    <button type="button" class="secondary" data-skip-toggle="{{ i.id }}" aria-controls="skip-{{ i.id }}" aria-expanded="false">Skip</button>
   </div>
+  {{ skip_panel(i) }}
   {{ history(card) }}
   {% else %}
   {% if i.channel == 'email' and i.subject %}<p><strong>{{ i.subject }}</strong></p>{% endif %}
@@ -277,7 +282,7 @@
     {% if i.edit_distance is not none %} &middot; {{ i.edit_distance }} word{{ 's' if i.edit_distance != 1 }} edited{% endif %}</p>
   {% endif %}
   {% if i.state not in ('drafted', 'ready') %}{{ history(card) }}{% endif %}
-  <p class="small quiet">{{ i.id }}{% if i.model %} &middot; {{ i.model }}{% endif %}{% if i.seconds is not none %} &middot; {{ i.seconds }}s{% endif %}{% if i.norms %} &middot; norms: {{ i.norms | join('; ') }}{% endif %}</p>
+  <p class="small quiet">{{ i.id }}{% if i.model %} &middot; {{ i.model }}{% endif %}{% if i.seconds is not none %} &middot; {{ i.seconds }}s{% endif %}{% if i.norms and not has_findings %} &middot; norms: {{ i.norms | join('; ') }}{% endif %}</p>
 </article>
 {% endfor %}
 </div>
@@ -294,6 +299,26 @@
     function sync() { if (note) note.hidden = !changed(); }
     fields.forEach(function (f) { f.addEventListener("input", sync); });
     sync();
+  });
+  // Skip opens the reason panel under the buttons; a reason button then submits.
+  function skipPanel(id, open) {
+    var panel = document.getElementById("skip-" + id);
+    if (!panel) return;
+    panel.hidden = !open;
+    document.querySelectorAll("[data-skip-toggle='" + id + "']").forEach(function (b) {
+      b.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    if (open) { var note = panel.querySelector("input[name=note]"); if (note) note.focus(); }
+  }
+  document.querySelectorAll("[data-skip-toggle]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var id = button.getAttribute("data-skip-toggle");
+      var panel = document.getElementById("skip-" + id);
+      skipPanel(id, panel ? panel.hidden : false);
+    });
+  });
+  document.querySelectorAll("[data-skip-cancel]").forEach(function (button) {
+    button.addEventListener("click", function () { skipPanel(button.getAttribute("data-skip-cancel"), false); });
   });
   document.querySelectorAll("[data-copy-target]").forEach(function (button) {
     button.addEventListener("click", function () {
