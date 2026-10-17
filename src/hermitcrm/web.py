@@ -3899,7 +3899,8 @@ def create_app(root: Path, config: dict | None = None,
         return {"item": item, "company": company, "contact": contact,
                 "proposals": proposals,
                 "fit": outreach.fit_value(company, fit_field) if company else None,
-                "fit_field": fit_field, "reply": reply}
+                "fit_field": fit_field, "reply": reply,
+                "steps": outreach.edit_steps(item)}
 
     def outreach_replies(every) -> list:
         """The replies owed for the Replies tab, each with its open item (if
@@ -4163,22 +4164,32 @@ def create_app(root: Path, config: dict | None = None,
         if item is None:
             raise HTTPException(status_code=404, detail=f"unknown outreach item {item_id!r}")
         anchor = f"item-{item.id}"
+        tracked = len(item.edits)
+
+        def edit_text(added: int, note: str) -> str:
+            if added:
+                return " The change is kept as a tracked edit."
+            return (" The text did not change, so the explainer was not kept."
+                    if " ".join((note or "").split()) else "")
+
         try:
             if what == "check":
                 why_not = outreach_ai_problem()   # "" when the AI can be asked
                 item, found = await run_in_threadpool(
                     outreach.save_text, store, item.id, subject, body, pitch,
                     None if why_not else outreach.AICritic(store, app.state.enricher.with_tier("medium")),
-                    config, why_not)
+                    config, why_not, note)
                 text = ("Saved. Checks passed." if not found else
                         f"Saved. {len(found)} check"
                         f"{'s still fail' if len(found) > 1 else ' still fails'} (see the card).")
+                text += edit_text(len(item.edits) - tracked, note)
             elif what == "ready":
                 item, found = await run_in_threadpool(
                     lambda: outreach.mark_ready(store, item_id, subject=subject, body=body,
-                                                pitch=pitch))
+                                                pitch=pitch, note=note))
                 text = ("Ready to send. Send it yourself, then log it: logging it marks "
-                        "it sent." + (f" Warning: {'; '.join(found)}." if found else ""))
+                        "it sent." + (f" Warning: {'; '.join(found)}." if found else "")
+                        + edit_text(len(item.edits) - tracked, note))
             elif what == "regenerate":
                 tier = "strong" if strong else "medium"
                 blocked = outreach_ai_problem(tier)
@@ -4188,7 +4199,8 @@ def create_app(root: Path, config: dict | None = None,
                 enricher = app.state.enricher.with_tier(tier)
                 drafter = outreach.AIDrafter(store, enricher, config)
                 item = await run_in_threadpool(outreach.redraft, store, item.id, drafter,
-                                               config, outreach.AICritic(store, enricher))
+                                               config, outreach.AICritic(store, enricher),
+                                               note)
                 text = ("Regenerated." if item.state == "drafted" else
                         f"The AI gave no usable draft; skipped ({item.skip_note}).")
             elif what == "skip":

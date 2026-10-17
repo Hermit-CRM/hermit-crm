@@ -132,6 +132,32 @@
 <p class="empty">{% if tab == 'drafts' %}No drafts to review. Preview a batch above, then build it.{% else %}Nothing here.{% endif %}</p>
 {% endif %}
 
+{% macro history(card) %}{% set i = card.item %}
+{% if i.ai_body %}
+  <details class="outreach-history"{% if card.steps and i.state == 'drafted' %} open{% endif %}>
+    <summary>AI original{% if card.steps %} and {{ card.steps | length }} tracked edit{{ 's' if card.steps | length != 1 }}{% endif %}{% if i.earlier %}, {{ i.earlier | length }} regenerated away{% endif %}</summary>
+    <p class="small quiet">The AI's text as it was drafted. It is kept as it is: your changes are tracked edits next to it, each with the reason you gave.</p>
+    {% if i.ai_subject %}<p class="small"><strong>{{ i.ai_subject }}</strong></p>{% endif %}
+    <pre class="outreach-text outreach-original">{{ i.ai_body }}</pre>
+    {% if i.ai_pitch %}<p class="small">after they accept</p><pre class="outreach-text outreach-original">{{ i.ai_pitch }}</pre>{% endif %}
+    <ol class="outreach-edits">{% for step in card.steps %}{% set e = step.edit %}
+      <li><span class="small"><strong>Edit {{ loop.index }}</strong> &middot; {{ e.at | replace('T', ' ') }} &middot; {{ e.words }} word{{ 's' if e.words != 1 }}</span>
+        {% if e.note %}<p class="outreach-edit-note">{{ e.note }}</p>{% else %}<p class="small quiet">No explainer.</p>{% endif %}
+        {% if step.subject %}<p class="small">Subject: {{ diff(step.subject) }}</p>{% endif %}
+        <pre class="outreach-text outreach-diff">{{ diff(step.body) }}</pre>
+        {% if step.pitch %}<p class="small">after they accept</p><pre class="outreach-text outreach-diff">{{ diff(step.pitch) }}</pre>{% endif %}
+      </li>{% endfor %}
+    </ol>
+    {% for old in i.earlier %}
+    <p class="small"><strong>Regenerated away</strong> ({{ old.replaced | replace('T', ' ') }}){% if old.why %}: {{ old.why }}{% endif %}
+      &middot; {{ old.edits | length }} tracked edit{{ 's' if old.edits | length != 1 }}</p>
+    <pre class="outreach-text outreach-original">{{ old.ai_body }}</pre>
+    {% endfor %}
+  </details>
+{% endif %}
+{% endmacro %}
+{% macro diff(parts) %}{% for kind, text in parts %}{% if kind == 'add' %}<ins>{{ text }}</ins>{% elif kind == 'del' %}<del>{{ text }}</del>{% else %}{{ text }}{% endif %}{% endfor %}{% endmacro %}
+
 <div class="drafts outreach-cards">
 {% for card in cards %}{% set i = card.item %}{% set co = card.company %}{% set ct = card.contact %}
 <article class="draft outreach-card" id="item-{{ i.id }}">
@@ -192,6 +218,8 @@
     <textarea name="body" rows="9" spellcheck="true" aria-label="Draft for {{ ct.name if ct else i.contact }}" id="body-{{ i.id }}">{{ i.body }}</textarea>
     {% if i.channel != 'email' %}<label class="small">after they accept</label>
     <textarea name="pitch" rows="5" spellcheck="true" aria-label="Message after they accept">{{ i.pitch }}</textarea>{% endif %}
+    <label class="small outreach-note">Why this change? (optional, kept with the edit)
+      <input name="note" maxlength="500" placeholder="e.g. too formal for a founder, or the trigger is old news"></label>
     {% if i.checks %}<ul class="outreach-checks warning">{% for c in i.checks %}<li>{{ c }}</li>{% endfor %}</ul>
     {% else %}<p class="small outreach-checks ok">Checks passed.</p>{% endif %}
     {% if i.critic %}<p class="small outreach-critic" title="Scored by the AI, 1 (bad) to 5 (good). A guide, not a rule: it never blocks anything."><strong>Critic {{ i.critic_score }}/5</strong> (lowest): {% for name in critic_scores %}{{ name }} {{ i.critic[name] }}{% if not loop.last %}, {% endif %}{% endfor %}{% if i.critic_reason %}. {{ i.critic_reason }}{% endif %}</p>{% endif %}
@@ -207,6 +235,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="secondary"{% if ai_problem %} disabled title="{{ ai_problem }}"{% endif %}>Regenerate</button>
       <label class="check inline-check small"><input type="checkbox" name="strong" value="1"> stronger model</label>
+      <input name="note" maxlength="500" placeholder="what was wrong? (optional)" size="22" aria-label="What was wrong with this draft">
     </form>
     <form method="post" action="/outreach/{{ i.id }}/skip" class="inline">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -215,6 +244,7 @@
       <button type="submit" class="secondary">Skip</button>
     </form>
   </div>
+  {{ history(card) }}
   {% elif i.state == 'ready' %}
   {% if i.channel == 'email' %}<p><strong>{{ i.subject }}</strong></p>{% endif %}
   <pre class="outreach-text" id="body-{{ i.id }}">{{ i.body }}</pre>
@@ -236,6 +266,7 @@
       <button type="submit" class="secondary">Skip</button>
     </form>
   </div>
+  {{ history(card) }}
   {% else %}
   {% if i.channel == 'email' and i.subject %}<p><strong>{{ i.subject }}</strong></p>{% endif %}
   {% if i.body %}<details><summary>The message</summary><pre class="outreach-text">{{ i.body }}</pre></details>{% endif %}
@@ -243,6 +274,7 @@
     {% elif i.sent %}Sent {{ fmt_datetime(i.sent) | replace('T', ' ') }}{% if i.sent_with %}, logged{% else %}, marked by hand{% endif %}{% endif %}
     {% if i.edit_distance is not none %} &middot; {{ i.edit_distance }} word{{ 's' if i.edit_distance != 1 }} edited{% endif %}</p>
   {% endif %}
+  {% if i.state not in ('drafted', 'ready') %}{{ history(card) }}{% endif %}
   <p class="small quiet">{{ i.id }}{% if i.model %} &middot; {{ i.model }}{% endif %}{% if i.seconds is not none %} &middot; {{ i.seconds }}s{% endif %}{% if i.norms %} &middot; norms: {{ i.norms | join('; ') }}{% endif %}</p>
 </article>
 {% endfor %}
