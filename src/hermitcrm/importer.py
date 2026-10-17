@@ -52,6 +52,7 @@ from .models import (
     parse_tags,
     slugify,
     split_name,
+    valid_email,
 )
 from .bcc import FREEMAIL, name_from_domain
 
@@ -641,7 +642,8 @@ def _email_domain(email: str) -> str:
 
 
 def _first_email(value: str) -> str:
-    return next((normalise_email(p) for p in re.split(r"[,;\s]+", value or "") if "@" in p), "")
+    return next((normalise_email(p) for p in re.split(r"[,;\s]+", value or "")
+                 if valid_email(p)), "")
 
 
 def _name_key(first: str, last: str) -> str:

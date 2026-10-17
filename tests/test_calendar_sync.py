@@ -203,6 +203,34 @@ def test_import_logs_creates_and_queues_in_one_commit(store, messages):
     assert messages == [] and len(store.companies["acme"].interactions) == 1
 
 
+@pytest.mark.parametrize("bad", ['"x@y"@acme.example.com', "@acme.example.com"])
+def test_invalid_email_does_not_block_import_or_commit(client, bad):
+    store = client.app_state.store
+    seed(store)
+    store.update_company("acme", website="acme.example.com")
+    events = cal.parse_ics(ics(vevent(attendees=(
+        "CN=Nova Reed:mailto:nova@acme.example.com", f"mailto:{bad}",
+    ))))
+
+    result = cal.import_events(store, bcc.Inbox(store.root), events, SETTINGS,
+                               datetime(2026, 9, 14, 10, 30), apply=True)
+
+    assert (result.events, result.logged, result.contacts, result.review) == (1, 1, 1, 0)
+    assert store.get("acme").contacts["nova-reed"].email == "nova@acme.example.com"
+    assert len(store.get("acme").contacts) == 2
+    interaction, = store.get("acme").interactions
+    assert interaction.contact == "nova-reed"
+    log = subprocess.run(["git", "log", "-1", "--format=%s"], cwd=client.repo,
+                         check=True, capture_output=True, text=True).stdout.strip()
+    assert log == result.commit_message()
+    for path in ("contacts/nova-reed.md", f"interactions/{interaction.id}.md"):
+        committed = subprocess.run(["git", "show", f"HEAD:companies/acme/{path}"],
+                                   cwd=client.repo, check=True, capture_output=True)
+        assert committed.stdout == (client.repo / "companies/acme" / path).read_bytes()
+    assert not subprocess.run(["git", "diff", "HEAD", "--", "companies"],
+                              cwd=client.repo, check=True, capture_output=True).stdout
+
+
 def test_same_name_other_address_goes_to_review(store):
     seed(store)
     events = cal.parse_ics(ics(vevent("dup-1", attendees=("mailto:jane.doe@acme.de",))))

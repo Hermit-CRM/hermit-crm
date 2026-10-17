@@ -223,6 +223,35 @@ def test_import_logs_creates_and_queues_in_one_commit(store, messages):
     assert (item.address, item.reason) == ("x@gmail.com", "personal address (gmail.com)")
 
 
+@pytest.mark.parametrize("outside", [False, True])
+def test_invalid_email_does_not_block_import_or_commit(client, repo, outside):
+    store = client.app_state.store
+    seed(store)
+    store.update_company("acme", website="acme.example.com")
+    good = "Nova Reed <nova@acme.example.com>"
+    bad = 'Odd <"x@y"@acme.example.com>'
+    if outside:
+        raws = [raw_mail(frm=good, to=SETTINGS.address),
+                raw_mail(frm=bad, to=SETTINGS.address, mid="<bad@example.com>")]
+    else:
+        raws = [raw_mail(to=f"{good}, {bad}")]
+
+    result = bcc.import_mails(store, inbox_for(store), raws, SETTINGS, apply=True)
+
+    assert (result.logged, result.contacts, result.review) == (1, 1, 0)
+    assert store.get("acme").contacts["nova-reed"].email == "nova@acme.example.com"
+    assert len(store.get("acme").contacts) == 2
+    interaction, = store.get("acme").interactions
+    assert interaction.contact == "nova-reed"
+    assert last_commit(repo) == result.commit_message()
+    for path in ("contacts/nova-reed.md", f"interactions/{interaction.id}.md"):
+        committed = subprocess.run(["git", "show", f"HEAD:companies/acme/{path}"],
+                                   cwd=repo, check=True, capture_output=True)
+        assert committed.stdout == (repo / "companies/acme" / path).read_bytes()
+    assert not subprocess.run(["git", "diff", "HEAD", "--", "companies"], cwd=repo,
+                              check=True, capture_output=True).stdout
+
+
 def test_domain_match_fills_email_of_existing_contact_instead_of_duplicating(store, messages):
     seed(store)
     store.create_contact("gamma", "Ann", "Lee")
