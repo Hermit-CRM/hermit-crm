@@ -1921,6 +1921,7 @@ class Selection:
     fit_field: str = "fit_score"
     gate: str = ""                     # why the build would refuse; "" = ready
     approaches: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)   # about the filter, not an error
 
     def render(self) -> str:
         lines = [f"Outreach preview: {self.kind} by {self.channel}, up to {self.limit}"
@@ -1929,6 +1930,7 @@ class Selection:
                      "Playbook: ready (" + ", ".join(self.approaches) + ")")
         lines.append(f"High-fit companies ({self.fit_field} >= {self.high_fit_threshold}) "
                      f"never contacted: {self.high_fit_untouched} of {self.high_fit}.")
+        lines += [f"Note: {n}" for n in self.notes]
         lines.append("")
         lines.append(f"Would build {len(self.picked)}:" if self.picked else
                      "Would build nothing now.")
@@ -1962,9 +1964,12 @@ def _split_where(store: Store, where: list[str]):
     contact_rows, contact_cols = bulk._rows_and_columns(store, "contacts", defs)
     mine, theirs = [], []
     for text in where or []:
-        name, sep, spec = str(text).partition("=")
+        try:
+            name, spec = bulk.split_where(text)
+        except bulk.BulkError as exc:
+            raise OutreachError(str(exc)) from None
         if name.strip().startswith("contact."):
-            theirs.append(name.strip()[len("contact."):] + sep + spec)
+            theirs.append(name.strip()[len("contact."):] + "=" + spec)
             continue
         try:
             bulk._find_column(name, company_cols)
@@ -1973,18 +1978,21 @@ def _split_where(store: Store, where: list[str]):
             try:
                 bulk._find_column(name, contact_cols)
             except bulk.BulkError:
+                keys = [c.key for c in (*company_cols, *contact_cols)]
                 raise OutreachError(
-                    f"unknown filter key {name.strip()!r}. Company keys: "
-                    f"{', '.join(c.key for c in company_cols)}. Contact keys: "
-                    f"{', '.join(c.key for c in contact_cols)}.") from None
+                    f"unknown filter key {name.strip()!r}.{bulk._hint(name.strip(), keys)} "
+                    f"Company keys: {bulk.key_list(company_cols)}. "
+                    f"Contact keys: {bulk.key_list(contact_cols)}.") from None
             theirs.append(text)
     try:
         companies = bulk._match(company_rows, bulk._parse_where(mine, company_cols))
         contacts = bulk._match(contact_rows, bulk._parse_where(theirs, contact_cols))
     except bulk.BulkError as exc:
         raise OutreachError(str(exc)) from None
+    notes = bulk.text_compare_notes(company_cols, mine) \
+        + bulk.text_compare_notes(contact_cols, theirs)
     keep = {c.slug for c in companies}
-    return [(row.company, row.contact) for row in contacts if row.company.slug in keep]
+    return [(row.company, row.contact) for row in contacts if row.company.slug in keep], notes
 
 
 def _ready_approaches(root: Path, approach: str = "") -> tuple[list, str]:
@@ -2034,7 +2042,7 @@ def select(store: Store, where: list[str] | None = None, channel: str = "email",
                                     "page address)")
             pairs.append((company, company.contacts[pslug]))
     else:
-        pairs = _split_where(store, where or [])
+        pairs, sel.notes = _split_where(store, where or [])
 
     real = [c for c in store.all() if not c.is_sample]
     dupes = likely_duplicates(real)

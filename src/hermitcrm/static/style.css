@@ -967,3 +967,6 @@ form.outreach-build label.check { padding-bottom: 6px; }
 .confidence-medium { color: var(--warn); }
 .confidence-low { color: var(--muted); }
 .outreach-open, form.outreach-start { margin: 6px 0; }
+/* --- "Explain and fix with AI" under a filter problem (macros.html, adjust.js) --- */
+.fix-with-ai { font: inherit; font-size: 12px; color: var(--accent); background: none; border: 0; padding: 0; margin-left: 4px; cursor: pointer; text-decoration: underline; }
+.fix-with-ai[hidden] { display: none; }

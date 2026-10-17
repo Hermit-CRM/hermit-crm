@@ -1387,8 +1387,7 @@ def create_app(root: Path, config: dict | None = None,
             "help_topic": helpdocs.topic_for(request.url.path),
             "theme": str(config.get("theme") or "light"),
             "user_theme": usertheme.path(root) is not None,
-            "ask_page": safe_page(request.url.path + (f"?{request.url.query}"
-                                                      if request.url.query else "")),
+            "ask_page": safe_page(adjust.page_path(request.url.path, request.url.query)),
             "model_label": model_label,
             "samples": sample.samples(store),
             "file_problems": [line for lines in file_problems.values() for line in lines],
@@ -3990,6 +3989,10 @@ def create_app(root: Path, config: dict | None = None,
                                           config=config)
             except outreach.OutreachError as exc:
                 preview_error = str(exc)
+        fix_request = adjust.filter_help_request("Outreach", form["where"],
+                                                 preview_error) if preview_error else ""
+        note_requests = [adjust.filter_help_request("Outreach", form["where"], n)
+                         for n in (preview.notes if preview else [])]
         ready, gate = outreach._ready_approaches(root)
         return render(request, "outreach.html", {
             "approaches": [a.name for a in ready],
@@ -4002,6 +4005,7 @@ def create_app(root: Path, config: dict | None = None,
             "replies_waiting": len(waiting),
             "replies_unchecked": sum(1 for r in reply_rows if r["reply"].unchecked),
             "form": form, "preview": preview, "preview_error": preview_error,
+            "fix_request": fix_request, "note_requests": note_requests,
             "gate": gate, "ai_problem": outreach_ai_problem(),
             "skip_reasons": outreach.SKIP_REASONS, "finding_kinds": outreach.FINDING_KINDS,
             "channels": outreach.CHANNELS, "levels": outreach.LEVELS,

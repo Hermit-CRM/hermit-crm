@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import dataclasses
 import difflib
+import re
 import shutil
 import subprocess
 import tempfile
@@ -227,6 +228,7 @@ class Plan:
     changes: list
     skipped: int
     _resolved: object = field(default=None, repr=False, compare=False)
+    notes: list = field(default_factory=list)   # about the filter, not an error
 
     @property
     def changed(self) -> int:
@@ -269,6 +271,7 @@ class Plan:
                  f"{self.changed} would change"
                  + (f"; {self.skipped} already look like this and are skipped."
                     if self.skipped else "."),
+                 *[f"Note: {n}" for n in self.notes],
                  ""]
         for change in self.changes[:samples]:
             for fc in change.fields:
@@ -559,7 +562,85 @@ def _find_column(name: str, cols: list):
     if key.lower() in lowered:
         return lowered[key.lower()]
     raise BulkError(f"unknown filter key {name!r}.{_hint(key, [*by_key, *by_label])} "
-                    f"Keys: {', '.join(by_key)}.")
+                    f"Keys: {key_list(cols)}.")
+
+
+_KIND_WORD = {"enum": "choice"}
+
+
+def key_list(cols: list) -> str:
+    """The filter keys with their type: `fte_estimate (text), fit_score (number)`.
+    The type is what says whether `>` and `<` compare numbers."""
+    return ", ".join(f"{c.key} ({_KIND_WORD.get(c.kind, c.kind)})" for c in cols)
+
+
+# A filter typed the way a person writes a comparison: `fte_estimate >24`.
+_NEAR_MISS = re.compile(r"^\s*(?P<key>[^\s<>=!:]+(?: [^\s<>=!:]+)*?)\s*"
+                        r"(?P<op>>=|<=|!=|>|<|:)\s*(?P<value>\S.*?)\s*$")
+
+
+def _near_miss_fix(text: str) -> str:
+    """What `text` should have been, or "" when it is not a recognisable try."""
+    m = _NEAR_MISS.match(text)
+    if not m:
+        return ""
+    key, op, value = m["key"], m["op"], m["value"]
+    if op in (">", "<"):
+        return f"{key}={op}{value}"
+    if op == ":":
+        return f"{key}={value}"
+    if op == "!=":
+        return f"{key}=!{value}"
+    # >= and <= do not exist. On whole numbers `>=24` is `>23`.
+    if re.fullmatch(r"-?\d+", value):
+        n = int(value)
+        return f"{key}=>{n - 1}" if op == ">=" else f"{key}=<{n + 1}"
+    return ""
+
+
+def split_where(text) -> tuple[str, str]:
+    """(name, value) of one `key=value` filter text. A text that is not one
+    raises a BulkError that says what to type instead, where it can tell."""
+    raw = str(text)
+    name, sep, spec = raw.partition("=")
+    if sep and name.strip() and name.strip()[-1] not in "<>!:":
+        return name, spec           # `key==value` is fine: the value "=value" means exactly
+    fix = _near_miss_fix(raw)
+    if fix:
+        note = ("" if not re.search(r">=|<=", raw) else
+                " There is no >= or <=; on whole numbers this means the same.")
+        raise BulkError(f"A filter is written key=value, with the comparison inside the "
+                        f"value: {raw!r} should be {fix!r}.{note}")
+    raise BulkError(f"A filter is written key=value, got {raw!r} (for example "
+                    "'country=DE', 'fit_score=>70' or 'last_touch=<2026-06-01').")
+
+
+def text_compare_notes(cols: list, texts) -> list[str]:
+    """One line for each `>`/`<` filter on a text field that is compared with a
+    number. It is not an error: text compares alphabetically, which is right for
+    names and wrong for numbers (100 sorts before 24), and nothing says so."""
+    notes: list[str] = []
+    for text in texts or []:
+        name, sep, spec = str(text).partition("=")
+        spec = spec.strip()
+        if not sep or not spec or spec[0] not in "<>" or len(spec) < 2:
+            continue
+        try:
+            col = _find_column(name, cols)
+        except BulkError:
+            continue
+        if col.kind == "text" and filters._comparable(spec[1:].strip(), "number") is not None:
+            notes.append(
+                f"{col.key} is a text field, so {spec!r} compares alphabetically and 100 "
+                f"counts as smaller than 24: larger numbers drop out. Make {col.key} a "
+                f"number field to compare numbers.")
+    return notes
+
+
+def filter_notes(store: Store, scope: str, where) -> list[str]:
+    """`text_compare_notes` for the `--where` texts of one scope."""
+    _, cols = _rows_and_columns(store, scope, _custom_defs(store.root))
+    return text_compare_notes(cols, where)
 
 
 def _parse_where(where, cols: list) -> list:
@@ -573,11 +654,8 @@ def _parse_where(where, cols: list) -> list:
     conditions: list = []
     choices: dict = {}  # column key -> the one list of chosen values
     for text in where or []:
-        name, sep, spec = str(text).partition("=")
+        name, spec = split_where(text)
         spec = spec.strip()
-        if not sep or not name.strip():
-            raise BulkError(f"--where wants key=value, got {text!r} "
-                            "(for example --where 'country=DE' or --where 'fit_score=>70').")
         if not spec:
             raise BulkError(f"--where {name.strip()}= has no value. Use '-' for empty, "
                             "'*' for not empty.")
@@ -790,7 +868,8 @@ def plan(store: Store, scope: str, where=None, ops: Ops | None = None, *,
     changes, skipped, errors = _simulate(store, scope, refs, resolved) if refs else ([], 0, {})
     if errors:
         raise _refuse_errors(scope, errors)
-    return Plan(scope, where, everything, ops, len(refs), changes, skipped, resolved)
+    return Plan(scope, where, everything, ops, len(refs), changes, skipped, resolved,
+                notes=text_compare_notes(cols, where))
 
 
 # -------------------------------------------------------------------------- apply

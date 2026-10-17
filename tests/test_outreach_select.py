@@ -67,6 +67,34 @@ def test_the_filter_picks_the_batch(folder):
         pick(store, where=["colour=blue"])
 
 
+def test_a_filter_without_equals_says_what_to_type(folder):
+    root, store = folder
+    with pytest.raises(outreach.OutreachError) as exc:
+        pick(store, where=["fit_score >24"])
+    msg = str(exc.value)
+    assert "'fit_score=>24'" in msg and "unknown filter key" not in msg
+
+
+def test_an_unknown_key_suggests_and_shows_types(folder):
+    root, store = folder
+    with pytest.raises(outreach.OutreachError) as exc:
+        pick(store, where=["fit_scor=>24"])
+    msg = str(exc.value)
+    assert "Did you mean fit_score?" in msg and "fit_score (number)" in msg
+    assert "Company keys:" in msg and "Contact keys:" in msg
+
+
+def test_a_text_comparison_leaves_a_note_on_the_preview(folder):
+    root, store = folder
+    (root / "fields.toml").write_text(
+        '[[field]]\nkey = "fte_estimate"\ntype = "text"\napplies_to = "company"\n'
+        'show_in = ["companies"]\n', encoding="utf-8")
+    sel = pick(store, where=["stage=prospect", "fte_estimate=>24"])
+    assert len(sel.notes) == 1 and "alphabetical" in sel.notes[0]
+    assert "alphabetical" in sel.render()
+    assert pick(store, where=["stage=prospect"]).notes == []
+
+
 def test_highest_fit_first_and_no_fit_score_last_with_a_flag(folder):
     root, store = folder
     sel = pick(store, limit=10)
