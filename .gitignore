@@ -12,3 +12,4 @@ inbox/.last-routines.json
 build/
 dist/
 .claude/
+.gstack/
