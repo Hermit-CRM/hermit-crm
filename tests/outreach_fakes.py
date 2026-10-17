@@ -36,21 +36,25 @@ class FakeAI:
     their schema; each answer is a value, a function of the prompt, or an
     exception to raise. Records every call."""
 
-    def __init__(self, research=None, drafts=None, classify=None):
+    def __init__(self, research=None, drafts=None, classify=None, critic=None):
         self.research = research if research is not None else default_research
         self.drafts = list(drafts) if drafts is not None else [default_draft]
+        self.critic = list(critic) if critic is not None else [default_critic]
         self.classify = classify if classify is not None else {
             "verdict": "interested", "why": "They ask how it works."}
         self.calls = []
 
     def __call__(self, prompt, schema, **kwargs):
-        kind = ("research" if schema is outreach.RESEARCH_SCHEMA else
-                "classify" if schema is outreach.CLASSIFY_SCHEMA else "draft")
+        kind = ("research" if schema in (outreach.RESEARCH_SCHEMA, outreach.AI_WEB_SCHEMA) else
+                "classify" if schema is outreach.CLASSIFY_SCHEMA else
+                "critic" if schema is outreach.CRITIC_SCHEMA else "draft")
         self.calls.append({"kind": kind, "prompt": prompt, "schema": schema, **kwargs})
         if kind == "research":
             answer = self.research
         elif kind == "classify":
             answer = self.classify
+        elif kind == "critic":
+            answer = self.critic.pop(0) if len(self.critic) > 1 else self.critic[0]
         else:
             answer = self.drafts.pop(0) if len(self.drafts) > 1 else self.drafts[0]
         if isinstance(answer, BaseException):
@@ -59,6 +63,16 @@ class FakeAI:
 
     def of(self, kind):
         return [c for c in self.calls if c["kind"] == kind]
+
+
+def scores(relevance=4, personal=4, tone=4, honesty=4, reason="Specific and honest."):
+    """A critic answer."""
+    return {"relevance": relevance, "personal": personal, "tone": tone, "honesty": honesty,
+            "reason": reason}
+
+
+def default_critic(prompt):
+    return scores()
 
 
 def default_research(prompt):

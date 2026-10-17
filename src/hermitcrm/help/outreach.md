@@ -160,14 +160,31 @@ the radar read the same setting, so they never disagree.
 
 ## Research
 
-`outreach_research = "scrape"` (the only level so far): the company website,
-its LinkedIn page and the person's LinkedIn page are read (LinkedIn usually
-refuses anonymous requests; the card says so), then one small AI call with no
-tools lists the facts on them. Every finding has its source; one without is
-dropped. A finding older than about 90 days is marked stale and never opens a
-message. Nothing found: the draft uses the playbook's angles and marks gaps
-`[like this]`. A website, LinkedIn URL or country found for an empty field is
-proposed on the card (a **Save to the record** button), never written without it.
+Two levels, `outreach_research` in `config.toml` (default `scrape`), or the
+**Research** select on the Outreach page and `--research` on the command line.
+
+**`scrape`** (free): the company website, its LinkedIn page and the person's
+LinkedIn page are read (LinkedIn usually refuses anonymous requests; the card
+says so), then one small AI call with no tools lists the facts on them. Every
+finding has its source; one without is dropped. A finding older than about 90
+days is marked stale and never opens a message. Nothing found: the draft uses
+the playbook's angles and marks gaps `[like this]`. A website, LinkedIn URL or
+country found for an empty field is proposed on the card (a **Save to the
+record** button), never written without it.
+
+**`ai-web`** (AI tokens): the scrape first, then one more AI run that may search
+the web and read pages, for what the company's own pages do not say: recent news,
+a hire, a launch, something the person said. Only Claude Code can be held to
+that (web search and fetch only, no files, no shell, no MCP servers, run in an
+empty temporary folder); with any other AI CLI the level is refused with the
+reason, and you use `scrape`. What the run is told is public only: the company
+name, website, country, LinkedIn pages, the person's name and title, and what the
+scrape found. Never your notes, messages, email addresses or phone numbers, since
+a page written by a stranger could try to make the run repeat what it knows. A
+finding stays only if it names a page the run listed as read, that page is an
+http(s) address, and it can be read again (LinkedIn is taken as listed); the rest
+are dropped, never shown as fact. If the run fails, the scrape findings stand and
+the card says why.
 
 ## The draft and its checks
 
@@ -201,19 +218,51 @@ sentence or one per language (`opt_out: {en: "...", de: "..."}`), and a cold
 first email gets it added at the end, in the draft's language. It does not
 count towards the 120 words. Without it, nothing is added.
 
+## The critic
+
+The checks cannot tell whether a draft is any good, so after the checks a second
+AI call (no tools) scores the draft from 1 to 5 on four things: **relevance**
+(does it touch the likely problem of this role, and your offer), **personal**
+(is it built on a real finding about them; for a reply, does it answer what they
+wrote; for a follow-up, does it pick up your earlier message), **tone** (the
+language, culture norms, channel and your playbook's Voice) and **honesty** (any
+claim of familiarity or fact with nothing behind it scores 1). The card shows
+the four scores, the lowest one, and the critic's one-line reason under the
+checks. `hermitcrm outreach show` prints them too, and `build` adds the lowest
+score to its line.
+
+The lowest of the four counts, so a draft that invents familiarity is caught even
+when the rest is fine. If it is below `outreach_critic_threshold`, the draft is
+written once more with the critic's reason as the thing to fix, and **the second
+draft is kept**, scored again, whatever it scores: never a third time, and a
+low score never blocks you. That is at most four draft calls and two critic calls
+per card; `attempts` on the item counts the draft calls.
+
+The threshold starts low, **2**: only a draft that scores 1 somewhere is redone,
+because nothing says yet what a 3 is worth on your own folder. Raise it once you have
+seen some scores against the drafts you actually liked; `0` turns the critic off.
+A critic that fails (the CLI errors, the answer is not four scores) leaves the
+draft as it is, and a flag on the card says "critic did not run".
+
+**Save & check again** also asks the critic about the text as you edited it (an AI
+call; it scores only and never rewrites your text). Without an AI it runs the checks
+and says the critic did not run. **Mark ready** does not ask. A score is never a
+check: the rules stay in the checks and `clean_answer`.
+
 ## The files
 
 `outreach/<id>.md`, one per item. The front matter holds `state`
 (`researching`, `drafted`, `ready`, `sent`, `skipped`; `logged` is for later), the
 channel, contact, company, the reply it answers (`reply_to`) or the message it
 follows up (`follows`), approach, angle,
-findings, check results, flags,
+findings, check results, the critic's scores (`critic`, `critic_reason`,
+`critic_model`), flags,
 timestamps, the AI's original text and how much you changed it. The body is
 the message, byte for byte. `hermitcrm check` reports a file it cannot read.
 
-Settings in `config.toml`: `outreach_research`, `outreach_cooldown_days`,
+Settings in `config.toml`: `outreach_research` (`scrape` or `ai-web`), `outreach_cooldown_days`,
 `outreach_fit_field`, `outreach_high_fit` (65: the preview counts high-fit
-companies never contacted), `outreach_batch_size` (10), `outreach_angles`.
+companies never contacted), `outreach_batch_size` (10), `outreach_angles`, `outreach_critic_threshold` (2; 0 = no critic).
 Channel rules and culture norms: `[outreach.<channel>]` and `[culture.<lang>]`
 in `messages.toml`, over the shipped defaults.
 
