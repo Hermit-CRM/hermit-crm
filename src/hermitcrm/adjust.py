@@ -169,7 +169,7 @@ def agent_info(config: dict, root: Path, home: Path | None = None) -> dict:
 # ------------------------------------------------------------------ page kinds
 
 PAGE_KINDS = ("company", "contact", "companies", "contacts", "pipeline", "home", "tasks",
-              "messages", "reports", "calendar", "settings", "other")
+              "messages", "reports", "calendar", "settings", "dashboard", "other")
 
 
 def page_kind(path: str) -> str:
@@ -188,6 +188,8 @@ def page_kind(path: str) -> str:
     if head in ("contacts", "pipeline", "tasks", "messages", "reports", "calendar",
                 "settings"):
         return head
+    if head == "d" and len(parts) == 2:
+        return "dashboard"
     return "other"
 
 
@@ -330,6 +332,22 @@ STARTERS = [
             "Make a dashboard called [Pipeline health] with the [funnel] for the last [30] "
             "days, the deals by [stage] and the [overdue next steps]. Pin it to the sidebar.",
             "dashboards/pipeline-health.toml", UNDO, ("reports",)),
+    # ---- the dashboard on screen ({dashboard_file} comes from the page)
+    Starter("dashboard-widget", "Dashboards", "Add a widget",
+            "Add to this dashboard ({dashboard_file}): [the deals by stage with their value].",
+            "{dashboard_file}", UNDO, ("dashboard",)),
+    Starter("dashboard-change", "Dashboards", "Change what it shows",
+            "On this dashboard ({dashboard_file}), [only show companies in {country}] and "
+            "[sort the prospects by {score}, highest first].",
+            "{dashboard_file}", UNDO, ("dashboard",)),
+    Starter("dashboard-pin", "Dashboards", "Pin or rename it",
+            "[Pin this dashboard ({dashboard_file}) to the sidebar] and rename it to "
+            "[Weekly review].",
+            "{dashboard_file}", UNDO, ("dashboard",)),
+    Starter("dashboard-copy", "Dashboards", "A copy for a variation",
+            "Make a copy of this dashboard ({dashboard_file}) for [partners instead of "
+            "prospects].",
+            "a new file in dashboards/", UNDO, ("dashboard",)),
     Starter("hide-field", "Pages", "Hide what you never use",
             "Hide the [{unused_field}] field everywhere; I never use it.",
             "layout.toml", UNDO, ()),
@@ -354,7 +372,8 @@ REPORTS_STARTER = "dashboard-report"
 DEFAULTS = {"score": "fit", "score_cut": "70", "field2": "FTE estimate", "country": "Germany",
             "channel": "LinkedIn", "nudge_days": "7", "window": "14",
             "company_tag": "robotics", "company_country": "DE",
-            "unused_field": "value per month", "stray_key": "segment"}
+            "unused_field": "value per month", "stray_key": "segment",
+            "dashboard": "monday-review", "dashboard_file": "dashboards/monday-review.toml"}
 CHANNEL_NAMES = {"linkedin": "LinkedIn", "email": "email", "call": "phone"}
 # Built-in company fields nobody has to use, with the name the pages give them.
 OPTIONAL_FIELDS = {"value_eur_month": "value per month",
@@ -450,17 +469,23 @@ def stray_keys(companies: list, defs: list) -> list[tuple[str, int]]:
 _CHANGES_FILE = re.compile(r"^([\w./-]+\.(?:toml|css|md))(.*)$")
 
 
-def render_starter(starter: Starter, values: dict) -> dict:
-    """A starter as the templates use it: the text with its slots filled."""
+def _fill(text: str, values: dict) -> str:
     try:
-        text = starter.text.format_map(values)
+        return text.format_map(values)
     except (KeyError, ValueError):
-        text = starter.text.format_map(DEFAULTS)
-    found = _CHANGES_FILE.match(starter.changes)
+        return text.format_map(DEFAULTS)
+
+
+def render_starter(starter: Starter, values: dict) -> dict:
+    """A starter as the templates use it: the text (and the file it changes)
+    with its slots filled."""
+    text = _fill(starter.text, values)
+    changes = _fill(starter.changes, values)
+    found = _CHANGES_FILE.match(changes)
     return {"id": starter.id, "family": starter.family, "title": starter.title,
-            "text": text, "changes": starter.changes, "safety": starter.safety,
+            "text": text, "changes": changes, "safety": starter.safety,
             "changes_file": found.group(1) if found else "",
-            "changes_note": found.group(2) if found else starter.changes,
+            "changes_note": found.group(2) if found else changes,
             "safety_class": "dry" if starter.safety in (DRY_RUN, PREVIEW) else "",
             "recipe": RECIPES.get(starter.family, "adjust")}
 
@@ -474,8 +499,9 @@ def starters_for(kind: str, values: dict, limit: int = 4) -> list[dict]:
 
 def gallery(values: dict) -> list[dict]:
     """Every starter for the hub's cards (the two that only suggestions open
-    stay out of the grid)."""
-    return [render_starter(s, values) for s in STARTERS if s.kinds]
+    stay out of the grid, and so do the ones about the dashboard on screen,
+    which mean nothing on the hub)."""
+    return [render_starter(s, values) for s in STARTERS if s.kinds and s.kinds != ("dashboard",)]
 
 
 def starter(starter_id: str, values: dict) -> dict | None:

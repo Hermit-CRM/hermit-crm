@@ -244,7 +244,12 @@ The outcome choices for interactions, one per line, in order: the first is
 what a detected reply counts as, the last what silence past the message
 window counts as. Also here: `message_window_days` (default 14) and
 `silent_days` (default 14, the Calendar's silent list and `PIPELINE.md`).
-Duplicates and an empty list are refused.
+Duplicates and an empty list are refused. The default is `successful`,
+`interested`, `unsuccessful`: `interested` marks a reply that shows interest
+(the Outreach page's Replies to interest). A folder that set its own list
+before `interested` existed is offered it here, placed before the last
+outcome so replies and silence count as before; nothing changes until you
+press **Add interested**.
 
 ## Schedule
 

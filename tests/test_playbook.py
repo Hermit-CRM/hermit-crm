@@ -671,3 +671,42 @@ def test_check_and_upgrade_on_a_front_matter_that_is_not_ours(tmp_path):
     (folder / "MESSAGING.md").write_text("---\napproaches: [\n---\nbody\n", encoding="utf-8")
     assert playbook.check_lines(folder)[0], "a broken playbook front matter is a problem"
     assert "cannot be read" in playbook.upgrade(folder)
+
+
+# ------------------------------------------------- first step offer (optional)
+
+
+def test_first_step_offer_is_optional_and_one_sentence():
+    assert playbook.validate_front(playbook.parse(FILLED).front) == []
+    assert playbook.parse(FILLED).approaches[0].first_step_offer == ""
+    with_step = FILLED.replace(
+        '    offer_line: "We build booking software for clinics."\n',
+        '    offer_line: "We build booking software for clinics."\n'
+        '    first_step_offer: "The first call is free, without a  pitch."\n')
+    pb = playbook.parse(with_step)
+    assert playbook.validate_front(pb.front) == []
+    assert pb.approaches[0].first_step_offer == "The first call is free, without a pitch."
+    for bad in ("[one, two]", "|\n      one\n      two", "5"):
+        text = with_step.replace('"The first call is free, without a  pitch."', bad)
+        problems = playbook.validate_front(playbook.parse(text).front)
+        assert any("first_step_offer: one sentence" in p for p in problems), (bad, problems)
+
+
+def test_first_step_offer_on_the_form():
+    text = playbook.upgrade_text(MESSAGING)
+    name = playbook.DEFAULT_APPROACH
+    values = {"name": name, "offer_line": "We design brands.",
+              "first_step_offer": "  The first call   is free. "}
+    text, errors = playbook.save_form(text, name, values)
+    assert errors == {}
+    approach = playbook.parse(text).approach(name)
+    assert approach.first_step_offer == "The first call is free."
+    assert playbook.form_values(approach)["first_step_offer"] == "The first call is free."
+    # Key order: right after offer_line.
+    front = text.split("---")[1]
+    assert front.index("offer_line:") < front.index("first_step_offer:") < front.index("icp:")
+    # A form without the box keeps it; an emptied box removes it (left out when empty).
+    kept, _ = playbook.save_form(text, name, {"name": name, "offer_line": "We design brands."})
+    assert playbook.parse(kept).approach(name).first_step_offer == "The first call is free."
+    gone, _ = playbook.save_form(text, name, {**values, "first_step_offer": ""})
+    assert "first_step_offer" not in gone

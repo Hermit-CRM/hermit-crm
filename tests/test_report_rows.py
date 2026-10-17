@@ -112,20 +112,20 @@ win rate: 50% (previous -)
 
 ## Messages
 
-sent: 4 (previous 3, +1) | successful 1 | unsuccessful 2 | unknown 1 | successful rate 33% (window 14d)
+sent: 4 (previous 3, +1) | successful 1 | interested 0 | unsuccessful 2 | unknown 1 | successful rate 33% (window 14d)
 
-| language | sent | successful | unsuccessful | unknown | rate |
-|---|---|---|---|---|---|
-| de | 1 | 1 | 0 | 0 | 100% |
-| en | 1 | 0 | 1 | 0 | 0% |
-| fr | 1 | 0 | 0 | 1 | - |
-| nl | 1 | 0 | 1 | 0 | 0% |
+| language | sent | successful | interested | unsuccessful | unknown | rate |
+|---|---|---|---|---|---|---|
+| de | 1 | 1 | 0 | 0 | 0 | 100% |
+| en | 1 | 0 | 0 | 1 | 0 | 0% |
+| fr | 1 | 0 | 0 | 0 | 1 | - |
+| nl | 1 | 0 | 0 | 1 | 0 | 0% |
 
-| channel | sent | successful | unsuccessful | unknown | rate |
-|---|---|---|---|---|---|
-| call | 2 | 0 | 2 | 0 | 0% |
-| email | 1 | 1 | 0 | 0 | 100% |
-| linkedin | 1 | 0 | 0 | 1 | - |
+| channel | sent | successful | interested | unsuccessful | unknown | rate |
+|---|---|---|---|---|---|---|
+| call | 2 | 0 | 0 | 2 | 0 | 0% |
+| email | 1 | 1 | 0 | 0 | 0 | 100% |
+| linkedin | 1 | 0 | 0 | 0 | 1 | - |
 
 | reused text | uses | successful rate |
 |---|---|---|
@@ -244,20 +244,20 @@ win rate: 50% (previous -)
 
 ## Messages
 
-sent: 7 (previous 0, +7) | successful 3 | unsuccessful 3 | unknown 1 | successful rate 50% (window 14d)
+sent: 7 (previous 0, +7) | successful 3 | interested 0 | unsuccessful 3 | unknown 1 | successful rate 50% (window 14d)
 
-| language | sent | successful | unsuccessful | unknown | rate |
-|---|---|---|---|---|---|
-| de | 2 | 2 | 0 | 0 | 100% |
-| en | 2 | 0 | 2 | 0 | 0% |
-| fr | 1 | 0 | 0 | 1 | - |
-| nl | 2 | 1 | 1 | 0 | 50% |
+| language | sent | successful | interested | unsuccessful | unknown | rate |
+|---|---|---|---|---|---|---|
+| de | 2 | 2 | 0 | 0 | 0 | 100% |
+| en | 2 | 0 | 0 | 2 | 0 | 0% |
+| fr | 1 | 0 | 0 | 0 | 1 | - |
+| nl | 2 | 1 | 0 | 1 | 0 | 50% |
 
-| channel | sent | successful | unsuccessful | unknown | rate |
-|---|---|---|---|---|---|
-| call | 2 | 0 | 2 | 0 | 0% |
-| email | 3 | 2 | 1 | 0 | 67% |
-| linkedin | 2 | 1 | 0 | 1 | 100% |
+| channel | sent | successful | interested | unsuccessful | unknown | rate |
+|---|---|---|---|---|---|---|
+| call | 2 | 0 | 0 | 2 | 0 | 0% |
+| email | 3 | 2 | 0 | 1 | 0 | 67% |
+| linkedin | 2 | 1 | 0 | 0 | 1 | 100% |
 
 | reused text | uses | successful rate |
 |---|---|---|
@@ -329,7 +329,8 @@ def test_markdown_unchanged(demo):
     # The CLI takes the same path (store without a config: default outcomes).
     assert crm.cmd_report(demo, days=30, md=True) == BASELINE_30D
     assert crm.cmd_report(demo, days=90, md=True) == BASELINE_90D
-    assert "| language | sent | successful | unsuccessful | unknown | rate |" in BASELINE_30D
+    assert ("| language | sent | successful | interested | unsuccessful | unknown | rate |"
+            in BASELINE_30D)
 
 
 # --------------------------------------------------------- counts match rows
@@ -473,9 +474,9 @@ def test_configurable_outcomes(store):
     assert "| yes 1 | maybe 0 | no 1 | unknown 1 | yes rate 50%" in text
     assert "| reused text | uses | yes rate |" in text
     # Without a config on the store the default applies; a config wins over it.
-    assert reports.resolve_outcomes(store) == ["successful", "unsuccessful"]
-    assert reports.messages(store, period, TODAY)["statuses"] == ["successful", "unsuccessful",
-                                                                  "unknown"]
+    assert reports.resolve_outcomes(store) == ["successful", "interested", "unsuccessful"]
+    assert reports.messages(store, period, TODAY)["statuses"] == [
+        "successful", "interested", "unsuccessful", "unknown"]
     store.config = {"outcomes": ["won", "lost"]}
     assert reports.resolve_outcomes(store) == ["won", "lost"]
     assert reports.build(store, period, TODAY)["messages"]["total"]["counts"] == {

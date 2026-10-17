@@ -100,6 +100,8 @@
   <fieldset class="form-group"><legend>Offer</legend><div class="form-grid">
     {{ field('offer_line', 'Offer line: what you sell, in one sentence',
              'For example "We build booking software for clinics." or "I run your bookkeeping so you never miss a filing."') }}
+    {{ field('first_step_offer', 'First step offer (optional): what a reply to interest offers first',
+             'For example "The first call is free and all about you, without a sales pitch." Leave it empty when you do not offer one.') }}
     {{ field('section_offer', 'More about the offer: the outcome, how it works, what you do not do',
              'For example: the result a customer gets, the price model, how long it takes, who does what, and what you leave to others.', rows=4) }}
   </div></fieldset>

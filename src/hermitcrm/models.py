@@ -84,8 +84,24 @@ class TaskStatus(str, Enum):
 
 # Outcome choices for an interaction when config.toml sets none: the first is
 # what a detected reply counts as, the last what silence past the message
-# window counts as; an empty outcome means "not yet known".
-DEFAULT_OUTCOMES = ("successful", "unsuccessful")
+# window counts as; an empty outcome means "not yet known". `interested` sits
+# between them on purpose: a reply that shows interest, which the outreach
+# bot answers (Replies to interest). Never append an outcome at the end: the
+# last one is what silence counts as.
+INTERESTED = "interested"
+DEFAULT_OUTCOMES = ("successful", INTERESTED, "unsuccessful")
+
+
+def with_interested(outcomes) -> list[str] | None:
+    """`outcomes` with `interested` added just before the last one, or None
+    when there is nothing to offer: it is there already, or the list is too
+    short to have a middle (one outcome is both the reply and the silence)."""
+    names = [str(o) for o in outcomes or []]
+    if INTERESTED in names or len(names) < 2:
+        return None
+    return names[:-1] + [INTERESTED] + names[-1:]
+
+
 # What message_status reports for callers that pass no outcomes list.
 LEGACY_OUTCOMES = ("success", "unsuccessful")
 
