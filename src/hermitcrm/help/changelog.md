@@ -17,6 +17,11 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   set` dry runs. On Outreach each problem has an **Explain and fix with AI** link
   that opens Ask · Adjust with it filled in. The page's csrf token and empty
   parameters no longer travel into the Ask · Adjust prompt.
+- **Export everything.** Settings > Data > Export everything (or
+  `hermitcrm export`) gives a zip of CSV files: companies, contacts,
+  interactions, tasks and stage history, with column names for Hermit CRM,
+  HubSpot or Pipedrive. `--format json` writes one JSON file instead. It only
+  reads: nothing in your folder changes. An export imports back.
 - **Trends on dashboards.** A new `trend` widget counts the rows of a list
   page per week or month of one date column (messages sent, last touches,
   tasks done) over a report period, and draws one bar per week or month,
