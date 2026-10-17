@@ -305,6 +305,15 @@ def test_mapping_override_with_ignore_and_notes(store):
     assert plan.rows[0].notes == ""
 
 
+def test_contacts_mode_skipped_row_names_its_company(store):
+    """A row without a person is skipped; the preview still says which company it was."""
+    plan = plan_import(store, 'First Name,Last Name,Company\nEva,Lind,Lindqvist Labs\n'
+                              ',,"Zeta, Inc"\n', mode="contacts")
+    skipped = plan.rows[1]
+    assert skipped.action == "skip" and skipped.reason == "no contact name"
+    assert skipped.name == "Zeta, Inc" and skipped.slug == ""
+
+
 def test_contacts_mode_needs_a_name_column(store):
     with pytest.raises(ValidationError):
         plan_import(store, "Email,Company\na@b.de,B\n", mode="contacts")
