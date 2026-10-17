@@ -247,6 +247,27 @@ def test_skip_needs_a_reason_and_is_one_commit(client, root):
     assert "Skipped (1)" in client.get("/outreach?tab=skipped").text
 
 
+def test_skip_is_a_button_that_opens_a_one_click_reason_panel(client, root):
+    item = drafted(client, root)
+    page = client.get("/outreach?tab=drafts").text
+    assert f'data-skip-toggle="{item.id}"' in page                       # Skip is in the main row
+    panel = re.search(rf'<form[^>]*id="skip-{re.escape(item.id)}"[^>]*>.*?</form>', page, re.S)
+    assert panel and " hidden" in panel.group(0).split(">")[0]           # closed until clicked
+    for reason in outreach.SKIP_REASONS:                                 # one button per reason
+        assert f'name="reason" value="{reason}"' in panel.group(0)
+    assert 'aria-label="Why skip"' not in page                           # no dropdown any more
+
+
+def test_norms_are_listed_with_the_findings_not_in_the_footer(client, root):
+    item = drafted(client, root)
+    assert item.norms
+    page = client.get("/outreach?tab=drafts").text
+    findings = re.search(r'<details class="outreach-findings".*?</details>', page, re.S).group(0)
+    assert "Norms applied" in findings and html.escape(item.norms[0]) in findings
+    footer = re.search(r'<p class="small quiet">.*?</p>', page, re.S).group(0)
+    assert "norms:" not in footer
+
+
 def test_mark_sent_changes_only_the_state(client, root):
     item = drafted(client, root)
     post(client, f"/outreach/{item.id}/ready", subject=item.subject, body=item.body)
