@@ -93,7 +93,8 @@ def test_settings_page_renders_every_section(demo, tmp_path):
     else:
         assert "Unavailable:" in page and "/opt/homebrew/bin" in page
     # Outcomes: the defaults, one per line, plus the two day counts.
-    assert ">successful\nunsuccessful</textarea>" in page
+    assert ">successful\ninterested\nunsuccessful</textarea>" in page
+    assert "Add interested" not in page  # a new folder has it: nothing to offer
     assert 'name="message_window_days" value="14"' in page
     assert 'name="silent_days" value="14"' in page
     # Import status under BCC capture and Calendar (the queue itself is on Home), schedule, about.

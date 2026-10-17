@@ -28,8 +28,9 @@ file.
 ## Outcome
 
 `outcome` is one line: what came of it. The choices are configured on the
-Settings page (`outcomes` in `config.toml`, default `successful` and
-`unsuccessful`). For a sent message the outcome decides its status on the
+Settings page (`outcomes` in `config.toml`, default `successful`,
+`interested` and `unsuccessful`). Set `interested` on a reply that shows
+interest: the Outreach page lists it under Replies to interest. For a sent message the outcome decides its status on the
 Messages tab: an explicit outcome wins; otherwise a later inbound interaction
 from the same contact (or a company-level one) counts as the **first**
 configured outcome; otherwise, once the message is older than
