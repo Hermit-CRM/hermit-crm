@@ -1,5 +1,9 @@
 name: release
 
+# The build job only reads; publish and github-release ask for more themselves.
+permissions:
+  contents: read
+
 on:
   push:
     tags: ["v*"]

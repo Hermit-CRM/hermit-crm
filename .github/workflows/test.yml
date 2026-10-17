@@ -1,5 +1,9 @@
 name: test
 
+# Nothing here writes to the repository; the token is read-only.
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]

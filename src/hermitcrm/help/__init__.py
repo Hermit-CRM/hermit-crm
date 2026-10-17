@@ -47,16 +47,20 @@ def topics() -> list[str]:
     return list(TOPICS)
 
 
-def path_for(topic: str) -> Path:
-    return HERE / f"{topic}.md"
+def path_for(topic: str) -> Path | None:
+    """The file of a topic; None for a name that is not one of TOPICS. The file
+    name is taken from TOPICS, never from the request."""
+    known = next((t for t in TOPICS if t == topic), None)
+    return HERE / f"{known}.md" if known else None
 
 
 def read(topic: str) -> str | None:
     """The Markdown of a topic, or None when there is no such topic."""
-    if topic not in TOPICS:
+    path = path_for(topic)
+    if path is None:
         return None
     try:
-        return path_for(topic).read_text(encoding="utf-8")
+        return path.read_text(encoding="utf-8")
     except OSError:
         return None
 
