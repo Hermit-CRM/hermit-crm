@@ -17,8 +17,10 @@
   <input type="hidden" name="batch" value="{{ form.batch }}">
   <input type="hidden" name="left" value="{{ form.left or '' }}">
   <label>Who <input name="where" value="{{ form.where }}" placeholder="stage=prospect; country=DE" size="32"></label>
+  <label>Draft type <select name="kind"><option value="first-touch"{% if form.kind == 'first-touch' %} selected{% endif %}>first touch</option><option value="follow-up"{% if form.kind == 'follow-up' %} selected{% endif %}>follow-up</option></select></label>
   <label>Channel <select name="channel">{% for c in channels %}<option value="{{ c }}"{% if c == form.channel %} selected{% endif %}>{{ c }}</option>{% endfor %}</select></label>
   <label>Batch size <input name="limit" type="number" min="1" max="50" value="{{ form.limit }}"></label>
+  <label>Approach <select name="approach"><option value="">the best fit per company</option>{% for a in approaches %}<option value="{{ a }}"{% if a == form.approach %} selected{% endif %}>{{ a }}</option>{% endfor %}{% if form.approach and form.approach not in approaches %}<option value="{{ form.approach }}" selected>{{ form.approach }}</option>{% endif %}</select></label>
   <label>Research <select name="research">{% for l in levels %}<option value="{{ l }}"{% if l not in built_levels %} disabled{% endif %}>{{ l }}{% if l not in built_levels %} (later){% endif %}</option>{% endfor %}</select></label>
   <label class="check"><input type="checkbox" name="strong" value="1"{% if form.strong %} checked{% endif %}> stronger model</label>
   <button type="submit" formmethod="get" formaction="/outreach" name="preview" value="1" class="secondary">Preview</button>
@@ -98,7 +100,35 @@
 </section>
 {% endif %}
 
-{% if not cards and tab != 'replies' %}
+{% if tab == 'follow-ups' %}
+<section class="outreach-followups">
+  <p class="small">Messages of yours that went {{ nudge_days }} days without an answer, from the follow-up radar (Settings: <code>followup_nudge_days</code>). A follow-up is short, has no calendar invite and gives an easy way out; the bot does no research for it. One per silence: after a follow-up the bot lets it go.</p>
+  {% if due_rows %}
+  <ul class="outreach-reply-list">
+  {% for f in due_rows %}{% set it = f.interaction %}
+    <li id="due-{{ it.id }}" class="outreach-reply">
+      <p><a href="/companies/{{ f.company.slug }}/contacts/{{ f.contact.slug }}">{{ f.contact.name }}</a> <span class="small">{{ f.company.name }} &middot; {{ it.label }} &middot; {{ fmt_date(it.date) }}, {{ f.days }} day{{ "s" if f.days != 1 }} ago</span></p>
+      <blockquote class="small">{% if it.subject %}<strong>{{ it.subject }}</strong><br>{% endif %}{{ (it.body or '') | truncate(400) }}</blockquote>
+      <div class="draft-actions">
+        <form method="post" action="/outreach/build" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="contact" value="{{ f.company.slug }}/{{ f.contact.slug }}">
+          <input type="hidden" name="kind" value="follow-up">
+          <input type="hidden" name="back" value="/outreach?tab=follow-ups">
+          <select name="channel" aria-label="Follow-up channel">{% for c in channels %}<option value="{{ c }}"{% if c == it.channel %} selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+          <button type="submit"{% if gate or ai_problem %} disabled{% endif %}>Draft follow-up</button>
+        </form>
+      </div>
+    </li>
+  {% endfor %}
+  </ul>
+  {% elif not cards %}
+  <p class="empty">No follow-ups are due. A message you send that gets no answer shows up here after {{ nudge_days }} days.</p>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if not cards and tab not in ('replies', 'follow-ups') %}
 <p class="empty">{% if tab == 'drafts' %}No drafts to review. Preview a batch above, then build it.{% else %}Nothing here.{% endif %}</p>
 {% endif %}
 
@@ -119,6 +149,14 @@
     &middot; {{ i.approach or 'no approach' }}{% if i.angle %} &middot; angle {{ i.angle }}{% endif %}{% if i.language %} &middot; {{ i.language }}{% endif %}
   </p>
   {% if i.flags %}<ul class="outreach-flags small">{% for f in i.flags %}<li>{{ f }}</li>{% endfor %}</ul>{% endif %}
+  {% for key, value in card.proposals %}
+  <form method="post" action="/outreach/{{ i.id }}/proposal" class="outreach-proposal small">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="key" value="{{ key }}">
+    Research found a {{ key }} for an empty field: <strong>{{ value }}</strong>
+    <button type="submit" class="secondary">Save to the record</button>
+  </form>
+  {% endfor %}
 
   {% if card.reply %}<details class="outreach-their-reply"{% if i.state == 'drafted' %} open{% endif %}><summary>Their reply, {{ fmt_date(card.reply.date) }}</summary>
     <blockquote class="small">{% if card.reply.subject %}<strong>{{ card.reply.subject }}</strong><br>{% endif %}{{ card.reply.body }}</blockquote></details>{% endif %}

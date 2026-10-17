@@ -75,6 +75,8 @@ def default_draft(prompt):
     first = re.search(r"^Person: (\S+)", prompt, re.M).group(1)
     if "This is a reply to someone" in prompt:
         return reply_draft(prompt, first)
+    if "This is a follow-up" in prompt:
+        return followup_draft(prompt, first)
     usable = re.search(r"^(\d+)\. \[\w+, (?:high|medium), usable; source (?!crm)", prompt,
                        re.M)
     opening = ("The second office this autumn caught my eye." if usable else
@@ -97,6 +99,17 @@ def reply_draft(prompt, first):
             + "\nWhere does it hurt most right now: pipeline, conversion or deal size?\n\nSam")
     return {"subject": "Re: Your second office", "angle": "custom", "body": body,
             "pitch": "", "findings_used": [], "proof_used": [proof]}
+
+
+def followup_draft(prompt, first):
+    """A follow-up in the approved shape: short, one question, an easy way out."""
+    earlier = re.search(r"--- your earlier message \([^)]*?subject: ([^)\n]*)\) ---", prompt)
+    subject = f"Re: {earlier.group(1)}" if earlier else "Following up"
+    return {"subject": subject, "angle": "custom",
+            "body": f"Hi {first},\n\nQuick follow-up, no calendar invite: is the topic of my "
+                    "first message a priority for you right now, or not really? A short "
+                    "'not now' is fine too, then I'll close the loop.\n\nSam",
+            "pitch": "", "findings_used": [], "proof_used": []}
 
 
 def fake_page(url: str) -> str:

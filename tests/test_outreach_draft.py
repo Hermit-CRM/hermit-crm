@@ -415,7 +415,7 @@ def test_build_refuses_when_the_playbook_is_not_ready(tmp_path, fake_cli, capsys
     assert git(root, "rev-parse", "HEAD") == head
 
 
-def test_build_refuses_a_level_or_kind_not_built_yet(tmp_path, fake_cli, capsys):
+def test_build_refuses_a_level_not_built_yet_and_an_unknown_kind(tmp_path, fake_cli, capsys):
     from hermitcrm.datafolder import init_folder
 
     root = init_folder(tmp_path / "x", demo=True)
@@ -423,8 +423,8 @@ def test_build_refuses_a_level_or_kind_not_built_yet(tmp_path, fake_cli, capsys)
                      "ai-web"], root=root) == 1
     assert "ai-web research comes in a later version" in capsys.readouterr().err
     assert cli.main(["outreach", "build", "--where", "stage=prospect", "--kind",
-                     "follow-up"], root=root) == 1
-    assert "later version" in capsys.readouterr().err
+                     "cold-call"], root=root) == 1
+    assert "draft type" in capsys.readouterr().err
     assert fake_cli.calls == []
 
 
