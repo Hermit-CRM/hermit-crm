@@ -19,6 +19,8 @@ fakes; all names are made up."""
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from fastapi.testclient import TestClient
 from starlette.datastructures import URL, QueryParams
@@ -303,7 +305,8 @@ def test_a_research_proposal_is_written_only_on_the_button(client, root):
     git(root, "commit", "-qam", "test: more proposals")
     page = client.get("/outreach").text
     assert page.count("Save to the record") == 2
-    assert "https://lindenhof.example.com" in page and ">DE<" in page
+    offered = re.findall(r"<strong>([^<]*)</strong>", page)
+    assert "https://lindenhof.example.com" in offered and "DE" in offered
     assert company_of(root).country == "" and company_of(root).website == ""
     before = commits(root)
     response = post(client, f"/outreach/{item.id}/proposal", key="country")
