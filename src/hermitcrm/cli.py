@@ -1585,7 +1585,7 @@ def cmd_playbook(root: Path, action: str = "status", dry_run: bool = False,
 
 
 def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
-                 drafter=None) -> tuple[str, int]:
+                 drafter=None, critic=None) -> tuple[str, int]:
     """`hermitcrm outreach preview|build|list|show|ready|skip`."""
     from hermitcrm import outreach, routines
 
@@ -1640,7 +1640,8 @@ def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
                 level, enricher, today=store.today(),
                 timeout=float(config.get("fetch_timeout", 10)))
             drafter = drafter or outreach.AIDrafter(store, enricher, config)
-        result = outreach.build(store, selection, researcher, drafter, config)
+            critic = critic or outreach.AICritic(store, enricher)
+        result = outreach.build(store, selection, researcher, drafter, config, critic=critic)
     except outreach.OutreachError as exc:
         return (str(exc), 1)
     lines = result.lines + ["", f"{len(result.items)} item(s) in outreach/. Review them "

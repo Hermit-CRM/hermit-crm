@@ -3964,6 +3964,7 @@ def create_app(root: Path, config: dict | None = None,
             "channels": outreach.CHANNELS, "levels": outreach.LEVELS,
             "built_levels": outreach.BUILT_LEVELS,
             "ai_web_problem": app.state.enricher.web_only_problem(),
+            "critic_scores": outreach.CRITIC_SCORES,
             "continue_query": outreach_query(form) if form["left"] else "",
         })
 
@@ -4017,10 +4018,11 @@ def create_app(root: Path, config: dict | None = None,
             level, enricher, fetcher=getattr(app.state, "outreach_fetcher", None),
             today=store.today(), timeout=float(config.get("fetch_timeout", 10)))
         drafter = outreach.AIDrafter(store, enricher, config)
+        critic = outreach.AICritic(store, enricher)
         batch_id = form["batch"] or f"{store.now():%Y-%m-%dT%H%M}-{form['channel']}"
         try:
             result = await run_in_threadpool(outreach.build, store, selection, researcher,
-                                              drafter, config, None, batch_id)
+                                              drafter, config, None, batch_id, critic)
         except outreach.OutreachError as exc:
             return flashed(back, f"Not built: {exc}")
         item = result.items[0]
@@ -4088,8 +4090,11 @@ def create_app(root: Path, config: dict | None = None,
         anchor = f"item-{item.id}"
         try:
             if what == "check":
-                item, found = await run_in_threadpool(outreach.save_text, store, item.id,
-                                                      subject, body, pitch)
+                why_not = outreach_ai_problem()   # "" when the AI can be asked
+                item, found = await run_in_threadpool(
+                    outreach.save_text, store, item.id, subject, body, pitch,
+                    None if why_not else outreach.AICritic(store, app.state.enricher.with_tier("medium")),
+                    config, why_not)
                 text = ("Saved. Checks passed." if not found else
                         f"Saved. {len(found)} check"
                         f"{'s still fail' if len(found) > 1 else ' still fails'} (see the card).")
@@ -4105,10 +4110,10 @@ def create_app(root: Path, config: dict | None = None,
                 if blocked:
                     return flashed(f"/outreach?tab={outreach_tab(item)}",
                                    f"Not regenerated: {blocked}", anchor=anchor)
-                drafter = outreach.AIDrafter(store, app.state.enricher.with_tier(tier),
-                                             config)
+                enricher = app.state.enricher.with_tier(tier)
+                drafter = outreach.AIDrafter(store, enricher, config)
                 item = await run_in_threadpool(outreach.redraft, store, item.id, drafter,
-                                               config)
+                                               config, outreach.AICritic(store, enricher))
                 text = ("Regenerated." if item.state == "drafted" else
                         f"The AI gave no usable draft; skipped ({item.skip_note}).")
             elif what == "skip":
