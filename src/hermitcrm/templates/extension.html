@@ -11,12 +11,6 @@ and opens a filled-in new-contact form.</p>
 <p><a class="bookmarklet" href="{{ bookmarklet }}">Add to Hermit CRM</a>
 <span class="small">&larr; drag me</span></p>
 
-<p class="small">Some browsers refuse to run a bookmarklet you click from a page.
-Dragging it to the bookmarks bar first is the way that always works. If your
-browser strips it, copy the code below into a new bookmark by hand.</p>
-
-<pre class="bookmarklet-code"><code>{{ bookmarklet }}</code></pre>
-
 <h2>Or paste a URL</h2>
 <form method="get" action="/extension/new" class="record-form">
   <label>Company website, LinkedIn company page or profile
@@ -24,6 +18,14 @@ browser strips it, copy the code below into a new bookmark by hand.</p>
   </label>
   <button type="submit">Read the page</button>
 </form>
+
+<details class="more-box">
+  <summary>The bookmark will not drag? Copy the code instead</summary>
+  <p class="small">Some browsers refuse to run a bookmarklet you click from a page.
+  Dragging it to the bookmarks bar first is the way that always works. If your
+  browser strips it, copy the code below into a new bookmark by hand.</p>
+  <pre class="bookmarklet-code"><code>{{ bookmarklet }}</code></pre>
+</details>
 
 <h2>What it reads</h2>
 <p class="small">A company page: the website, the LinkedIn company page it links
