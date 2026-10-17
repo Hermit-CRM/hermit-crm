@@ -20,6 +20,14 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   changed and in which commit, with Undo (back on the same page afterwards)
   and a link to all changes. Nothing shows for a file that is not committed.
 
+- Reject non-empty contact emails unless they contain exactly one `@` with text
+  on both sides, across the web app, CLI, MCP and imports. Contact forms show the
+  error beside the email field. Empty emails remain allowed and existing files
+  with invalid emails still load without being rewritten.
+- Skip addresses that fail that rule when reading BCC mail, calendar attendees
+  and contact-import email lists, so a bad address does not interrupt importing
+  and committing valid contacts.
+
 ## 0.8.0 (2026-10-16)
 
 **A playbook for your outreach.** Settings > Playbook writes down what you

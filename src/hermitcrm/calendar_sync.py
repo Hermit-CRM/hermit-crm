@@ -57,7 +57,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import bcc
 from . import secrets
-from .models import fmt_datetime, normalise_email
+from .models import fmt_datetime, normalise_email, valid_email
 from .store import Store, normalise_body
 
 logger = logging.getLogger("crm.calendar")
@@ -291,7 +291,7 @@ def _person(params: dict[str, str], value: str) -> Attendee | None:
     if address.lower().startswith("mailto:"):
         address = address[7:]
     address = normalise_email(address)
-    if "@" not in address:
+    if not valid_email(address):
         return None
     return Attendee(email=address, name=" ".join(params.get("CN", "").split()),
                     partstat=params.get("PARTSTAT", "").upper(),

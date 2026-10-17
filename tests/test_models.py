@@ -45,6 +45,7 @@ from hermitcrm.models import (
     parse_tags,
     slugify,
     unique_slug,
+    valid_email,
 )
 
 # ------------------------------------------------------------------ enums
@@ -158,6 +159,16 @@ def test_parse_datetime_variants():
     assert parse_datetime("") is None
     with pytest.raises(ValidationError):
         parse_datetime("yesterday")
+
+
+@pytest.mark.parametrize("email, expected", [
+    (None, False), ("", False), ("   ", False),
+    ("nova.example.com", False), ("@example.com", False), ("nova@", False),
+    ('"x@y"@example.com', False), ("nova@@example.com", False),
+    ("nova@example.com", True), (" Nova+crm@Example.COM ", True),
+])
+def test_valid_email(email, expected):
+    assert valid_email(email) is expected
 
 
 def test_normalisers():
