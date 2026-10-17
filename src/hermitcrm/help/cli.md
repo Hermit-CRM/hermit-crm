@@ -36,8 +36,29 @@ hermitcrm mcp                              serve this folder to AI clients over 
 hermitcrm report [--days N | --from D --to D] [--md]
                                         the Reports page as text tables (Markdown with --md)
 hermitcrm check                            validate every file (records, fields.toml, layout.toml, dashboards/,
-                                        routines.toml, theme.css, messages.toml, config.toml); exit 1 and
-                                        one "file: where: what" line per problem
+                                        routines.toml, theme.css, messages.toml, config.toml, the front
+                                        matter of MESSAGING.md); exit 1 and one "file: where: what" line
+                                        per problem
+hermitcrm playbook [status]                per approach: what the playbook has and what the outreach bot
+                                        still needs (exit 1 while no approach is ready); see
+                                        `hermitcrm help playbook`
+hermitcrm playbook upgrade [--dry-run]     add the front matter and missing headings to MESSAGING.md,
+                                        keeping every line; one commit, and a second run changes nothing
+hermitcrm outreach preview [--where K=V ...] [--contact CO/PERSON] [--channel email|linkedin]
+                         [--limit N] [--approach NAME]
+                                        who an outreach batch would go to, and why not the rest; no AI,
+                                        nothing written
+hermitcrm outreach build (same flags) [--research scrape] [--strong]
+                                        research, draft and check each contact: one item per contact in
+                                        outreach/, one commit per step; refused until the playbook is ready
+hermitcrm outreach list [--state S]        every item, newest first
+hermitcrm outreach show ID                 one item in full: links, findings, flags, checks, the draft
+hermitcrm outreach ready ID                approve a draft (the checks run again on your text; a failing
+                                        one is a warning); never sent
+hermitcrm outreach sent ID                 you sent it (logging the message does this too); logs nothing
+hermitcrm outreach skip ID --reason R [--note TEXT]
+                                        drop an item: bad-fit, wrong-person, bad-timing, bad-draft,
+                                        already-in-contact or other
 ```
 
 ## Backups

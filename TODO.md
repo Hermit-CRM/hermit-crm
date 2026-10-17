@@ -83,8 +83,10 @@ Public (19-27 Oct):
 - [ ] Tue 27 Oct: Product Hunt; answer every comment within the hour.
 
 After:
-- [ ] Smaller launch sites, MCP directories, european-alternatives.eu,
-      awesome-selfhosted (check its minimum-age rule), Obsidian forum.
+- [ ] Directories, awesome lists, MCP registries and newsletters: dated
+      plan in `docs/DIRECTORIES.md` (MCP Registry from 19 Oct,
+      awesome-claude-code from ~2 Nov, awesome-selfhosted not before Feb 2027).
+- [ ] Smaller launch sites, Obsidian forum.
 - [ ] Email authors of "best free CRM" / "CRM for freelancers" articles.
 - [ ] Tier 2 pages: vs Attio, Close, Pipedrive, Salesforce, folk, Twenty,
       Notion, Obsidian, personal CRMs; /open-source-crm, /markdown-crm,

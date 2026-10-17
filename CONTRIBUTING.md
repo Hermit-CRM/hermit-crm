@@ -4,6 +4,25 @@ Thanks for helping. Hermit CRM is deliberately small: plain files, a thin web ap
 no database and no JavaScript framework. Changes that keep it that way are the
 easiest to accept.
 
+## Before you start: safety first
+
+People install Hermit CRM on their own Mac, often by letting an AI agent follow
+`INSTALL.md`. That makes their safety the first thing every change is judged on.
+
+- **Open an issue first** for anything larger than a small fix, so we can agree
+  on the approach before you spend time on it.
+- **Small, focused feature and bug-fix PRs are very welcome.**
+- PRs from new contributors that change **dependencies, install files,
+  `INSTALL.md`, build scripts or GitHub workflows** will usually be declined.
+  If one of those really needs changing, say so in an issue and the maintainer
+  will make the change.
+- **No obfuscated, minified or generated code, no binaries, and no new network
+  calls** without discussing them in an issue first.
+- Every PR runs an **automatic safety check**, and the maintainer reviews every
+  change before merging. A red safety check does not mean your PR is rejected,
+  only that those parts get a closer look.
+- **Releases are always built and published by the maintainer.**
+
 ## Where to start
 
 Issues labelled
@@ -52,7 +71,8 @@ change to the data format, add a numbered migration in
 - One logical change per commit, imperative subject line, a short body when the
   why is not obvious.
 - Commits written with an AI assistant start with `ai: `.
-- Update `CHANGELOG.md` for anything a user would notice.
+- Update the changelog, `src/hermitcrm/help/changelog.md` (a Help page, so the app
+  and the website show it too), for anything a user would notice.
 - **Every commit must be signed off** (`git commit -s`). See below.
 
 ## Sign your work (DCO)
@@ -112,9 +132,10 @@ produced from a prompt naming someone else's project.
 scripts/release.sh          # or: scripts/release.sh <commit>
 ```
 
-Bump `__version__` in `src/hermitcrm/__init__.py` and move the CHANGELOG heading
-first; the script reads the version from there and refuses to overwrite a tarball
-that already exists, so a forgotten bump fails loudly instead of quietly shipping
+Bump `__version__` in `src/hermitcrm/__init__.py` and add the version's heading
+to `src/hermitcrm/help/changelog.md` first (the GitHub release takes its notes
+from that section). The script reads the version from `__init__.py` and refuses
+to overwrite a tarball that already exists, so a forgotten bump fails loudly instead of quietly shipping
 0.3.0 twice.
 
 It writes `dist/hermitcrm-<version>.tar.gz`, which unpacks to
@@ -126,3 +147,18 @@ The archive comes from `git archive`, so it holds the tracked files at that comm
 and nothing else -- no `.secrets.toml`, no stray data folder, no editor backups. The
 other side of that coin is that uncommitted work is not in it; the script prints a
 warning when the tree is dirty, and it means what it says.
+
+Before it counts as built, the download goes through `scripts/install-check.sh`:
+installed in a brand-new virtualenv (it is what `uv tool install .` builds from),
+then `init --demo`, `check`, `rebuild`, `digest`, `doctor` and the web app, as a
+new user would. A wheel goes through the same check alongside it: the one you
+pass with `--wheel FILE`, or else one built from the download. If anything fails,
+the tarball and checksum are removed again and the script exits non-zero. The
+check needs network access (pip fetches the dependencies) and takes under a
+minute.
+
+Pushing a `v<version>` tag runs `.github/workflows/release.yml`, which runs
+the same check on the PyPI wheel and sdist before uploading them, then
+`release.sh --wheel` with that wheel for the GitHub release. To run the check
+on GitHub without tagging, start the `install-check` workflow by hand (Actions,
+install-check, Run workflow).

@@ -76,6 +76,12 @@ CONFIG_DOCS = {
     "welcome_done": "Walkthrough steps you ticked yourself, the ones Hermit CRM cannot see happen.",
     "welcome_dismissed": "Stop showing the walkthrough as the home page; it stays under Help.",
     "disclaimer_accepted": "When you ticked the one-time disclaimer, as local time. Empty means the web app still shows it. Never sent anywhere.",
+    "outreach_research": "How the outreach bot researches a contact: scrape (free: the website and LinkedIn pages, then one small AI call). ai-web comes later.",
+    "outreach_cooldown_days": "The outreach bot leaves out anyone you messaged within this many days.",
+    "outreach_fit_field": "Which of your company fields holds a fit score (0 to 100); outreach batches go highest first. Empty or missing: no fit order, the card says so.",
+    "outreach_high_fit": "The fit score from which the outreach preview counts a company as high fit (and says how many were never contacted).",
+    "outreach_batch_size": "How many contacts an outreach batch takes when you do not say (--limit).",
+    "outreach_angles": "The angles an outreach draft may take: the five template angles and custom (your own). Leave some out to compare fewer at a time.",
     "messaging_size_field": "Which of your fields holds a headcount, for the drafts that mention team size; empty means the size line always uses its 'unknown' wording.",
     "messaging_team_field": "Which of your fields holds a count of sales people, for the drafts that mention the team; empty means the team line always uses its 'unknown' wording.",
     "enrich_provider": "AI CLI for Enrich: auto, claude, codex, gemini, grok or custom.",
@@ -323,6 +329,98 @@ unknown = "[Something specific about the team.]"
 """
 
 
+# The demo folder's playbook: a made-up business (fractional sales leadership)
+# with two approaches for two audiences, there to show a filled playbook. It is
+# example content only; a new folder without --demo gets one empty approach.
+_DEMO_SHARED = {
+    "why": "Cheaper and quicker than hiring a full-time Head of Sales, and the process "
+           "stays when I leave. An agency sells for you; I build the team that sells.",
+    "voice": "- Plain, direct, short sentences.\n- First names, informal address.\n"
+             "- No jargon, no buzzwords.\n- Sign off with my first name.",
+    "channels": "- email: one short paragraph, one question about how they sell today.\n"
+                "- LinkedIn: two sentences, no link, a question about the team.",
+    "donts": "- No invented familiarity (\"loved your post\" when none was read).\n"
+             "- No \"I hope this finds you well\".\n- No claims without proof above.\n"
+             "- Never name competitors.",
+}
+DEMO_APPROACHES = [
+    ({"name": "Founder coaching",
+      "offer_line": "I coach founders who still do all the selling, so sales stops "
+                    "depending on their calendar.",
+      "icp": {"industries": ["b2b-saas", "analytics"],
+              "countries": ["DE", "NL", "GB", "IE", "SE"],
+              "ranges": {"fte_estimate": [5, 40], "ae_count": [0, 0]},
+              "funding": ["bootstrapped", "seed"],
+              "signals": ["founder-still-sells", "first-sales-hire-planned"]},
+      "disqualifiers": [{"tag_present": ["customer", "do-not-contact"]}],
+      "personas": {"founder": {"titles": ["CEO", "Founder", "Co-Founder",
+                                          "Managing Director"]}}},
+     {**_DEMO_SHARED,
+      "offer": "Two hours a week for three months: we turn how you sell into a "
+               "written process and get you ready for your first sales hire.\n"
+               "Fixed monthly fee. I do not sell for you.",
+      "personas": "- founder: closes every deal personally and has no time to build "
+                  "a team. Cares about getting time back; ignores tooling talk.",
+      "proof": "- A made-up example: a 12-person software company closed its first "
+               "deal without the founder in the room after eight weeks.",
+      "disqualifiers": "- They want someone to sell for them (lead generation, "
+                       "cold calling).",
+      "lessons": {"worked": "- A question about who closes deals today got the most "
+                            "replies (made-up example).",
+                  "open": "- Whether German founders prefer email or LinkedIn."}}),
+    ({"name": "Scaling the sales team",
+      "offer_line": "I work as your fractional Head of Sales: part-time, no minimum term.",
+      "first_step_offer": "The first call is free and all about you, without a sales pitch.",
+      "icp": {"industries": ["b2b-saas", "robotics", "analytics"],
+              "countries": ["DE", "NL", "GB", "IE", "SE"],
+              "ranges": {"fte_estimate": [10, 150], "ae_count": [1, 8]},
+              "funding": ["seed", "series-a"],
+              "signals": ["no-sales-leader", "hiring-sales"]},
+      "disqualifiers": [{"tag_present": ["customer", "do-not-contact"]}],
+      "personas": {"founder": {"titles": ["CEO", "Founder", "Co-Founder",
+                                          "Managing Director"]},
+                   "sales-lead": {"titles": ["Sales Lead", "Senior Account Executive",
+                                             "Account Executive"]}}},
+     {**_DEMO_SHARED,
+      "offer": "Two days a week I run sales for you: pipeline reviews, coaching your "
+               "salespeople, a repeatable process and the hire of a full-time sales "
+               "leader when you are ready.\nMonthly fee, cancel any month. I do not "
+               "run lead generation or cold calling for you.",
+      "personas": "- founder: still manages the salespeople and has no time for it. "
+                  "Cares about growth without a costly senior hire.\n- sales-lead: "
+                  "the first salesperson, without a manager to learn from. Cares "
+                  "about a clear process and coaching.",
+      "proof": "- A made-up example: a 30-person software company doubled its "
+               "qualified pipeline in two quarters.\n- Another made-up example: the "
+               "first two salespeople reached quota in their fourth month.",
+      "disqualifiers": "- They already have a Head of Sales, VP Sales or CRO.\n"
+                       "- A sales leader starts in the next three months.",
+      "lessons": {"failed": "- Asking for a meeting in the first message (made-up "
+                            "example)."}}),
+]
+# A new folder's playbook: the general notes without the old "What worked"
+# list, which every approach now has as its Lessons.
+NEW_MESSAGING = MESSAGING.split("## What worked")[0].rstrip("\n") + "\n"
+
+
+def new_playbook(demo: bool = False) -> str:
+    """MESSAGING.md for a new folder: the general notes plus one empty approach;
+    in a demo folder the two made-up approaches, filled in."""
+    from . import playbook
+
+    text = playbook.upgrade_text(NEW_MESSAGING)
+    if not demo:
+        return text
+    first = playbook.parse(text).approaches[0].name
+    for i, (front, sections) in enumerate(DEMO_APPROACHES):
+        if i == 0:
+            text = playbook.apply_approach(text, first, front, sections)
+        else:
+            text = playbook.add_approach(text, front["name"])
+            text = playbook.apply_approach(text, front["name"], front, sections)
+    return text
+
+
 # ------------------------------------------------------------------- init
 
 
@@ -384,7 +482,7 @@ def init_folder(target: str | Path, demo: bool = False, now: datetime | None = N
     guard.write(path)
     write_skill(path)
     if not (path / "MESSAGING.md").exists():
-        (path / "MESSAGING.md").write_text(MESSAGING, encoding="utf-8")
+        (path / "MESSAGING.md").write_text(new_playbook(demo), encoding="utf-8")
     migrations.write_format(path, migrations.LATEST)
 
     from . import pipeline
@@ -402,23 +500,36 @@ def init_folder(target: str | Path, demo: bool = False, now: datetime | None = N
 # ------------------------------------------------------------------- demo
 
 DEMO_COMPANIES = [
-    # (name, website, country, source, fte, ae, oneliner, tags, score)
+    # (name, website, country, source, fte, ae, oneliner, tags, score, fit)
     ("Northwind Robotics", "https://northwind-robotics.example.com", "DE", "referral",
-     "~45", 3, "Warehouse picking robots for mid-size retailers", ["robotics", "demo"], 8),
+     "~45", 3, "Warehouse picking robots for mid-size retailers", ["robotics", "demo"], 8, 78),
     ("Bluefin Analytics", "https://bluefin-analytics.example.com", "NL", "linkedin-search",
-     "~18", 1, "Churn dashboards for subscription apps", ["saas", "demo"], 7),
+     "~18", 1, "Churn dashboards for subscription apps", ["saas", "demo"], 7, 70),
     ("Copperleaf Studio", "https://copperleaf-studio.example.org", "FR", "event",
-     "~9", None, "Brand design studio for food start-ups", ["agency", "demo"], 5),
+     "~9", None, "Brand design studio for food start-ups", ["agency", "demo"], 5, 40),
     ("Tallpine Software", "https://tallpine-software.example.com", "GB", "list",
-     "", None, "Scheduling software for clinics", ["saas", "demo"], None),
+     "", None, "Scheduling software for clinics", ["saas", "demo"], None, None),
     ("Quartzline Logistics", "https://quartzline-logistics.example.com", "US", "inbound",
-     "~120", 6, "Freight tracking for small shippers", ["logistics", "demo"], 9),
+     "~120", 6, "Freight tracking for small shippers", ["logistics", "demo"], 9, 85),
     ("Emberoak Foods", "https://emberoak-foods.example.org", "SE", "network",
-     "~30", 2, "Plant-based ready meals", ["food", "demo"], 4),
+     "~30", 2, "Plant-based ready meals", ["food", "demo"], 4, 35),
     ("Driftwood Media", "https://driftwood-media.example.com", "NL", "list",
-     "~4", None, "Podcast production for B2B brands", ["media", "demo"], 2),
+     "~4", None, "Podcast production for B2B brands", ["media", "demo"], 2, 20),
     ("Glasshouse Health", "https://glasshouse-health.example.com", "IE", "event",
-     "~25", 1, "Patient intake forms for dental clinics", ["healthtech", "demo"], 6),
+     "~25", 1, "Patient intake forms for dental clinics", ["healthtech", "demo"], 6, 66),
+    # Prospects for the outreach bot: never contacted, so `hermitcrm outreach
+    # preview` has a batch to show (and one likely duplicate, one do-not-contact).
+    ("Lindenhof Data", "https://lindenhof-data.example.com", "DE", "list",
+     "~22", 1, "Data pipelines for mid-size insurers", ["analytics", "demo"], None, 82),
+    ("Kestrel Metrics", "https://kestrel-metrics.example.org", "NL", "linkedin-search",
+     "~12", 0, "Usage analytics for B2B apps", ["analytics", "demo"], None, 74),
+    ("Saltmarsh Labs", "https://saltmarsh-labs.example.com", "IE", "list",
+     "~60", 3, "Inspection robots for food producers", ["robotics", "demo"], None, 68),
+    ("Saltmarsh Labs AI", "https://saltmarsh-ai.example.com", "IE", "list",
+     "", None, "Inspection robots for food producers", ["robotics", "demo"], None, 66),
+    ("Ravenmoor Systems", "https://ravenmoor-systems.example.org", "FR", "event",
+     "~15", 1, "Booking software for climbing gyms", ["analytics", "do-not-contact", "demo"],
+     None, 71),
 ]
 
 
@@ -432,6 +543,8 @@ DEMO_FIELDS = [
                     help="as written, e.g. ~13", show_in=["detail", "companies"]),
     fields.FieldDef(key="ae_count", label="AE count", type="number",
                     show_in=["detail"]),
+    fields.FieldDef(key="fit_score", label="fit", type="number", help="0 to 100",
+                    show_in=["detail", "companies"]),
 ]
 
 SAMPLE_NOTES = """This is a **sample account**. Northwind Robotics, its people and everything
@@ -482,12 +595,13 @@ class _Demo:
         return (self.today + timedelta(days=days)).isoformat()
 
     def company(self, index: int, days_ago: int, sample: bool = False) -> str:
-        name, site, country, source, fte, ae, oneliner, tags, score = DEMO_COMPANIES[index]
+        name, site, country, source, fte, ae, oneliner, tags, score, fit = DEMO_COMPANIES[index]
         self.at(days_ago)
         if sample:
             custom, notes, tags = {"sample": True}, SAMPLE_NOTES, ["robotics", "sample"]
         else:
-            custom = {"fte_estimate": fte, "ae_count": ae, "my_score": score}
+            custom = {"fte_estimate": fte, "ae_count": ae, "my_score": score,
+                      "fit_score": fit}
             notes = f"Demo company. {oneliner}.\n"
         return self.store.create_company(name, website=site, country=country, source=source,
                                          product_oneliner=oneliner, tags=tags,
@@ -636,9 +750,24 @@ class _Demo:
                   next_step="Check in after their funding round", next_step_due=self.due(30))
         return s
 
+    def prospects(self) -> list[str]:
+        """Never contacted: what an outreach batch is for."""
+        made = []
+        for index, days_ago, people in (
+                (8, 20, [("Mara", "Keller", "CEO & Co-Founder")]),
+                (9, 19, [("Daan", "Visser", "Founder")]),
+                (10, 18, [("Niamh", "Walsh", "Head of Sales"), ("Ciaran", "Doyle", "CEO")]),
+                (11, 17, [("Sean", "Brady", "Co-Founder")]),
+                (12, 16, [("Ines", "Moreau", "Founder")])):
+            s = self.company(index, days_ago)
+            for first, last, title in people:
+                self.person(s, days_ago, first, last, title)
+            made.append(s)
+        return made
+
 
 def load_demo(path: Path, now: datetime) -> Store:
-    """Eight fictional companies spread over the last six weeks, every stage,
+    """Thirteen fictional companies spread over the last six weeks, every stage,
     and the sample account's dashboard and paused routine."""
     from . import sample
 
@@ -649,7 +778,8 @@ def load_demo(path: Path, now: datetime) -> Store:
     demo = _Demo(store, now.date())
     with demo.backdated():
         for build in (demo.northwind, demo.bluefin, demo.copperleaf, demo.tallpine,
-                      demo.quartzline, demo.emberoak, demo.driftwood, demo.glasshouse):
+                      demo.quartzline, demo.emberoak, demo.driftwood, demo.glasshouse,
+                      demo.prospects):
             build()
     store.load()
     return store

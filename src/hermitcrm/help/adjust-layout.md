@@ -56,7 +56,7 @@ Disqualify) always stays on top and is not a section.
 | Page | Section names, in their default order |
 |---|---|
 | `[company]` | `enrich` (the Enrich and Fetch from URL buttons), `next-step` (the next step line), `details` (the edit form), `contacts`, `tasks`, `drafts` (message drafts), `merge`, `timeline` |
-| `[contact]` | `details` (the edit form), `timeline` (interactions), `quick-add` (Log an interaction), `tasks`, `drafts`, `merge` (only shown when the company has two or more people), `delete` |
+| `[contact]` | `details` (the fields, with an Edit button), `tasks`, `quick-add` (Log an interaction), `timeline` (interactions), `drafts`, `merge` (only shown when the company has two or more people), `delete`. Merge and delete always sit in the closed More box at the bottom; their order applies inside it. |
 | `[home]` | `doing` (What needs doing), `to-file` (To file, only while there is something to file), `owed` (Replies you owe, only when you owe some), `going` (How it is going) |
 
 On Home the layout applies once the folder has companies. The empty-folder

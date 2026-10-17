@@ -190,7 +190,7 @@ def cmd_setup(root: Path, ask=input, ask_secret=None, say=print, runner=subproce
 
     try:
         config = load_config(root)
-        say("\n1/3 You")
+        say("\n1/4 You")
         for _ in range(3):
             name = prompt("Your name", str(config.get("owner_name") or ""))
             current = ", ".join(config.get("my_addresses") or []) or str(
@@ -203,7 +203,7 @@ def cmd_setup(root: Path, ask=input, ask_secret=None, say=print, runner=subproce
                 break
         config = load_config(root)
 
-        say("\n2/3 BCC capture: mail you BCC or forward is logged automatically.")
+        say("\n2/4 BCC capture: mail you BCC or forward is logged automatically.")
         if _yes(ask("Set up BCC capture now? [y/N]: "), False):
             owner = str(config.get("owner_email") or "")
             address = prompt("BCC address", str(config.get("bcc_address") or "")
@@ -228,7 +228,7 @@ def cmd_setup(root: Path, ask=input, ask_secret=None, say=print, runner=subproce
         else:
             say("Skipped; rerun `hermitcrm setup` or open /setup in the web app.")
 
-        say("\n3/3 Online copy (optional): push the data folder to a private git remote.\n"
+        say("\n3/4 Online copy (optional): push the data folder to a private git remote.\n"
             "Local backups start with `hermitcrm schedule install` or Settings > Backup.")
         url = ask("Git remote URL (empty to skip): ").strip()
         if url:
@@ -238,6 +238,24 @@ def cmd_setup(root: Path, ask=input, ask_secret=None, say=print, runner=subproce
             result = st.save_backup(root, url, runner=runner, push=push)
             saved()
             say("; ".join(list(result.errors.values()) + result.messages))
+        else:
+            say("Skipped.")
+
+        say("\n4/4 Your offer (optional): what you sell and to whom, for the drafts and "
+            "the outreach bot.\nThe rest of the playbook is in Settings > Playbook.")
+        offer = ask("What you sell, in one sentence (empty to skip): ").strip()
+        if offer:
+            from hermitcrm import playbook
+            industries = ask("Industries you sell to (comma-separated, empty to skip): ")
+            titles = ask("Job titles of the people who buy (comma-separated, "
+                         "empty to skip): ")
+            result = ask("One result a customer got (empty to skip): ")
+            try:
+                saved = playbook.save_basics(root, offer, industries, titles, result,
+                                             commit=gitops.commit)
+                say("Saved to MESSAGING.md: " + ", ".join(saved) + ".")
+            except playbook.PlaybookError as exc:
+                say(f"Not saved: {exc}. Fill it in under Settings > Playbook.")
         else:
             say("Skipped.")
 
@@ -536,6 +554,16 @@ def cmd_check(store: Store) -> tuple[str, int]:
     # A company in a stage config.toml does not list loads fine; it is said, not failed.
     off_board = store.stage_warnings()
     stray += off_board
+    # MESSAGING.md's front matter (the outreach bot's playbook). A file from
+    # before it is a hint; a front matter that is wrong is a problem.
+    from hermitcrm import playbook
+    pb_problems, pb_hints = playbook.check_lines(store.root)
+    stray += pb_hints
+    extension += pb_problems
+    # The outreach bot's items (outreach/<id>.md): one that cannot be read is
+    # left out of every list, so it is said here.
+    from hermitcrm import outreach
+    extension += outreach.problems(store.root)
     if not store.problems and not extension:
         n_companies = len(store.companies)
         n_contacts = sum(len(c.contacts) for c in store.companies.values())
@@ -546,7 +574,8 @@ def cmd_check(store: Store) -> tuple[str, int]:
                 f"{n_interactions} interactions, no problems"]),
             0,
         )
-    lines = [f"{p.path}: {p.message}" for p in store.problems] + extension + off_board
+    lines = [f"{p.path}: {p.message}" for p in store.problems] + extension + off_board \
+        + pb_hints
     return ("\n".join(lines), 1)
 
 
@@ -1228,7 +1257,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_init = sub.add_parser("init", help="create a new data folder (a git repo)")
     p_init.add_argument("dir", type=Path)
-    p_init.add_argument("--demo", action="store_true", help="add eight fictional companies")
+    p_init.add_argument("--demo", action="store_true", help="add thirteen fictional companies")
     p_init.add_argument("--no-setup", action="store_true",
                         help="skip the setup questions (also skipped without a terminal)")
 
@@ -1461,11 +1490,156 @@ def _build_parser() -> argparse.ArgumentParser:
         r_sub.add_parser(verb, help=text).add_argument("name")
     p_routines.set_defaults(action="list", name="", apply=False, try_ai=False)
 
+    p_playbook = sub.add_parser("playbook", help="MESSAGING.md, the playbook: status "
+                                "(what the outreach bot still needs) or upgrade")
+    pb_sub = p_playbook.add_subparsers(dest="action")
+    pb_sub.add_parser("status", help="what is filled in and what the bot still needs "
+                      "(the default)")
+    pb_up = pb_sub.add_parser("upgrade", help="add the front matter and the missing "
+                              "headings, keeping every line; one commit")
+    pb_up.add_argument("--dry-run", action="store_true", help="print the result, write nothing")
+    p_playbook.set_defaults(action="status", dry_run=False)
+
+    p_out = sub.add_parser("outreach", help="the outreach bot: pick a batch, research, "
+                           "draft and check; you review, send and log (never sent)")
+    o_sub = p_out.add_subparsers(dest="action")
+    for verb, text in (("preview", "who a batch would go to and why not the rest; no AI, "
+                                   "no writes"),
+                       ("build", "research and draft the batch: one checked item per "
+                                 "contact in outreach/, one commit per step")):
+        o = o_sub.add_parser(verb, help=text)
+        o.add_argument("--where", action="append", default=[],
+                       help="a list filter, e.g. 'stage=prospect' or 'fit_score=>60' "
+                            "(company keys, or contact.title=...; repeatable)")
+        o.add_argument("--contact", action="append", default=[],
+                       help="company/contact instead of a filter (repeatable)")
+        o.add_argument("--channel", choices=["email", "linkedin"], default="email")
+        o.add_argument("--kind", default="first-touch",
+                       help="draft type: first-touch, or reply-to-interest (answers a reply "
+                            "logged with the outcome interested or confirmed on Outreach)")
+        o.add_argument("--limit", type=int, default=None, help="batch size (default 10)")
+        o.add_argument("--approach", default="", help="the playbook approach to use")
+        if verb == "build":
+            o.add_argument("--research", default="", help="research level (scrape)")
+            o.add_argument("--strong", action="store_true",
+                           help="draft on the strong model tier (default: medium)")
+    o_list = o_sub.add_parser("list", help="every item, newest first")
+    o_list.add_argument("--state", default="", help="only items in this state")
+    o_sub.add_parser("show", help="one item in full: the card").add_argument("id")
+    o_sub.add_parser("ready", help="approve a drafted item (checks run again on the text "
+                     "as it is now; a failing one is a warning); nothing is sent"
+                     ).add_argument("id")
+    o_sub.add_parser("sent", help="you sent it yourself (logging it does this too); "
+                     "logs nothing").add_argument("id")
+    o_skip = o_sub.add_parser("skip", help="do not send this one, and say why")
+    o_skip.add_argument("id")
+    o_skip.add_argument("--reason", required=True,
+                        choices=["bad-fit", "wrong-person", "bad-timing", "bad-draft",
+                                 "already-in-contact", "other"])
+    o_skip.add_argument("--note", default="", help="anything else, in your words")
+    p_out.set_defaults(action="list", state="")
+
     p_help = sub.add_parser("help", help="how a feature works (the web app's /help pages)")
     p_help.add_argument("topic", nargs="?", default="",
                         help="a topic; none prints the index and lists the topics")
 
     return parser
+
+
+def cmd_playbook(root: Path, action: str = "status", dry_run: bool = False,
+                 commit=None) -> tuple[str, int]:
+    """`hermitcrm playbook status|upgrade`."""
+    from hermitcrm import playbook
+
+    if action == "upgrade":
+        if dry_run:
+            path = root / playbook.FILENAME
+            old = path.read_text(encoding="utf-8") if path.exists() else ""
+            new = playbook.upgrade_text(old)
+            return (new if new != old else
+                    f"{playbook.FILENAME} is already set up; nothing would change.\n", 0)
+        return (playbook.upgrade(root, commit=commit), 0)
+    pb = playbook.load(root)
+    if not pb.exists:
+        return (f"No {playbook.FILENAME} in this folder.", 1)
+    found = playbook.gaps(pb)
+    if "" in found:
+        return ("The outreach bot will not run yet: " + "; ".join(found[""]) + ".", 1)
+    lines = []
+    for approach in pb.approaches:
+        filled = playbook.completeness(approach)
+        missing = found.get(approach.name) or []
+        lines.append(f"{approach.name}: {sum(ok for _, ok in filled)} of {len(filled)} parts "
+                     f"filled; " + ("ready." if not missing else
+                                    "not ready, missing " + "; ".join(missing) + "."))
+    ready = playbook.ready_approaches(pb)
+    if not ready:
+        lines.append("The outreach bot will not run yet: no approach is ready.")
+        return ("\n".join(lines), 1)
+    lines.append("Ready for the outreach bot: " + ", ".join(o.name for o in ready) + ".")
+    return ("\n".join(lines), 0)
+
+
+def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
+                 drafter=None) -> tuple[str, int]:
+    """`hermitcrm outreach preview|build|list|show|ready|skip`."""
+    from hermitcrm import outreach, routines
+
+    action = args.action or "list"
+    try:
+        if action == "list":
+            lines = outreach.list_lines(root, getattr(args, "state", ""))
+            return ("\n".join(lines) or "No outreach items yet. See: hermitcrm outreach "
+                    "preview --where 'stage=prospect'", 0)
+        if action == "show":
+            item = outreach.get_item(root, args.id)
+            if item is None:
+                return (f"no outreach item {args.id!r} (hermitcrm outreach list)", 1)
+            return (outreach.render_item(store, item), 0)
+        if action == "ready":
+            item, found = outreach.mark_ready(store, args.id)
+            text = (f"{item.id} is ready: send it yourself, then log it as usual (that "
+                    "marks it sent). Not sent.")
+            if found:
+                text += ("\nWarning: it still breaks these rules (kept on the item):\n"
+                         + "\n".join(f"- {p}" for p in found))
+            return (text, 0)
+        if action == "sent":
+            item = outreach.mark_sent(store, args.id)
+            return (f"{item.id} is sent. Nothing was logged: log the message as usual.", 0)
+        if action == "skip":
+            item = outreach.skip(store, args.id, args.reason, getattr(args, "note", ""))
+            return (f"{item.id} skipped: {item.skip_reason}"
+                    + (f" ({item.skip_note})" if item.skip_note else ""), 0)
+        selection = outreach.select(store, where=args.where, channel=args.channel,
+                                    kind=args.kind, limit=args.limit, approach=args.approach,
+                                    contacts=args.contact, config=config)
+        if action == "preview":
+            return (selection.render() + "\n\nPreview only: no AI was run and nothing "
+                    "was written.", 0)
+        if selection.gate:
+            return (selection.gate, 1)
+        outreach.research_level(config, getattr(args, "research", ""))  # refuses ai-web
+        if not selection.picked:
+            return (selection.render() + "\n\nNothing to build.", 0)
+        if researcher is None or drafter is None:
+            enricher = outreach.default_enricher(
+                config, "strong" if getattr(args, "strong", False) else "medium")
+            if not enricher.available:
+                return (f"The AI CLI is not available: {enricher.unavailable_reason()}", 1)
+            blocked = routines.ai_problem(enricher)
+            if blocked:
+                return (f"Refused: {blocked}", 1)
+            researcher = researcher or outreach.ScrapeResearcher(
+                enricher, today=store.today(), timeout=float(config.get("fetch_timeout", 10)))
+            drafter = drafter or outreach.AIDrafter(store, enricher, config)
+        result = outreach.build(store, selection, researcher, drafter, config)
+    except outreach.OutreachError as exc:
+        return (str(exc), 1)
+    lines = result.lines + ["", f"{len(result.items)} item(s) in outreach/. Review them "
+                            "(hermitcrm outreach show <id>), then ready or skip. Nothing "
+                            "was sent."]
+    return ("\n".join(lines), 0)
 
 
 def cmd_help(topic: str = "") -> tuple[str, int]:
@@ -1610,6 +1784,13 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
         print(text)
         return code
 
+    if args.command == "playbook":
+        gitops = GitOps(root, push_enabled=False)
+        text, code = cmd_playbook(root, args.action, dry_run=args.dry_run,
+                                  commit=gitops.commit)
+        print(text, end="" if text.endswith("\n") else "\n")
+        return code
+
     if args.command == "undo":
         text, code = cmd_undo(store, args.sha)
         print(text, file=sys.stderr if code else sys.stdout)
@@ -1672,6 +1853,14 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
         print(text)
         if writes:
             _reload_server(config)
+        return code
+
+    if args.command == "outreach":
+        config = load_config(root)
+        if args.action in ("build", "ready", "sent", "skip"):
+            store.on_write = _writer(store, root, config)
+        text, code = cmd_outreach(store, root, config, args)
+        print(text, file=sys.stderr if code else sys.stdout)
         return code
 
     if args.command == "sample":

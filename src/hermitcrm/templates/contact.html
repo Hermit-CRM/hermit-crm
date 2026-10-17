@@ -1,76 +1,174 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
-{# The header (name, the line under it) stays on top. Below it the sections
-   come in layout.toml's order (help: adjust-layout); their names, in the
-   default order: details, timeline, quick-add, tasks, drafts, merge, delete.
-   `hide` is the fields layout.toml hides on this page. The odd blank lines
-   keep the default page byte for byte what it was before layouts. #}
+{# The header (name, the line under it, the action row, the status strip)
+   stays on top. Below it the sections come in layout.toml's order (help:
+   adjust-layout); their names, in the default order: details, tasks,
+   quick-add, timeline, drafts, merge, delete. Merge and delete, the rare and
+   destructive ones, always sit in the closed "More" box at the bottom, in the
+   same order. `hide` is the fields layout.toml hides on this page. #}
+{% macro ago(days) -%}
+{{ 'today' if days == 0 else 'yesterday' if days == 1 else days ~ ' days ago' }}
+{%- endmacro %}
+{% macro arrow(direction) -%}
+{%- if direction %}<span aria-hidden="true">{{ '→' if direction == 'out' else '←' }}</span><span class="visually-hidden">{{ direction }}</span>{% endif -%}
+{%- endmacro %}
 {% block title %}{{ contact.name }}{% endblock %}
 {% block content %}
 {%- set hide = layout_hidden('contact') %}
+{%- set sections = layout_sections('contact') %}
+{%- set more = sections | select('in', ['merge', 'delete']) | list %}
+{%- set s = summary %}
 <h1>{{ contact.name }}</h1>
-<div class="small">
-  <a href="/companies/{{ company.slug }}">{{ company.name }}</a>{% if 'title' not in hide %} &middot;
-  {{ contact.title or 'no title' }}{% endif %}{% if 'role' not in hide %} &middot; {{ contact.role or 'no role' }}{% endif %}{% if 'email' not in hide %} &middot;
-  {% if contact.email %}<a href="mailto:{{ contact.email }}">{{ contact.email }}</a>{% else %}no email{% endif %}{% endif %}{% if 'phone' not in hide %} &middot; {{ contact.phone or 'no phone' }}{% endif %}
-  {% if contact.linkedin and 'linkedin' not in hide %} &middot; <a href="{{ contact.linkedin | href }}" target="_blank" rel="noopener">linkedin</a>{% endif %}
-  {% if enricher and enricher.available %}
-  <form method="post" action="/companies/{{ company.slug }}/contacts/{{ contact.slug }}/enrich" class="inline enrich">
-    <button type="submit" title="Look up missing fields with web search via the {{ enricher.provider_name }} CLI (uses credits); you confirm before anything is saved">Enrich</button>
-  </form>
-  {% endif %}
+<p class="contact-line">
+  {% if contact.title and 'title' not in hide %}{{ contact.title }} at {% endif %}<a href="/companies/{{ company.slug }}">{{ company.name }}</a>
+  <span class="badge">{{ company.stage }}</span>{% if contact.role and 'role' not in hide %} <span class="badge">{{ contact.role }}</span>{% endif %}
+</p>
+<div class="contact-actions">
+  {% if 'quick-add' in sections %}<a class="button" href="#quick-add" data-focus="#quick-add select[name=channel]">Log interaction</a>
+  <a class="button" href="?channel=note#quick-add" data-focus="#quick-add textarea[name=body]">Add note</a>{% endif %}
+  {% if 'tasks' in sections %}<a class="button" href="#tasks" data-focus="#tasks input[name=text]">Add task</a>{% endif %}
+  <span class="quiet">
+    {% if contact.email and 'email' not in hide %}<a href="mailto:{{ contact.email }}" data-copy-email="{{ contact.email }}" title="Copy {{ contact.email }}; without a script this opens your mail app">copy email</a>{% endif %}
+    {% if contact.linkedin and 'linkedin' not in hide %}<a href="{{ contact.linkedin | href }}" target="_blank" rel="noopener">linkedin</a>{% endif %}
+    {% if enricher and enricher.available %}
+    <form method="post" action="/companies/{{ company.slug }}/contacts/{{ contact.slug }}/enrich" class="inline enrich">
+      <button type="submit" title="Look up missing fields with web search via the {{ enricher.provider_name }} CLI (uses credits); you confirm before anything is saved">Enrich</button>
+    </form>
+    {% endif %}
+  </span>
 </div>
-{% for section in layout_sections('contact') %}{% if section == 'details' %}
+{% if outreach_open %}{% set oi = outreach_open %}
+<p class="outreach-open small">Outreach: a {{ oi.kind }} by {{ oi.channel }} is <strong>{{ oi.state }}</strong>. <a href="/outreach?tab={{ 'ready' if oi.state == 'ready' else ('replies' if oi.kind == 'reply-to-interest' else 'drafts') }}#item-{{ oi.id }}">Review it on Outreach</a></p>
+{% else %}
+<form method="post" action="/outreach/build" class="inline outreach-start">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="contact" value="{{ company.slug }}/{{ contact.slug }}">
+  <input type="hidden" name="back" value="/companies/{{ company.slug }}/contacts/{{ contact.slug }}">
+  <select name="channel" aria-label="Outreach channel">{% for c in outreach_channels %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
+  <select name="kind" aria-label="Draft type"><option value="first-touch"{% if outreach_kind == 'first-touch' %} selected{% endif %}>first touch</option><option value="reply-to-interest"{% if outreach_kind == 'reply-to-interest' %} selected{% endif %}>reply to interest</option></select>
+  <button type="submit" class="secondary" title="{% if outreach_kind == 'reply-to-interest' %}{{ contact.first_name or contact.name }} replied with interest: draft an answer{% else %}Research {{ contact.first_name or contact.name }} and draft a first touch{% endif %} with your AI CLI; you review it on Outreach. Nothing is sent.">{% if outreach_kind == 'reply-to-interest' %}Draft a reply{% else %}Research &amp; draft{% endif %}</button>
+</form>
+{% endif %}
+<dl class="status-strip">
+  <div>
+    <dt>Last touch</dt>
+    {% if s.last %}<dd>{{ fmt_date(s.last.date) }}, {{ s.last.channel }} {{ arrow(s.last.direction) }}<br><span class="small">{{ ago(s.last_days) }}</span></dd>
+    {% else %}<dd class="empty">none yet</dd>{% endif %}
+  </div>
+  <div>
+    <dt>Waiting on</dt>
+    {% if s.waiting and s.waiting.kind == 'reply' %}<dd class="overdue">you: reply owed<br><span class="small">since {{ fmt_date(s.waiting.interaction.date) }} &middot; {{ s.waiting.summary }}</span></dd>
+    {% elif s.waiting %}<dd>them: no answer<br><span class="small">since {{ fmt_date(s.waiting.interaction.date) }} &middot; {{ s.waiting.summary }}</span></dd>
+    {% else %}<dd class="empty">nobody</dd>{% endif %}
+  </div>
+  <div>
+    <dt>Next for {{ contact.first_name or contact.name }}</dt>
+    {% if s.next %}<dd{% if s.next.overdue(today) %} class="overdue"{% endif %}>{{ s.next.text }}{% if s.next.due %}<br><span class="small">due {{ fmt_date(s.next.due) }}</span>{% endif %}</dd>
+    {% else %}<dd class="empty">nothing planned</dd>{% endif %}
+  </div>
+  <div>
+    <dt>History</dt>
+    {% if s.count %}<dd>{{ s.count }} touch{{ 'es' if s.count != 1 }}, {{ s.count_in }} in / {{ s.count_out }} out<br><span class="small">since {{ fmt_date(s.first.date) }}</span></dd>
+    {% else %}<dd class="empty">no touches yet</dd>{% endif %}
+  </div>
+</dl>
+{% for section in sections %}{% if section == 'details' %}
 <section id="details">
-  <h2>Contact</h2>
+  <h2>Details</h2>
   {{ m.errors_box(errors) }}
-  <form method="post" action="/companies/{{ company.slug }}/contacts/{{ contact.slug }}" class="record-form">
-    <input type="hidden" name="version" value="{{ record_version(company.slug, contact.slug) }}">
-    {{ m.contact_fields(values, errors) }}
-    <button type="submit">Save contact</button>
-  </form>
-  <p class="small">slug {{ contact.slug }} &middot; created {{ fmt_datetime(contact.created) }} &middot; updated {{ fmt_datetime(contact.updated) }}</p>
+  {% set add = '?edit=1#details' %}
+  <dl class="fields">
+    {% if 'title' not in hide %}<dt>title</dt><dd>{{ contact.title or '' }}{% if not contact.title %}<a href="{{ add }}">+ title</a>{% endif %}</dd>{% endif %}
+    {% if 'role' not in hide %}<dt>role</dt><dd>{{ contact.role or '' }}{% if not contact.role %}<a href="{{ add }}">+ role</a>{% endif %}</dd>{% endif %}
+    {% if 'email' not in hide %}<dt>email</dt><dd>{% if contact.email %}<a href="mailto:{{ contact.email }}">{{ contact.email }}</a>{% else %}<a href="{{ add }}">+ email</a>{% endif %}</dd>{% endif %}
+    {% if 'phone' not in hide %}<dt>phone</dt><dd>{{ contact.phone or '' }}{% if not contact.phone %}<a href="{{ add }}">+ phone</a>{% endif %}</dd>{% endif %}
+    {% if 'linkedin' not in hide %}<dt>linkedin</dt><dd>{% if contact.linkedin %}<a href="{{ contact.linkedin | href }}" target="_blank" rel="noopener">open</a>{% else %}<a href="{{ add }}">+ linkedin</a>{% endif %}</dd>{% endif %}
+    {% if 'language' not in hide %}{% set lang = (contact.language or '') | trim | lower %}<dt>draft language</dt><dd>{{ language_names.get(lang, lang) if lang else 'from country' }}</dd>{% endif %}
+    {% for f in custom_fields_for('contact') if f.key not in hide and contact.extra.get(f.key) not in (none, '') %}
+    <dt>{{ f.label }}</dt><dd>{{ f.display(contact.extra.get(f.key)) }}</dd>
+    {% endfor %}
+  </dl>
+  <details class="edit-box"{% if errors or editing %} open{% endif %}>
+    <summary class="button">Edit</summary>
+    <form method="post" action="/companies/{{ company.slug }}/contacts/{{ contact.slug }}" class="record-form">
+      <input type="hidden" name="version" value="{{ record_version(company.slug, contact.slug) }}">
+      {{ m.contact_fields(values, errors) }}
+      <button type="submit">Save contact</button>
+    </form>
+  </details>
 </section>
-{% elif section == 'timeline' %}
-<section id="timeline">
-  <h2>Interactions ({{ interactions | length }})</h2>
-  {{ m.timeline(company, interactions) }}
+{% elif section == 'tasks' %}
+<section id="tasks">
+  <h2>Tasks for {{ contact.name }}</h2>
+  <p class="small">Things you owe this person. {{ company.name }}'s <a href="/companies/{{ company.slug }}#tasks">next step</a> is its open task due first, which can be one of these.</p>
+  {{ m.task_list(company, contact.tasks, today, contact=contact.slug) }}
 </section>
 {% elif section == 'quick-add' %}
 <section id="quick-add">
   <h2>Log an interaction</h2>
   {{ m.interaction_form('/companies/' ~ company.slug ~ '/interactions', company, interaction, contact=contact) }}
 </section>
-{% elif section == 'tasks' %}
-
-<section id="tasks">
-  <h2>Tasks for {{ contact.name }}</h2>
-  <p class="small">Things you owe this person. {{ company.name }}'s <a href="/companies/{{ company.slug }}#tasks">next step</a> is its open task due first, which can be one of these.</p>
-  {{ m.task_list(company, contact.tasks, today, contact=contact.slug) }}
+{% elif section == 'timeline' %}
+<section id="timeline">
+  <h2>Interactions ({{ interactions | length }})</h2>
+  {{ m.timeline(company, interactions, contact_page=true) }}
 </section>
 {% elif section == 'drafts' %}
-{{ m.drafts_section(company, contact, drafts, signal, observation, '/companies/' ~ company.slug ~ '/contacts/' ~ contact.slug) }}
-{% elif section == 'merge' %}
-{% if company.contacts | length > 1 %}
-<section id="merge">
-  <h2>Merge</h2>
-  <form method="get" action="/companies/{{ company.slug }}/contacts/{{ contact.slug }}/merge" class="inline-row">
-    <label>merge another contact of {{ company.name }} into this one
-      <input name="drop" list="merge-candidates" placeholder="type a name or slug" required>
-      <datalist id="merge-candidates">{% for slug, o in company.contacts.items() if slug != contact.slug %}<option value="{{ slug }}">{{ o.name }}</option>{% endfor %}</datalist>
-    </label>
-    <button type="submit">Compare</button>
-  </form>
-</section>
-{% endif %}
-{% elif section == 'delete' %}
-<section id="delete">
-  <h2>Delete</h2>
-  {% set open_tasks = contact.tasks | rejectattr('done') | list %}
-  {% set confirm_text = 'Delete ' ~ contact.name ~ '?' ~ ((' Their ' ~ interactions | length ~ ' interaction(s) stay on ' ~ company.name ~ ' without a contact.') if interactions else '') ~ ((' Their ' ~ open_tasks | length ~ ' open task(s) go with them.') if open_tasks else '') %}
-  <form method="post" action="/companies/{{ company.slug }}/contacts/{{ contact.slug }}/delete" class="danger">
-    <button type="submit" onclick="return confirm({{ confirm_text | tojson | forceescape }})">Delete contact</button>
-    <span class="small">{% if interactions %}{{ interactions | length }} interaction(s) stay on {{ company.name }}, without a contact.{% else %}No interactions are linked to this contact.{% endif %}</span>
-  </form>
-</section>
-{% endif %}{% endfor %}{% endblock %}
+{# Open when you still need a first message, or while you are working the
+   drafts form (its Refresh reloads the page with these parameters). #}
+{% set q = request.query_params %}
+{{ m.drafts_section(company, contact, drafts, signal, observation, '/companies/' ~ company.slug ~ '/contacts/' ~ contact.slug,
+                    fold=true, open=(not s.has_outbound or q.get('signal') or q.get('observation') or q.get('lang'))) }}
+{% endif %}{% endfor %}
+<details class="more-box">
+  <summary>More: {% for x in more %}{{ x }}, {% endfor %}slug and dates</summary>
+  {% for section in more %}{% if section == 'merge' and company.contacts | length > 1 %}
+  <section id="merge">
+    <h2>Merge</h2>
+    <form method="get" action="/companies/{{ company.slug }}/contacts/{{ contact.slug }}/merge" class="inline-row">
+      <label>merge another contact of {{ company.name }} into this one
+        <input name="drop" list="merge-candidates" placeholder="type a name or slug" required>
+        <datalist id="merge-candidates">{% for slug, o in company.contacts.items() if slug != contact.slug %}<option value="{{ slug }}">{{ o.name }}</option>{% endfor %}</datalist>
+      </label>
+      <button type="submit">Compare</button>
+    </form>
+  </section>
+  {% elif section == 'delete' %}
+  <section id="delete">
+    <h2>Delete</h2>
+    {% set open_tasks = contact.tasks | rejectattr('done') | list %}
+    {% set confirm_text = 'Delete ' ~ contact.name ~ '?' ~ ((' Their ' ~ interactions | length ~ ' interaction(s) stay on ' ~ company.name ~ ' without a contact.') if interactions else '') ~ ((' Their ' ~ open_tasks | length ~ ' open task(s) go with them.') if open_tasks else '') %}
+    <form method="post" action="/companies/{{ company.slug }}/contacts/{{ contact.slug }}/delete" class="danger">
+      <button type="submit" onclick="return confirm({{ confirm_text | tojson | forceescape }})">Delete contact</button>
+      <span class="small">{% if interactions %}{{ interactions | length }} interaction(s) stay on {{ company.name }}, without a contact.{% else %}No interactions are linked to this contact.{% endif %}</span>
+    </form>
+  </section>
+  {% endif %}{% endfor %}
+  <p class="small">slug {{ contact.slug }} &middot; created {{ fmt_datetime(contact.created) }} &middot; updated {{ fmt_datetime(contact.updated) }}</p>
+</details>
+<script>
+// Optional comfort: both work without it (the links still jump, mailto still opens).
+document.querySelectorAll("[data-copy-email]").forEach(function (a) {
+  a.addEventListener("click", function (e) {
+    if (!navigator.clipboard) return;
+    e.preventDefault();
+    navigator.clipboard.writeText(a.dataset.copyEmail).then(function () {
+      a.textContent = "copied";
+      setTimeout(function () { a.textContent = "copy email"; }, 1500);
+    }, function () { window.location.href = a.href; });
+  });
+});
+document.querySelectorAll("[data-focus]").forEach(function (a) {
+  a.addEventListener("click", function () {
+    setTimeout(function () {
+      var el = document.querySelector(a.dataset.focus);
+      if (el) el.focus({preventScroll: true});
+    }, 0);
+  });
+});
+if (location.search.indexOf("channel=note") !== -1 && location.hash === "#quick-add") {
+  var note = document.querySelector("#quick-add textarea[name=body]");
+  if (note) note.focus();
+}
+</script>
+{% endblock %}

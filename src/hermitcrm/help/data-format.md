@@ -13,7 +13,7 @@ Every record is a Markdown file with YAML front matter in a fixed key order; the
   CLAUDE.md, AGENTS.md        rules for AI agents
   .claude/settings.json       git commands Claude Code may not run (see Backups and undo)
   .claude/skills/hermit/SKILL.md  the /hermit skill: Claude Code runs `hermitcrm help adjust` (Make it yours)
-  MESSAGING.md                your outreach playbook
+  MESSAGING.md                your outreach playbook (hermitcrm help playbook)
   dashboards/<name>.toml      optional pages of your own at /d/<name> (see Dashboards)
   inbox/                      BCC and calendar items waiting for a decision
   routines.toml               optional routines: a morning brief, AI drafts (see Routines)
@@ -151,7 +151,10 @@ both keys on its next save.
 
 `date` (datetime), `channel` (email, linkedin, call, whatsapp, meeting, note), `direction`
 (out, in; empty for a note), `contact` (contact slug; empty only in older or
-imported files), `subject`,
+imported files), `subject`, `angle` (optional, omitted when empty: scale,
+unblock, hook, bridge, decline or custom; the angle the message was written
+from, so your messages and the outreach bot's compare), `approach` (optional,
+omitted when empty: the playbook approach the message was for),
 `outcome` (one line; see the configured outcomes), `result` (legacy: success,
 unsuccessful or empty), `source` (manual, bcc-import, calendar-import, migration),
 `message_id` (imports only: the mail's Message-ID, or
@@ -198,7 +201,8 @@ moves each contact's notes body into note interactions, a line starting
 `DD/MM/YYYY:` dated that day, the rest dated the contact's `created`; format 8
 adds the `/hermit` skill (a skill file of your own is kept), the "Adjusting
 Hermit" rules in `CLAUDE.md` / `AGENTS.md` when they do not mention
-`hermitcrm help adjust` yet, and `inbox/.last-routines.json` to `.gitignore`);
+`hermitcrm help adjust` yet, and `inbox/.last-routines.json` to `.gitignore`; format 9 trims a hand-written
+interaction `angle` and puts it in lower case, and drops an empty one);
 `hermitcrm migrate --dry-run` lists the files first and `git revert` undoes it. A
 folder written by a newer Hermit CRM is refused until you upgrade.
 

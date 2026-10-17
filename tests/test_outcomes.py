@@ -120,16 +120,16 @@ def test_m3_before_after(old_folder):
     folder = old_folder / "companies" / "acme" / "interactions"
     before = {name: (folder / f"{name}.md").read_text() for name in CASES}
     text = migrations.dry_run(old_folder)
-    assert "Data format 2 → 8" in text
+    assert "Data format 2 → 9" in text
     assert "3. interaction result folded into outcome: 9 file(s)" in text
 
     summary = migrations.ensure_current(old_folder)
-    assert summary.startswith("migrate: data format 2 → 8 (interaction result folded into "
+    assert summary.startswith("migrate: data format 2 → 9 (interaction result folded into "
                               "outcome; stage reached-out renamed to engaged; scores and "
                               "team size become fields you define; agents may not "
                               "rewrite history (.claude/settings.json); contact notes "
                               "become note interactions; agents learn to adjust Hermit "
-                              "(/hermit skill))")
+                              "(/hermit skill); interactions get an optional angle)")
     for name, (_, after) in CASES.items():
         meta, body = split_file((folder / f"{name}.md").read_text())
         assert str(meta.get("outcome") or "") == after, name
@@ -140,7 +140,7 @@ def test_m3_before_after(old_folder):
     meta, _ = split_file((folder / "no-outcome-key.md").read_text())
     assert meta["outcome"] == "successful" and "result" not in meta
     assert list(meta).index("outcome") == list(meta).index("subject") + 1
-    assert (old_folder / ".hermitcrm-format").read_text() == "8\n"
+    assert (old_folder / ".hermitcrm-format").read_text() == f"{migrations.LATEST}\n"
     store = Store(old_folder)
     assert store.load() == []
     assert {i.id: i.outcome for i in store.get("acme").interactions}["f"] == "Wants a proposal"
@@ -227,7 +227,7 @@ def test_outcome_propagates_between_messages_page_and_edit_form(client, app, rep
     page = client.get("/messages").text
     assert '<td class="outcome-unknown">unknown</td>' in page
     buttons = re.findall(r'name="outcome" value="([^"]*)"', page)
-    assert buttons == ["successful", "unsuccessful"]  # "Unknown" hidden: it is the current value
+    assert buttons == ["successful", "interested", "unsuccessful"]  # "Unknown" hidden: it is the current value
     r = client.post(f"/companies/acme/interactions/{it.id}/outcome",
                     data={"outcome": "successful"})
     assert r.status_code == 303 and "Message%20marked%20successful" in r.headers["location"]
@@ -237,7 +237,8 @@ def test_outcome_propagates_between_messages_page_and_edit_form(client, app, rep
     assert '<option value="successful" selected>' in edit
     page = client.get("/messages").text
     assert '<td class="outcome-successful">successful</td>' in page
-    assert re.findall(r'name="outcome" value="([^"]*)"', page) == ["unsuccessful", ""]
+    assert re.findall(r'name="outcome" value="([^"]*)"', page) == ["interested", "unsuccessful",
+                                                                    ""]
     assert "Messages (1)" in client.get("/messages?f_status=successful").text
 
     # edit form -> file -> Messages page
@@ -249,7 +250,8 @@ def test_outcome_propagates_between_messages_page_and_edit_form(client, app, rep
     page = client.get("/messages").text
     assert '<td class="outcome-unsuccessful">unsuccessful</td>' in page
     assert "1 unsuccessful" in page and "0 successful" in page
-    assert re.findall(r'name="outcome" value="([^"]*)"', page) == ["successful", ""]
+    assert re.findall(r'name="outcome" value="([^"]*)"', page) == ["successful", "interested",
+                                                                    ""]
     r = client.post(f"/companies/acme/interactions/{it.id}/outcome", data={"outcome": ""})
     assert "outcome:\n" in path.read_text()
     assert last_commit(repo) == f"interaction: acme {it.id} outcome unknown"
