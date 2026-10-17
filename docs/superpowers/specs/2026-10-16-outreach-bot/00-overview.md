@@ -47,7 +47,7 @@ design leaves a place for it.
 | Findings | "Mark ready" appends the findings used to the contact's notes |
 | Cost cap | None |
 | Seller knowledge | `MESSAGING.md`, extended; the bot refuses to run without its minimum |
-| Offers per data folder | One. Two businesses = two data folders |
+| Offers per data folder | One business per folder, but the playbook holds one or more **approaches** (one offer to one audience each); the bot picks the approach a company fits. Two businesses = two data folders (revised 17 Oct 2026, see part 01) |
 | German first contact | `du` |
 | Critic | Starts lenient. Hard rules are deterministic checks in `clean_answer`, not critic scores |
 | Default call to action | One diagnostic question, not a meeting ask. A meeting only after they answer |

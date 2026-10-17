@@ -73,16 +73,25 @@ and the card says "not checked: no headcount".
 The default `messaging.py` angles stay. A filled playbook's offer line and proof
 fill the template gaps, so non-AI drafts improve too.
 
-## One offer per data folder
+## Approaches (revised 17 Oct 2026, as built in phase 0)
 
-One folder = one offer, one playbook, one pipeline, one set of Messages
-statistics. Mixing breaks the statistics (the review found a product pitch and
-a referral ask counted inside a consulting pipeline). The bot does not detect a
-second offer in prose; it enforces exactly one `offer_line` (`check` refuses a
-list: "one offer per data folder; use a second folder for a second offer").
-Several offers per folder is a possible later extension, not designed here.
-`INSTALL.md` / the welcome page say when a second folder is useful; `init`
-already creates any number of folders.
+The original "one offer per data folder" rule was replaced during phase 0. The
+playbook holds one or more **approaches**; an approach is one offer to one
+audience (e.g. coaching for founders who still sell, building the team for
+companies that already have salespeople). Most people have one.
+
+- Each approach is complete on its own: name, offer line, ICP, disqualifiers,
+  personas (front matter, under `approaches:`), plus proof, voice, channels,
+  don'ts and lessons in a `# Approach: <name>` body block.
+- The bot picks the approach a company fits and drafts with that approach's
+  parts only. An approach not filled in yet is not used.
+- Interactions record the `approach` next to `angle`, so statistics can be
+  split per approach.
+- A separate business with its own pipeline still uses a second data folder.
+
+The authoritative format is `hermitcrm help playbook` on the phase 0 branch;
+where the rest of this file says "the offer line" or "the ICP", read "the
+approach's".
 
 ## Getting it filled
 

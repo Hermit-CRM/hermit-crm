@@ -43,7 +43,7 @@ owed". The AI classifies the reply (no tools) and the person confirms.
 Classification runs on demand ("Check replies" button), once per reply, and the
 result is stored; replies logged with outcome `interested` need no AI.
 
-Shape: the offer line, one proof line, the playbook's **first step offer**
+Shape: the approach's offer line, one of its proof lines, its **first step offer**
 (new optional field in the Offer section, e.g. "the first call is free, no
 pitch"; left out when empty, since not every seller offers a free call), and
 one question. **No** time slot, booking link, price, or days per week. A meeting
