@@ -105,6 +105,7 @@ def test_footer_version_and_nav_notice(tmp_path):
     app.state.update_notice.available = "9.9.9"
     page = client.get("/companies").text
     assert f"v9.9.9 available: <code>{updates.UPGRADE_HINT}</code>" in page
+    assert '<a href="/help/changelog">What\'s new</a>' in page
 
 
 # ---------------------------------------------------------- what the check knows

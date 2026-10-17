@@ -1,5 +1,7 @@
 # Hermit CRM
 
+<!-- mcp-name: io.github.Hermit-CRM/hermit-crm -->
+
 **A free, local CRM for solopreneurs.** Your pipeline, contacts and
 conversations live as Markdown files in git on your own Mac, with a web app for
 you and a CLI and MCP server for your AI agent. No account, no cloud, Apache 2.0.
@@ -103,7 +105,7 @@ that works without activating the virtualenv.
 **BCC capture** (the tracking address and its app password) and an **online
 copy** (an optional private git remote; local backups start with
 `schedule install` or Settings > Backup). Skip any of them; rerun with `hermitcrm setup` or open the
-Settings page (`/settings`) in the web app. Add `--demo` for eight fictional companies,
+Settings page (`/settings`) in the web app. Add `--demo` for thirteen fictional companies,
 `--no-setup` to skip the questions. Instead of `--data` you can set
 `HERMITCRM_DATA=~/crm` or run commands from inside the folder.
 

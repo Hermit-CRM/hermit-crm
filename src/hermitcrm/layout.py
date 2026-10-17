@@ -47,7 +47,7 @@ FILENAME = "layout.toml"
 SECTIONS = {
     "company": ("enrich", "next-step", "details", "contacts", "tasks", "drafts",
                 "merge", "timeline"),
-    "contact": ("details", "timeline", "quick-add", "tasks", "drafts", "merge",
+    "contact": ("details", "tasks", "quick-add", "timeline", "drafts", "merge",
                 "delete"),
     "home": ("doing", "to-file", "owed", "going"),
 }

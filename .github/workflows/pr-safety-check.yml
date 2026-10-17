@@ -1,0 +1,70 @@
+# PR safety check
+#
+# What this does, in plain English:
+# Every time someone opens or updates a pull request, this compares their change
+# with the main branch and fails (a red cross on the PR) if the change:
+#   1. adds a web address, domain or IP address that was not in the project before;
+#   2. adds code that talks to the internet;
+#   3. adds code that runs other programs or shell commands, or makes something
+#      start automatically on the Mac;
+#   4. adds unreadable content: long encoded blobs, very long lines, minified or
+#      scrambled-looking text, or invisible characters;
+#   5. adds binary or executable files;
+#   6. touches a sensitive file: install instructions, setup and build scripts,
+#      dependency files, anything under .github/, CODEOWNERS, or files that tell
+#      an AI agent what to do (INSTALL.md, CLAUDE.md, AGENTS.md, .claude/, prompts).
+# Each finding is printed as one readable line naming the file and the reason.
+# A red cross does not mean the change is bad, only that a person must look closely.
+#
+# Who it checks:
+# Only pull requests from forks, which is how outside contributors send changes.
+# Pull requests from branches in this repository (the maintainer's own work and
+# Dependabot) need write access to create, so the check is skipped for them.
+# A skipped check counts as passed, so the required check on main stays green.
+#
+# How it stays safe:
+# - It runs on "pull_request" (never "pull_request_target"), so code from a fork
+#   gets no secrets and only read access to this repository.
+# - It only reads the change with git. It never installs, builds or runs the
+#   contributor's code.
+# - The checker script is taken from the main branch, not from the pull request,
+#   so a contributor cannot quietly weaken it. (A PR could still edit this
+#   workflow file itself; that edit is itself flagged as a sensitive change,
+#   and outside contributors' workflows only run after the maintainer approves.)
+name: pr-safety-check
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pr-safety-check:
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Get the code (read only, no saved credentials)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Use the checker from the main branch
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if git cat-file -e "$BASE_SHA:.github/scripts/pr_safety_check.py" 2>/dev/null; then
+            git show "$BASE_SHA:.github/scripts/pr_safety_check.py" > "$RUNNER_TEMP/pr_safety_check.py"
+          else
+            # Only the pull request that first adds the checker gets here.
+            echo "The main branch has no checker yet; using the copy in this pull request."
+            cp .github/scripts/pr_safety_check.py "$RUNNER_TEMP/pr_safety_check.py"
+          fi
+
+      - name: Check the change
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 -I "$RUNNER_TEMP/pr_safety_check.py" "$BASE_SHA" "$HEAD_SHA"

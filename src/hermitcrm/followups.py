@@ -120,6 +120,37 @@ def _waiting(company, today: date) -> bool:
     return due is None or due <= today
 
 
+def _row(company, it: Interaction | None, today: date, reply_after: int,
+         nudge_after: int) -> Followup | None:
+    """The radar row `it` puts `company` on, or None. The one rule for both
+    the radar and a single contact's page: they wrote last and `reply_after`
+    days passed, or you sent a message, nothing is planned and `nudge_after`
+    days passed."""
+    if it is None or not company.is_active:
+        return None
+    days = (today - it.date.date()).days
+    if it.direction == Direction.IN.value:
+        kind, threshold = REPLY, reply_after
+    elif it.is_message and _waiting(company, today):
+        kind, threshold = NUDGE, nudge_after
+    else:
+        return None
+    if days < threshold:
+        return None
+    return Followup(company=company, kind=kind, interaction=it, days=days,
+                    contact=company.contacts.get(it.contact))
+
+
+def for_contact(company, cslug: str, today: date, reply_after: int = 1,
+                nudge_after: int = 5) -> Followup | None:
+    """The radar's verdict on one person: the same rule as `radar()`, applied
+    to the latest touch with this contact rather than with the company."""
+    dated = [i for i in company.interactions
+             if i.date and i.is_touch and i.contact == cslug]
+    it = max(dated, key=lambda i: i.date) if dated else None
+    return _row(company, it, today, reply_after, nudge_after)
+
+
 def radar(store: Store, today: date | None = None, reply_after: int = 1,
           nudge_after: int = 5) -> list[Followup]:
     """The follow-up rows, most overdue first, replies owed before nudges.
@@ -133,20 +164,9 @@ def radar(store: Store, today: date | None = None, reply_after: int = 1,
     for company in store.companies.values():
         if not company.is_active:
             continue
-        it = latest(company)
-        if it is None:
-            continue
-        days = (today - it.date.date()).days
-        if it.direction == Direction.IN.value:
-            kind, threshold = REPLY, reply_after
-        elif it.is_message and _waiting(company, today):
-            kind, threshold = NUDGE, nudge_after
-        else:
-            continue
-        if days < threshold:
-            continue
-        rows.append(Followup(company=company, kind=kind, interaction=it, days=days,
-                             contact=company.contacts.get(it.contact)))
+        row = _row(company, latest(company), today, reply_after, nudge_after)
+        if row is not None:
+            rows.append(row)
     rows.sort(key=lambda r: (r.kind != REPLY, -r.days, r.company.name.lower()))
     return rows
 

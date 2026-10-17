@@ -54,10 +54,11 @@ from . import (adjust, bcc, brief, calendar_sync, capture, dashboards, disclaime
                fields as custom, filters, followups, history, messaging, migrations,
                pipeline, reports, sample, welcome)
 from . import layout
+from . import playbook, textsource
 from . import schedule, scrape, secrets, task_types, usertheme
 from . import stage_ops
 from . import stages as stages_mod
-from . import routines
+from . import outreach, routines
 from . import help as helpdocs
 from . import setup as setup_steps
 from .filters import Column
@@ -76,6 +77,7 @@ from .importer import (
 )
 from .gitops import GitOps
 from .models import (
+    ANGLES,
     Channel,
     Company,
     DEFAULT_OUTCOMES,
@@ -94,6 +96,7 @@ from .models import (
     parse_date,
     slugify,
     split_name,
+    with_interested,
 )
 from .stages import DEFAULT_STAGES, StageSet
 from .store import (
@@ -350,6 +353,7 @@ class MessageRow:
         self.contact_slug = it.contact
         self.channel = it.channel
         self.subject = it.subject
+        self.angle = it.angle
         self.body = it.body
         self.preview = " ".join(it.body.split())
         self.status = status
@@ -368,6 +372,7 @@ def message_columns(statuses: list[str], defs: list | None = None,
         Column("company_name", "company"),
         Column("contact", "contact"),
         Column("channel", "channel", "enum", CHANNELS),
+        Column("angle", "angle", "enum", list(ANGLES)),
         Column("country", "country", "enum", COUNTRIES),
         Column("stage", "stage", "enum", (stages or DEFAULT_STAGES).names),
         Column("status", "outcome", "enum", statuses),
@@ -1254,6 +1259,7 @@ def create_app(root: Path, config: dict | None = None,
         preview=followups.first_line,
         stage_exits=stage_exits,
         stage_keeps=lambda name: stage_keeps(store.stages, name),
+        angles=list(ANGLES),
         stages=list(store.stages.names),   # config_reloaded keeps it current in place
         sources=SOURCES,
         countries=COUNTRIES,
@@ -1434,6 +1440,7 @@ def create_app(root: Path, config: dict | None = None,
             "contact": contact or "",
             "date": fmt_datetime(store.now()),
             "subject": "",
+            "angle": "",
             "outcome": "",
             "body": body or "",
         }
@@ -2690,20 +2697,60 @@ def create_app(root: Path, config: dict | None = None,
         return flashed(f"/companies/{slug}/contacts/{contact.slug}",
                        "Contact created")
 
+    def contact_summary(company: Company, contact, interactions: list, today) -> dict:
+        """The four facts on top of a contact page: last touch, who is waiting
+        on whom (the radar's own rule, so Home and this page agree), the open
+        task due first, and the history in numbers. Notes are not touches."""
+        touches = sorted((i for i in interactions if i.date and i.is_touch),
+                         key=lambda i: i.date)
+        last = touches[-1] if touches else None
+        open_tasks = [t for t in contact.tasks if not t.done]
+        return {
+            "last": last,
+            "last_days": (today - last.date.date()).days if last else None,
+            "waiting": followups.for_contact(company, contact.slug, today, **followup_days),
+            "next": min(open_tasks, key=lambda t: (t.due is None, t.due or today))
+                    if open_tasks else None,
+            "count": len(touches),
+            "count_in": sum(i.direction == Direction.IN.value for i in touches),
+            "count_out": sum(i.direction == Direction.OUT.value for i in touches),
+            "first": touches[0] if touches else None,
+            "has_outbound": any(i.direction == Direction.OUT.value for i in touches),
+        }
+
+    def contact_context(request: Request, company: Company, contact, values=None,
+                        channel: str = "", editing: bool = False, **extra) -> dict:
+        """Everything contact.html needs. A form sent back (errors, a stale
+        version) passes its `values` and opens the Edit box."""
+        interactions = [i for i in company.interactions if i.contact == contact.slug]
+        return {
+            "company": company,
+            "contact": contact,
+            "values": values or with_custom(contact_values(contact), contact, "contact"),
+            "interactions": interactions,
+            "interaction": interaction_values(company, contact=contact.slug, channel=channel),
+            "summary": contact_summary(company, contact, interactions, store.today()),
+            "editing": editing or values is not None,
+            "outreach_open": next((i for i in outreach.items(root)
+                                   if i.is_open and i.company == company.slug
+                                   and i.contact == contact.slug), None),
+            "outreach_channels": outreach.CHANNELS,
+            "outreach_kind": outreach.kind_for(store, company, contact),
+            **draft_context(request, company, contact),
+            **extra,
+        }
+
     @app.get("/companies/{slug}/contacts/{cslug}", response_class=HTMLResponse)
     def contact_page(request: Request, slug: str, cslug: str):
         company = need_company(slug, refresh=True)
         contact = company.contacts.get(cslug)
         if contact is None:
             raise HTTPException(status_code=404, detail=f"unknown contact {cslug!r}")
-        return render(request, "contact.html", {
-            "company": company,
-            "contact": contact,
-            "values": with_custom(contact_values(contact), contact, "contact"),
-            "interactions": [i for i in company.interactions if i.contact == cslug],
-            "interaction": interaction_values(company, contact=cslug),
-            **draft_context(request, company, contact),
-        })
+        # "Add note" links here with ?channel=note, so the log form needs no script.
+        channel = request.query_params.get("channel", "")
+        return render(request, "contact.html", contact_context(
+            request, company, contact, channel=channel,
+            editing=bool(request.query_params.get("edit"))))
 
     @app.post("/companies/{slug}/contacts/{cslug}")
     async def contact_update(
@@ -2734,33 +2781,23 @@ def create_app(root: Path, config: dict | None = None,
             person = current.contacts.get(cslug)
             if person is None:
                 raise HTTPException(status_code=404, detail=f"unknown contact {cslug!r}")
-            return render(request, "contact.html", {
-                "company": current,
-                "contact": person,
-                "values": {**with_custom(contact_values(person), person, "contact"),
-                           **values, **shown},
-                "flash": stale_form_text("contact",
-                                         changed_fields(values, contact_values(person))),
-                "interactions": [i for i in current.interactions if i.contact == cslug],
-                "interaction": interaction_values(current, contact=cslug),
-                **draft_context(request, current, person),
-            }, status_code=409)
+            return render(request, "contact.html", contact_context(
+                request, current, person,
+                values={**with_custom(contact_values(person), person, "contact"),
+                        **values, **shown},
+                flash=stale_form_text("contact",
+                                      changed_fields(values, contact_values(person)))),
+                status_code=409)
         try:
             if custom_errors:
                 raise ValidationError(custom_errors)
             store.update_contact(slug, cslug, custom=extra, **values)
         except ValidationError as exc:
-            return render(request, "contact.html", {
-                "company": company,
-                "contact": contact,
-                "values": {**with_custom(contact_values(contact), contact, "contact"),
-                           **values, **shown},
-                "errors": exc.errors,
-                "interactions": [i for i in company.interactions
-                                 if i.contact == cslug],
-                "interaction": interaction_values(company, contact=cslug),
-                **draft_context(request, company, contact),
-            }, status_code=400)
+            return render(request, "contact.html", contact_context(
+                request, company, contact,
+                values={**with_custom(contact_values(contact), contact, "contact"),
+                        **values, **shown},
+                errors=exc.errors), status_code=400)
         return flashed(f"/companies/{slug}/contacts/{cslug}", "Saved")
 
     @app.post("/companies/{slug}/contacts/{cslug}/delete")
@@ -2797,13 +2834,14 @@ def create_app(root: Path, config: dict | None = None,
         contact: str = Form(""),
         date: str = Form(""),
         subject: str = Form(""),
+        angle: str = Form(""),
         outcome: str = Form(""),
         body: str = Form(""),
     ):
         company = need_company(slug)
         values = {"channel": channel, "direction": direction, "contact": contact,
-                  "date": date, "subject": subject, "outcome": outcome,
-                  "body": body}
+                  "date": date, "subject": subject, "angle": angle,
+                  "outcome": outcome, "body": body}
         extra, shown, custom_errors = await custom_submitted(request, "interaction")
         try:
             errors = dict(custom_errors)
@@ -2831,7 +2869,7 @@ def create_app(root: Path, config: dict | None = None,
             raise HTTPException(status_code=404, detail=f"unknown interaction {id!r}")
         values = {
             "channel": it.channel, "direction": it.direction, "contact": it.contact,
-            "date": fmt_datetime(it.date), "subject": it.subject,
+            "date": fmt_datetime(it.date), "subject": it.subject, "angle": it.angle,
             "outcome": it.outcome, "body": it.body,
         }
         return render(request, "interaction_edit.html",
@@ -2847,6 +2885,7 @@ def create_app(root: Path, config: dict | None = None,
         contact: str = Form(""),
         date: str = Form(""),
         subject: str = Form(""),
+        angle: str = Form(""),
         outcome: str = Form(""),
         body: str = Form(""),
     ):
@@ -2854,8 +2893,8 @@ def create_app(root: Path, config: dict | None = None,
         if not any(i.id == id for i in company.interactions):
             raise HTTPException(status_code=404, detail=f"unknown interaction {id!r}")
         values = {"channel": channel, "direction": direction, "contact": contact,
-                  "date": date, "subject": subject, "outcome": outcome,
-                  "body": body}
+                  "date": date, "subject": subject, "angle": angle,
+                  "outcome": outcome, "body": body}
         extra, shown, custom_errors = await custom_submitted(request, "interaction")
         try:
             if custom_errors:
@@ -2986,6 +3025,7 @@ def create_app(root: Path, config: dict | None = None,
             "fields_form": {"toml": (root / custom.FILENAME).read_text(encoding="utf-8")
                             if (root / custom.FILENAME).exists() else ""},
             "custom_field_defs": app.state.custom_fields,
+            "playbook_status": playbook_status(),
             "messaging_form": {
                 "size_field": str(config.get("messaging_size_field") or ""),
                 "team_field": str(config.get("messaging_team_field") or "")},
@@ -3006,6 +3046,8 @@ def create_app(root: Path, config: dict | None = None,
                               "message_window_days": str(config.get("message_window_days")
                                                          or 14),
                               "silent_days": str(config.get("silent_days") or 14)},
+            "outcomes_offer": with_interested(
+                setup_steps.parse_outcomes(config.get("outcomes") or [])),
             "task_types_form": {"rows": app.state.task_types},
             "stages_form": stages_form_default(),
             "agent_choices": [("", "the tool above ("
@@ -3026,6 +3068,13 @@ def create_app(root: Path, config: dict | None = None,
         ctx.update(inbox_context())
         ctx.update(extra)
         return ctx
+
+    def playbook_status() -> dict:
+        pb = playbook.load(root)
+        found = playbook.gaps(pb)
+        return {"approaches": [o.name for o in pb.approaches],
+                "ready": [o.name for o in playbook.ready_approaches(pb)],
+                "problem": "; ".join(found.get("", []))}
 
     def stages_form_default() -> dict:
         counts = store.stage_counts()
@@ -3208,6 +3257,195 @@ def create_app(root: Path, config: dict | None = None,
             return setup_invalid(request, result, "messaging")
         config_saved()
         return flashed("/settings", result.text(), anchor="messaging")
+
+    # ------------------------------------------------ Settings > Playbook
+
+    def playbook_text() -> str:
+        path = root / playbook.FILENAME
+        try:
+            return path.read_text(encoding="utf-8")
+        except OSError:
+            return ""
+
+    def playbook_page(request: Request, approach_name: str = "", index: int | None = None,
+                      values: dict | None = None, status_code: int = 200, **extra):
+        raw = playbook.parse(playbook_text()) if (root / playbook.FILENAME).exists() \
+            else playbook.Playbook()
+        # A file from before the approaches is shown as it will be once saved.
+        pb = playbook.parse(playbook.upgrade_text(raw.text)) if not raw.error else raw
+        approaches = pb.approaches
+        current = 0
+        if approach_name:
+            current = next((i for i, o in enumerate(approaches)
+                            if o.name.lower() == approach_name.lower()), 0)
+        elif index is not None and 0 <= index < len(approaches):
+            current = index
+        enricher = app.state.enricher
+        ctx = {"pb_error": raw.error, "exists": raw.exists, "set_up": raw.set_up,
+               "foreign": raw.has_front and not raw.error and not raw.set_up,
+               "approaches": approaches, "current": current, "errors": {}, "notice": "",
+               "approach_gaps": [playbook.approach_gaps(o) for o in approaches],
+               "source_url": "", "source_text": "", "draft_open": False,
+               "draft_error": "", "voice_error": "", "dirty": False, "rename": False,
+               "sent_count": len(playbook.sent_emails(store)),
+               "ai": {"available": enricher.available, "provider": enricher.provider_name,
+                      "reason": "" if enricher.available
+                      else enricher.unavailable_reason()}}
+        if approaches:
+            approach = approaches[current]
+            parts = playbook.completeness(approach)
+            values = values if values is not None else playbook.form_values(approach)
+            ctx.update({"approach": approach, "parts": parts,
+                        "filled": sum(ok for _, ok in parts),
+                        "gaps": playbook.approach_gaps(approach), "values": values,
+                        "range_fields": playbook.range_fields(root),
+                        "range_rows": playbook.range_rows(values)})
+        ctx.update(extra)
+        return render(request, "playbook.html", ctx, status_code=status_code)
+
+    def playbook_commit(message: str, paths=None) -> None:
+        try:
+            gitops.commit(message, [playbook.FILENAME])
+            gitops.push_async()
+        except Exception:  # the file is saved; git can catch up
+            logger.exception("could not commit %s", playbook.FILENAME)
+
+    def playbook_url(name: str = "", rename: bool = False) -> str:
+        approaches = playbook.load(root).approaches
+        i = next((i for i, o in enumerate(approaches) if o.name.lower() == name.lower()), 0)
+        return f"/settings/playbook?approach={i}" + ("&rename=1" if rename else "")
+
+    async def playbook_form(request: Request) -> tuple[dict, dict]:
+        """(the posted text fields, the uploaded files) after the CSRF check."""
+        form = await request.form()
+        check_csrf(str(form.get("csrf_token") or ""))
+        values, files = {}, {}
+        for key, value in form.multi_items():
+            if hasattr(value, "read"):
+                files[key] = value
+            elif key != "csrf_token":
+                values[key] = str(value)
+        return values, files
+
+    @app.get("/settings/playbook", response_class=HTMLResponse)
+    def settings_playbook(request: Request, approach: int = 0, rename: int = 0):
+        return playbook_page(request, index=approach, rename=bool(rename))
+
+    @app.post("/settings/playbook", response_class=HTMLResponse)
+    async def settings_playbook_save(request: Request):
+        values, _ = await playbook_form(request)
+        name = values.get("approach", "")
+        raw = playbook.parse(playbook_text())
+        if raw.error or (raw.has_front and not raw.set_up):
+            return playbook_page(request, name, values=values, status_code=400)
+        try:
+            text, errors = playbook.save_form(playbook_text(), name, values)
+        except playbook.PlaybookError as exc:
+            return flashed("/settings/playbook", str(exc))
+        if errors:
+            return playbook_page(request, name, values=values, status_code=400,
+                                 errors=errors, dirty=True)
+        new_name = playbook.from_form(values)[0]["name"] or name
+        if playbook.write(root, text):
+            playbook_commit(f"playbook: {new_name}")
+            return flashed(playbook_url(new_name), f"Saved {new_name}")
+        return flashed(playbook_url(new_name), "Nothing changed")
+
+    @app.post("/settings/playbook/draft", response_class=HTMLResponse)
+    async def settings_playbook_draft(request: Request):
+        values, files = await playbook_form(request)
+        name = values.get("approach", "")
+        url = values.get("source_url", "").strip()
+        pasted = values.get("source_text", "").strip()
+        keep = {"source_url": url, "source_text": pasted, "draft_open": True, "dirty": True}
+        try:
+            parts = []
+            upload = files.get("source_file")
+            if upload is not None and getattr(upload, "filename", ""):
+                # One byte over the limit is enough to refuse it, and parsing a
+                # PDF takes long enough to belong off the event loop.
+                data = await upload.read(textsource.MAX_FILE_BYTES + 1)
+                parts.append(await run_in_threadpool(textsource.read_file, upload.filename, data))
+            if url:
+                parts.append(await run_in_threadpool(textsource.read_website, url))
+            if pasted:
+                parts.append(pasted)
+            proposal = await run_in_threadpool(
+                playbook.propose, app.state.enricher, "\n\n".join(parts), name)
+        except (textsource.SourceError, EnrichError) as exc:
+            return playbook_page(request, name, values=values, status_code=400,
+                                 draft_error=str(exc), **keep)
+        if not proposal:
+            return playbook_page(request, name, values=values, draft_error=(
+                "The AI found nothing it could use in that text."), **keep)
+        # The proposal fills the boxes it has an answer for; the rest keep what
+        # is in the form. Nothing is written until Save.
+        merged = {**values, **proposal}
+        return playbook_page(request, name, values=merged, notice=(
+            f"Proposed by {app.state.enricher.provider_name or 'your AI CLI'}: "
+            f"{len(proposal)} boxes filled from what you gave. Check each one, change "
+            "what is not right, then Save. Nothing is saved yet."), **keep)
+
+    @app.post("/settings/playbook/voice", response_class=HTMLResponse)
+    async def settings_playbook_voice(request: Request):
+        values, _ = await playbook_form(request)
+        name = values.get("approach", "")
+        try:
+            proposal = await run_in_threadpool(
+                playbook.propose_voice, app.state.enricher, playbook.sent_emails(store))
+        except EnrichError as exc:
+            return playbook_page(request, name, values=values, status_code=400,
+                                 voice_error=str(exc), dirty=True)
+        return playbook_page(request, name, values={**values, **proposal}, dirty=True,
+                             notice="Voice proposed from your sent emails, in the Voice "
+                                    "box. Check it, then Save. Nothing is saved yet.")
+
+    @app.post("/settings/playbook/new")
+    def settings_playbook_new(request: Request, csrf_token: str = Form(""),
+                              name: str = Form(""), copy_from: str = Form("")):
+        check_csrf(csrf_token)
+        try:
+            text = playbook.add_approach(playbook_text(), name, copy_from=copy_from)
+        except playbook.PlaybookError as exc:
+            return flashed("/settings/playbook", f"Not created: {exc}")
+        name = " ".join(name.split())
+        playbook.write(root, text)
+        playbook_commit(f"playbook: new approach {name}")
+        return flashed(playbook_url(name), f"Created the approach {name}"
+                       + (f", a copy of {copy_from}" if copy_from else ""))
+
+    @app.post("/settings/playbook/duplicate")
+    def settings_playbook_duplicate(request: Request, csrf_token: str = Form(""),
+                                    approach: str = Form("")):
+        check_csrf(csrf_token)
+        text = playbook_text()
+        name = playbook.copy_name(playbook.parse(playbook.upgrade_text(text)), approach)
+        try:
+            text = playbook.add_approach(text, name, copy_from=approach)
+        except playbook.PlaybookError as exc:
+            return flashed("/settings/playbook", f"Not copied: {exc}")
+        playbook.write(root, text)
+        playbook_commit(f"playbook: {name}")
+        return flashed(playbook_url(name, rename=True),
+                       f"Created {name}. Give it its own name above and change what differs.")
+
+    @app.post("/settings/playbook/delete")
+    def settings_playbook_delete(request: Request, csrf_token: str = Form(""),
+                                 approach: str = Form("")):
+        check_csrf(csrf_token)
+        try:
+            text = playbook.delete_approach(playbook_text(), approach)
+        except playbook.PlaybookError as exc:
+            return flashed("/settings/playbook", f"Not deleted: {exc}")
+        playbook.write(root, text)
+        playbook_commit(f"playbook: deleted approach {approach}")
+        return flashed("/settings/playbook", f"Deleted the approach {approach}; it stays in "
+                                             "the git history.")
+
+    @app.post("/settings/playbook/upgrade")
+    def settings_playbook_upgrade(request: Request, csrf_token: str = Form("")):
+        check_csrf(csrf_token)
+        return flashed("/settings/playbook", playbook.upgrade(root, commit=playbook_commit))
 
     @app.post("/settings/enrichment")
     def settings_enrichment(request: Request, csrf_token: str = Form(""),
@@ -3552,6 +3790,277 @@ def create_app(root: Path, config: dict | None = None,
         who = contact.name if contact else (company.name if company else draft.record)
         return flashed(back, f"Logged the message to {who} as sent" if sent
                        else f"Draft for {who} discarded", anchor="routine-drafts")
+
+    # ---------------------------------------------------------------- outreach
+    # The Outreach page (spec part 04): build a batch, review each card, mark it
+    # ready, skip or send it by hand. Every write is outreach.py's (one commit
+    # per step); this layer reads forms and renders. A batch is built one
+    # contact per request, so cards appear as they finish with no background
+    # work: the page sends the next request itself while `left` > 0.
+
+    # Replies to interest first: that is where deals leak. Its tab holds the
+    # replies owed (outreach.replies) and the open reply-to-interest drafts;
+    # Drafts holds the first touches.
+    OUTREACH_TABS = (("replies", "Replies to interest", ("researching", "drafted")),
+                     ("drafts", "Drafts", ("researching", "drafted")),
+                     ("ready", "Ready", ("ready",)),
+                     ("sent", "Sent", ("sent", "logged")),
+                     ("skipped", "Skipped", ("skipped",)))
+
+    def in_tab(item, tab: str) -> bool:
+        states = next(s for t, _, s in OUTREACH_TABS if t == tab)
+        if tab in ("replies", "drafts"):
+            return item.state in states and (item.kind == outreach.REPLY) == (tab == "replies")
+        return item.state in states
+
+    def outreach_tab(item) -> str:
+        return next(t for t, _, _ in OUTREACH_TABS if in_tab(item, t))
+
+    def outreach_where(text: str) -> list[str]:
+        """The filter box: conditions separated by ";" (`stage=prospect;
+        country=DE`), each as `hermitcrm outreach --where` takes it."""
+        return [part.strip() for part in str(text or "").split(";") if part.strip()]
+
+    def outreach_card(item) -> dict:
+        company = store.get(item.company)
+        contact = company.contacts.get(item.contact) if company is not None else None
+        fit_field = str(config.get("outreach_fit_field")
+                        or outreach.CONFIG_DEFAULTS["outreach_fit_field"])
+        reply = next((i for i in company.interactions if i.id == item.reply_to), None) \
+            if company is not None and item.reply_to else None
+        return {"item": item, "company": company, "contact": contact,
+                "fit": outreach.fit_value(company, fit_field) if company else None,
+                "fit_field": fit_field, "reply": reply}
+
+    def outreach_replies(every) -> list:
+        """The replies owed for the Replies tab, each with its open item (if
+        any). A reply you or the AI found not interested is listed last."""
+        open_by = {i.record: i for i in every if i.is_open}
+        rows = [{"reply": r, "item": open_by.get(r.record)} for r in outreach.replies(store)]
+        rows.sort(key=lambda row: row["reply"].verdict == "not-interested")
+        return rows
+
+    def outreach_ai_problem(tier: str = "medium") -> str:
+        enricher = app.state.enricher.with_tier(tier)
+        if not enricher.available:
+            return f"The AI CLI is not available: {enricher.unavailable_reason()}"
+        return routines.ai_problem(enricher)
+
+    def outreach_form(params) -> dict:
+        try:
+            limit = int(params.get("limit") or 0)
+        except ValueError:
+            limit = 0
+        default_limit = int(config.get("outreach_batch_size")
+                            or outreach.CONFIG_DEFAULTS["outreach_batch_size"])
+        try:
+            left = max(0, int(params.get("left") or 0))
+        except ValueError:
+            left = 0
+        channel = params.get("channel", "email")
+        return {"where": params.get("where", ""),
+                "channel": channel if channel in outreach.CHANNELS else "email",
+                "limit": limit if limit > 0 else default_limit,
+                "strong": params.get("strong", "") in ("1", "on", "true"),
+                "left": left, "batch": params.get("batch", "")}
+
+    def outreach_query(form: dict, **extra) -> str:
+        values = {"where": form["where"], "channel": form["channel"],
+                  "limit": form["limit"], "strong": "1" if form["strong"] else "",
+                  "left": form["left"] or "", "batch": form["batch"], **extra}
+        return urlencode({k: v for k, v in values.items() if v not in ("", None, 0)})
+
+    @app.get("/outreach", response_class=HTMLResponse)
+    def outreach_page(request: Request):
+        params = request.query_params
+        form = outreach_form(params)
+        tab = params.get("tab", "drafts")
+        if tab not in {t for t, _, _ in OUTREACH_TABS}:
+            tab = "drafts"
+        every = outreach.items(root)
+        shown = [i for i in every if in_tab(i, tab)]
+        if tab in ("drafts", "replies"):   # the oldest draft first: review in the order built
+            shown.reverse()
+        reply_rows = outreach_replies(every)
+        waiting = [r for r in reply_rows if r["item"] is None
+                   and (r["reply"].interested or r["reply"].to_confirm)]
+        counts = {t: sum(1 for i in every if in_tab(i, t)) for t, _, _ in OUTREACH_TABS}
+        counts["replies"] += len(waiting)
+        preview, preview_error = None, ""
+        if params.get("preview"):
+            try:
+                preview = outreach.select(store, where=outreach_where(form["where"]),
+                                          channel=form["channel"], limit=form["limit"],
+                                          config=config)
+            except outreach.OutreachError as exc:
+                preview_error = str(exc)
+        _, gate = outreach._ready_approaches(root)
+        return render(request, "outreach.html", {
+            "tabs": [(t, label, counts[t]) for t, label, _ in OUTREACH_TABS],
+            "tab": tab, "cards": [outreach_card(i) for i in shown],
+            "reply_rows": [r for r in reply_rows if r["item"] is None] if tab == "replies"
+            else [],
+            "replies_waiting": len(waiting),
+            "replies_unchecked": sum(1 for r in reply_rows if r["reply"].unchecked),
+            "form": form, "preview": preview, "preview_error": preview_error,
+            "gate": gate, "ai_problem": outreach_ai_problem(),
+            "skip_reasons": outreach.SKIP_REASONS, "finding_kinds": outreach.FINDING_KINDS,
+            "channels": outreach.CHANNELS, "levels": outreach.LEVELS,
+            "built_levels": outreach.BUILT_LEVELS,
+            "continue_query": outreach_query(form) if form["left"] else "",
+        })
+
+    @app.post("/outreach/build")
+    async def outreach_build(request: Request, csrf_token: str = Form(""),
+                             where: str = Form(""), channel: str = Form("email"),
+                             limit: str = Form(""), strong: str = Form(""),
+                             left: str = Form(""), batch: str = Form(""),
+                             contact: str = Form(""), back: str = Form(""),
+                             kind: str = Form(outreach.FIRST_TOUCH)):
+        """Research and draft the next contact of the batch (one per request).
+        `contact` ("company/contact"): the contact page's Research & draft, or a
+        reply on the Replies tab (`kind` reply-to-interest)."""
+        check_csrf(csrf_token)
+        if kind not in outreach.BUILT_KINDS or (kind == outreach.REPLY and not contact):
+            kind = outreach.FIRST_TOUCH
+        form = outreach_form({"where": where, "channel": channel, "limit": limit,
+                              "strong": strong, "left": left, "batch": batch})
+        if not left.strip():   # the first click: the whole batch is still to build
+            form["left"] = form["limit"]
+        back = safe_back(back, "/outreach") if contact else "/outreach"
+        stop = {**form, "left": 0}
+        try:
+            outreach.research_level(config)  # refuses a level not built yet
+            selection = await run_in_threadpool(
+                outreach.select, store, where=outreach_where(form["where"]),
+                channel=form["channel"], kind=kind, limit=1,
+                contacts=[contact] if contact else None, config=config)
+        except outreach.OutreachError as exc:
+            return flashed(back if contact else f"/outreach?{outreach_query(stop)}",
+                           f"Not built: {exc}")
+        if selection.gate:
+            return flashed(back, f"Not built: {selection.gate}")
+        if not selection.picked:
+            why = (f": {selection.excluded[0].reason}" if contact and selection.excluded
+                   else "")
+            done = "Nothing to build" if not form["batch"] else "Batch done: nobody else to draft"
+            return flashed(back if contact else f"/outreach?{outreach_query(stop)}",
+                           f"{done}{why}.")
+        tier = "strong" if form["strong"] else "medium"
+        blocked = outreach_ai_problem(tier)
+        if blocked:
+            return flashed(back, f"Not built: {blocked}")
+        enricher = app.state.enricher.with_tier(tier)
+        researcher = outreach.ScrapeResearcher(
+            enricher, fetcher=getattr(app.state, "outreach_fetcher", None),
+            today=store.today(), timeout=float(config.get("fetch_timeout", 10)))
+        drafter = outreach.AIDrafter(store, enricher, config)
+        batch_id = form["batch"] or f"{store.now():%Y-%m-%dT%H%M}-{form['channel']}"
+        try:
+            result = await run_in_threadpool(outreach.build, store, selection, researcher,
+                                              drafter, config, None, batch_id)
+        except outreach.OutreachError as exc:
+            return flashed(back, f"Not built: {exc}")
+        item = result.items[0]
+        line = (f"{selection.picked[0].who}: "
+                + ("drafted" if item.state == "drafted" else f"skipped ({item.skip_note})"))
+        remaining = 0 if contact else max(0, form["left"] - 1)
+        query = outreach_query({**form, "left": remaining, "batch": batch_id},
+                               tab=outreach_tab(item))
+        if remaining:
+            line += f". Building the next one ({remaining} left)…"
+        return flashed(f"/outreach?{query}", line, anchor=f"item-{item.id}")
+
+    @app.post("/outreach/replies/check")
+    async def outreach_check_replies(request: Request, csrf_token: str = Form("")):
+        """Check replies: the AI (no tools) judges each reply owed that was not
+        logged as interested nor checked before. One commit; you confirm."""
+        check_csrf(csrf_token)
+        blocked = outreach_ai_problem()
+        if blocked:
+            return flashed("/outreach?tab=replies", f"Not checked: {blocked}")
+        result = await run_in_threadpool(outreach.check_replies, store,
+                                         app.state.enricher.with_tier("medium"))
+        found = sum(1 for r in result.checked if r.verdict == "interested")
+        text = (f"Checked {len(result.checked)} repl{'y' if len(result.checked) == 1 else 'ies'}"
+                f": {found} look{'s' if found == 1 else ''} interested. Confirm each one."
+                if result.checked else "No new replies to check.")
+        if result.failed:
+            text += (f" {len(result.failed)} could not be checked "
+                     f"({result.failed[0][1]}); try again later.")
+        return flashed("/outreach?tab=replies", text)
+
+    @app.post("/outreach/replies/confirm")
+    async def outreach_confirm_reply(request: Request, csrf_token: str = Form(""),
+                                     reply: str = Form(""), answer: str = Form("")):
+        """You decide about one reply: interested (answer=yes) or not (no)."""
+        check_csrf(csrf_token)
+        if answer not in ("yes", "no"):
+            raise HTTPException(status_code=400, detail="answer yes or no")
+        try:
+            found = await run_in_threadpool(outreach.confirm_reply, store, reply,
+                                            answer == "yes")
+        except outreach.OutreachError as exc:
+            return flashed("/outreach?tab=replies", str(exc))
+        text = (f"{found.contact.name}: interested. Draft a reply when you are ready."
+                if found.interested else f"{found.contact.name}: not interested.")
+        return flashed("/outreach?tab=replies", text, anchor=f"reply-{found.interaction.id}")
+
+    OUTREACH_ACTIONS = ("check", "ready", "regenerate", "skip", "sent", "findings")
+
+    @app.post("/outreach/{item_id}/{what}")
+    async def outreach_action(request: Request, item_id: str, what: str,
+                              csrf_token: str = Form(""), subject: str | None = Form(None),
+                              body: str | None = Form(None), pitch: str | None = Form(None),
+                              reason: str = Form(""), note: str = Form(""),
+                              strong: str = Form(""), remove: list[str] = Form([]),
+                              add: str = Form(""), kind: str = Form("company")):
+        check_csrf(csrf_token)
+        if what not in OUTREACH_ACTIONS:
+            raise HTTPException(status_code=404, detail=f"unknown action {what!r}")
+        item = outreach.get_item(root, item_id)
+        if item is None:
+            raise HTTPException(status_code=404, detail=f"unknown outreach item {item_id!r}")
+        anchor = f"item-{item.id}"
+        try:
+            if what == "check":
+                item, found = await run_in_threadpool(outreach.save_text, store, item.id,
+                                                      subject, body, pitch)
+                text = ("Saved. Checks passed." if not found else
+                        f"Saved. {len(found)} check"
+                        f"{'s still fail' if len(found) > 1 else ' still fails'} (see the card).")
+            elif what == "ready":
+                item, found = await run_in_threadpool(
+                    lambda: outreach.mark_ready(store, item_id, subject=subject, body=body,
+                                                pitch=pitch))
+                text = ("Ready to send. Send it yourself, then log it: logging it marks "
+                        "it sent." + (f" Warning: {'; '.join(found)}." if found else ""))
+            elif what == "regenerate":
+                tier = "strong" if strong else "medium"
+                blocked = outreach_ai_problem(tier)
+                if blocked:
+                    return flashed(f"/outreach?tab={outreach_tab(item)}",
+                                   f"Not regenerated: {blocked}", anchor=anchor)
+                drafter = outreach.AIDrafter(store, app.state.enricher.with_tier(tier),
+                                             config)
+                item = await run_in_threadpool(outreach.redraft, store, item.id, drafter,
+                                               config)
+                text = ("Regenerated." if item.state == "drafted" else
+                        f"The AI gave no usable draft; skipped ({item.skip_note}).")
+            elif what == "skip":
+                item = await run_in_threadpool(outreach.skip, store, item.id, reason, note)
+                text = f"Skipped: {item.skip_reason}."
+            elif what == "sent":
+                item = await run_in_threadpool(outreach.mark_sent, store, item.id)
+                text = "Marked sent (nothing was logged)."
+            else:
+                numbers = [int(n) for n in remove if str(n).strip().isdigit()]
+                item = await run_in_threadpool(outreach.set_findings, store, item.id,
+                                               numbers, add, kind)
+                text = "Findings saved. Regenerate to use them."
+        except outreach.OutreachError as exc:
+            return flashed(f"/outreach?tab={outreach_tab(item)}", str(exc), anchor=anchor)
+        return flashed(f"/outreach?tab={outreach_tab(item)}", text, anchor=anchor)
 
     # ---------------------------------------------------------- make it yours
 

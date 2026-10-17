@@ -9,7 +9,7 @@ page for the screen you are on; `hermitcrm help <topic>` prints the same text.
 
 ## Topics
 
-- **[Getting started](/welcome)**: eleven steps, each ticked when it has actually happened, and a tour that points at each part of the screen.
+- **[Getting started](/welcome)**: twelve steps, each ticked when it has actually happened, and a tour that points at each part of the screen.
 - **[Make it yours](/help/adjust)**: describe a change and your own AI agent builds it in your data folder: fields, the look, dashboards, page layouts, routines, bulk changes. Every change can be undone in one click. The recipes your agent follows: [fields](/help/adjust-fields), [dashboards](/help/adjust-dashboards), [page layout](/help/adjust-layout), [bulk changes](/help/adjust-bulk), [deal stages](/help/adjust-stages), [routines](/help/adjust-routines), [messages](/help/adjust-messages), [the look](/help/adjust-look), [bringing data in](/help/adjust-connect), [something Hermit can't do yet](/help/adjust-feature).
 - **The home page** (`/`, the logo): Getting started, until every step is ticked or you click *Don't open this at startup*. After that: what is due in the next seven days, replies you owe and last month's numbers.
 - [Pipeline](/help/pipeline): the board, stages, filters and the closed lists.
@@ -19,6 +19,8 @@ page for the screen you are on; `hermitcrm help <topic>` prints the same text.
 - [Contacts](/help/contacts): the table, the contact page, roles, message drafts.
 - [Interactions](/help/interactions): logging email, LinkedIn, call, WhatsApp and meeting touches; outcomes; To file.
 - [Messages](/help/messages): every sent message with its outcome.
+- [Playbook](/help/playbook): what you sell and to whom (`MESSAGING.md`), for the drafts and the outreach bot.
+- [Outreach bot](/help/outreach): a batch of researched, checked first messages for you to review, send and log (`hermitcrm outreach`).
 - [Reports](/help/reports): activity, funnel, outcomes, messages, sources, hygiene.
 - [Settings](/help/settings): you, BCC capture, calendar, backup, enrichment, outcomes, schedule, phone and MCP access, support, about.
 - [Import](/help/import): bulk import from CSV, TSV, .xlsx or a pasted table.
@@ -32,5 +34,6 @@ page for the screen you are on; `hermitcrm help <topic>` prints the same text.
 - [AI agents](/help/ai-agents): how an AI session should read and write the folder, and the MCP server (`hermitcrm mcp`) that lets a client with no shell do it.
 - [Feedback](/help/feedback): tell whoever gave you Hermit CRM what worked and what did not.
 - [Disclaimer](/help/disclaimer): no warranty, your backups, your integrations, and what the name is not licensed for.
+- [Changelog](/help/changelog): what changed in each version, and how to upgrade.
 
 Related: [Settings](/help/settings), [CLI](/help/cli), [AI agents](/help/ai-agents)

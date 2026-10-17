@@ -1,0 +1,36 @@
+# Who owns what. GitHub asks these people to review every pull request that
+# touches the matching files. The last matching line wins, so the fallback
+# comes first and the sensitive paths follow.
+
+# Fallback: everything
+*                         @Gijs-Bos
+
+# Install files and instructions that users' AI agents follow
+/INSTALL.md               @Gijs-Bos
+/README.md                @Gijs-Bos
+**/install*               @Gijs-Bos
+**/setup*                 @Gijs-Bos
+/src/hermitcrm/setup.py   @Gijs-Bos
+
+# Files that tell AI agents what to do
+/CLAUDE.md                @Gijs-Bos
+/AGENTS.md                @Gijs-Bos
+/.claude/                 @Gijs-Bos
+**/*prompt*               @Gijs-Bos
+
+# Dependencies and lockfiles
+/pyproject.toml           @Gijs-Bos
+/uv.lock                  @Gijs-Bos
+**/requirements*.txt      @Gijs-Bos
+
+# Build, release and deploy
+/scripts/                 @Gijs-Bos
+/website/Dockerfile       @Gijs-Bos
+/website/fly.toml         @Gijs-Bos
+/website/nginx.conf       @Gijs-Bos
+/website/build.py         @Gijs-Bos
+/.gitattributes           @Gijs-Bos
+*.sh                      @Gijs-Bos
+
+# GitHub automation, including this file
+/.github/                 @Gijs-Bos

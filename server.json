@@ -1,0 +1,37 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Hermit-CRM/hermit-crm",
+  "title": "Hermit CRM",
+  "description": "A local CRM as Markdown files in git: read and update pipeline, contacts and interactions.",
+  "websiteUrl": "https://hermitcrm.io",
+  "repository": {
+    "url": "https://github.com/Hermit-CRM/hermit-crm",
+    "source": "github"
+  },
+  "version": "0.8.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "hermitcrm",
+      "version": "0.8.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "HERMITCRM_DATA",
+          "description": "Path to your Hermit CRM data folder (made with `hermitcrm init`).",
+          "isRequired": true,
+          "format": "filepath"
+        }
+      ]
+    }
+  ]
+}
