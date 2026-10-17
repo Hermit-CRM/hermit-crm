@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% import "outreach_macros.html" as o with context %}
+{% block title %}Outreach{% endblock %}
+{% block content %}
+<h1>Outreach</h1>
+<p class="lead small">The outreach bot drafts; you review, edit and mark each one ready. It never sends and never logs: you send it yourself and log it as usual (by hand, BCC or the extension). <a href="/help/outreach">How it works</a></p>
+{% if gate %}<div class="warning-box">{{ gate }}</div>{% endif %}
+{% if ai_problem %}<p class="warning-box small">No AI to draft with: {{ ai_problem }}. Replies to interest still work: they come from the wording template.</p>{% endif %}
+
+<form class="record-form outreach-bar" method="post" action="/outreach/preview">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="form-grid">
+    <label class="span-6">Filter (the Companies page's; separate conditions with ;)
+      <input name="where" value="{{ values.where }}" placeholder="stage=prospect; country=DE,NL; contact.title=CEO"></label>
+    <label class="span-3">Draft type
+      <select name="kind">{% for k in kinds %}<option value="{{ k }}"{% if k == values.kind %} selected{% endif %}>{{ kind_labels[k] }}{% if k not in ('first-touch', 'reply-to-interest') %} (later version){% endif %}</option>{% endfor %}</select></label>
+    <label class="span-3">Channel (required)
+      <select name="channel" required><option value="">choose</option>{% for ch in channels %}<option value="{{ ch }}"{% if ch == values.channel %} selected{% endif %}>{{ 'LinkedIn' if ch == 'linkedin' else 'Email' }}</option>{% endfor %}</select></label>
+    <label class="span-3">Research
+      <select name="research">{% for lv in levels %}<option value="{{ lv }}"{% if lv == values.research %} selected{% endif %}{% if lv not in built_levels %} disabled{% endif %}>{{ lv }}{% if lv not in built_levels %} (later version){% endif %}</option>{% endfor %}</select></label>
+    <label class="span-3">Batch size<input type="number" min="1" name="limit" value="{{ values.limit }}"></label>
+    <label class="span-3">Approach
+      <select name="approach"><option value="">the best fit per company</option>{% for a in approaches %}<option value="{{ a }}"{% if a == values.approach %} selected{% endif %}>{{ a }}</option>{% endfor %}</select></label>
+    <div class="form-row span-3 oc-bar-actions">
+      <button type="submit" title="Who a batch would go to, and why not the others. No AI, nothing written.">Preview</button>
+      <button type="submit" class="primary" formaction="/outreach/build" title="Research and draft in the background; the cards appear below as they are done">Build queue</button>
+    </div>
+  </div>
+</form>
+{% if build_error %}<p class="errors">{{ build_error }}</p>{% endif %}
+{% if preview %}{{ o.preview(preview) }}{% endif %}
+
+{% if job and (job.running or job.error) %}
+<p id="outreach-job" class="flash small" data-running="{{ 1 if job.running else 0 }}" data-seen="{{ job.ids | join(' ') }}">
+  {% if job.running %}Working: {{ job.label }}, {{ job.done }} of {{ job.total }} done&hellip;
+  {% elif job.error %}Stopped: {{ job.label }}: {{ job.error }}
+  {% else %}Done: {{ job.label }}.{% endif %}
+</p>
+{% endif %}
+
+<nav class="settings-tabs outreach-tabs" aria-label="Outreach">
+  {% for key, label in tabs %}<a href="/outreach?tab={{ key }}"{% if key == tab %} aria-current="page"{% endif %}>{{ label }} ({{ counts[key] }})</a>{% endfor %}
+</nav>
+
+{% if tab == 'replies' %}
+<section id="replies">
+  {% if interested_missing %}
+  <div class="warning-box">
+    Your outcomes ({{ outcomes | join(', ') }}) have no <strong>interested</strong>. With it, a reply you log with that outcome shows up here without asking an AI, and confirming a reply below sets it for you.
+    <form method="post" action="/outreach/outcomes/interested" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">Add &ldquo;interested&rdquo; to my outcomes</button>
+    </form>
+  </div>
+  {% endif %}
+  <div class="oc-replies-head">
+    <h2>Replies waiting for an answer ({{ replies | length }})</h2>
+    <form method="post" action="/outreach/replies/check" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="ai-action"{% if ai_problem %} disabled title="{{ ai_problem }}"{% endif %}>Check replies</button>
+    </form>
+    <span class="small">The AI reads each reply not checked yet, once, and says whether it shows interest; you confirm. A reply logged as <em>interested</em> needs no AI.</span>
+  </div>
+  {% set shown = replies if show_no else replies | rejectattr('status', 'equalto', 'no') | list %}
+  {% if shown %}
+  <div class="table-scroll"><table class="oc-replies">
+    <tr><th>Who</th><th>Their reply</th><th>Interest</th><th>Answer</th></tr>
+    {% for r in shown %}
+    <tr id="reply-{{ r.key | replace('/', '-') }}">
+      <td><a href="/companies/{{ r.company.slug }}/contacts/{{ r.contact.slug }}">{{ r.contact.name }}</a><br><span class="small">{{ r.company.name }} &middot; {{ r.interaction.channel }} &middot; {{ fmt_date(r.interaction.date) }}</span></td>
+      <td class="message"><details><summary>{{ (r.interaction.subject or r.interaction.body or '(no text)') | truncate(80) }}</summary><pre>{{ r.interaction.body }}</pre></details></td>
+      <td>
+        {% if r.status == 'interested' %}<strong>Interest</strong> <span class="small">({{ 'logged as interested' if r.interaction.outcome == 'interested' else 'you confirmed' }})</span>
+        {% elif r.status == 'confirm' %}The AI says interest{% if r.why %}: <span class="small">{{ r.why }}</span>{% endif %}
+        {% elif r.status == 'no' %}Not interest{% if r.why %}: <span class="small">{{ r.why }}</span>{% endif %}
+        {% else %}<span class="small">not checked</span>{% endif %}
+        {% if r.status != 'interested' %}
+        <form method="post" action="/outreach/replies/confirm" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="key" value="{{ r.key }}">
+          <button type="submit" name="answer" value="yes">{{ 'Yes, interest' if r.status == 'confirm' else 'It is interest' }}</button>
+          {% if r.status in ('confirm', 'unchecked') %}<button type="submit" name="answer" value="no">Not interest</button>{% endif %}
+        </form>
+        {% endif %}
+      </td>
+      <td>
+        {% if r.status == 'interested' %}
+        <form method="post" action="/outreach/replies/draft" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="key" value="{{ r.key }}">
+          <select name="channel" aria-label="Channel">{% for ch in channels %}<option value="{{ ch }}"{% if ch == r.interaction.channel %} selected{% endif %}>{{ 'LinkedIn' if ch == 'linkedin' else 'Email' }}</option>{% endfor %}</select>
+          <button type="submit" class="primary">Draft a reply</button>
+        </form>
+        {% else %}<span class="small">confirm interest first</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}<p class="empty-state">No reply waits for an answer.</p>{% endif %}
+  {% if hidden_no and not show_no %}<p class="small">{{ hidden_no }} more {{ 'reply is' if hidden_no == 1 else 'replies are' }} not interest. <a href="/outreach?tab=replies&amp;all=1">Show {{ 'it' if hidden_no == 1 else 'them' }}</a></p>{% endif %}
+  <h2>Drafts</h2>
+</section>
+{% endif %}
+
+{% if tab == 'followups' %}
+<section id="followups">
+  <p class="empty-state">The bot drafts follow-ups in a later version. Until then, these people got a message from you and nothing came back: write to them yourself.</p>
+  {% if waiting %}<ul class="small">{% for r in waiting %}<li><a href="/companies/{{ r.company.slug }}/contacts/{{ r.contact.slug }}">{{ r.who }}</a> ({{ r.name }}): {{ r.summary }}, {{ r.days }} days ago</li>{% endfor %}</ul>{% endif %}
+</section>
+{% endif %}
+
+{% if tab == 'ready' %}<p class="small">Your list for sending by hand: copy the text, open their mail or LinkedIn, send, then log it (or Mark sent).</p>{% endif %}
+
+<div id="cards" data-tab="{{ tab }}">
+  {% for c in cards %}{{ o.card(c) }}
+  {% else %}<p class="empty-state" id="no-cards">{% if tab == 'ready' %}Nothing ready to send.{% elif tab == 'skipped' %}Nothing skipped.{% elif tab == 'replies' %}No reply drafted yet: draft one from a reply above.{% else %}No drafts here. Preview a batch above, then Build queue; or use Research &amp; draft on a contact's page.{% endif %}</p>
+  {% endfor %}
+</div>
+
+{% if sent %}
+<h2>Sent</h2>
+<ul class="small">{% for i in sent %}<li>{{ i.record }} by {{ i.channel }}{% if i.sent %}, {{ fmt_date(i.sent) }}{% endif %}{% if i.sent_with %} (logged){% else %} (marked by hand){% endif %}</li>{% endfor %}</ul>
+{% endif %}
+
+<script>
+(function () {
+  // Copy: the card's subject and message as they are now (edits included).
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-copy]');
+    if (!b) return;
+    var text = b.getAttribute('data-copy-text');
+    if (text === null) {
+      var card = b.closest('.outreach-card');
+      var subject = card.querySelector('[name=subject]');
+      var body = card.querySelector('[name=body]');
+      text = (subject && subject.value ? subject.value + '\n\n' : '') + (body ? body.value : '');
+    }
+    function done(label) {
+      var old = b.textContent; b.textContent = label;
+      setTimeout(function () { b.textContent = old; }, 1800);
+    }
+    function fallback() {  // no clipboard permission: the old way, or select it
+      var box = document.createElement('textarea');
+      box.value = text.trim(); box.setAttribute('readonly', '');
+      box.style.position = 'fixed'; box.style.opacity = '0';
+      document.body.appendChild(box); box.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (err) { ok = false; }
+      box.remove();
+      done(ok ? 'Copied' : 'Copy failed: select the text');
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text.trim()).then(function () { done('Copied'); }, fallback);
+    } else { fallback(); }
+  });
+  // A build in the background: add each card as it is done, without a reload
+  // (a reload would lose what you are typing in another card).
+  var status = document.getElementById('outreach-job');
+  if (!status || status.getAttribute('data-running') !== '1') return;
+  var cards = document.getElementById('cards');
+  var seen = {};
+  document.querySelectorAll('[data-item]').forEach(function (el) { seen[el.getAttribute('data-item')] = 1; });
+  function addCard(id) {
+    seen[id] = 1;
+    fetch('/outreach/card/' + encodeURIComponent(id)).then(function (r) { return r.text(); }).then(function (html) {
+      var box = document.createElement('div'); box.innerHTML = html.trim();
+      var el = box.firstElementChild;
+      if (!el) return;
+      // A card shown halfway (researching, no text box yet) is replaced.
+      var old = document.querySelector('[data-item="' + id + '"]');
+      if (old) { old.replaceWith(el); return; }
+      if (el.getAttribute('data-tab') !== cards.getAttribute('data-tab')) return;
+      var empty = document.getElementById('no-cards'); if (empty) empty.remove();
+      cards.appendChild(el);
+    });
+  }
+  function poll() {
+    fetch('/outreach/job').then(function (r) { return r.json(); }).then(function (job) {
+      (job.ids || []).forEach(function (id) {
+        var old = document.querySelector('[data-item="' + id + '"]');
+        if (!seen[id] || (old && old.classList.contains('state-researching'))) addCard(id);
+      });
+      if (job.running) {
+        status.textContent = 'Working: ' + job.label + ', ' + job.done + ' of ' + job.total + ' done…';
+        setTimeout(poll, 2000);
+      } else {
+        status.textContent = (job.error ? 'Stopped: ' + job.label + ': ' + job.error : 'Done: ' + job.label + '. ');
+        var a = document.createElement('a'); a.href = location.pathname + location.search; a.textContent = 'Refresh the page';
+        status.appendChild(a);
+      }
+    }).catch(function () { setTimeout(poll, 4000); });
+  }
+  setTimeout(poll, 1500);
+})();
+</script>
+{% endblock %}

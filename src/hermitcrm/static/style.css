@@ -919,3 +919,46 @@ button.ai-action:disabled { color: var(--muted); border-color: var(--line); }
 .approach-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .save-bar { position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 12px -12px -10px; padding: 10px 12px; background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -4px 12px rgba(0,0,0,.06); }
 #save-state.dirty { color: var(--danger); font-weight: 600; }
+
+/* Outreach page: the filter bar, the cards, the replies table. */
+form.outreach-bar { max-width: 980px; margin-bottom: 12px; }
+.oc-bar-actions { display: flex; gap: 8px; align-items: end; padding-top: 16px; }
+.outreach-preview { max-width: 980px; }
+.outreach-card { max-width: 980px; padding: 10px 14px; margin-bottom: 12px; }
+.outreach-card.state-ready { border-left: 3px solid var(--accent); }
+.outreach-card.state-skipped { opacity: .8; }
+.oc-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; }
+.oc-who a[target] { font-size: 13px; margin-left: 6px; }
+.oc-meta { text-align: right; }
+.oc-state { font-weight: 600; color: var(--text); }
+.oc-flags { margin: 6px 0; padding-left: 18px; font-size: 12px; color: var(--muted); }
+.oc-findings h4 { margin: 8px 0 4px; font-size: 13px; }
+.oc-findings ol { margin: 0 0 4px; padding-left: 20px; font-size: 13px; }
+.oc-findings li { margin-bottom: 2px; }
+.oc-findings .tag { background: var(--subtle); border-radius: 3px; padding: 0 5px; font-size: 11px; }
+.oc-findings form.inline { display: inline; margin: 0; }
+.conf { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 2px; vertical-align: 1px; background: var(--muted); }
+.conf-high { background: var(--accent); }
+.conf-medium { background: var(--warn); }
+.conf-low { background: var(--line-strong); }
+button.link-button { background: none; border: 0; padding: 0 4px; font-size: 11px; color: var(--muted); }
+button.link-button:hover { color: var(--danger); }
+.oc-add summary, .oc-skip summary { cursor: pointer; font-size: 12px; }
+.oc-proposal { margin: 4px 0; }
+.oc-draft { margin-top: 8px; }
+.oc-draft label { color: var(--muted); }
+.oc-actions, .oc-more { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
+.oc-more form.inline { display: inline-flex; gap: 6px; align-items: center; margin: 0; }
+.oc-more label.inline input { display: inline-block; width: auto; }
+.oc-skip[open] { flex-basis: 100%; }
+.oc-skip summary.button { display: inline-block; border: 1px solid var(--line); border-radius: 3px; padding: 4px 12px; background: var(--subtle); font-size: 14px; }
+.oc-ready pre, .oc-reply pre { white-space: pre-wrap; background: var(--surface-2); padding: 6px 8px; border-radius: 3px; font-size: 13px; }
+.oc-reply summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+.oc-replies-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.oc-replies-head h2 { margin: 8px 0; }
+table.oc-replies form.inline { display: inline-flex; gap: 4px; margin: 2px 0 0; }
+table.oc-replies select { display: inline-block; width: auto; }
+.outreach-box { margin: 6px 0 12px; }
+.outreach-box label.inline { display: inline; margin: 0 0 0 6px; }
+.outreach-box select { display: inline-block; width: auto; }
+.outreach-box p.card { margin: 0; max-width: 760px; }

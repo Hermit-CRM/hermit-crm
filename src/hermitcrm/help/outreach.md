@@ -1,12 +1,71 @@
 # Outreach bot
 
-Picks a batch of contacts, reads what their websites say, drafts a first message per person and checks it; you review, send and log. Nothing is ever sent for you.
+Picks a batch of contacts, reads what their websites say, drafts a first message per person and checks it; drafts replies to people who answered with interest; you review, send and log. Nothing is ever sent for you.
 
 The outreach bot works from your [playbook](/help/playbook) (`MESSAGING.md`):
 what you sell, to whom, and how you write. It will not build anything until at
 least one approach in it is filled in (`hermitcrm playbook` says what is
-missing). In this version it runs from the command line; a page for it comes
-later.
+missing). Work with it on the **Outreach** page (in the menu, next to
+Messages), on a contact's page (**Research & draft**), or from the command line.
+
+## The Outreach page
+
+- **The bar at the top**: a filter (the Companies page's, conditions separated
+  by `;`), the draft type, the channel (required), the research level, the
+  batch size and the approach. **Preview** shows who a batch would go to and
+  why not the others; nothing is written. **Build queue** researches and
+  drafts in the background; the cards appear as they are done.
+- **Tabs**: Replies to interest (first: that is where deals are lost), Follow-ups,
+  First touches, Ready, Skipped.
+- **A card**: the contact (LinkedIn, email), the company (stage, fit,
+  website), the flags, the findings with their sources and a confidence dot
+  (remove one, or add what you know), the draft (edit it in place), the checks.
+  **Check again** saves your edits and runs the checks on them; **Mark ready**
+  saves them and approves the draft, also with a failing check (you see a
+  warning); **Regenerate** writes a new draft on the same findings (tick
+  "stronger model" for the strong one); **Skip** asks why; **Copy** copies the
+  subject and the text. A website, LinkedIn URL or country research found for
+  an empty field has a **Save to the record** button; nothing is written
+  without it.
+- **Mark ready** adds the findings the draft used to the contact's notes, under
+  a heading such as `### Research 2026-10-16 (scrape)`, one line per finding
+  with its source, in the same commit. It logs nothing: you send the message
+  yourself and log it as usual.
+- **Ready** is your list for sending by hand: Copy, open their mail or
+  LinkedIn, send, then log it (that marks the item sent) or press **Mark
+  sent** (the state only, nothing logged).
+
+## Replies to interest
+
+When someone answers and wants to know more, the reply should say what you
+offer before anything else: people went quiet after getting a booking link
+before hearing the offer. The Replies to interest tab lists everyone who
+wrote last and has no answer yet.
+
+- A reply logged with the outcome **interested** counts as interest, no AI
+  needed. New data folders have that outcome; an older folder gets an **Add
+  "interested" to my outcomes** button there (never added without asking).
+- **Check replies** asks the AI (no tools) about each reply not checked yet,
+  once per reply; the answer is kept in `outreach/replies.yaml`. You confirm
+  (**Yes, interest** also sets the reply's outcome to interested) or say **Not
+  interest**. **It is interest** works without any AI.
+- **Draft a reply**: the approach's offer line, one of its proof lines, its
+  first step offer if the playbook has one (`first_step`, for example "The
+  first call is free"; left out when empty), and exactly one question. No
+  time slot, booking link, price or days per week: you propose a meeting only
+  after they answer. It needs no web research; the email subject is "Re:" and
+  theirs. Without an AI CLI the reply is the wording template itself.
+- The wording per language is `[outreach.reply.<lang>]` in `messages.toml`
+  (English, German, Dutch and French ship; slots `{greeting}` `{offer_line}`
+  `{proof}` `{first_step}` `{question}` `{signoff}` `{name}`).
+
+## On a contact's page
+
+**Research & draft**, with a channel, drafts one message for that person in the
+background. The type is picked from the history (no message yet: a first
+touch; they wrote last: a reply to interest; you wrote and nothing came back:
+a follow-up, which comes in a later version); change it if it is wrong. While
+an item is open for the person, the page links to its card instead.
 
 ## The steps
 

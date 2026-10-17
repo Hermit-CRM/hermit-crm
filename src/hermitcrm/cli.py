@@ -1514,7 +1514,8 @@ def _build_parser() -> argparse.ArgumentParser:
         o.add_argument("--contact", action="append", default=[],
                        help="company/contact instead of a filter (repeatable)")
         o.add_argument("--channel", choices=["email", "linkedin"], default="email")
-        o.add_argument("--kind", default="first-touch", help="draft type (first-touch)")
+        o.add_argument("--kind", default="first-touch",
+                       help="draft type: first-touch or reply-to-interest")
         o.add_argument("--limit", type=int, default=None, help="batch size (default 10)")
         o.add_argument("--approach", default="", help="the playbook approach to use")
         if verb == "build":
