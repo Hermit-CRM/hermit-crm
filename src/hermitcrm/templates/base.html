@@ -45,6 +45,9 @@
     {% if update_notice and update_notice.available %}<p class="update-notice" title="A newer Hermit CRM has been published">v{{ update_notice.available }} available: <code>{{ update_notice.hint }}</code> <a href="/help/changelog">What's new</a></p>{% endif %}
   </div>
 </nav>
+<script>/* phone: the nav is one scrolling row; bring the current page's link into view */
+(function () { var a = document.querySelector('nav.sidebar a.active');
+  if (a && a.scrollIntoView && matchMedia('(max-width: 760px)').matches) a.scrollIntoView({ inline: 'center', block: 'nearest' }); })();</script>
 <header class="topbar">
   <form class="search" action="/companies" role="search" data-tour="search">
     {{ icon('search') }}<input name="q" value="{{ q }}" placeholder="Search companies, tags, contacts" aria-label="Search">
