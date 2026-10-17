@@ -6,6 +6,20 @@ To upgrade, run the command the update notice names (usually `uv tool install he
 
 Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups and undo](/help/backups)
 
+## Unreleased
+
+- **Trends on dashboards.** A new `trend` widget counts the rows of a list
+  page per week or month of one date column (messages sent, last touches,
+  tasks done) over a report period, and draws one bar per week or month,
+  empty ones as zero. Every number links to its rows. `hermitcrm help
+  adjust-dashboards` has the keys and an example.
+- **Adjust on a dashboard.** The Ask · Adjust button on `/d/<name>` now
+  offers changes to that dashboard (add a widget, change what it shows, pin
+  or rename it, make a copy), naming its file for your agent.
+- **Where a dashboard came from.** A dashboard page says when its file last
+  changed and in which commit, with Undo (back on the same page afterwards)
+  and a link to all changes. Nothing shows for a file that is not committed.
+
 ## 0.8.0 (2026-10-16)
 
 **A playbook for your outreach.** Settings > Playbook writes down what you
