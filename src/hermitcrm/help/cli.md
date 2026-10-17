@@ -98,6 +98,8 @@ hermitcrm stages [rename OLD NEW | add NAME | move NAME | set NAME | remove NAME
                                         companies, one `ai: adjust:` commit per step). See Make it yours: deal stages
 hermitcrm rebuild                          rebuild the index and PIPELINE.md, commit "pipeline: rebuild"
 hermitcrm import FILE [--mode companies|contacts] [--map HEADER=FIELD ...] [--apply]
+hermitcrm export [--format csv|json] [--profile generic|hubspot|pipedrive] [--excel] [-o PATH]
+                                        everything as a zip of CSVs (or one JSON file); reads only. See Import and export
 hermitcrm fetch SLUG [--url URL] [--apply] fields from the website or LinkedIn page (no AI)
 hermitcrm enrich SLUG [--contact CSLUG] [--apply]
                                         fields from an AI CLI

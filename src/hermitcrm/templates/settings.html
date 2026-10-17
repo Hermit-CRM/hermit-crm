@@ -12,7 +12,7 @@
   ('general', 'General', ['make-it-yours', 'you', 'enrichment', 'appearance', 'support', 'about']),
   ('mail', 'Email & calendar', ['bcc', 'calendar']),
   ('crm', 'Your CRM', ['playbook', 'fields', 'messaging', 'task-types', 'stages', 'outcomes']),
-  ('backup', 'Backup', ['backup']),
+  ('backup', 'Data', ['backup', 'export']),
   ('advanced', 'Advanced', ['schedule', 'access', 'mcp', 'doctor']),
 ] %}
 {% set lb = local_backup %}
@@ -446,7 +446,7 @@
 </section>
 </div>
 
-{# ================================================================== Backup #}
+{# ==================================================== Data (backup, export) #}
 {{ group_start('backup') }}
 <section class="setup-step" id="backup">
   <div class="setting-head"><h2>Backup</h2>{{ status(state.backup) }}<a class="how" href="/help/backups">How to roll back</a></div>
@@ -494,6 +494,25 @@
       <button type="submit">Save and test push</button>
     </form>
   </details>
+</section>
+
+<section class="setup-step" id="export">
+  <div class="setting-head"><h2>Export everything</h2>{{ how('/help/import#export') }}</div>
+  <p class="summary">Your companies, contacts, interactions, tasks and stage history as a zip of CSV files, to open in a spreadsheet or import into another CRM. Exporting changes nothing here.</p>
+  <form method="get" action="/export.zip" class="record-form">
+    <div class="row">
+      <label>Column names
+        <select name="profile">
+          <option value="generic">Hermit CRM</option>
+          <option value="hubspot">HubSpot</option>
+          <option value="pipedrive">Pipedrive</option>
+        </select>
+      </label>
+      <label><input type="checkbox" name="excel" value="true"> For Excel</label>
+    </div>
+    <button type="submit">Export everything</button>
+  </form>
+  <p class="meta">Also from a terminal: <code>hermitcrm --data {{ about.data_dir }} export</code> (add <code>--format json</code> for one JSON file).</p>
 </section>
 </div>
 
