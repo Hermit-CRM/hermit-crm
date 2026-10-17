@@ -21,6 +21,8 @@ for a person or for their AI agent:
             with that page's filters, columns and sort, and a limit
     count   how many rows that page has for those filters
     group   the rows counted per value of one column, drawn as bars
+    trend   the rows counted per week or month of one date column, over a
+            report period, drawn as bars oldest first
     report  one section of the Reports page for a period
 
 A widget is a saved query of a list page, so it is evaluated by the page's
@@ -41,7 +43,7 @@ import logging
 import re
 import tomllib
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -54,7 +56,7 @@ from .store import DEFAULT_CONFIG, load_config
 logger = logging.getLogger("crm.dashboards")
 
 DIR = "dashboards"
-TYPES = ("list", "count", "group", "report")
+TYPES = ("list", "count", "group", "trend", "report")
 SCOPES = ("companies", "contacts", "messages", "tasks")
 # The sections reports.build() produces, in the Reports page's order.
 SECTIONS = ("activity", "funnel", "outcomes", "messages", "sources", "hygiene")
@@ -62,12 +64,17 @@ SECTIONS = ("activity", "funnel", "outcomes", "messages", "sources", "hygiene")
 PERIODS = ("7d", "30d", "90d", "quarter", "ytd", "all")
 DEFAULT_PERIOD = "30d"
 DEFAULT_LIMIT = 20
-MAX_LIMIT = 50   # rows of a list, bars of a group: more is a page of its own
+MAX_LIMIT = 50   # rows of a list, bars of a group or trend: more is a page of its own
+# How a trend buckets its dates; a week starts on Monday.
+EVERY = ("week", "month")
+DEFAULT_EVERY = "week"
+DEFAULT_TREND_PERIOD = "90d"
 TOP_KEYS = ("title", "pin", "description", "widget")
 WIDGET_KEYS = {
     "list": ("type", "title", "scope", "filters", "columns", "sort", "limit", "when"),
     "count": ("type", "title", "scope", "filters", "when"),
     "group": ("type", "title", "scope", "filters", "by", "limit", "when"),
+    "trend": ("type", "title", "scope", "filters", "by", "every", "period", "when"),
     "report": ("type", "title", "section", "period"),
 }
 ALL_WIDGET_KEYS = sorted({k for keys in WIDGET_KEYS.values() for k in keys})
@@ -463,6 +470,25 @@ def widget_problems(w, columns: dict, defs: list = ()) -> list[str]:
             out.append("by is missing (the column to count per value)")
         elif not isinstance(by, str) or by not in cols:
             out.append(_unknown_key(by, scope, keys, defs, "by column"))
+
+    if kind == "trend":
+        dates = [k for k, c in cols.items() if c.kind == "date"]
+        listed = f"the {scope} list's date columns are: {', '.join(dates)}"
+        by = w.get("by")
+        if by is None:
+            out.append(f"by is missing (the date column to count per {w.get('every', 'week')}; "
+                       f"{listed})")
+        elif not isinstance(by, str) or by not in cols:
+            out.append(f"unknown by column {by}{_hint(by, dates)}; {listed}")
+        elif by not in dates:
+            out.append(f"by column {by} is not a date, so a trend cannot count it per week; "
+                       f"{listed}")
+        every = w.get("every", DEFAULT_EVERY)
+        if every not in EVERY:
+            out.append(f"unknown every {every}{_hint(every, EVERY)}; use {_one_of(EVERY)}")
+        period = w.get("period", DEFAULT_TREND_PERIOD)
+        if period not in PERIODS:
+            out.append(f"unknown period {period}{_hint(period, PERIODS)}; use {_one_of(PERIODS)}")
     return out
 
 
@@ -673,6 +699,77 @@ def _group_view(w, scope, columns, listing) -> dict:
             "more": max(0, len(values) - limit), "label": col.label}
 
 
+def _day(value) -> date | None:
+    """A date column's value as a day; None when it is empty or not a date."""
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str) and value.strip():
+        try:
+            return date.fromisoformat(value.strip()[:10])
+        except ValueError:
+            return None
+    return None
+
+
+def bucket_start(day: date, every: str) -> date:
+    """The Monday of the day's week, or the first of its month."""
+    if every == "month":
+        return day.replace(day=1)
+    return day - timedelta(days=day.weekday())
+
+
+def _next_bucket(start: date, every: str) -> date:
+    if every == "month":
+        return date(start.year + start.month // 12, start.month % 12 + 1, 1)
+    return start + timedelta(days=7)
+
+
+def _trend_view(w, scope, columns, listing, span) -> dict:
+    """One bar per week or month from the bucket holding the period's first
+    day to the one holding its last, oldest first; empty buckets are zero.
+
+    Only the newest MAX_LIMIT buckets are drawn (`all` by week can be more);
+    `clamped` says how many were left out. A list page takes one filter per
+    column and has no closed range, so a bar links to the rows of the
+    widget from its bucket's first day on, not to that bucket alone.
+    TODO: link to the bucket only, once the filter syntax has a date range.
+    """
+    col = next(c for c in columns if c.key == w["by"])
+    every = w.get("every", DEFAULT_EVERY)
+    base_pairs = filter_pairs(w)
+    rows = listing(scope, _params(base_pairs)).rows
+    first = bucket_start(span.start, every)
+    starts = []
+    day = first
+    while day <= span.end:
+        starts.append(day)
+        day = _next_bucket(day, every)
+    clamped = max(0, len(starts) - MAX_LIMIT)
+    starts = starts[clamped:]
+    counts = dict.fromkeys(starts, 0)
+    for r in rows:
+        day = _day(col.value(r))
+        if day is None or day > span.end or day < starts[0]:
+            continue
+        counts[bucket_start(day, every)] += 1
+    # The bar's link: the widget's filters, with the bucket as a lower bound
+    # on `by` unless the widget filters `by` itself (one filter per column).
+    own = any(k == f"f_{col.key}" for k, _ in base_pairs)
+    bars = []
+    for start in starts:
+        pairs = base_pairs if own else \
+            base_pairs + [(f"f_{col.key}", f">{start - timedelta(days=1)}")]
+        bars.append({"start": start, "count": counts[start],
+                     "label": f"{start:%B %Y}" if every == "month" else "",
+                     "url": page_url(scope, pairs)})
+    return {"bars": bars, "max": max((b["count"] for b in bars), default=0),
+            "total": sum(counts.values()), "url": page_url(scope, base_pairs),
+            "every": every, "clamped": clamped, "label": col.label,
+            "start": starts[0], "end": span.end}
+
+
 def first_day(store) -> date | None:
     """The earliest day in the data: a company created or an interaction."""
     days = []
@@ -685,9 +782,12 @@ def first_day(store) -> date | None:
     return min(days) if days else None
 
 
-def view(dash: Dashboard, columns: dict, defs: list, listing, report_for) -> dict:
+def view(dash: Dashboard, columns: dict, defs: list, listing, report_for,
+         span_for=None) -> dict:
     """Everything /d/<slug> shows. `listing(scope, params)` is the list pages'
-    own evaluation; `report_for(period)` returns (report, rows query).
+    own evaluation; `report_for(period)` returns (report, rows query) and
+    `span_for(period)` the days a period covers (a reports.Period), as the
+    report widgets count them; a trend widget needs it.
     Widgets with a problem are left out and their problems listed; a widget
     that fails while drawing joins them instead of breaking the page."""
     found = check(dash, columns, defs)
@@ -713,11 +813,17 @@ def view(dash: Dashboard, columns: dict, defs: list, listing, report_for) -> dic
                     item = _list_view(w, scope, cols, listing)
                 elif kind == "count":
                     item = _count_view(w, scope, listing)
+                elif kind == "trend":
+                    period = w.get("period", DEFAULT_TREND_PERIOD)
+                    item = _trend_view(w, scope, cols, listing, span_for(period))
+                    item["default_title"] = (f"{scope.capitalize()} per {item['every']} "
+                                             f"({period})")
                 else:
                     item = _group_view(w, scope, cols, listing)
                 item["scope"] = scope
-                item["default_title"] = (describe(w, cols) if kind != "group" else
-                                         f"{scope.capitalize()} by {item['label']}")
+                item.setdefault("default_title",
+                                describe(w, cols) if kind != "group" else
+                                f"{scope.capitalize()} by {item['label']}")
         except Exception as exc:  # a page with one broken widget still shows the rest
             logger.exception("dashboard %s widget %d failed", dash.slug, n)
             problems.append(f"{dash.file}: widget {n}: could not be drawn ({exc})")

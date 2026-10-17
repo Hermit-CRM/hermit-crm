@@ -288,6 +288,110 @@ def test_limit_is_at_most_50_in_the_check_and_in_the_drawing(folder):
     assert len(bars["bars"]) == 50 and bars["more"] == 30 and len(seen) == 1
 
 
+def _trend(dates, every, start, end, w=None):
+    from types import SimpleNamespace
+    from hermitcrm.filters import Column
+    from hermitcrm.reports import Period
+
+    column = Column("d", "d", "date", getter=lambda r: r)
+    found = SimpleNamespace(rows=dates)
+    return dashboards._trend_view({"by": "d", "every": every, **(w or {})}, "tasks", [column],
+                                  lambda scope, params: found, Period(start, end))
+
+
+def test_trend_counts_per_week_and_month_with_empty_buckets():
+    from datetime import date, datetime
+
+    rows = [date(2026, 9, 15),          # the first week, before the period starts
+            date(2026, 9, 30), datetime(2026, 10, 1, 9, 30),  # one week over two months
+            "2026-10-14", date(2026, 10, 17),   # the future is not in the period
+            None, "", date(2026, 9, 1)]          # no date; before the first week
+    weekly = _trend(rows, "week", date(2026, 9, 20), date(2026, 10, 16))
+    assert [b["start"] for b in weekly["bars"]] == [date(2026, 9, 14), date(2026, 9, 21),
+                                                    date(2026, 9, 28), date(2026, 10, 5),
+                                                    date(2026, 10, 12)]
+    assert [b["count"] for b in weekly["bars"]] == [1, 0, 2, 0, 1]
+    assert weekly["total"] == 4 and weekly["max"] == 2 and weekly["clamped"] == 0
+    monthly = _trend(rows, "month", date(2026, 7, 15), date(2026, 10, 16))
+    assert [(b["label"], b["count"]) for b in monthly["bars"]] == [
+        ("July 2026", 0), ("August 2026", 0), ("September 2026", 3), ("October 2026", 2)]
+    # December rolls over into January
+    winter = _trend([date(2027, 1, 3)], "month", date(2026, 12, 5), date(2027, 1, 10))
+    assert [(b["start"], b["count"]) for b in winter["bars"]] == [(date(2026, 12, 1), 0),
+                                                                  (date(2027, 1, 1), 1)]
+
+
+def test_trend_draws_the_newest_50_buckets_and_links_each_bar_from_its_start():
+    from datetime import date
+
+    wide = _trend([date(2026, 10, 16), date(2020, 1, 1)], "week", date(2024, 1, 1),
+                  date(2026, 10, 16), {"filters": {"channel": "linkedin"}})
+    assert len(wide["bars"]) == 50 and wide["clamped"] > 0
+    assert wide["total"] == 1 and wide["bars"][-1]["count"] == 1
+    last = wide["bars"][-1]
+    assert query(last["url"]) == [("f_channel", "linkedin"), ("f_d", ">2026-10-11")]
+    # a widget that filters `by` itself keeps its own filter (one per column)
+    own = _trend([], "week", date(2026, 10, 1), date(2026, 10, 16), {"filters": {"d": "*"}})
+    assert all(query(b["url"]) == [("f_d", "*")] for b in own["bars"])
+
+
+TREND = """\
+title = "Outreach"
+[[widget]]
+type = "trend"
+scope = "messages"
+by = "date"
+period = "all"
+filters = { channel = "linkedin" }
+"""
+
+
+def test_trend_widget_on_the_page_counts_what_the_messages_page_lists(client, folder):
+    write(folder, "outreach", TREND)
+    page = client.get("/d/outreach")
+    assert page.status_code == 200
+    (widget,) = widgets_of(page.text)
+    assert "Messages per week (all)" in widget and "week of" in widget
+    counts = [int(n) for n in re.findall(r'<td class="num">(?:<a[^>]*>)?(\d+)', widget)]
+    assert sum(counts) > 0 and 0 in counts            # empty weeks are drawn
+    bar_links = [u for u in links(widget) if "f_date" in u]
+    assert bar_links and all(("f_channel", "linkedin") in query(u) for u in bar_links)
+    # the first bar's link lists every LinkedIn message of the period
+    first = [u for u in bar_links][0]
+    listed = message_keys(client.get(first).text)
+    assert len(listed) == sum(counts)
+
+
+def test_trend_check_problems(folder):
+    def verdict(extra):
+        write(folder, "t", 'title = "T"\n[[widget]]\ntype = "trend"\nscope = "messages"\n'
+                           + extra)
+        return [p.split(": widget 1: ", 1)[1] for p in problems(folder)]
+
+    assert verdict('by = "date"\n') == []
+    assert verdict('by = "dat"\n') == [
+        "unknown by column dat (did you mean date?); the messages list's date columns are: date"]
+    assert verdict('by = "channel"\n') == [
+        "by column channel is not a date, so a trend cannot count it per week; the messages "
+        "list's date columns are: date"]
+    assert verdict("") == ["by is missing (the date column to count per week; the messages "
+                           "list's date columns are: date)"]
+    assert verdict('by = "date"\nevery = "weekly"\n') == [
+        "unknown every weekly (did you mean week?); use week or month"]
+    assert verdict('by = "date"\nperiod = "90"\n') == [
+        "unknown period 90 (did you mean 90d?); use 7d, 30d, 90d, quarter, ytd or all"]
+    assert verdict('by = "date"\nlimit = 5\n') == ["a trend widget takes no limit"]
+    assert verdict('by = "date"\nbuckets = 5\n') == ["unknown key buckets"]
+
+
+def test_a_broken_trend_widget_leaves_the_others_on_the_page(client, folder):
+    write(folder, "monday-review", MONDAY + '\n[[widget]]\ntype = "trend"\nscope = "tasks"\n'
+                                            'by = "text"\n')
+    page = client.get("/d/monday-review")
+    assert page.status_code == 200 and len(widgets_of(page.text)) == 4
+    assert "widget 5: by column text is not a date" in html.unescape(page.text)
+
+
 def test_group_on_a_select_field_shows_empty_values_without_a_link(client, folder):
     (folder / "fields.toml").write_text("""\
 [[field]]
@@ -467,7 +571,7 @@ columns = ["name"]
         "dashboards/monday.toml: widget 1: unknown column myscore (did you mean my_score?)",
         "dashboards/monday.toml: widget 1: unknown sort column my_scor (did you mean my_score?)",
         "dashboards/monday.toml: widget 2: unknown type lst (did you mean list?); "
-        "use list, count, group or report",
+        "use list, count, group, trend or report",
         "dashboards/monday.toml: widget 3: unknown scope company (did you mean companies?); "
         "use companies, contacts, messages or tasks",
         "dashboards/monday.toml: widget 4: unknown by column contry (did you mean country?)",
@@ -566,7 +670,7 @@ scope = "companies"
         "dashboards/values.toml: widget 3: when is for tasks widgets only",
         "dashboards/values.toml: widget 4: unknown when overdu (did you mean overdue?); use "
         "overdue, today, week, later or none",
-        "dashboards/values.toml: widget 5: type is missing (list, count, group or report)",
+        "dashboards/values.toml: widget 5: type is missing (list, count, group, trend or report)",
         "dashboards/values.toml: widget 6: by is missing (the column to count per value)",
     ]
 
@@ -813,7 +917,7 @@ def test_the_recipe_lists_every_scope_column_and_widget_option(folder):
         assert f"`{scope}`" in text
         for key in keys:
             assert f"`{key}`" in text, (scope, key)
-    for word in (*dashboards.TYPES, *dashboards.SECTIONS, *dashboards.PERIODS,
+    for word in (*dashboards.TYPES, *dashboards.SECTIONS, *dashboards.PERIODS, *dashboards.EVERY,
                  *dashboards.WHEN, *dashboards.ALL_WIDGET_KEYS, *dashboards.TOP_KEYS):
         assert f"`{word}`" in text, word
     assert "hermitcrm check" in text and "ai: adjust: dashboard" in text

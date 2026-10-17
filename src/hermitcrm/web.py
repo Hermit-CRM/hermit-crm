@@ -1323,13 +1323,19 @@ def create_app(root: Path, config: dict | None = None,
         """The Adjust tab: who gets the request, the page it is about, and the
         starters that fit the page."""
         kind = adjust.page_kind(request.url.path)
+        if kind == "dashboard" and ctx.get("missing"):
+            kind = "other"   # no such dashboard: nothing on screen to change
         company = ctx.get("company") if kind in ("company", "contact") else None
         on_hub = request.url.path == "/yours"
+        values = starter_values(company)
+        if kind == "dashboard":
+            slug = request.url.path.rstrip("/").rsplit("/", 1)[-1]
+            values = {**values, "dashboard": slug, "dashboard_file": f"dashboards/{slug}.toml"}
         return {
             "handoff": adjust.agent_info(config, root),
             "adjust_path": "" if on_hub else adjust.page_path(request.url.path,
                                                                request.url.query),
-            "page_starters": adjust.starters_for(kind, starter_values(company)),
+            "page_starters": adjust.starters_for(kind, values),
         }
 
     def off_board_stages() -> dict[str, int]:
@@ -2122,14 +2128,20 @@ def create_app(root: Path, config: dict | None = None,
         numbers carry to /reports/rows. `all` is a custom period from the
         first day in the data."""
         today = store.today()
+        span = dashboard_span(period)
         if period == "all":
-            start = min(dashboards.first_day(store) or today, today)
-            span = reports.Period(start, today)
-            query = reports.period_query("custom", fmt_date(start), fmt_date(today))
+            query = reports.period_query("custom", fmt_date(span.start), fmt_date(today))
         else:
-            span = reports.period_for(period, today)
             query = reports.period_query(period)
         return build_report(span, today), query
+
+    def dashboard_span(period: str) -> reports.Period:
+        """The days a dashboard period covers, ending today; `all` runs from
+        the first day in the data."""
+        today = store.today()
+        if period == "all":
+            return reports.Period(min(dashboards.first_day(store) or today, today), today)
+        return reports.period_for(period, today)
 
     @app.get("/d/{slug}", response_class=HTMLResponse)
     def dashboard_page(request: Request, slug: str):
@@ -2148,8 +2160,16 @@ def create_app(root: Path, config: dict | None = None,
                 built[period] = dashboard_report(period)
             return built[period]
 
-        shown = dashboards.view(dash, columns, app.state.custom_fields, listing, report_for)
-        return render(request, "dashboard.html", {**shown, "delta": reports.delta})
+        shown = dashboards.view(dash, columns, app.state.custom_fields, listing, report_for,
+                                dashboard_span)
+        try:   # where it came from; never a reason for the page to fail
+            change = history.last_change(root, dash.file)
+        except Exception:
+            logger.exception("last change of %s", dash.file)
+            change = None
+        return render(request, "dashboard.html", {
+            **shown, "delta": reports.delta, "change": change,
+            "change_when": history.when_text(change.when, store.now()) if change else ""})
 
     @app.post("/companies/{slug}/interactions/{id}/outcome")
     def interaction_outcome(request: Request, slug: str, id: str,
@@ -4100,9 +4120,20 @@ def create_app(root: Path, config: dict | None = None,
     def yours(request: Request):
         return hub_page(request)
 
+    def undo_back(back: str) -> str:
+        """Where an undo from a dashboard page lands: that page while its file
+        is still there (an undone "create" removes it), else "". The answer is
+        looked up among the dashboards on disk, so `back` never builds a path."""
+        slug = back[3:] if back.startswith("/d/") else ""
+        dash = dashboards.get(root, slug) if dashboards.SLUG.fullmatch(slug) else None
+        return dash.url if dash is not None else ""
+
     @app.post("/yours/undo")
-    def yours_undo(request: Request, csrf_token: str = Form(""), sha: str = Form("")):
-        """Undo one change: a new commit that reverses it (hermitcrm undo)."""
+    def yours_undo(request: Request, csrf_token: str = Form(""), sha: str = Form(""),
+                   back: str = Form("")):
+        """Undo one change: a new commit that reverses it (hermitcrm undo).
+        `back` (a dashboard page) is where a successful undo lands instead of
+        the hub, while that page still exists."""
         check_csrf(csrf_token)
         try:
             new, subject = history.undo(store, sha)
@@ -4113,8 +4144,12 @@ def create_app(root: Path, config: dict | None = None,
             return flashed("/yours?undo=1", str(exc), anchor=HUB_CHANGES)
         reload_everything()
         gitops.push_async()
-        return flashed("/yours?undo=1", f"Undone in a new commit {new}: {subject}. Undo that one "
-                       "to bring the change back.", anchor=HUB_CHANGES)
+        message = (f"Undone in a new commit {new}: {subject}. Undo that one to bring the "
+                   "change back.")
+        landing = undo_back(back)
+        if landing:
+            return flashed(landing, message)
+        return flashed("/yours?undo=1", message, anchor=HUB_CHANGES)
 
     # ------------------------------------------------------------------- help
 

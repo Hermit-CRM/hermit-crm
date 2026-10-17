@@ -187,8 +187,6 @@ Built and tested with real Claude Code runs on demo folders; these are left.
 - [ ] A real routine draft from the user's AI CLI (the tests and the QA run
       stub the AI), and the Claude Desktop path over MCP (driven by a script).
 - [ ] "Asked on" says "Hermit CRM" for Home; it should say "Home".
-- [ ] On `/d/<slug>` the Adjust tab offers "make a Monday dashboard" instead of
-      changes to the dashboard you are on.
 - [ ] Recent changes lists `settings: adjust_agent` commits, and Undo would flip
       the agent choice; hide them.
 - [ ] `hermitcrm check` does not flag CSS syntax errors in `theme.css`, only
