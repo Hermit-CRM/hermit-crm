@@ -453,6 +453,55 @@ def test_where_ranges_and_repeated_keys(store):
     assert labels(either) == {"acme", "beta", "gamma"}         # choices are "any of"
 
 
+@pytest.mark.parametrize("typed, fixed", [
+    ("my_score >24", "my_score=>24"),              # the space instead of "="
+    ("my_score> 24", "my_score=>24"),
+    ("my_score<24", "my_score=<24"),
+    ("my_score >= 24", "my_score=>23"),            # there is no >=: whole numbers shift by one
+    ("my_score<=24", "my_score=<25"),
+    ("country : DE", "country=DE"),
+    ("country != DE", "country=!DE"),
+])
+def test_a_near_miss_says_what_to_type(store, typed, fixed):
+    with pytest.raises(BulkError) as exc:
+        run_plan(store, "companies", [typed], add_tags=["x"])
+    msg = str(exc.value)
+    assert "key=value" in msg and f"'{fixed}'" in msg and "unknown filter key" not in msg
+
+
+def test_a_near_miss_with_an_equals_sign_is_caught_too(store):
+    with pytest.raises(BulkError) as exc:               # ">=" has an "=", so it splits wrongly
+        run_plan(store, "companies", ["my_score>=24"], add_tags=["x"])
+    assert "'my_score=>23'" in str(exc.value)
+
+
+def test_a_filter_that_is_nothing_like_key_value_gets_the_examples(store):
+    with pytest.raises(BulkError, match="country=DE"):
+        run_plan(store, "companies", ["just words"], add_tags=["x"])
+
+
+def test_unknown_keys_list_their_types(store):
+    with pytest.raises(BulkError) as exc:
+        run_plan(store, "companies", ["fte_estmate=>24"], add_tags=["x"])
+    msg = str(exc.value)
+    assert "Did you mean fte_estimate?" in msg
+    assert "fte_estimate (text)" in msg and "my_score (number)" in msg
+
+
+def test_the_dry_run_carries_the_text_comparison_note(store):
+    plan = run_plan(store, "companies", ["fte_estimate=>24"], add_tags=["x"])
+    assert "Note: fte_estimate is a text field" in plan.render()
+    assert "Note:" not in run_plan(store, "companies", ["my_score=>24"],
+                                   add_tags=["x"]).render()
+
+
+def test_greater_than_on_a_text_field_is_flagged(store):
+    notes = bulk.filter_notes(store, "companies", ["fte_estimate=>24", "my_score=>24"])
+    assert len(notes) == 1 and "fte_estimate" in notes[0]
+    assert "alphabetical" in notes[0] and "number field" in notes[0]
+    assert bulk.filter_notes(store, "companies", ["country=DE", "name=>m"]) == []   # real text
+
+
 def test_where_is_checked(store):
     with pytest.raises(BulkError) as exc:
         run_plan(store, "companies", ["contry=DE"], add_tags=["x"])

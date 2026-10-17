@@ -524,3 +524,10 @@
   <details class="sent-as-box"><summary class="small">What your agent receives</summary><p class="sent-as" data-sent-as></p></details>
 </div>
 {% endmacro %}
+
+{#- Under a filter problem: opens Ask · Adjust on the Adjust tab with `request`
+    filled in (adjust.js). Hidden until adjust.js has wired it, so it never
+    shows as a button that does nothing. -#}
+{% macro fix_with_ai(request) -%}
+<button type="button" class="fix-with-ai" data-fix="{{ request }}" hidden>Explain and fix with AI</button>
+{%- endmacro %}

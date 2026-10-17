@@ -33,6 +33,11 @@ folder (the one with `config.toml` and `companies/`), and:
 
 If the request is unclear or would change many records, ask before writing.
 
+A request that quotes a filter problem ("Filter … failed: …", from Explain and fix
+with AI): explain in plain words what is wrong, give the corrected filter, and
+change nothing. If the cause is a field type (`>` on a text field), show the
+`fields.toml` change and wait for a yes before making it.
+
 ## Files you may write
 
 Without asking, and only these:
