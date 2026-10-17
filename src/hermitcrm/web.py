@@ -681,24 +681,21 @@ def contact_label(company: Company, slug: str) -> str:
     return contact.name if contact else slug
 
 
-def local_path(path: str) -> str:
-    """`path` when it stays on this site; "/" when it could send the browser away.
+def goto(path: str) -> RedirectResponse:
+    """Redirect to `path` when it stays on this site, to "/" when it could send
+    the browser away.
 
     Every redirect goes through here. Callers build their paths from slugs and
     ids, or take a `back` through safe_back, so this is the check that still
     holds when one of them forgets: a scheme, a host, `//host`, a backslash
     (browsers read it as `/`) or a control character (they drop tabs and
-    newlines, so a tab between two slashes is `//host`) makes it "/".
+    newlines, so a tab between two slashes is `//host`) sends it to "/".
     """
     if (path.startswith("/") and not path.startswith("//") and "\\" not in path
             and not any(ord(ch) < 32 for ch in path)
             and not urlparse(path).netloc and not urlparse(path).scheme):
-        return path
-    return "/"
-
-
-def goto(path: str) -> RedirectResponse:
-    return RedirectResponse(local_path(path), status_code=303)
+        return RedirectResponse(path, status_code=303)
+    return RedirectResponse("/", status_code=303)
 
 
 def flashed(path: str, message: str, anchor: str = "") -> RedirectResponse:
