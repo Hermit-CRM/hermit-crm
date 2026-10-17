@@ -1,6 +1,6 @@
 # Outreach bot
 
-Picks a batch of contacts, reads what their websites say, drafts a first message per person and checks it; you review, send and log. Nothing is ever sent for you.
+Picks a batch of contacts, reads what their websites say, drafts a first message per person and checks it, answers replies that show interest and follows up on messages nobody answered; you review, send and log. Nothing is ever sent for you.
 
 The outreach bot works from your [playbook](/help/playbook) (`MESSAGING.md`):
 what you sell, to whom, and how you write. It will not build anything until at
@@ -10,14 +10,17 @@ and from the command line; both do the same steps and write the same files.
 
 ## On the Outreach page
 
-- **Who**, **Channel**, **Batch size**: the filter (conditions separated by
-  `;`, for example `stage=prospect; country=DE`), email or LinkedIn, how many.
+- **Who**, **Draft type**, **Channel**, **Batch size**, **Approach**: the filter (conditions
+  separated by `;`, for example `stage=prospect; country=DE`), a first touch or a
+  follow-up, email or LinkedIn, how many, and which playbook approach to use. Left on "the best fit per
+  company" it picks one per company, as the command line does without
+  `--approach`.
   **Preview** shows who would get a draft and why not the others; no AI runs
   and nothing is written. **Build queue** researches and drafts them one at a
   time: each card appears when it is done and the page asks for the next one
   by itself. **Stop** ends the batch; what was built stays.
-- **Tabs**: Replies to interest (first: that is where deals leak), Drafts
-  (first touches to review), Ready (to send), Sent, Skipped.
+- **Tabs**: Replies to interest (first: that is where deals leak), Follow-ups,
+  Drafts (first touches to review), Ready (to send), Sent, Skipped.
 - **A card**: the person and company with their links, fit, flags, what
   research found (with source and a confidence dot), the draft and its checks.
   - **Save & check again** saves your edit and runs the checks on it. A check
@@ -28,6 +31,8 @@ and from the command line; both do the same steps and write the same files.
     the stronger model. Remove a finding or **add your own** first to steer it;
     one you add counts as a known fact.
   - **Skip** with a reason; **Copy** copies the message.
+  - **Save to the record** shows when research found a website, LinkedIn URL or
+    country for a field that is empty; it writes that one value and nothing else.
   - On a ready card: **Copy**, open your mail or LinkedIn, **Log it** (logging
     the message marks the item sent), or **Mark sent** without logging.
 - **On a contact's page**: **Research & draft** builds one item for that
@@ -61,6 +66,34 @@ came in) and what is known about it:
 The card shows their reply above the draft; Regenerate, Skip, Mark ready and
 the rest work as on a first touch. Once you send and log your answer, the
 reply leaves the list.
+
+## Follow-ups
+
+A message of yours that nobody answered. It is due on the follow-up radar's
+rule: your latest message to that person has gone `followup_nudge_days` (5,
+Settings) without an answer and nothing is planned for the company. The bot and
+the radar read the same setting, so they never disagree.
+
+- The **Follow-ups** tab lists who is due (oldest first) with **Draft follow-up**;
+  a batch of them builds from the bar (**Draft type**: follow-up) or with
+  `hermitcrm outreach build --kind follow-up`. On a contact's page the button
+  says **Draft a follow-up** when one is due.
+- No research: the thread is the context, and your earlier message goes to the
+  AI as data. The draft is short, has no calendar invite, link, time slot or
+  price, asks one question and gives an easy way out ("a short 'not now' is
+  fine, then I'll close the loop"). The wording template is
+  `[outreach.follow_up.<lang>]` in `messages.toml`; `{offer_line}` is an
+  optional line it leaves out by default.
+- The message's angle is the first message's, not the AI's, so Messages
+  statistics count the follow-up under the angle that opened the thread.
+- **Who is left out**: someone whose unanswered message was on another channel
+  than the batch's (or on a call or in a meeting: write that one yourself);
+  someone you already followed up with once (two messages of yours since they
+  last wrote: close the loop); the usual do-not-contact, closed stage and open
+  item. The 30-day cooldown does not apply to a follow-up: it is due after 5.
+- A cold follow-up email gets the playbook's opt-out line, as a first touch does.
+  A LinkedIn follow-up is a message in the conversation, so it only works if they
+  accepted your connection; the bot cannot know that.
 
 ## The steps
 
@@ -134,7 +167,7 @@ tools lists the facts on them. Every finding has its source; one without is
 dropped. A finding older than about 90 days is marked stale and never opens a
 message. Nothing found: the draft uses the playbook's angles and marks gaps
 `[like this]`. A website, LinkedIn URL or country found for an empty field is
-proposed on the card, never written.
+proposed on the card (a **Save to the record** button), never written without it.
 
 ## The draft and its checks
 
@@ -172,7 +205,8 @@ count towards the 120 words. Without it, nothing is added.
 
 `outreach/<id>.md`, one per item. The front matter holds `state`
 (`researching`, `drafted`, `ready`, `sent`, `skipped`; `logged` is for later), the
-channel, contact, company, the reply it answers (`reply_to`), approach, angle,
+channel, contact, company, the reply it answers (`reply_to`) or the message it
+follows up (`follows`), approach, angle,
 findings, check results, flags,
 timestamps, the AI's original text and how much you changed it. The body is
 the message, byte for byte. `hermitcrm check` reports a file it cannot read.
