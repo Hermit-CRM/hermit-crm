@@ -85,7 +85,13 @@ class TaskStatus(str, Enum):
 # Outcome choices for an interaction when config.toml sets none: the first is
 # what a detected reply counts as, the last what silence past the message
 # window counts as; an empty outcome means "not yet known".
-DEFAULT_OUTCOMES = ("successful", "unsuccessful")
+# `interested` sits between: a reply that shows interest, which the Outreach
+# page's Replies to interest tab finds without asking an AI. First and last
+# keep their meaning (what a reply and what silence count as). A folder that
+# set its own `outcomes` keeps them and is offered `interested` on that tab,
+# never given it silently.
+INTERESTED = "interested"
+DEFAULT_OUTCOMES = ("successful", INTERESTED, "unsuccessful")
 # What message_status reports for callers that pass no outcomes list.
 LEGACY_OUTCOMES = ("success", "unsuccessful")
 

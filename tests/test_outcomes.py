@@ -227,7 +227,7 @@ def test_outcome_propagates_between_messages_page_and_edit_form(client, app, rep
     page = client.get("/messages").text
     assert '<td class="outcome-unknown">unknown</td>' in page
     buttons = re.findall(r'name="outcome" value="([^"]*)"', page)
-    assert buttons == ["successful", "unsuccessful"]  # "Unknown" hidden: it is the current value
+    assert buttons == ["successful", "interested", "unsuccessful"]  # "Unknown" hidden: it is the current value
     r = client.post(f"/companies/acme/interactions/{it.id}/outcome",
                     data={"outcome": "successful"})
     assert r.status_code == 303 and "Message%20marked%20successful" in r.headers["location"]
@@ -237,7 +237,7 @@ def test_outcome_propagates_between_messages_page_and_edit_form(client, app, rep
     assert '<option value="successful" selected>' in edit
     page = client.get("/messages").text
     assert '<td class="outcome-successful">successful</td>' in page
-    assert re.findall(r'name="outcome" value="([^"]*)"', page) == ["unsuccessful", ""]
+    assert re.findall(r'name="outcome" value="([^"]*)"', page) == ["interested", "unsuccessful", ""]
     assert "Messages (1)" in client.get("/messages?f_status=successful").text
 
     # edit form -> file -> Messages page
@@ -249,7 +249,7 @@ def test_outcome_propagates_between_messages_page_and_edit_form(client, app, rep
     page = client.get("/messages").text
     assert '<td class="outcome-unsuccessful">unsuccessful</td>' in page
     assert "1 unsuccessful" in page and "0 successful" in page
-    assert re.findall(r'name="outcome" value="([^"]*)"', page) == ["successful", ""]
+    assert re.findall(r'name="outcome" value="([^"]*)"', page) == ["successful", "interested", ""]
     r = client.post(f"/companies/acme/interactions/{it.id}/outcome", data={"outcome": ""})
     assert "outcome:\n" in path.read_text()
     assert last_commit(repo) == f"interaction: acme {it.id} outcome unknown"
