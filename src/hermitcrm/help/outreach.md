@@ -160,14 +160,31 @@ the radar read the same setting, so they never disagree.
 
 ## Research
 
-`outreach_research = "scrape"` (the only level so far): the company website,
-its LinkedIn page and the person's LinkedIn page are read (LinkedIn usually
-refuses anonymous requests; the card says so), then one small AI call with no
-tools lists the facts on them. Every finding has its source; one without is
-dropped. A finding older than about 90 days is marked stale and never opens a
-message. Nothing found: the draft uses the playbook's angles and marks gaps
-`[like this]`. A website, LinkedIn URL or country found for an empty field is
-proposed on the card (a **Save to the record** button), never written without it.
+Two levels, `outreach_research` in `config.toml` (default `scrape`), or the
+**Research** select on the Outreach page and `--research` on the command line.
+
+**`scrape`** (free): the company website, its LinkedIn page and the person's
+LinkedIn page are read (LinkedIn usually refuses anonymous requests; the card
+says so), then one small AI call with no tools lists the facts on them. Every
+finding has its source; one without is dropped. A finding older than about 90
+days is marked stale and never opens a message. Nothing found: the draft uses
+the playbook's angles and marks gaps `[like this]`. A website, LinkedIn URL or
+country found for an empty field is proposed on the card (a **Save to the
+record** button), never written without it.
+
+**`ai-web`** (AI tokens): the scrape first, then one more AI run that may search
+the web and read pages, for what the company's own pages do not say: recent news,
+a hire, a launch, something the person said. Only Claude Code can be held to
+that (web search and fetch only, no files, no shell, no MCP servers, run in an
+empty temporary folder); with any other AI CLI the level is refused with the
+reason, and you use `scrape`. What the run is told is public only: the company
+name, website, country, LinkedIn pages, the person's name and title, and what the
+scrape found. Never your notes, messages, email addresses or phone numbers, since
+a page written by a stranger could try to make the run repeat what it knows. A
+finding stays only if it names a page the run listed as read, that page is an
+http(s) address, and it can be read again (LinkedIn is taken as listed); the rest
+are dropped, never shown as fact. If the run fails, the scrape findings stand and
+the card says why.
 
 ## The draft and its checks
 
@@ -211,7 +228,7 @@ findings, check results, flags,
 timestamps, the AI's original text and how much you changed it. The body is
 the message, byte for byte. `hermitcrm check` reports a file it cannot read.
 
-Settings in `config.toml`: `outreach_research`, `outreach_cooldown_days`,
+Settings in `config.toml`: `outreach_research` (`scrape` or `ai-web`), `outreach_cooldown_days`,
 `outreach_fit_field`, `outreach_high_fit` (65: the preview counts high-fit
 companies never contacted), `outreach_batch_size` (10), `outreach_angles`.
 Channel rules and culture norms: `[outreach.<channel>]` and `[culture.<lang>]`
