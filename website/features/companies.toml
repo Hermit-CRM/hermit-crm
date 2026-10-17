@@ -1,0 +1,49 @@
+order   = 5
+name    = "Companies"
+nav     = "Companies"
+title   = "Companies: one page and one file per account in Hermit CRM"
+description = "Companies in Hermit CRM: a sortable table of every account, and a page per company with its fields, contacts, tasks, message drafts and a timeline."
+summary = "Sortable tables of companies, and one timeline per company of every email, call and meeting."
+intro = """
+Every company is one folder with one Markdown file. The Companies page lists them all, and each
+company has a page that holds everything you know about the account.
+"""
+docs    = "companies"
+related = ["contacts", "pipeline", "messages"]
+
+[[sections]]
+heading = "The table"
+text = """
+Name, country, stage, source, any field of your own that you asked to show here, tags, last touch, next step and due date, with website and LinkedIn links.
+Every column has a filter and sort arrows, and the search box at the top of every page matches company names, tags, contact names and contact emails.
+Parked companies are hidden until you ask for them.
+"""
+image   = "feature-companies.png"
+alt     = "The Hermit CRM Companies table: seven demo companies with country, stage, source, a score, tags, last touch, next step and due date, with a filter above each column."
+address = "127.0.0.1:8765/companies"
+
+[[sections]]
+heading = "The company page"
+text = """
+Everything about one account on one page: its fields, the next step with a due date, its contacts, its tasks, message drafts
+for each person, a merge box and the timeline of every email, call, LinkedIn message and meeting, newest first.
+A collapsed **Stage history** shows when it moved between stages.
+"""
+image   = "feature-company-page.png"
+alt     = "A company page in Hermit CRM for Northwind Robotics: its one-line description, stage and last touch, the next step with Done and Add to Google Calendar, and the company fields."
+address = "127.0.0.1:8765/companies/northwind-robotics"
+
+[[sections]]
+heading = "Fields of your own"
+text = """
+The fields Hermit ships with are a starting point. A score, a headcount, a renewal date: describe the field and your AI agent adds it to
+the company page and, if you want, to this table. They are plain keys in the file's front matter, so they work in filters, reports and message drafts.
+"""
+
+[[sections]]
+heading = "Four ways in, no way to lose one by accident"
+text = """
+Add a company by hand, import a spreadsheet (CSV, TSV, .xlsx or a pasted table), capture it from any web page with the Extension, or let BCC and calendar capture create
+it when you email or meet someone at a new domain. **Fetch from URL** fills empty fields from the company's own website with no AI, and **Enrich** uses an AI command-line
+tool you already have. Hermit has no delete button for a company: you disqualify it instead, and git keeps its history either way. Two companies that turned out to be one can be merged.
+"""

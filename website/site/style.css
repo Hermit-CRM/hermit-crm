@@ -104,7 +104,7 @@ hr.rule.blank { border-top-color: transparent; }
 /* ── Header ─────────────────────────────────────────────────────── */
 /* flex-wrap: if the links ever do not fit beside the name (wider fonts, zoomed text), they drop to their own row. */
 .site-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px 16px; padding: 28px 0; }
-.brand { display: flex; align-items: center; gap: 12px; color: var(--text); text-decoration: none; }
+.brand { display: flex; align-items: center; gap: 12px; padding: 8px 0; margin: -8px 0; color: var(--text); text-decoration: none; }  /* 44px tap area, same layout */
 .brand:hover { color: var(--text); }
 .brand svg { width: 34px; height: 27px; flex-shrink: 0; }
 .brand span { font-size: 25px; font-weight: 500; letter-spacing: -.01em; white-space: nowrap; }
@@ -162,6 +162,9 @@ h1 { margin: 0; font-size: 72px; font-weight: 400; line-height: 1.05; letter-spa
 .features dl { display: grid; grid-template-columns: 150px minmax(0, 1fr); column-gap: 32px; margin: 0; border-bottom: 1px solid var(--rule); }
 .features dt, .features dd { padding: 18px 0; border-top: 1px solid var(--rule); }
 .features dt { font-weight: 500; font-variant-caps: all-small-caps; letter-spacing: .09em; }
+.features dt a { color: inherit; text-decoration-color: var(--rule); }
+.features dt a:hover { color: var(--green-deep); text-decoration-color: currentColor; }
+.all-features { margin: 20px 0 0; font-size: 17px; }
 .features dd { margin: 0; }
 .principles { margin-top: 72px; display: flex; flex-direction: column; gap: 28px; }
 .principles p { margin: 0; }
@@ -243,6 +246,7 @@ details p { margin: 0 0 24px; }
 .versus td { width: 37%; }
 .overview { table-layout: auto; }
 .overview tbody th, .overview td { width: auto; }
+.overview tbody tr:first-child > * { font-weight: 600; }  /* Hermit CRM's own row */
 
 .points { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 10px; }
 .part .steps { gap: 12px; }
@@ -316,7 +320,7 @@ details p { margin: 0 0 24px; }
 .stats .n { text-align: right; padding-right: 0; font-variant-numeric: tabular-nums; }
 .chart { margin: 0 0 8px; }
 .chart svg { display: block; width: 100%; height: auto; }
-.chart text { fill: var(--muted); font: 22px var(--sans); }
+.chart text { fill: var(--muted); font: 22px var(--serif); }
 .chart .base { stroke: var(--rule); stroke-width: 2; }
 .chart .s1 { fill: var(--green); }
 .chart .s2 { fill: var(--muted); }
@@ -329,6 +333,31 @@ details p { margin: 0 0 24px; }
 @media (max-width: 520px) { .chart text { font-size: 40px; } }
 .stats-how ul { padding-left: 22px; }
 .stats-how li { margin-bottom: 8px; }
+
+/* ── The last screen of the home page ───────────────────────────── */
+.closing { margin-top: 96px; }
+.closing .lead { margin-top: 0; }
+.closing .download { margin-top: 24px; }
+
+/* ── Screenshots open full size ─────────────────────────────────── */
+.zoom { display: block; cursor: zoom-in; }
+
+/* ── Feature pages (/features/) ─────────────────────────────────── */
+.feature > .col > h2 { margin: 0 0 12px; font-size: 28px; font-weight: 500; line-height: 1.25; }
+.feature p { margin: 0 0 16px; }
+.feature .points { margin: 0 0 16px; }
+.shot { margin-top: 28px; }
+.more .label { margin: 32px 0 12px; }
+.pager { display: flex; justify-content: space-between; gap: 16px; margin: 36px 0 20px; padding-top: 20px; border-top: 1px solid var(--rule); }
+.pager a { display: block; padding: 8px 0; font-size: 20px; font-weight: 500; text-decoration: none; }
+.pager small { display: block; font-size: 15px; font-weight: 400; color: var(--muted); }
+.pager .next { margin-left: auto; text-align: right; }
+.tiles { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 44px 32px; }
+.tile { display: block; color: var(--text); text-decoration: none; }
+.tile img { display: block; width: 100%; height: auto; margin-bottom: 14px; border: 1px solid var(--rule); border-radius: 10px; }
+.tile-name { display: block; font-size: 26px; font-weight: 500; line-height: 1.25; color: var(--green-ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.tile:hover .tile-name { color: var(--green-deep); }
+.tile-text { display: block; margin-top: 6px; font-size: 17px; line-height: 1.5; }
 
 /* ── End ────────────────────────────────────────────────────────── */
 .site-footer { margin-top: 120px; padding: 28px 0 64px; border-top: 1px solid var(--rule); font-size: 15px; color: var(--muted); }
@@ -424,6 +453,17 @@ details p { margin: 0 0 24px; }
   .cards h2 { font-size: 22px; }
   .docs-toc ul { columns: 1; }
   .doc h2 { font-size: 26px; }
+  /* Compare and About leave the top bar on a phone: the footer has them. */
+  .site-nav .nav-more { display: none; }
+  /* 44 px tap areas: the footer links, the docs contents and "Back to contents" */
+  .site-footer a, .doc-up a { display: inline-block; padding: 12px 3px; margin: 0 -3px; }
+  .docs-toc li { margin-bottom: 0; }
+  .docs-toc a { display: inline-block; padding: 10px 0; }
+  .feature > .col > h2 { font-size: 24px; }
+  .tiles { grid-template-columns: minmax(0, 1fr); gap: 36px; }
+  .tile-name { font-size: 22px; }
+  .closing { margin-top: 72px; }
+  .pager a { font-size: 18px; }
 }
 /* Phones: tighter header links keep the name and all three links on one line */
 @media (max-width: 439px) {
@@ -440,9 +480,13 @@ details p { margin: 0 0 24px; }
   .brand span { font-size: 18px; }
 }
 
-/* The narrowest phones (320 px) */
-@media (max-width: 339px) {
+/* The narrowest phones (320 px): Features is the longest link, so the name gets smaller as well */
+@media (max-width: 359px) {
   .site-nav a { font-size: 14px; }
+  .site-nav { gap: 8px; }
+  .brand { gap: 6px; }
+  .brand svg { width: 21px; height: 17px; }
+  .brand span { font-size: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }

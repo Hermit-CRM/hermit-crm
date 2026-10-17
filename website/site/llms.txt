@@ -56,10 +56,27 @@ Safe to try. Every change is a git commit you can undo in one click. Routines on
 
 - [Home](https://hermitcrm.io/): what it is, how to install it, questions and answers
 - [Docs](https://hermitcrm.io/docs/): How every part of Hermit CRM works: pipeline, contacts, mail capture, reports, the CLI, the MCP server and how your AI agent can change it.
+- [Features](https://hermitcrm.io/features/): every page of the app, with screenshots
 - [Changelog](https://hermitcrm.io/changelog/): What is new in each Hermit CRM release, newest first, with how to upgrade and whether your data folder is migrated.
 - [Hermit CRM compared](https://hermitcrm.io/compare/): How Hermit CRM, a free local CRM for one person, compares with HubSpot, Attio, Pipedrive, folk, Twenty and Notion on price, data and AI access.
 - [About](https://hermitcrm.io/about/): The short story of why Gijs Bos built Hermit CRM, a free local CRM for one person, and how you can help as a beta tester.
 - [Stats](https://hermitcrm.io/stats/): the site's own numbers, updated daily: visitors, downloads, GitHub stars, AI crawlers; the same as JSON at https://hermitcrm.io/stats/stats.json
+
+## Features
+
+One page for each link in the app's left navigation.
+
+- [Home](https://hermitcrm.io/features/home/): What is due this week, the replies you owe and last month's numbers, on one page.
+- [Pipeline](https://hermitcrm.io/features/pipeline/): A board from prospect to won, plus a follow-up radar for unanswered threads.
+- [Calendar](https://hermitcrm.io/features/calendar/): Overdue and due-today next steps, a month view, and a brief before each meeting.
+- [Tasks](https://hermitcrm.io/features/tasks/): Every task for every company in one list, with date buttons, filters and your own task types.
+- [Companies](https://hermitcrm.io/features/companies/): Sortable tables of companies, and one timeline per company of every email, call and meeting.
+- [Contacts](https://hermitcrm.io/features/contacts/): Every person across your companies, with a page of their own: roles, history, tasks and three message drafts.
+- [Messages](https://hermitcrm.io/features/messages/): Outreach drafts in English, German, Dutch or French, in your wording, and the outcome of every message.
+- [Extension](https://hermitcrm.io/features/extension/): Turn the page you are looking at into a company or a contact, from one bookmark.
+- [Reports](https://hermitcrm.io/features/reports/): Weekly activity, funnel and conversion, time in stage, and which messages get answers.
+- [Make it yours](https://hermitcrm.io/features/make-it-yours/): Pages of your own with lists, counts and bar charts. Describe one in a sentence, your AI builds it, and you pin it to the sidebar.
+- [Settings](https://hermitcrm.io/features/settings/): Your name, mail and calendar capture, backups, fields, deal stages and outcomes, set in the browser.
 
 ## Comparisons
 
