@@ -90,6 +90,105 @@ def test_fetch_rejects_non_web_urls():
         fetch("not a url")
 
 
+# ------------------------------------------------- redirects, no network
+# A site the user typed may redirect anywhere; only a public host is followed.
+
+import email.message
+import io
+import urllib.request
+import urllib.response
+
+from hermitcrm import scrape
+
+FAKE_DNS = {"www.example.com": "93.184.215.14", "example.org": "93.184.215.15",
+            "intranet.example.com": "10.0.0.7", "meta.example.com": "169.254.169.254",
+            "sneaky.example.com": "::ffff:127.0.0.1"}
+
+
+def fake_resolve(host, port):
+    if host not in FAKE_DNS:
+        raise OSError("no such host")
+    return [(None, None, None, "", (FAKE_DNS[host], 0))]
+
+
+class FakeWeb(urllib.request.BaseHandler):
+    """Answers every request from a table; nothing touches a socket."""
+
+    handler_order = 100  # before urllib's own HTTP(S)Handler
+
+    def __init__(self, pages):
+        self.pages = pages  # url -> (status, {header: value}, body)
+        self.asked = []
+
+    def _answer(self, req):
+        self.asked.append(req.full_url)
+        status, headers, body = self.pages[req.full_url]
+        msg = email.message.Message()
+        for key, value in headers.items():
+            msg[key] = value
+        resp = urllib.response.addinfourl(io.BytesIO(body), msg, req.full_url, status)
+        resp.msg = "OK" if status == 200 else "Found"
+        return resp
+
+    http_open = https_open = _answer
+
+
+def use_fake_web(monkeypatch, pages):
+    web = FakeWeb(pages)
+    monkeypatch.setattr(scrape, "_opener", lambda: urllib.request.build_opener(
+        scrape._RedirectGuard(resolve=fake_resolve), web))
+    return web
+
+
+HTML = {"Content-Type": "text/html; charset=utf-8"}
+
+
+@pytest.mark.parametrize("target", [
+    "http://127.0.0.1:8765/settings",
+    "http://169.254.169.254/latest/meta-data/",
+    "http://[::1]/",
+    "http://intranet.example.com/wiki",
+    "http://meta.example.com/",
+    "http://sneaky.example.com/",
+])
+def test_fetch_refuses_a_redirect_to_a_non_public_host(monkeypatch, target):
+    web = use_fake_web(monkeypatch, {
+        "https://www.example.com/": (302, {"Location": target}, b""),
+        target: (200, HTML, b"<title>secret</title>"),
+    })
+    with pytest.raises(ScrapeError, match="only follows a redirect to a public website"):
+        fetch("https://www.example.com/")
+    assert web.asked == ["https://www.example.com/"]
+
+
+def test_fetch_follows_a_redirect_to_a_public_host(monkeypatch):
+    web = use_fake_web(monkeypatch, {
+        "http://www.example.com/": (301, {"Location": "https://example.org/home"}, b""),
+        "https://example.org/home": (200, HTML, b"<title>Acme</title>"),
+    })
+    assert "Acme" in fetch("http://www.example.com/")
+    assert web.asked == ["http://www.example.com/", "https://example.org/home"]
+
+
+def test_fetch_still_reads_an_intranet_address_the_user_typed(monkeypatch):
+    use_fake_web(monkeypatch, {
+        "http://intranet.example.com/": (200, HTML, b"<title>Our wiki</title>"),
+        "http://10.0.0.7/": (200, HTML, b"<title>By number</title>"),
+    })
+    assert "Our wiki" in fetch("http://intranet.example.com/")
+    assert "By number" in fetch("http://10.0.0.7/")
+
+
+def test_a_refused_redirect_reaches_read_website_as_a_plain_error(monkeypatch):
+    from hermitcrm import textsource
+    use_fake_web(monkeypatch, {
+        "https://www.example.com/": (302, {"Location": "http://127.0.0.1:8765/"}, b""),
+    })
+    with pytest.raises(textsource.SourceError) as info:
+        textsource.read_website("https://www.example.com/")
+    assert "public website" in str(info.value)
+
+
 # ------------------------------------------------------ LinkedIn addresses
 # One person, many addresses: the bookmarklet sends whatever the tab shows,
 # and "already in the CRM" only works if all of them come out the same.

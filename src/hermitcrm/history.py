@@ -58,6 +58,7 @@ class Change:
     files: list[str] = field(default_factory=list)
     merge: bool = False
     undone: bool = False
+    first: bool = False   # the folder's first commit, which undo refuses
 
     @property
     def sha7(self) -> str:
@@ -65,7 +66,7 @@ class Change:
 
     @property
     def can_undo(self) -> bool:
-        return not self.merge and not self.undone
+        return not self.merge and not self.undone and not self.first
 
     @property
     def touched(self) -> str:
@@ -125,6 +126,28 @@ def recent_changes(root: Path, limit: int = 20, scan: int = 500) -> list[Change]
     for change in changes:
         change.undone = any(change.sha.startswith(s) for s in undone)
     return changes[:limit]
+
+
+def last_change(root: Path, path: str) -> Change | None:
+    """The newest commit that touched `path` (relative to the folder), or
+    None without git, when git fails or when the file has no commit yet.
+
+    It runs on every dashboard page load, so it asks git for one commit and
+    whether a later one reverts it, never a scan of the history.
+    """
+    root = Path(root)
+    try:
+        proc = _git(root, "log", "-1", "--format=%H%x1f%ct%x1f%P%x1f%s", "--", path)
+        if proc.returncode != 0 or not proc.stdout.strip():
+            return None
+        sha, stamp, parents, subject = proc.stdout.strip().split("\x1f", 3)
+        later = _git(root, "log", "-1", "--format=%H", "--fixed-strings",
+                     f"--grep=This reverts commit {sha}", f"{sha}..HEAD")
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+    return Change(sha=sha, when=datetime.fromtimestamp(int(stamp)), subject=subject,
+                  files=[path], merge=len(parents.split()) > 1, first=not parents.split(),
+                  undone=later.returncode == 0 and bool(later.stdout.strip()))
 
 
 def when_text(when: datetime, now: datetime | None = None) -> str:
