@@ -434,6 +434,26 @@ def m12_send_keys(meta: dict) -> dict:
     return out
 
 
+def m14_agent_send(data_dir: Path, meta_by_path: dict, write: bool) -> list[str]:
+    """Teach the folder's agents that they never schedule or send mail unasked.
+    CLAUDE.md and AGENTS.md get the "Sending mail" rules unless they already
+    mention `hermitcrm help sending`; a folder without them does not get them."""
+    from .datafolder import AGENT_SEND_RULES
+
+    changed = []
+    for name in ("CLAUDE.md", "AGENTS.md"):
+        path = data_dir / name
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "hermitcrm help sending" in text:
+            continue
+        if write:
+            path.write_text(_insert_section(text, AGENT_SEND_RULES), encoding="utf-8")
+        changed.append(name)
+    return changed
+
+
 MIGRATIONS = [
     Migration(1, "rename gijs_score to my_score", "companies/*/company.md", m1_my_score),
     Migration(2, "country UK→GB, USA→US", "companies/*/company.md", m2_country_codes),
@@ -459,6 +479,8 @@ MIGRATIONS = [
               "outreach/*.md", m12_send_keys),
     Migration(13, "interactions may have the source outreach (nothing to change in a file)",
               "companies/*/interactions/*.md", _noop),
+    Migration(14, "agents never schedule or send mail unasked (CLAUDE.md, AGENTS.md)",
+              "CLAUDE.md", folder=m14_agent_send),
 ]
 LATEST = MIGRATIONS[-1].version
 

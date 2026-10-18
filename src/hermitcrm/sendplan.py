@@ -266,10 +266,15 @@ def _first_fit(slot, start, horizon, cfg, first, counts, by_day, taken, window_s
             t = _at(day + timedelta(days=1), 0)
             continue
         times = sorted(by_day.get(day, []))
-        # Whole minutes, to the nearest: rounding up would stretch every gap by half
-        # a minute and a 100-a-day plan would not fit its window.
-        gap = max(cfg.min_gap, round(window_len / max(cap, 1) * jitter(slot.id)))
         before = max((x for x in times if x <= t), default=_at(day, window_start))
+        # Whole minutes, to the nearest: rounding up would stretch every gap by half
+        # a minute and a 100-a-day plan would not fit its window. A gap never takes more
+        # than its share of the room that is left, so a day fills its cap whenever the
+        # window has the minutes for it (the jitter only moves where the mail falls).
+        open_slots = max(cap - counts.get(day, 0), 1)
+        room = (_at(day, cfg.window[1]) - before).total_seconds() / 60
+        gap = max(cfg.min_gap, min(round(window_len / max(cap, 1) * jitter(slot.id)),
+                                   int(room // open_slots)))
         need = before + timedelta(minutes=gap)
         if t < need:
             t = need

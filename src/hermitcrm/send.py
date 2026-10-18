@@ -870,7 +870,7 @@ def deliver(store: Store, item_id: str, *, settings: SendSettings, now: datetime
     state = state or SendState.load(root)
     config = config if config is not None else load_config(root)
     warnings: list[str] = []
-    attempted = bool(item.message_id and item.send_tries > 0)   # may have gone out already
+    attempted = bool(item.message_id)       # written before SMTP: it may have gone out
     try:
         # A new send checks the cheap guards first. One that was attempted before asks
         # Sent first: if it went out, log it, whatever the guards would say now.

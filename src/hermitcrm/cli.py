@@ -275,7 +275,7 @@ def cmd_setup(root: Path, ask=input, ask_secret=None, say=print, runner=subproce
 def cmd_schedule(root: Path, action: str, at: str = "07:00", serve: bool = False,
                  home: Path | None = None, runner=subprocess.run,
                  platform: str | None = None, env: dict | None = None,
-                 backup: bool = True, backup_every: int = 5) -> int:
+                 backup: bool = True, backup_every: int = 5, send: bool = False) -> int:
     from hermitcrm import schedule
 
     ctx = schedule.Context(data_dir=root, home=home or Path.home(),
@@ -283,9 +283,9 @@ def cmd_schedule(root: Path, action: str, at: str = "07:00", serve: bool = False
     try:
         if action == "install":
             lines = schedule.install(ctx, at=at, serve=serve, backup=backup,
-                                     backup_every=backup_every)
+                                     backup_every=backup_every, send=send)
         elif action == "remove":
-            lines = schedule.remove(ctx)
+            lines = schedule.remove(ctx, only_send=send)
         else:
             lines = schedule.status(ctx)["lines"]
     except schedule.ScheduleError as exc:
@@ -1326,6 +1326,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p_sched.add_argument("action", choices=["install", "remove", "status"])
     p_sched.add_argument("--at", default="07:00", metavar="HH:MM",
                          help="time of the daily sync --apply (default 07:00)")
+    p_sched.add_argument("--send", action="store_true",
+                         help="install: also the worker that sends scheduled email every few "
+                              "minutes (hermitcrm send due); remove: only that worker")
     p_sched.add_argument("--serve", action="store_true",
                          help="also keep the web app running (install only)")
     p_sched.add_argument("--backup-every", type=int, default=5, metavar="MIN",
@@ -1625,7 +1628,34 @@ def _build_parser() -> argparse.ArgumentParser:
                         choices=["bad-fit", "wrong-person", "bad-timing", "bad-draft",
                                  "already-in-contact", "other"])
     o_skip.add_argument("--note", default="", help="anything else, in your words")
+    o_sched = o_sub.add_parser("schedule", help="queue approved email to go out over the "
+                               "working day (spaced, capped); needs sending on in Settings")
+    o_sched.add_argument("ids", nargs="*", metavar="id")
+    o_sched.add_argument("--all-ready", action="store_true",
+                         help="every ready email item, oldest approval first")
+    o_sched.add_argument("--dry-run", action="store_true",
+                         help="show the proposed times, write nothing")
+    o_sub.add_parser("unschedule", help="take a queued item out of the queue (back to ready)"
+                     ).add_argument("id")
+    o_sub.add_parser("send-now", help="send one approved email now: no window or gap, but "
+                     "the same guards, and it counts toward today's cap").add_argument("id")
+    o_sub.add_parser("retry", help="a failed item back to ready").add_argument("id")
+    o_sub.add_parser("front", help="make a queued item the next to go out"
+                     ).add_argument("id")
     p_out.set_defaults(action="list", state="")
+
+    p_send = sub.add_parser("send", help="sending approved email from the app: test the "
+                            "mailbox, see the queue, run the worker, pause")
+    s_sub = p_send.add_subparsers(dest="action", required=True)
+    s_test = s_sub.add_parser("test", help="log in over SMTP and IMAP and mail a test to yourself")
+    s_test.add_argument("--to", default="", help="another address (default: owner_email)")
+    s_sub.add_parser("status", help="on/off, today's count against the cap, the queue, why paused")
+    s_due = s_sub.add_parser("due", help="one tick of the worker: send the next queued email "
+                             "when it is time (what the launchd job runs every 3 minutes)")
+    s_due.add_argument("--dry-run", action="store_true",
+                       help="say what would happen; send and write nothing")
+    s_sub.add_parser("pause", help="the kill switch: nothing goes out from the next tick")
+    s_sub.add_parser("resume", help="lift the pause (the button and any automatic one)")
 
     p_learn = sub.add_parser("learn", help="learn from your edits and outcomes: report, "
                              "status, run, import, accept, reject, retire, move, suggest, "
@@ -1780,6 +1810,80 @@ def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
                             "(hermitcrm outreach show <id>), then ready or skip. Nothing "
                             "was sent."]
     return ("\n".join(lines), 0)
+
+
+def cmd_send(store: Store | None, root: Path, config: dict, args) -> tuple[str, int]:
+    """`hermitcrm send test|status|due|pause|resume`."""
+    from hermitcrm import send, sendqueue
+
+    action = args.action
+    if action == "due":
+        lines = sendqueue.due(root, dry_run=args.dry_run)
+        return ("\n".join(lines), 0)
+    if action == "test":
+        result = send.send_test(root, config, to=args.to)
+        return (result.text(), 0 if result.ok else 1)
+    settings = send.settings_from_config(config)
+    if action == "pause":
+        sendqueue.pause(store)
+        return ("Sending is paused: nothing goes out from the next tick. "
+                "hermitcrm send resume lifts it.", 0)
+    if action == "resume":
+        lifted = sendqueue.resume(store)
+        return (("Resumed: " + "; ".join(lifted) + ".") if lifted else "Sending was not paused.", 0)
+    info = sendqueue.status(store, settings)
+    lines = [sendqueue.strip_line(info)]
+    if info["missing"] and info["enabled"]:
+        lines.append("Not ready: " + info["missing"])
+    if info["overdue"]:
+        lines.append(f"{info['overdue']} queued item(s) are overdue; the next tick plans them again.")
+    if info["last_sent"]:
+        lines.append(f"Last sent: {info['last_sent']:%Y-%m-%d %H:%M}")
+    lines += [f"Config: {p}" for p in info["problems"]]
+    from hermitcrm import schedule
+    try:
+        ctx = schedule.Context(data_dir=root, home=Path.home(), platform=schedule.sys.platform)
+        job = schedule.status(ctx)
+        lines.append("Worker job: " + ("installed" if job["send_installed"] else
+                                       "not installed (hermitcrm schedule install --send)"))
+    except Exception:
+        pass
+    return ("\n".join(lines), 0)
+
+
+def cmd_outreach_send(store: Store, root: Path, config: dict, args) -> tuple[str, int]:
+    """`hermitcrm outreach schedule|unschedule|send-now|retry|front`."""
+    from hermitcrm import outreach, send, sendqueue
+
+    action = args.action
+    try:
+        if action == "schedule":
+            if not args.ids and not args.all_ready:
+                return ("name the items to schedule, or use --all-ready (hermitcrm outreach "
+                        "list --state ready)", 1)
+            result = (sendqueue.schedule_all_ready(store, dry_run=args.dry_run)
+                      if args.all_ready else
+                      sendqueue.schedule(store, args.ids, dry_run=args.dry_run))
+            head = ("Proposed times (nothing was written):" if args.dry_run else
+                    f"Scheduled {len(result.scheduled)}:")
+            lines = [head, *result.lines(store)] if (result.scheduled or result.refused) else [
+                "Nothing to schedule."]
+            return ("\n".join(lines), 0 if result.scheduled or args.dry_run else 1)
+        if action == "unschedule":
+            item = sendqueue.unschedule(store, args.id)
+            return (f"{item.id} is back to ready.", 0)
+        if action == "retry":
+            item = sendqueue.retry(store, args.id)
+            return (f"{item.id} is ready again; schedule it or send it now.", 0)
+        if action == "front":
+            item = sendqueue.move_to_front(store, args.id)
+            return (f"{item.id} goes out next: {item.send_at:%a %d %b %H:%M}.", 0)
+        out = send.send_now(store, args.id)
+    except (outreach.OutreachError, send.SendError) as exc:
+        return (str(exc), 1)
+    text = f"{out.kind}: {out.item.id}" + (f" ({out.detail})" if out.detail else "")
+    text += "".join(f"\nWarning: {w}" for w in out.warnings)
+    return (text, 0 if out.done else 1)
 
 
 def cmd_learn(store: Store, root: Path, config: dict, args, enricher=None) -> tuple[str, int]:
@@ -2075,7 +2179,13 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
 
     if args.command == "schedule":
         return cmd_schedule(root, args.action, at=args.at, serve=args.serve,
-                            backup=not args.no_backup, backup_every=args.backup_every)
+                            backup=not args.no_backup, backup_every=args.backup_every,
+                            send=args.send)
+
+    if args.command == "send" and args.action in ("due", "test"):
+        text, code = cmd_send(None, root, load_config(root), args)   # no store: a tick is cheap
+        print(text, file=sys.stderr if code else sys.stdout)
+        return code
 
     if args.command == "check":
         # config.toml first: a value of the wrong kind (`outcomes = 5`) or a
@@ -2201,10 +2311,22 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
             _reload_server(config)
         return code
 
+    if args.command == "send":
+        config = load_config(root)
+        store.on_write = _writer(store, root, config)
+        text, code = cmd_send(store, root, config, args)
+        print(text, file=sys.stderr if code else sys.stdout)
+        return code
+
     if args.command == "outreach":
         config = load_config(root)
-        if args.action in ("build", "ready", "sent", "skip"):
+        if args.action in ("build", "ready", "sent", "skip", "schedule", "unschedule",
+                           "send-now", "retry", "front"):
             store.on_write = _writer(store, root, config)
+        if args.action in ("schedule", "unschedule", "send-now", "retry", "front"):
+            text, code = cmd_outreach_send(store, root, config, args)
+            print(text, file=sys.stderr if code else sys.stdout)
+            return code
         text, code = cmd_outreach(store, root, config, args)
         print(text, file=sys.stderr if code else sys.stdout)
         return code

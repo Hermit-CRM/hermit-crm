@@ -111,7 +111,8 @@ def test_migration_6_adds_the_list_and_the_rules_in_one_commit(tmp_path):
     assert claude.endswith("## Personal\n\n- mine\n")
     # format 8 adds the Make it yours rules after them, in the same commit
     agents = (root / "AGENTS.md").read_text()
-    assert agents.endswith(datafolder.AGENT_BACKUP_RULES + "\n" + datafolder.AGENT_ADJUST_RULES)
+    assert agents.endswith(datafolder.AGENT_BACKUP_RULES + "\n" + datafolder.AGENT_ADJUST_RULES
+                           + "\n" + datafolder.AGENT_SEND_RULES)
     assert git(root, "rev-list", "--count", f"{before}..HEAD") == "1"
     committed = git(root, "show", "--name-only", "--format=", "HEAD").splitlines()
     assert set(committed) == {".hermitcrm-format", guard.SETTINGS, "CLAUDE.md", "AGENTS.md",
