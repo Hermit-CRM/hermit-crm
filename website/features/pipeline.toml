@@ -1,0 +1,65 @@
+order   = 2
+name    = "Pipeline"
+nav     = "Pipeline"
+title   = "Pipeline: a sales board for one person in Hermit CRM"
+description = "The Hermit CRM pipeline is a board with one column per open stage, a follow-up radar, filters you can bookmark and closed deals in lists below."
+summary = "A board from prospect to won, plus a follow-up radar for unanswered threads."
+intro = """
+The pipeline is the board of every open company, one column per stage. It shows who to
+move, who to chase and what is due, without opening a single company.
+"""
+docs    = "pipeline"
+related = ["companies", "calendar", "reports"]
+
+[[sections]]
+heading = "A board with your own stages"
+text = """
+The open stages are columns. The defaults are **prospect**, **engaged**, **discovery** and **offer**, and the stage names,
+their order and which ones count as closed are yours to change under Settings, Deal stages. A column with nothing
+in it is drawn narrow, so the whole board stays on one screen.
+"""
+image   = "feature-pipeline.png"
+alt     = "The Hermit CRM pipeline board: a follow-up strip with two companies, a filter bar, and four columns, prospect, engaged, discovery and offer, with one company card each."
+address = "127.0.0.1:8765/pipeline"
+
+[[sections]]
+heading = "Cards that tell you what is next"
+text = "Each card is one company, ordered by when its next step is due."
+points = [
+  "The company name (a link to its page), the days it has been in this stage and its country.",
+  "The last touch, such as `email in 2026-10-15 (jonas-brandt)`.",
+  "The next step with its due date, red when it is overdue.",
+  "The monthly value, when you have set one.",
+  "A stage dropdown that saves when you change it. Choosing **lost** takes you to the company page first, to give a reason.",
+]
+
+[[sections]]
+heading = "The follow-up radar"
+text = """
+The strip above the board lists threads that went quiet: a message they sent that you have not
+answered, and a message you sent that nobody has answered. **Log a reply** records one in a click.
+The thresholds are set in your configuration (a day for replies you owe and five days for nudges, by default).
+"""
+
+[[sections]]
+heading = "Filters you can bookmark"
+text = """
+Each column of the board has a control: pick which stages show, or filter the cards by name, country, source, score,
+tags or due date. Text boxes take a small syntax (`text` contains, `=text` equals, `>x` and `<x` larger or smaller,
+`-` empty, `*` not empty, and a leading exclamation mark means does not contain), and the `?` next to Filter explains it. Filters combine, and they stay in the address,
+so a view is a bookmark.
+"""
+
+[[sections]]
+heading = "Closed and parked, out of the way"
+text = """
+Below the board every other stage is a collapsed list: **won**, **lost**, **disqualified** and **temp-disqualified**, each with its
+reason. A parked company comes back to the first open stage by itself on the date you gave it, in one commit.
+"""
+
+[[sections]]
+heading = "The same board as text"
+text = """
+`PIPELINE.md` in your data folder is the board as one Markdown page, rewritten on every change: stages with counts and monthly value,
+overdue next steps, silent accounts and recently closed companies. It is what your AI agent reads first.
+"""

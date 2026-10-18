@@ -47,9 +47,12 @@ site_url    = "https://hermitcrm.io"
 # ── Top bar ──────────────────────────────────────────────────────────
 [header]
 name         = "Hermit CRM"
-docs_label   = "Docs"     # top right, links to /docs/
-about_label  = "About"    # top right, links to /about/
-github_label = "GitHub"
+# The same links on every page, in this order. Compare and About leave the bar on a phone (the footer has them).
+features_label = "Features"   # top right, links to /features/
+docs_label     = "Docs"       # links to /docs/
+compare_label  = "Compare"    # links to /compare/
+about_label    = "About"      # links to /about/
+github_label   = "GitHub"
 
 
 # ── First screen ─────────────────────────────────────────────────────
@@ -84,30 +87,65 @@ copy_failed_label = "Press ⌘C"
 # ── What you get ─────────────────────────────────────────────────────
 [features]
 label = "What you get"
+# Link under the list, to the overview of every page (features/).
+all_label = "Every page, with a screenshot of each"
+# One row for each link in the app's left navigation, in its order. A row with a
+# `slug` links to features/<slug>/ (words in features/<slug>.toml).
+
+[[features.items]]
+name = "Home"
+slug = "home"
+text = "What is due this week, the replies you owe and last month's numbers, on one page."
 
 [[features.items]]
 name = "Pipeline"
+slug = "pipeline"
 text = "A board from prospect to won, plus a follow-up radar for unanswered threads."
 
 [[features.items]]
 name = "Calendar"
+slug = "calendar"
 text = "Overdue and due-today next steps, a month view, and a brief before each meeting."
 
 [[features.items]]
-name = "Companies and contacts"
-text = "Sortable tables of companies and people, and one timeline per company of every email, call and meeting."
+name = "Tasks"
+slug = "tasks"
+text = "Every task for every company in one list, with date buttons, filters and your own task types."
+
+[[features.items]]
+name = "Companies"
+slug = "companies"
+text = "Sortable tables of companies, and one timeline per company of every email, call and meeting."
+
+[[features.items]]
+name = "Contacts"
+slug = "contacts"
+text = "Every person across your companies, with a page of their own: roles, history, tasks and three message drafts."
 
 [[features.items]]
 name = "Messages"
+slug = "messages"
 text = "Outreach drafts in English, German, Dutch or French, in your wording, and the outcome of every message."
 
 [[features.items]]
+name = "Extension"
+slug = "extension"
+text = "Turn the page you are looking at into a company or a contact, from one bookmark."
+
+[[features.items]]
 name = "Reports"
+slug = "reports"
 text = "Weekly activity, funnel and conversion, time in stage, and which messages get answers."
 
 [[features.items]]
-name = "Dashboards"
+name = "Make it yours"
+slug = "make-it-yours"
 text = "Pages of your own with lists, counts and bar charts. Describe one in a sentence, your AI builds it, and you pin it to the sidebar."
+
+[[features.items]]
+name = "Settings"
+slug = "settings"
+text = "Your name, mail and calendar capture, backups, fields, deal stages and outcomes, set in the browser."
 
 
 # ── The three principles (bold word, then the sentence) ──────────────
@@ -182,7 +220,8 @@ address = "127.0.0.1:8765"
 label   = "The idea"
 heading = "One company, one file."
 # Screenshot of the app. Put the image in site/img/ and write its file
-# name here, e.g. "pipeline.png" (1600 x 800, or 3200 x 1600 for sharp screens). While empty,
+# name here, e.g. "pipeline.png" (any size, read from the PNG; crop it to the part that matters,
+# it is shown about 620 px wide, and selecting it opens it full size). While empty,
 # the page shows a drawn placeholder of the pipeline board.
 screenshot     = "pipeline.png"
 screenshot_alt = "The Hermit CRM pipeline board in the browser, filled with made-up demo companies, Northwind Robotics among them."
@@ -336,11 +375,17 @@ json_label  = "The same numbers as JSON: [stats.json](stats.json)."
 llms        = "the site's own numbers, updated daily: visitors, downloads, GitHub stars, AI crawlers"
 
 
+# ── The last screen: the same way in as the first ─────────────────────
+[closing]
+label = "Download"     # read out by screen readers only
+text  = "Free and open source. Your data stays in a folder on your computer."
+
+
 # ── Bottom of the page ───────────────────────────────────────────────
 [footer]
 # {github} is replaced by a link to [links].github labelled with
 # [header].github_label, {sha256} by a link to [links].sha256.
-text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · {github} · {sha256} · [Docs](docs/) · [Changelog](changelog/) · [Stats](stats/) · [Compare](compare/) · [About](about/) · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
+text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · {github} · {sha256} · [Features](features/) · [Docs](docs/) · [Changelog](changelog/) · [Stats](stats/) · [Compare](compare/) · [About](about/) · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
 
 
 # ── Share image (og.png, 1200 x 630) ─────────────────────────────────
