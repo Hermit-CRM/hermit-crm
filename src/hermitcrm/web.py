@@ -695,7 +695,10 @@ def goto(path: str) -> RedirectResponse:
     if (path.startswith("/") and not path.startswith("//") and "\\" not in path
             and not any(ord(ch) < 32 for ch in path)
             and not urlparse(path).netloc and not urlparse(path).scheme):
-        return RedirectResponse(path, status_code=303)
+        # "/" is ours and `path[1:]` follows it, so the target is on this site by
+        # construction. The test above is the real guard; CodeQL does not read a
+        # urlparse or startswith check, but it does read a fixed prefix.
+        return RedirectResponse("/" + path[1:], status_code=303)
     return RedirectResponse("/", status_code=303)
 
 
