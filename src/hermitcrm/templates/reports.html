@@ -46,5 +46,15 @@
 {{ rs.section_hygiene(report, rows_query) }}
 </section>
 
+<section id="style">
+<h2>Style profile</h2>
+{{ rs.section_style(report, rows_query) }}
+</section>
+
+<section id="quality">
+<h2>Outreach quality</h2>
+{{ rs.section_quality(report, rows_query) }}
+</section>
+
 <p class="describe-more small">Want a different view? <a href="{{ starter_link(reports_starter) }}">Describe it</a>, and your own AI agent builds it as a dashboard.</p>
 {% endblock %}
