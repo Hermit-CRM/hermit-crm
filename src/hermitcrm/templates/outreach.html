@@ -5,7 +5,11 @@
 {% block content %}
 {% from "macros.html" import fix_with_ai %}
 <h1>Outreach</h1>
+{% if send_on %}
+<p class="small">Research and draft first touches with your AI CLI and review each one. Approved email goes out from here, now or spaced over the working day; LinkedIn is a session where you click Send yourself. Nothing is sent that you did not approve. <a href="/help/outreach">How it works</a> &middot; <a href="/help/sending">Sending</a></p>
+{% else %}
 <p class="small">Research and draft first touches with your AI CLI, review each one, then send it yourself. Nothing is sent from here. Logging the message on the contact marks its item sent. <a href="/help/outreach">How it works</a></p>
+{% endif %}
 {% if since_line %}<p class="small outreach-since"><strong>Since last time:</strong> {{ since_line }}. <a href="/learning">Learning</a></p>{% endif %}
 
 {% if gate %}
@@ -13,6 +17,25 @@
 {% elif ai_problem %}
 <p class="warning-box">{{ ai_problem }}</p>
 {% endif %}
+
+<section class="send-strip" aria-label="Sending" id="send-strip">
+{% if send_on %}
+  <p class="send-line">
+    <strong>Email:</strong>
+    {% if send.paused %}<span class="tag warn">paused</span> {{ send.paused_by }}{% else %}on{% endif %}
+    &middot; {{ send.sent_today }}/{{ send.cap }} today &middot; {{ send.queued }} queued{% if send.next and not send.paused %} &middot; next {{ send.next.strftime('%a %H:%M') }}{% endif %}
+    &middot; {{ send.days }} {{ send.window }}
+    <form method="post" action="/outreach/send/{{ 'resume' if send.paused else 'pause' }}" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit"{% if not send.paused %} class="secondary" title="The kill switch: nothing goes out from the next tick"{% endif %}>{{ 'Resume' if send.paused else 'Pause' }}</button>
+    </form>
+  </p>
+  {% if send.missing %}<p class="warning-box">Sending cannot start: {{ send.missing }} <a href="/settings#send">Settings &gt; Sending</a></p>{% endif %}
+  {% if send.overdue %}<p class="small warning">{{ send.overdue }} queued {{ 'email is' if send.overdue == 1 else 'emails are' }} overdue. The Mac may have been asleep: the next tick plans them again, one at a time, without a burst.</p>{% endif %}
+{% else %}
+  <p class="small">Email sending is off. <a href="/settings#send">Turn it on in Settings &gt; Sending</a> to send approved email from here.</p>
+{% endif %}
+</section>
 
 <form class="outreach-build" method="post" action="/outreach/build" id="outreach-build">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -128,6 +151,33 @@
   </ul>
   {% elif not cards %}
   <p class="empty">No follow-ups are due. A message you send that gets no answer shows up here after {{ nudge_days }} days.</p>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if tab == 'ready' and send_on %}
+<section class="outreach-schedule-all">
+  {% if schedule_error %}<p class="error">{{ schedule_error }}</p>{% endif %}
+  {% if schedule_preview %}
+  <h2>Proposed times</h2>
+  <p class="small">Spaced over the sending window with a little jitter, under today's cap, one company a day. Nothing is scheduled until you confirm.</p>
+  {% if schedule_preview.rows %}<table class="outreach-times">
+    <thead><tr><th>Goes out</th><th>To</th><th>Subject</th></tr></thead>
+    <tbody>{% for row in schedule_preview.rows %}<tr><td>{% if row.at %}{{ row.at.strftime('%a %d %b, %H:%M') }}{% else %}no free slot{% endif %}</td><td>{{ row.who }}</td><td>{{ row.item.subject }}</td></tr>{% endfor %}</tbody>
+  </table>{% endif %}
+  {% if schedule_preview.refused %}<details class="small"><summary>{{ schedule_preview.refused | length }} cannot be scheduled</summary><ul>{% for id, why in schedule_preview.refused %}<li>{{ id }}: {{ why }}</li>{% endfor %}</ul></details>{% endif %}
+  <div class="draft-actions">
+    {% if schedule_preview.rows %}<form method="post" action="/outreach/schedule-all" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">Schedule {{ schedule_preview.rows | length }} email{{ 's' if schedule_preview.rows | length != 1 }}</button>
+    </form>{% endif %}
+    <a class="button secondary" href="/outreach?tab=ready">Cancel</a>
+  </div>
+  {% elif ready_email %}
+  <form method="get" action="/outreach" class="inline">
+    <input type="hidden" name="tab" value="ready">
+    <button type="submit" name="schedule" value="all" class="secondary">Schedule all ready email ({{ ready_email }})&hellip;</button>
+  </form>
   {% endif %}
 </section>
 {% endif %}
@@ -266,12 +316,23 @@
   </div>
   {{ history(card) }}
   {% elif i.state == 'ready' %}
+  {% if i.send_note %}<p class="small warning outreach-held">Held back: {{ i.send_note }}</p>{% endif %}
   {% if i.channel == 'email' %}<p><strong>{{ i.subject }}</strong></p>{% endif %}
   <pre class="outreach-text" id="body-{{ i.id }}">{{ i.body }}</pre>
   {% if i.pitch %}<p class="small">after they accept</p><pre class="outreach-text">{{ i.pitch }}</pre>{% endif %}
   {% if i.checks %}<ul class="outreach-checks warning">{% for c in i.checks %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
   {% if i.critic %}<details class="small outreach-critic" title="Scored by the AI, 1 (bad) to 5 (good). A guide, not a rule: it never blocks anything."><summary><strong>Critic {{ i.critic_score }}/5</strong></summary><p>Lowest: {% for name in critic_scores %}{{ name }} {{ i.critic[name] }}{% if not loop.last %}, {% endif %}{% endfor %}{% if i.critic_reason %}. {{ i.critic_reason }}{% endif %}</p></details>{% endif %}
   <div class="draft-actions">
+    {% if send_on and i.channel == 'email' %}
+    <form method="post" action="/outreach/{{ i.id }}/send-now" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" data-busy="Sending&hellip;" title="Send it now through your sending mailbox: for a reply to interest, or a one-off. It counts toward today's cap.">Send now</button>
+    </form>
+    <form method="post" action="/outreach/{{ i.id }}/schedule" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="secondary" title="Put it in the queue: it goes out over the working day">Schedule</button>
+    </form>
+    {% endif %}
     <button type="button" data-copy-target="body-{{ i.id }}">Copy</button>
     {% if i.channel == 'email' and ct and ct.email %}<a class="button secondary" href="mailto:{{ ct.email }}?subject={{ i.subject | urlencode }}">Open in mail</a>{% endif %}
     {% if i.channel == 'linkedin' and ct and ct.linkedin %}<a class="button secondary" href="{{ ct.linkedin | href }}" target="_blank" rel="noopener">Open LinkedIn</a>{% endif %}
@@ -284,6 +345,44 @@
   </div>
   {{ skip_panel(i) }}
   {{ history(card) }}
+  {% elif i.state in ('queued', 'failed') %}
+  {% if i.channel == 'email' %}<p><strong>{{ i.subject }}</strong></p>{% endif %}
+  {% if i.state == 'queued' %}
+  <p class="send-when"><strong>{% if i.send_at %}Goes out {{ i.send_at.strftime('%a %d %b, %H:%M') }}{% else %}No free slot in the next 60 days{% endif %}</strong>{% if i.send_error %} <span class="small warning">last try: {{ i.send_error }}</span>{% endif %}</p>
+  {% else %}
+  <p class="warning-box">Not sent: {{ i.send_error }}</p>
+  {% endif %}
+  <pre class="outreach-text" id="body-{{ i.id }}">{{ i.body }}</pre>
+  <div class="draft-actions">
+    {% if send_on %}
+    <form method="post" action="/outreach/{{ i.id }}/send-now" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" data-busy="Sending&hellip;" title="Send it now: it counts toward today's cap">Send now</button>
+    </form>
+    {% endif %}
+    {% if i.state == 'queued' %}
+    <form method="post" action="/outreach/{{ i.id }}/front" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="secondary" title="Make it the next to go out; the others move one slot later">Move to front</button>
+    </form>
+    <form method="post" action="/outreach/{{ i.id }}/unschedule" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="secondary" title="Back to the Ready tab">Unschedule</button>
+    </form>
+    {% else %}
+    <form method="post" action="/outreach/{{ i.id }}/retry" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="secondary" title="Back to the Ready tab, to schedule or send again">Retry</button>
+    </form>
+    {% endif %}
+    <form method="post" action="/outreach/{{ i.id }}/sent" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="secondary" title="You sent it yourself: the state only, nothing is logged">Mark sent</button>
+    </form>
+    <button type="button" class="secondary" data-skip-toggle="{{ i.id }}" aria-controls="skip-{{ i.id }}" aria-expanded="false">Skip</button>
+  </div>
+  {{ skip_panel(i) }}
+  {{ history(card) }}
   {% else %}
   {% if i.channel == 'email' and i.subject %}<p><strong>{{ i.subject }}</strong></p>{% endif %}
   {% if i.body %}<details><summary>The message</summary><pre class="outreach-text">{{ i.body }}</pre></details>{% endif %}
@@ -291,7 +390,7 @@
     {% elif i.sent %}Sent {{ fmt_datetime(i.sent) | replace('T', ' ') }}{% if i.sent_with %}, logged{% else %}, marked by hand{% endif %}{% endif %}
     {% if i.edit_distance is not none %} &middot; {{ i.edit_distance }} word{{ 's' if i.edit_distance != 1 }} edited{% endif %}</p>
   {% endif %}
-  {% if i.state not in ('drafted', 'ready') %}{{ history(card) }}{% endif %}
+  {% if i.state not in ('drafted', 'ready', 'queued', 'failed') %}{{ history(card) }}{% endif %}
   <p class="small quiet">{{ i.id }}{% if i.model %} &middot; {{ i.model }}{% endif %}{% if i.seconds is not none %} &middot; {{ i.seconds }}s{% endif %}{% if i.norms and not has_findings %} &middot; norms: {{ i.norms | join('; ') }}{% endif %}</p>
 </article>
 {% endfor %}

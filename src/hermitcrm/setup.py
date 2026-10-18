@@ -38,6 +38,7 @@ from urllib.parse import urlparse
 from . import backup as local_backup
 from . import bcc, calendar_sync, secrets, stages
 from .gitops import GitOps
+from .models import valid_email
 from .store import DEFAULT_CONFIG, Store, load_config
 
 logger = logging.getLogger("hermitcrm.setup")
@@ -69,7 +70,7 @@ _EMAIL = re.compile(r"^[^@\s,;<>]+@[^@\s,;<>.]+(?:\.[^@\s,;<>.]+)+$")
 
 
 def toml_value(value) -> str:
-    """TOML literal for str, int, bool and list[str]."""
+    """TOML literal for str, int, bool, and lists of those (numbers stay numbers)."""
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, int):
@@ -77,8 +78,9 @@ def toml_value(value) -> str:
     if isinstance(value, dict):
         return "{" + ", ".join(f"{k} = {toml_value(v)}" for k, v in value.items()) + "}"
     if isinstance(value, (list, tuple)):
-        return "[" + ", ".join(toml_value(v if isinstance(v, dict) else str(v))
-                               for v in value) + "]"
+        return "[" + ", ".join(
+            toml_value(v if isinstance(v, dict) or (isinstance(v, int) and not isinstance(v, bool))
+                       else str(v)) for v in value) + "]"
     if isinstance(value, str):
         # JSON string escapes (\" \\ \n \uXXXX) are valid TOML basic-string escapes.
         return json.dumps(value, ensure_ascii=False)
@@ -537,6 +539,157 @@ def save_calendar(data_dir: Path, url: str, config: dict | None = None,
 
 
 # ------------------------------------------------------------- Enrichment
+
+
+SEND_KEYCHAIN_SERVICE = "hermitcrm-send"
+
+
+def send_form_values(config: dict) -> dict:
+    """What the Settings > Sending form shows for the current config."""
+    from . import send, sendplan
+
+    c = load_config_defaults(config)
+    settings = send.settings_from_config(c)
+    window = f"{settings.window[0] // 60:02d}:{settings.window[0] % 60:02d}-" \
+             f"{settings.window[1] // 60:02d}:{settings.window[1] % 60:02d}"
+    return {"enabled": settings.enabled, "from_addr": settings.from_addr,
+            "smtp_host": settings.smtp_host, "smtp_port": str(settings.smtp_port),
+            "smtp_user": str(c.get("send_smtp_user") or ""),
+            "imap_host": settings.imap_host, "window": window,
+            "days": [sendplan.WEEKDAYS[d] for d in settings.days],
+            "daily_cap": str(settings.daily_cap),
+            "ramp": ", ".join(str(n) for n in settings.ramp),
+            "min_gap": str(settings.min_gap),
+            "company_gap_hours": str(settings.company_gap_hours),
+            "countries": ", ".join(settings.block_countries)}
+
+
+def load_config_defaults(config: dict) -> dict:
+    return {**DEFAULT_CONFIG, **(config or {})}
+
+
+def plan_send(form: dict) -> tuple[dict, dict, list]:
+    """(config values, errors, warnings) for the Settings > Sending form. Nothing is
+    written. The values are in the shape config.toml holds them."""
+    from . import send, sendplan
+
+    errors: dict[str, str] = {}
+    warnings: list[str] = []
+    enabled = bool(form.get("enabled"))
+    from_addr = (form.get("from_addr") or "").strip().lower()
+    if from_addr and not valid_email(from_addr):
+        errors["from_addr"] = "Give the sending address, e.g. cold@mail.example.com."
+    elif enabled and not from_addr:
+        errors["from_addr"] = "Give the sending address before turning sending on."
+    host = (form.get("smtp_host") or "").strip().lower()
+    if not host:
+        errors["smtp_host"] = "Give the SMTP server, e.g. smtp.gmail.com."
+    imap_host = (form.get("imap_host") or "").strip().lower()
+    port = _positive_int(form.get("smtp_port") or "587", "smtp_port", "The SMTP port", errors)
+    if port is not None and port > 65535:
+        errors["smtp_port"] = "The SMTP port is 587 (STARTTLS) or 465 (SSL)."
+    try:
+        window = sendplan.parse_window(form.get("window") or "")
+    except ValueError as exc:
+        window = None
+        errors["window"] = str(exc)
+    try:
+        days = sendplan.parse_days(form.get("days") or [])
+    except ValueError as exc:
+        days = None
+        errors["days"] = str(exc)
+    cap = _positive_int(form.get("daily_cap") or "", "daily_cap", "The daily cap", errors)
+    if cap is not None and cap > 500:
+        errors["daily_cap"] = "The daily cap is at most 500 (Gmail allows 2,000, a mailbox's reputation far less)."
+    ramp: list[int] = []
+    for part in re.split(r"[,\s]+", (form.get("ramp") or "").strip()):
+        if not part:
+            continue
+        if not part.isdigit() or not 1 <= int(part) <= 500:
+            errors["ramp"] = "The ramp is the cap for week 1, 2, 3...: numbers separated by commas."
+            break
+        ramp.append(int(part))
+    min_gap = _positive_int(form.get("min_gap") or "", "min_gap", "The least gap", errors)
+    if min_gap is not None and min_gap > 120:
+        errors["min_gap"] = "The least gap is at most 120 minutes."
+    company_gap = form.get("company_gap_hours")
+    if str(company_gap or "").strip().isdigit() and 0 <= int(company_gap) <= 24 * 14:
+        company_gap = int(company_gap)
+    else:
+        errors["company_gap_hours"] = "Hours between two mails to one company, 0 to 336."
+    countries = []
+    for part in re.split(r"[,\s]+", (form.get("countries") or "").strip()):
+        if not part:
+            continue
+        if not re.fullmatch(r"[A-Za-z]{2}", part):
+            errors["countries"] = "Country codes of two letters, e.g. DE, AT (or none)."
+            break
+        countries.append(part.upper())
+    if errors:
+        return {}, errors, warnings
+    if cap and cap > 100:
+        warnings.append(send.cap_warning(cap))
+    if ramp and cap and max(ramp) > cap:
+        warnings.append(f"A ramp week above the daily cap of {cap} is held at {cap}.")
+    if host not in {p["smtp_host"] for p in send.PROVIDERS.values()}:
+        warnings.append("Only Gmail and Google Workspace are tested; another server should "
+                        "work but is not verified.")
+    values = {
+        "send_enabled": enabled, "send_from": from_addr, "send_smtp_host": host,
+        "send_smtp_port": port, "send_smtp_user": (form.get("smtp_user") or "").strip(),
+        "send_imap_host": imap_host,
+        "send_window": f"{window[0] // 60:02d}:{window[0] % 60:02d}-"
+                       f"{window[1] // 60:02d}:{window[1] % 60:02d}",
+        "send_days": [sendplan.WEEKDAYS[d] for d in days], "send_daily_cap": cap,
+        "send_ramp": ramp, "send_min_gap_minutes": min_gap,
+        "send_company_gap_hours": company_gap, "send_email_block_countries": countries}
+    return values, errors, warnings
+
+
+def save_send(data_dir: Path, form: dict, password: str = "", use_keychain: bool = False,
+              runner=subprocess.run, platform: str | None = None,
+              env: dict | None = None) -> StepResult:
+    """Save Settings > Sending: the config keys, the sending address among
+    `my_addresses` (so mail you send from it counts as yours), and the app password
+    through secrets.py (the Keychain or Secret Service when asked, else
+    .secrets.toml; never config.toml, never logged)."""
+    values, errors, warnings = plan_send(form)
+    result = StepResult(ok=not errors, errors=errors, warnings=warnings)
+    if errors:
+        return result
+    data_dir = Path(data_dir)
+    config = load_config(data_dir)
+    user = values["send_smtp_user"] or values["send_from"]
+    if password:
+        store = (secrets.os_store(platform, runner=runner, env=env) if use_keychain else None)
+        if store:
+            label = secrets.STORE_LABELS[store]
+            if not secrets.os_store_save(store, SEND_KEYCHAIN_SERVICE, user, password,
+                                         label="Hermit CRM sending app password",
+                                         runner=runner):
+                result.ok = False
+                result.errors["password"] = (f"Could not save the password in {label}; "
+                                             "try again without that option.")
+                return result
+            values["send_keychain_service"] = SEND_KEYCHAIN_SERVICE
+            result.messages.append(f"App password saved in {label} (service "
+                                   f"{SEND_KEYCHAIN_SERVICE}, account {user}).")
+            if secrets.unset("send_password", data_dir):
+                result.messages.append("The old copy in .secrets.toml is removed.")
+        else:
+            secrets.set("send_password", password, data_dir)
+            result.messages.append("No system keyring was found, so the app password is "
+                                   "saved in .secrets.toml (mode 600)." if use_keychain
+                                   else "App password saved in .secrets.toml.")
+    mine = [str(a) for a in config.get("my_addresses") or []]
+    if values["send_from"] and values["send_from"] not in [m.lower() for m in mine]:
+        values["my_addresses"] = [*mine, values["send_from"]]
+        result.messages.append(f"{values['send_from']} added to your addresses.")
+    set_config_values(data_dir / "config.toml", values)
+    result.values = values
+    result.messages.insert(0, "Sending settings saved" + (
+        "; sending is on." if values["send_enabled"] else "; sending is off."))
+    return result
 
 
 def _positive_int(raw: str, key: str, label: str, errors: dict) -> int | None:

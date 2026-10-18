@@ -998,3 +998,18 @@ button.is-busy::before {
 /* --- "Explain and fix with AI" under a filter problem (macros.html, adjust.js) --- */
 .fix-with-ai { font: inherit; font-size: 12px; color: var(--accent); background: none; border: 0; padding: 0; margin-left: 4px; cursor: pointer; text-decoration: underline; }
 .fix-with-ai[hidden] { display: none; }
+
+/* Sending (hermitcrm/send.py): the strip on Outreach, the banner, the queue. */
+.send-banner { background: var(--error-bg); border: 1px solid var(--error-line); color: var(--text); padding: 8px 12px; border-radius: 4px; margin-bottom: 10px; }
+.send-banner strong { color: var(--danger); }
+.send-strip { margin: 8px 0 12px; }
+.send-strip .send-line { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; margin: 0 0 6px; }
+.send-strip form.inline { display: inline-flex; margin: 0; }
+.send-strip .tag.warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); border-radius: 3px; padding: 0 5px; font-size: 12px; }
+.send-when { margin: 4px 0; }
+.outreach-held, .outreach-card .warning { color: var(--warn); }
+.outreach-schedule-all { margin: 8px 0 12px; }
+table.outreach-times { border-collapse: collapse; margin: 6px 0; }
+table.outreach-times th, table.outreach-times td { text-align: left; padding: 2px 14px 2px 0; font-size: 13px; }
+fieldset.send-days { border: 0; padding: 0; margin: 8px 0; }
+fieldset.send-days legend { font-size: 12px; color: var(--muted); padding: 0; }
