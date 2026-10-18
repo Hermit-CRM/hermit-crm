@@ -1,0 +1,45 @@
+order   = 3
+name    = "Calendar"
+nav     = "Calendar"
+title   = "Calendar: tasks, meetings and silent accounts in Hermit CRM"
+description = "The Hermit CRM calendar shows meetings this week, every open task on its due date in a month grid, and the accounts that went quiet."
+summary = "Overdue and due-today next steps, a month view, and a brief before each meeting."
+intro = """
+The calendar puts the follow-ups you promised on a month, next to the meetings coming up
+and the accounts that have gone quiet.
+"""
+docs    = "calendar"
+related = ["tasks", "pipeline", "settings"]
+
+[[sections]]
+heading = "Every open task on its due date"
+text = """
+The month grid starts on Monday. Each open task sits on its due date: past dates are red, a company's next step is in normal text
+and its other tasks are lighter. Arrows move a month, and *this month* comes back. A line at the top counts the tasks due today or earlier
+and links to them on the Tasks page.
+"""
+image   = "feature-calendar.png"
+alt     = "The Hermit CRM calendar for October 2026: meetings this week, a month grid with tasks on their due dates, and a list of two accounts silent for 14 days or more."
+address = "127.0.0.1:8765/calendar"
+
+[[sections]]
+heading = "Meetings this week"
+text = """
+Events in the next seven days from your calendar import, where an attendee matches a company, listed with that company.
+**Import meetings now** runs the same import as `hermitcrm calendar --apply`. You connect the calendar under Settings, Email and calendar.
+"""
+
+[[sections]]
+heading = "Silent for 14 days or more"
+text = """
+Active companies with no interaction for the number of days you set (14 by default), the longest quiet first, with a **log interaction** link on each.
+Closed companies are left out.
+"""
+
+[[sections]]
+heading = "Tasks do not disappear when a deal parks"
+text = """
+Ticking a task done takes it off this page and off the board's overdue colouring, and records the day. A parked company stays off the board,
+but its tasks still show here, so a reminder to revisit it in March is not lost.
+On a company page, a next step with a date has an **Add to Google Calendar** link: an all-day event with a link back, with no account connection and no API.
+"""

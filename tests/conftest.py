@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -27,6 +28,18 @@ from hermitcrm import web  # noqa: E402
 web.EXTRA_HOST_NAMES.add("testserver")
 
 FIXED_NOW = datetime(2026, 9, 14, 10, 30)
+
+# A commit can start git's auto housekeeping, which detaches by default and
+# keeps writing .git/objects/maintenance.lock after the commit returns. A test
+# that then copies or deletes the folder races it (FileNotFoundError on the
+# lock, seen on CI). In the foreground the housekeeping still runs, but is
+# finished before the git call returns. Every git subprocess inherits this.
+_GIT_CONFIG = {"maintenance.autoDetach": "false", "gc.autoDetach": "false"}
+_base = int(os.environ.get("GIT_CONFIG_COUNT", "0"))
+for _i, (_key, _value) in enumerate(_GIT_CONFIG.items(), start=_base):
+    os.environ[f"GIT_CONFIG_KEY_{_i}"] = _key
+    os.environ[f"GIT_CONFIG_VALUE_{_i}"] = _value
+os.environ["GIT_CONFIG_COUNT"] = str(_base + len(_GIT_CONFIG))
 
 
 @pytest.fixture(autouse=True)

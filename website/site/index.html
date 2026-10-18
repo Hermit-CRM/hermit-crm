@@ -69,13 +69,13 @@
 
 <header class="site-header wide">
   <a class="brand" href="./" aria-label="Hermit CRM home"><svg viewBox="4.5 10.5 55 43" aria-hidden="true" focusable="false"><rect x="7" y="13" width="50" height="38" rx="7" fill="none" stroke="currentColor" stroke-width="5"/><circle cx="24" cy="27" r="5.5" fill="#1E8A60"/><path d="M16 43 a8 8 0 0 1 16 0 z" fill="#1E8A60"/><rect x="38" y="25" width="12" height="4" rx="2" fill="currentColor"/><rect x="38" y="34" width="8" height="4" rx="2" fill="currentColor"/></svg><span>Hermit CRM</span></a>
-  <nav class="site-nav" aria-label="Site"><a href="docs/">Docs</a><a href="about/">About</a><a href="https://github.com/Hermit-CRM/hermit-crm">GitHub</a></nav>
+  <nav class="site-nav" aria-label="Site"><a href="features/">Features</a><a href="docs/">Docs</a><a href="compare/" class="nav-more">Compare</a><a href="about/" class="nav-more">About</a><a href="https://github.com/Hermit-CRM/hermit-crm">GitHub</a></nav>
 </header>
 
 <main id="main">
   <section class="hero col">
     <h1>A CRM for one.</h1>
-    <p class="subline">A free, open-source CRM for founders, freelancers and anyone doing their own sales. It keeps your companies, contacts and conversations as plain text files on your laptop, and your own AI agent can reshape it to fit how you work. With a pipeline, a calendar, dashboards and enrichment from a company's website.</p>
+    <p class="subline">A free, open-source CRM for founders, freelancers and anyone doing their own sales. It keeps your companies, contacts and conversations as plain text files on your laptop, and your own AI agent can reshape it to fit how you work. With a pipeline, a calendar, dashboards and enrichment from a company’s website.</p>
     <div class="download">
   <a class="btn" href="download/hermitcrm-0.8.0.tar.gz">Download for Mac and Linux</a>
   <p class="meta">Version 0.8.0 · Apache 2.0</p>
@@ -105,9 +105,9 @@
     </div>
     <div class="idea-grid">
       <figure class="window">
-        <div class="window-bar"><i></i><i></i><i></i><span>127.0.0.1:8765</span></div>
-        <img src="img/pipeline.png" alt="The Hermit CRM pipeline board in the browser, filled with made-up demo companies, Northwind Robotics among them." width="1600" height="800" loading="lazy">
-      </figure>
+          <div class="window-bar"><i></i><i></i><i></i><span>127.0.0.1:8765</span></div>
+          <a class="zoom" href="img/pipeline.png"><img src="img/pipeline.png" alt="The Hermit CRM pipeline board in the browser, filled with made-up demo companies, Northwind Robotics among them." width="1664" height="1380" loading="lazy"></a>
+        </figure>
       <div class="file">
         <p>The file behind the Northwind Robotics card:</p>
         <pre><span class="path">~/crm/companies/northwind-robotics/company.md</span>
@@ -145,7 +145,7 @@ next_step_due: 2026-09-24
         </div>
         <figure class="window">
           <div class="window-bar"><i></i><i></i><i></i><span>127.0.0.1:8765/d/monday-review</span></div>
-          <img src="img/make-it-yours-dashboard.png" alt="The Monday review dashboard in Hermit CRM, pinned in the sidebar: 3 open deals, 5 tasks due this week, the deals by stage and the open deals with their next step." width="1800" height="1400" loading="lazy">
+          <a class="zoom" href="img/make-it-yours-dashboard.png"><img src="img/make-it-yours-dashboard.png" alt="The Monday review dashboard in Hermit CRM, pinned in the sidebar: 3 open deals, 5 tasks due this week, the deals by stage and the open deals with their next step." width="1800" height="1400" loading="lazy"></a>
         </figure>
       </li>
       <li class="example">
@@ -158,7 +158,7 @@ next_step_due: 2026-09-24
         </div>
         <figure class="window">
           <div class="window-bar"><i></i><i></i><i></i><span>127.0.0.1:8765/companies/northwind-robotics</span></div>
-          <img src="img/make-it-yours-field.png" alt="A company page in Hermit CRM with the new contract renewal field: its date in the header, and its input with a line of help in the form." width="1380" height="1180" loading="lazy">
+          <a class="zoom" href="img/make-it-yours-field.png"><img src="img/make-it-yours-field.png" alt="A company page in Hermit CRM with the new contract renewal field: its date in the header, and its input with a line of help in the form." width="1380" height="1180" loading="lazy"></a>
         </figure>
       </li>
       <li class="example">
@@ -171,7 +171,7 @@ next_step_due: 2026-09-24
         </div>
         <figure class="window">
           <div class="window-bar"><i></i><i></i><i></i><span>127.0.0.1:8765</span></div>
-          <img src="img/make-it-yours-routine.png" alt="Home in Hermit CRM with a draft from the Nudge quiet threads routine: a short follow-up to a contact who has not replied in 20 days, with I sent it and Discard buttons." width="1380" height="770" loading="lazy">
+          <a class="zoom" href="img/make-it-yours-routine.png"><img src="img/make-it-yours-routine.png" alt="Home in Hermit CRM with a draft from the Nudge quiet threads routine: a short follow-up to a contact who has not replied in 20 days, with I sent it and Discard buttons." width="1380" height="770" loading="lazy"></a>
         </figure>
       </li>
     </ol>
@@ -183,13 +183,19 @@ next_step_due: 2026-09-24
   <section class="features col" aria-labelledby="features">
     <h2 class="label" id="features">What you get</h2>
     <dl>
-      <dt>Pipeline</dt><dd>A board from prospect to won, plus a follow-up radar for unanswered threads.</dd>
-      <dt>Calendar</dt><dd>Overdue and due-today next steps, a month view, and a brief before each meeting.</dd>
-      <dt>Companies and contacts</dt><dd>Sortable tables of companies and people, and one timeline per company of every email, call and meeting.</dd>
-      <dt>Messages</dt><dd>Outreach drafts in English, German, Dutch or French, in your wording, and the outcome of every message.</dd>
-      <dt>Reports</dt><dd>Weekly activity, funnel and conversion, time in stage, and which messages get answers.</dd>
-      <dt>Dashboards</dt><dd>Pages of your own with lists, counts and bar charts. Describe one in a sentence, your AI builds it, and you pin it to the sidebar.</dd>
+      <dt><a href="features/home/">Home</a></dt><dd>What is due this week, the replies you owe and last month’s numbers, on one page.</dd>
+      <dt><a href="features/pipeline/">Pipeline</a></dt><dd>A board from prospect to won, plus a follow-up radar for unanswered threads.</dd>
+      <dt><a href="features/calendar/">Calendar</a></dt><dd>Overdue and due-today next steps, a month view, and a brief before each meeting.</dd>
+      <dt><a href="features/tasks/">Tasks</a></dt><dd>Every task for every company in one list, with date buttons, filters and your own task types.</dd>
+      <dt><a href="features/companies/">Companies</a></dt><dd>Sortable tables of companies, and one timeline per company of every email, call and meeting.</dd>
+      <dt><a href="features/contacts/">Contacts</a></dt><dd>Every person across your companies, with a page of their own: roles, history, tasks and three message drafts.</dd>
+      <dt><a href="features/messages/">Messages</a></dt><dd>Outreach drafts in English, German, Dutch or French, in your wording, and the outcome of every message.</dd>
+      <dt><a href="features/extension/">Extension</a></dt><dd>Turn the page you are looking at into a company or a contact, from one bookmark.</dd>
+      <dt><a href="features/reports/">Reports</a></dt><dd>Weekly activity, funnel and conversion, time in stage, and which messages get answers.</dd>
+      <dt><a href="features/make-it-yours/">Make it yours</a></dt><dd>Pages of your own with lists, counts and bar charts. Describe one in a sentence, your AI builds it, and you pin it to the sidebar.</dd>
+      <dt><a href="features/settings/">Settings</a></dt><dd>Your name, mail and calendar capture, backups, fields, deal stages and outcomes, set in the browser.</dd>
     </dl>
+    <p class="all-features"><a href="features/">Every page, with a screenshot of each</a></p>
     <div class="principles">
       <p><strong>Local.</strong> It runs on your computer. Your data is a folder of Markdown files in git, on your own disk.</p>
       <p><strong>Your AI is the admin.</strong> Plain files, a small CLI and an MCP server, so the agent you already use can read your pipeline, log a call and change how Hermit works. Ask Hermit answers questions on every page.</p>
@@ -207,16 +213,24 @@ next_step_due: 2026-09-24
       <details><summary>Do I need to be a developer?</summary><p>No. Your AI tool runs the commands and tells you in plain words what it is doing. On a fresh Mac you click Install once in an Apple dialog.</p></details>
       <details><summary>Does it run on Linux?</summary><p>Yes, but it is less tested than on a Mac. The install is the same: your AI tool checks for git and Python and installs what is missing, which on Linux may ask for your password. There is no keychain on Linux, so the mail password is kept in a file only your user account can read.</p></details>
       <details><summary>Which AI tools work?</summary><p>For the install, any AI coding tool that can read a file and run commands: Claude Code, Codex, Cursor, Gemini CLI, Grok Build and others. Afterwards, Claude Desktop, ChatGPT, Cursor or any other MCP client can read your pipeline and log interactions. An AI tool that wants the whole manual can read <a href="docs/">the docs</a>, or the same text as one file in <a href="llms-full.txt">llms-full.txt</a>.</p></details>
-      <details><summary>Does it work with my email and calendar?</summary><p>Yes, without OAuth. BCC or forward mail to an address such as you+crm@gmail.com and it is logged on the right contact. Past meetings come in from your calendar's secret ICS link (Google, Outlook or iCloud). You type the app password and the link into the Settings page yourself, so they never pass through an AI chat.</p></details>
+      <details><summary>Does it work with my email and calendar?</summary><p>Yes, without OAuth. BCC or forward mail to an address such as you+crm@gmail.com and it is logged on the right contact. Past meetings come in from your calendar’s secret ICS link (Google, Outlook or iCloud). You type the app password and the link into the Settings page yourself, so they never pass through an AI chat.</p></details>
       <details><summary>Can my team use it?</summary><p>No. Hermit CRM is built for one person. If you need a team CRM, use one of the others.</p></details>
       <details><summary>How does it compare with HubSpot, Attio or Pipedrive?</summary><p>Those are hosted CRMs for teams, priced per seat, with your data in their cloud. Hermit CRM is free, for one person, and keeps your data on your own computer. <a href="compare/">Hermit CRM compared</a> puts it side by side with HubSpot, Attio, Pipedrive, folk, Twenty and Notion, and says when each one is the better choice.</p></details>
       <details><summary>Does it run on Windows?</summary><p>Not yet. Hermit CRM runs on macOS and Linux.</p></details>
       <details><summary>What does it cost?</summary><p>Nothing. It is free and open source under the Apache License 2.0. It is alpha software with no warranty and no support; see DISCLAIMER.md in the download.</p></details>
     </div>
   </section>
+
+  <section class="closing col" aria-label="Download">
+    <p class="lead">Free and open source. Your data stays in a folder on your computer.</p>
+    <div class="download">
+  <a class="btn" href="download/hermitcrm-0.8.0.tar.gz">Download for Mac and Linux</a>
+  <p class="meta">Version 0.8.0 · Apache 2.0</p>
+</div>
+  </section>
 </main>
 
-<footer class="site-footer col">Hermit CRM · Apache License 2.0 · alpha, no warranty · <a href="https://github.com/Hermit-CRM/hermit-crm">GitHub</a> · <a href="download/hermitcrm-0.8.0.tar.gz.sha256">SHA-256</a> · <a href="docs/">Docs</a> · <a href="changelog/">Changelog</a> · <a href="stats/">Stats</a> · <a href="compare/">Compare</a> · <a href="about/">About</a> · Built by <a href="https://www.linkedin.com/in/gijsbos">Gijs Bos</a></footer>
+<footer class="site-footer col">Hermit CRM · Apache License 2.0 · alpha, no warranty · <a href="https://github.com/Hermit-CRM/hermit-crm">GitHub</a> · <a href="download/hermitcrm-0.8.0.tar.gz.sha256">SHA-256</a> · <a href="features/">Features</a> · <a href="docs/">Docs</a> · <a href="changelog/">Changelog</a> · <a href="stats/">Stats</a> · <a href="compare/">Compare</a> · <a href="about/">About</a> · Built by <a href="https://www.linkedin.com/in/gijsbos">Gijs Bos</a></footer>
 
 <script>
 // Copy button: shown only when scripts run. "Copied" only when the copy

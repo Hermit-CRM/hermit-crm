@@ -104,6 +104,31 @@ see one "Docs" link in the header and the footer.
 | Page structure | `render()` in `build.py` |
 | Share image (`site/img/og.png`) | `python3 build.py --share` (needs Playwright) |
 
+## Feature pages
+
+`/features/` and one page per link in the app's left navigation
+(`/features/pipeline/`, `/features/calendar/`, ...) come from the files in
+**`features/`**, built the same way as the comparison pages:
+
+- `features/index.toml`: the overview text and the labels every page shares.
+- `features/<name>.toml`: one per page. The file name is the address. `order`
+  puts it in the same order as the app's sidebar, `summary` is the line shown on
+  the overview and in "What you get" on the home page, `docs` is the topic its
+  "Read the full page in the docs" link goes to (`contents` for the top), and
+  each `[[sections]]` has a `heading`, `text` and/or `points`, and optionally an
+  `image` with its `alt` text and the `address` shown in the window frame.
+- A row of "What you get" in `content.toml` links to its page by `slug`.
+
+The screenshots are real: a demo folder (`hermitcrm init --demo`) of the
+**released** version, served on its own port, at 2x with a 1200 px wide window
+(1500 px for Messages), cropped to the part that shows the page and kept under
+about 200 KB (quantised to 256 colours). Take them from the release's own
+tarball, not from main, so the site never shows what people cannot download yet.
+`site/img/thumbs/<slug>.png` are the overview's pictures: the top of each
+page's first screenshot at 3:2, 720 px wide. The build checks that every image,
+related page and docs topic exists. Selecting a screenshot opens it full size,
+which is how a phone shows the small print.
+
 ## The Make it yours screenshots
 
 `site/img/make-it-yours-*.png` are real screenshots of the app, taken with

@@ -1,0 +1,39 @@
+# ─────────────────────────────────────────────────────────────────────
+#  Feature pages: the overview at /features/ and the shared parts of every
+#  /features/<name>/ page. One file per page of the app sits beside this one
+#  (pipeline.toml, calendar.toml, ...); its file name is its address, and its
+#  `order` puts it in the same order as the app's left navigation.
+#
+#  Same rules as content.toml: no em dashes, no exclamation marks, none of
+#  the banned words, and `python3 build.py --release` checks them.
+#
+#  Screenshots are real: taken on a demo folder (`hermitcrm init --demo`) of
+#  the released version, at 2x. See README, "Feature pages".
+# ─────────────────────────────────────────────────────────────────────
+
+[page]
+title       = "Hermit CRM features, page by page"
+description = "Every page in Hermit CRM's left navigation explained with screenshots: Pipeline, Calendar, Tasks, Companies, Contacts, Messages, Reports and more."
+h1    = "What Hermit CRM does, page by page"
+intro = """
+Hermit CRM has one page for each link in its left navigation. Each page below says what it
+shows, what you can do on it and where its data lives, with screenshots of the
+released version on made-up demo data.
+"""
+table_caption = "Every page of Hermit CRM, in the order of the left navigation"
+
+# The last row of the overview: Help is not a page of its own on the website, the docs are it.
+[help]
+name    = "Help"
+summary = "The same pages as the docs: how each part of Hermit CRM works, for people and for AI agents. The Help link in the app opens the page for the screen you are on."
+link    = "docs/"
+
+[labels]
+breadcrumb_features = "Features"
+in_nav        = "In the left navigation:"       # then the link's name
+docs_link     = "Read the full {name} page in the docs"
+related       = "Related pages"
+all_features  = "All features"
+next          = "Next:"
+previous      = "Previous:"
+screenshot_note = "Screenshot of the released version on made-up demo data. Select it to open it full size."

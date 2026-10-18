@@ -1,0 +1,39 @@
+order   = 9
+name    = "Reports"
+nav     = "Reports"
+title   = "Reports: activity, funnel and outcomes in Hermit CRM"
+description = "Hermit CRM reports show activity, funnel conversion, win rate, which messages get answers and what needs cleaning up, each against the previous period."
+summary = "Weekly activity, funnel and conversion, time in stage, and which messages get answers."
+intro = """
+Reports are numbers for a period, each with its change against the period before. Every number opens the rows behind it,
+so a figure is never a dead end.
+"""
+docs    = "reports"
+related = ["pipeline", "messages", "make-it-yours"]
+
+[[sections]]
+heading = "A period, and the one before it"
+text = """
+Choose 7 days, 30 days (the default), 90 days, the quarter, the year so far, or your own dates. Each figure shows its change against the previous period of the same length.
+The command line prints the same report: `hermitcrm report --days 30`, or `--md` for Markdown tables.
+"""
+image   = "feature-reports.png"
+alt     = "The Hermit CRM Reports page for the last 30 days: an activity table with interactions and companies touched against the previous period, and a weekly breakdown by channel."
+address = "127.0.0.1:8765/reports"
+
+[[sections]]
+heading = "Six sections"
+points = [
+  "**Activity:** interactions per week by channel and direction, companies touched, new companies and contacts.",
+  "**Funnel:** how many companies entered each stage, the conversion from one stage to the next, the median days in each stage, and the pipeline now with its monthly value.",
+  "**Outcomes:** won, lost and disqualified, the win rate, and the top reasons deals were lost.",
+  "**Messages:** how many were sent and how they fared, by language, by channel and for the five most reused texts.",
+  "**Sources:** which source created companies, and which source won them.",
+  "**Hygiene:** overdue next steps, silent accounts and contacts without an email.",
+]
+
+[[sections]]
+heading = "Plain tables"
+text = """
+Reports are tables with small bars, with no charts library and nothing to load. Want a different view? Describe it, and your own AI agent builds it as a dashboard that you pin to the sidebar.
+"""

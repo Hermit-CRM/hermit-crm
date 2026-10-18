@@ -55,6 +55,7 @@ STYLE = SITE / "style.css"
 TOKENS = ROOT.parent / "src" / "hermitcrm" / "static" / "tokens.css"
 APP_TOKENS = SITE / "app-tokens.css"
 COMPARE = ROOT / "compare"
+FEATURES = ROOT / "features"
 ABOUT = ROOT / "about.toml"
 LLMS = SITE / "llms.txt"
 LLMS_FULL = SITE / "llms-full.txt"
@@ -165,8 +166,33 @@ def flat(text: str) -> str:
     return " ".join(text.split())
 
 
+def typeset(text: str) -> str:
+    """Typographic quotes in prose: ’ in don't and in plural possessives, “ ” and
+    ‘ ’ around quoted words. Straight quotes stay in code, URLs and attributes."""
+    text = re.sub(r"(?<=\w)'(?=\w)", "’", text)                    # don't, Hermit's
+    text = re.sub(r"(?<=s)'(?=\s|[.,;:!?)]|$)", "’", text)         # vendors'
+    text = re.sub(r'(^|[\s(\[])"(?=\S)', lambda m: m.group(1) + "“", text)
+    text = text.replace('"', "”")
+    text = re.sub(r"(^|[\s(\[])'(?=\S)", lambda m: m.group(1) + "‘", text)
+    return text.replace("'", "’")
+
+
+_TAGS = re.compile(r"(<pre\b.*?</pre>|<code\b.*?</code>|<[^>]+>)", re.S)
+
+
+def typeset_html(markup: str) -> str:
+    """typeset() on the text of finished HTML, leaving tags, <code> and <pre> alone.
+    Used for the docs and the changelog, which the app's own converter renders."""
+    def fix(part: str) -> str:
+        if part.startswith("<"):
+            return part
+        plain_text = part.replace("&#x27;", "'").replace("&#39;", "'").replace("&quot;", '"')
+        return typeset(plain_text)
+    return "".join(fix(p) for p in _TAGS.split(markup))
+
+
 def md(text: str) -> str:
-    """Escape, then apply **bold**, `code` and [text](url)."""
+    """Escape, then apply **bold**, `code` and [text](url), with typographic quotes."""
     out = html.escape(flat(text), quote=False)
     codes: list[str] = []
 
@@ -178,6 +204,7 @@ def md(text: str) -> str:
     out = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", out)
     out = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)",
                  lambda m: f'<a href="{html.escape(m.group(2))}">{m.group(1)}</a>', out)
+    out = "".join(p if p.startswith("<") else typeset(p) for p in re.split(r"(<[^>]+>)", out))
     return re.sub(r"\x00(\d+)\x00", lambda m: codes[int(m.group(1))], out)
 
 
@@ -237,8 +264,6 @@ def yours_section(c: dict) -> str:
     y = c["yours"]
     items = []
     for e in y["examples"]:
-        w, h = png_size(SITE / "img" / e["image"])
-        size = f' width="{w}" height="{h}"' if w else ""
         items.append(
             f'      <li class="example">\n'
             f'        <div class="example-text">\n'
@@ -248,10 +273,7 @@ def yours_section(c: dict) -> str:
             f'          <p class="small-label">{md(y["change_label"])}</p>\n'
             f'          <p class="change">{md(e["change"])}</p>\n'
             f'        </div>\n'
-            f'        <figure class="window">\n'
-            f'          <div class="window-bar"><i></i><i></i><i></i><span>{md(e["address"])}</span></div>\n'
-            f'          <img src="img/{attr(e["image"])}" alt="{attr(e["alt"])}"{size} loading="lazy">\n'
-            f'        </figure>\n'
+            f'        {figure("", e["image"], e["alt"], e["address"])}\n'
             f'      </li>')
     examples = "\n".join(items)
     return f"""  <section class="yours wide" aria-labelledby="yours">
@@ -268,6 +290,39 @@ def yours_section(c: dict) -> str:
 """
 
 
+def site_nav(c: dict, root: str, here: str = "") -> str:
+    """The top bar, the same on every page: Features, Docs, Compare, About, then
+    GitHub (when the repository is public). `here` is the section the page is in,
+    and its link is marked. Compare and About leave the bar on a phone; the footer
+    has them."""
+    h = c["header"]
+
+    def link(section: str, label: str, more: bool = False) -> str:
+        cur = ' aria-current="page"' if here == section else ""
+        cls = ' class="nav-more"' if more else ""
+        return f'<a href="{root}{section}/"{cls}{cur}>{md(label)}</a>'
+
+    github = (f'<a href="{attr(c["links"]["github"])}">{md(h["github_label"])}</a>'
+              if c["links"]["github"] else "")
+    return ('<nav class="site-nav" aria-label="Site">'
+            + link("features", h["features_label"]) + link("docs", h["docs_label"])
+            + link("compare", h["compare_label"], True) + link("about", h["about_label"], True)
+            + github + "</nav>")
+
+
+def figure(root: str, image: str, alt: str, address: str) -> str:
+    """A screenshot in its window frame. It opens full size when selected, which
+    is how a phone shows the small print. The size is read from the PNG so the
+    page does not jump while it loads."""
+    w, h = png_size(SITE / "img" / image)
+    size = f' width="{w}" height="{h}"' if w else ""
+    return (f'<figure class="window">\n'
+            f'          <div class="window-bar"><i></i><i></i><i></i><span>{md(address)}</span></div>\n'
+            f'          <a class="zoom" href="{root}img/{attr(image)}"><img src="{root}img/{attr(image)}" '
+            f'alt="{attr(alt)}"{size} loading="lazy"></a>\n'
+            f'        </figure>')
+
+
 def render(c: dict, ld: str = "") -> str:
     p, h, i, f = c["page"], c["hero"], c["install"], c["file"]
     description = flat(p["description"] or h["subline"])
@@ -281,14 +336,19 @@ def render(c: dict, ld: str = "") -> str:
     # as long as the repository is private.
     github = (f'<a href="{attr(c["links"]["github"])}">{md(c["header"]["github_label"])}</a>'
               if c["links"]["github"] else "")
-    # The top bar: Docs, About, then GitHub (when the repository is public).
-    nav = (f'<nav class="site-nav" aria-label="Site">'
-           f'<a href="docs/">{md(c["header"]["docs_label"])}</a>'
-           f'<a href="about/">{md(c["header"]["about_label"])}</a>{github}</nav>')
+    nav = site_nav(c, "")
 
     steps = "\n".join(f"      <li><span>{md(s)}</span></li>" for s in i["steps"])
-    features = "\n".join(f"      <dt>{md(x['name'])}</dt><dd>{md(x['text'])}</dd>"
+    # A row whose page exists links to it: features/<slug>/ (built from features/*.toml).
+    def feature_name(x: dict) -> str:
+        if not x.get("slug"):
+            return md(x["name"])
+        return f'<a href="features/{attr(x["slug"])}/">{md(x["name"])}</a>'
+
+    features = "\n".join(f"      <dt>{feature_name(x)}</dt><dd>{md(x['text'])}</dd>"
                          for x in c["features"]["items"])
+    all_features = (f'    <p class="all-features"><a href="features/">{md(c["features"]["all_label"])}</a></p>\n'
+                    if c["features"].get("all_label") else "")
     principles = "\n".join(f"      <p><strong>{md(x['name'])}</strong> {md(x['text'])}</p>"
                            for x in c["principles"])
     faqs = "\n".join(
@@ -296,10 +356,11 @@ def render(c: dict, ld: str = "") -> str:
         f'<p>{md(q["a"])}</p></details>' for q in c["questions"]["items"])
 
     if f["screenshot"]:
-        visual = (f'<img src="img/{attr(f["screenshot"])}" alt="{attr(f["screenshot_alt"])}" '
-                  f'width="1600" height="800" loading="lazy">')
+        idea_figure = figure("", f["screenshot"], f["screenshot_alt"], f["address_bar"])
     else:
-        visual = mock()
+        idea_figure = (f'<figure class="window">\n'
+                       f'        <div class="window-bar"><i></i><i></i><i></i><span>{md(f["address_bar"])}</span></div>\n'
+                       f'        {mock()}\n      </figure>')
     file_body = html.escape(f["file_body"].strip("\n"))
     sha256 = f'<a href="{attr(c["links"]["sha256"])}">{md(h["sha256_label"])}</a>'
     footer_text = c["footer"]["text"]
@@ -364,10 +425,7 @@ def render(c: dict, ld: str = "") -> str:
       <h2 class="big" id="idea">{md(f["heading"])}</h2>
     </div>
     <div class="idea-grid">
-      <figure class="window">
-        <div class="window-bar"><i></i><i></i><i></i><span>{md(f["address_bar"])}</span></div>
-        {visual}
-      </figure>
+      {idea_figure}
       <div class="file">
         <p>{md(f["file_caption"])}</p>
         <pre><span class="path">{html.escape(f["file_path"])}</span>
@@ -386,7 +444,7 @@ def render(c: dict, ld: str = "") -> str:
     <dl>
 {features}
     </dl>
-    <div class="principles">
+{all_features}    <div class="principles">
 {principles}
     </div>
   </section>
@@ -398,6 +456,11 @@ def render(c: dict, ld: str = "") -> str:
     <div>
 {faqs}
     </div>
+  </section>
+
+  <section class="closing col" aria-label="{attr(c["closing"]["label"])}">
+    <p class="lead">{md(c["closing"]["text"])}</p>
+    {download_block(c)}
   </section>
 </main>
 
@@ -521,9 +584,8 @@ def page_head(c: dict, hub: dict, *, title: str, description: str, path: str, ro
               modified=None) -> str:
     """<head> of a page below the home page. `root` leads back to site/ ("../../")."""
     site = c["page"]["site_url"].rstrip("/")
-    # On the About and Docs pages their own link is marked as the current page.
-    here = ' aria-current="page"' if path == "/about/" else ""
-    here_docs = ' aria-current="page"' if path == "/docs/" else ""
+    # The link of the section the page is in is marked as the current page.
+    section = path.strip("/").split("/")[0]
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -552,7 +614,7 @@ def page_head(c: dict, hub: dict, *, title: str, description: str, path: str, ro
 
 <header class="site-header wide">
   <a class="brand" href="{root}" aria-label="{attr(c["header"]["name"])} home">{MARK}<span>{md(c["header"]["name"])}</span></a>
-  <nav class="site-nav" aria-label="Site"><a href="{root}docs/"{here_docs}>{md(hub["labels"]["header_docs"])}</a><a href="{root}about/"{here}>{md(hub["labels"]["header_about"])}</a><a href="{root}">{md(hub["labels"]["header_link"])}</a></nav>
+  {site_nav(c, root, section)}
 </header>
 """
 
@@ -561,9 +623,11 @@ def page_foot(hub: dict, compare_link: str, about_link: str, docs_link: str, sta
               notice: bool = True, changelog_link: str = "../changelog/") -> str:
     """Footer of a page below the home page. The prices-and-trademarks notice is
     for the comparison pages; the About page leaves it out."""
+    # The features pages sit beside the docs: ../docs/ -> ../features/, and from the docs page itself ../features/.
+    features_link = "../features/" if docs_link == "./" else docs_link[:-len("docs/")] + "features/"
     text = (hub["footer"]["text"].replace("{compare}", compare_link)
             .replace("{about}", about_link).replace("{docs}", docs_link).replace("{stats}", stats_link)
-            .replace("{changelog}", changelog_link))
+            .replace("{changelog}", changelog_link).replace("{features}", features_link))
     return ('<footer class="site-footer col">\n'
             + (f'  <p class="notice">{md(hub["notice"]["text"])}</p>\n' if notice else "")
             + f'  <p>{md(text)}</p>\n</footer>\n</body>\n</html>\n')
@@ -574,6 +638,15 @@ def crumbs(hub: dict, root: str, here: str, compare_link: str | None) -> str:
     items = [f'<li><a href="{root}">{md(lab["breadcrumb_home"])}</a></li>']
     if compare_link:
         items.append(f'<li><a href="{compare_link}">{md(lab["breadcrumb_compare"])}</a></li>')
+    items.append(f'<li aria-current="page">{html.escape(here)}</li>')
+    return f'<nav class="crumbs" aria-label="Breadcrumb"><ol>{"".join(items)}</ol></nav>'
+
+
+def features_crumbs(hub: dict, fhub: dict, root: str, here: str, features_link: str | None) -> str:
+    """Hermit CRM / Features / <page>; on the overview itself the last crumb is Features."""
+    items = [f'<li><a href="{root}">{md(hub["labels"]["breadcrumb_home"])}</a></li>']
+    if features_link:
+        items.append(f'<li><a href="{features_link}">{md(fhub["labels"]["breadcrumb_features"])}</a></li>')
     items.append(f'<li aria-current="page">{html.escape(here)}</li>')
     return f'<nav class="crumbs" aria-label="Breadcrumb"><ol>{"".join(items)}</ol></nav>'
 
@@ -785,6 +858,177 @@ def render_about(c: dict, hub: dict, a: dict) -> str:
 """ + page_foot(hub, "../compare/", "./", "../docs/", "../stats/", notice=False))
 
 
+# ── Feature pages (/features/ and /features/<name>/) ─────────────────
+# One page for each link in the app's left navigation: what it shows, what you
+# can do on it, and real screenshots. Words in features/*.toml, in the order of
+# the app's sidebar (`order`).
+def load_features() -> tuple[dict, list[dict]]:
+    """features/index.toml and one dict per page, in their `order`."""
+    fhub = tomllib.loads((FEATURES / "index.toml").read_text(encoding="utf-8"))
+    pages = []
+    for f in sorted(FEATURES.glob("*.toml")):
+        if f.name == "index.toml":
+            continue
+        p = tomllib.loads(f.read_text(encoding="utf-8"))
+        p["slug"] = f.stem
+        for need in ("order", "name", "nav", "title", "description", "summary", "intro", "docs", "sections"):
+            if need not in p:
+                raise BuildError(f"features/{f.name} has no {need}")
+        for n, s in enumerate(p["sections"], 1):
+            if "heading" not in s or not (s.get("text") or s.get("points")):
+                raise BuildError(f"features/{f.name}: section {n} needs a heading and text or points")
+            if "image" in s and not all(k in s for k in ("alt", "address")):
+                raise BuildError(f"features/{f.name}: section {n} has an image but no alt or address")
+        pages.append(p)
+    pages.sort(key=lambda p: (p["order"], p["name"].lower()))
+    return fhub, pages
+
+
+def feature_thumb(p: dict) -> str:
+    """The overview's picture of a page: img/thumbs/<slug>.png when there is one,
+    otherwise the page's first screenshot."""
+    if (SITE / "img" / "thumbs" / f"{p['slug']}.png").is_file():
+        return f"thumbs/{p['slug']}.png"
+    return next((s["image"] for s in p["sections"] if "image" in s), "")
+
+
+def render_feature(c: dict, hub: dict, fhub: dict, p: dict, pages: list[dict]) -> str:
+    site, lab, fl = c["page"]["site_url"].rstrip("/"), hub["labels"], fhub["labels"]
+    path, root = f"/features/{p['slug']}/", "../../"
+    url, name = site + path, p["name"]
+    by_slug = {q["slug"]: q for q in pages}
+    at = pages.index(p)
+
+    sections = []
+    for n, s in enumerate(p["sections"], 1):
+        body = [f'        <h2 id="s{n}">{md(s["heading"])}</h2>']
+        if s.get("text"):
+            body.append(f'        <p>{md(s["text"])}</p>')
+        if s.get("points"):
+            body.append('        <ul class="points">\n'
+                        + "\n".join(f"          <li>{md(x)}</li>" for x in s["points"]) + "\n        </ul>")
+        shot = (f'\n      <div class="wide shot">\n        {figure(root, s["image"], s["alt"], s["address"])}\n      </div>'
+                if s.get("image") else "")
+        sections.append(f'    <section class="part feature" aria-labelledby="s{n}">\n'
+                        f'      <div class="col">\n' + "\n".join(body) + f'\n      </div>{shot}\n    </section>\n')
+
+    related = [by_slug[r] for r in p.get("related", []) if r in by_slug]
+    related_html = ""
+    if related:
+        items = "\n".join(f'        <li><a href="{root}features/{q["slug"]}/">{md(q["name"])}</a>: {md(q["summary"])}</li>'
+                          for q in related)
+        related_html = (f'      <h2 class="label">{md(fl["related"])}</h2>\n'
+                        f'      <ul class="points">\n{items}\n      </ul>\n')
+    prev_q = pages[at - 1] if at > 0 else None
+    next_q = pages[at + 1] if at + 1 < len(pages) else None
+    pager = "".join(
+        f'<a class="{cls}" href="{root}features/{q["slug"]}/" rel="{rel}"><small>{md(label)}</small> {md(q["name"])}</a>'
+        for q, cls, rel, label in ((prev_q, "prev", "prev", fl["previous"]), (next_q, "next", "next", fl["next"]))
+        if q)
+    docs_link = p.get("docs_label") or fl["docs_link"].replace("{name}", name)
+
+    ld = jsonld(
+        {"@type": "WebPage", "@id": url, "url": url, "name": flat(p["title"]),
+         "description": flat(p["description"]), "inLanguage": "en",
+         "isPartOf": {"@id": f"{site}/#website"}, "about": {"@id": f"{site}/#software"},
+         "breadcrumb": {"@id": f"{url}#breadcrumb"}},
+        breadcrumbs(url, [(lab["breadcrumb_home"], f"{site}/"),
+                          (fl["breadcrumb_features"], f"{site}/features/"), (name, url)]),
+        software(c, hub), website(c))
+    has_shots = any("image" in s for s in p["sections"])
+    note = f'\n    <p class="checked">{md(fl["screenshot_note"])}</p>' if has_shots else ""
+
+    return (page_head(c, hub, title=p["title"], description=flat(p["description"]), path=path, root=root, ld=ld)
+            + f"""
+<main id="main">
+  <div class="page-top col">
+    {features_crumbs(hub, fhub, root, name, "../")}
+    <h1 class="page-h1">{md(p.get("h1", name))}</h1>
+    <p class="lead">{md(p["intro"])}</p>
+    <p class="checked">{md(fl["in_nav"])} <strong>{md(p["nav"])}</strong></p>{note}
+  </div>
+
+{"".join(sections)}
+  <section class="part col more" aria-label="{attr(fl["related"])}">
+    <p><a href="{root}docs/#{attr(p["docs"])}">{md(docs_link)}</a></p>
+{related_html}    <nav class="pager" aria-label="{attr(fl["breadcrumb_features"])}">{pager}</nav>
+    <p><a href="../">{md(fl["all_features"])}</a></p>
+  </section>
+
+{about_block(hub, root)}
+</main>
+
+""" + page_foot(hub, "../../compare/", "../../about/", "../../docs/", "../../stats/", notice=False,
+                changelog_link="../../changelog/"))
+
+
+def render_features_hub(c: dict, hub: dict, fhub: dict, pages: list[dict]) -> str:
+    site, lab, fl, pg = c["page"]["site_url"].rstrip("/"), hub["labels"], fhub["labels"], fhub["page"]
+    path, root = "/features/", "../"
+    url = site + path
+    tiles = []
+    for p in pages:
+        thumb = feature_thumb(p)
+        w, h = png_size(SITE / "img" / thumb) if thumb else (0, 0)
+        img = (f'<img src="{root}img/{attr(thumb)}" alt="" width="{w}" height="{h}" loading="lazy">'
+               if thumb else "")
+        tiles.append(f'      <li><a class="tile" href="{p["slug"]}/">{img}'
+                     f'<span class="tile-name">{md(p["name"])}</span>'
+                     f'<span class="tile-text">{md(p["summary"])}</span></a></li>')
+    hp = fhub["help"]
+    ld = jsonld(
+        {"@type": "CollectionPage", "@id": url, "url": url, "name": flat(pg["title"]),
+         "description": flat(pg["description"]), "inLanguage": "en",
+         "isPartOf": {"@id": f"{site}/#website"}, "about": {"@id": f"{site}/#software"},
+         "breadcrumb": {"@id": f"{url}#breadcrumb"},
+         "mainEntity": {"@type": "ItemList", "itemListElement": [
+             {"@type": "ListItem", "position": n, "url": f"{url}{p['slug']}/", "name": p["name"]}
+             for n, p in enumerate(pages, 1)]}},
+        breadcrumbs(url, [(lab["breadcrumb_home"], f"{site}/"), (fl["breadcrumb_features"], url)]),
+        software(c, hub), website(c))
+    return (page_head(c, hub, title=pg["title"], description=flat(pg["description"]), path=path, root=root, ld=ld)
+            + f"""
+<main id="main">
+  <div class="page-top col">
+    {features_crumbs(hub, fhub, root, fl["breadcrumb_features"], None)}
+    <h1 class="page-h1">{md(pg["h1"])}</h1>
+    <p class="lead">{md(pg["intro"])}</p>
+  </div>
+
+  <section class="part wide" aria-label="{attr(pg["table_caption"])}">
+    <ul class="tiles">
+{chr(10).join(tiles)}
+    </ul>
+  </section>
+
+  <section class="part col">
+    <p><strong>{md(hp["name"])}.</strong> {md(hp["summary"])} <a href="{root}{attr(hp["link"])}">{md(c["docs"]["h1"])}</a></p>
+  </section>
+
+{about_block(hub, root)}
+</main>
+
+""" + page_foot(hub, "../compare/", "../about/", "../docs/", "../stats/", notice=False))
+
+
+def build_features(c: dict, hub: dict) -> tuple[dict, list[dict]]:
+    """Write site/features/. Stale pages of a removed feature are deleted."""
+    fhub, pages = load_features()
+    out = SITE / "features"
+    out.mkdir(exist_ok=True)
+    (out / "index.html").write_text(render_features_hub(c, hub, fhub, pages), encoding="utf-8")
+    keep = {p["slug"] for p in pages}
+    for d in out.iterdir():
+        if d.is_dir() and d.name not in keep and (d / "index.html").exists():
+            (d / "index.html").unlink()
+            d.rmdir()
+    for p in pages:
+        (out / p["slug"]).mkdir(exist_ok=True)
+        (out / p["slug"] / "index.html").write_text(render_feature(c, hub, fhub, p, pages), encoding="utf-8")
+    print(f"built site/features/ ({len(pages)} pages)")
+    return fhub, pages
+
+
 # ── Stats (/stats/) ──────────────────────────────────────────────────
 # Only the shell is built here. The numbers are a fragment that
 # scripts/publicstats.py uploads to the Fly volume once a day; nginx includes
@@ -968,7 +1212,7 @@ def docs_section(docs: Docs, topic: str, text: str, names: set[str]) -> str:
                   body)
     body = re.sub(r"<h1>(.*?)</h1>", rf'<h2 id="{topic}">\1</h2>', body, count=1)
     body = body.replace("<table>", '<div class="docs-table"><table>').replace("</table>", "</table></div>")
-    return body
+    return typeset_html(body)
 
 
 def render_docs(c: dict, hub: dict, docs: Docs) -> str:
@@ -1066,6 +1310,7 @@ def render_changelog(c: dict, hub: dict, docs: Docs) -> str:
     # anchors first and then point at /docs/ (the page has no anchors of its own).
     body = docs["render"](docs_links(text, names, "")).replace('href="#', 'href="../docs/#')
     body = body.replace("<table>", '<div class="docs-table"><table>').replace("</table>", "</table></div>")
+    body = typeset_html(body)
     page = {"@type": "WebPage", "@id": url, "url": url, "name": flat(ch["title"]),
             "description": flat(ch["description"]), "inLanguage": "en",
             "isPartOf": {"@id": f"{site}/#website"}, "about": {"@id": f"{site}/#software"},
@@ -1107,7 +1352,8 @@ def build_changelog(c: dict, hub: dict, docs: Docs) -> bool:
     return True
 
 
-def llms_txt(c: dict, hub: dict, pages: list[dict], about: dict, docs: Docs) -> str:
+def llms_txt(c: dict, hub: dict, pages: list[dict], about: dict, docs: Docs,
+             features: list[dict] = ()) -> str:
     """llms.txt (llmstxt.org): a plain summary with links, for AI tools that read a site.
     The docs come first: they say what Hermit CRM does, feature by feature."""
     site = c["page"]["site_url"].rstrip("/")
@@ -1127,13 +1373,19 @@ def llms_txt(c: dict, hub: dict, pages: list[dict], about: dict, docs: Docs) -> 
     lines += ["", plain(y["safety"]), "",
               "## Pages", "", f"- [Home]({site}/): what it is, how to install it, questions and answers",
              f"- [Docs]({site}/docs/): {plain(d['description'])}",
+             *([f"- [Features]({site}/features/): every page of the app, with screenshots"] if features else []),
              *([f"- [Changelog]({site}/changelog/): {plain(c['changelog']['description'])}"]
                if docs.get("changelog") else []),
              f"- [Hermit CRM compared]({site}/compare/): {plain(hub['page']['description'])}",
              f"- [About]({site}/about/): {plain(about['page']['description'])}",
              f"- [Stats]({site}/stats/): {plain(c['stats']['llms'])}; "
-             f"the same as JSON at {site}/stats/stats.json", "",
-             "## Comparisons", ""]
+             f"the same as JSON at {site}/stats/stats.json", ""]
+    if features:
+        lines += ["## Features", "", "One page for each link in the app's left navigation.", ""]
+        lines += [f"- [{plain(p['name'])}]({site}/features/{p['slug']}/): {plain(p['summary'])}"
+                  for p in features]
+        lines += [""]
+    lines += ["## Comparisons", ""]
     lines += [f"- [Hermit CRM vs {p['name']}]({site}/compare/{p['slug']}/): {plain(p['short_answer'])}"
               for p in pages]
     lines += ["", "## Facts", ""]
@@ -1181,15 +1433,20 @@ def walk(value, path=""):
 
 
 def check(c: dict, pages: list[dict] | None = None, hub: dict | None = None,
-          about: dict | None = None, docs: Docs | None = None) -> tuple[list[str], list[str]]:
+          about: dict | None = None, docs: Docs | None = None, fhub: dict | None = None,
+          features: list[dict] | None = None) -> tuple[list[str], list[str]]:
     problems, tbc = [], []
     texts = list(walk(c))
     if hub:
         texts += walk(hub, "compare/index")
     if about:
         texts += walk(about, "about")
+    if fhub:
+        texts += walk(fhub, "features/index")
     for p in pages or []:
         texts += walk({k: v for k, v in p.items() if k != "checked"}, f"compare/{p['slug']}")
+    for p in features or []:
+        texts += walk({k: v for k, v in p.items() if k not in ("image", "address")}, f"features/{p['slug']}")
     # Search results cut titles after about 60 characters and descriptions
     # after about 155; the page still works, but the end goes missing.
     snippets = [("page", c["page"]["title"], c["page"]["description"] or c["hero"]["subline"])]
@@ -1198,6 +1455,9 @@ def check(c: dict, pages: list[dict] | None = None, hub: dict | None = None,
     snippets += [(f"compare/{p['slug']}", p["title"], p["description"]) for p in pages or []]
     if about:
         snippets.append(("about", about["page"]["title"], about["page"]["description"]))
+    if fhub:
+        snippets.append(("features/index", fhub["page"]["title"], fhub["page"]["description"]))
+    snippets += [(f"features/{p['slug']}", p["title"], p["description"]) for p in features or []]
     snippets.append(("docs", c["docs"]["title"], c["docs"]["description"]))
     snippets.append(("changelog", c["changelog"]["title"], c["changelog"]["description"]))
     snippets.append(("stats", c["stats"]["title"], c["stats"]["description"]))
@@ -1237,6 +1497,30 @@ def check(c: dict, pages: list[dict] | None = None, hub: dict | None = None,
         if png_size(SITE / "img" / e["image"]) == (0, 0):
             problems.append(f"yours.examples: site/img/{e['image']} is missing or not a PNG")
             print(f"  warning  {problems[-1]}")
+    # Feature pages: every screenshot exists, every link they make goes somewhere,
+    # and every row of "What you get" with a slug has its page.
+    first = len(problems)
+    slugs = {p["slug"] for p in features or []}
+    topics = {t for t, *_ in docs["topics"]} if docs else set()
+    for p in features or []:
+        where = f"features/{p['slug']}"
+        for s in p["sections"]:
+            if "image" in s and png_size(SITE / "img" / s["image"]) == (0, 0):
+                problems.append(f"{where}: site/img/{s['image']} is missing or not a PNG")
+            if "image" in s and not s["alt"].strip():
+                problems.append(f"{where}: a screenshot has no alt text")
+        for r in p.get("related", []):
+            if r not in slugs:
+                problems.append(f"{where}: related page '{r}' does not exist")
+        if topics and p["docs"] not in topics | {"contents"}:
+            problems.append(f"{where}: docs topic '{p['docs']}' is not in the docs")
+        if feature_thumb(p) and png_size(SITE / "img" / feature_thumb(p)) == (0, 0):
+            problems.append(f"{where}: thumbnail site/img/{feature_thumb(p)} is missing or not a PNG")
+    for x in c["features"]["items"]:
+        if x.get("slug") and features is not None and x["slug"] not in slugs:
+            problems.append(f"features.items: '{x['name']}' links to features/{x['slug']}/, which does not exist")
+    for p in problems[first:]:
+        print(f"  warning  {p}")
     # /docs/ must describe the version people download, so on a release it has
     # to come from that download and carry its version.
     if docs:
@@ -1264,22 +1548,23 @@ def build() -> tuple[dict, list[str], list[str]]:
     # canonical links, so they are only built once [page].site_url is set.
     hub, pages = build_compare(c) if site_url else (None, [])
     about = build_about(c, hub, pages) if hub else None
+    fhub, features = build_features(c, hub) if hub else (None, [])
     docs = build_docs(c, hub) if hub else None
     if hub:
         build_changelog(c, hub, docs)
         build_stats(c, hub)
-        LLMS.write_text(llms_txt(c, hub, pages, about, docs), encoding="utf-8")
+        LLMS.write_text(llms_txt(c, hub, pages, about, docs, features), encoding="utf-8")
         print("built site/llms.txt")
     ld = jsonld(website(c), software(c, hub)) if hub else ""
     OUT.write_text(render(c, ld), encoding="utf-8")
     print(f"built {OUT.relative_to(ROOT)} and {APP_TOKENS.relative_to(ROOT)}")
-    crawl(site_url, pages, about, docs, stats=bool(hub))
-    problems, tbc = check(c, pages, hub, about, docs)
+    crawl(site_url, pages, about, docs, stats=bool(hub), features=features)
+    problems, tbc = check(c, pages, hub, about, docs, fhub, features)
     return c, problems, tbc
 
 
 def crawl(site_url: str, pages: list[dict] = (), about: dict | None = None,
-          docs: Docs | None = None, stats: bool = False) -> None:
+          docs: Docs | None = None, stats: bool = False, features: list[dict] = ()) -> None:
     """Write robots.txt and sitemap.xml for search engines, or drop them while
     the site has no address yet (a sitemap needs absolute URLs)."""
     robots, sitemap = SITE / "robots.txt", SITE / "sitemap.xml"
@@ -1305,6 +1590,12 @@ def crawl(site_url: str, pages: list[dict] = (), about: dict | None = None,
         urls.append(f"  <url><loc>{html.escape(site_url)}/docs/</loc>{lastmod}</url>")
         if docs.get("changelog"):
             urls.append(f"  <url><loc>{html.escape(site_url)}/changelog/</loc>{lastmod}</url>")
+    if features:
+        # The features describe the released version, so they are as new as the docs.
+        lastmod = f"<lastmod>{docs['date'].isoformat()}</lastmod>" if docs and docs["date"] else ""
+        urls.append(f"  <url><loc>{html.escape(site_url)}/features/</loc>{lastmod}</url>")
+        urls += [f"  <url><loc>{html.escape(site_url)}/features/{p['slug']}/</loc>{lastmod}</url>"
+                 for p in features]
     if stats:
         urls.append(f"  <url><loc>{html.escape(site_url)}/stats/</loc><changefreq>daily</changefreq></url>")
     sitemap.write_text('<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -1365,8 +1656,8 @@ def main() -> None:
         share(c)
     if "--watch" in sys.argv:
         watched = lambda: [CONTENT, ABOUT, STYLE, TOKENS, *sorted(COMPARE.glob("*.toml")),  # noqa: E731
-                           *sorted(HELP.glob("*.md"))]
-        print("watching content.toml, about.toml, compare/*.toml, site/style.css, the app's tokens.css "
+                           *sorted(FEATURES.glob("*.toml")), *sorted(HELP.glob("*.md"))]
+        print("watching content.toml, about.toml, compare/*.toml, features/*.toml, site/style.css, the app's tokens.css "
               "and its Help pages (Ctrl+C to stop)")
         stamp = lambda: [(f, f.stat().st_mtime) for f in watched()]  # noqa: E731
         seen = stamp()

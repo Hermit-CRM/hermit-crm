@@ -119,9 +119,6 @@ hermit = "Alpha software. No warranty and no support."
 # ── Headings used on every comparison page ───────────────────────────
 # {name} is replaced by the other CRM's name.
 [labels]
-header_docs        = "Docs"       # top right, links to /docs/
-header_about       = "About"      # top right, links to /about/
-header_link        = "Download"   # top right, links to the home page
 breadcrumb_home    = "Hermit CRM"
 breadcrumb_compare = "Compare"
 short_answer       = "The short answer"
@@ -148,4 +145,4 @@ before you decide. Found a mistake? Message
 """
 
 [footer]
-text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · [All comparisons]({compare}) · [Docs]({docs}) · [Changelog]({changelog}) · [Stats]({stats}) · [About]({about}) · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
+text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · [All comparisons]({compare}) · [Features]({features}) · [Docs]({docs}) · [Changelog]({changelog}) · [Stats]({stats}) · [About]({about}) · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
