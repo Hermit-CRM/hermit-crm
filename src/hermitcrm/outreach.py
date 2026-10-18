@@ -115,11 +115,16 @@ ITEM_KEYS = (
     "language",
     "subject", "pitch", "research_level", "model", "attempts", "seconds", "checks",
     "critic", "critic_reason", "critic_model", "flags", "norms", "findings", "proof_used",
-    "proposals", "edit_distance",
+    "lessons_used", "proposals", "edit_distance",
     "skip_reason", "skip_note", "batch", "created", "researched", "drafted", "ready",
     "sent", "sent_with", "skipped", "ai_subject", "ai_pitch", "ai_body", "edits", "earlier",
 )
-EDIT_KEYS = ("at", "words", "note", "subject", "pitch", "body")
+EDIT_KEYS = ("at", "words", "note", "tags", "subject", "pitch", "body")
+# Reason chips on a tracked edit: a label for the learning counters without any AI.
+EDIT_TAGS = ("too-long", "wrong-tone", "wrong-pain", "bad-finding", "wrong-fact", "cliche",
+             "other")
+REASON_CHIP_WORDS = 15   # the edit form offers the chips above this many changed words
+NEVER_WRITE_MAX = 10     # phrases in config.toml `outreach_never_write`
 EARLIER_KEYS = ("model", "drafted", "replaced", "why", "ai_subject", "ai_pitch", "ai_body",
                 "edits")
 NOTE_MAX = 500   # characters in the explainer of one tracked edit
@@ -692,10 +697,18 @@ class CheckContext:
     offer_lines: list[str] = field(default_factory=list)    # the offer line, translations
     angles: tuple = DEFAULT_ANGLES
     opt_out: str = ""                                       # the line Python adds, if any
+    never_write: list[str] = field(default_factory=list)    # config `outreach_never_write`
 
     @property
     def usable_ids(self) -> set[int]:
         return {n for n, f in enumerate(self.findings, 1) if f.usable}
+
+
+def never_write(config: dict | None) -> list[str]:
+    """The phrases the person asked never to see in a draft (a learned rule)."""
+    value = (config or {}).get("outreach_never_write")
+    phrases = [" ".join(str(v).split()) for v in value] if isinstance(value, list) else []
+    return [p for p in phrases if p][:NEVER_WRITE_MAX]
 
 
 def check_text(subject: str, body: str, pitch: str, ctx: CheckContext) -> list[str]:
@@ -765,6 +778,9 @@ def check_text(subject: str, body: str, pitch: str, ctx: CheckContext) -> list[s
                             f"at most {most}")
     # A gap refuses a draft. Only a fallback written without any usable finding
     # keeps its gaps: it is shown as needing hand edits instead (hand_edits).
+    banned = next((p for p in ctx.never_write if p and p.lower() in lowered), None)
+    if banned:
+        problems.append(f"it says \"{banned}\", which you asked never to write")
     gap = _GAP.search(whole)
     if gap and (thread or any(f.usable for f in ctx.findings)):
         problems.append(f"it leaves a gap to fill ({gap.group(0)})")
@@ -813,6 +829,7 @@ class Draft:
     model: str = ""
     language: str = ""
     norms: list[str] = field(default_factory=list)
+    lessons_used: list[str] = field(default_factory=list)   # learned lines in the prompt
     failed: str = ""   # the AI gave no usable draft at all (twice): why
 
 
@@ -1102,7 +1119,8 @@ class AIDrafter:
                            findings=list(research.findings),
                            proof=approach.proof if approach is not None else [],
                            offer_lines=[approach.offer_line] if approach is not None else [],
-                           angles=angles, opt_out=opt_out)
+                           angles=angles, opt_out=opt_out,
+                           never_write=never_write(self.config))
         return ctx, norms
 
     def draft(self, kind, company, contact, research, channel, approach=None,
@@ -1155,6 +1173,8 @@ class AIDrafter:
         result.model = model
         result.language = brief.language
         result.norms = norms_applied(norms)
+        from hermitcrm import learning
+        result.lessons_used = learning.lesson_ids(pb_text)
         return result
 
 
@@ -1391,12 +1411,14 @@ class TrackedEdit:
     at: str            # YYYY-MM-DDTHH:MM
     words: int         # words added, removed or changed since the version before
     note: str = ""     # the explainer: why this change (optional, one paragraph)
+    tags: list[str] = field(default_factory=list)   # reason chips (EDIT_TAGS), may be none
     subject: str = ""
     pitch: str = ""
     body: str = ""
 
     def to_dict(self) -> dict:
-        return {k: getattr(self, k) for k in EDIT_KEYS}
+        # No chips, no key: files written before chips existed keep their bytes.
+        return {k: getattr(self, k) for k in EDIT_KEYS if k != "tags" or self.tags}
 
     @classmethod
     def from_dict(cls, data) -> "TrackedEdit | None":
@@ -1406,6 +1428,7 @@ class TrackedEdit:
         return cls(at=fmt_datetime(at) if isinstance(at, datetime) else str(at or ""),
                    words=_int_or_none(data.get("words")) or 0,
                    note=" ".join(str(data.get("note") or "").split()),
+                   tags=clean_tags(data.get("tags")),
                    subject=str(data.get("subject") or ""), pitch=str(data.get("pitch") or ""),
                    body=str(data.get("body") or ""))
 
@@ -1470,6 +1493,7 @@ class Item:
     norms: list[str] = field(default_factory=list)
     findings: list[Finding] = field(default_factory=list)
     proof_used: list[str] = field(default_factory=list)
+    lessons_used: list[str] = field(default_factory=list)   # learned lines in the prompt
     proposals: dict = field(default_factory=dict)
     edit_distance: int | None = None
     skip_reason: str = ""
@@ -1514,8 +1538,26 @@ class Item:
                 value = [f.to_dict() for f in value]
             elif key in ("edits", "earlier"):
                 value = [x.to_dict() for x in value]
+            elif key == "lessons_used" and not value:
+                continue    # absent until a draft carried lessons (keeps older files' bytes)
             meta[key] = value
         return meta
+
+
+def clean_tags(value) -> list[str]:
+    """Reason chips as kept: known ones, lower case, once each, in EDIT_TAGS order."""
+    given = {str(v).strip().lower() for v in value} if isinstance(value, (list, tuple)) else set()
+    return [t for t in EDIT_TAGS if t in given]
+
+
+def clean_lesson_ids(value) -> list[str]:
+    """`lessons_used` as kept: non-empty strings, once each, in their order."""
+    out: list[str] = []
+    for v in value if isinstance(value, list) else []:
+        text = str(v).strip() if v is not None else ""
+        if text and text not in out:
+            out.append(text)
+    return out
 
 
 def _int_or_none(value) -> int | None:
@@ -1572,6 +1614,7 @@ def item_from_text(item_id: str, text: str) -> Item:
         critic=scores, critic_reason=s("critic_reason"), critic_model=s("critic_model"),
         flags=strings("flags"), norms=strings("norms"), findings=findings,
         proof_used=strings("proof_used"),
+        lessons_used=clean_lesson_ids(meta.get("lessons_used")),
         proposals={str(k): str(v) for k, v in proposals.items()}
         if isinstance(proposals, dict) else {},
         edit_distance=_int_or_none(meta.get("edit_distance")),
@@ -2528,6 +2571,7 @@ def _apply_draft(item: Item, draft: Draft, fallback: bool, when: datetime,
     item.subject, item.pitch = draft.subject, draft.pitch
     item.body, item.checks, item.norms = draft.body, draft.problems, draft.norms
     item.proof_used = draft.proof_used
+    item.lessons_used = list(draft.lessons_used)
     item.ai_subject, item.ai_pitch, item.ai_body = draft.subject, draft.pitch, draft.body
     item.drafted = when
     item.flags = [f for f in item.flags if f != NEEDS_HAND_EDITS and not f.startswith("critic")]
@@ -2558,7 +2602,9 @@ def check_item(store: Store, item: Item, config: dict | None = None) -> list[str
     ctx = CheckContext(kind=item.kind, channel=item.channel, rules=rules,
                        findings=item.findings,
                        offer_lines=[approach.offer_line] if approach else [],
-                       opt_out=opt_out)
+                       opt_out=opt_out,
+                       never_write=never_write(config if config is not None
+                                               else load_config(store.root)))
     found = check_text(item.subject, item.body, item.pitch, ctx)
     gaps = hand_edits(item.subject, item.body, item.pitch)
     if gaps and not any(p.startswith("it leaves a gap") for p in found):
@@ -2569,7 +2615,7 @@ def check_item(store: Store, item: Item, config: dict | None = None) -> list[str
 def mark_ready(store: Store, item_id: str, sender: Sender | None = None,
                logger: Logger | None = None, subject: str | None = None,
                body: str | None = None, pitch: str | None = None,
-               note: str = "") -> tuple[Item, list[str]]:
+               note: str = "", tags=()) -> tuple[Item, list[str]]:
     """The person approves the draft. The hard checks run again on the text as
     it is now; what still fails is a warning, returned and kept in `checks`
     (the person decides). The findings the draft used go to the contact's
@@ -2590,7 +2636,7 @@ def mark_ready(store: Store, item_id: str, sender: Sender | None = None,
     if company is None or item.contact not in company.contacts:
         raise OutreachError(f"{item.record} is not in the CRM any more")
     now = store.now()
-    track_edit(item, note, now)
+    track_edit(item, note, now, tags)
     item.state, item.ready, item.checks = "ready", now, found
     item.edit_distance = edit_distance(item.ai_subject + "\n" + item.ai_body + item.ai_pitch,
                                        item.subject + "\n" + item.body + item.pitch)
@@ -2677,7 +2723,7 @@ def last_version(item: Item) -> tuple[str, str, str]:
     return item.ai_subject, item.ai_pitch, item.ai_body
 
 
-def track_edit(item: Item, note: str, when: datetime) -> bool:
+def track_edit(item: Item, note: str, when: datetime, tags=()) -> bool:
     """Append the text as it is now as a tracked edit when it differs from the
     last tracked version (the AI's original, or the edit before). Covers a
     change made in the browser and one made to the file by hand. The original
@@ -2691,7 +2737,8 @@ def track_edit(item: Item, note: str, when: datetime) -> bool:
         at=fmt_datetime(when),
         words=edit_distance(_all_words(subject, body, pitch),
                             _all_words(item.subject, item.body, item.pitch)),
-        note=note, subject=item.subject, pitch=item.pitch, body=item.body))
+        note=note, tags=clean_tags(list(tags)), subject=item.subject, pitch=item.pitch,
+        body=item.body))
     return True
 
 
@@ -2778,7 +2825,7 @@ def _critic_on_edit(store: Store, item: Item, critic: Critic | None, config: dic
 def save_text(store: Store, item_id: str, subject: str | None = None,
               body: str | None = None, pitch: str | None = None,
               critic: Critic | None = None, config: dict | None = None,
-              why_not: str = "", note: str = "") -> tuple[Item, list[str]]:
+              why_not: str = "", note: str = "", tags=()) -> tuple[Item, list[str]]:
     """Save the edited text and run the hard checks on it again ("Check
     again"), and the `critic` when one is given (`why_not` says why there is
     none). What fails is kept in `checks`; it never blocks the edit, and the
@@ -2792,7 +2839,7 @@ def save_text(store: Store, item_id: str, subject: str | None = None,
     _edit(item, subject, body, pitch)
     if not item.body.strip():
         raise OutreachError("not saved: the message is empty")
-    track_edit(item, note, store.now())
+    track_edit(item, note, store.now(), tags)
     item.checks = check_item(store, item)
     _critic_on_edit(store, item, critic, config if config is not None else load_config(store.root),
                     why_not)
