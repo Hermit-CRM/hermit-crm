@@ -220,7 +220,8 @@ over them.
 
 The checks are rules, not AI: exactly one question (a LinkedIn connection note
 may ask none); not opening with I, Ich, Ik or Je; no calendar link or proposed
-time; the channel's length (email: subject 60 characters, 120 words; LinkedIn:
+time; the channel's length (email: subject 60 characters, except in a reply or
+follow-up, which keeps their "Re:" subject however long; 120 words; LinkedIn:
 a 300-character connection note and a 600-character message for after they
 accept); only findings and proof lines that exist; no `[ ]` gap. A draft that
 breaks one is written again once; if it still breaks it, it is shown with the
