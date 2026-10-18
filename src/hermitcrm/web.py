@@ -59,7 +59,7 @@ from . import playbook, textsource
 from . import schedule, scrape, secrets, task_types, usertheme
 from . import stage_ops
 from . import stages as stages_mod
-from . import learning, outreach, routines
+from . import exemplars, learning, outreach, routines
 from . import help as helpdocs
 from . import setup as setup_steps
 from .filters import Column
@@ -3150,7 +3150,9 @@ def create_app(root: Path, config: dict | None = None,
                             if (root / custom.FILENAME).exists() else ""},
             "custom_field_defs": app.state.custom_fields,
             "playbook_status": playbook_status(),
-            "learning_form": {"distill": learning.mode(config)},
+            "learning_form": {"distill": learning.mode(config),
+                              "exemplars": exemplars.mode(config),
+                              "sampling": exemplars.sampling_on(config)},
             "messaging_form": {
                 "size_field": str(config.get("messaging_size_field") or ""),
                 "team_field": str(config.get("messaging_team_field") or "")},
@@ -3949,7 +3951,7 @@ def create_app(root: Path, config: dict | None = None,
         country=DE`), each as `hermitcrm outreach --where` takes it."""
         return [part.strip() for part in str(text or "").split(";") if part.strip()]
 
-    def outreach_card(item) -> dict:
+    def outreach_card(item, known: dict | None = None) -> dict:
         company = store.get(item.company)
         contact = company.contacts.get(item.contact) if company is not None else None
         fit_field = str(config.get("outreach_fit_field")
@@ -3963,7 +3965,33 @@ def create_app(root: Path, config: dict | None = None,
                 "fit": outreach.fit_value(company, fit_field) if company else None,
                 "fit_field": fit_field, "reply": reply,
                 "steps": outreach.edit_steps(item),
-                "followed": followed_lessons(item)}
+                "followed": followed_lessons(item),
+                "modeled": modeled_on(item, known)}
+
+    def modeled_on(item, known: dict | None) -> list[dict]:
+        """The 'Modeled on' line of a card: the earlier messages that were
+        shown to the drafter as examples (`exemplars_used`), each a label and a
+        link. Empty when none were, or when the index cannot be read."""
+        if not getattr(item, "exemplars_used", None) or known is None:
+            return []
+        try:
+            return [{"label": label, "url": f"/outreach?tab={outreach_tab(other)}#item-{other.id}"}
+                    for label, other_id in exemplars.model_label(store, item.exemplars_used, known)
+                    for other in [outreach.get_item(root, other_id)] if other is not None]
+        except Exception:
+            logger.exception("could not build the Modeled on line")
+            return []
+
+    def exemplar_index_for(shown) -> dict | None:
+        """The exemplar index by id, built once for a page and only when a shown
+        card has examples to label."""
+        if not any(getattr(i, "exemplars_used", None) for i in shown):
+            return None
+        try:
+            return {e.id: e for e in exemplars.index(store, config=config)}
+        except Exception:
+            logger.exception("could not build the exemplar index")
+            return None
 
     def followed_lessons(item) -> dict:
         """The lessons that were in the draft's prompt (`lessons_used`): how many,
@@ -4085,10 +4113,11 @@ def create_app(root: Path, config: dict | None = None,
         note_requests = [adjust.filter_help_request("Outreach", form["where"], n)
                          for n in (preview.notes if preview else [])]
         ready, gate = outreach._ready_approaches(root)
+        known = exemplar_index_for(shown)
         return render(request, "outreach.html", {
             "approaches": [a.name for a in ready],
             "tabs": [(t, label, counts[t]) for t, label, _ in OUTREACH_TABS],
-            "tab": tab, "cards": [outreach_card(i) for i in shown],
+            "tab": tab, "cards": [outreach_card(i, known) for i in shown],
             "reply_rows": [r for r in reply_rows if r["item"] is None] if tab == "replies"
             else [],
             "due_rows": due_rows if tab == "follow-ups" else [],
@@ -4371,6 +4400,7 @@ def create_app(root: Path, config: dict | None = None,
         suggestions = [{"suggestion": x, "links": learning_links(x.evidence[:8], by_id)}
                        for x in found]
         state_dir = root / learning.DIR
+        ctx.update(example_context(approach, sigs, by_id))
         ctx.update({
             "status": st, "banner": st.banner, "stats": learning.trend(sigs),
             "since": learning.since_line(learning.trend(sigs)),
@@ -4384,6 +4414,47 @@ def create_app(root: Path, config: dict | None = None,
             "ai_problem": outreach_ai_problem("strong") if st.mode == "hermit" else "",
         })
         return ctx
+
+    def example_context(approach: str, sigs, by_id: dict) -> dict:
+        """The examples section (approach C): the setting, the exemplars with
+        their marks, and the angle table. Any failure here shows as a note, so
+        the rest of the page still loads."""
+        out = {"example_error": "", "example_mode": exemplars.mode(config), "examples": [],
+               "example_counts": {}, "angle_rows": [], "angle_note": "", "angle_sends": 0,
+               "angle_min": exemplars.BANDIT_MIN_SENDS, "angle_rung": "positive",
+               "sampling": exemplars.sampling_on(config), "example_count": exemplars.count(config)}
+        try:
+            found = exemplars.index(store, approach, config, sigs)
+            out["example_counts"] = {
+                "outcome": sum(1 for e in found if e.kind == "outcome"),
+                "correction": sum(1 for e in found if e.kind == "correction"),
+                "pinned": sum(1 for e in found if e.mark == "pin"),
+                "excluded": sum(1 for e in found if e.mark == "exclude")}
+            out["examples"] = [{"e": e, "links": learning_links([e.item_id], by_id)}
+                               for e in found[:30]]
+            angles = tuple(a for a in (config.get("outreach_angles") or outreach.DEFAULT_ANGLES)
+                           if a in outreach.ANGLES) or outreach.DEFAULT_ANGLES
+            rung = exemplars.bandit_rung(sigs, config, approach)
+            rows = exemplars.angle_table(sigs, approach, angles, config=config,
+                                         today=store.today(), rung=rung)
+            out.update(angle_rows=rows, angle_rung=rung, angle_note=exemplars.next_experiment(rows),
+                       angle_sends=exemplars.sends_of(sigs, approach))
+        except Exception as exc:
+            logger.exception("could not build the examples section")
+            out["example_error"] = f"The examples could not be read: {exc}"
+        return out
+
+    @app.post("/learning/exemplar")
+    def learning_exemplar(csrf_token: str = Form(""), approach: str = Form(""),
+                          exemplar: str = Form(""), mark: str = Form("")):
+        check_csrf(csrf_token)
+
+        def work(name: str) -> str:
+            done = exemplars.set_mark(store, exemplar, mark, config)
+            return {"pin": "Pinned: it leads when it is close enough.",
+                    "exclude": "Excluded: it will not be shown again.",
+                    "clear": "Back to normal."}[mark] + f" ({done.label})"
+        return learning_act(approach, work)
 
     @app.get("/learning", response_class=HTMLResponse)
     def learning_page(request: Request):
@@ -4479,14 +4550,33 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.post("/settings/learning")
     def settings_learning(request: Request, csrf_token: str = Form(""),
-                          learning_distill: str = Form("hermit")):
+                          learning_distill: str = Form("hermit"),
+                          learning_exemplars: str | None = Form(None),
+                          learning_angle_sampling: str | None = Form(None)):
+        """The learning settings. Each one is changed only when the form sent it,
+        so a form that knows only the first (an older page) leaves the rest."""
         check_csrf(csrf_token)
         value = (learning_distill or "").strip().lower()
         if value not in ("hermit", "handoff"):
             return flashed("/settings", "Learning runs as hermit or handoff", anchor="playbook")
-        setup_steps.set_config_values(root / "config.toml", {"learning_distill": value})
+        changes: dict = {"learning_distill": value}
+        saved = [value]
+        if learning_exemplars is not None:
+            shown = learning_exemplars.strip().lower()
+            if shown not in exemplars.MODES:
+                return flashed("/settings", "Examples are off, corrections, outcomes or both",
+                               anchor="playbook")
+            changes["learning_exemplars"] = shown
+            saved.append(f"examples {shown}")
+        if learning_angle_sampling is not None:
+            shown = learning_angle_sampling.strip().lower()
+            if shown not in ("on", "off"):
+                return flashed("/settings", "Angle sampling is on or off", anchor="playbook")
+            changes["learning_angle_sampling"] = shown == "on"
+            saved.append(f"angle sampling {shown}")
+        setup_steps.set_config_values(root / "config.toml", changes)
         config_saved()
-        return flashed("/settings", f"Learning saved: {value}.", anchor="playbook")
+        return flashed("/settings", f"Learning saved: {', '.join(saved)}.", anchor="playbook")
 
     # ---------------------------------------------------------- make it yours
 
