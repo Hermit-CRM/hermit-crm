@@ -60,6 +60,7 @@ from __future__ import annotations
 
 import difflib
 import json
+import logging
 import re
 import tempfile
 import time
@@ -77,6 +78,8 @@ from .models import (
 )
 from .paths import contained
 from .store import Store, build_file, load_config, normalise_body, split_file
+
+logger = logging.getLogger(__name__)
 
 DIR = "outreach"
 STATES = ("researching", "drafted", "ready", "skipped", "sent", "logged")
@@ -115,7 +118,7 @@ ITEM_KEYS = (
     "language",
     "subject", "pitch", "research_level", "model", "attempts", "seconds", "checks",
     "critic", "critic_reason", "critic_model", "flags", "norms", "findings", "proof_used",
-    "lessons_used", "proposals", "edit_distance",
+    "lessons_used", "exemplars_used", "proposals", "edit_distance",
     "skip_reason", "skip_note", "batch", "created", "researched", "drafted", "ready",
     "sent", "sent_with", "skipped", "ai_subject", "ai_pitch", "ai_body", "edits", "earlier",
 )
@@ -830,6 +833,8 @@ class Draft:
     language: str = ""
     norms: list[str] = field(default_factory=list)
     lessons_used: list[str] = field(default_factory=list)   # learned lines in the prompt
+    exemplars_used: list[str] = field(default_factory=list)  # example ids in the prompt
+    angle_note: str = ""   # why the exploration policy chose the angle ("" = the AI chose)
     failed: str = ""   # the AI gave no usable draft at all (twice): why
 
 
@@ -967,6 +972,7 @@ FOLLOWUP_CHANNEL_TEXT = {
                  "subject are empty."),
 }
 CHANNEL_TEXTS = {REPLY: REPLY_CHANNEL_TEXT, FOLLOW_UP: FOLLOWUP_CHANNEL_TEXT}
+ANGLE_FLAG = "angle policy: "   # the card's note when the exploration policy fixed the angle
 PLAYBOOK_LIMIT = 12000
 REPLY_LIMIT = 3000
 
@@ -1016,11 +1022,14 @@ def followup_template(messages: dict | None, language: str, first: str, company:
 
 def draft_prompt(kind: str, brief: Brief, ctx: CheckContext, approach, playbook_text: str,
                  owner: str = "", problems: list[str] | None = None, reply=None,
-                 template: str = "", earlier=None) -> str:
+                 template: str = "", earlier=None, exemplars: str = "",
+                 angle_note: str = "") -> str:
     """The prompt for one draft. A reply to interest also gets their reply
     (`reply`, an interaction) and the filled wording template; a follow-up gets
     your earlier message (`earlier`) and its template. Neither has findings or
-    an angle."""
+    an angle. `exemplars` is the examples block of exemplars.prompt_block (a
+    first touch only; "" adds nothing); `angle_note` says why the exploration
+    policy fixed the angle (ctx.angles then holds that one angle)."""
     rules = {"subject_max": 60, "body_max_words": 120, "note_max_chars": 300,
              "pitch_max_chars": 600, **ctx.rules}
     channel_text = CHANNEL_TEXTS.get(kind, CHANNEL_TEXT)[ctx.channel]
@@ -1032,8 +1041,12 @@ def draft_prompt(kind: str, brief: Brief, ctx: CheckContext, approach, playbook_
         + (" Do not write an opt-out line: one is added for you." if ctx.opt_out else ""),
     ]
     if not in_thread(kind):
-        parts.append(f"Angle: one of {', '.join(ctx.angles)} (custom: your own, none of the "
-                     "playbook's angles); say which in angle.")
+        if angle_note and len(ctx.angles) == 1:
+            parts.append(f"Angle: {ctx.angles[0]} ({angle_note}); write the message from this "
+                         f"angle and put {ctx.angles[0]} in angle.")
+        else:
+            parts.append(f"Angle: one of {', '.join(ctx.angles)} (custom: your own, none of "
+                         "the playbook's angles); say which in angle.")
     parts += [
         f"Language: {brief.language_name}. Culture norms (starting points; the playbook's "
         f"Voice section wins where it says otherwise): "
@@ -1084,6 +1097,8 @@ def draft_prompt(kind: str, brief: Brief, ctx: CheckContext, approach, playbook_
     if playbook_text.strip():
         parts.append(f"--- the seller's playbook (MESSAGING.md) ---\n"
                      f"{playbook_text.strip()[:PLAYBOOK_LIMIT]}\n--- end ---")
+    if exemplars.strip():
+        parts.append(exemplars.strip())
     parts.append(
         "Rules: plain text, no Markdown. Never invent facts, numbers, customers or "
         "familiarity (\"loved your post\" when nothing says they posted); no fake urgency. "
@@ -1129,6 +1144,8 @@ class AIDrafter:
         if kind not in BUILT_KINDS:
             raise OutreachError(f"{kind} drafts come in a later version")
         ctx, norms = self.context(kind, company, contact, research, channel, approach)
+        angle_note, examples = self._learned(kind, company, contact, research, channel,
+                                             approach, ctx)
         brief = brief or make_brief(self.store, company, contact, approach, research,
                                     messages=self.messages)
         try:
@@ -1153,7 +1170,9 @@ class AIDrafter:
         last_error = ""
         for attempt in (1, 2):
             prompt = draft_prompt(kind, brief, ctx, approach, pb_text, owner, problems,
-                                  reply=reply, template=template, earlier=earlier)
+                                  reply=reply, template=template, earlier=earlier,
+                                  exemplars=examples.block if examples else "",
+                                  angle_note=angle_note)
             try:
                 data = self.enricher.runner(prompt, DRAFT_SCHEMA, tools="")
                 result = clean_answer(data, ctx)
@@ -1175,7 +1194,34 @@ class AIDrafter:
         result.norms = norms_applied(norms)
         from hermitcrm import learning
         result.lessons_used = learning.lesson_ids(pb_text)
+        result.exemplars_used = examples.ids if examples else []
+        result.angle_note = angle_note
         return result
+
+    def _learned(self, kind, company, contact, research, channel, approach, ctx):
+        """What approach C adds to a first touch: the angle the exploration
+        policy fixes (ctx.angles is narrowed to it) and the examples block.
+        Both are off by default, and learning must never stop a draft: any
+        failure here is logged and the draft goes on without it."""
+        if kind != FIRST_TOUCH or approach is None:
+            return "", None
+        from hermitcrm import exemplars
+        angle_note, examples = "", None
+        try:
+            chosen = exemplars.sample_for_draft(self.store, company, contact, approach,
+                                                ctx.angles, self.config)
+            if chosen is not None and chosen.angle in ctx.angles:
+                ctx.angles, angle_note = (chosen.angle,), chosen.reason
+        except Exception:
+            logger.exception("the angle policy failed; the AI chooses the angle")
+        try:
+            lang = messaging.draft_language(company, contact, messages=self.messages)
+            examples = exemplars.for_draft(self.store, company, contact, approach,
+                                           research.findings, channel, lang, kind, self.config,
+                                           angle=ctx.angles[0] if angle_note else "")
+        except Exception:
+            logger.exception("could not pick examples; drafting without them")
+        return angle_note, examples
 
 
 # ------------------------------------------------------------------- critic
@@ -1494,6 +1540,7 @@ class Item:
     findings: list[Finding] = field(default_factory=list)
     proof_used: list[str] = field(default_factory=list)
     lessons_used: list[str] = field(default_factory=list)   # learned lines in the prompt
+    exemplars_used: list[str] = field(default_factory=list)  # examples in the prompt
     proposals: dict = field(default_factory=dict)
     edit_distance: int | None = None
     skip_reason: str = ""
@@ -1538,8 +1585,8 @@ class Item:
                 value = [f.to_dict() for f in value]
             elif key in ("edits", "earlier"):
                 value = [x.to_dict() for x in value]
-            elif key == "lessons_used" and not value:
-                continue    # absent until a draft carried lessons (keeps older files' bytes)
+            elif key in ("lessons_used", "exemplars_used") and not value:
+                continue    # absent until a draft carried them (keeps older files' bytes)
             meta[key] = value
         return meta
 
@@ -1558,6 +1605,15 @@ def clean_lesson_ids(value) -> list[str]:
         if text and text not in out:
             out.append(text)
     return out
+
+
+_EXEMPLAR_ID = re.compile(r"^(correction|outcome):[\w.\-]+$")
+
+
+def clean_exemplar_ids(value) -> list[str]:
+    """`exemplars_used` as kept: ids of the form `correction:<item>` or
+    `outcome:<item>`, once each, in their order."""
+    return [v for v in clean_lesson_ids(value) if _EXEMPLAR_ID.match(v)]
 
 
 def _int_or_none(value) -> int | None:
@@ -1615,6 +1671,7 @@ def item_from_text(item_id: str, text: str) -> Item:
         flags=strings("flags"), norms=strings("norms"), findings=findings,
         proof_used=strings("proof_used"),
         lessons_used=clean_lesson_ids(meta.get("lessons_used")),
+        exemplars_used=clean_exemplar_ids(meta.get("exemplars_used")),
         proposals={str(k): str(v) for k, v in proposals.items()}
         if isinstance(proposals, dict) else {},
         edit_distance=_int_or_none(meta.get("edit_distance")),
@@ -2572,6 +2629,10 @@ def _apply_draft(item: Item, draft: Draft, fallback: bool, when: datetime,
     item.body, item.checks, item.norms = draft.body, draft.problems, draft.norms
     item.proof_used = draft.proof_used
     item.lessons_used = list(draft.lessons_used)
+    item.exemplars_used = list(draft.exemplars_used)
+    item.flags = [f for f in item.flags if not f.startswith(ANGLE_FLAG)]
+    if draft.angle_note:
+        item.flags.append(f"{ANGLE_FLAG}{draft.angle_note}")
     item.ai_subject, item.ai_pitch, item.ai_body = draft.subject, draft.pitch, draft.body
     item.drafted = when
     item.flags = [f for f in item.flags if f != NEEDS_HAND_EDITS and not f.startswith("critic")]

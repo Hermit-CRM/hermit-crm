@@ -1,6 +1,7 @@
 # Learning: three approaches for the outreach bot
 
-Status: proposal for a decision, 18 Oct 2026. Nothing is built. Extends part 06
+Status: A's extractor, Phase 0 and B are built (`learning.py`); C is built (`exemplars.py`,
+behind `learning_exemplars` and `learning_angle_sampling`, both off). Written 18 Oct 2026. Extends part 06
 ("learning from results") of [the outreach bot spec](2026-10-16-outreach-bot/06-quality.md),
 which only sketched examples, a "What was wrong?" prompt and A/B.
 

@@ -1654,6 +1654,18 @@ def _build_parser() -> argparse.ArgumentParser:
             l.add_argument("part", choices=["worked", "failed", "open"])
         l.add_argument("--approach", default="", help="the playbook approach "
                        "(default: the first)")
+    l = l_sub.add_parser("exemplars", help="the examples a draft can be shown (your "
+                         "corrections, messages that worked); no AI. --item previews one "
+                         "item's prompt block")
+    l.add_argument("--approach", default="", help="the playbook approach (default: the first)")
+    l.add_argument("--item", default="", help="an outreach item id: what its draft would be shown")
+    for verb, text in (("pin", "show this exemplar first when it is close enough"),
+                       ("exclude", "never show this exemplar (how you delete one)"),
+                       ("unmark", "remove a pin or an exclusion")):
+        l_sub.add_parser(verb, help=text).add_argument("id")
+    l = l_sub.add_parser("angles", help="the angle bandit's table: sends, credible "
+                         "intervals, the next experiment; no AI")
+    l.add_argument("--approach", default="", help="the playbook approach (default: the first)")
     l_sub.add_parser("suggest", help="list the suggestions (word limit, never-write phrases)")
     l_sub.add_parser("apply", help="apply one suggestion").add_argument("id")
 
@@ -1778,7 +1790,8 @@ def cmd_learn(store: Store, root: Path, config: dict, args, enricher=None) -> tu
     action = args.action
     approach = getattr(args, "approach", "") or ""
     try:
-        if action in ("report", "status", "run", "import", "retire", "move"):
+        if action in ("report", "status", "run", "import", "retire", "move", "exemplars",
+                      "angles"):
             approach = approach or learning.default_approach(root)
             if not approach:
                 return ("No approach in MESSAGING.md yet (hermitcrm playbook).", 1)
@@ -1822,6 +1835,15 @@ def cmd_learn(store: Store, root: Path, config: dict, args, enricher=None) -> tu
         if action == "move":
             x = learning.move(store, approach, args.lesson, args.part)
             return (f"Moved {x.id} to {x.part}: {x.text}", 0)
+        if action == "exemplars":
+            return (_learn_exemplars(store, config, approach, args.item), 0)
+        if action == "angles":
+            return (_learn_angles(store, config, approach), 0)
+        if action in ("pin", "exclude", "unmark"):
+            from hermitcrm import exemplars
+            e = exemplars.set_mark(store, args.id, "clear" if action == "unmark" else action,
+                                   config)
+            return (f"{e.id}: {e.mark or 'no mark'} ({e.label}).", 0)
         sigs = learning.signals(store, "", config)
         if action == "suggest":
             found = learning.suggestions(store, sigs, config)
@@ -1842,6 +1864,72 @@ def _learn_result(result) -> list[str]:
     if result.proposals:
         lines.append("Next: hermitcrm learn accept ID  (or reject ID). Nothing has changed yet.")
     return lines
+
+
+def _learn_exemplars(store: Store, config: dict, approach: str, item_id: str) -> str:
+    """The exemplar index of an approach, and with an item id the examples its
+    prompt would show and why. No AI, no writes."""
+    from hermitcrm import exemplars, learning, outreach
+
+    sigs = learning.signals(store, approach, config)
+    found = exemplars.index(store, approach, config, sigs)
+    setting = exemplars.mode(config)
+    lines = [f"Approach: {approach}",
+             f"Setting learning_exemplars = {setting}"
+             + ("" if setting != "off" else " (examples are not added to prompts; set it to "
+                "corrections, outcomes or both in config.toml)"),
+             f"Exemplars: {sum(1 for e in found if e.kind == 'outcome')} outcome, "
+             f"{sum(1 for e in found if e.kind == 'correction')} correction; "
+             f"{sum(1 for e in found if e.mark == 'pin')} pinned, "
+             f"{sum(1 for e in found if e.mark == 'exclude')} excluded"]
+    lines += [f"  {e.id}  {e.label}  score {e.score:.2f}  {e.contact}"
+              + (f"  [{e.mark}]" if e.mark else "") for e in found]
+    if not found:
+        lines.append("  none yet: they come from edited drafts and from messages that got a "
+                     "positive reply, a deal or a win")
+    if item_id:
+        item = outreach.get_item(store.root, item_id)
+        if item is None:
+            return f"No outreach item {item_id!r} (hermitcrm outreach list)."
+        kinds = exemplars.MODE_KINDS[setting] or exemplars.KINDS
+        picked = exemplars.pick(store, exemplars.query_of_item(store, item, config), config,
+                                kinds, sigs=sigs)
+        lines += ["", f"Prompt block for {item.id}"
+                  + ("" if setting != "off" else " (if the setting were both)")
+                  + f" - phase {picked.phase}, {picked.pool} to choose from:"]
+        if not picked.choices:
+            lines.append(f"  none: {picked.why_none}")
+        for c in picked.choices:
+            lines.append(f"  {c.exemplar.id}: relevance {c.relevance}, rank {c.rank}"
+                         + (f" ({c.reason})" if c.reason else ""))
+        if picked.choices:
+            lines += ["", picked.block, "", f"About {picked.tokens} tokens added to the prompt."]
+    return "\n".join(lines)
+
+
+def _learn_angles(store: Store, config: dict, approach: str) -> str:
+    """The angle bandit's table for an approach: where it stands and what it
+    would try next. No AI, no writes."""
+    from hermitcrm import exemplars, learning, outreach
+
+    sigs = learning.signals(store, approach, config)
+    angles = tuple(a for a in (config.get("outreach_angles") or outreach.DEFAULT_ANGLES)
+                   if a in outreach.ANGLES) or outreach.DEFAULT_ANGLES
+    n = exemplars.sends_of(sigs, approach)
+    rung = exemplars.bandit_rung(sigs, config, approach)
+    rows = exemplars.angle_table(sigs, approach, angles, config=config, today=store.today(),
+                                 rung=rung)
+    lines = [f"Approach: {approach}",
+             f"Counting a send as a hit when it reached: {rung}",
+             f"First-touch sends: {n} (the bandit acts from {exemplars.BANDIT_MIN_SENDS})",
+             "Setting learning_angle_sampling = "
+             + ("on" if exemplars.sampling_on(config) else "off")
+             + ("" if exemplars.sampling_on(config) else " (the AI chooses the angle)"), ""]
+    lines += [f"  {r.angle}: {r.note}" for r in rows] or ["  fewer than two angles in play"]
+    note = exemplars.next_experiment(rows)
+    if note:
+        lines += ["", "Next experiment: " + note]
+    return "\n".join(lines)
 
 
 def _learn_report(store: Store, config: dict, approach: str) -> str:

@@ -55,7 +55,7 @@ def shorter(body):
 def make(root, n, contact=0, *, edits=(), state="ready", minutes=5, days=0, sent=None,
          skipped=None, kind="first-touch", channel="email", approach=APPROACH, angle="hook",
          language="en", batch="b1", lessons_used=(), findings=(), skip_reason="",
-         skip_note="", why="", body=None, subject="Your second office"):
+         skip_note="", why="", body=None, subject="Your second office", exemplars_used=()):
     """One outreach item written to the folder. `edits`: (body, note, tags)
     tuples; `minutes` from drafted to ready; `days` before NOW it was drafted."""
     company, slug = CONTACTS[contact]
@@ -91,6 +91,7 @@ def make(root, n, contact=0, *, edits=(), state="ready", minutes=5, days=0, sent
         item.skip_reason, item.skip_note = skip_reason or "bad-draft", skip_note
     if hasattr(item, "lessons_used"):
         item.lessons_used = list(lessons_used)
+    item.exemplars_used = list(exemplars_used)
     outreach.write_item(root, item)
     return item
 
