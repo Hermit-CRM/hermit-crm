@@ -1,0 +1,43 @@
+order   = 7
+name    = "Messages"
+nav     = "Messages"
+title   = "Messages: every message you sent, and what came of it"
+description = "The Hermit CRM Messages page lists every message you sent with its outcome, set by hand or worked out from replies, so you learn which wording works."
+summary = "Outreach drafts in English, German, Dutch or French, in your wording, and the outcome of every message."
+intro = """
+Messages is the log of everything you sent, newest first, with what came of each message.
+It is how you find out which wording gets answers.
+"""
+docs    = "messages"
+related = ["contacts", "reports", "settings"]
+
+[[sections]]
+heading = "Every message, with its outcome"
+text = """
+Sent, company, contact, channel, country, stage, outcome, how often that exact text was used, and the message itself. Every column has a filter and sort arrows, and the search box matches the message
+text, the company and the contact. A line at the top counts each outcome.
+"""
+image   = "feature-messages.png"
+alt     = "The Hermit CRM Messages table: seven sent messages in English, French and German with company, contact, channel, outcome and the message text, each with Successful and Unsuccessful buttons."
+address = "127.0.0.1:8765/messages"
+
+[[sections]]
+heading = "What counts as a message"
+text = """
+An outbound interaction with a body, on any channel except a meeting. Calls with notes count too. A logged touch without text does not.
+Hermit keeps the text exactly as you pasted it.
+"""
+
+[[sections]]
+heading = "An outcome you set, or one it works out"
+text = """
+Set an outcome by hand with the buttons in the last column, or leave it. Otherwise it is worked out: a later message from the same contact makes it **successful**,
+no reply within 14 days makes it **unsuccessful**, and before that it is **unknown**. Worked-out values are marked *(auto)*. The list of outcomes and the 14 days are yours to change under Settings.
+"""
+
+[[sections]]
+heading = "From messages to learning"
+text = """
+The Reports page breaks outcomes down by language, by channel and for your most reused texts, so you can see whether the German version beats the English one.
+The drafts on each contact page use your own fields as `{field}` slots, so a draft improves when your data does.
+"""
