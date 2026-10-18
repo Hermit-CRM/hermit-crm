@@ -289,7 +289,7 @@ def test_item_files_are_deterministic_and_keep_the_body_byte_for_byte(folder):
     again = outreach.get_item(root, item.id)
     assert outreach.item_text(again).encode() == text            # read, write: same bytes
     meta, body = split_file(text.decode())
-    assert list(meta) == list(outreach.ITEM_KEYS)
+    assert list(meta) == [k for k in outreach.ITEM_KEYS if k != "exemplars_used"]   # absent when none
     # a hand edit with odd whitespace survives a step byte for byte
     odd = "Hi Mara,  \n\n\tThe second office caught my eye.\nWhere does it hurt most?\n\n\nSam\n"
     meta["checks"] = []

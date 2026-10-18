@@ -3,7 +3,7 @@
 Spec: `docs/superpowers/specs/2026-10-18-learning-approaches.md`. Scope decided
 18 Oct: Phase 0 + A's extractor, trend line and suggestion cards + B in full
 (cards, distill in `hermit` and `handoff` mode, Learning page, scoreboard,
-phase promotion). C is not built. Open questions 2 to 4 use the spec's
+phase promotion). C was built afterwards (`src/hermitcrm/exemplars.py`, migration 11). Open questions 2 to 4 use the spec's
 assumptions (thresholds are config; reason chip asked above 15 words; `deal` =
 first entry into a `valued` open stage).
 
