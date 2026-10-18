@@ -35,6 +35,10 @@
 {% else %}
   <p class="small">Email sending is off. <a href="/settings#send">Turn it on in Settings &gt; Sending</a> to send approved email from here.</p>
 {% endif %}
+{% if li.ok %}
+  <p class="send-line"><strong>LinkedIn:</strong> invites {{ li.invites_today }}/{{ li.invites_per_day }} today &middot; {{ li.invites_week }}/{{ li.invites_per_week }} this week &middot; messages {{ li.messages_today }}/{{ li.messages_per_day }} today &middot; {{ li.queue }} waiting
+    <a class="button secondary" href="/outreach/linkedin">LinkedIn session</a></p>
+{% endif %}
 </section>
 
 <form class="outreach-build" method="post" action="/outreach/build" id="outreach-build">

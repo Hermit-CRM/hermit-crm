@@ -59,7 +59,7 @@ from . import playbook, textsource
 from . import schedule, scrape, secrets, task_types, usertheme
 from . import stage_ops
 from . import stages as stages_mod
-from . import exemplars, learning, outreach, routines, send, sendplan, sendqueue, suppress
+from . import exemplars, learning, linkedin, outreach, routines, send, sendplan, sendqueue, suppress
 from . import help as helpdocs
 from . import setup as setup_steps
 from .filters import Column
@@ -4248,7 +4248,7 @@ def create_app(root: Path, config: dict | None = None,
             "approaches": [a.name for a in ready],
             "tabs": [(t, label, counts[t]) for t, label, _ in OUTREACH_TABS
                      if t != "scheduled" or send_on or counts[t]],
-            "send": send_info, "send_on": send_on,
+            "send": send_info, "send_on": send_on, "li": linkedin_strip(),
             "schedule_preview": schedule_preview, "schedule_error": schedule_error,
             "ready_email": sum(1 for i in every if i.state == "ready" and i.channel == "email"),
             "tab": tab, "cards": [outreach_card(i, known) for i in shown],
@@ -4418,6 +4418,94 @@ def create_app(root: Path, config: dict | None = None,
             text += f" {len(result.refused)} could not be scheduled (see each card)."
         return flashed("/outreach?tab=scheduled" if result.scheduled else "/outreach?tab=ready",
                        text)
+
+    # ------------------------------------------------------- LinkedIn session
+    # Option A of spec part 08: nothing here talks to LinkedIn. The page copies the
+    # text, opens the profile in a new tab and waits; the person sends it on
+    # linkedin.com and says what happened. Hermit paces and logs.
+
+    def linkedin_strip() -> dict:
+        """The LinkedIn numbers on the Outreach strip; never raises."""
+        try:
+            cfg = linkedin.settings_from_config(config)
+            have = linkedin.counters(store, store.now(), cfg)
+            return {"invites_today": have.invites_today, "invites_per_day": cfg.invites_per_day,
+                    "invites_week": have.invites_week, "invites_per_week": cfg.invites_per_week,
+                    "messages_today": have.messages_today, "messages_per_day": cfg.messages_per_day,
+                    "queue": len(linkedin.queue(store, store.now())), "ok": True}
+        except Exception:
+            logger.exception("could not read the LinkedIn counters")
+            return {"ok": False}
+
+    @app.get("/outreach/linkedin", response_class=HTMLResponse)
+    def linkedin_page(request: Request):
+        now = store.now()
+        cfg = linkedin.settings_from_config(config)
+        session = linkedin.Session.load(root)
+        have = linkedin.counters(store, now, cfg, session)
+        found = linkedin.next_card(store, now, cfg, session)
+        ok, why = linkedin.can_start(session, now, cfg)
+        card = found.card
+        company = store.get(card.item.company) if card else None
+        contact = company.contacts.get(card.item.contact) if company else None
+        rows = []
+        for row in linkedin.waiting(store, now):
+            c = store.get(row["item"].company)
+            row["contact"] = c.contacts.get(row["item"].contact) if c else None
+            rows.append(row)
+        return render(request, "outreach_linkedin.html", {
+            "cfg": cfg, "have": have, "session": session, "card": card, "company": company,
+            "contact": contact, "reason": found.reason, "wait": found.wait,
+            "can_start": ok, "why_not": why, "waiting": rows, "reasons": linkedin.REASONS,
+            "next_session": linkedin.next_session_at(session, cfg),
+            "reminder_days": linkedin.WAITING_REMINDER_DAYS})
+
+    @app.post("/outreach/linkedin/start")
+    def linkedin_start(csrf_token: str = Form("")):
+        check_csrf(csrf_token)
+        try:
+            linkedin.start(store, store.now(), linkedin.settings_from_config(config))
+        except outreach.OutreachError as exc:
+            return flashed("/outreach/linkedin", str(exc))
+        return flashed("/outreach/linkedin", "Session started. One card at a time: send it on "
+                       "LinkedIn yourself, then say what happened.")
+
+    @app.post("/outreach/linkedin/end")
+    def linkedin_end(csrf_token: str = Form("")):
+        check_csrf(csrf_token)
+        linkedin.end(store, store.now())
+        return flashed("/outreach/linkedin", "Session ended.")
+
+    @app.post("/outreach/linkedin/{item_id}/{what}")
+    async def linkedin_action(item_id: str, what: str, csrf_token: str = Form(""),
+                              reason: str = Form("other"), note: str = Form("")):
+        check_csrf(csrf_token)
+        if what not in ("sent", "already", "failed", "accepted", "withdrawn"):
+            raise HTTPException(status_code=404, detail=f"unknown action {what!r}")
+        if outreach.get_item(root, item_id) is None:
+            raise HTTPException(status_code=404, detail=f"unknown outreach item {item_id!r}")
+        now, cfg = store.now(), linkedin.settings_from_config(config)
+        try:
+            if what == "sent":
+                await run_in_threadpool(linkedin.sent, store, item_id, now, cfg)
+                text = ("Logged: the message is on the contact exactly as you sent it."
+                        + ("" if linkedin.Session.load(root).active else " That was the last "
+                           "card of this session."))
+            elif what == "already":
+                await run_in_threadpool(linkedin.already_connected, store, item_id, now)
+                text = "Already connected: the card is now the message to send."
+            elif what == "failed":
+                text = await run_in_threadpool(linkedin.couldnt_send, store, item_id, reason,
+                                               note, now, cfg)
+            elif what == "accepted":
+                await run_in_threadpool(linkedin.accepted, store, item_id, now)
+                text = "Accepted: their message is in the queue."
+            else:
+                await run_in_threadpool(linkedin.withdrawn, store, item_id, now)
+                text = "Withdrawn: it leaves the waiting list."
+        except outreach.OutreachError as exc:
+            text = str(exc)
+        return flashed("/outreach/linkedin", text)
 
     @app.post("/outreach/{item_id}/page")
     async def outreach_page(item_id: str, csrf_token: str = Form(""), url: str = Form(""),
