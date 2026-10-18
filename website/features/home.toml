@@ -1,0 +1,47 @@
+order   = 1
+name    = "Home"
+nav     = "Home"
+title   = "Home: what needs doing today in Hermit CRM"
+description = "The Hermit CRM home page lists what is due in the next seven days, the replies you owe and last month's numbers. A new folder starts with Getting started."
+summary = "What is due this week, the replies you owe and last month's numbers, on one page."
+intro = """
+Home is the page you open in the morning. It answers three questions without a click:
+what is due, who is waiting for a reply from you, and how the last month went.
+"""
+docs    = "contents"
+docs_label = "Read how the pages fit together in the docs"
+related = ["tasks", "pipeline", "reports"]
+
+[[sections]]
+heading = "What needs doing"
+text = """
+Your open tasks for the next seven days, soonest first, with the company or person each one is for.
+An overdue date is red. **Done** ticks a task off from here, and a link under the table opens all tasks with their filters or the calendar.
+The task due first for a company is marked **next step**.
+"""
+image   = "feature-home.png"
+alt     = "The Hermit CRM home page: five tasks due this week with their companies, two replies owed to Jonas Brandt and Joris Veldkamp, and last month's numbers in four tiles."
+address = "127.0.0.1:8765"
+
+[[sections]]
+heading = "Replies you owe"
+text = """
+Every message someone sent you that you have not answered, with the company, the person, how many
+days they have waited and a line of what they wrote. Nothing to set up: Hermit reads the interactions
+you logged, or that BCC and calendar capture logged for you.
+"""
+
+[[sections]]
+heading = "How it is going"
+text = """
+Four numbers for the last 30 days, each with the change against the 30 days before: interactions,
+companies touched, new companies and companies in the folder. The Reports page has the full version.
+"""
+
+[[sections]]
+heading = "Getting started, until it is done"
+text = """
+A new folder opens on **Getting started** instead: twelve steps, each ticked when it has actually
+happened, and a tour that points at each part of the screen. Press *Don't open this at startup*,
+or tick every step, and the logo opens Home from then on.
+"""

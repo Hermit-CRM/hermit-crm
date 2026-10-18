@@ -1,0 +1,51 @@
+order   = 4
+name    = "Tasks"
+nav     = "Tasks"
+title   = "Tasks: every follow-up in one list in Hermit CRM"
+description = "The Hermit CRM Tasks page lists every task for every company and person in one table, with date buttons, filters, task types and a next step per company."
+summary = "Every task for every company in one list, with date buttons, filters and your own task types."
+intro = """
+Tasks is the one list of everything you owe: every task for every company and every person at it, with
+the date buttons and filters you need to find the ones that matter today.
+"""
+docs    = "tasks"
+related = ["calendar", "companies", "home"]
+
+[[sections]]
+heading = "One table, with date buttons"
+text = """
+Above the table: **All dates**, **Overdue**, **Today**, **Next 7 days**, **Later** and **No date**, each with a count. Click several to combine them
+(Overdue plus Today is your top priority), and click one again to turn it off. **Next steps only** shows one task per company.
+"""
+image   = "feature-tasks.png"
+alt     = "The Hermit CRM Tasks page: date buttons with counts, a filter row, and eight tasks with their company, stage and status, each with Edit and Done buttons."
+address = "127.0.0.1:8765/tasks"
+
+[[sections]]
+heading = "The next step, without picking one"
+text = """
+A company's **next step** is its open task due first, undated tasks after dated ones. It carries a tag, and it also shows
+on the board, the Companies list and in `PIPELINE.md`. There is nothing to pin: change a due date or tick the task off, and the next step changes.
+"""
+
+[[sections]]
+heading = "Filters that stay in the address"
+text = """
+One box per column: due, what, type, for (the company or person), company, stage, status and the day it was done.
+The page shows open tasks until you pick a status, so finished ones are one choice away, with the day they were done.
+Filters, date buttons and sorting stay in the address, so a view can be a bookmark, and **Done** brings you back to the same view.
+"""
+
+[[sections]]
+heading = "Your own task types"
+text = """
+Give tasks labels such as *pipeline follow-up*, *prospecting* or *lost deals*, each with a colour, under Settings, Task types. A type is only a label:
+it changes no dates. The type column filters by it, and renaming a type renames it on every task.
+"""
+
+[[sections]]
+heading = "Closed companies keep their tasks"
+text = """
+Tasks of closed companies (won, lost, disqualified) are listed too, so a reminder to revisit a lost deal in March is not forgotten.
+To leave them out, filter on the stage. **Create task** at the bottom takes a company by name, an optional person and a due date, and **Edit** in a row changes its text or date.
+"""

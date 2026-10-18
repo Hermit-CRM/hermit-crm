@@ -148,7 +148,7 @@
 
 <header class="site-header wide">
   <a class="brand" href="../../" aria-label="Hermit CRM home"><svg viewBox="4.5 10.5 55 43" aria-hidden="true" focusable="false"><rect x="7" y="13" width="50" height="38" rx="7" fill="none" stroke="currentColor" stroke-width="5"/><circle cx="24" cy="27" r="5.5" fill="#1E8A60"/><path d="M16 43 a8 8 0 0 1 16 0 z" fill="#1E8A60"/><rect x="38" y="25" width="12" height="4" rx="2" fill="currentColor"/><rect x="38" y="34" width="8" height="4" rx="2" fill="currentColor"/></svg><span>Hermit CRM</span></a>
-  <nav class="site-nav" aria-label="Site"><a href="../../docs/">Docs</a><a href="../../about/">About</a><a href="../../">Download</a></nav>
+  <nav class="site-nav" aria-label="Site"><a href="../../features/">Features</a><a href="../../docs/">Docs</a><a href="../../compare/" class="nav-more" aria-current="page">Compare</a><a href="../../about/" class="nav-more">About</a><a href="https://github.com/Hermit-CRM/hermit-crm">GitHub</a></nav>
 </header>
 
 <main id="main">
@@ -170,12 +170,12 @@
       <thead><tr><td></td><th scope="col">Hermit CRM</th><th scope="col">Pipedrive</th></tr></thead>
       <tbody>
         <tr><th scope="row">Price for one person</th><td data-label="Hermit CRM">Free and open source. There is no paid plan.</td><td data-label="Pipedrive">No free plan; a 14-day trial. Lite €14 a seat a month billed yearly, Growth €39, Premium €59, Ultimate €79. Monthly billing costs more.</td></tr>
-        <tr><th scope="row">Where your data lives</th><td data-label="Hermit CRM">In a folder on your own computer.</td><td data-label="Pipedrive">In Pipedrive's cloud.</td></tr>
-        <tr><th scope="row">Data format</th><td data-label="Hermit CRM">Markdown files with YAML front matter: one per company, contact and conversation. Readable without the app.</td><td data-label="Pipedrive">Records in Pipedrive's database. Export to CSV or Excel.</td></tr>
+        <tr><th scope="row">Where your data lives</th><td data-label="Hermit CRM">In a folder on your own computer.</td><td data-label="Pipedrive">In Pipedrive’s cloud.</td></tr>
+        <tr><th scope="row">Data format</th><td data-label="Hermit CRM">Markdown files with YAML front matter: one per company, contact and conversation. Readable without the app.</td><td data-label="Pipedrive">Records in Pipedrive’s database. Export to CSV or Excel.</td></tr>
         <tr><th scope="row">Works offline</th><td data-label="Hermit CRM">Yes. It runs on your computer. Mail import, enrichment and Ask Hermit need the internet.</td><td data-label="Pipedrive">No. It is a hosted service.</td></tr>
         <tr><th scope="row">Team use</th><td data-label="Hermit CRM">No. It is built for one person.</td><td data-label="Pipedrive">Yes. Seats, teams, visibility rules and goals.</td></tr>
         <tr><th scope="row">AI tools</th><td data-label="Hermit CRM">Your AI tool reads the files, runs the CLI or connects to the local MCP server. No API key, no OAuth. Ask Hermit uses the AI command line tool you already have.</td><td data-label="Pipedrive">An API and an official MCP server on every plan, plus built-in AI features.</td></tr>
-        <tr><th scope="row">Email and calendar</th><td data-label="Hermit CRM">BCC or forward mail to a Gmail address you choose, and it is logged on the right contact. Past meetings come from your calendar's ICS link. No inbox sync.</td><td data-label="Pipedrive">Gmail and Outlook sync, a BCC address for logging, and tracking.</td></tr>
+        <tr><th scope="row">Email and calendar</th><td data-label="Hermit CRM">BCC or forward mail to a Gmail address you choose, and it is logged on the right contact. Past meetings come from your calendar’s ICS link. No inbox sync.</td><td data-label="Pipedrive">Gmail and Outlook sync, a BCC address for logging, and tracking.</td></tr>
         <tr><th scope="row">History and undo</th><td data-label="Hermit CRM">Every change is a git commit, so every earlier version is kept and can be restored.</td><td data-label="Pipedrive">A change log on each deal, person and organisation.</td></tr>
         <tr><th scope="row">Source code</th><td data-label="Hermit CRM">Open source, Apache License 2.0.</td><td data-label="Pipedrive">Closed source.</td></tr>
         <tr><th scope="row">Runs on</th><td data-label="Hermit CRM">macOS and Linux, in your browser. No Windows and no mobile app.</td><td data-label="Pipedrive">Browser, iOS and Android.</td></tr>
@@ -200,7 +200,7 @@
     <h2 class="label" id="choose_hermit">When Hermit CRM is the better choice</h2>
     <ul class="points">
       <li>You sell on your own and a subscription per seat is hard to justify.</li>
-      <li>You want the pipeline in files on your own disk, not in a vendor's cloud.</li>
+      <li>You want the pipeline in files on your own disk, not in a vendor’s cloud.</li>
       <li>You work with Claude Code, Codex or another AI agent and want it to read and update deals without an API key.</li>
       <li>You want a follow-up radar, message drafts in four languages and reports, without paying for a higher plan.</li>
       <li>You want every change kept in git, so you can see and undo it.</li>
@@ -216,7 +216,7 @@
     <h2 class="label" id="switch">Moving from Pipedrive to Hermit CRM</h2>
     <ol class="steps">
       <li><span>In Pipedrive, export your organisations and people as CSV or Excel files.</span></li>
-      <li><span>In Hermit CRM, choose <strong>Import a spreadsheet</strong> on the home page and upload each file. It recognises Pipedrive's column names, shows a preview, and writes nothing until you confirm.</span></li>
+      <li><span>In Hermit CRM, choose <strong>Import a spreadsheet</strong> on the home page and upload each file. It recognises Pipedrive’s column names, shows a preview, and writes nothing until you confirm.</span></li>
       <li><span>Set the stage of each company on the pipeline board. Email history and activities stay in Pipedrive.</span></li>
     </ol>
   </section>
@@ -226,7 +226,7 @@
     <h3>Is there a free alternative to Pipedrive for one person?</h3>
     <p>Yes. Hermit CRM is free and open source and has a pipeline board from prospect to won, a follow-up radar, tasks and reports. It is for one person on a Mac or Linux computer; Pipedrive is for teams, has no free plan and runs in the cloud.</p>
     <h3>Can I import my Pipedrive data into Hermit CRM?</h3>
-    <p>Organisations and people, yes. Export them from Pipedrive as CSV or Excel and import the files in Hermit CRM, which recognises Pipedrive's column names. Deals, activities and mail history do not come across.</p>
+    <p>Organisations and people, yes. Export them from Pipedrive as CSV or Excel and import the files in Hermit CRM, which recognises Pipedrive’s column names. Deals, activities and mail history do not come across.</p>
     <h3>Does Hermit CRM send email sequences like Pipedrive?</h3>
     <p>No. Hermit CRM drafts messages in your wording, in English, German, Dutch or French, and you send them yourself from your own mail. It logs what you send and whether you got an answer.</p>
   </section>
@@ -253,8 +253,8 @@
 </main>
 
 <footer class="site-footer col">
-  <p class="notice">Product names are trademarks of their owners. Hermit CRM is not affiliated with any of them. Prices come from each vendor's public pricing page on the date shown, per seat and usually before VAT; they change often, so check the vendor's page before you decide. Found a mistake? Message <a href="https://www.linkedin.com/in/gijsbos">Gijs Bos</a> and it will be corrected.</p>
-  <p>Hermit CRM · Apache License 2.0 · alpha, no warranty · <a href="../">All comparisons</a> · <a href="../../docs/">Docs</a> · <a href="../../changelog/">Changelog</a> · <a href="../../stats/">Stats</a> · <a href="../../about/">About</a> · Built by <a href="https://www.linkedin.com/in/gijsbos">Gijs Bos</a></p>
+  <p class="notice">Product names are trademarks of their owners. Hermit CRM is not affiliated with any of them. Prices come from each vendor’s public pricing page on the date shown, per seat and usually before VAT; they change often, so check the vendor’s page before you decide. Found a mistake? Message <a href="https://www.linkedin.com/in/gijsbos">Gijs Bos</a> and it will be corrected.</p>
+  <p>Hermit CRM · Apache License 2.0 · alpha, no warranty · <a href="../">All comparisons</a> · <a href="../../features/">Features</a> · <a href="../../docs/">Docs</a> · <a href="../../changelog/">Changelog</a> · <a href="../../stats/">Stats</a> · <a href="../../about/">About</a> · Built by <a href="https://www.linkedin.com/in/gijsbos">Gijs Bos</a></p>
 </footer>
 </body>
 </html>

@@ -1,0 +1,47 @@
+order   = 8
+name    = "Extension"
+nav     = "Extension"
+title   = "Extension: save any web page to your CRM with one click"
+description = "The Hermit CRM extension is a bookmark that turns a company website or LinkedIn profile into a filled-in form, with no AI and nothing sent anywhere."
+summary = "Turn the page you are looking at into a company or a contact, from one bookmark."
+intro = """
+The competition for a CRM is the record never getting written. The extension is the short path: you are on a company's
+website or on a LinkedIn page, you click one bookmark, and the form opens with the fields filled in.
+"""
+docs    = "extension"
+related = ["companies", "contacts", "settings"]
+
+[[sections]]
+heading = "One bookmark, in your own browser"
+text = """
+The page gives you a link to drag to your bookmarks bar, called **Add to Hermit CRM**. The link points at the address your Hermit is running on, so nothing leaves your computer except to your own CRM.
+Prefer no bookmark? Paste a company website, a LinkedIn company page or a profile into the box on the same page and press **Read the page**.
+"""
+image   = "feature-extension-page.png"
+alt     = "The Extension page in Hermit CRM: an explanation, and a button called Add to Hermit CRM to drag to the bookmarks bar."
+address = "127.0.0.1:8765/extension"
+
+[[sections]]
+heading = "A form that is already filled in"
+text = """
+On a company website it reads the page's own metadata and proposes the company name, the website, the LinkedIn company page the site links to, the country, a headcount hint and a one-line description.
+Your computer fetches the page directly: no AI, and nothing is sent to anyone else. The guesses are guesses, so the form says to check the fields, and **nothing is written until you press Create company**.
+"""
+image   = "feature-extension-form.png"
+alt     = "The new company form in Hermit CRM opened by the extension: a banner saying it read the page, the company name Harbor Robotics, its website and a one-line product description filled in."
+address = "127.0.0.1:8765/extension/new"
+
+[[sections]]
+heading = "A LinkedIn profile makes a contact"
+text = """
+On a profile you are logged in to, the bookmark reads the page you are already looking at: the name, the current role, the company and its LinkedIn page, and the location.
+An email is read only if you have opened *Contact info* first. It fetches nothing from LinkedIn and copies no cookies. When LinkedIn changes its layout, a field it cannot place stays empty rather than wrong.
+Three people from one company land on one company record, not three.
+"""
+
+[[sections]]
+heading = "No duplicates"
+text = """
+Before it offers a form, it looks for an existing company with that website or LinkedIn page. If it finds one it opens that record, so a second click on the same bookmark never makes a copy.
+A profile you saved before opens that contact, however you reached it.
+"""
