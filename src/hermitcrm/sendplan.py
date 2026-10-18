@@ -116,6 +116,12 @@ class Sent:
     domain: str = ""
 
 
+def _position(slot: Slot) -> tuple:
+    """Where an item stands in the queue: follow-ups first, then by when it was
+    queued, the id breaking a tie."""
+    return (not slot.follow_up, slot.queued, slot.id)
+
+
 def jitter(item_id: str) -> float:
     """A factor between 0.6 and 1.4 that depends only on the item id."""
     digest = hashlib.sha256(str(item_id).encode("utf-8")).digest()
@@ -226,19 +232,24 @@ def plan(queue, sent, now: datetime, cfg: PlanConfig) -> dict[str, datetime]:
 
     result: dict[str, datetime] = {}
     todo = []
+    kept: list[tuple[tuple, datetime]] = []        # (queue position, time) of those that stay
     for slot in queue:
         keeps = (slot.send_at is not None and in_window(slot.send_at, cfg)
                  and slot.send_at > now - timedelta(minutes=cfg.overdue))
         if keeps:
             result[slot.id] = slot.send_at
             put(slot.send_at, slot.company, slot.domain)
+            kept.append((_position(slot), slot.send_at))
         else:
             todo.append(slot)
-    todo.sort(key=lambda s: (not s.follow_up, s.queued, s.id))
+    todo.sort(key=_position)
 
     cursor = now + timedelta(minutes=cfg.grace)
     for slot in todo:
-        found = _first_fit(slot, cursor, horizon, cfg, first, counts, by_day, taken,
+        # The queue keeps its order: a new item never goes out before an item that was
+        # queued ahead of it (it may use a free slot before those queued after it).
+        ahead = max((t for pos, t in kept if pos < _position(slot)), default=cursor)
+        found = _first_fit(slot, max(cursor, ahead), horizon, cfg, first, counts, by_day, taken,
                            window_start, window_len, gap_company, min_gap)
         if found is None:
             continue

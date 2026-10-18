@@ -241,3 +241,18 @@ def test_nothing_is_placed_beyond_the_horizon_and_an_empty_queue_is_empty():
     plan = sendplan.plan(slots(20), [], MON, cfg)         # one a week: 20 weeks is too far
     assert 0 < len(plan) < 20
     assert max(plan.values()) <= MON + timedelta(days=sendplan.HORIZON_DAYS)
+
+
+def test_a_new_item_never_goes_out_before_one_queued_ahead_of_it():
+    first = sendplan.plan(slots(1), [], MON, CFG)                    # one item, with a time
+    (t,) = first.values()
+    queue = [Slot("i000", "co0", queued=MON, send_at=t),
+             Slot("new", "newco", queued=MON + timedelta(minutes=5))]
+    again = sendplan.plan(queue, [], MON + timedelta(minutes=5), CFG)
+    assert again["i000"] == t and again["new"] > t
+    # An overdue item queued ahead of a later one that keeps its time may use the free slot before it.
+    later = Slot("later", "co1", queued=MON + timedelta(hours=1), send_at=datetime(2026, 10, 19, 15, 0))
+    early = Slot("early", "co2", queued=MON, send_at=datetime(2026, 10, 19, 8, 0))   # overdue by noon
+    plan = sendplan.plan([later, early], [], datetime(2026, 10, 19, 12, 0), CFG)
+    assert plan["later"] == datetime(2026, 10, 19, 15, 0)
+    assert plan["early"] < plan["later"] and plan["early"] >= datetime(2026, 10, 19, 12, 10)
