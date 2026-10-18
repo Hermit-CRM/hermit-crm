@@ -59,7 +59,7 @@ from . import playbook, textsource
 from . import schedule, scrape, secrets, task_types, usertheme
 from . import stage_ops
 from . import stages as stages_mod
-from . import exemplars, learning, outreach, routines, send, sendplan, sendqueue
+from . import exemplars, learning, outreach, routines, send, sendplan, sendqueue, suppress
 from . import help as helpdocs
 from . import setup as setup_steps
 from .filters import Column
@@ -2951,6 +2951,20 @@ def create_app(root: Path, config: dict | None = None,
                 errors=exc.errors), status_code=400)
         return flashed(f"/companies/{slug}/contacts/{cslug}", "Saved")
 
+    @app.post("/companies/{slug}/contacts/{cslug}/opt-out")
+    async def contact_opt_out(slug: str, cslug: str, csrf_token: str = Form(""),
+                              back: str = Form("")):
+        """They asked not to be written to: the address on the suppression list, every
+        open outreach item for them skipped. Nothing more is sent to it."""
+        check_csrf(csrf_token)
+        need_company(slug)
+        back = safe_back(back, f"/companies/{slug}/contacts/{cslug}")
+        try:
+            text = await run_in_threadpool(sendqueue.opt_out, store, slug, cslug)
+        except (outreach.OutreachError, suppress.SuppressError) as exc:
+            text = f"Not done: {exc}"
+        return flashed(back, text)
+
     @app.post("/companies/{slug}/contacts/{cslug}/delete")
     def contact_delete(request: Request, slug: str, cslug: str):
         """Delete one contact (the browser asked for confirmation); its
@@ -4191,6 +4205,8 @@ def create_app(root: Path, config: dict | None = None,
         shown = [i for i in every if in_tab(i, tab)]
         if tab in ("drafts", "replies"):   # the oldest draft first: review in the order built
             shown.reverse()
+        elif tab == "scheduled":           # the next to go out first
+            shown.sort(key=lambda i: (i.send_at is None, i.send_at or datetime.max, i.id))
         reply_rows = outreach_replies(every)
         waiting = [r for r in reply_rows if r["item"] is None
                    and (r["reply"].interested or r["reply"].to_confirm)]
