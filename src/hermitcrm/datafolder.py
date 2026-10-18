@@ -259,6 +259,22 @@ AGENT_ADJUST_RULES = """Adjusting Hermit (`hermitcrm help adjust`, or `/hermit` 
 
 AGENT_RULES += "\n" + AGENT_ADJUST_RULES
 
+# Sending from the app (`hermitcrm help sending`). Its own constant so migration
+# 14 can add it to CLAUDE.md and AGENTS.md files written before it.
+AGENT_SEND_RULES = """Sending mail (`hermitcrm help sending`):
+- The person approves every outreach message; Hermit then sends approved email on a
+  schedule. You never schedule or send mail (`hermitcrm outreach schedule`,
+  `outreach send-now`, `send due`) unless the person asks for it in this conversation.
+  Drafting and `outreach ready` are not sending.
+- Never change the `send_*` and `linkedin_*` settings in config.toml, the sending
+  password, `outreach/suppressed.toml` or `.git/hermitcrm-send.json` without being asked.
+- Pause is the kill switch: `hermitcrm send pause`. Only the person lifts it
+  (`hermitcrm send resume`).
+- LinkedIn is never automated: the person sends every message and invite themselves.
+"""
+
+AGENT_RULES += "\n" + AGENT_SEND_RULES
+
 # The Claude Code skill behind `/hermit <request>`, which the Adjust handoff
 # types in. Only a pointer: the recipes live in the package's help topics, so
 # the skill never goes stale when Hermit is upgraded.

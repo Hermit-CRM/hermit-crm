@@ -100,12 +100,13 @@ def test_migration_12_is_idempotent_and_keeps_values():
 
 
 def test_migration_13_is_a_noop_for_the_new_interaction_source():
-    m12, m13 = migrations.MIGRATIONS[-2], migrations.MIGRATIONS[-1]
+    by_version = {m.version: m for m in migrations.MIGRATIONS}
+    m12, m13 = by_version[12], by_version[13]
     assert (m12.version, m12.glob, m12.apply) == (12, "outreach/*.md", migrations.m12_send_keys)
     assert (m13.version, m13.glob) == (13, "companies/*/interactions/*.md")
     meta = {"source": "outreach", "channel": "email"}
     assert m13.apply(meta) is meta
-    assert migrations.LATEST == 13
+    assert migrations.LATEST >= 13
 
 
 def test_a_folder_at_format_11_gets_the_keys_in_one_run(tmp_path):
@@ -200,3 +201,27 @@ def test_an_inbound_mail_does_not_flip_a_queued_item(tmp_path):
 def test_queued_and_failed_items_count_as_reviewed_for_learning():
     from hermitcrm import learning
     assert "queued" in learning.REVIEWED_STATES and "failed" in learning.REVIEWED_STATES
+
+
+# ------------------------------------------------------- agents never send
+
+
+def test_migration_14_tells_agents_not_to_send_unasked_and_is_idempotent(tmp_path):
+    from hermitcrm.datafolder import AGENT_RULES, AGENT_SEND_RULES, init_folder
+    root = init_folder(tmp_path / "crm")
+    old = AGENT_RULES.replace("\n" + AGENT_SEND_RULES, "")
+    mine = "# Rules\n\nRead PIPELINE.md.\n\n## Personal\n\n- mine\n"
+    (root / "CLAUDE.md").write_text(mine, encoding="utf-8")
+    (root / "AGENTS.md").write_text(old, encoding="utf-8")
+    assert migrations.m14_agent_send(root, {}, write=False) == ["CLAUDE.md", "AGENTS.md"]
+    assert (root / "CLAUDE.md").read_text(encoding="utf-8") == mine          # a dry run writes nothing
+    assert migrations.m14_agent_send(root, {}, write=True) == ["CLAUDE.md", "AGENTS.md"]
+    claude = (root / "CLAUDE.md").read_text(encoding="utf-8")
+    assert claude.index("Sending mail") < claude.index("## Personal")         # before their headings
+    assert claude.endswith("## Personal\n\n- mine\n")
+    assert (root / "AGENTS.md").read_text(encoding="utf-8") == AGENT_RULES   # same as a new folder
+    assert "never schedule or send mail" in AGENT_SEND_RULES
+    assert migrations.m14_agent_send(root, {}, write=True) == []             # idempotent
+    (root / "AGENTS.md").unlink()
+    assert migrations.m14_agent_send(root, {}, write=True) == []             # no file, none made
+    assert not (root / "AGENTS.md").exists()
