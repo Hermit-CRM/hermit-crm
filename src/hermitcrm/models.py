@@ -171,6 +171,7 @@ class InteractionSource(str, Enum):
     BCC_IMPORT = "bcc-import"
     CALENDAR_IMPORT = "calendar-import"
     MIGRATION = "migration"  # contact notes ported to note interactions (format 7)
+    OUTREACH = "outreach"  # sent or logged by the outreach bot itself (format 13)
 
 
 class ValidationError(Exception):

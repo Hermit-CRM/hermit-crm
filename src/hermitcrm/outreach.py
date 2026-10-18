@@ -35,25 +35,31 @@ everything the card shows; its body is the draft text, byte for byte, which
 the person may edit by hand. The keys are always written, in ITEM_KEYS
 order, so the same item gives the same bytes. Every step is one commit:
 
-    researching ──> drafted ──> ready ──> sent
-          \\            \\         \\
-           └────────────┴──────────┴──> skipped (skip_reason)
+    researching ──> drafted ──> ready ──────────────> sent
+                                  │  ^                 ^
+                                  v  │ (Retry, guard)  │
+                                queued ──> failed      │
+                                  └──────────────────>─┘
+    researching, drafted, ready, queued, failed ──> skipped (skip_reason)
 
 `researching`: research is stored, the draft is not written yet (a run that
 stopped halfway leaves this). `drafted`: the draft is written and checked;
 `checks` lists what is still wrong ([] = every hard check passed). `ready`:
 the person approved it (the text they approved is the body; `edit_distance`
 says how much they changed; a check that still fails is kept in `checks`).
-`sent`: the person sent it. That happens by itself when an outbound
-interaction on the item's channel is logged for the contact after the item
-was marked ready (by hand, BCC import, the extension: people send from their
-own mail), or with `hermitcrm outreach sent`; nothing is logged for them.
-`skipped`: not to be sent, `skip_reason` is one of SKIP_REASONS (the person,
-or the bot with `bad-draft` when the AI gave no usable draft twice). `logged`
-is reserved for a later auto-log. An item in researching, drafted or ready is
-open: the contact and the company (and its likely duplicates) get no second
-one. A skipped contact comes back after the cooldown, except `bad-fit`, which
-keeps the company out.
+`queued`: approved and scheduled by send.py (`send_at` says when); an open
+state like `ready`. `failed`: the mail was refused for good (address unknown);
+Retry puts it back to `ready`, as does a guard that holds a queued item (they
+wrote to you since). `sent`: the person sent it, or send.py did. That happens
+by itself when an outbound interaction on the item's channel is logged for the
+contact after the item was marked ready (by hand, BCC import, the extension,
+or send.py: people send from their own mail), or with `hermitcrm outreach
+sent`; nothing is logged for them. `skipped`: not to be sent, `skip_reason` is
+one of SKIP_REASONS (the person, or the bot with `bad-draft` when the AI gave
+no usable draft twice). `logged` is reserved for a later auto-log. An item in
+researching, drafted, ready, queued or failed is open: the contact and the
+company (and its likely duplicates) get no second one. A skipped contact comes
+back after the cooldown, except `bad-fit`, which keeps the company out.
 """
 
 from __future__ import annotations
@@ -82,8 +88,8 @@ from .store import Store, build_file, load_config, normalise_body, split_file
 logger = logging.getLogger(__name__)
 
 DIR = "outreach"
-STATES = ("researching", "drafted", "ready", "skipped", "sent", "logged")
-OPEN_STATES = ("researching", "drafted", "ready")
+STATES = ("researching", "drafted", "ready", "queued", "failed", "skipped", "sent", "logged")
+OPEN_STATES = ("researching", "drafted", "ready", "queued", "failed")
 FIRST_TOUCH, REPLY, FOLLOW_UP = "first-touch", "reply-to-interest", "follow-up"
 KINDS = (FIRST_TOUCH, REPLY, FOLLOW_UP)
 BUILT_KINDS = KINDS
@@ -120,8 +126,14 @@ ITEM_KEYS = (
     "critic", "critic_reason", "critic_model", "flags", "norms", "findings", "proof_used",
     "lessons_used", "exemplars_used", "proposals", "edit_distance",
     "skip_reason", "skip_note", "batch", "created", "researched", "drafted", "ready",
-    "sent", "sent_with", "skipped", "ai_subject", "ai_pitch", "ai_body", "edits", "earlier",
+    "sent", "sent_with", "skipped",
+    "queued", "send_at", "send_hash", "message_id", "send_tries", "send_error", "send_note",
+    "invite_sent", "accepted", "pitch_sent",
+    "ai_subject", "ai_pitch", "ai_body", "edits", "earlier",
 )
+# Part 08: what scheduling, sending and the LinkedIn session add to an item.
+SEND_KEYS = ("queued", "send_at", "send_hash", "message_id", "send_tries", "send_error",
+             "send_note", "invite_sent", "accepted", "pitch_sent")
 EDIT_KEYS = ("at", "words", "note", "tags", "subject", "pitch", "body")
 # Reason chips on a tracked edit: a label for the learning counters without any AI.
 EDIT_TAGS = ("too-long", "wrong-tone", "wrong-pain", "bad-finding", "wrong-fact", "cliche",
@@ -1553,6 +1565,16 @@ class Item:
     sent: datetime | None = None
     sent_with: str = ""   # the interaction that marked it sent, "" for by hand
     skipped: datetime | None = None
+    queued: datetime | None = None      # when it was scheduled (part 08)
+    send_at: datetime | None = None     # when it goes out; the planner may move it
+    send_hash: str = ""                 # hash of subject and body at Schedule time
+    message_id: str = ""                # written, and committed, before the SMTP call
+    send_tries: int = 0
+    send_error: str = ""                # why it is failed
+    send_note: str = ""                 # why a guard put it back to ready
+    invite_sent: datetime | None = None   # LinkedIn: the connection note went out
+    accepted: datetime | None = None      # LinkedIn: they accepted
+    pitch_sent: datetime | None = None    # LinkedIn: the pitch went out
     ai_subject: str = ""
     ai_pitch: str = ""
     ai_body: str = ""
@@ -1678,7 +1700,14 @@ def item_from_text(item_id: str, text: str) -> Item:
         skip_reason=s("skip_reason"), skip_note=s("skip_note"), batch=s("batch"),
         created=when("created"), researched=when("researched"), drafted=when("drafted"),
         ready=when("ready"), sent=when("sent"), sent_with=s("sent_with"),
-        skipped=when("skipped"), ai_subject=s("ai_subject"), ai_pitch=s("ai_pitch"),
+        skipped=when("skipped"),
+        queued=when("queued"), send_at=when("send_at"), send_hash=s("send_hash").strip(),
+        message_id=s("message_id").strip(),
+        send_tries=_int_or_none(meta.get("send_tries")) or 0,
+        send_error=s("send_error"), send_note=s("send_note"),
+        invite_sent=when("invite_sent"), accepted=when("accepted"),
+        pitch_sent=when("pitch_sent"),
+        ai_subject=s("ai_subject"), ai_pitch=s("ai_pitch"),
         ai_body=s("ai_body"),
         edits=[e for e in (TrackedEdit.from_dict(x) for x in meta.get("edits") or [])
                if e is not None] if isinstance(meta.get("edits"), list) else [],
@@ -2739,9 +2768,9 @@ def mark_sent(store: Store, item_id: str) -> Item:
     """You sent it (`hermitcrm outreach sent`): the state only; nothing is
     logged. Logging the message does the same by itself (sent_by_interaction)."""
     item = _refresh(store, item_id)
-    if item.state not in ("drafted", "ready"):
-        raise OutreachError(f"{item.id} is {item.state}; only a drafted or ready item can "
-                            "be marked sent")
+    if item.state not in ("drafted", "ready", "queued", "failed"):
+        raise OutreachError(f"{item.id} is {item.state}; only a drafted, ready, queued or "
+                            "failed item can be marked sent")
     item.state, item.sent = "sent", store.now()
     with store.lock:
         write_item(store.root, item)
@@ -3103,7 +3132,7 @@ def accept_proposal(store: Store, item_id: str, key: str) -> Item:
 
 
 def sent_by_interaction(root: Path | str, company: str, it) -> list[Item]:
-    """The ready items an outbound interaction just logged marks sent: same
+    """The ready (or queued, or failed) items an outbound interaction just logged marks sent: same
     contact, same channel, logged at or after the item was marked ready. The
     caller (Store.create_interaction) writes them in the interaction's commit;
     an item's angle and approach are copied onto the interaction when it has
@@ -3112,7 +3141,8 @@ def sent_by_interaction(root: Path | str, company: str, it) -> list[Item]:
         return []
     out = []
     for item in items(root):
-        if (item.state == "ready" and item.company == company and item.contact == it.contact
+        if (item.state in ("ready", "queued", "failed") and item.company == company
+                and item.contact == it.contact
                 and item.channel == it.channel and item.ready is not None
                 and it.date >= item.ready):
             item.state, item.sent, item.sent_with = "sent", it.date, it.id

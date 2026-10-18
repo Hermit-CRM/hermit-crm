@@ -70,7 +70,7 @@ def test_format_detection(tmp_path, old_folder):
 def test_dry_run_lists_files_and_writes_nothing(old_folder):
     before = {p: p.read_bytes() for p in old_folder.rglob("company.md")}
     text = migrations.dry_run(old_folder)
-    assert "Data format 0 → 11" in text
+    assert "Data format 0 → 13" in text
     assert "1. rename gijs_score to my_score: 3 file(s)" in text  # bolt has an empty key
     assert "2. country UK→GB, USA→US: 2 file(s)" in text
     assert "3. interaction result folded into outcome: 0 file(s)" in text
@@ -91,7 +91,7 @@ def test_migrate_before_after_in_one_commit(old_folder):
 
     summary = migrations.ensure_current(old_folder)
 
-    assert summary.startswith("migrate: data format 0 → 11 (rename gijs_score to my_score; "
+    assert summary.startswith("migrate: data format 0 → 13 (rename gijs_score to my_score; "
                               "country UK→GB, USA→US; interaction result folded into "
                               "outcome; stage reached-out renamed to engaged; scores and "
                               "team size become fields you define; agents may not rewrite "
@@ -99,13 +99,15 @@ def test_migrate_before_after_in_one_commit(old_folder):
                               "note interactions; agents learn to adjust Hermit "
                               "(/hermit skill); interactions get an optional angle; "
                               "outreach drafts record the lessons they used and your reason chips; "
-                              "outreach drafts record the examples they were shown)")
+                              "outreach drafts record the examples they were shown; "
+                              "outreach items get the keys for scheduling, sending and LinkedIn sessions; "
+                              "interactions may have the source outreach (nothing to change in a file))")
     assert acme.read_text() == expected and acme.read_text().endswith(BODY)
     bolt = (old_folder / "companies/bolt/company.md").read_text()
     assert "country: US\n" in bolt and "my_score:\n" in bolt and "gijs_score" not in bolt.split("---")[1]
     assert (old_folder / ".hermitcrm-format").read_text() == f"{migrations.LATEST}\n"
     assert int(git(["rev-list", "--count", "HEAD"], old_folder)) == commits_before + 1
-    assert git(["log", "-1", "--format=%s|%an"], old_folder).startswith("migrate: data format 0 → 11")
+    assert git(["log", "-1", "--format=%s|%an"], old_folder).startswith("migrate: data format 0 → 13")
     assert "hermitcrm" in git(["log", "-1", "--format=%an"], old_folder)
     changed = git(["show", "--name-only", "--format=", "HEAD"], old_folder).split()
     assert sorted(changed) == [".claude/settings.json", ".claude/skills/hermit/SKILL.md",
