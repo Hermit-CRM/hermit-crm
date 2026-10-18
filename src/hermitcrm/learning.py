@@ -62,7 +62,7 @@ RUNG_VALUE = {"replied": 1, "positive": 3, "deal": 6, "won": 12}
 RUBBER_STAMP_SECONDS = 20
 RUBBER_STAMP_WEIGHT = 0.25
 HALF_LIFE_DAYS = 60
-REVIEWED_STATES = ("ready", "sent", "logged", "skipped")
+REVIEWED_STATES = ("ready", "queued", "failed", "sent", "logged", "skipped")
 FINAL_STATES = REVIEWED_STATES
 
 PARTS = tuple(key for key, _ in playbook.LESSONS)          # worked, failed, open

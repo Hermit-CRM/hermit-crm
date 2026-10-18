@@ -410,6 +410,30 @@ def m11_exemplars(meta: dict) -> dict:
     return meta
 
 
+def m12_send_keys(meta: dict) -> dict:
+    """Outreach items gained the keys that scheduling, sending and the LinkedIn
+    session write (`queued`, `send_at`, `send_hash`, `message_id`, `send_tries`,
+    `send_error`, `send_note`, `invite_sent`, `accepted`, `pitch_sent`). They are
+    added empty, right after `skipped` where the app writes them; a key the file
+    already has stays where it is. A file that has them all is returned as it is."""
+    from hermitcrm.outreach import SEND_KEYS
+
+    missing = [k for k in SEND_KEYS if k not in meta]
+    if not missing:
+        return meta
+    anchor = "skipped" if "skipped" in meta else next(
+        (k for k in ("sent_with", "sent", "ready") if k in meta), None)
+    empty = {k: (0 if k == "send_tries" else None) for k in missing}
+    out: dict = {}
+    for key, value in meta.items():
+        out[key] = value
+        if key == anchor:
+            out.update(empty)
+    if anchor is None:
+        out.update(empty)
+    return out
+
+
 MIGRATIONS = [
     Migration(1, "rename gijs_score to my_score", "companies/*/company.md", m1_my_score),
     Migration(2, "country UK→GB, USA→US", "companies/*/company.md", m2_country_codes),
@@ -431,6 +455,10 @@ MIGRATIONS = [
               "outreach/*.md", m10_learning),
     Migration(11, "outreach drafts record the examples they were shown",
               "outreach/*.md", m11_exemplars),
+    Migration(12, "outreach items get the keys for scheduling, sending and LinkedIn sessions",
+              "outreach/*.md", m12_send_keys),
+    Migration(13, "interactions may have the source outreach (nothing to change in a file)",
+              "companies/*/interactions/*.md", _noop),
 ]
 LATEST = MIGRATIONS[-1].version
 
