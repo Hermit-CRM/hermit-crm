@@ -6,6 +6,7 @@
 {% from "macros.html" import fix_with_ai %}
 <h1>Outreach</h1>
 <p class="small">Research and draft first touches with your AI CLI, review each one, then send it yourself. Nothing is sent from here. Logging the message on the contact marks its item sent. <a href="/help/outreach">How it works</a></p>
+{% if since_line %}<p class="small outreach-since"><strong>Since last time:</strong> {{ since_line }}. <a href="/learning">Learning</a></p>{% endif %}
 
 {% if gate %}
 <p class="warning-box">The outreach bot will not run yet: {{ gate }}. <a href="/settings/playbook">Settings &gt; Playbook</a></p>
@@ -188,6 +189,10 @@
     {% if co and co.website %}&middot; <a href="{{ co.website | href }}" target="_blank" rel="noopener">website &#8599;</a>{% endif %}
     &middot; {{ i.approach or 'no approach' }}{% if i.angle %} &middot; angle {{ i.angle }}{% endif %}{% if i.language %} &middot; {{ i.language }}{% endif %}
   </p>
+  {% if card.followed.count %}<details class="small outreach-followed"><summary>Followed {{ card.followed.count }} lesson{{ 's' if card.followed.count != 1 }}</summary>
+    {% if card.followed.texts %}<ul>{% for t in card.followed.texts %}<li>{{ t }}</li>{% endfor %}</ul>{% endif %}
+    {% if card.followed.texts | length < card.followed.count %}<p class="quiet">{{ card.followed.count - card.followed.texts | length }} since retired or reworded.</p>{% endif %}
+    <p class="quiet">These lessons were in the prompt for this draft. <a href="/learning?approach={{ i.approach | urlencode }}">Learning</a></p></details>{% endif %}
   {% if i.flags %}<ul class="outreach-flags small">{% for f in i.flags %}<li>{{ f }}</li>{% endfor %}</ul>{% endif %}
   {% for key, value in card.proposals %}
   <form method="post" action="/outreach/{{ i.id }}/proposal" class="outreach-proposal small">
@@ -235,6 +240,10 @@
     <textarea name="pitch" rows="5" spellcheck="true" aria-label="Message after they accept">{{ i.pitch }}</textarea>{% endif %}
     <label class="small outreach-note" data-note-for="{{ i.id }}" hidden>Why this change? (optional) Your reason is kept with the edit and helps improve the AI's next drafts.
       <input name="note" maxlength="500" placeholder="e.g. too formal for a founder, or the trigger is old news"></label>
+    <fieldset class="small outreach-chips" data-chips-for="{{ i.id }}" data-chip-words="{{ chip_words }}" hidden>
+      <legend>What was wrong? (optional) Reason chips count for learning when you change more than {{ chip_words }} words.</legend>
+      {% for tag in edit_tags %}<label class="check inline-check"><input type="checkbox" name="tags" value="{{ tag }}"> {{ tag }}</label> {% endfor %}
+    </fieldset>
     {% if i.checks %}<ul class="outreach-checks warning">{% for c in i.checks %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
     {% if i.critic %}<details class="small outreach-critic" title="Scored by the AI, 1 (bad) to 5 (good). A guide, not a rule: it never blocks anything."><summary><strong>Critic {{ i.critic_score }}/5</strong></summary><p>Lowest: {% for name in critic_scores %}{{ name }} {{ i.critic[name] }}{% if not loop.last %}, {% endif %}{% endfor %}{% if i.critic_reason %}. {{ i.critic_reason }}{% endif %}</p></details>{% endif %}
     {% if i.proof_used %}<p class="small">Proof: {{ i.proof_used | join('; ') }}</p>{% endif %}
@@ -296,7 +305,23 @@
     function changed() {
       return Array.prototype.some.call(fields, function (f) { return f.value !== f.defaultValue; });
     }
-    function sync() { if (note) note.hidden = !changed(); }
+    var chips = form.querySelector("[data-chips-for]");
+    function words(text) { return (text || "").split(/\s+/).filter(Boolean); }
+    // Words changed, roughly: the words that left plus the words that came, by count.
+    function moved() {
+      var total = 0;
+      Array.prototype.forEach.call(fields, function (f) {
+        var left = {}, a = words(f.defaultValue), b = words(f.value);
+        a.forEach(function (w) { left[w] = (left[w] || 0) + 1; });
+        b.forEach(function (w) { if (left[w]) { left[w] -= 1; } else { total += 1; } });
+        Object.keys(left).forEach(function (w) { total += left[w]; });
+      });
+      return Math.ceil(total / 2);
+    }
+    function sync() {
+      if (note) note.hidden = !changed();
+      if (chips) chips.hidden = !changed() || moved() <= parseInt(chips.dataset.chipWords, 10);
+    }
     fields.forEach(function (f) { f.addEventListener("input", sync); });
     sync();
   });

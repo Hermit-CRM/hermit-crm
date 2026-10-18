@@ -365,6 +365,34 @@ def m9_angle(meta: dict) -> dict:
     return {k: (value if k == "angle" else v) for k, v in meta.items()}
 
 
+def m10_learning(meta: dict) -> dict:
+    """Outreach items gained `lessons_used` and reason chips (`tags`) on a
+    tracked edit, both optional and both absent when empty. Hand-written ones
+    are put in the form the app writes; a file without them is returned as it
+    is."""
+    from hermitcrm.outreach import clean_lesson_ids, clean_tags
+
+    out = meta
+    if "lessons_used" in meta:
+        ids = clean_lesson_ids(meta["lessons_used"])
+        if not ids:
+            out = {k: v for k, v in out.items() if k != "lessons_used"}
+        elif ids != meta["lessons_used"]:
+            out = {k: (ids if k == "lessons_used" else v) for k, v in out.items()}
+    edits = meta.get("edits")
+    if isinstance(edits, list) and any(isinstance(e, dict) and "tags" in e for e in edits):
+        fixed = []
+        for e in edits:
+            if isinstance(e, dict) and "tags" in e:
+                tags = clean_tags(e["tags"])
+                e = ({k: (tags if k == "tags" else v) for k, v in e.items()} if tags
+                     else {k: v for k, v in e.items() if k != "tags"})
+            fixed.append(e)
+        if fixed != edits:
+            out = {k: (fixed if k == "edits" else v) for k, v in out.items()}
+    return out
+
+
 MIGRATIONS = [
     Migration(1, "rename gijs_score to my_score", "companies/*/company.md", m1_my_score),
     Migration(2, "country UK→GB, USA→US", "companies/*/company.md", m2_country_codes),
@@ -382,6 +410,8 @@ MIGRATIONS = [
               folder=m8_adjust_skill),
     Migration(9, "interactions get an optional angle", "companies/*/interactions/*.md",
               m9_angle),
+    Migration(10, "outreach drafts record the lessons they used and your reason chips",
+              "outreach/*.md", m10_learning),
 ]
 LATEST = MIGRATIONS[-1].version
 

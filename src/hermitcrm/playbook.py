@@ -998,6 +998,23 @@ def apply_approach(text: str, name: str, approach_front: dict,
     return _with_front(front, body, text)
 
 
+def set_lessons(text: str, approach_name: str, parts: dict) -> str:
+    """The playbook with only the given ### parts of one approach's Lessons
+    rewritten (`parts`: worked / failed / open -> text), their comments kept
+    (`_fill_lessons`); a missing Lessons section is added. The front matter
+    and every other part of the file stay as they were."""
+    front, body = _front_and_body(text)
+    _index(front, approach_name)
+    start, _, end = _block_span(body, approach_name)
+    block = body[start:end]
+    parts = {k: v for k, v in (parts or {}).items() if k in dict(LESSONS)}
+    if _span(block, 2, SECTION_TITLES["lessons"]) is None:
+        block = _fill_block(block, {"lessons": parts})
+    else:
+        block = _fill_lessons(block, parts)
+    return _with_front(front, body[:start] + block + body[end:], text)
+
+
 def add_approach(text: str, name: str, copy_from: str = "") -> str:
     """A new approach at the end: empty, or a copy of another one (its front
     matter entry and its whole block, under the new name)."""

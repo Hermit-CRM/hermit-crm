@@ -59,7 +59,7 @@ from . import playbook, textsource
 from . import schedule, scrape, secrets, task_types, usertheme
 from . import stage_ops
 from . import stages as stages_mod
-from . import outreach, routines
+from . import learning, outreach, routines
 from . import help as helpdocs
 from . import setup as setup_steps
 from .filters import Column
@@ -2117,6 +2117,45 @@ def create_app(root: Path, config: dict | None = None,
     def build_report(span: reports.Period, today) -> dict:
         return reports.build(store, span, today, message_window, config.get("outcomes"))
 
+    def learning_blocks(report: dict) -> dict:
+        """The "Style profile" and "Outreach quality" blocks of the Reports page,
+        added to `report["learning"]`. Their numbers register their rows in the
+        report's registry (reports.Rows), so /reports/rows serves them like any
+        other number. All approaches; not limited to the period."""
+        rows = report["rows"]
+        sigs = learning.signals(store, config=config)
+
+        def row_of(s) -> reports.Row:
+            company = store.get(s.company)
+            contact = company.contacts.get(s.contact) if company is not None else None
+            name = contact.name if contact else s.contact
+            return reports.Row("contact", s.company, company.name if company else s.company,
+                               name, cslug=s.contact, contact=name, date=s.reviewed_at,
+                               stage=company.stage if company else "",
+                               status=s.top_rung or s.state,
+                               note=f"{s.edit_words} words changed, {s.angle or '-'}")
+
+        by_id = {s.item_id: s for s in sigs}
+        style = [{"text": p.text, "hits": p.hits, "of": p.of,
+                  "key": rows.put(f"learning.pattern:{p.feature}.{p.direction}",
+                                  f"Drafts where you {learning.PATTERN_WORDS[(p.feature, p.direction)]}",
+                                  [row_of(by_id[i]) for i in p.item_ids if i in by_id])}
+                 for p in learning.patterns(sigs)]
+        quality = []
+        for dimension in learning.DIMENSIONS:
+            cells = []
+            for r in learning.rates(sigs, dimension):
+                sent = [s for s in sigs if "sent" in s.rungs
+                        and (getattr(s, dimension) or "-") == r.value]
+                cells.append({"row": r, "key": rows.put(
+                    f"learning.rate:{dimension}:{r.value}",
+                    f"Sent outreach, {dimension} {r.value}", [row_of(s) for s in sent])})
+            if cells:
+                quality.append({"dimension": dimension, "cells": cells})
+        report["learning"] = {"reviewed": len(sigs), "style": style, "quality": quality,
+                              "too_few": learning.TOO_FEW}
+        return report
+
     @app.get("/reports", response_class=HTMLResponse)
     def reports_page(request: Request, period: str = "30d"):
         today = store.today()
@@ -2130,7 +2169,7 @@ def create_app(root: Path, config: dict | None = None,
         from_value = params.get("from", "") or fmt_date(span.start)
         to_value = params.get("to", "") or fmt_date(span.end)
         return render(request, "reports.html", {
-            "report": build_report(span, today),
+            "report": learning_blocks(build_report(span, today)),
             "period": period, "periods": reports.PERIODS, "error": error,
             "from_value": from_value, "to_value": to_value,
             "delta": reports.delta,
@@ -2149,6 +2188,8 @@ def create_app(root: Path, config: dict | None = None,
         except (ValueError, ValidationError) as exc:
             raise HTTPException(status_code=400, detail=report_error(exc))
         report = build_report(span, today)
+        if key.startswith("learning."):
+            learning_blocks(report)
         registry = report["rows"]
         if key not in registry:
             raise HTTPException(status_code=404, detail=f"unknown report key {key!r}")
@@ -3112,6 +3153,7 @@ def create_app(root: Path, config: dict | None = None,
                             if (root / custom.FILENAME).exists() else ""},
             "custom_field_defs": app.state.custom_fields,
             "playbook_status": playbook_status(),
+            "learning_form": {"distill": learning.mode(config)},
             "messaging_form": {
                 "size_field": str(config.get("messaging_size_field") or ""),
                 "team_field": str(config.get("messaging_team_field") or "")},
@@ -3923,7 +3965,34 @@ def create_app(root: Path, config: dict | None = None,
                 "proposals": proposals,
                 "fit": outreach.fit_value(company, fit_field) if company else None,
                 "fit_field": fit_field, "reply": reply,
-                "steps": outreach.edit_steps(item)}
+                "steps": outreach.edit_steps(item),
+                "followed": followed_lessons(item)}
+
+    def followed_lessons(item) -> dict:
+        """The lessons that were in the draft's prompt (`lessons_used`): how many,
+        and the texts of those the playbook still has (a retired one is counted
+        but cannot be shown)."""
+        ids = list(getattr(item, "lessons_used", None) or [])
+        if not ids:
+            return {"count": 0, "texts": []}
+        try:
+            known = {x.id: x.text for x in learning.lessons(root, item.approach)}
+        except Exception:   # a playbook that does not load: show the count only
+            known = {}
+        return {"count": len(ids), "texts": [known[i] for i in ids if i in known]}
+
+    def since_last_time() -> str:
+        """The Outreach header line (learning.since_line), "" with too little
+        to say or when learning cannot be read: the page never depends on it."""
+        try:
+            sigs = learning.signals(store, config=config)
+            cutoff = (store.today() - timedelta(days=14)).isoformat()
+            fresh = sum(1 for p in learning.proposals(root, status="accepted")
+                        if str(p.decided or "")[:10] >= cutoff)
+            return learning.since_line(learning.trend(sigs, 3), fresh)
+        except Exception:
+            logger.exception("could not build the Since last time line")
+            return ""
 
     def outreach_replies(every) -> list:
         """The replies owed for the Replies tab, each with its open item (if
@@ -4038,6 +4107,9 @@ def create_app(root: Path, config: dict | None = None,
             "ai_web_problem": app.state.enricher.web_only_problem(),
             "critic_scores": outreach.CRITIC_SCORES,
             "continue_query": outreach_query(form) if form["left"] else "",
+            "since_line": since_last_time(),
+            "edit_tags": outreach.EDIT_TAGS,
+            "chip_words": outreach.REASON_CHIP_WORDS,
         })
 
     @app.post("/outreach/build")
@@ -4184,7 +4256,7 @@ def create_app(root: Path, config: dict | None = None,
                               reason: str = Form(""), note: str = Form(""),
                               strong: str = Form(""), remove: list[str] = Form([]),
                               add: str = Form(""), kind: str = Form("company"),
-                              key: str = Form("")):
+                              key: str = Form(""), tags: list[str] = Form([])):
         check_csrf(csrf_token)
         if what not in OUTREACH_ACTIONS:
             raise HTTPException(status_code=404, detail=f"unknown action {what!r}")
@@ -4206,7 +4278,7 @@ def create_app(root: Path, config: dict | None = None,
                 item, found = await run_in_threadpool(
                     outreach.save_text, store, item.id, subject, body, pitch,
                     None if why_not else outreach.AICritic(store, app.state.enricher.with_tier("medium")),
-                    config, why_not, note)
+                    config, why_not, note, tags=tags)
                 text = ("Saved. Checks passed." if not found else
                         f"Saved. {len(found)} check"
                         f"{'s still fail' if len(found) > 1 else ' still fails'} (see the card).")
@@ -4214,7 +4286,7 @@ def create_app(root: Path, config: dict | None = None,
             elif what == "ready":
                 item, found = await run_in_threadpool(
                     lambda: outreach.mark_ready(store, item_id, subject=subject, body=body,
-                                                pitch=pitch, note=note))
+                                                pitch=pitch, note=note, tags=tags))
                 text = ("Ready to send. Send it yourself, then log it: logging it marks "
                         "it sent." + (f" Warning: {'; '.join(found)}." if found else "")
                         + edit_text(len(item.edits) - tracked, note))
@@ -4248,6 +4320,176 @@ def create_app(root: Path, config: dict | None = None,
         except outreach.OutreachError as exc:
             return flashed(f"/outreach?tab={outreach_tab(item)}", str(exc), anchor=anchor)
         return flashed(f"/outreach?tab={outreach_tab(item)}", text, anchor=anchor)
+
+    # ---------------------------------------------------------------- learning
+    # The Learning page (spec 2026-10-18-learning-approaches): the phase banner,
+    # the efficiency trend, proposals to accept or reject, the lessons with their
+    # scoreboard and the suggestion cards. Every write is learning.py's (one
+    # commit each); this layer reads forms, renders, and turns an error into a
+    # flash.
+
+    def learning_pick(value: str) -> str:
+        names = [a.name for a in playbook.load(root).approaches]
+        value = (value or "").strip()
+        return value if value in names else learning.default_approach(root)
+
+    def learning_url(approach: str) -> str:
+        return "/learning" + (f"?approach={quote(approach, safe='')}" if approach else "")
+
+    def learning_links(ids, by_id: dict) -> list[dict]:
+        """Outreach items as links to their cards: [{id, label, url}]."""
+        out = []
+        for item_id in ids:
+            item = by_id.get(item_id)
+            if item is None:
+                continue
+            company = store.get(item.company)
+            contact = company.contacts.get(item.contact) if company is not None else None
+            out.append({"id": item_id, "label": contact.name if contact else item.contact,
+                        "url": f"/outreach?tab={outreach_tab(item)}#item-{item_id}"})
+        return out
+
+    def learning_context(approach: str) -> dict:
+        names = [a.name for a in playbook.load(root).approaches]
+        ctx = {"approaches": names, "approach": approach, "learning_error": ""}
+        if not approach:
+            return ctx
+        sigs = learning.signals(store, approach, config)
+        st = learning.status(store, approach, config)
+        by_id = {i.id: i for i in outreach.items(root)}
+        current = learning.lessons(root, approach)
+        text_of = {x.id: x.text for x in current}
+        scores = learning.scoreboard(store, approach, sigs, config)
+        groups = []
+        for part in learning.PARTS:
+            rows = []
+            for score in (x for x in scores if x.lesson.part == part):
+                used = [s.item_id for s in sigs if score.lesson.id in s.lessons_used]
+                rows.append({"score": score, "lesson": score.lesson,
+                             "links": learning_links(used[-8:], by_id), "n_used": len(used)})
+            groups.append({"part": part, "title": learning.PART_TITLES[part], "rows": rows})
+        pending = [{"proposal": p, "replaced": [text_of[i] for i in p.replaces if i in text_of],
+                    "links": learning_links(p.cites, by_id)} for p in st.pending]
+        found = learning.suggestions(store, sigs, config)
+        suggestions = [{"suggestion": x, "links": learning_links(x.evidence[:8], by_id)}
+                       for x in found]
+        state_dir = root / learning.DIR
+        ctx.update({
+            "status": st, "banner": st.banner, "stats": learning.trend(sigs),
+            "since": learning.since_line(learning.trend(sigs)),
+            "pending": pending, "groups": groups, "suggestions": suggestions,
+            "mode": st.mode, "can_move": hasattr(learning, "move"),
+            "parts": [(k, learning.PART_TITLES[k]) for k in learning.PARTS],
+            "pack_written": (state_dir / learning.PACK_FILE).exists(),
+            "pack_path": f"{learning.DIR}/{learning.PACK_FILE}",
+            "answer_path": f"{learning.DIR}/{learning.PROPOSALS_FILE}",
+            "answer_there": (state_dir / learning.PROPOSALS_FILE).exists(),
+            "ai_problem": outreach_ai_problem("strong") if st.mode == "hermit" else "",
+        })
+        return ctx
+
+    @app.get("/learning", response_class=HTMLResponse)
+    def learning_page(request: Request):
+        approach = learning_pick(request.query_params.get("approach", ""))
+        try:
+            ctx = learning_context(approach)
+        except (learning.LearningError, EnrichError) as exc:
+            ctx = {"approaches": [a.name for a in playbook.load(root).approaches],
+                   "approach": approach, "learning_error": str(exc)}
+        return render(request, "learning.html", ctx)
+
+    def learning_act(approach: str, work: Callable[[str], str]) -> RedirectResponse:
+        """Run one learning write for the picked approach and come back to the
+        page with its message; a LearningError or EnrichError is the message."""
+        approach = learning_pick(approach)
+        back = learning_url(approach)
+        if not approach:
+            return flashed(back, "There is no approach in the playbook yet")
+        try:
+            text = work(approach)
+        except (learning.LearningError, EnrichError) as exc:
+            return flashed(back, str(exc))
+        return flashed(back, text)
+
+    @app.post("/learning/run")
+    def learning_run(csrf_token: str = Form(""), approach: str = Form("")):
+        """Run now (hermit: one strong-tier AI call) or write the evidence pack
+        (handoff), by the `learning_distill` setting."""
+        check_csrf(csrf_token)
+
+        def work(name: str) -> str:
+            result = learning.run(store, name, app.state.enricher, config)
+            text = result.message or result.status
+            if result.problems:
+                text += f". Left out: {len(result.problems)} ({result.problems[0]})"
+            return text[:1].upper() + text[1:] if text else "Done"
+        return learning_act(approach, work)
+
+    @app.post("/learning/import")
+    def learning_import(csrf_token: str = Form(""), approach: str = Form("")):
+        check_csrf(csrf_token)
+
+        def work(name: str) -> str:
+            result = learning.import_proposals(store, name)
+            text = result.message
+            if result.problems:
+                text += f". Left out: {len(result.problems)} ({result.problems[0]})"
+            return text[:1].upper() + text[1:]
+        return learning_act(approach, work)
+
+    @app.post("/learning/accept")
+    def learning_accept(csrf_token: str = Form(""), approach: str = Form(""),
+                        proposal: str = Form(""), text: str = Form("")):
+        check_csrf(csrf_token)
+
+        def work(name: str) -> str:
+            done = learning.accept(store, proposal, text.strip() or None)
+            return f"Accepted: {done.text}" if done.text else "Accepted"
+        return learning_act(approach, work)
+
+    @app.post("/learning/reject")
+    def learning_reject(csrf_token: str = Form(""), approach: str = Form(""),
+                        proposal: str = Form("")):
+        check_csrf(csrf_token)
+        return learning_act(approach, lambda name: (
+            f"Rejected: {learning.reject(store, proposal).text}. It will not be proposed again."))
+
+    @app.post("/learning/retire")
+    def learning_retire(csrf_token: str = Form(""), approach: str = Form(""),
+                        lesson: str = Form("")):
+        check_csrf(csrf_token)
+        return learning_act(approach, lambda name: (
+            f"Retired: {learning.retire(store, name, lesson).text}"))
+
+    @app.post("/learning/move")
+    def learning_move(csrf_token: str = Form(""), approach: str = Form(""),
+                      lesson: str = Form(""), part: str = Form("")):
+        check_csrf(csrf_token)
+        return learning_act(approach, lambda name: (
+            f"Moved to {learning.PART_TITLES.get(part, part)}: "
+            f"{learning.move(store, name, lesson, part).text}"))
+
+    @app.post("/learning/apply")
+    def learning_apply(csrf_token: str = Form(""), approach: str = Form(""),
+                       suggestion: str = Form("")):
+        check_csrf(csrf_token)
+
+        def work(name: str) -> str:
+            done = learning.accept_suggestion(store, suggestion, config)
+            config_reloaded()   # config.toml or messages.toml just changed
+            return f"Applied: {done.text}"
+        return learning_act(approach, work)
+
+    @app.post("/settings/learning")
+    def settings_learning(request: Request, csrf_token: str = Form(""),
+                          learning_distill: str = Form("hermit")):
+        check_csrf(csrf_token)
+        value = (learning_distill or "").strip().lower()
+        if value not in ("hermit", "handoff"):
+            return flashed("/settings", "Learning runs as hermit or handoff", anchor="playbook")
+        setup_steps.set_config_values(root / "config.toml", {"learning_distill": value})
+        config_saved()
+        return flashed("/settings", f"Learning saved: {value}.", anchor="playbook")
 
     # ---------------------------------------------------------- make it yours
 
