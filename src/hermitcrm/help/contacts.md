@@ -33,6 +33,29 @@ New contacts come from the company page's New contact link
 (`/companies/<slug>/contacts/new`), from Import in contacts mode, and from the
 BCC and calendar imports (a new person at a company whose domain is known).
 
+## Keep in touch
+
+The follow-up radar and the silent list are about deals. **Keep in touch** on
+Home is about everyone else: people you have not spoken to in
+`keep_in_touch_days` days (default 180, about six months) who are not in an
+open deal. It is a read-only list, longest quiet first, eight on Home;
+`hermitcrm keep-in-touch` (and the `keep_in_touch` tool for an AI client)
+prints all of them.
+
+- **Last touch** is the latest interaction logged against that person, in
+  either direction: an email, a message, a call or a meeting. Notes do not
+  count, and neither does an interaction logged against the company with no
+  person on it.
+- **Left out**: people at a company in an open stage (prospect, engaged,
+  discovery, offer, or whatever your open stages are), so the list holds
+  customers, lost and disqualified deals and parked companies; anyone tagged
+  `do-not-contact`, on the company or on the person; people you never had any
+  interaction with; and the sample account.
+- Logging anything with a person takes them off the list.
+- Change the threshold in `config.toml` (`keep_in_touch_days = 90`), move
+  or hide the section with `layout.toml` (`keep-in-touch`, see
+  [Make it yours: layout](/help/adjust-layout)).
+
 ## Tasks
 
 The contact page lists the tasks you owe this person, with **Done**, **Delete**

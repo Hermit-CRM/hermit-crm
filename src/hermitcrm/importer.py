@@ -74,7 +74,18 @@ COMPANY_COLUMNS = {
     "next_step": "next_step", "next_step_due": "next_step_due",
     "tags": "tags", "opportunity_type": "tags",
     "comments": "notes_text", "notes": "notes_text",
+    # Hermit CRM's own export (export.py), its HubSpot and Pipedrive profiles.
+    "lost_reason": "lost_reason", "requalify_on": "requalify_on",
+    "next_step_status": "next_step_status", "deal_stage": "stage",
+    "organization_website": "website", "organization_linkedin": "linkedin",
+    "organization_country": "country", "organization_description": "product_oneliner",
+    "organization_labels": "tags", "organization_notes": "notes_text",
+    "deal_value": "value_eur_month",
 }
+# Columns of Hermit CRM's own export that the app sets itself (slugs, dates):
+# not imported, and not worth a notes line either.
+SYSTEM_COLUMNS = {"slug", "company_slug", "created", "updated", "stage_changed",
+                  "next_step_done_on"}
 CONTACT_PREFIXES = ("founder_", "contact_", "person_")
 CONTACT_COLUMNS = {
     "name": "name", "full_name": "name", "first_name": "first_name",
@@ -109,6 +120,8 @@ PERSON_COLUMNS = {
     "company_linkedin_url": "company_linkedin", "company_linkedin": "company_linkedin",
     "country": "country", "country_region": "country", "company_country": "country",
     "tags": "tags",
+    "person_first_name": "first_name", "person_last_name": "last_name",
+    "person_linkedin": "linkedin",
 }
 MODES = ("companies", "contacts")
 COMPANY_TARGETS = {
@@ -116,7 +129,9 @@ COMPANY_TARGETS = {
     "country": "country", "source": "source", "stage": "stage",
     "product_oneliner": "product oneliner",
     "value_eur_month": "value EUR/month", "next_step": "next step",
-    "next_step_due": "next step due", "tags": "tags", "notes_text": "notes (as text)",
+    "next_step_due": "next step due", "next_step_status": "next step status",
+    "lost_reason": "lost reason", "requalify_on": "requalify on",
+    "tags": "tags", "notes_text": "notes (as text)",
     "contact_name": "contact: full name", "contact_first_name": "contact: first name",
     "contact_last_name": "contact: last name", "contact_title": "contact: title",
     "contact_linkedin": "contact: LinkedIn", "contact_email": "contact: email",
@@ -131,7 +146,7 @@ CONTACT_TARGETS = {
     "tags": "company tags",
 }
 SPECIAL_TARGETS = {"notes": "keep as notes line", "ignore": "ignore"}
-COMPANY_ONLY = {"source", "stage",
+COMPANY_ONLY = {"source", "stage", "lost_reason", "requalify_on", "next_step_status",
                 "product_oneliner", "value_eur_month", "next_step", "next_step_due",
                 "notes_text"}
 COUNTRY_ALIASES = {
@@ -175,10 +190,26 @@ def map_country(value: str) -> str | None:
 # ------------------------------------------------------------------- parsing
 
 
+def unescape_cell(value: str) -> str:
+    """Undo the formula escaping of an export: "'=x" back to "=x".
+
+    Hermit CRM's export (and other careful tools, the OWASP way) put an
+    apostrophe before a cell that starts with = + - @, a tab or a carriage
+    return, so a spreadsheet does not run it. Other apostrophes stay.
+    """
+    if len(value) > 1 and value[0] == "'" and value[1] in "=+-@\t\r":
+        return value[1:]
+    return value
+
+
 def parse_table(text: str) -> tuple[list[str], list[dict[str, str]]]:
     """Split pasted text into (headers, rows). Tab wins; otherwise sniff , or ;."""
     text = (text or "").lstrip("﻿").replace("\r\n", "\n").replace("\r", "\n")
-    lines = [line for line in text.split("\n") if line.strip()]
+    # Blank lines go only before the header: inside a quoted cell (a note of
+    # several paragraphs) they are part of the value. csv skips empty rows.
+    lines = text.split("\n")
+    while lines and not lines[0].strip():
+        lines.pop(0)
     if not lines:
         return [], []
     if "\t" in lines[0]:
@@ -189,13 +220,13 @@ def parse_table(text: str) -> tuple[list[str], list[dict[str, str]]]:
         except csv.Error:
             delimiter = ","
     reader = csv.reader(io.StringIO("\n".join(lines)), delimiter=delimiter)
-    headers = [h.strip() for h in next(reader)]
+    headers = [unescape_cell(h.strip()) for h in next(reader)]
     rows = []
     for raw in reader:
         if not any(cell.strip() for cell in raw):
             continue
         raw = list(raw) + [""] * (len(headers) - len(raw))
-        rows.append({h: raw[i].strip() for i, h in enumerate(headers) if h})
+        rows.append({h: unescape_cell(raw[i].strip()) for i, h in enumerate(headers) if h})
     return headers, rows
 
 
@@ -349,6 +380,8 @@ def default_target(header: str, mode: str, defs: list | None = None) -> str:
     # A column named exactly like one of your fields maps to it without being told.
     if key in custom:
         return f"{CUSTOM_PREFIX}{key}"
+    if key in SYSTEM_COLUMNS:
+        return "ignore"
     if mode == "contacts":
         return PERSON_COLUMNS.get(key, "notes")
     prefix = next((p for p in CONTACT_PREFIXES if key.startswith(p)), None)
@@ -480,10 +513,12 @@ def _imported_block(existing: str, lines: list[str], stamp: str) -> str:
         f"Imported fields ({stamp}):\n" + "\n".join(f"- {line}" for line in lines) + "\n"
 
 
-def _contact_role(contact: dict) -> None:
+def _contact_role(contact: dict, guess: bool = True) -> None:
+    """Keep a known role; else guess decision-maker from the title. Not when the
+    sheet has a role column: an empty cell there means no role (an export)."""
     if contact.get("role") not in {r.value for r in Role}:
         contact.pop("role", None)
-        if DECISION_MAKER_TITLES.search(contact.get("title", "")):
+        if guess and DECISION_MAKER_TITLES.search(contact.get("title", "")):
             contact["role"] = Role.DECISION_MAKER.value
 
 
@@ -577,7 +612,7 @@ def _plan_row(store, index: int, row: dict[str, str], today, mapping=None,
         contact["first_name"], contact["last_name"] = first, last
         if "linkedin" in contact:
             contact["linkedin"] = normalise_linkedin(contact["linkedin"])
-        _contact_role(contact)
+        _contact_role(contact, guess="contact_role" not in mapping.values())
         if contact_extras:
             contact["notes"] = "\n".join(contact_extras) + "\n"
         if not first and not last:
@@ -654,8 +689,9 @@ class _ContactPlanner:
     """Plans contacts-mode rows, remembering companies and people planned earlier
     in the same import so five people at one new company create it once."""
 
-    def __init__(self, store, today):
+    def __init__(self, store, today, defs: list | None = None):
         self.store, self.stamp = store, today.isoformat()
+        self.own = {d.key: d for d in (defs or []) if d.applies_to == "contact"}
         self.by_domain: dict[str, str | None] = {}
         self.by_email: dict[str, tuple[str, str]] = {}
         for slug, company in store.companies.items():
@@ -680,12 +716,22 @@ class _ContactPlanner:
         extras: list[str] = []
         tags: list[str] = []
         warnings: list[str] = []
+        custom: dict = {}
         for header, value in row.items():
             target = mapping.get(header, "notes")
             value = (value or "").strip()
             if not value or target == "ignore":
                 continue
-            if target == "notes":
+            if target.startswith(CUSTOM_PREFIX):
+                defn = self.own.get(target[len(CUSTOM_PREFIX):])
+                try:
+                    if defn is None:
+                        raise ValueError(f"{header} is not one of your contact fields")
+                    custom[defn.key] = defn.coerce(value)
+                except ValueError as exc:
+                    warnings.append(f"{exc}; kept in notes")
+                    extras.append(f"{header}: {value}")
+            elif target == "notes":
                 extras.append(f"{header}: {value}")
             elif target == "tags":
                 tags += parse_tags(value)
@@ -700,9 +746,10 @@ class _ContactPlanner:
             first, last = split_name(get("name"))
         first, last = " ".join(first.split()), " ".join(last.split())
         email = _first_email(get("email"))
-        if not first and not last:
-            return RowPlan(row=index, name="", slug="", action="skip",
-                           reason="no contact name", warnings=warnings)
+        if not first and not last:   # name the row's company, so the preview says which row
+            return RowPlan(row=index, name=" ".join(get("company").split()).strip(" ,;"),
+                           slug="", action="skip", reason="no contact name",
+                           warnings=warnings)
 
         # --- company
         company_name = " ".join(get("company").split()).strip(" ,;")
@@ -778,7 +825,7 @@ class _ContactPlanner:
             contact["linkedin"] = normalise_linkedin(get("linkedin"))
         if email:
             contact["email"] = email
-        _contact_role(contact)
+        _contact_role(contact, guess="role" not in mapping.values())
         contact["slug"] = slugify(f"{first} {last}", default="contact")
         plan.contact = contact
 
@@ -802,6 +849,11 @@ class _ContactPlanner:
                 fill = {k: v for k, v in contact.items()
                         if k in ("title", "linkedin", "email", "phone", "role")
                         and getattr(current, k) in ("", None)}
+                # Your own fields: fill an empty one, never overwrite.
+                fill_custom = {k: v for k, v in custom.items()
+                               if (current.extra or {}).get(k) in ("", None)}
+                if fill_custom:
+                    fill["custom"] = fill_custom
                 # Contact notes are note interactions (format 7): a line already
                 # in one of them, or in a legacy body, is not imported again.
                 known = existing.contact_notes(match)
@@ -817,6 +869,8 @@ class _ContactPlanner:
             plan.contact_action = "create"
         if plan.contact_action == "create" and extras:
             contact["notes"] = _imported_block("", extras, self.stamp)
+        if plan.contact_action == "create" and custom:
+            contact["custom"] = custom
         seen |= keys
 
         if plan.action == "keep" and plan.contact_action == "exists":
@@ -844,7 +898,7 @@ def plan_import(store, text: str, mode: str | None = None,
         if not used & {"name", "first_name", "last_name"}:
             raise ValidationError({"text": "contacts mode needs a name, first name or "
                                            "last name column"})
-        planner = _ContactPlanner(store, today)
+        planner = _ContactPlanner(store, today, defs)
         plans = [planner.plan(i + 2, row, resolved) for i, row in enumerate(rows)]
     samples = {h: (rows[0].get(h, "") if rows else "") for h in headers if h}
     return ImportPlan(headers=headers, rows=plans, mode=mode, mapping=resolved,

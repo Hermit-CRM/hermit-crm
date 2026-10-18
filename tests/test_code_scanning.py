@@ -86,14 +86,14 @@ def test_record_version_of_a_hostile_slug_is_empty(tmp_path):
     "/\t/evil.example.com", "evil.example.com/x", "javascript:alert(1)", "", "?a=b",
     "/\n/evil.example.com"])
 def test_a_redirect_never_leaves_the_site(target):
-    assert web.local_path(target) == "/"
     response = web.goto(target)
+    assert response.status_code == 303
     assert response.headers["location"] == "/"
 
 
 def test_a_local_redirect_is_untouched():
     for path in ("/", "/companies/acme", "/companies/acme/contacts/jane?flash=ok#top"):
-        assert web.local_path(path) == path
+        assert web.goto(path).headers["location"] == path
     assert web.flashed("/companies/acme", "Saved", "notes").headers["location"] \
         == "/companies/acme?flash=Saved#notes"
 

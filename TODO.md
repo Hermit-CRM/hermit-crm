@@ -25,7 +25,7 @@ Use (19 Sep - 3 Oct):
 - [ ] Start using the Product Hunt account (comment on other launches).
 
 Build (5-9 Oct):
-- [ ] `hermitcrm export`: zip of CSVs (companies, contacts, interactions,
+- [x] `hermitcrm export`: zip of CSVs (companies, contacts, interactions,
       tasks, stage history) or one JSON file; profiles generic / hubspot /
       pipedrive; user fields and unknown keys as columns; `--excel` (UTF-8
       BOM); formula-cell escaping that the importer undoes; Settings → Data →
@@ -109,6 +109,36 @@ After:
 - [ ] Belgian companies: read a contact's LinkedIn profile language (needs a
       fetch; LinkedIn blocks plain requests).
 
+## Found in use (2026-10-15)
+
+- [ ] Requalify date in the edit form does not park the company. Setting
+      `requalify_on` on a company that is still in an open stage is silently
+      dropped: `Store._reason_rules` only keeps the date when the stage keeps a
+      requalify (`stages.keeps_requalify`, i.e. a parked stage), so the save
+      leaves the stage untouched and the company stays live. Make filling in a
+      requalify date do what the "Close or park" menu at the top of the company
+      page does: move the company to the parked stage (`temp-disqualified`) until
+      that date, with a reason only if one is typed. Same for the CLI
+      (`hermitcrm set ... requalify_on=...`), which drops it today too.
+      `tests/test_store.py::test_temp_disqualify_keeps_date_only_while_parked`
+      and `tests/test_stages_store.py::test_only_a_parked_stage_keeps_a_requalify_date`
+      assert the current behaviour; they have to change.
+- [ ] Clean up the contact page. Look at other CRMs for inspiration (icons,
+      layout, where a phone number and an email belong) and give
+      `/companies/<slug>/contacts/<slug>` the same polish as the company page:
+      the header line is a run-on of "company · title · role · email · phone ·
+      linkedin", the Contact form and the sections below it are plain stacked
+      fieldsets, and the page has no quick actions (message, add task) other
+      than Enrich. Keep layout.toml working.
+- [ ] Collapse the left navigation. The sidebar (`nav.sidebar` in base.html) is a
+      fixed 208 px grid column, full height and sticky, with icon + label for
+      every entry and the Yours pins, Settings and Help below it; there is no way
+      to get the width back. Add a collapse toggle (icons only, ~56 px, with the
+      labels revealed on hover or on focus), remembered in localStorage, with a
+      keyboard shortcut and `aria-expanded` on the button, and let `theme.css`
+      and a Settings option set the start state. Below 760 px the sidebar
+      already wraps to a row (style.css); keep that behaviour untouched.
+
 ## Unverified
 
 - [ ] Windows Task Scheduler and systemd paths of `schedule install`.
@@ -155,7 +185,7 @@ radar, `serve --host`, capture bookmarklet, pre-meeting brief). What is left:
       `lost_reason`, message outcomes and sources are all already stored, and
       nobody else can do this well because nobody else has the full history.
       It is a report, not an agent.
-- [ ] Keep-in-touch cadence for the network, separate from the deal pipeline.
+- [x] Keep-in-touch cadence for the network, separate from the deal pipeline.
       `silent_days` is deal-shaped; "people I have not spoken to in six months"
       is a different and useful list.
 - [ ] Proposal or quote generated from the company record. Genuine value for a

@@ -49,7 +49,7 @@ SECTIONS = {
                 "merge", "timeline"),
     "contact": ("details", "tasks", "quick-add", "timeline", "drafts", "merge",
                 "delete"),
-    "home": ("doing", "to-file", "owed", "going"),
+    "home": ("doing", "to-file", "owed", "keep-in-touch", "going"),
 }
 
 # Built-in fields a record page may hide (its header line, its form and the

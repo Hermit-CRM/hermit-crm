@@ -192,7 +192,7 @@ identical after migration, and gives a new user an explicit place to say
 
 ### The problem
 
-Reported verbatim: `https://www.linkedin.com/in/diegomangabeira/` produced a
+Reported verbatim: `https://www.linkedin.com/in/ines-vega/` produced a
 *company* form. And the oneliner it proposed was the LinkedIn
 `og:description`, which for a person is a headline followed by
 `· Experience: … · Education: … · 500+ connections`.

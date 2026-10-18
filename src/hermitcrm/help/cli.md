@@ -31,6 +31,8 @@ hermitcrm show SLUG [--bodies N | --all]   one company: fields, notes, contacts,
 hermitcrm digest [--days 7]                recent interactions oldest first, 150 characters of body each
 hermitcrm followups [--reply-after N] [--nudge-after N]
                                         threads you owe a reply, then ones you are waiting on
+hermitcrm keep-in-touch [--after N]        people outside an open deal you have not spoken to in N days
+                                        (default keep_in_touch_days, 180), longest first
 hermitcrm brief [--days 7]                 each upcoming meeting with its stage, next step, contacts and last 3 interactions
 hermitcrm mcp                              serve this folder to AI clients over MCP (stdio); see the AI agents topic
 hermitcrm report [--days N | --from D --to D] [--md]
@@ -45,7 +47,7 @@ hermitcrm playbook [status]                per approach: what the playbook has a
 hermitcrm playbook upgrade [--dry-run]     add the front matter and missing headings to MESSAGING.md,
                                         keeping every line; one commit, and a second run changes nothing
 hermitcrm outreach preview [--where K=V ...] [--contact CO/PERSON] [--channel email|linkedin]
-                         [--limit N] [--approach NAME]
+                         [--limit N] [--approach NAME] [--kind first-touch|reply-to-interest|follow-up]
                                         who an outreach batch would go to, and why not the rest; no AI,
                                         nothing written
 hermitcrm outreach build (same flags) [--research scrape] [--strong]
@@ -101,6 +103,8 @@ hermitcrm stages [rename OLD NEW | add NAME | move NAME | set NAME | remove NAME
                                         companies, one `ai: adjust:` commit per step). See Make it yours: deal stages
 hermitcrm rebuild                          rebuild the index and PIPELINE.md, commit "pipeline: rebuild"
 hermitcrm import FILE [--mode companies|contacts] [--map HEADER=FIELD ...] [--apply]
+hermitcrm export [--format csv|json] [--profile generic|hubspot|pipedrive] [--excel] [-o PATH]
+                                        everything as a zip of CSVs (or one JSON file); reads only. See Import and export
 hermitcrm fetch SLUG [--url URL] [--apply] fields from the website or LinkedIn page (no AI)
 hermitcrm enrich SLUG [--contact CSLUG] [--apply]
                                         fields from an AI CLI
