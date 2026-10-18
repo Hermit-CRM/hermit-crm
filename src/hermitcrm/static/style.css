@@ -1013,3 +1013,8 @@ table.outreach-times { border-collapse: collapse; margin: 6px 0; }
 table.outreach-times th, table.outreach-times td { text-align: left; padding: 2px 14px 2px 0; font-size: 13px; }
 fieldset.send-days { border: 0; padding: 0; margin: 8px 0; }
 fieldset.send-days legend { font-size: 12px; color: var(--muted); padding: 0; }
+.linkedin-card { flex: none; }
+.linkedin-card .draft-actions, .linkedin-waiting .draft-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
+.linkedin-card form.inline, .linkedin-waiting form.inline { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0; }
+.linkedin-card .tag { background: var(--subtle); border-radius: 3px; padding: 0 5px; font-size: 12px; }
+.linkedin-card .warning, .linkedin-waiting .warning, .linkedin-counters .warning { color: var(--warn); }

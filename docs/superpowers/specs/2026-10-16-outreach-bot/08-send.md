@@ -1,8 +1,9 @@
 # Part 08 · Send from the app: scheduled email, paced LinkedIn (MVP)
 
 Context: [00-overview](00-overview.md), [03-draft-check-store](03-draft-check-store.md),
-[07-auto-later](07-auto-later.md). Written 18 Oct 2026. **Status: proposed, not
-approved.**
+[07-auto-later](07-auto-later.md). Written 18 Oct 2026. **Status: approved on 18 Oct 2026 with the
+decisions under "Decisions" below; built on branch `ai/outreach-send`** (plan:
+`docs/superpowers/plans/2026-10-18-outreach-send.md`).
 
 This part fills the `[send] ──> [log]` end of the pipeline for the
 semi-automatic case: the person still approves every message, and the app then
@@ -148,10 +149,13 @@ page and the worker all agree on the times.
 1. **Window:** `send_days` and `send_window` (default Mon-Fri 08:30-17:30) in
    the sender's time zone.
 2. **Daily cap:** `send_ramp` gives the cap for weeks 1, 2, 3... counted from
-   the first send (default `[15, 25, 35, 50]`), then `send_daily_cap`
-   (default 50). The first send and today's count both come from the
-   interactions with `source: outreach` (the local calendar day), so nothing
-   extra is stored. Mail the person sends from Gmail directly does not count.
+   the first send (default `[20, 40, 60, 80]`), then `send_daily_cap`
+   (default **100**, a setting). More than 150 a day for more than 1-2 days in
+   a row is strongly discouraged: a cap above 150 is held at 150 once the two
+   previous send-days both went over it. The first send and today's count both
+   come from the interactions with `source: outreach` (the local calendar day),
+   so nothing extra is stored. Mail the person sends from Gmail directly does
+   not count.
 3. **Gap:** base = window length / today's cap; each gap = base × a seeded
    factor between 0.6 and 1.4, never below `send_min_gap_minutes` (3). At 50 a
    day over 9 hours that is about 11 ± 4 minutes; at 100 a day about 5 ± 2.
@@ -173,7 +177,7 @@ interest should not wait for a slot), but it counts toward today's cap and is
 refused while sending is paused or the cap is reached. It runs the same guards
 and the same send-and-log steps as the worker.
 
-Example: 50 items queued on a Monday at 08:00 in ramp week 3 (cap 35): 35 go
+Example: 50 items queued on a Monday at 08:00 with a daily cap of 35: 35 go
 out Monday between about 08:40 and 17:20, and 15 on Tuesday from about 08:35.
 
 ### Worker
@@ -345,8 +349,8 @@ It is not worth the grey zone.
 | `send_imap_host` | `imap.gmail.com` | Reply guard, bounce scan, the Sent check (same user and password) |
 | secret `send_password` | | App password (Keychain) |
 | `send_window` / `send_days` | `"08:30-17:30"` / Mon-Fri | Sending window, local time |
-| `send_ramp` | `[15, 25, 35, 50]` | Cap per week from the first send |
-| `send_daily_cap` | `50` | Cap after the ramp |
+| `send_ramp` | `[20, 40, 60, 80]` | Cap per week from the first send |
+| `send_daily_cap` | `100` | Cap after the ramp; a third day in a row over 150 is held at 150 |
 | `send_min_gap_minutes` | `3` | Floor between two sends |
 | `send_company_gap_hours` | `24` | Two contacts at one company |
 | `send_grace_minutes` | `10` | Earliest slot after Schedule |
@@ -442,11 +446,14 @@ on any checkpoint or CAPTCHA. Its own spec.
 - Build on a branch off `main` with `send_enabled = false` as the default.
   When to merge is the maintainer's call; after the public launch week
   (19-27 Oct) is the low-risk option.
-- Week 1: ramp cap 15. Send a test to an inbox on another provider and check
+- Week 1: ramp cap 20. Send a test to an inbox on another provider and check
   it does not land in spam. Read replies and bounces daily.
-- Weeks 2-4: 25 → 35 → 50. Past about 50 cold emails a day, add a second
-  mailbox, ideally on a separate sending domain. That is the later
-  multi-mailbox item; it protects the main domain's reputation.
+- Weeks 2-4: 40 → 60 → 80, then 100. The sending mailbox is a separate one on
+  its own domain from the start (decision 3), which protects the main domain's
+  reputation. About 100 a day is above the 30-50 that practitioners suggest for
+  one cold mailbox: if replies fall or bounces rise, lower `send_ramp` and
+  `send_daily_cap` before anything else. Past 100, a second mailbox is the later
+  multi-mailbox item.
 - **The bottleneck moves upstream.** 50 sends a day needs about 50 approved
   items a day. On the first real batch (17 Oct) a draft took about 2 minutes
   of model time, so 50 is about 100 minutes in the background plus about a
@@ -464,13 +471,55 @@ on any checkpoint or CAPTCHA. Its own spec.
 | Three writers on one git folder (`serve`, `sync`, the send worker) | The worker writes through `Store` as `sync` already does; check how a held `index.lock` is handled and retry |
 | An agent sends | No MCP send tool, an `AGENTS.md` rule, the cap and window as the limit on damage |
 
-## Open questions (the person's)
+## Decisions (18 Oct 2026)
 
-1. **LinkedIn: A or C?** The rest of the plan does not change; M4 or M5 does.
-2. **Country guard** for the first user's folder: email to DE/AT first
-   touches on or off.
-3. **Sending mailbox:** the main domain (cap 50) or a separate cold domain
-   from the start.
+1. **LinkedIn: A**, the paced session where the person clicks Send. M5 (a
+   private browser bot) is not built.
+2. **Country guard: no.** `send_email_block_countries` stays `[]`, so email to
+   DE/AT first touches is not blocked. The guard code exists for a folder that
+   wants it (Settings > Sending > Never email these countries).
+3. **Sending mailbox: a separate one.** About 100 emails a day, and the maximum
+   per day is a setting (`send_daily_cap`, default 100). Going above 150 a day for
+   more than 1-2 days in a row is strongly discouraged, so Settings warns above 100
+   and above 150, and the planner and the worker hold a third day in a row at 150.
+   Throughput ceiling: one send per 3-minute tick, so at most 180 a day in the
+   default window.
+
+## Built as (where the build decides what the spec left open)
+
+- **Modules:** `sendplan.py` (the pure planner and caps), `send.py` (settings,
+  message, SMTP, IMAP mailbox, guards, delivery, pause state, lock),
+  `sendqueue.py` (schedule, unschedule, retry, move to front, the worker tick,
+  bounce scan, opt-out), `suppress.py` (the list and delivery reports),
+  `linkedin.py` (the session). `outreach.py` keeps the states.
+- **Migrations:** 12 adds the item keys (empty, after `skipped`), 13 allows
+  `source: outreach` (a no-op), 14 adds the "Sending mail" rule to `CLAUDE.md` and
+  `AGENTS.md` of existing folders.
+- **A re-plan keeps the times the page already showed.** Only new, overdue, moved
+  or outside-the-window items get new slots (first fit, never ahead of an item that
+  was queued before them), so "goes out at the time the page showed" holds. Each
+  day fills its cap whenever the window has the minutes for it: a gap never takes
+  more than its share of the room left.
+- **`failed` is an open state**, so the contact gets no second draft and the card
+  can be skipped; Retry keeps the Message-ID so a later send still asks Sent first.
+- **Replies to interest go first**, with follow-ups, ahead of first touches.
+- **A check that already failed when the item was approved does not hold it**
+  (the person approved it with that warning); one that fails now and did not then does.
+- **Runtime state lives in `.git/`** (`hermitcrm-send.json`, the lock,
+  `hermitcrm-linkedin.json`): never committed, no `.gitignore` migration. The Pause
+  button is `send_paused` in `config.toml`; automatic pauses (login, quota, bounces)
+  are in the state file. A damaged state file reads as paused.
+- **Bounce rate:** more than 3 bounces among the last 50 sends, or over 5% once
+  there are at least 20 sends (one bounce in the first five is not a rate).
+- **Opted out skips** the person's open items (reason `other`, note "opted out")
+  rather than leaving them queued.
+- **LinkedIn queue order:** answers and follow-ups, then connection notes, then
+  pitches. A weekly-limit message from LinkedIn pauses invites until the 7-day count
+  drops below what it was then (seven days when there was nothing of ours to drop).
+- **Not verified live:** that Gmail files mail sent over `smtp.gmail.com` in Sent by
+  itself (M1 asked to confirm; no real mailbox was used in the tests). Run **Send a
+  test to myself** and look in Sent before the first batch. The real `smtplib` path
+  is covered by an in-memory SMTP server, not Google.
 
 ## Left to the builder
 

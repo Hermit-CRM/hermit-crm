@@ -33,7 +33,7 @@
     {% if contact.email %}
     <form method="post" action="/companies/{{ company.slug }}/contacts/{{ contact.slug }}/opt-out" class="inline">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="secondary" title="They asked not to be written to: {{ contact.email }} goes on the suppression list and their open outreach items are skipped" onclick="return confirm({{ ('Put ' ~ contact.email ~ ' on the suppression list? Nothing more is sent to it, and their open outreach items are skipped.') | tojson | forceescape }})">Opted out</button>
+      <button type="submit" class="secondary" title="They asked not to be written to: their email address goes on the suppression list and their open outreach items are skipped" onclick="return confirm({{ ("Put " ~ contact.name ~ "'s email address on the suppression list? Nothing more is sent to it, and their open outreach items are skipped.") | tojson | forceescape }})">Opted out</button>
     </form>
     {% endif %}
     {% if enricher and enricher.available %}

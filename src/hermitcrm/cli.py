@@ -1821,8 +1821,10 @@ def cmd_send(store: Store | None, root: Path, config: dict, args) -> tuple[str, 
 
     action = args.action
     if action == "due":
+        from datetime import datetime
         lines = sendqueue.due(root, dry_run=args.dry_run)
-        return ("\n".join(lines), 0)
+        stamp = f"{datetime.now():%Y-%m-%d %H:%M}"       # launchd appends every tick to one log
+        return ("\n".join(f"{stamp} {line}" for line in lines), 0)
     if action == "test":
         result = send.send_test(root, config, to=args.to)
         return (result.text(), 0 if result.ok else 1)

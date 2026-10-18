@@ -225,3 +225,12 @@ def test_migration_14_tells_agents_not_to_send_unasked_and_is_idempotent(tmp_pat
     (root / "AGENTS.md").unlink()
     assert migrations.m14_agent_send(root, {}, write=True) == []             # no file, none made
     assert not (root / "AGENTS.md").exists()
+
+
+def test_no_mcp_tool_schedules_or_sends_and_no_send_setting_is_agent_writable(tmp_path):
+    from hermitcrm import adjust, mcp
+    root, store = demo(tmp_path)
+    names = [t.name for t in mcp.build_tools(root, store)]
+    assert names and not [n for n in names if any(w in n for w in ("send", "schedule", "opt"))]
+    assert not [k for k in adjust.AGENT_CONFIG_KEYS if k.startswith(("send_", "linkedin_"))]
+    assert "send_password" not in adjust.AGENT_CONFIG_KEYS

@@ -47,6 +47,16 @@ companies) goes to the review queue, which is **To file** on Home. Dedup is by
 Message-ID. Below the form: the last import (time and summary, or the error)
 and **Import now**, which runs the import on the spot.
 
+## Sending
+
+Send approved outreach email from the Outreach page, from a mailbox of its own.
+The provider (Gmail and Google Workspace are tested), the sending address, an app
+password (Keychain or `.secrets.toml`), the window and days, the daily cap
+(about 100; above 150 is held at 150 after two days in a row), the ramp for a new
+mailbox, the gaps, and countries never emailed. **Send a test to myself** logs in
+over SMTP and IMAP and shows the server's exact reply on failure; **Turn on
+scheduled sending** installs the worker job. [How it works](/help/sending).
+
 ## Calendar
 
 The secret ICS address of your calendar (Google: Settings, your calendar,
@@ -306,4 +316,4 @@ A newer version comes with the command that upgrades your install: `uv tool
 install hermitcrm@latest` when uv installed it, also from a download. Restart
 the app afterwards.
 
-Related: [Interactions](/help/interactions), [Enrich](/help/enrich), [CLI](/help/cli), [Data format](/help/data-format)
+Related: [Interactions](/help/interactions), [Enrich](/help/enrich), [Sending](/help/sending), [CLI](/help/cli), [Data format](/help/data-format)
