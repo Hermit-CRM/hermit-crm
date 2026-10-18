@@ -58,12 +58,29 @@ hermitcrm outreach show ID                 one item in full: links, findings, fl
 hermitcrm outreach edits [--positive] [--noted]
                                         your tracked edits as Markdown: the AI's original, each change
                                         with your explainer, and how the message was answered
-hermitcrm outreach ready ID                approve a draft (the checks run again on your text; a failing
-                                        one is a warning); never sent
+hermitcrm outreach ready ID [--tag T ...]  approve a draft (the checks run again on your text; a failing
+                                        one is a warning); never sent; --tag says why you changed it
+                                        (too-long, wrong-tone, wrong-pain, bad-finding, wrong-fact, cliche, other)
 hermitcrm outreach sent ID                 you sent it (logging the message does this too); logs nothing
 hermitcrm outreach skip ID --reason R [--note TEXT]
                                         drop an item: bad-fit, wrong-person, bad-timing, bad-draft,
                                         already-in-contact or other
+```
+
+## Learning
+
+```text
+hermitcrm learn report [--approach A]      phase, efficiency trend, patterns, outcome rates, style features; no AI
+hermitcrm learn status [--approach A]      what a run would send and cost, pending proposals; no AI
+hermitcrm learn run [--approach A]         distill your edits into proposals (one AI call), or write the
+                                        evidence pack when learning_distill = "handoff"
+hermitcrm learn import [--approach A]      read learning/proposals.json after a handoff run
+hermitcrm learn accept ID [--text T]       apply a pending proposal to the Lessons (optionally reworded)
+hermitcrm learn reject ID                  reject it for good
+hermitcrm learn retire LESSON [--approach A]        remove a lesson
+hermitcrm learn move LESSON worked|failed|open [--approach A]   move a lesson
+hermitcrm learn suggest                    list the word-limit and never-write suggestions
+hermitcrm learn apply SUGGESTION           apply one; see `hermitcrm help learning`
 ```
 
 ## Backups

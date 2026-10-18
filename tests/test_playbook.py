@@ -710,3 +710,31 @@ def test_first_step_offer_on_the_form():
     assert playbook.parse(kept).approach(name).first_step_offer == "The first call is free."
     gone, _ = playbook.save_form(text, name, {**values, "first_step_offer": ""})
     assert "first_step_offer" not in gone
+
+
+# ------------------------------------------------------- lessons (learning)
+
+
+def test_set_lessons_rewrites_only_the_given_parts_of_one_approach():
+    text = playbook.upgrade_text(TWO)
+    out = playbook.set_lessons(text, "founder coaching", {"failed": "- Long intros.",
+                                                          "open": "- Short subjects."})
+    founder = playbook.parse(out).approach("Founder coaching").lessons()
+    assert founder == {"worked": "", "failed": "- Long intros.", "open": "- Short subjects."}
+    assert playbook.parse(out).approach("Team build-out").lessons() == \
+        playbook.parse(text).approach("Team build-out").lessons()
+    assert out.split("# Approach: Team build-out")[1] == text.split(
+        "# Approach: Team build-out")[1]
+    assert out.startswith(text[:text.index("# Approach: Founder coaching")])
+
+
+def test_set_lessons_keeps_comments_and_untouched_parts():
+    text = FILLED.replace("### Worked\n", "### Worked\n\n<!-- what worked -->\n")
+    out = playbook.set_lessons(text, "Clinic software", {"worked": "- Short mails.\n- Ask one "
+                                                                   "question."})
+    assert "<!-- what worked -->\n\n- Short mails.\n- Ask one question.\n" in out
+    lessons = playbook.parse(out).approach("Clinic software").lessons()
+    assert lessons["worked"] == "- Short mails.\n- Ask one question."
+    assert playbook.set_lessons(out, "Clinic software", {}) == out
+    with pytest.raises(playbook.PlaybookError):
+        playbook.set_lessons(text, "No such approach", {"open": "- x"})

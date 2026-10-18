@@ -1610,9 +1610,13 @@ def _build_parser() -> argparse.ArgumentParser:
                          help="only messages that got a positive answer")
     o_edits.add_argument("--noted", action="store_true",
                          help="only items where an edit has an explainer")
-    o_sub.add_parser("ready", help="approve a drafted item (checks run again on the text "
-                     "as it is now; a failing one is a warning); nothing is sent"
-                     ).add_argument("id")
+    o_ready = o_sub.add_parser("ready", help="approve a drafted item (checks run again on "
+                               "the text as it is now; a failing one is a warning); "
+                               "nothing is sent")
+    o_ready.add_argument("id")
+    from hermitcrm.outreach import EDIT_TAGS as _edit_tags
+    o_ready.add_argument("--tag", action="append", default=[], choices=list(_edit_tags),
+                         help="why you changed the draft (repeatable)")
     o_sub.add_parser("sent", help="you sent it yourself (logging it does this too); "
                      "logs nothing").add_argument("id")
     o_skip = o_sub.add_parser("skip", help="do not send this one, and say why")
@@ -1622,6 +1626,36 @@ def _build_parser() -> argparse.ArgumentParser:
                                  "already-in-contact", "other"])
     o_skip.add_argument("--note", default="", help="anything else, in your words")
     p_out.set_defaults(action="list", state="")
+
+    p_learn = sub.add_parser("learn", help="learn from your edits and outcomes: report, "
+                             "status, run, import, accept, reject, retire, move, suggest, "
+                             "apply (nothing changes until you accept)")
+    l_sub = p_learn.add_subparsers(dest="action", required=True)
+    for verb, text in (("report", "phase, efficiency trend, patterns, outcome rates and "
+                                  "the style feature table; no AI"),
+                       ("status", "what a run would do now: phase, counts, cards, prompt "
+                                  "size, pending proposals; no AI"),
+                       ("run", "distill your edits into lesson proposals (one strong-tier "
+                               "AI call, or an evidence pack in handoff mode)"),
+                       ("import", "read learning/proposals.json (your agent's answer to "
+                                  "the evidence pack)")):
+        l = l_sub.add_parser(verb, help=text)
+        l.add_argument("--approach", default="", help="the playbook approach "
+                       "(default: the first)")
+    l = l_sub.add_parser("accept", help="apply a pending proposal to the Lessons")
+    l.add_argument("id")
+    l.add_argument("--text", default=None, help="your own wording for the lesson")
+    l_sub.add_parser("reject", help="reject a pending proposal for good").add_argument("id")
+    for verb, text in (("retire", "remove a lesson"),
+                       ("move", "move a lesson to worked, failed or open")):
+        l = l_sub.add_parser(verb, help=text)
+        l.add_argument("lesson")
+        if verb == "move":
+            l.add_argument("part", choices=["worked", "failed", "open"])
+        l.add_argument("--approach", default="", help="the playbook approach "
+                       "(default: the first)")
+    l_sub.add_parser("suggest", help="list the suggestions (word limit, never-write phrases)")
+    l_sub.add_parser("apply", help="apply one suggestion").add_argument("id")
 
     p_help = sub.add_parser("help", help="how a feature works (the web app's /help pages)")
     p_help.add_argument("topic", nargs="?", default="",
@@ -1686,7 +1720,8 @@ def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
             return ("\n".join(lines).rstrip("\n") or "No tracked edits yet: they appear when "
                     "you change a draft on the Outreach page.", 0)
         if action == "ready":
-            item, found = outreach.mark_ready(store, args.id)
+            item, found = outreach.mark_ready(store, args.id,
+                                         tags=getattr(args, "tag", None) or ())
             text = (f"{item.id} is ready: send it yourself, then log it as usual (that "
                     "marks it sent). Not sent.")
             if found:
@@ -1733,6 +1768,126 @@ def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
                             "(hermitcrm outreach show <id>), then ready or skip. Nothing "
                             "was sent."]
     return ("\n".join(lines), 0)
+
+
+def cmd_learn(store: Store, root: Path, config: dict, args, enricher=None) -> tuple[str, int]:
+    """`hermitcrm learn report|status|run|import|accept|reject|retire|move|suggest|apply`."""
+    from hermitcrm import learning, outreach
+    from hermitcrm.enrich import EnrichError
+
+    action = args.action
+    approach = getattr(args, "approach", "") or ""
+    try:
+        if action in ("report", "status", "run", "import", "retire", "move"):
+            approach = approach or learning.default_approach(root)
+            if not approach:
+                return ("No approach in MESSAGING.md yet (hermitcrm playbook).", 1)
+        if action == "report":
+            return (_learn_report(store, config, approach), 0)
+        if action == "status":
+            st = learning.status(store, approach, config)
+            lines = [f"Approach: {approach}", st.banner,
+                     f"Lessons: {st.lessons}",
+                     f"Distill mode: {st.mode}",
+                     "Last run covers up to: " + (st.watermark or "never run")]
+            lines.append(f"Cards a run would send: {len(st.cards)}"
+                         + (f" (prompt {st.prompt_chars} characters, about {st.tokens} tokens)"
+                            if st.cards else " (nothing new to learn from)"))
+            lines.append(f"Pending proposals: {len(st.pending)}")
+            lines += [f"- {p.id} [{p.op} / {p.part}] {p.text or '(retire)'}"
+                      for p in st.pending]
+            return ("\n".join(lines), 0)
+        if action == "run":
+            if learning.mode(config) != "handoff" and enricher is None:
+                enricher = outreach.default_enricher(config, "strong")
+            result = learning.run(store, approach, enricher, config)
+            if result.status == "skipped":
+                return (f"Skipped: {result.message}.", 0)
+            if result.status == "handoff":
+                return (f"{result.message}\nEvidence pack: {result.path}\nNext: have your "
+                        f"agent answer it into learning/proposals.json, then run "
+                        f"`hermitcrm learn import --approach \"{approach}\"`.", 0)
+            return ("\n".join(_learn_result(result)), 0)
+        if action == "import":
+            return ("\n".join(_learn_result(learning.import_proposals(store, approach))), 0)
+        if action == "accept":
+            p = learning.accept(store, args.id, text=args.text)
+            return (f"Accepted {p.id}: {p.op} in {p.part}: {p.text or '(retired)'}", 0)
+        if action == "reject":
+            p = learning.reject(store, args.id)
+            return (f"Rejected {p.id}; it will not be proposed again.", 0)
+        if action == "retire":
+            x = learning.retire(store, approach, args.lesson)
+            return (f"Retired {x.id}: {x.text}", 0)
+        if action == "move":
+            x = learning.move(store, approach, args.lesson, args.part)
+            return (f"Moved {x.id} to {x.part}: {x.text}", 0)
+        sigs = learning.signals(store, "", config)
+        if action == "suggest":
+            found = learning.suggestions(store, sigs, config)
+            if not found:
+                return ("No suggestions yet: they appear when the same edit keeps coming "
+                        "back.", 0)
+            return ("\n".join(f"{s.id}: {s.text}" for s in found), 0)
+        s = learning.accept_suggestion(store, args.id, config, sigs)
+        return (f"Applied {s.id}: {s.kind} = {s.proposed}", 0)
+    except (learning.LearningError, EnrichError, outreach.OutreachError) as exc:
+        return (str(exc), 1)
+
+
+def _learn_result(result) -> list[str]:
+    lines = [result.message + "."]
+    lines += [f"- {p.id} [{p.op} / {p.part}] {p.text or '(retire)'}" for p in result.proposals]
+    lines += [f"Dropped: {x}" for x in result.problems]
+    if result.proposals:
+        lines.append("Next: hermitcrm learn accept ID  (or reject ID). Nothing has changed yet.")
+    return lines
+
+
+def _learn_report(store: Store, config: dict, approach: str) -> str:
+    from hermitcrm import learning
+
+    sigs = learning.signals(store, approach, config)
+    ph = learning.phase(learning.counts(sigs), config, approach)
+    lines = [f"Approach: {approach}", learning.banner(ph), ""]
+    stats = learning.trend(sigs)
+    lines.append("Efficiency")
+    if stats:
+        lines += [f"  {b.batch}: {b.drafts} drafts, median edit "
+                  f"{learning._num(b.median_edit_words)} words, {b.ready_without_edit} "
+                  f"approved unchanged ({round(b.rate * 100)}%)" for b in stats]
+        lines.append("  " + (learning.since_line(stats) or "too few batches for a trend"))
+    else:
+        lines.append("  no reviewed drafts yet")
+    lines += ["", "Feature patterns (last 10 reviewed drafts)"]
+    found = learning.patterns(sigs)
+    lines += [f"  {p.text}" for p in found] or ["  none yet"]
+    lines += ["", "Outcome rates (sent items; smoothed)"]
+    for dim in learning.DIMENSIONS:
+        rows = learning.rates(sigs, dim)
+        lines.append(f"  by {dim}:")
+        for r in rows:
+            lines.append(f"    {r.value}: n={r.n}"
+                         + (" (too few)" if r.too_few else "")
+                         + f", score {r.score}")
+        if not rows:
+            lines.append("    nothing sent yet")
+    lines += ["", "Style features (one row per edited draft)"]
+    table = learning.feature_table(sigs)
+    for r in table:
+        flags = [n for n, v in (("opening", r.opening_changed), ("subject", r.subject_changed),
+                                ("finding removed", r.finding_removed),
+                                ("sign-off", r.signoff_changed),
+                                ("greeting", r.greeting_changed),
+                                ("situational", r.situational)) if v]
+        lines.append(f"  {r.item_id} {r.contact}: words {r.words_delta:+d}, sentences "
+                     f"{r.sentences_delta:+d}, questions {r.questions_delta:+d}, gaps "
+                     f"filled {r.gaps_filled}, edit {r.edit_words} words"
+                     + (f"; {', '.join(flags)}" if flags else "")
+                     + (f"; tags {', '.join(r.tags)}" if r.tags else ""))
+    if not table:
+        lines.append("  no edited drafts yet")
+    return "\n".join(lines)
 
 
 def cmd_help(topic: str = "") -> tuple[str, int]:
@@ -1963,6 +2118,14 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
         if args.action in ("build", "ready", "sent", "skip"):
             store.on_write = _writer(store, root, config)
         text, code = cmd_outreach(store, root, config, args)
+        print(text, file=sys.stderr if code else sys.stdout)
+        return code
+
+    if args.command == "learn":
+        config = load_config(root)
+        if args.action not in ("report", "status", "suggest"):
+            store.on_write = _writer(store, root, config)
+        text, code = cmd_learn(store, root, config, args)
         print(text, file=sys.stderr if code else sys.stdout)
         return code
 

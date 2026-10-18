@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{# The Learning page (spec 2026-10-18-learning-approaches, hermitcrm/learning.py).
+   Nothing changes the playbook until you accept: proposals, suggestions and
+   lessons are all yours to decide. #}
+{% block title %}Learning{% endblock %}
+{% block content %}
+{% macro links(list) %}{% for l in list %}<a href="{{ l.url }}">{{ l.label }}</a>{% if not loop.last %}, {% endif %}{% endfor %}{% endmacro %}
+<h1>Learning</h1>
+<p class="small">What the outreach bot learns from the changes you make to its drafts and from the replies that follow. Lessons go into the draft prompt of the approach; you accept or reject every one. <a href="/help/learning">How it works</a></p>
+
+{% if learning_error %}<p class="warning-box">{{ learning_error }}</p>{% endif %}
+
+{% if not approaches %}
+<p class="empty">There is no approach in the playbook yet. <a href="/settings/playbook">Settings &gt; Playbook</a></p>
+{% elif approach %}
+<form method="get" action="/learning" class="row">
+  <label>Approach
+    <select name="approach" onchange="this.form.submit()">{% for a in approaches %}<option value="{{ a }}"{% if a == approach %} selected{% endif %}>{{ a }}</option>{% endfor %}</select>
+  </label>
+  <noscript><button type="submit">Show</button></noscript>
+</form>
+
+{% if status %}
+<section id="phase">
+  <p class="phase-banner"><strong>{{ banner }}</strong></p>
+  <p class="small quiet">Optimising for: {{ status.phase.optimises or 'efficiency' }}. {{ status.phase.reason }}</p>
+</section>
+
+<section id="efficiency">
+  <h2>Efficiency</h2>
+  {% if stats %}
+  <table class="report" style="max-width: 640px">
+    <tr><th>batch</th><th class="num">drafts</th><th class="num">median edit (words)</th><th class="num">approved unchanged</th></tr>
+    {% for b in stats %}<tr><td>{{ b.batch }}</td><td class="num">{{ b.drafts }}</td><td class="num">{{ b.median_edit_words | round(1) }}</td><td class="num">{{ b.ready_without_edit }} of {{ b.drafts }} ({{ (b.rate * 100) | round | int }}%)</td></tr>{% endfor %}
+  </table>
+  {% if since %}<p class="small">Since last time: {{ since }}.</p>{% endif %}
+  <p class="small quiet">If learning works, the median edit gets smaller and more drafts go out unchanged.</p>
+  {% else %}<p class="small empty">No reviewed draft yet. Review a few on the <a href="/outreach">Outreach</a> page first.</p>{% endif %}
+</section>
+
+<section id="proposals">
+  <h2>Proposals{% if pending %} ({{ pending | length }}){% endif %}</h2>
+  {% for row in pending %}{% set p = row.proposal %}
+  <form method="post" action="/learning/accept" class="learning-proposal" id="proposal-{{ p.id }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="approach" value="{{ approach }}">
+    <input type="hidden" name="proposal" value="{{ p.id }}">
+    <p><span class="tag">{{ p.op }}</span> <span class="small">{{ parts | selectattr(0, 'equalto', p.part) | map(attribute=1) | first }}</span></p>
+    <textarea name="text" rows="2" aria-label="Lesson text">{{ p.text }}</textarea>
+    {% if row.replaced %}<p class="small">Replaces: {% for t in row.replaced %}&ldquo;{{ t }}&rdquo;{% if not loop.last %}; {% endif %}{% endfor %}</p>{% endif %}
+    {% if p.why %}<p class="small quiet">Why: {{ p.why }}</p>{% endif %}
+    {% if row.links %}<p class="small">Evidence: {{ links(row.links) }}</p>{% endif %}
+    <div class="draft-actions">
+      <button type="submit">Accept</button>
+      <button type="submit" formaction="/learning/reject" class="secondary">Reject</button>
+    </div>
+  </form>
+  {% else %}
+  <p class="small empty">No proposal waiting.{% if mode == 'hermit' %} &ldquo;Run now&rdquo; below asks your AI to look at your recent edits.{% else %} Write the evidence pack below, have your agent answer it, then import.{% endif %}</p>
+  {% endfor %}
+</section>
+
+<section id="run">
+  <h2>{% if mode == 'handoff' %}Hand off to your own agent{% else %}Look for lessons{% endif %}</h2>
+  <p class="small">{% if status.cards %}{{ status.cards | length }} edited draft{{ 's' if status.cards | length != 1 }} to look at{% if status.watermark %} since {{ status.watermark }}{% endif %}, about {{ status.tokens }} tokens{% if mode == 'hermit' %} in one strong-model call{% endif %}.{% else %}Nothing new to learn from{% if status.watermark %} since {{ status.watermark }}{% endif %}.{% endif %} Mode: <strong>{{ mode }}</strong> (<a href="/settings#playbook">change</a>). Names are replaced before anything leaves your machine.</p>
+  {% if mode == 'hermit' and ai_problem %}<p class="warning-box">{{ ai_problem }}</p>{% endif %}
+  <div class="draft-actions">
+    <form method="post" action="/learning/run" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="approach" value="{{ approach }}">
+      {% if mode == 'handoff' %}<button type="submit"{% if not status.cards %} disabled{% endif %}>Write evidence pack</button>
+      {% else %}<button type="submit"{% if not status.cards or ai_problem %} disabled{% endif %}>Run now</button>{% endif %}
+    </form>
+    {% if mode == 'handoff' %}
+    <form method="post" action="/learning/import" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="approach" value="{{ approach }}">
+      <button type="submit" class="secondary"{% if not answer_there %} disabled title="No {{ answer_path }} yet"{% endif %}>Import</button>
+    </form>
+    {% endif %}
+  </div>
+  {% if mode == 'handoff' %}<p class="small quiet">{% if pack_written %}The pack is in <code>{{ pack_path }}</code>. Give it to your agent, have it save the answer as <code>{{ answer_path }}</code>, then Import.{% else %}Writes <code>{{ pack_path }}</code>; your agent answers into <code>{{ answer_path }}</code>; Import checks it.{% endif %}</p>{% endif %}
+</section>
+
+<section id="lessons">
+  <h2>Lessons</h2>
+  {% for g in groups %}
+  <h3>{{ g.title }}</h3>
+  {% if g.rows %}
+  <ul class="learning-lessons">
+    {% for r in g.rows %}{% set sc = r.score %}
+    <li id="lesson-{{ r.lesson.id }}">
+      <p>{{ r.lesson.text }}</p>
+      <p class="small quiet">
+        {% if r.n_used %}Used in {{ r.n_used }} draft{{ 's' if r.n_used != 1 }}.
+        With it: {{ sc.with_n }} sent, {{ sc.with_rungs.replied }} replied, {{ sc.with_rungs.positive }} positive.
+        Without: {{ sc.without_n }} sent, {{ sc.without_rungs.replied }} replied, {{ sc.without_rungs.positive }} positive.
+        {% if sc.with_edit_words is not none %}Median edit {{ sc.with_edit_words | round(1) }} words{% if sc.without_edit_words is not none %} vs {{ sc.without_edit_words | round(1) }} without{% endif %}.{% endif %}
+        {% else %}Not used in a draft yet.{% endif %}
+        {% if r.n_used %}<span title="Few sends: read these as counts, not rates.">Counts only.</span>{% endif %}
+      </p>
+      {% if sc.flag %}<p class="small warning">{{ sc.flag }}</p>{% endif %}
+      {% if sc.promotion %}<p class="small"><em>{{ sc.promotion }}</em></p>{% endif %}
+      {% if r.links %}<p class="small">Drafts: {{ links(r.links) }}</p>{% endif %}
+      <div class="draft-actions">
+        {% if can_move %}{% for key, title in parts if key != r.lesson.part %}
+        <form method="post" action="/learning/move" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="approach" value="{{ approach }}">
+          <input type="hidden" name="lesson" value="{{ r.lesson.id }}">
+          <input type="hidden" name="part" value="{{ key }}">
+          <button type="submit" class="secondary">{% if key == 'worked' %}Promote to Worked{% elif key == 'failed' %}Demote to Didn't work{% else %}Move to {{ title }}{% endif %}</button>
+        </form>
+        {% endfor %}{% endif %}
+        <form method="post" action="/learning/retire" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="approach" value="{{ approach }}">
+          <input type="hidden" name="lesson" value="{{ r.lesson.id }}">
+          <button type="submit" class="secondary">Retire</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="small empty">none</p>{% endif %}
+  {% endfor %}
+</section>
+
+<section id="suggestions">
+  <h2>Suggestions</h2>
+  {% for row in suggestions %}{% set x = row.suggestion %}
+  <form method="post" action="/learning/apply" class="learning-suggestion">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="approach" value="{{ approach }}">
+    <input type="hidden" name="suggestion" value="{{ x.id }}">
+    <p>{{ x.text }}</p>
+    {% if row.links %}<p class="small">Drafts: {{ links(row.links) }}</p>{% endif %}
+    <div class="draft-actions"><button type="submit">Apply</button> <span class="small quiet">One commit; Undo is in Make it yours.</span></div>
+  </form>
+  {% else %}<p class="small empty">No suggestion now. One shows up when you keep shortening drafts or keep removing the same phrase.</p>{% endfor %}
+</section>
+{% endif %}
+{% endif %}
+{% endblock %}
