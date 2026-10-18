@@ -1,0 +1,53 @@
+order   = 11
+name    = "Settings"
+nav     = "Settings"
+title   = "Settings: mail capture, backups, fields and stages in Hermit CRM"
+description = "Hermit CRM settings in five tabs: your name, BCC and calendar capture, fields, deal stages, outcomes, backups, the daily schedule and phone and AI access."
+summary = "Your name, mail and calendar capture, backups, fields, deal stages and outcomes, set in the browser."
+intro = """
+Settings is where Hermit CRM is set up, in five tabs. Each section that is already set up leads with its status, such as the last import,
+and its form opens under **Change**.
+"""
+docs    = "settings"
+related = ["make-it-yours", "calendar", "messages"]
+
+[[sections]]
+heading = "General"
+text = """
+Your name, which signs your drafts, and the addresses you send mail from. The AI tool Hermit uses for **Enrich** and **Ask the Hermit**: the first of Claude, Codex, Gemini or Grok that is installed, or the one you pick, on a subscription or an API key.
+Night mode (off, on, or follow the system), and the link to **Make it yours**.
+"""
+
+[[sections]]
+heading = "Email and calendar"
+text = """
+**BCC capture:** BCC or forward your mail to a tracking address and Hermit reads it over IMAP with an app password. Mail from a known contact is logged on that person. A new person at a company you have is added to it,
+and a new domain becomes a new company, but only for mail you sent yourself. **Test connection** runs a dry run first. **Calendar:** logs meetings with people at your companies, and fills the Calendar page.
+"""
+image   = "feature-settings-email.png"
+alt     = "The Email and calendar tab of Hermit CRM settings: BCC capture with its mailbox form, and the calendar section."
+address = "127.0.0.1:8765/settings#tab-mail"
+
+[[sections]]
+heading = "Your CRM"
+text = """
+The parts of Hermit that are yours to shape: your **Playbook** (what you sell and to whom, for your drafts), **Fields** of your own, the **Drafts** that fill the sentences about team size, **Task types**,
+**Deal stages** and **Outcomes** with the number of days after which no reply counts as unsuccessful.
+"""
+image   = "feature-settings-crm.png"
+alt     = "The Your CRM tab of Hermit CRM settings: the Playbook section, a table of three fields of your own with their types and where they show, and the Drafts section."
+address = "127.0.0.1:8765/settings#tab-crm"
+
+[[sections]]
+heading = "Backup, and Advanced"
+text = """
+**Backup** makes a copy of your data folder every few minutes, outside the folder, that nothing can rewrite, and puts any version back. **Advanced** has the daily schedule, access from your phone or an AI app
+(`hermitcrm mcp` for a client with no shell), and a check of the installation.
+"""
+
+[[sections]]
+heading = "Where your secrets go"
+text = """
+Every section writes `config.toml` in your data folder and keeps its comments. Passwords and calendar links never go there: they go to your Mac's Keychain or the Linux secret store when there is one,
+and otherwise to a file only your user can read, `.secrets.toml`, which is never committed to git.
+"""

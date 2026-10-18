@@ -1,0 +1,66 @@
+order   = 10
+name    = "Make it yours"
+nav     = "Make it yours"
+title   = "Make it yours: change Hermit CRM by describing the change"
+description = "Describe a field, a dashboard, a look or a routine in one sentence and your own AI agent builds it in your Hermit CRM folder. Every change can be undone."
+summary = "Pages of your own with lists, counts and bar charts. Describe one in a sentence, your AI builds it, and you pin it to the sidebar."
+intro = """
+Make it yours is how Hermit CRM changes: you describe a change in a sentence, and the AI agent you already use
+builds it in your data folder. The dashboards you make are pinned under **Yours** in the left navigation.
+"""
+docs    = "adjust"
+related = ["reports", "settings", "companies"]
+
+[[sections]]
+heading = "How a change happens"
+text = """
+Open **Make it yours** in the sidebar, or the **Adjust** tab of the **Ask · Adjust** button on any page. Pick an idea or describe a change, then press **Open in Claude Code**, the button of the agent you
+use, or **Copy prompt**. Your agent follows a recipe that ships with Hermit, checks its own work with `hermitcrm check`, and makes one commit. Hermit picks the change up on the next page you open, with no restart.
+"""
+
+[[sections]]
+heading = "A dashboard from one sentence"
+text = """
+Lists, counts, bars and report sections as a page of your own at `/d/<name>`, pinned in the sidebar if you like. A dashboard only reads: it never changes a record, so it is safe to try.
+Every number opens the records behind it.
+"""
+image   = "make-it-yours-dashboard.png"
+alt     = "The Monday review dashboard in Hermit CRM, pinned in the sidebar: 3 open deals, 5 tasks due this week, the deals by stage and the open deals with their next step."
+address = "127.0.0.1:8765/d/monday-review"
+
+[[sections]]
+heading = "A new field"
+text = """
+A score, a renewal date, a segment. One new entry in `fields.toml`, and the field shows on every company page, as a column you can sort and filter, and as a slot in your message drafts.
+"""
+image   = "make-it-yours-field.png"
+alt     = "A company page in Hermit CRM with the new contract renewal field: its date in the header, and its input with a line of help in the form."
+address = "127.0.0.1:8765/companies/northwind-robotics"
+
+[[sections]]
+heading = "A routine that drafts follow-ups"
+text = """
+Small jobs that run every morning: a brief of meetings, tasks and replies you owe, or one AI draft per quiet thread. A routine starts paused so you see first who it would pick,
+its drafts wait on Home for you to edit and send yourself, and Hermit never sends a message.
+"""
+image   = "make-it-yours-routine.png"
+alt     = "Home in Hermit CRM with a draft from the Nudge quiet threads routine: a short follow-up to a contact who has not replied in 20 days, with I sent it and Discard buttons."
+address = "127.0.0.1:8765"
+
+[[sections]]
+heading = "What you can change"
+points = [
+  "**Fields** on companies and contacts.",
+  "**Deal stages**: their names, their order and which ones are closed.",
+  "**Dashboards** and **page layouts**.",
+  "**The look**: colours and fonts, in a `theme.css` of your own.",
+  "**Message templates** and **routines**.",
+  "**Bulk changes** to many records at once, after it asks first.",
+  "**Bringing data in** from another tool, and a **feature** Hermit cannot do yet.",
+]
+
+[[sections]]
+heading = "Safe to try"
+text = """
+Every change is a git commit. The list of **Recent changes** on the Make it yours page has an **Undo** button for each one. Your agent may only write the files the recipe lists, and records change only through the command line.
+"""
