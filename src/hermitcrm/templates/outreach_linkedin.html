@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{# The LinkedIn session (spec part 08, hermitcrm/linkedin.py). Nothing on this page talks
+   to LinkedIn: it copies the text and opens the profile; you send it yourself. #}
+{% block title %}LinkedIn session{% endblock %}
+{% block content %}
+<h1>LinkedIn session</h1>
+<p class="small">You send every message yourself on linkedin.com, so the account stays yours. Hermit puts one approved touch in front of you at a time, keeps the caps and a pause between cards, and logs what you sent exactly as you sent it. <a href="/help/sending#linkedin">Why it works this way</a> &middot; <a href="/outreach">Back to Outreach</a></p>
+
+<section class="linkedin-counters" aria-label="Today">
+  <p>Invites today <strong>{{ have.invites_today }}/{{ cfg.invites_per_day }}</strong> &middot; last 7 days <strong>{{ have.invites_week }}/{{ cfg.invites_per_week }}</strong> &middot; messages today <strong>{{ have.messages_today }}/{{ cfg.messages_per_day }}</strong> &middot; this session <strong>{{ session.count if session.active else 0 }}/{{ cfg.session_size }}</strong>{% if have.blocked %} &middot; <span class="warning">invites paused: LinkedIn's weekly limit was hit</span>{% endif %}</p>
+</section>
+
+{% if session.active %}
+  {% if card %}
+  {% set i = card.item %}
+  <article class="draft linkedin-card" id="card-{{ i.id }}" data-wait="{{ wait }}">
+    <p class="draft-head">
+      {% if contact %}<a href="/companies/{{ i.company }}/contacts/{{ i.contact }}">{{ contact.name }}</a>{% else %}{{ i.contact }}{% endif %}
+      {% if contact and contact.title %}<span class="small">{{ contact.title }}</span>{% endif %}
+      <span class="tag">{{ card.label }}</span>
+    </p>
+    <p class="small">{% if company %}<a href="/companies/{{ i.company }}">{{ company.name }}</a> &middot; {{ company.stage }}{% endif %}{% if i.angle %} &middot; angle {{ i.angle }}{% endif %}</p>
+    <pre class="outreach-text" id="li-text">{{ card.text }}</pre>
+    <p class="small{% if card.length > card.limit %} warning{% endif %}">{{ card.length }} / {{ card.limit }} characters</p>
+    <p class="small" id="li-wait" aria-live="polite"></p>
+    <div class="draft-actions">
+      {% if contact and contact.linkedin %}
+      <button type="button" id="li-open" data-url="{{ contact.linkedin | href }}" data-copy-target="li-text"{% if wait %} disabled{% endif %}>Open profile &amp; copy</button>
+      {% else %}
+      <button type="button" disabled title="This contact has no LinkedIn address">Open profile &amp; copy</button>
+      <a class="button secondary" href="/companies/{{ i.company }}/contacts/{{ i.contact }}">Add their LinkedIn address</a>
+      {% endif %}
+      <form method="post" action="/outreach/linkedin/{{ i.id }}/sent" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" title="I sent it on LinkedIn: log it exactly as it is shown here">Sent</button>
+      </form>
+      {% if card.kind == 'note' and i.pitch %}
+      <form method="post" action="/outreach/linkedin/{{ i.id }}/already" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="secondary" title="We are connected already: the card becomes the message after the note">Already connected</button>
+      </form>
+      {% endif %}
+      <button type="button" class="secondary" data-skip-toggle="{{ i.id }}" aria-controls="failed-{{ i.id }}" aria-expanded="false">Couldn't send</button>
+    </div>
+    <form method="post" action="/outreach/linkedin/{{ i.id }}/failed" class="outreach-skip" id="failed-{{ i.id }}" hidden>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <span class="small">What happened?</span>
+      <input name="note" placeholder="note (optional, type it first)" size="26" aria-label="Note">
+      <span class="outreach-skip-reasons">
+        <button type="submit" name="reason" value="profile-gone" class="secondary">Profile is gone</button>
+        <button type="submit" name="reason" value="weekly-limit" class="secondary" title="LinkedIn said the weekly invite limit is reached">Weekly limit message</button>
+        <button type="submit" name="reason" value="other" class="secondary">Something else</button>
+      </span>
+    </form>
+  </article>
+  {% else %}
+  <p class="empty">{{ reason }}.</p>
+  {% endif %}
+  <form method="post" action="/outreach/linkedin/end" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="secondary">End the session</button>
+  </form>
+{% else %}
+  {% if can_start %}
+  <form method="post" action="/outreach/linkedin/start" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">Start session</button>
+    <span class="small">Up to {{ cfg.session_size }} touches, about {{ cfg.gap[0] }}-{{ cfg.gap[1] }} seconds between cards: roughly {{ (cfg.session_size * 50 / 60) | round | int }} minutes.</span>
+  </form>
+  {% else %}
+  <p class="small">{{ why_not }}.</p>
+  {% endif %}
+{% endif %}
+
+<section class="linkedin-waiting">
+  <h2>Waiting to accept ({{ waiting | length }})</h2>
+  {% if waiting %}
+  <ul class="outreach-reply-list">
+  {% for row in waiting %}{% set i = row.item %}
+    <li class="outreach-reply">
+      <p>{% if row.contact %}<a href="/companies/{{ i.company }}/contacts/{{ i.contact }}">{{ row.contact.name }}</a>{% else %}{{ i.contact }}{% endif %}
+        <span class="small">invited {{ fmt_date(i.invite_sent) }}, {{ row.days }} day{{ 's' if row.days != 1 }} ago</span></p>
+      {% if row.remind %}<p class="small warning">Pending for {{ row.days }} days: withdraw it on LinkedIn? Many pending invites count against the account.</p>{% endif %}
+      <div class="draft-actions">
+        <form method="post" action="/outreach/linkedin/{{ i.id }}/accepted" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit"{% if not i.pitch %} disabled title="This item has no message to send after they accept"{% endif %}>Accepted</button>
+        </form>
+        <form method="post" action="/outreach/linkedin/{{ i.id }}/withdrawn" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="secondary" title="I withdrew the invite on LinkedIn">Withdrawn</button>
+        </form>
+      </div>
+    </li>
+  {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty">No invites are waiting. After you send a connection note it waits here until you mark it accepted.</p>
+  {% endif %}
+</section>
+
+<script>
+(function () {
+  // The next card unlocks after a seeded countdown. This only paces the person; the
+  // server does not stop an honest "Sent".
+  var card = document.querySelector(".linkedin-card");
+  var open = document.getElementById("li-open");
+  var label = document.getElementById("li-wait");
+  var left = card ? parseInt(card.dataset.wait, 10) || 0 : 0;
+  function tick() {
+    if (!label) return;
+    if (left > 0) {
+      label.textContent = "Next card unlocks in " + left + " s. Take a breath.";
+      left -= 1;
+      window.setTimeout(tick, 1000);
+    } else {
+      label.textContent = "";
+      if (open) open.disabled = false;
+    }
+  }
+  tick();
+  if (open) open.addEventListener("click", function () {
+    var text = document.getElementById(open.dataset.copyTarget).textContent;
+    function go(ok) {
+      open.textContent = ok ? "Copied: paste it on LinkedIn" : "Copy failed: select the text above";
+      window.open(open.dataset.url, "_blank", "noopener");
+    }
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(function () { go(true); }, function () { go(false); });
+    } else {
+      var area = document.createElement("textarea");
+      area.value = text; document.body.appendChild(area); area.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      area.remove(); go(ok);
+    }
+  });
+  document.querySelectorAll("[data-skip-toggle]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var form = document.getElementById("failed-" + button.getAttribute("data-skip-toggle"));
+      if (!form) return;
+      form.hidden = !form.hidden;
+      button.setAttribute("aria-expanded", form.hidden ? "false" : "true");
+    });
+  });
+})();
+</script>
+{% endblock %}
