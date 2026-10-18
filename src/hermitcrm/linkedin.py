@@ -45,7 +45,7 @@ from pathlib import Path
 
 from . import outreach
 from .send import runtime_dir
-from .store import Store, load_config
+from .store import Store
 
 STATE_FILE = "hermitcrm-linkedin.json"
 WAITING_REMINDER_DAYS = 21     # a pending invite older than this gets a "withdraw it?"

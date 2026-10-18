@@ -3201,6 +3201,22 @@ def render_item(store: Store, item: Item) -> str:
     if item.skip_reason:
         lines.append(f"Skipped: {item.skip_reason}"
                      + (f" ({item.skip_note})" if item.skip_note else ""))
+    if item.state == "queued":
+        lines.append("Scheduled: " + (f"goes out {item.send_at:%a %Y-%m-%d %H:%M}" if item.send_at
+                                      else "no free slot yet")
+                     + (f" | last try: {item.send_error}" if item.send_error else ""))
+    if item.state == "failed":
+        lines.append(f"Not sent: {item.send_error or 'unknown error'} (hermitcrm outreach retry)")
+    if item.send_note:
+        lines.append(f"Note: {item.send_note}")
+    if item.message_id:
+        lines.append(f"Message-ID: {item.message_id} ({item.send_tries} "
+                     f"{'try' if item.send_tries == 1 else 'tries'})")
+    if item.invite_sent is not None or item.accepted is not None:
+        lines.append("LinkedIn: " + ", ".join(
+            f"{label} {when:%Y-%m-%d %H:%M}" for label, when in (
+                ("invited", item.invite_sent), ("accepted", item.accepted),
+                ("message sent", item.pitch_sent)) if when is not None))
     if item.sent is not None:
         lines.append(f"Sent: {item.sent:%Y-%m-%d %H:%M}"
                      + (f" (logged as {item.sent_with})" if item.sent_with else " (by hand)"))

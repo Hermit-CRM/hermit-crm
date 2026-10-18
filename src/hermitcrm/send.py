@@ -69,7 +69,6 @@ TIMEOUT = 30.0
 SEND_NOW_WAIT = 10.0     # seconds Send now waits for a tick that holds the lock
 STATE_FILE = "hermitcrm-send.json"
 LOCK_FILE = "hermitcrm-send.lock"
-PAUSE_KINDS = (AUTH, QUOTA, REFUSED, "bounces", "state", "manual")
 
 # What each common provider needs. Only Gmail and Google Workspace are tested;
 # Microsoft has switched off password sign-in, as on the BCC page.
@@ -360,6 +359,12 @@ def connect(settings: SendSettings, password: str, factory=None, timeout: float 
         if not ssl_port:
             conn.starttls(context=ssl.create_default_context())
             conn.ehlo()
+        # smtplib's login tries every mechanism the server lists: a wrong password then
+        # costs two failed logins (PLAIN, then LOGIN), and a server that drops the line
+        # after the first would look like a temporary error that is retried. One attempt.
+        features = getattr(conn, "esmtp_features", None)
+        if isinstance(features, dict) and "PLAIN" in features.get("auth", "").upper().split():
+            features["auth"] = "PLAIN"
         conn.login(settings.smtp_user, password)
         return conn
     except BaseException as exc:
@@ -536,7 +541,7 @@ class Mailbox:
             raise SendError(TEMPORARY, "the mailbox has no folder flagged \\Sent, so a send "
                             "that may have gone out cannot be checked")
         bare = message_id.strip().strip("<>")
-        return bool(self._search(folder, "HEADER", "Message-ID", bare))
+        return bool(self._search(folder, "HEADER", "Message-ID", f'"{bare}"'))
 
     def fetch(self, folder: str, numbers: list[bytes]) -> list[bytes]:
         out = []
@@ -871,6 +876,7 @@ def deliver(store: Store, item_id: str, *, settings: SendSettings, now: datetime
     config = config if config is not None else load_config(root)
     warnings: list[str] = []
     attempted = bool(item.message_id)       # written before SMTP: it may have gone out
+    wrote = False                           # this run counted its try (see _write_attempt)
     try:
         # A new send checks the cheap guards first. One that was attempted before asks
         # Sent first: if it went out, log it, whatever the guards would say now.
@@ -895,11 +901,12 @@ def deliver(store: Store, item_id: str, *, settings: SendSettings, now: datetime
         if not scheduled:
             warnings += [w for w in (opt_out_problem(store, item),) if w]
         _write_attempt(store, item, settings, new_id)
+        wrote = True
         sent = SmtpSender(store, settings, pw, smtp_factory).send(item)
         OutreachLogger(store, now).log(item, sent)
     except SendError as err:
         return _failed_send(store, outreach._refresh(store, item.id), err, settings, now,
-                            state)
+                            state, counted=wrote)
     return Outcome("sent", outreach._refresh(store, item.id), sent.detail, warnings)
 
 
@@ -925,8 +932,10 @@ def _held(store: Store, item, reason: str, now: datetime, scheduled: bool) -> Ou
 
 
 def _failed_send(store: Store, item, err: SendError, settings: SendSettings, now: datetime,
-                 state: SendState) -> Outcome:
-    """Step 8: what each kind of error does (the table in the spec)."""
+                 state: SendState, counted: bool = True) -> Outcome:
+    """Step 8: what each kind of error does (the table in the spec). `counted` is
+    whether this run already counted its try; one that failed before the SMTP call
+    (the mailbox could not be reached) still counts, or it would be retried forever."""
     if err.kind in (AUTH, REFUSED):
         state.pause(err.kind, err.text, now)
         return Outcome("paused", item, f"sending is paused: {err.text}")
@@ -936,6 +945,8 @@ def _failed_send(store: Store, item, err: SendError, settings: SendSettings, now
                        "resumes at the next window")
     if err.kind == RECIPIENT:
         return _fail_item(store, item, err, now, suppressed=True)
+    if not counted:
+        item.send_tries += 1
     if item.send_tries >= MAX_TRIES:
         return _fail_item(store, item, err, now, suppressed=False,
                           prefix=f"gave up after {item.send_tries} tries: ")

@@ -595,7 +595,7 @@ def test_a_mail_found_in_sent_is_logged_not_sent_again(folder):
     logged = [i for i in store.get(MARA[0]).interactions if i.source == "outreach"]
     assert len(logged) == 1 and logged[0].message_id == "<lost.1@mail.example.com>"
     assert imap.searches[0][0] == "[Gmail]/Sent Mail"
-    assert imap.searches[0][1] == ("HEADER", "Message-ID", "lost.1@mail.example.com")
+    assert imap.searches[0][1] == ("HEADER", "Message-ID", '"lost.1@mail.example.com"')
 
 
 def test_a_mail_not_in_sent_is_sent_again_with_the_same_message_id(folder):
@@ -777,3 +777,16 @@ def test_only_mail_the_app_sent_counts_toward_the_cap(folder):
     assert send.cap_status(store, settings, NOW) == (1, 20)       # week 1 of the ramp
     assert send.next_window_start(NOW, settings) == datetime(2026, 10, 19, 8, 30)
     assert sendplan.SOFT_CEILING == 150 and valid_email("a@b.example")
+
+
+def test_a_mailbox_that_cannot_be_reached_is_retried_three_times_and_then_the_item_fails(folder):
+    root, store, settings = folder
+    item = ready_item(root, store)
+    offline = FakeImap(connect_error=OSError("Network is unreachable"))
+    for attempt in range(1, 4):
+        out, smtp, _ = deliver(store, settings, item.id, imap=offline, scheduled=attempt > 1,
+                               now=NOW + timedelta(minutes=20 * attempt))
+        after = outreach.get_item(root, item.id)
+        assert after.send_tries == attempt and not smtp.sent and after.message_id == ""
+        assert out.kind == ("retry" if attempt < 3 else "failed")
+    assert after.state == "failed" and after.send_error.startswith("gave up after 3 tries: could not reach")

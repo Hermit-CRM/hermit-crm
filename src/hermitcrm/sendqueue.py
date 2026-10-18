@@ -31,14 +31,16 @@ overdue: a Mac that slept for two hours re-plans, it does not catch up in a burs
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 
 from . import outreach, send, sendplan, setup, suppress
-from .models import normalise_email
 from .store import Store, load_config
+
+logger = logging.getLogger("hermitcrm.sendqueue")
 
 MAX_PER_TICK = 1
 GIT_WAIT_SECONDS = 5.0
@@ -138,19 +140,23 @@ def replan(store: Store, settings: send.SendSettings, now: datetime, *, front: s
     times = sendplan.plan(slots, send.sent_history(store), now, settings.plan)
     if not write:
         return times
-    changed = []
-    for item in queue:
-        new = times.get(item.id)
-        if new != item.send_at:
-            item.send_at = new
-            changed.append(item)
+    changed = [i for i in queue if times.get(i.id) != i.send_at]
     if changed:
         text = message or (f"outreach: plan {len(changed)} send time"
                            f"{'s' if len(changed) != 1 else ''}")
         with store.lock:
-            for item in changed:
+            # Re-read each one under the lock: a tick may have sent it since the queue was
+            # read, and writing the old copy back would put a sent mail back in the queue.
+            written = []
+            for old in changed:
+                item = outreach.get_item(store.root, old.id)
+                if item is None or item.state != "queued":
+                    continue
+                item.send_at = times.get(old.id)
                 outreach.write_item(store.root, item)
-            store.notify(text, [i.path for i in changed])
+                written.append(item.path)
+            if written:
+                store.notify(text, written)
     return times
 
 
@@ -206,9 +212,6 @@ def schedule(store: Store, item_ids, settings: send.SendSettings | None = None,
         if why:
             result.refused[item_id] = why
             continue
-        item.state, item.queued, item.send_at = "queued", now, None
-        item.send_hash = send.text_hash(item.subject, item.body)
-        item.send_note = item.send_error = ""
         taken.append(item)
     if not taken:
         return result
@@ -223,14 +226,26 @@ def schedule(store: Store, item_ids, settings: send.SendSettings | None = None,
             item.send_at = result.times.get(item.id)
         result.scheduled = taken
         return result
+    queued_now = []
     with store.lock:
-        for item in taken:
+        for old in taken:
+            item = outreach.get_item(store.root, old.id)       # under the lock: still ready?
+            if item is None or item.state != "ready":
+                result.refused[old.id] = "it changed while it was being scheduled"
+                continue
+            item.state, item.queued, item.send_at = "queued", now, None
+            item.send_hash = send.text_hash(item.subject, item.body)
+            item.send_note = item.send_error = ""
             outreach.write_item(store.root, item)
-        store.notify(f"outreach: schedule {len(taken)} email{'s' if len(taken) != 1 else ''}",
-                     [i.path for i in taken])
+            queued_now.append(item)
+        if queued_now:
+            store.notify(f"outreach: schedule {len(queued_now)} email"
+                         f"{'s' if len(queued_now) != 1 else ''}", [i.path for i in queued_now])
+    if not queued_now:
+        return result
     times = replan(store, settings, now, message="outreach: plan send times")
-    result.times = {i.id: times.get(i.id) for i in taken}
-    result.scheduled = [outreach.get_item(store.root, i.id) for i in taken]
+    result.times = {i.id: times.get(i.id) for i in queued_now}
+    result.scheduled = [outreach.get_item(store.root, i.id) for i in queued_now]
     return result
 
 
@@ -246,14 +261,14 @@ def schedule_all_ready(store: Store, settings: send.SendSettings | None = None,
 def unschedule(store: Store, item_id: str, now: datetime | None = None) -> outreach.Item:
     """Back to ready, nothing else touched. The others keep their times: a gap in
     the plan is harmless, and moving them would change what the page showed."""
-    item = outreach._refresh(store, item_id)
-    if item.state != "queued":
-        raise outreach.OutreachError(f"{item.id} is {item.state}; only a queued item can "
-                                     "be unscheduled")
-    item.state, item.send_note = "ready", "unscheduled"
-    item.queued = item.send_at = None
-    item.send_hash = ""
     with store.lock:
+        item = outreach._refresh(store, item_id)         # under the lock: a tick may have sent it
+        if item.state != "queued":
+            raise outreach.OutreachError(f"{item.id} is {item.state}; only a queued item can "
+                                         "be unscheduled")
+        item.state, item.send_note = "ready", "unscheduled"
+        item.queued = item.send_at = None
+        item.send_hash = ""
         outreach.write_item(store.root, item)
         store.notify(f"outreach: unschedule {item.record}", [item.path])
     return item
@@ -291,7 +306,7 @@ def move_to_front(store: Store, item_id: str, settings: send.SendSettings | None
 # ------------------------------------------------------------ pause, resume
 
 
-def pause(store: Store, root: Path | str | None = None) -> None:
+def pause(store: Store) -> None:
     """The kill switch: `send_paused = true`, committed. Effective from the next tick."""
     _set_paused(store, True)
 
@@ -451,12 +466,12 @@ def opt_out(store: Store, company: str, contact: str, now: datetime | None = Non
     address = send.normalise_email(person.email)
     if not send.valid_email(address):
         raise outreach.OutreachError(f"{person.name} has no email address to put on the list")
-    open_items = [i for i in outreach.items(store.root)
-                  if i.company == company and i.contact == contact and i.is_open]
     message = f"outreach: {person.name} opted out"
     with store.batch(message):
         suppress.add(store.root, address, "opted-out", now.strftime("%Y-%m-%d"))
         paths = [suppress.FILE]
+        open_items = [i for i in outreach.items(store.root)           # read under the lock
+                      if i.company == company and i.contact == contact and i.is_open]
         for item in open_items:
             item.state, item.skip_reason, item.skipped = "skipped", "other", now
             item.skip_note = "opted out"
@@ -593,8 +608,18 @@ def _tick(store: Store, settings: send.SendSettings, config: dict, state: send.S
             lines.append(f"would send {item.id}" if not why else
                          f"would hold {item.id}: {why}")
             continue
-        out = send.deliver(store, item.id, settings=settings, now=now, scheduled=True,
-                           smtp_factory=smtp_factory, imap_factory=imap_factory,
-                           password=password, config=config, state=state)
+        try:
+            out = send.deliver(store, item.id, settings=settings, now=now, scheduled=True,
+                               smtp_factory=smtp_factory, imap_factory=imap_factory,
+                               password=password, config=config, state=state)
+        except outreach.OutreachError as exc:        # it changed under us: nothing to send
+            lines.append(f"skipped: {item.id} ({exc})")
+            continue
+        except Exception as exc:                     # a damaged file, a bug: never block the queue
+            logger.exception("sending %s failed", item.id)
+            reason = f"Hermit could not send it ({type(exc).__name__}: {exc})"
+            send.hold(store, item, reason, now)
+            lines.append(f"error: {item.id}: {reason}")
+            continue
         lines.append(f"{out.kind}: {item.id}" + (f" ({out.detail})" if out.detail else ""))
     return lines

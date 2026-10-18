@@ -14,6 +14,7 @@ Every record is a Markdown file with YAML front matter in a fixed key order; the
   .claude/settings.json       git commands Claude Code may not run (see Backups and undo)
   .claude/skills/hermit/SKILL.md  the /hermit skill: Claude Code runs `hermitcrm help adjust` (Make it yours)
   MESSAGING.md                your outreach playbook (hermitcrm help playbook)
+  outreach/<id>.md            one outreach item each; outreach/suppressed.toml, addresses never mailed again
   dashboards/<name>.toml      optional pages of your own at /d/<name> (see Dashboards)
   inbox/                      BCC and calendar items waiting for a decision
   routines.toml               optional routines: a morning brief, AI drafts (see Routines)
@@ -156,8 +157,8 @@ unblock, hook, bridge, decline or custom; the angle the message was written
 from, so your messages and the outreach bot's compare), `approach` (optional,
 omitted when empty: the playbook approach the message was for),
 `outcome` (one line; see the configured outcomes), `result` (legacy: success,
-unsuccessful or empty), `source` (manual, bcc-import, calendar-import, migration),
-`message_id` (imports only: the mail's Message-ID, or
+unsuccessful or empty), `source` (manual, bcc-import, calendar-import, migration, outreach),
+`message_id` (imports, and email Hermit CRM sent itself: the mail's Message-ID, or
 `ical:<UID>:<RECURRENCE-ID>:<attendee>` for a meeting). Body: the message or
 notes verbatim. Id: `YYYY-MM-DDTHHMM-<channel>-<direction>-<contact or company>`
 (a note: `YYYY-MM-DDTHHMM-note-<contact>`), `-2`, `-3` on collision. A note is a
@@ -202,7 +203,13 @@ moves each contact's notes body into note interactions, a line starting
 adds the `/hermit` skill (a skill file of your own is kept), the "Adjusting
 Hermit" rules in `CLAUDE.md` / `AGENTS.md` when they do not mention
 `hermitcrm help adjust` yet, and `inbox/.last-routines.json` to `.gitignore`; format 9 trims a hand-written
-interaction `angle` and puts it in lower case, and drops an empty one);
+interaction `angle` and puts it in lower case, and drops an empty one; format 12 adds the
+keys scheduling, sending and the LinkedIn session write to every outreach item
+(`queued`, `send_at`, `send_hash`, `message_id`, `send_tries`, `send_error`,
+`send_note`, `invite_sent`, `accepted`, `pitch_sent`), empty; format 13 allows
+`source: outreach` on an interaction and changes no file; format 14 adds the
+"Sending mail" rules to `CLAUDE.md` / `AGENTS.md`: an agent never schedules or sends
+unasked, see [Sending](/help/sending));
 `hermitcrm migrate --dry-run` lists the files first and `git revert` undoes it. A
 folder written by a newer Hermit CRM is refused until you upgrade.
 
@@ -218,4 +225,4 @@ enrichment and agent-made changes (`ai: adjust: <what>` for a change made throug
 `hermitcrm undo <sha>`, a new commit named `Revert "<subject>"` (git's own
 revert), or plain git: `git checkout <sha> -- <path>`, then `hermitcrm rebuild`.
 
-Related: [Companies](/help/companies), [Interactions](/help/interactions), [AI agents](/help/ai-agents), [CLI](/help/cli)
+Related: [Companies](/help/companies), [Interactions](/help/interactions), [AI agents](/help/ai-agents), [Sending](/help/sending), [CLI](/help/cli)

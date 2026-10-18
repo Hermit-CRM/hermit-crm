@@ -19,6 +19,7 @@ are in-memory doubles and the clock is passed in; no test touches the network.""
 from __future__ import annotations
 
 import imaplib
+import re
 import smtplib
 import socket
 from datetime import datetime, timedelta
@@ -561,7 +562,8 @@ def test_the_cli_pause_resume_and_test(folder, capsys, monkeypatch):
 def test_send_due_from_the_cli_prints_the_tick(folder, capsys):
     root, store, settings = folder
     assert run_cli(root, "send", "due") == 0
-    assert capsys.readouterr().out.strip() == "nothing queued"
+    out = capsys.readouterr().out.strip()
+    assert re.fullmatch(r"\d{4}-\d\d-\d\d \d\d:\d\d nothing queued", out), out
     assert run_cli(root, "send", "due", "--dry-run") == 0
 
 
@@ -666,3 +668,78 @@ def test_doctor_says_when_there_is_no_password_or_address(tmp_path):
                              runner=lambda *a, **k: _done())
     names = {c.name: c for c in rows}
     assert names["send password"].status == "fail"
+
+
+def test_outreach_show_says_when_it_goes_out_and_what_went_wrong(folder, capsys):
+    root, store, settings = folder
+    ids = many_ready(root, store, 2)
+    sendqueue.schedule(store, ids, settings, MON)
+    queued = outreach.render_item(store, outreach.get_item(root, ids[0]))
+    assert "(queued, first-touch by email)" in queued and "Scheduled: goes out Mon 2026-10-19 " in queued
+    it = outreach.get_item(root, ids[1])
+    it.state, it.send_error, it.message_id, it.send_tries = "failed", "550 5.1.1 no such user", "<a@b.example>", 2
+    it.send_note, it.invite_sent = "bounced: 5.1.1", datetime(2026, 10, 1, 9, 0)
+    outreach.write_item(root, it)
+    failed = outreach.render_item(store, outreach.get_item(root, ids[1]))
+    assert "Not sent: 550 5.1.1 no such user (hermitcrm outreach retry)" in failed
+    assert "Message-ID: <a@b.example> (2 tries)" in failed and "Note: bounced: 5.1.1" in failed
+    assert "LinkedIn: invited 2026-10-01 09:00" in failed
+
+
+def test_a_stale_view_never_puts_a_sent_item_back_in_the_queue(folder, monkeypatch):
+    """The page plans from a copy of the queue it read; a tick may send an item in between.
+    Writing the old copy back would queue a mail that already went out: it would go twice."""
+    root, store, settings = folder
+    ids = many_ready(root, store, 3)
+    sendqueue.schedule(store, ids, settings, MON)
+    stale = outreach.items(root)                           # what a slow page read
+    sent_since = outreach.get_item(root, ids[1])
+    sent_since.state, sent_since.sent = "sent", MON + timedelta(minutes=30)
+    outreach.write_item(root, sent_since)                  # the tick sent it meanwhile
+    monkeypatch.setattr(outreach, "items", lambda r: stale)
+    sendqueue.replan(store, settings, MON + timedelta(minutes=31), everything=True)
+    assert outreach.get_item(root, ids[1]).state == "sent"
+    assert {outreach.get_item(root, i).state for i in (ids[0], ids[2])} == {"queued"}
+
+
+def test_an_item_that_changed_while_it_was_being_scheduled_is_left_alone(folder, monkeypatch):
+    root, store, settings = folder
+    a, b = many_ready(root, store, 2)
+    real = sendqueue._schedulable
+
+    def changes_a(store_, item, settings_, config):
+        why = real(store_, item, settings_, config)
+        if item.id == a:                                   # skipped on another screen, just now
+            other = outreach.get_item(root, a)
+            other.state, other.skipped = "skipped", MON
+            outreach.write_item(root, other)
+        return why
+
+    monkeypatch.setattr(sendqueue, "_schedulable", changes_a)
+    result = sendqueue.schedule(store, [a, b], settings, MON)
+    assert [i.id for i in result.scheduled] == [b]
+    assert result.refused[a] == "it changed while it was being scheduled"
+    assert outreach.get_item(root, a).state == "skipped"
+
+
+def test_an_item_that_blows_up_is_held_back_with_the_reason_and_does_not_block_the_queue(folder, monkeypatch):
+    root, store, settings = folder
+    ids = many_ready(root, store, 2)
+    sendqueue.schedule(store, ids, settings, MON)
+    real = send.deliver
+
+    def broken_for_the_first(store_, item_id, **kw):
+        if item_id == ids[0]:
+            raise RuntimeError("boom")
+        return real(store_, item_id, **kw)
+
+    monkeypatch.setattr(send, "deliver", broken_for_the_first)
+    smtp, imap = FakeSmtp(), FakeImap()
+    start = outreach.get_item(root, ids[0]).send_at
+    out = tick(root, store, start, smtp, imap)
+    assert out[-1] == f"error: {ids[0]}: Hermit could not send it (RuntimeError: boom)"
+    held = outreach.get_item(root, ids[0])
+    assert held.state == "ready" and held.send_note == "Hermit could not send it (RuntimeError: boom)"
+    later = outreach.get_item(root, ids[1]).send_at
+    out = tick(root, store, later, smtp, imap)
+    assert out[-1].startswith(f"sent: {ids[1]}") and len(smtp.sent) == 1

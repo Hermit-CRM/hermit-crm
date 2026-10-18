@@ -1,6 +1,6 @@
 # Outreach bot
 
-Picks a batch of contacts, reads what their websites say, drafts a first message per person and checks it, answers replies that show interest and follows up on messages nobody answered; you review, send and log. Nothing is ever sent for you.
+Picks a batch of contacts, reads what their websites say, drafts a first message per person and checks it, answers replies that show interest and follows up on messages nobody answered; you review and approve each one. Nothing is sent that you did not approve, and until you turn on [sending](/help/sending) nothing is sent for you at all: you send and log it yourself.
 
 The outreach bot works from your [playbook](/help/playbook) (`MESSAGING.md`):
 what you sell, to whom, and how you write. It will not build anything until at
@@ -43,7 +43,9 @@ and from the command line; both do the same steps and write the same files.
   - **Save to the record** shows when research found a website, LinkedIn URL or
     country for a field that is empty; it writes that one value and nothing else.
   - On a ready card: **Copy**, open your mail or LinkedIn, **Log it** (logging
-    the message marks the item sent), or **Mark sent** without logging.
+    the message marks the item sent), or **Mark sent** without logging. With
+    [sending](/help/sending) on, an email card also has **Send now** and
+    **Schedule**, and the **Scheduled** tab shows the queue.
 - **On a contact's page**: **Research & draft** builds one item for that
   person on the channel you pick (it says why when the person is left out),
   and while an item is open the page links to its card. The draft type comes
@@ -290,4 +292,4 @@ companies never contacted), `outreach_batch_size` (10), `outreach_angles`, `outr
 Channel rules and culture norms: `[outreach.<channel>]` and `[culture.<lang>]`
 in `messages.toml`, over the shipped defaults.
 
-Related: [Playbook](/help/playbook), [Messages](/help/messages), [CLI](/help/cli)
+Related: [Playbook](/help/playbook), [Messages](/help/messages), [Sending](/help/sending), [CLI](/help/cli)
