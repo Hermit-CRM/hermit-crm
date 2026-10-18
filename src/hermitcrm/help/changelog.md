@@ -8,6 +8,11 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **A reply keeps their subject.** A reply to interest or a follow-up no longer
+  gets a "subject is N characters" warning when the thread's `Re:` subject is
+  long: the 60 character limit is for a first touch, where you write the
+  subject. `hermitcrm help cli` now lists `--kind` on `outreach preview` and
+  `build`.
 - **Filter problems explain themselves.** A filter typed like a sentence
   (`fte_estimate >24`, `fit_score>=70`, `country: DE`) now says what to type
   (`fte_estimate=>24`) instead of "unknown filter key". An unknown key suggests
