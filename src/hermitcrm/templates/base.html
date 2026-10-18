@@ -32,6 +32,7 @@
   {{ navlink('/contacts', 'Contacts', 'contacts', on_contact or request.query_params.get('mode') == 'contacts') }}
   {{ navlink('/messages', 'Messages', 'messages', path.startswith('/messages')) }}
   {{ navlink('/outreach', 'Outreach', 'outreach', path.startswith('/outreach')) }}
+  {{ navlink('/learning', 'Learning', 'learning', path.startswith('/learning')) }}
   {{ navlink('/extension', 'Extension', 'capture', path.startswith('/extension') or path.startswith('/capture')) }}
   {{ navlink('/reports', 'Reports', 'reports', path.startswith('/reports')) }}
   <div class="nav-group" aria-hidden="true">Yours</div>

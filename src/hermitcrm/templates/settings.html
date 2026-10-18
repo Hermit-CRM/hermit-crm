@@ -269,6 +269,19 @@
   {%- set waiting = playbook_status.approaches | reject('in', playbook_status.ready) | list %}
   {%- if waiting and playbook_status.ready %} Not ready yet: {{ waiting | join(', ') }}.{% endif %}</p>
   <p><a class="button" href="/settings/playbook">Open the playbook</a></p>
+  <form method="post" action="/settings/learning" class="record-form" id="learning-setting">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <p class="summary">Learning from your edits (<a href="/learning">Learning page</a>): who reads the evidence and proposes lessons.</p>
+    <div class="row">
+      <label>Distil lessons
+        <select name="learning_distill">
+          <option value="hermit"{% if learning_form.distill == 'hermit' %} selected{% endif %}>hermit: Hermit asks your AI CLI (one strong-model call)</option>
+          <option value="handoff"{% if learning_form.distill == 'handoff' %} selected{% endif %}>handoff: write an evidence pack for your own agent</option>
+        </select>
+      </label>
+      <button type="submit">Save</button>
+    </div>
+  </form>
 </section>
 
 <section class="setup-step" id="fields">
