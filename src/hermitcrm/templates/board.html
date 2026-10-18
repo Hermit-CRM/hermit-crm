@@ -49,6 +49,7 @@
       {% endif %}
       {% if c.value_eur_month is not none and 'value_eur_month' not in hide %}<div class="small">{{ c.value_eur_month }} EUR/month</div>{% endif %}
       <form method="post" action="/companies/{{ c.slug }}/stage" class="stage-form">
+        <input type="hidden" name="back" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
         <select name="stage" onchange="this.form.submit()">
           {% for s in stages %}<option value="{{ s }}"{% if s == c.stage %} selected{% endif %}>{{ s }}</option>{% endfor %}
         </select>

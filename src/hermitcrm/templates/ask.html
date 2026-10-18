@@ -46,7 +46,7 @@
   <label class="grow">{% if answer %}Ask another question{% else %}Question{% endif %}
     <textarea name="question" rows="3" required>{% if error %}{{ question }}{% endif %}</textarea>
   </label>
-  <label><input type="checkbox" name="scope" value="crm"> Skip the page, search the whole CRM</label>
+  <label class="check"><input type="checkbox" name="scope" value="crm"> Skip the page, search the whole CRM</label>
   <button type="submit">Ask</button>
   {% if error and question and ai.strong %}
   <button type="submit" name="tier" value="strong">Ask with {{ model_label(ai.strong) }}</button>

@@ -396,6 +396,15 @@ def cmd_followups(store: Store, config: dict, reply_after: int | None = None,
     return followups.render(rows)
 
 
+def cmd_keep_in_touch(store: Store, config: dict, after: int | None = None) -> str:
+    """People outside an open deal you have not spoken to in a while; the
+    same rows as Keep in touch on the home page, all of them."""
+    from hermitcrm import followups
+
+    after = int(config["keep_in_touch_days"]) if after is None else after
+    return followups.render_keep_in_touch(followups.keep_in_touch(store, after=after), after)
+
+
 # ------------------------------------------------------------------- digest
 
 
@@ -844,6 +853,53 @@ def cmd_import(store: Store, path: Path, apply: bool = False, mode: str | None =
     else:
         lines.append("Dry run; add --apply to write.")
     return "\n".join(lines)
+
+
+# ------------------------------------------------------------------- export
+
+
+def cmd_export(root: Path, fmt: str = "csv", profile: str = "generic",
+               excel: bool = False, output: str | None = None,
+               stdout=None) -> tuple[str, int]:
+    """Write the export zip (or JSON) outside the data folder. Reads only.
+
+    No migration runs first: an export of a folder in an older format reads it
+    as it is, and writes nothing into it.
+    """
+    from hermitcrm import export
+
+    if migrations.current_format(root) > migrations.LATEST:
+        return ("This data folder was written by a newer Hermit CRM; update it "
+                "(uv tool install hermitcrm@latest) and export again.", 2)
+    if fmt == "json" and (profile != "generic" or excel):
+        return ("--profile and --excel are for the CSV zip; JSON is always generic.", 2)
+    store = build_store(root)
+    defs = _custom_defs(root)
+    if output == "-":
+        out = stdout or sys.stdout.buffer
+        if fmt == "json":
+            out.write(export.json_text(store, defs).encode("utf-8"))
+        else:
+            for chunk in export.zip_chunks(store, defs, profile, excel):
+                out.write(chunk)
+        out.flush()
+        return ("", 0)
+    path = Path(output).expanduser() if output else Path.cwd() / export.default_name(store, fmt)
+    if path.is_dir():
+        path = path / export.default_name(store, fmt)
+    path = path.resolve()
+    if path == root.resolve() or root.resolve() in path.parents:
+        return (f"Not writing {path} inside the data folder, where it would end up "
+                "in git. Pass --output with a place outside it, such as ~/Downloads.", 2)
+    if fmt == "json":
+        path.write_text(export.json_text(store, defs), encoding="utf-8")
+    else:
+        with path.open("wb") as fh:
+            for chunk in export.zip_chunks(store, defs, profile, excel):
+                fh.write(chunk)
+    people = sum(len(c.contacts) for c in store.companies.values())
+    return (f"Exported {len(store.companies)} companies and {people} contacts "
+            f"to {path}", 0)
 
 
 # ------------------------------------------------------------------- enrich
@@ -1314,6 +1370,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_followups.add_argument("--nudge-after", type=int, default=None,
                              help="days before an unanswered outbound message counts")
 
+    p_keep = sub.add_parser("keep-in-touch",
+                            help="people outside an open deal you have not spoken to in a while")
+    p_keep.add_argument("--after", type=int, default=None,
+                        help="days without an interaction (default: keep_in_touch_days, 180)")
+
     p_digest = sub.add_parser("digest", help="recent interactions, oldest first")
     p_digest.add_argument("--days", type=int, default=7)
 
@@ -1434,6 +1495,19 @@ def _build_parser() -> argparse.ArgumentParser:
     p_import.add_argument("--map", action="append", default=[], metavar="HEADER=FIELD",
                           help="map a column to a field, 'notes' or 'ignore' (repeatable)")
     p_import.add_argument("--apply", action="store_true")
+
+    p_export = sub.add_parser("export", help="everything as a zip of CSVs or one JSON "
+                                             "file (reads only)")
+    p_export.add_argument("--format", choices=["csv", "json"], default="csv",
+                          help="csv: a zip of five CSV files (default); json: one file")
+    p_export.add_argument("--profile", choices=["generic", "hubspot", "pipedrive"],
+                          default="generic",
+                          help="column names for companies and contacts")
+    p_export.add_argument("--excel", action="store_true",
+                          help="start each CSV with a UTF-8 byte-order mark, for Excel")
+    p_export.add_argument("-o", "--output", default=None, metavar="PATH",
+                          help="file or folder to write to (default: hermitcrm-export-"
+                               "DATE.zip here); - for stdout")
 
     p_enrich = sub.add_parser("enrich", help="look up missing fields with an AI CLI "
                                           "(claude, codex, gemini, grok or custom)")
@@ -1720,6 +1794,12 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
                   file=sys.stderr)
             return 1 if args.command == "check" else 2
 
+    if args.command == "export":  # before migrations: an export only reads
+        text, code = cmd_export(root, args.format, args.profile, args.excel, args.output)
+        if text:
+            print(text, file=sys.stderr if code or args.output == "-" else sys.stdout)
+        return code
+
     if args.command == "doctor":  # before migrations: report, never change the folder
         from hermitcrm import doctor
         text, code = doctor.report(doctor.run_checks(root, online=args.online))
@@ -1778,6 +1858,10 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
 
     if args.command == "followups":
         print(cmd_followups(store, load_config(root), args.reply_after, args.nudge_after))
+        return 0
+
+    if args.command == "keep-in-touch":
+        print(cmd_keep_in_touch(store, load_config(root), args.after))
         return 0
 
     if args.command == "digest":

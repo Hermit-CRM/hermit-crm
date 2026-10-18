@@ -33,6 +33,15 @@ from hermitcrm.web import create_app
 # ------------------------------------------------------------------ the pages
 
 
+def test_the_cli_page_lists_every_outreach_draft_type():
+    from hermitcrm import outreach
+    text = helpdocs.read("cli")
+    entry = text[text.index("hermitcrm outreach preview"):text.index("hermitcrm outreach build")]
+    assert "--kind" in entry
+    for kind in outreach.KINDS:
+        assert kind in entry, kind
+
+
 def test_every_topic_has_a_page_with_summary_and_related_line():
     for topic in helpdocs.topics():
         text = helpdocs.read(topic)

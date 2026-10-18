@@ -231,6 +231,26 @@ def test_the_home_page_only_shows_the_next_seven_days(client, app):
     assert 'href="/calendar"' in page          # the rest is one click away
 
 
+def test_home_lists_people_to_keep_in_touch_with(client, app):
+    post_company(client, name="Acme", stage="won")
+    post_contact(client, "acme", first_name="Jane", last_name="Roe")
+    post_interaction(client, "acme", channel="email", direction="out",
+                     contact="jane-roe",
+                     date=str(TODAY - timedelta(days=200)) + "T09:00",
+                     subject="Rollout done", body="All live.")
+    page = client.get("/").text
+    section = page.split('id="keep-in-touch"')[1].split("</table>")[0]
+    assert "Keep in touch (1)" in section and "180+ days" in section
+    assert 'href="/companies/acme/contacts/jane-roe"' in section
+    assert "200d" in section and "Rollout done" in section
+    assert page.index('id="keep-in-touch"') < page.index('id="going"')
+
+
+def test_home_keep_in_touch_is_absent_when_nobody_is_on_it(client):
+    post_company(client, name="Acme", stage="won")
+    assert 'id="keep-in-touch"' not in client.get("/").text
+
+
 def test_the_walkthrough_ticks_itself_from_the_data(client, app, repo):
     page = client.get("/welcome").text
     assert "of 12</strong> done" in page
@@ -604,8 +624,20 @@ def test_stage_dropdown_moves_company_and_redirects_to_board(client, repo):
     post_company(client, name="Acme GmbH")
     resp = client.post("/companies/acme/stage", data={"stage": "offer"})
     assert resp.status_code == 303
-    assert resp.headers["location"] == "/"
+    assert resp.headers["location"] == "/pipeline"   # not Home, which is "/" now
     assert last_commit(repo) == "company: acme stage prospect -> offer"
+
+
+def test_stage_dropdown_returns_to_the_filtered_board(client):
+    post_company(client, name="Acme GmbH")
+    form = client.get("/pipeline?country=DE").text.split('class="stage-form"')[1]
+    assert 'name="back" value="/pipeline?country=DE"' in form
+    resp = client.post("/companies/acme/stage",
+                       data={"stage": "offer", "back": "/pipeline?country=DE"})
+    assert resp.headers["location"] == "/pipeline?country=DE"
+    resp = client.post("/companies/acme/stage",
+                       data={"stage": "engaged", "back": "https://example.com/"})
+    assert resp.headers["location"] == "/pipeline"
 
 
 def test_unknown_company_is_404(client):
@@ -664,7 +696,7 @@ def test_acceptance_flow(client, app, repo):
 
     # 5. stage change from the board dropdown
     resp = client.post("/companies/mueller-soehne/stage", data={"stage": "discovery"})
-    assert resp.status_code == 303 and resp.headers["location"] == "/"
+    assert resp.status_code == 303 and resp.headers["location"] == "/pipeline"
     assert last_commit(repo) == "company: mueller-soehne stage engaged -> discovery"
     text = company_file(repo, "mueller-soehne").read_text(encoding="utf-8")
     assert "stage: discovery" in text and f"stage_changed: {TODAY}" in text

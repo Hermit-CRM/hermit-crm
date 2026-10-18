@@ -11,7 +11,7 @@ page for the screen you are on; `hermitcrm help <topic>` prints the same text.
 
 - **[Getting started](/welcome)**: twelve steps, each ticked when it has actually happened, and a tour that points at each part of the screen.
 - **[Make it yours](/help/adjust)**: describe a change and your own AI agent builds it in your data folder: fields, the look, dashboards, page layouts, routines, bulk changes. Every change can be undone in one click. The recipes your agent follows: [fields](/help/adjust-fields), [dashboards](/help/adjust-dashboards), [page layout](/help/adjust-layout), [bulk changes](/help/adjust-bulk), [deal stages](/help/adjust-stages), [routines](/help/adjust-routines), [messages](/help/adjust-messages), [the look](/help/adjust-look), [bringing data in](/help/adjust-connect), [something Hermit can't do yet](/help/adjust-feature).
-- **The home page** (`/`, the logo): Getting started, until every step is ticked or you click *Don't open this at startup*. After that: what is due in the next seven days, replies you owe and last month's numbers.
+- **The home page** (`/`, the logo): Getting started, until every step is ticked or you click *Don't open this at startup*. After that: what is due in the next seven days, replies you owe, people to keep in touch with and last month's numbers.
 - [Pipeline](/help/pipeline): the board, stages, filters and the closed lists.
 - [Calendar](/help/calendar): the month grid, meetings this week, silent accounts.
 - [Tasks](/help/tasks): every task in one list, with date buttons and filters.
@@ -23,7 +23,7 @@ page for the screen you are on; `hermitcrm help <topic>` prints the same text.
 - [Outreach bot](/help/outreach): a batch of researched, checked first messages for you to review, send and log (`hermitcrm outreach`).
 - [Reports](/help/reports): activity, funnel, outcomes, messages, sources, hygiene.
 - [Settings](/help/settings): you, BCC capture, calendar, backup, enrichment, outcomes, schedule, phone and MCP access, support, about.
-- [Import](/help/import): bulk import from CSV, TSV, .xlsx or a pasted table.
+- [Import and export](/help/import): bulk import from CSV, TSV, .xlsx or a pasted table; export everything as CSV or JSON.
 - [Extension](/help/extension): turn the page you are looking at into a company, from a bookmarklet.
 - [Enrich](/help/enrich): "Fetch from URL" (no AI) and Enrich (an AI CLI).
 - [Ask the Hermit](/help/ask): ask a question about the page you are on or the whole CRM.

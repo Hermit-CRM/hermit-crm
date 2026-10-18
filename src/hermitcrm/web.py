@@ -41,7 +41,8 @@ from typing import Callable
 from urllib.parse import parse_qsl as _parse_qsl, quote, urlencode, urlparse
 
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.responses import (HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse,
+                               Response, StreamingResponse)
 from fastapi.staticfiles import StaticFiles
 from markupsafe import Markup, escape
 from starlette.concurrency import run_in_threadpool
@@ -681,24 +682,24 @@ def contact_label(company: Company, slug: str) -> str:
     return contact.name if contact else slug
 
 
-def local_path(path: str) -> str:
-    """`path` when it stays on this site; "/" when it could send the browser away.
+def goto(path: str) -> RedirectResponse:
+    """Redirect to `path` when it stays on this site, to "/" when it could send
+    the browser away.
 
     Every redirect goes through here. Callers build their paths from slugs and
     ids, or take a `back` through safe_back, so this is the check that still
     holds when one of them forgets: a scheme, a host, `//host`, a backslash
     (browsers read it as `/`) or a control character (they drop tabs and
-    newlines, so a tab between two slashes is `//host`) makes it "/".
+    newlines, so a tab between two slashes is `//host`) sends it to "/".
     """
     if (path.startswith("/") and not path.startswith("//") and "\\" not in path
             and not any(ord(ch) < 32 for ch in path)
             and not urlparse(path).netloc and not urlparse(path).scheme):
-        return path
-    return "/"
-
-
-def goto(path: str) -> RedirectResponse:
-    return RedirectResponse(local_path(path), status_code=303)
+        # "/" is ours and `path[1:]` follows it, so the target is on this site by
+        # construction. The test above is the real guard; CodeQL does not read a
+        # urlparse or startswith check, but it does read a fixed prefix.
+        return RedirectResponse("/" + path[1:], status_code=303)
+    return RedirectResponse("/", status_code=303)
 
 
 def flashed(path: str, message: str, anchor: str = "") -> RedirectResponse:
@@ -895,6 +896,9 @@ def create_app(root: Path, config: dict | None = None,
         "nudge_after": int(config.get("followup_nudge_days",
                                       DEFAULT_CONFIG["followup_nudge_days"])),
     }
+    # Keep in touch on the home page; a dict so config_reloaded can update it.
+    keep_in_touch_days = {"after": int(config.get("keep_in_touch_days",
+                                                  DEFAULT_CONFIG["keep_in_touch_days"]))}
     outcomes = [str(o) for o in (config.get("outcomes") or DEFAULT_OUTCOMES)]
     configured_types = task_types.from_config(config.get("task_types"))
     # `clock` is what makes "today" injectable: every route asks the store for
@@ -1034,6 +1038,8 @@ def create_app(root: Path, config: dict | None = None,
                                            DEFAULT_CONFIG["followup_reply_days"])),
                 "nudge_after": int(cfg.get("followup_nudge_days",
                                            DEFAULT_CONFIG["followup_nudge_days"]))},
+            "keep_in_touch": {"after": int(cfg.get("keep_in_touch_days",
+                                                   DEFAULT_CONFIG["keep_in_touch_days"]))},
         }
 
     def config_reloaded() -> None:
@@ -1087,6 +1093,7 @@ def create_app(root: Path, config: dict | None = None,
         app.state.enricher = derived["enricher"]
         app.state.custom_fields = derived["custom_fields"]
         followup_days.update(derived["followups"])
+        keep_in_touch_days.update(derived["keep_in_touch"])
         cal_url_cache.clear()
         current_setup_state(refresh=True)
         watched[custom.FILENAME] = file_stamp(custom.FILENAME)
@@ -1652,6 +1659,8 @@ def create_app(root: Path, config: dict | None = None,
             "today": today,
             "due_soon": due_soon,
             "followups": followups.radar(store, today, **followup_days),
+            "keep_in_touch": followups.keep_in_touch(store, today, **keep_in_touch_days),
+            "keep_in_touch_days": keep_in_touch_days["after"],
             "totals": report["activity"]["totals"],
             "previous": report["activity"]["previous"],
             "funnel": report["funnel"],
@@ -1894,6 +1903,19 @@ def create_app(root: Path, config: dict | None = None,
         mapping = {h: str(form[f"map_{i}"]) for i, h in enumerate(headers)
                    if h and f"map_{i}" in form}
         return mapping or None
+
+    @app.get("/export.zip")
+    def export_zip(profile: str = "generic", excel: bool = False):
+        """Everything as a zip of CSVs, streamed. Reads only: no write, no commit."""
+        from hermitcrm import export
+        if profile not in export.PROFILES:
+            return PlainTextResponse(f"unknown profile {profile!r}", status_code=400)
+        name = export.default_name(store)
+        return StreamingResponse(
+            export.zip_chunks(store, app.state.custom_fields, profile, excel),
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{name}"',
+                     "Cache-Control": "no-store"})
 
     @app.post("/import/preview", response_class=HTMLResponse)
     async def import_preview(request: Request):
@@ -2631,7 +2653,8 @@ def create_app(root: Path, config: dict | None = None,
         return flashed(back, f"Merged {drop} into {cslug}")
 
     @app.post("/companies/{slug}/stage")
-    def company_stage(request: Request, slug: str, stage: str = Form("")):
+    def company_stage(request: Request, slug: str, stage: str = Form(""),
+                      back: str = Form("")):
         company = need_company(slug)
         if store.stages.requires_reason(stage) and company.stage != stage:
             # A lost stage needs a reason: send the user to the form instead.
@@ -2644,7 +2667,8 @@ def create_app(root: Path, config: dict | None = None,
             store.update_company(slug, stage=stage)
         except ValidationError as exc:
             return flashed(f"/companies/{slug}", "; ".join(exc.errors.values()))
-        return goto("/")
+        # Back to the board it was moved on, filters kept: "/" is Home now.
+        return goto(safe_back(back, "/pipeline"))
 
     # --------------------------------------------------------------- contacts
 
