@@ -102,3 +102,26 @@
 </table></div>
 </div>
 {% endmacro %}
+
+{# Learning blocks (web.py learning_blocks fills report.learning; the numbers link to their rows). #}
+{% macro section_style(report, q) %}{% set l = report.learning %}
+{% if l.style %}
+<table class="report" style="max-width: 700px">
+  <tr><th>what you keep changing in drafts</th><th class="num">drafts</th><th class="num">of the last</th></tr>
+  {% for p in l.style %}<tr><td>{{ p.text }}</td><td class="num">{{ n(p.hits, p.key, q) }}</td><td class="num">{{ p.of }}</td></tr>{% endfor %}
+</table>
+{% else %}<p class="small empty">{{ l.reviewed }} reviewed draft{{ '' if l.reviewed == 1 else 's' }}, no repeated edit yet. A pattern needs 5 of the last 10 drafts over 3 contacts.</p>{% endif %}
+<p class="small"><a href="/learning">Learning</a>: lessons, proposals and suggestions.</p>
+{% endmacro %}
+
+{% macro section_quality(report, q) %}{% set l = report.learning %}
+{% for block in l.quality %}
+<table class="report" style="max-width: 700px">
+  <tr><th>{{ block.dimension }}</th><th class="num">sent</th><th class="num">replied</th><th class="num">positive</th><th class="num">deal</th><th class="num">won</th></tr>
+  {% for c in block.cells %}{% set r = c.row %}<tr><td>{{ r.value }}</td><td class="num">{{ n(r.n, c.key, q) }}</td>
+    {% if r.too_few %}<td class="num quiet" colspan="4">too few (under {{ l.too_few }})</td>
+    {% else %}{% for rung in ['replied', 'positive', 'deal', 'won'] %}<td class="num" title="{{ r.counts[rung] }} of {{ r.n }}">{{ pct(r.rates[rung]) }}</td>{% endfor %}{% endif %}</tr>{% endfor %}
+</table>
+{% else %}<p class="small empty">Nothing sent through the outreach bot yet.</p>{% endfor %}
+{% if l.quality %}<p class="small">Rates are pulled toward the folder average, so one lucky send does not win. With under {{ l.too_few }} sends a rate is not shown. <a href="/learning">Learning</a></p>{% endif %}
+{% endmacro %}
