@@ -193,6 +193,7 @@
     {% if card.followed.texts %}<ul>{% for t in card.followed.texts %}<li>{{ t }}</li>{% endfor %}</ul>{% endif %}
     {% if card.followed.texts | length < card.followed.count %}<p class="quiet">{{ card.followed.count - card.followed.texts | length }} since retired or reworded.</p>{% endif %}
     <p class="quiet">These lessons were in the prompt for this draft. <a href="/learning?approach={{ i.approach | urlencode }}">Learning</a></p></details>{% endif %}
+  {% if card.modeled %}<p class="small outreach-modeled">Modeled on: {% for m in card.modeled %}<a href="{{ m.url }}">{{ m.label }}</a>{% if not loop.last %}, {% endif %}{% endfor %}. <a href="/learning?approach={{ i.approach | urlencode }}#examples">Learning</a></p>{% endif %}
   {% if i.flags %}<ul class="outreach-flags small">{% for f in i.flags %}<li>{{ f }}</li>{% endfor %}</ul>{% endif %}
   {% for key, value in card.proposals %}
   <form method="post" action="/outreach/{{ i.id }}/proposal" class="outreach-proposal small">
