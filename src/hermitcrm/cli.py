@@ -1640,6 +1640,9 @@ def _build_parser() -> argparse.ArgumentParser:
     o_sub.add_parser("send-now", help="send one approved email now: no window or gap, but "
                      "the same guards, and it counts toward today's cap").add_argument("id")
     o_sub.add_parser("retry", help="a failed item back to ready").add_argument("id")
+    o_sub.add_parser("opt-out", help="they asked not to be written to: the address goes on "
+                     "the suppression list and their open items are skipped (company/contact)"
+                     ).add_argument("record", metavar="company/contact")
     o_sub.add_parser("front", help="make a queued item the next to go out"
                      ).add_argument("id")
     p_out.set_defaults(action="list", state="")
@@ -1853,7 +1856,7 @@ def cmd_send(store: Store | None, root: Path, config: dict, args) -> tuple[str, 
 
 def cmd_outreach_send(store: Store, root: Path, config: dict, args) -> tuple[str, int]:
     """`hermitcrm outreach schedule|unschedule|send-now|retry|front`."""
-    from hermitcrm import outreach, send, sendqueue
+    from hermitcrm import outreach, send, sendqueue, suppress
 
     action = args.action
     try:
@@ -1878,8 +1881,11 @@ def cmd_outreach_send(store: Store, root: Path, config: dict, args) -> tuple[str
         if action == "front":
             item = sendqueue.move_to_front(store, args.id)
             return (f"{item.id} goes out next: {item.send_at:%a %d %b %H:%M}.", 0)
+        if action == "opt-out":
+            company, _, contact = args.record.partition("/")
+            return (sendqueue.opt_out(store, company, contact), 0)
         out = send.send_now(store, args.id)
-    except (outreach.OutreachError, send.SendError) as exc:
+    except (outreach.OutreachError, send.SendError, suppress.SuppressError) as exc:
         return (str(exc), 1)
     text = f"{out.kind}: {out.item.id}" + (f" ({out.detail})" if out.detail else "")
     text += "".join(f"\nWarning: {w}" for w in out.warnings)
@@ -2321,9 +2327,9 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
     if args.command == "outreach":
         config = load_config(root)
         if args.action in ("build", "ready", "sent", "skip", "schedule", "unschedule",
-                           "send-now", "retry", "front"):
+                           "send-now", "retry", "front", "opt-out"):
             store.on_write = _writer(store, root, config)
-        if args.action in ("schedule", "unschedule", "send-now", "retry", "front"):
+        if args.action in ("schedule", "unschedule", "send-now", "retry", "front", "opt-out"):
             text, code = cmd_outreach_send(store, root, config, args)
             print(text, file=sys.stderr if code else sys.stdout)
             return code

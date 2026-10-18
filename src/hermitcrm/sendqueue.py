@@ -42,6 +42,9 @@ from .store import Store, load_config
 
 MAX_PER_TICK = 1
 GIT_WAIT_SECONDS = 5.0
+SCAN_EVERY_MINUTES = 30       # the delivery-report scan runs at most this often
+SCAN_FIRST_DAYS = 14          # how far back the very first scan looks
+SENT_RECENTLY_DAYS = 3        # no scan when nothing was sent for this long and nothing is queued
 
 
 # --------------------------------------------------------------- store, git
@@ -349,6 +352,129 @@ def strip_line(info: dict) -> str:
             f"{info['queued']} queued{nxt} · {info['days']} {info['window']}")
 
 
+# ------------------------------------------------- bounces and opt-outs (M3)
+
+
+def _when(item) -> datetime:
+    return item.sent or item.queued or item.ready or datetime.min
+
+
+def bounce_counts(root: Path | str) -> tuple[int, int]:
+    """(sends, bounces) over the last BOUNCE_WINDOW mails the app sent: a bounce is a
+    sent (or refused) mail whose address went on the list as bounced."""
+    mine = [i for i in outreach.items(root) if i.message_id and i.state in ("sent", "failed")]
+    last = sorted(mine, key=_when, reverse=True)[:suppress.BOUNCE_WINDOW]
+    try:
+        bounced = {e.item for e in suppress.load(root) if e.reason == "bounced" and e.item}
+    except suppress.SuppressError:
+        bounced = set()
+    return len(last), sum(1 for i in last if i.id in bounced)
+
+
+def _owner_of(store: Store, address: str):
+    """(company slug, contact slug) of whoever has this address, or None."""
+    for company in store.companies.values():
+        for contact in company.contacts.values():
+            if send.normalise_email(contact.email) == address:
+                return company.slug, contact.slug
+    return None
+
+
+def apply_bounce(store: Store, bounce: suppress.Bounce, now: datetime) -> str:
+    """One hard bounce: the address on the suppression list, a note on the contact's
+    timeline, the item flagged, in one commit. '' when the address was already on
+    the list (a report read twice changes nothing)."""
+    if suppress.is_suppressed(store.root, bounce.address):
+        return ""
+    every = outreach.items(store.root)
+    item = next((i for i in every if bounce.message_id and i.message_id == bounce.message_id),
+                None)
+    owner = (item.company, item.contact) if item is not None else _owner_of(store, bounce.address)
+    if item is None and owner is not None:
+        mine = [i for i in every if (i.company, i.contact) == owner and i.message_id]
+        item = max(mine, key=_when, default=None)
+    why = f"{bounce.status} {bounce.reason}".strip()
+    message = f"outreach: {bounce.address} bounced ({bounce.status})"
+    with store.batch(message):
+        suppress.add(store.root, bounce.address, "bounced", now.strftime("%Y-%m-%d"),
+                     item.id if item is not None else "")
+        paths = [suppress.FILE]
+        if item is not None:
+            item.send_note = f"bounced: {why}"[:300]
+            outreach.write_item(store.root, item)
+            paths.append(item.path)
+        store.notify(message, paths)
+        if owner is not None:
+            store.create_interaction(
+                owner[0], "note", "", contact=owner[1], date=now, source="outreach",
+                body=f"The email to {bounce.address} bounced ({why}). The address is on the "
+                     "suppression list: nothing more is sent to it.\n")
+    return f"{bounce.address} bounced ({why})"
+
+
+def scan_bounces(store: Store, settings: send.SendSettings, state: send.SendState,
+                 now: datetime, imap_factory=None, password: str | None = None) -> list[str]:
+    """Read the delivery reports that came in since the last scan, suppress what bounced
+    and pause sending when too many did. Raises send.SendError when the mailbox cannot
+    be read; the scan time moves only after a scan that worked."""
+    since = (datetime.strptime(state.bounce_scan, "%Y-%m-%dT%H:%M") - timedelta(days=1)
+             if state.bounce_scan else now - timedelta(days=SCAN_FIRST_DAYS)).date()
+    pw = password or send.get_password(settings, store.root)
+    with send.Mailbox(settings, pw, imap_factory) as box:
+        raws = box.reports_since(since)
+    lines = []
+    for raw in raws:
+        for bounce in suppress.parse_dsn(raw):
+            done = apply_bounce(store, bounce, now)
+            if done:
+                lines.append(done)
+    state.mark_scan(now)
+    sends, bounced = bounce_counts(store.root)
+    if suppress.bounce_pause(sends, bounced):
+        text = (f"{bounced} of the last {sends} emails bounced (more than {suppress.BOUNCE_MAX}, "
+                f"or over {suppress.BOUNCE_RATE:.0%}). That is a list-quality problem: check "
+                "where the addresses came from")
+        state.pause("bounces", text, now)
+        lines.append("paused: " + text)
+    return lines
+
+
+def opt_out(store: Store, company: str, contact: str, now: datetime | None = None) -> str:
+    """They asked not to be written to: the address on the suppression list, every open
+    outreach item for them skipped, a note on the timeline; one commit. The planner never
+    schedules a suppressed address and the worker never sends to one."""
+    now = now or store.now()
+    found = store.get(company)
+    person = found.contacts.get(contact) if found is not None else None
+    if person is None:
+        raise outreach.OutreachError(f"no contact {company}/{contact}")
+    address = send.normalise_email(person.email)
+    if not send.valid_email(address):
+        raise outreach.OutreachError(f"{person.name} has no email address to put on the list")
+    open_items = [i for i in outreach.items(store.root)
+                  if i.company == company and i.contact == contact and i.is_open]
+    message = f"outreach: {person.name} opted out"
+    with store.batch(message):
+        suppress.add(store.root, address, "opted-out", now.strftime("%Y-%m-%d"))
+        paths = [suppress.FILE]
+        for item in open_items:
+            item.state, item.skip_reason, item.skipped = "skipped", "other", now
+            item.skip_note = "opted out"
+            item.queued = item.send_at = None
+            outreach.write_item(store.root, item)
+            paths.append(item.path)
+        store.notify(message, paths)
+        store.create_interaction(
+            company, "note", "", contact=contact, date=now, source="outreach",
+            body=f"{person.name} opted out. {address} is on the suppression list"
+                 + (f" and {len(open_items)} open outreach item"
+                    f"{'s' if len(open_items) != 1 else ''} skipped" if open_items else "")
+                 + ": nothing more is written to them.\n")
+    return (f"{person.name} opted out: {address} is on the suppression list"
+            + (f", {len(open_items)} open item{'s' if len(open_items) != 1 else ''} skipped"
+               if open_items else "") + ".")
+
+
 # ------------------------------------------------------------------ worker
 
 
@@ -371,10 +497,11 @@ def due(root: Path | str, *, now: datetime | None = None, dry_run: bool = False,
     if settings.missing:
         return [settings.missing]
     queue = queued_items(root)
-    if not queue:
-        return ["nothing queued"]
     soon = [i for i in queue if i.send_at is None or i.send_at <= now]
-    if not soon:
+    scan = _scan_due(root, settings, state, queue, now)
+    if not soon and not scan:
+        if not queue:
+            return ["nothing queued"]
         return [f"nothing due; next at {queue[0].send_at:%a %d %b %H:%M} ({len(queue)} queued)"]
     try:
         with send.SendLock(root):
@@ -383,14 +510,55 @@ def due(root: Path | str, *, now: datetime | None = None, dry_run: bool = False,
             if owned:
                 store, pusher = open_store(root, config)
             try:
-                lines = _tick(store, settings, config, state, now, dry_run, smtp_factory,
-                              imap_factory, password)
+                lines = []
+                if scan:
+                    lines += (["would read the sending mailbox for delivery reports"]
+                              if dry_run else _scan(store, settings, state, now, imap_factory,
+                                                    password))
+                    if not dry_run and state.is_paused(now):
+                        return lines + [f"paused ({state.kind}): {state.message}"]
+                if soon:
+                    lines += _tick(store, settings, config, state, now, dry_run, smtp_factory,
+                                   imap_factory, password)
+                elif not queue:
+                    lines.append("nothing queued")
             finally:
                 if owned and pusher is not None:
                     pusher.push()
             return lines
     except send.SendBusy:
         return ["another send is running; this tick does nothing"]
+
+
+def _scan_due(root: Path, settings: send.SendSettings, state: send.SendState, queue: list,
+              now: datetime) -> bool:
+    """Is it time to read the delivery reports? Not more often than every half hour, and
+    only while something is queued or went out in the last few days."""
+    if not settings.imap_host:
+        return False
+    if state.bounce_scan:
+        try:
+            last = datetime.strptime(state.bounce_scan, "%Y-%m-%dT%H:%M")
+        except ValueError:
+            last = datetime.min
+        if now - last < timedelta(minutes=SCAN_EVERY_MINUTES):
+            return False
+    if queue:
+        return True
+    cutoff = now - timedelta(days=SENT_RECENTLY_DAYS)
+    return any(i.state == "sent" and i.message_id and i.sent and i.sent >= cutoff
+               for i in outreach.items(root))
+
+
+def _scan(store: Store, settings: send.SendSettings, state: send.SendState, now: datetime,
+          imap_factory, password) -> list[str]:
+    try:
+        return scan_bounces(store, settings, state, now, imap_factory, password)
+    except send.SendError as err:
+        if err.kind in (send.AUTH, send.REFUSED):
+            state.pause(err.kind, err.text, now)
+            return [f"paused: {err.text}"]
+        return [f"could not read delivery reports ({err.text}); trying again next time"]
 
 
 def _tick(store: Store, settings: send.SendSettings, config: dict, state: send.SendState,

@@ -20,7 +20,7 @@
 
 <section class="send-strip" aria-label="Sending" id="send-strip">
 {% if send_on %}
-  <p class="send-line">
+  <div class="send-line">
     <strong>Email:</strong>
     {% if send.paused %}<span class="tag warn">paused</span> {{ send.paused_by }}{% else %}on{% endif %}
     &middot; {{ send.sent_today }}/{{ send.cap }} today &middot; {{ send.queued }} queued{% if send.next and not send.paused %} &middot; next {{ send.next.strftime('%a %H:%M') }}{% endif %}
@@ -29,7 +29,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit"{% if not send.paused %} class="secondary" title="The kill switch: nothing goes out from the next tick"{% endif %}>{{ 'Resume' if send.paused else 'Pause' }}</button>
     </form>
-  </p>
+  </div>
   {% if send.missing %}<p class="warning-box">Sending cannot start: {{ send.missing }} <a href="/settings#send">Settings &gt; Sending</a></p>{% endif %}
   {% if send.overdue %}<p class="small warning">{{ send.overdue }} queued {{ 'email is' if send.overdue == 1 else 'emails are' }} overdue. The Mac may have been asleep: the next tick plans them again, one at a time, without a burst.</p>{% endif %}
 {% else %}
@@ -107,6 +107,13 @@
           <input type="hidden" name="back" value="/outreach?tab=replies">
           <select name="channel" aria-label="Reply channel">{% for c in channels %}<option value="{{ c }}"{% if c == it.channel %} selected{% endif %}>{{ c }}</option>{% endfor %}</select>
           <button type="submit"{% if gate or ai_problem %} disabled{% endif %}>Draft a reply</button>
+        </form>
+      {% endif %}
+      {% if r.contact.email %}
+        <form method="post" action="/companies/{{ r.company.slug }}/contacts/{{ r.contact.slug }}/opt-out" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="back" value="/outreach?tab=replies">
+          <button type="submit" class="secondary" title="They asked not to be written to: {{ r.contact.email }} goes on the suppression list and their open outreach items are skipped" onclick="return confirm({{ ('Put ' ~ r.contact.email ~ ' on the suppression list? Nothing more is sent to it.') | tojson | forceescape }})">Opted out</button>
         </form>
       {% endif %}
       {% if not r.logged and (r.verdict != 'interested' or r.by != 'you') %}

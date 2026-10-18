@@ -76,7 +76,14 @@ def many_ready(root, store, n, **kw):
     return ids
 
 
-def tick(root, store, now, smtp, imap, **kw):
+def scanned(root, now):
+    """Say the delivery reports were read just now, so a tick is only about sending."""
+    send.SendState.load(root).mark_scan(now)
+
+
+def tick(root, store, now, smtp, imap, scan=False, **kw):
+    if not scan:
+        scanned(root, now)
     return sendqueue.due(root, now=now, store=store, smtp_factory=smtp.factory,
                          imap_factory=imap.factory, **kw)
 
@@ -288,6 +295,7 @@ def test_a_quiet_tick_does_not_open_the_store(folder, monkeypatch):
     sendqueue.schedule(store, ids, settings, MON)
     monkeypatch.setattr(sendqueue, "open_store",
                         lambda *a, **k: (_ for _ in ()).throw(AssertionError("opened")))
+    scanned(root, MON)
     assert sendqueue.due(root, now=MON)[0].startswith("nothing due")
 
 
