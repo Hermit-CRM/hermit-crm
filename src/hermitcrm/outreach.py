@@ -742,7 +742,8 @@ def check_text(subject: str, body: str, pitch: str, ctx: CheckContext) -> list[s
                         "not for a meeting")
     if ctx.channel == "email":
         limit = int(rules.get("subject_max", 60))
-        if len(subject or "") > limit:
+        # In a thread the subject is theirs ("Re: ..."), however long it is.
+        if len(subject or "") > limit and not thread:
             problems.append(f"the subject is {len(subject)} characters; at most {limit}")
         if not (subject or "").strip():
             problems.append("an email needs a subject")

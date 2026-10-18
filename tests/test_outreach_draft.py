@@ -124,6 +124,27 @@ def test_a_proposed_time_slot_is_refused(slot):
     assert any(p.startswith("it proposes a time") for p in problems(answer(body)))
 
 
+@pytest.mark.parametrize("kind", [outreach.REPLY, outreach.FOLLOW_UP])
+def test_a_reply_or_follow_up_keeps_their_subject_however_long(kind):
+    # The thread's subject is theirs ("Re: ..."), so the 60 character limit is a
+    # first touch's rule only; the prompt tells the AI the same.
+    thread = ctx(kind=kind)
+    long_re = "Re: " + "x" * 80
+
+    def subject_problems(text_ctx, subject):
+        found = outreach.check_text(subject, "Thanks. We build your first sales team. Where?",
+                                    "", text_ctx)
+        return [p for p in found if p.startswith("the subject is")]
+
+    assert subject_problems(thread, long_re) == []
+    # still refused where the subject is ours to write
+    assert subject_problems(ctx(), long_re) == [
+        "the subject is 84 characters; at most 60"]
+    # and a missing subject is still caught on a reply
+    assert "an email needs a subject" in outreach.check_text(
+        "", "Thanks. We build your first sales team. Where?", "", thread)
+
+
 def test_length_rules_per_channel():
     long_subject = "x" * 61
     assert "the subject is 61 characters; at most 60" in problems(answer(subject=long_subject))
