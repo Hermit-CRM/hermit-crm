@@ -28,8 +28,11 @@ you turn them on, and neither one writes anything you did not approve.
    sending**. One app password covers sending and the reply check. (An empty IMAP server switches the
    reply check, the Sent check and the bounce scan off: then a send that stopped halfway cannot be
    looked up in Sent, so use it only if your provider has no IMAP.)
-4. **An opt-out line** per language in your playbook (`opt_out:` in
-   `MESSAGING.md`). A cold first touch needs one to be scheduled.
+4. **An opt-out line** (optional). If your playbook sets `opt_out:` in
+   `MESSAGING.md`, one sentence or one per language, a cold first touch carries
+   it and a scheduled one is held when it was edited out. Without it nothing is
+   added and nothing is checked. The **Opted out** button and the suppression
+   list work either way.
 5. **Energy settings.** The Mac must not sleep on power during the window:
    launchd runs nothing while it sleeps. `hermitcrm doctor` reads the setting
    and warns; it never changes it.
@@ -56,7 +59,8 @@ Before each send it checks again:
 - **nobody there has written to you** since you approved it: in the CRM, and in
   the sending mailbox itself (one IMAP search, only when an item is about to go
   out). If they did, it goes back to Ready with "they wrote to you on 16 Oct";
-- the checks still pass, and a cold first touch carries the opt-out line.
+- the checks still pass, and, when your playbook has an opt-out line, a cold
+  first touch still carries it.
 
 Nothing is dropped silently: whatever holds an item puts it back on the Ready
 tab with the reason.
@@ -68,8 +72,8 @@ How many a day, and when:
 | Setting | Default | Meaning |
 |---|---|---|
 | `send_window`, `send_days` | `08:30-17:30`, Mon-Fri | when mail may go out, in your time zone |
-| `send_daily_cap` | 100 | the most per day, after the ramp |
-| `send_ramp` | `[20, 40, 60, 80]` | the cap for weeks 1, 2, 3... counted from the first send |
+| `send_daily_cap` | 50 | the most per day, after the ramp |
+| `send_ramp` | `[10, 20, 30, 40]` | the cap for weeks 1, 2, 3... counted from the first send |
 | `send_min_gap_minutes` | 3 | the least time between two sends |
 | `send_company_gap_hours` | 24 | two contacts at one company (or one email domain) go out a day apart |
 | `send_grace_minutes` | 10 | the earliest slot after Schedule, so a mistake can be undone |
@@ -78,14 +82,15 @@ How many a day, and when:
 
 The gap between two sends is the window divided by the day's cap, times a factor
 between 0.6 and 1.4 that depends only on the item (so the page and the worker
-agree), never below the minimum gap: at 100 a day about 5 minutes, at 50 about
-11. Follow-ups and replies to interest go first, then first touches in the order
+agree), never below the minimum gap: at 50 a day about 11 minutes, at 10 about
+54. Follow-ups and replies to interest go first, then first touches in the order
 they were queued. An item keeps the time the page showed unless it is overdue.
 A Mac that slept for two hours plans what is overdue again and sends one at a
 time; it never catches up in a burst.
 
-**How much is too much.** About 100 a day is the plan, from a mailbox that has
-had the ramp. More than 150 a day for more than one or two days in a row is
+**How much is too much.** 50 a day is the plan, reached from 10 a day in the
+first week, 20 in the second, 30 and 40 after that. Raise `send_daily_cap` (and
+the ramp) in steps, only while replies hold up and bounces stay low. More than 150 a day for more than one or two days in a row is
 strongly discouraged (a mailbox that does it ends up in spam), so after two
 send-days above 150 the third is held at 150 whatever the setting says.
 Settings says the same next to the box. Reputation, not the provider's limit

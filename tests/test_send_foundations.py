@@ -151,7 +151,7 @@ def test_send_password_is_a_known_secret(monkeypatch, tmp_path):
 def test_the_send_config_keys_have_the_decided_defaults():
     c = DEFAULT_CONFIG
     assert c["send_enabled"] is False and c["send_paused"] is False
-    assert c["send_daily_cap"] == 100 and c["send_ramp"] == [20, 40, 60, 80]
+    assert c["send_daily_cap"] == 50 and c["send_ramp"] == [10, 20, 30, 40]
     assert c["send_window"] == "08:30-17:30"
     assert c["send_days"] == ["mon", "tue", "wed", "thu", "fri"]
     assert c["send_min_gap_minutes"] == 3 and c["send_company_gap_hours"] == 24

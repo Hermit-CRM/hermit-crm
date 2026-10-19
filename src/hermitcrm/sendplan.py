@@ -89,8 +89,8 @@ def parse_days(names) -> tuple[int, ...]:
 class PlanConfig:
     days: tuple[int, ...] = (0, 1, 2, 3, 4)
     window: tuple[int, int] = (8 * 60 + 30, 17 * 60 + 30)
-    ramp: tuple[int, ...] = (20, 40, 60, 80)
-    daily_cap: int = 100
+    ramp: tuple[int, ...] = (10, 20, 30, 40)
+    daily_cap: int = 50
     min_gap: int = 3
     company_gap_hours: int = 24
     grace: int = 10
@@ -279,7 +279,7 @@ def _first_fit(slot, start, horizon, cfg, first, counts, by_day, taken, window_s
         times = sorted(by_day.get(day, []))
         before = max((x for x in times if x <= t), default=_at(day, window_start))
         # Whole minutes, to the nearest: rounding up would stretch every gap by half
-        # a minute and a 100-a-day plan would not fit its window. A gap never takes more
+        # a minute and a full day at the cap would not fit its window. A gap never takes more
         # than its share of the room that is left, so a day fills its cap whenever the
         # window has the minutes for it (the jitter only moves where the mail falls).
         open_slots = max(cap - counts.get(day, 0), 1)

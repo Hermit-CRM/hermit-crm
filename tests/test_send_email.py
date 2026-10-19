@@ -81,9 +81,9 @@ def test_settings_default_to_the_plan_and_read_the_config():
     assert (s.enabled, s.paused) == (False, False)
     assert s.from_addr == "sam@example.com" and s.smtp_user == "sam@example.com"
     assert s.smtp_host == "smtp.gmail.com" and s.smtp_port == 587
-    assert s.imap_host == "imap.gmail.com" and s.daily_cap == 100
+    assert s.imap_host == "imap.gmail.com" and s.daily_cap == 50
     assert s.window == (8 * 60 + 30, 17 * 60 + 30) and s.days == (0, 1, 2, 3, 4)
-    assert s.ramp == (20, 40, 60, 80) and s.block_countries == ()
+    assert s.ramp == (10, 20, 30, 40) and s.block_countries == ()
     assert s.domain == "example.com" and not s.problems
     c = {"send_from": "cold@mail.example.net", "send_smtp_user": "login@mail.example.net",
          "send_window": "09:00-12:00", "send_days": ["mon", "tue"], "send_daily_cap": 40,
@@ -99,7 +99,7 @@ def test_unreadable_settings_fall_back_and_are_listed():
     s = send.settings_from_config({"send_window": "late", "send_days": ["funday"],
                                    "send_daily_cap": "lots", "send_ramp": ["x"],
                                    "send_smtp_port": 0})
-    assert s.window == (510, 1050) and s.days == (0, 1, 2, 3, 4) and s.daily_cap == 100
+    assert s.window == (510, 1050) and s.days == (0, 1, 2, 3, 4) and s.daily_cap == 50
     assert s.smtp_port == 587
     assert len(s.problems) == 5 and any("send_window" in p for p in s.problems)
 
@@ -114,9 +114,11 @@ def test_settings_say_what_is_missing():
     assert ok.missing == ""
 
 
-def test_the_cap_warning_is_silent_to_100_and_loud_past_150():
-    assert send.cap_warning(100) == "" and send.cap_warning(50) == ""
-    assert "above the plan" in send.cap_warning(120)
+def test_the_cap_warning_is_silent_to_50_and_loud_past_150():
+    assert send.cap_warning(50) == "" and send.cap_warning(10) == ""
+    assert "above the plan of 50" in send.cap_warning(51)
+    assert "above the plan of 50" in send.cap_warning(100)
+    assert "third" not in send.cap_warning(150)
     loud = send.cap_warning(200)
     assert "150" in loud and "third" in loud
 
@@ -473,6 +475,44 @@ def test_send_now_warns_but_allows_a_first_touch_without_the_opt_out_line(folder
     assert out.warnings and "opt-out line" in out.warnings[0]
 
 
+def drop_opt_out(root):
+    """A playbook without an `opt_out` line, as a folder that never set one."""
+    path = root / "MESSAGING.md"
+    text = path.read_text(encoding="utf-8")
+    assert f"opt_out: {OPT_OUT}\n" in text
+    path.write_text(text.replace(f"opt_out: {OPT_OUT}\n", "", 1), encoding="utf-8")
+
+
+def test_the_opt_out_line_is_optional_so_a_playbook_without_one_blocks_nothing(folder):
+    root, store, settings = folder
+    drop_opt_out(root)
+    item = ready_item(root, store, body=ready_item(root, store).body.replace(OPT_OUT, ""))
+    assert OPT_OUT not in item.body
+    assert send.opt_out_problem(store, outreach.get_item(root, item.id)) == ""
+    out, smtp, _ = deliver(store, settings, item.id, scheduled=False)
+    assert out.kind == "sent" and len(smtp.sent) == 1 and not out.warnings
+    assert OPT_OUT not in smtp.sent[0].get_content()
+
+
+def test_a_scheduled_first_touch_goes_out_when_the_playbook_has_no_opt_out_line(folder):
+    root, store, settings = folder
+    drop_opt_out(root)
+    item = ready_item(root, store, body=ready_item(root, store).body.replace(OPT_OUT, ""))
+    it = outreach.get_item(root, item.id)
+    it.state, it.queued, it.send_at = "queued", NOW, NOW
+    it.send_hash = send.text_hash(it.subject, it.body)
+    outreach.write_item(root, it)
+    out, smtp, _ = deliver(store, settings, item.id, scheduled=True)
+    assert out.kind == "sent", out.detail
+    assert len(smtp.sent) == 1
+
+
+def test_a_line_the_playbook_has_still_has_to_be_in_the_text_when_scheduled(folder):
+    root, store, _ = folder
+    plain = ready_item(root, store, body=ready_item(root, store).body.replace(OPT_OUT, ""))
+    assert "missing from the text" in send.opt_out_problem(store, plain)
+
+
 def test_the_opt_out_rule_applies_to_a_cold_first_touch_only(folder):
     root, store, _ = folder
     plain = ready_item(root, store, body=ready_item(root, store).body.replace(OPT_OUT, ""))
@@ -774,7 +814,7 @@ def test_only_mail_the_app_sent_counts_toward_the_cap(folder):
                              body="x\n", source="outreach", date=NOW - timedelta(hours=1))
     history = send.sent_history(store)
     assert len(history) == 1 and history[0].domain == "lindenhof-data.example.com"
-    assert send.cap_status(store, settings, NOW) == (1, 20)       # week 1 of the ramp
+    assert send.cap_status(store, settings, NOW) == (1, 10)       # week 1 of the ramp
     assert send.next_window_start(NOW, settings) == datetime(2026, 10, 19, 8, 30)
     assert sendplan.SOFT_CEILING == 150 and valid_email("a@b.example")
 

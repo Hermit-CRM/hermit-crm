@@ -74,19 +74,21 @@ def test_jitter_is_seeded_by_the_item_id_and_stays_between_0_6_and_1_4():
 def test_the_ramp_counts_weeks_from_the_first_send_then_the_daily_cap():
     first = date(2026, 10, 5)
     cap = lambda d: sendplan.day_cap(d, first, {}, CFG)          # noqa: E731
-    assert cap(date(2026, 10, 5)) == 20
-    assert cap(date(2026, 10, 11)) == 20
-    assert cap(date(2026, 10, 12)) == 40
-    assert cap(date(2026, 10, 19)) == 60
-    assert cap(date(2026, 10, 26)) == 80
-    assert cap(date(2026, 11, 2)) == 100
-    assert sendplan.day_cap(date(2026, 10, 19), None, {}, CFG) == 20      # no send yet: week 1
+    assert cap(date(2026, 10, 5)) == 10
+    assert cap(date(2026, 10, 11)) == 10
+    assert cap(date(2026, 10, 12)) == 20
+    assert cap(date(2026, 10, 19)) == 30
+    assert cap(date(2026, 10, 26)) == 40
+    assert cap(date(2026, 11, 2)) == 50
+    assert cap(date(2027, 3, 1)) == 50                                    # and it stays there
+    assert sendplan.day_cap(date(2026, 10, 19), None, {}, CFG) == 10      # no send yet: week 1
 
 
 def test_a_lower_daily_cap_wins_over_the_ramp():
-    cfg = PlanConfig(daily_cap=30)
-    assert sendplan.day_cap(date(2026, 10, 26), date(2026, 10, 5), {}, cfg) == 30
-    assert sendplan.day_cap(date(2026, 10, 12), date(2026, 10, 5), {}, cfg) == 30
+    cfg = PlanConfig(daily_cap=15)
+    assert sendplan.day_cap(date(2026, 10, 5), date(2026, 10, 5), {}, cfg) == 10      # the ramp is lower
+    assert sendplan.day_cap(date(2026, 10, 12), date(2026, 10, 5), {}, cfg) == 15
+    assert sendplan.day_cap(date(2026, 10, 26), date(2026, 10, 5), {}, cfg) == 15
 
 
 def test_a_third_day_in_a_row_over_150_is_held_at_150():
@@ -122,9 +124,9 @@ def test_a_plan_stays_inside_the_window_and_the_grace_and_keeps_the_gap():
 
 
 def test_the_first_week_cap_spills_the_rest_to_the_next_working_day():
-    plan = sendplan.plan(slots(25), [], MON, CFG)       # week 1: 20 a day
+    plan = sendplan.plan(slots(15), [], MON, CFG)       # week 1: 10 a day
     days = per_day(plan)
-    assert days[date(2026, 10, 19)] == 20 and days[date(2026, 10, 20)] == 5
+    assert days[date(2026, 10, 19)] == 10 and days[date(2026, 10, 20)] == 5
     assert min(t for t in plan.values() if t.date() == date(2026, 10, 20)).time() \
         >= datetime(2026, 10, 20, 8, 30).time()
 

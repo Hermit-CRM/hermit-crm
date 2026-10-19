@@ -3207,6 +3207,9 @@ def create_app(root: Path, config: dict | None = None,
             "send_providers": send.PROVIDERS,
             "send_weekdays": sendplan.WEEKDAYS,
             "send_status": send_strip(bool(config.get("send_enabled"))),
+            "send_password_stored": send.password_stored(
+                send.settings_from_config(config), root,
+                runner=app.state.setup_runner, platform=app.state.setup_platform),
             "send_cap_note": send.cap_warning(
                 send.settings_from_config(config).daily_cap),
             "send_problems": list(send.settings_from_config(config).problems),
