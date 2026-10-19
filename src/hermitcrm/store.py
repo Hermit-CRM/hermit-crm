@@ -174,6 +174,33 @@ DEFAULT_CONFIG = {
     # Where the Feedback form (Help -> Feedback) offers to mail a report. Empty
     # means the form only writes the file and shows the text to copy.
     "feedback_email": "",
+    # Sending approved outreach email from the app (hermitcrm/send.py, spec part
+    # 08). Off until you turn it on in Settings > Sending. The app password is a
+    # secret (hermitcrm/secrets.py: send_password), never this file.
+    "send_enabled": False,
+    "send_paused": False,
+    "send_from": "",
+    "send_smtp_host": "smtp.gmail.com",
+    "send_smtp_port": 587,
+    "send_smtp_user": "",
+    "send_imap_host": "imap.gmail.com",
+    "send_keychain_service": "hermitcrm-send",
+    "send_window": "08:30-17:30",
+    "send_days": ["mon", "tue", "wed", "thu", "fri"],
+    "send_ramp": [10, 20, 30, 40],
+    "send_daily_cap": 50,
+    "send_min_gap_minutes": 3,
+    "send_company_gap_hours": 24,
+    "send_grace_minutes": 10,
+    "send_overdue_minutes": 20,
+    "send_email_block_countries": [],
+    # The LinkedIn session (hermitcrm/linkedin.py): you click Send, Hermit paces it.
+    "linkedin_invites_per_day": 20,
+    "linkedin_invites_per_week": 80,
+    "linkedin_messages_per_day": 40,
+    "linkedin_session_size": 10,
+    "linkedin_gap_seconds": [45, 120],
+    "linkedin_session_break_minutes": 120,
 }
 
 

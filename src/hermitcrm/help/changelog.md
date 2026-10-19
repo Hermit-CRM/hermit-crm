@@ -8,6 +8,34 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Send approved email from the app.** Turn it on in Settings > Email &
+  calendar > Sending, with a mailbox of its own and an app password. On the
+  Outreach page an approved email card has **Send now** and **Schedule**;
+  **Schedule all ready email** shows the proposed times and asks you to confirm.
+  A job (`hermitcrm schedule install --send`, or **Turn on scheduled sending**)
+  sends one queued email every 3 minutes, spaced over your working window with
+  jitter, a daily cap (50, starting at 10 a day; after two days in a row above 150 the third is
+  held at 150), a ramp for a new mailbox, a minimum gap and a day between two
+  mails to one company. Before every send it checks again: the text is still what
+  you approved, nobody has written to you (in the CRM and in the sending
+  mailbox), the address is not suppressed. A refused login, a quota error or a
+  bounce spike pauses everything with a red banner; **Pause** is the kill switch.
+  The mail is plain text with its Message-ID written first, logged once with
+  `source: outreach`, and a crash between sending and logging never sends twice.
+  `hermitcrm send` and `hermitcrm outreach schedule|unschedule|send-now|retry|front`
+  do the same from the terminal; `hermitcrm help sending` has the details. Off by
+  default. Data format 14: new keys on outreach items, a new interaction source and
+  the agent rule that an agent never schedules or sends unasked; the migration is
+  automatic.
+- **Bounces and opt-outs.** Delivery reports in the sending mailbox put the address
+  on a suppression list (`outreach/suppressed.toml`), note it on the contact and
+  flag the item; **Opted out** (on a reply, on the contact page, or `hermitcrm
+  outreach opt-out`) does the same and skips their open items.
+- **A paced LinkedIn session.** Outreach > LinkedIn session puts one approved note
+  or message in front of you at a time with a countdown, a session of ten and a
+  break, under daily and weekly caps. You send each one on linkedin.com yourself:
+  Hermit copies the text and opens the profile, then logs what you sent. Nothing
+  is automated, because LinkedIn's rules forbid it.
 - **A reply keeps their subject.** A reply to interest or a follow-up no longer
   gets a "subject is N characters" warning when the thread's `Re:` subject is
   long: the 60 character limit is for a first touch, where you write the

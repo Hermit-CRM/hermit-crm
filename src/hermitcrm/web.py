@@ -59,7 +59,7 @@ from . import playbook, textsource
 from . import schedule, scrape, secrets, task_types, usertheme
 from . import stage_ops
 from . import stages as stages_mod
-from . import exemplars, learning, outreach, routines
+from . import exemplars, learning, linkedin, outreach, routines, send, sendplan, sendqueue, suppress
 from . import help as helpdocs
 from . import setup as setup_steps
 from .filters import Column
@@ -961,6 +961,8 @@ def create_app(root: Path, config: dict | None = None,
     app.state.setup_state = None
     app.state.os_store = None  # (platform, store); probing secret-tool costs a process
     app.state.schedule_home = None  # Path.home() unless a test points elsewhere
+    app.state.send_smtp = None      # test seams for Settings > Sending and the Outreach
+    app.state.send_imap = None      # send buttons: None means the real smtplib / imaplib
     cal_url_cache: dict[str, str] = {}
 
     def calendar_url(refresh: bool = False) -> str:
@@ -1399,11 +1401,33 @@ def create_app(root: Path, config: dict | None = None,
             "samples": sample.samples(store),
             "file_problems": [line for lines in file_problems.values() for line in lines],
             "off_board": off_board_stages(),
+            "send_banner": send_banner(),
         }
         context.update(ctx)
         context.update(adjust_context(request, context))
         return templates.TemplateResponse(request, name, context,
                                           status_code=status_code)
+
+    def send_banner() -> dict | None:
+        """The red banner on every page when sending stopped by itself (a login that
+        fails, the daily quota, a bounce spike): the server's own words, and the way
+        out. Never raises: a page must always render."""
+        try:
+            if not config.get("send_enabled"):
+                return None
+            state = send.SendState.load(root)
+            if not state.is_paused(store.now()):
+                return None
+            way = {send.AUTH: "Nothing is retried until Send a test passes in Settings > Sending.",
+                   send.REFUSED: "Nothing is retried until Send a test passes in Settings > Sending.",
+                   send.QUOTA: "It resumes by itself at the next sending window.",
+                   "bounces": "This is a list-quality problem: look at the bounced addresses, "
+                              "then press Resume on the Outreach page.",
+                   "state": "Press Resume on the Outreach page."}.get(state.kind, "")
+            return {"kind": state.kind, "message": state.message, "way": way}
+        except Exception:
+            logger.exception("could not read the sending state")
+            return None
 
     def need_company(slug: str, refresh: bool = False) -> Company:
         company = store.get(slug, refresh=refresh)
@@ -2927,6 +2951,20 @@ def create_app(root: Path, config: dict | None = None,
                 errors=exc.errors), status_code=400)
         return flashed(f"/companies/{slug}/contacts/{cslug}", "Saved")
 
+    @app.post("/companies/{slug}/contacts/{cslug}/opt-out")
+    async def contact_opt_out(slug: str, cslug: str, csrf_token: str = Form(""),
+                              back: str = Form("")):
+        """They asked not to be written to: the address on the suppression list, every
+        open outreach item for them skipped. Nothing more is sent to it."""
+        check_csrf(csrf_token)
+        need_company(slug)
+        back = safe_back(back, f"/companies/{slug}/contacts/{cslug}")
+        try:
+            text = await run_in_threadpool(sendqueue.opt_out, store, slug, cslug)
+        except (outreach.OutreachError, suppress.SuppressError) as exc:
+            text = f"Not done: {exc}"
+        return flashed(back, text)
+
     @app.post("/companies/{slug}/contacts/{cslug}/delete")
     def contact_delete(request: Request, slug: str, cslug: str):
         """Delete one contact (the browser asked for confirmation); its
@@ -3165,6 +3203,16 @@ def create_app(root: Path, config: dict | None = None,
             "field_scopes": custom.SCOPES,
             "field_views": custom.VIEWS_FOR_SCOPE,
             "mail_providers": bcc.MAIL_PROVIDERS,
+            "send_form": setup_steps.send_form_values(config),
+            "send_providers": send.PROVIDERS,
+            "send_weekdays": sendplan.WEEKDAYS,
+            "send_status": send_strip(bool(config.get("send_enabled"))),
+            "send_password_stored": send.password_stored(
+                send.settings_from_config(config), root,
+                runner=app.state.setup_runner, platform=app.state.setup_platform),
+            "send_cap_note": send.cap_warning(
+                send.settings_from_config(config).daily_cap),
+            "send_problems": list(send.settings_from_config(config).problems),
             "enrich_providers": setup_steps.ENRICH_PROVIDERS,
             "enrich_accounts": setup_steps.ENRICH_ACCOUNTS,
             "enrich_status": {"available": enricher.available,
@@ -3195,6 +3243,7 @@ def create_app(root: Path, config: dict | None = None,
         }
         if ctx["remote_url"]:
             ctx["remote_warning"] = setup_steps.private_warning(ctx["remote_url"])
+        ctx["send_job"] = ctx["schedule"]
         ctx.update(inbox_context())
         ctx.update(extra)
         return ctx
@@ -3279,6 +3328,69 @@ def create_app(root: Path, config: dict | None = None,
         result = setup_steps.test_bcc(root, config, open_mailbox=app.state.open_mailbox,
                                       store=store)
         return flashed("/settings", result.text(), anchor="bcc")
+
+    @app.post("/settings/send")
+    def setup_send(request: Request, csrf_token: str = Form(""), enabled: str = Form(""),
+                   from_addr: str = Form(""), smtp_host: str = Form(""),
+                   smtp_port: str = Form("587"), smtp_user: str = Form(""),
+                   imap_host: str = Form(""), password: str = Form(""),
+                   keychain: str = Form(""), window: str = Form(""),
+                   days: list[str] = Form([]), daily_cap: str = Form(""), ramp: str = Form(""),
+                   min_gap: str = Form(""), company_gap_hours: str = Form(""),
+                   countries: str = Form("")):
+        check_csrf(csrf_token)
+        form = {"enabled": bool(enabled), "from_addr": from_addr, "smtp_host": smtp_host,
+                "smtp_port": smtp_port, "smtp_user": smtp_user, "imap_host": imap_host,
+                "window": window, "days": days, "daily_cap": daily_cap, "ramp": ramp,
+                "min_gap": min_gap, "company_gap_hours": company_gap_hours,
+                "countries": countries}
+        result = setup_steps.save_send(root, form, password, use_keychain=bool(keychain),
+                                       runner=app.state.setup_runner,
+                                       platform=app.state.setup_platform)
+        if not result.ok:
+            return setup_invalid(request, result, "send", send_form=form)
+        return setup_done(result, "send")
+
+    @app.post("/settings/send/test")
+    async def setup_send_test(csrf_token: str = Form("")):
+        """Send a test to myself: the server's exact reply on failure."""
+        check_csrf(csrf_token)
+        result = await run_in_threadpool(
+            lambda: send.send_test(root, dict(config), smtp_factory=app.state.send_smtp,
+                                   imap_factory=app.state.send_imap))
+        return flashed("/settings", result.text(), anchor="send")
+
+    @app.post("/settings/send/job")
+    def setup_send_job(csrf_token: str = Form(""), action: str = Form("on")):
+        """Turn scheduled sending on or off: install or remove the worker job."""
+        check_csrf(csrf_token)
+        sched = schedule_status()
+        ctx = schedule.Context(data_dir=root, home=app.state.schedule_home or Path.home(),
+                               platform=app.state.setup_platform, runner=app.state.setup_runner)
+        if action == "off":
+            lines = schedule.remove(ctx, only_send=True)
+            current_setup_state(refresh=True)
+            return flashed("/settings", "Scheduled sending is off: " + "; ".join(lines),
+                           anchor="send")
+        if sched.get("send_elsewhere"):
+            return flashed("/settings", (
+                f"Not started: this computer already sends the queue of {sched['send_elsewhere']}, "
+                "and there is one sending job per computer. Run hermitcrm --data "
+                f"{root} schedule install --send to move it here."), anchor="send")
+        try:
+            lines = schedule.install(ctx, backup=False, sync=False, send=True)
+        except Exception as exc:  # ScheduleError, launchctl missing, ...
+            logger.warning("send schedule install failed: %s", exc)
+            return flashed("/settings", f"The job could not be installed: {str(exc)[:300]}",
+                           anchor="send")
+        current_setup_state(refresh=True)
+        if app.state.setup_platform.startswith("win"):
+            return flashed("/settings", "To send the queue every few minutes, run this in a "
+                           "terminal: " + " ".join(l for l in lines if l.startswith("schtasks")),
+                           anchor="send")
+        return flashed("/settings", "Scheduled sending is on: the queue is checked every "
+                       f"{schedule.SEND_EVERY} minutes while this computer is awake.",
+                       anchor="send")
 
     @app.post("/settings/backup")
     @app.post("/setup/backup")
@@ -3934,7 +4046,8 @@ def create_app(root: Path, config: dict | None = None,
     OUTREACH_TABS = (("replies", "Replies to interest", ("researching", "drafted")),
                      ("follow-ups", "Follow-ups", ("researching", "drafted")),
                      ("drafts", "Drafts", ("researching", "drafted")),
-                     ("ready", "Ready", ("ready",)),
+                     ("ready", "Ready", ("ready", "failed")),
+                     ("scheduled", "Scheduled", ("queued",)),
                      ("sent", "Sent", ("sent", "logged")),
                      ("skipped", "Skipped", ("skipped",)))
 
@@ -4095,6 +4208,8 @@ def create_app(root: Path, config: dict | None = None,
         shown = [i for i in every if in_tab(i, tab)]
         if tab in ("drafts", "replies"):   # the oldest draft first: review in the order built
             shown.reverse()
+        elif tab == "scheduled":           # the next to go out first
+            shown.sort(key=lambda i: (i.send_at is None, i.send_at or datetime.max, i.id))
         reply_rows = outreach_replies(every)
         waiting = [r for r in reply_rows if r["item"] is None
                    and (r["reply"].interested or r["reply"].to_confirm)]
@@ -4102,6 +4217,21 @@ def create_app(root: Path, config: dict | None = None,
         counts = {t: sum(1 for i in every if in_tab(i, t)) for t, _, _ in OUTREACH_TABS}
         counts["replies"] += len(waiting)
         counts["follow-ups"] += len(due_rows)
+        send_on = bool(config.get("send_enabled"))
+        send_info = send_strip(send_on)
+        schedule_preview, schedule_error = None, ""
+        if send_on and tab == "ready" and params.get("schedule") == "all":
+            try:
+                found = sendqueue.schedule_all_ready(store, dry_run=True)
+                schedule_preview = {
+                    "rows": [{"item": i, "at": found.times.get(i.id),
+                              "who": next((c.name for c in [
+                                  (store.get(i.company).contacts.get(i.contact)
+                                   if store.get(i.company) else None)] if c), i.contact)}
+                             for i in found.scheduled],
+                    "refused": list(found.refused.items())}
+            except (outreach.OutreachError, send.SendError) as exc:
+                schedule_error = str(exc)
         preview, preview_error = None, ""
         if params.get("preview"):
             try:
@@ -4119,7 +4249,11 @@ def create_app(root: Path, config: dict | None = None,
         known = exemplar_index_for(shown)
         return render(request, "outreach.html", {
             "approaches": [a.name for a in ready],
-            "tabs": [(t, label, counts[t]) for t, label, _ in OUTREACH_TABS],
+            "tabs": [(t, label, counts[t]) for t, label, _ in OUTREACH_TABS
+                     if t != "scheduled" or send_on or counts[t]],
+            "send": send_info, "send_on": send_on, "li": linkedin_strip(),
+            "schedule_preview": schedule_preview, "schedule_error": schedule_error,
+            "ready_email": sum(1 for i in every if i.state == "ready" and i.channel == "email"),
             "tab": tab, "cards": [outreach_card(i, known) for i in shown],
             "reply_rows": [r for r in reply_rows if r["item"] is None] if tab == "replies"
             else [],
@@ -4243,6 +4377,139 @@ def create_app(root: Path, config: dict | None = None,
                 if found.interested else f"{found.contact.name}: not interested.")
         return flashed("/outreach?tab=replies", text, anchor=f"reply-{found.interaction.id}")
 
+    def send_strip(on: bool) -> dict:
+        """The numbers on the strip at the top of the Outreach page."""
+        if not on:
+            return {"enabled": False}
+        try:
+            info = sendqueue.status(store, send.settings_from_config(config))
+            info["line"] = sendqueue.strip_line(info)
+            return info
+        except Exception as exc:
+            logger.exception("could not read the sending status")
+            return {"enabled": True, "line": f"Email: could not read the status ({exc})",
+                    "paused": False, "paused_by": "", "missing": "", "queued": 0,
+                    "sent_today": 0, "cap": 0, "next": None, "overdue": 0}
+
+    @app.post("/outreach/send/pause")
+    def outreach_send_pause(csrf_token: str = Form("")):
+        """The kill switch: effective from the next tick."""
+        check_csrf(csrf_token)
+        sendqueue.pause(store)
+        config_reloaded()
+        return flashed("/outreach", "Sending is paused. Nothing goes out from the next tick; "
+                       "Resume lifts it.")
+
+    @app.post("/outreach/send/resume")
+    def outreach_send_resume(csrf_token: str = Form("")):
+        check_csrf(csrf_token)
+        lifted = sendqueue.resume(store)
+        config_reloaded()
+        return flashed("/outreach", ("Resumed: " + "; ".join(lifted) + ".") if lifted
+                       else "Sending was not paused.")
+
+    @app.post("/outreach/schedule-all")
+    async def outreach_schedule_all(csrf_token: str = Form("")):
+        """Confirm the times the Ready tab showed: every ready email, in one go."""
+        check_csrf(csrf_token)
+        try:
+            result = await run_in_threadpool(sendqueue.schedule_all_ready, store)
+        except (outreach.OutreachError, send.SendError) as exc:
+            return flashed("/outreach?tab=ready", f"Not scheduled: {exc}")
+        text = f"Scheduled {len(result.scheduled)} email{'s' if len(result.scheduled) != 1 else ''}."
+        if result.refused:
+            text += f" {len(result.refused)} could not be scheduled (see each card)."
+        return flashed("/outreach?tab=scheduled" if result.scheduled else "/outreach?tab=ready",
+                       text)
+
+    # ------------------------------------------------------- LinkedIn session
+    # Option A of spec part 08: nothing here talks to LinkedIn. The page copies the
+    # text, opens the profile in a new tab and waits; the person sends it on
+    # linkedin.com and says what happened. Hermit paces and logs.
+
+    def linkedin_strip() -> dict:
+        """The LinkedIn numbers on the Outreach strip; never raises."""
+        try:
+            cfg = linkedin.settings_from_config(config)
+            have = linkedin.counters(store, store.now(), cfg)
+            return {"invites_today": have.invites_today, "invites_per_day": cfg.invites_per_day,
+                    "invites_week": have.invites_week, "invites_per_week": cfg.invites_per_week,
+                    "messages_today": have.messages_today, "messages_per_day": cfg.messages_per_day,
+                    "queue": len(linkedin.queue(store, store.now())), "ok": True}
+        except Exception:
+            logger.exception("could not read the LinkedIn counters")
+            return {"ok": False}
+
+    @app.get("/outreach/linkedin", response_class=HTMLResponse)
+    def linkedin_page(request: Request):
+        now = store.now()
+        cfg = linkedin.settings_from_config(config)
+        session = linkedin.Session.load(root)
+        have = linkedin.counters(store, now, cfg, session)
+        found = linkedin.next_card(store, now, cfg, session)
+        ok, why = linkedin.can_start(session, now, cfg)
+        card = found.card
+        company = store.get(card.item.company) if card else None
+        contact = company.contacts.get(card.item.contact) if company else None
+        rows = []
+        for row in linkedin.waiting(store, now):
+            c = store.get(row["item"].company)
+            row["contact"] = c.contacts.get(row["item"].contact) if c else None
+            rows.append(row)
+        return render(request, "outreach_linkedin.html", {
+            "cfg": cfg, "have": have, "session": session, "card": card, "company": company,
+            "contact": contact, "reason": found.reason, "wait": found.wait,
+            "can_start": ok, "why_not": why, "waiting": rows, "reasons": linkedin.REASONS,
+            "next_session": linkedin.next_session_at(session, cfg),
+            "reminder_days": linkedin.WAITING_REMINDER_DAYS})
+
+    @app.post("/outreach/linkedin/start")
+    def linkedin_start(csrf_token: str = Form("")):
+        check_csrf(csrf_token)
+        try:
+            linkedin.start(store, store.now(), linkedin.settings_from_config(config))
+        except outreach.OutreachError as exc:
+            return flashed("/outreach/linkedin", str(exc))
+        return flashed("/outreach/linkedin", "Session started. One card at a time: send it on "
+                       "LinkedIn yourself, then say what happened.")
+
+    @app.post("/outreach/linkedin/end")
+    def linkedin_end(csrf_token: str = Form("")):
+        check_csrf(csrf_token)
+        linkedin.end(store, store.now())
+        return flashed("/outreach/linkedin", "Session ended.")
+
+    @app.post("/outreach/linkedin/{item_id}/{what}")
+    async def linkedin_action(item_id: str, what: str, csrf_token: str = Form(""),
+                              reason: str = Form("other"), note: str = Form("")):
+        check_csrf(csrf_token)
+        if what not in ("sent", "already", "failed", "accepted", "withdrawn"):
+            raise HTTPException(status_code=404, detail=f"unknown action {what!r}")
+        if outreach.get_item(root, item_id) is None:
+            raise HTTPException(status_code=404, detail=f"unknown outreach item {item_id!r}")
+        now, cfg = store.now(), linkedin.settings_from_config(config)
+        try:
+            if what == "sent":
+                await run_in_threadpool(linkedin.sent, store, item_id, now, cfg)
+                text = ("Logged: the message is on the contact exactly as you sent it."
+                        + ("" if linkedin.Session.load(root).active else " That was the last "
+                           "card of this session."))
+            elif what == "already":
+                await run_in_threadpool(linkedin.already_connected, store, item_id, now)
+                text = "Already connected: the card is now the message to send."
+            elif what == "failed":
+                text = await run_in_threadpool(linkedin.couldnt_send, store, item_id, reason,
+                                               note, now, cfg)
+            elif what == "accepted":
+                await run_in_threadpool(linkedin.accepted, store, item_id, now)
+                text = "Accepted: their message is in the queue."
+            else:
+                await run_in_threadpool(linkedin.withdrawn, store, item_id, now)
+                text = "Withdrawn: it leaves the waiting list."
+        except outreach.OutreachError as exc:
+            text = str(exc)
+        return flashed("/outreach/linkedin", text)
+
     @app.post("/outreach/{item_id}/page")
     async def outreach_page(item_id: str, csrf_token: str = Form(""), url: str = Form(""),
                             top: str = Form(""), about: str = Form(""), act: str = Form("")):
@@ -4276,7 +4543,7 @@ def create_app(root: Path, config: dict | None = None,
         return flashed(f"/outreach?tab={outreach_tab(item)}", say, anchor=anchor)
 
     OUTREACH_ACTIONS = ("check", "ready", "regenerate", "skip", "sent", "findings",
-                        "proposal")
+                        "proposal", "schedule", "unschedule", "send-now", "front", "retry")
 
     @app.post("/outreach/{item_id}/{what}")
     async def outreach_action(request: Request, item_id: str, what: str,
@@ -4316,8 +4583,10 @@ def create_app(root: Path, config: dict | None = None,
                 item, found = await run_in_threadpool(
                     lambda: outreach.mark_ready(store, item_id, subject=subject, body=body,
                                                 pitch=pitch, note=note, tags=tags))
-                text = ("Ready to send. Send it yourself, then log it: logging it marks "
-                        "it sent." + (f" Warning: {'; '.join(found)}." if found else "")
+                how = ("Ready. Schedule it or send it now from the Ready tab."
+                       if config.get("send_enabled") and item.channel == "email" else
+                       "Ready to send. Send it yourself, then log it: logging it marks it sent.")
+                text = (how + (f" Warning: {'; '.join(found)}." if found else "")
                         + edit_text(len(item.edits) - tracked, note))
             elif what == "regenerate":
                 tier = "strong" if strong else "medium"
@@ -4341,12 +4610,40 @@ def create_app(root: Path, config: dict | None = None,
             elif what == "proposal":
                 item = await run_in_threadpool(outreach.accept_proposal, store, item.id, key)
                 text = f"Saved the {key} to the record."
+            elif what == "schedule":
+                result = await run_in_threadpool(sendqueue.schedule, store, [item.id])
+                item = outreach.get_item(root, item.id) or item
+                at = result.times.get(item.id)
+                text = (f"Scheduled: it goes out {at:%a %d %b, %H:%M}." if result.scheduled and at
+                        else "Scheduled, but there is no free slot in the next "
+                             f"{sendplan.HORIZON_DAYS} days." if result.scheduled
+                        else f"Not scheduled: {result.refused.get(item.id, 'unknown reason')}.")
+            elif what == "unschedule":
+                item = await run_in_threadpool(sendqueue.unschedule, store, item.id)
+                text = "Unscheduled: back on the Ready tab."
+            elif what == "front":
+                item = await run_in_threadpool(sendqueue.move_to_front, store, item.id)
+                text = f"Moved to the front: it goes out {item.send_at:%a %d %b, %H:%M}."
+            elif what == "retry":
+                item = await run_in_threadpool(sendqueue.retry, store, item.id)
+                text = "Back on the Ready tab: schedule it or send it now."
+            elif what == "send-now":
+                out = await run_in_threadpool(
+                    lambda: send.send_now(store, item.id, smtp_factory=app.state.send_smtp,
+                                          imap_factory=app.state.send_imap))
+                item = out.item
+                text = {"sent": "Sent and logged.", "recovered": "It had already gone out; "
+                        "logged now.", "held": f"Not sent: {out.detail}.",
+                        "paused": f"Not sent: {out.detail}", "retry": out.detail,
+                        "failed": f"Not sent: {out.detail}"}.get(out.kind, out.detail)
+                if out.warnings:
+                    text += " Warning: " + "; ".join(out.warnings) + "."
             else:
                 numbers = [int(n) for n in remove if str(n).strip().isdigit()]
                 item = await run_in_threadpool(outreach.set_findings, store, item.id,
                                                numbers, add, kind)
                 text = "Findings saved. Regenerate to use them."
-        except outreach.OutreachError as exc:
+        except (outreach.OutreachError, send.SendError) as exc:
             return flashed(f"/outreach?tab={outreach_tab(item)}", str(exc), anchor=anchor)
         return flashed(f"/outreach?tab={outreach_tab(item)}", text, anchor=anchor)
 

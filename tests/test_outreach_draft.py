@@ -567,7 +567,7 @@ def test_7_outreach_sent_marks_it_by_hand_and_logs_nothing(folder):
     assert sent.state == "sent" and sent.sent_with == ""
     assert commits(root)[0] == "outreach: sent lindenhof-data/mara-keller (email)"
     assert len(store.get("lindenhof-data").interactions) == interactions
-    with pytest.raises(outreach.OutreachError, match="only a drafted or ready item"):
+    with pytest.raises(outreach.OutreachError, match="only a drafted, ready, queued or failed item"):
         outreach.mark_sent(store, item.id)
     assert "lindenhof-data/mara-keller" in [
         c.record for c in outreach.select(store, where=["stage=prospect"]).picked]

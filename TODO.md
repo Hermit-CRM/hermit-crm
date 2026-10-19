@@ -152,6 +152,16 @@ After:
       the data folder is only verified with Claude Code.
 - [x] "Retry with Fable" end to end (Claude Code 2.1.274, 2026-09-17; needs
       >= 2.1.251).
+- [ ] Sending (spec 08), against a real mailbox: **Send a test to myself** from a
+      separate Gmail / Workspace mailbox; that Gmail files mail sent over
+      `smtp.gmail.com` in Sent by itself (the crash recovery and the Sent check rest
+      on it); a revoked app password shows Google's own text and pauses; a real
+      bounce (Gmail's delivery report) parses; a send that lands in another
+      provider's inbox, not spam; the launchd job on a Mac that sleeps and wakes.
+      Tested so far: an in-memory SMTP / IMAP, and a loopback SMTP server for the real
+      `smtplib` (STARTTLS, one login attempt, DATA).
+- [ ] Sending on Windows (no `fcntl`: the lock falls back to an exclusive file) and
+      with iCloud or Fastmail.
 
 ## Later
 

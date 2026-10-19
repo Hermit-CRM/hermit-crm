@@ -21,6 +21,7 @@ page for the screen you are on; `hermitcrm help <topic>` prints the same text.
 - [Messages](/help/messages): every sent message with its outcome.
 - [Playbook](/help/playbook): what you sell and to whom (`MESSAGING.md`), for the drafts and the outreach bot.
 - [Outreach bot](/help/outreach): a batch of researched, checked first messages for you to review, send and log (`hermitcrm outreach`).
+- [Sending](/help/sending): send approved email from the app, now or spaced over the working day, from a mailbox of its own; a paced LinkedIn session where you click Send; bounces, opt-outs and the kill switch.
 - [Learning](/help/learning): what your edits and outcomes teach the outreach bot, as lessons you accept (`hermitcrm learn`).
 - [Reports](/help/reports): activity, funnel, outcomes, messages, sources, hygiene.
 - [Settings](/help/settings): you, BCC capture, calendar, backup, enrichment, outcomes, schedule, phone and MCP access, support, about.

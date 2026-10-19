@@ -414,7 +414,7 @@ def test_migration_11_normalises_exemplars_used():
     clean = {"exemplars_used": ["outcome:a"]}
     assert migrations.m11_exemplars(clean) is clean
     assert "exemplars_used" not in migrations.m11_exemplars({"exemplars_used": ["junk"]})
-    m = migrations.MIGRATIONS[-1]
+    m = next(x for x in migrations.MIGRATIONS if x.version == 11)
     assert m.version == 11 and m.glob == "outreach/*.md" and m.apply is migrations.m11_exemplars
 
 
