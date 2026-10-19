@@ -123,14 +123,14 @@ def test_a_dry_run_shows_the_times_the_real_run_gives_and_writes_nothing(folder)
     assert dry.lines()[0].startswith(f"{ids[0]} | Mon 19 Oct ")
 
 
-def test_twenty_items_scheduled_in_the_morning_fill_the_week_one_cap_of_20(folder):
+def test_ten_items_scheduled_in_the_morning_fill_the_week_one_cap_of_10(folder):
     root, store, settings = folder
-    ids = many_ready(root, store, 23)
+    ids = many_ready(root, store, 13)
     sendqueue.schedule(store, ids, settings, MON)
     days = {}
     for i in ids:
         days.setdefault(outreach.get_item(root, i).send_at.date(), []).append(i)
-    assert [len(v) for v in days.values()] == [20, 3]
+    assert [len(v) for v in days.values()] == [10, 3]
 
 
 def test_what_cannot_be_scheduled_is_listed_with_the_reason_and_left_alone(folder):
@@ -255,11 +255,11 @@ def test_status_and_the_strip(folder):
     ids = many_ready(root, store, 3)
     sendqueue.schedule(store, ids, settings, MON)
     info = sendqueue.status(store, settings, MON)
-    assert (info["sent_today"], info["cap"], info["queued"]) == (0, 20, 3)
+    assert (info["sent_today"], info["cap"], info["queued"]) == (0, 10, 3)
     assert info["window"] == "08:30-17:30" and info["days"] == "Mon, Tue, Wed, Thu, Fri"
     assert info["next"] == outreach.get_item(root, ids[0]).send_at
     line = sendqueue.strip_line(info)
-    assert line.startswith("Email: on · 0/20 today · 3 queued · next Mon ")
+    assert line.startswith("Email: on · 0/10 today · 3 queued · next Mon ")
     sendqueue.pause(store)
     paused = sendqueue.status(store, send.settings_from_config(load_config(root)), MON)
     assert paused["paused_by"] == "the Pause button"
@@ -332,7 +332,7 @@ def test_outside_the_window_and_over_the_cap_it_waits(folder):
     out = tick(root, store, datetime(2026, 10, 19, 17, 45), smtp, imap)
     assert out == ["nothing due after planning"] or any("outside the sending window" in l for l in out)
     assert not smtp.sent
-    for k in range(20):                                    # week 1 cap: 20 already today
+    for k in range(10):                                    # week 1 cap: 10 already today
         store.create_interaction(MARA[0], "email", "out", subject=f"Old {k}", contact=MARA[1],
                                  body="x\n", source="outreach",
                                  message_id=f"<o{k}@mail.example.com>",
@@ -342,12 +342,12 @@ def test_outside_the_window_and_over_the_cap_it_waits(folder):
         it.send_at = datetime(2026, 10, 19, 14, 0)
         outreach.write_item(root, it)
     out = tick(root, store, datetime(2026, 10, 19, 14, 0), smtp, imap)
-    assert any("cap of 20 is reached" in l for l in out) and not smtp.sent
+    assert any("cap of 10 is reached" in l for l in out) and not smtp.sent
 
 
-def test_twenty_items_scheduled_in_the_morning_go_out_at_the_times_the_page_showed(folder):
+def test_ten_items_scheduled_in_the_morning_go_out_at_the_times_the_page_showed(folder):
     root, store, settings = folder
-    ids = many_ready(root, store, 20)
+    ids = many_ready(root, store, 10)
     sendqueue.schedule(store, ids, settings, MON)
     planned = {i: outreach.get_item(root, i).send_at for i in ids}
     smtp, imap = FakeSmtp(), FakeImap()
@@ -359,7 +359,7 @@ def test_twenty_items_scheduled_in_the_morning_go_out_at_the_times_the_page_show
         if len(smtp.sent) > before:
             sent_at[smtp.sent[-1]["To"]] = now
         now += timedelta(minutes=3)
-    assert len(smtp.sent) == 20
+    assert len(smtp.sent) == 10
     for k, item_id in enumerate(ids):
         when = sent_at[f"pat{k:02d}@co{k:02d}.example.org"]
         assert planned[item_id] <= when <= planned[item_id] + timedelta(minutes=6), item_id
@@ -395,7 +395,10 @@ def test_a_mac_asleep_for_two_hours_resumes_with_spacing_not_a_burst(folder):
 
 
 def test_a_reply_holds_their_item_and_the_others_still_go(folder):
-    root, store, settings = folder
+    root, store, _ = folder
+    from hermitcrm.setup import set_config_values
+    set_config_values(root / "config.toml", {"send_ramp": [], "send_daily_cap": 100})
+    settings = send.settings_from_config(load_config(root))      # spacing is not the point here
     ids = many_ready(root, store, 2)
     sendqueue.schedule(store, ids, settings, MON)
     first = outreach.get_item(root, ids[0])
@@ -520,7 +523,7 @@ def test_the_cli_schedules_shows_and_unschedules(folder, capsys):
     out = capsys.readouterr().out
     assert "Scheduled 2:" in out and ids[1] in out
     assert run_cli(root, "send", "status") == 0
-    assert "Email: on · 0/20 today · 2 queued" in capsys.readouterr().out
+    assert "Email: on · 0/10 today · 2 queued" in capsys.readouterr().out
     assert run_cli(root, "outreach", "unschedule", ids[0]) == 0
     assert run_cli(root, "outreach", "front", ids[1]) == 0
     assert run_cli(root, "outreach", "unschedule", ids[0]) == 1

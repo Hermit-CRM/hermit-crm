@@ -132,8 +132,10 @@ to existing `outreach/` files, and the new interaction `source` value
   makes a crash recoverable without a double send (see Errors).
 - A follow-up or reply gets `In-Reply-To` and `References` from the earlier
   interaction's `message_id`, and keeps its "Re:" subject (already built).
-- The opt-out line from the playbook goes under a cold first touch. Scheduling
-  a cold first touch needs one; Send now warns but allows it.
+- The opt-out line from the playbook goes under a cold first touch when the
+  playbook has one. It is optional (decided 19 Oct): without it nothing is added
+  and nothing is checked; with it, scheduling a first touch from which it was
+  edited out is held, and Send now warns but allows it.
 - Settings → Sending: provider preset (Gmail / Google Workspace by default;
   iCloud and Fastmail listed as untested), from address (one of
   `my_addresses`), SMTP user, app password (stored through `secrets.py`, the
@@ -149,8 +151,8 @@ page and the worker all agree on the times.
 1. **Window:** `send_days` and `send_window` (default Mon-Fri 08:30-17:30) in
    the sender's time zone.
 2. **Daily cap:** `send_ramp` gives the cap for weeks 1, 2, 3... counted from
-   the first send (default `[20, 40, 60, 80]`), then `send_daily_cap`
-   (default **100**, a setting). More than 150 a day for more than 1-2 days in
+   the first send (default `[10, 20, 30, 40]`), then `send_daily_cap`
+   (default **50**, a setting). More than 150 a day for more than 1-2 days in
    a row is strongly discouraged: a cap above 150 is held at 150 once the two
    previous send-days both went over it. The first send and today's count both
    come from the interactions with `source: outreach` (the local calendar day),
@@ -158,7 +160,7 @@ page and the worker all agree on the times.
    not count.
 3. **Gap:** base = window length / today's cap; each gap = base × a seeded
    factor between 0.6 and 1.4, never below `send_min_gap_minutes` (3). At 50 a
-   day over 9 hours that is about 11 ± 4 minutes; at 100 a day about 5 ± 2.
+   day over 9 hours that is about 11 ± 4 minutes; at 10 a day about 54 ± 20.
 4. **Company spread:** two items for the same company (or the same email
    domain) at least `send_company_gap_hours` apart (default 24, so the next
    working day).
@@ -224,8 +226,8 @@ on power (it never changes the setting).
   back to `ready` with "they wrote to you on <date>". The IMAP login happens
   only when an item is about to go out, not on every tick, and uses the same
   app password as SMTP (one app password covers both at Google).
-- The channel's hard checks (`clean_answer`) still pass, and a cold first
-  touch carries the opt-out line.
+- The channel's hard checks (`clean_answer`) still pass, and, when the playbook
+  has an opt-out line, a cold first touch carries it.
 - **Country guard:** a company whose country is in
   `send_email_block_countries` is never scheduled or sent by email; the card
   suggests LinkedIn. App default: empty. Each folder decides.
@@ -349,8 +351,8 @@ It is not worth the grey zone.
 | `send_imap_host` | `imap.gmail.com` | Reply guard, bounce scan, the Sent check (same user and password) |
 | secret `send_password` | | App password (Keychain) |
 | `send_window` / `send_days` | `"08:30-17:30"` / Mon-Fri | Sending window, local time |
-| `send_ramp` | `[20, 40, 60, 80]` | Cap per week from the first send |
-| `send_daily_cap` | `100` | Cap after the ramp; a third day in a row over 150 is held at 150 |
+| `send_ramp` | `[10, 20, 30, 40]` | Cap per week from the first send |
+| `send_daily_cap` | `50` | Cap after the ramp; a third day in a row over 150 is held at 150 |
 | `send_min_gap_minutes` | `3` | Floor between two sends |
 | `send_company_gap_hours` | `24` | Two contacts at one company |
 | `send_grace_minutes` | `10` | Earliest slot after Schedule |
@@ -375,7 +377,7 @@ Sizes are rough, in days of AI-assisted work.
   allows app passwords; create one named "Hermit CRM".
 - SPF, DKIM and DMARC on the sending domain (a DMARC record with `p=none` is
   enough at this volume).
-- An opt-out line per language in the playbook (`MESSAGING.md`).
+- Optionally, an opt-out line per language in the playbook (`MESSAGING.md`).
 - A decision on the country guard (see Open questions).
 - Energy settings: the Mac does not sleep on power during the window.
 
@@ -446,14 +448,14 @@ on any checkpoint or CAPTCHA. Its own spec.
 - Build on a branch off `main` with `send_enabled = false` as the default.
   When to merge is the maintainer's call; after the public launch week
   (19-27 Oct) is the low-risk option.
-- Week 1: ramp cap 20. Send a test to an inbox on another provider and check
+- Week 1: ramp cap 10. Send a test to an inbox on another provider and check
   it does not land in spam. Read replies and bounces daily.
-- Weeks 2-4: 40 → 60 → 80, then 100. The sending mailbox is a separate one on
+- Weeks 2-4: 20 → 30 → 40, then 50. The sending mailbox is a separate one on
   its own domain from the start (decision 3), which protects the main domain's
-  reputation. About 100 a day is above the 30-50 that practitioners suggest for
+  reputation. 50 a day is at the top of the 30-50 that practitioners suggest for
   one cold mailbox: if replies fall or bounces rise, lower `send_ramp` and
-  `send_daily_cap` before anything else. Past 100, a second mailbox is the later
-  multi-mailbox item.
+  `send_daily_cap` before anything else. Past 50, raise the cap in steps; a second
+  mailbox is the later multi-mailbox item.
 - **The bottleneck moves upstream.** 50 sends a day needs about 50 approved
   items a day. On the first real batch (17 Oct) a draft took about 2 minutes
   of model time, so 50 is about 100 minutes in the background plus about a
@@ -479,11 +481,16 @@ on any checkpoint or CAPTCHA. Its own spec.
    DE/AT first touches is not blocked. The guard code exists for a folder that
    wants it (Settings > Sending > Never email these countries).
 3. **Sending mailbox: a separate one.** About 100 emails a day, and the maximum
-   per day is a setting (`send_daily_cap`, default 100). Going above 150 a day for
-   more than 1-2 days in a row is strongly discouraged, so Settings warns above 100
-   and above 150, and the planner and the worker hold a third day in a row at 150.
+   per day is a setting (`send_daily_cap`). Going above 150 a day for more than
+   1-2 days in a row is strongly discouraged, so Settings warns above the plan and
+   above 150, and the planner and the worker hold a third day in a row at 150.
    Throughput ceiling: one send per 3-minute tick, so at most 180 a day in the
    default window.
+   **Changed 19 Oct:** the plan is **50 a day**, not 100 (default `send_daily_cap`
+   50, ramp `[10, 20, 30, 40]`: start with 10 and step up by 10 a week). Settings
+   warns above 50 and again above 150.
+4. **The opt-out line is optional** (19 Oct). A playbook without `opt_out:` adds
+   no line and blocks nothing; a playbook with one still has it added and checked.
 
 ## Built as (where the build decides what the spec left open)
 

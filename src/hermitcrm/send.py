@@ -111,8 +111,8 @@ class SendSettings:
     keychain_service: str = "hermitcrm-send"
     window: tuple = (8 * 60 + 30, 17 * 60 + 30)
     days: tuple = (0, 1, 2, 3, 4)
-    ramp: tuple = (20, 40, 60, 80)
-    daily_cap: int = 100
+    ramp: tuple = (10, 20, 30, 40)
+    daily_cap: int = 50
     min_gap: int = 3
     company_gap_hours: int = 24
     grace: int = 10
@@ -206,17 +206,30 @@ def settings_from_config(config: dict) -> SendSettings:
         problems=tuple(problems))
 
 
+PLAN_CAP = 50   # the daily cap the plan starts from; Settings warns above it
+
+
 def cap_warning(cap: int) -> str:
-    """What Settings says about a daily cap: nothing up to about 100."""
+    """What Settings says about a daily cap: nothing up to PLAN_CAP."""
     if cap > sendplan.SOFT_CEILING:
         return (f"{cap} a day is more than {sendplan.SOFT_CEILING}. That is allowed for at "
                 f"most {sendplan.MAX_DAYS_OVER} send-days in a row; the third is held at "
                 f"{sendplan.SOFT_CEILING}. A mailbox that sends this much for long ends up "
                 "in spam.")
-    if cap > 100:
-        return (f"{cap} a day is above the plan of about 100. Fine for a day or two; "
-                "watch bounces and replies.")
+    if cap > PLAN_CAP:
+        return (f"{cap} a day is above the plan of {PLAN_CAP}. Raise it in steps and watch "
+                "bounces and replies; if either gets worse, go back down.")
     return ""
+
+
+def password_stored(settings: SendSettings, root, *, env=None, runner=subprocess.run,
+                    platform=None) -> bool:
+    """Whether an app password is saved for the sending mailbox (never raises, never
+    returns the password): what Settings uses to say "stored" only when it is."""
+    try:
+        return bool(get_password(settings, root, env=env, runner=runner, platform=platform))
+    except SendError:
+        return False
 
 
 def get_password(settings: SendSettings, root, *, env=None, runner=subprocess.run,
@@ -748,9 +761,9 @@ def next_window_start(now: datetime, settings: SendSettings) -> datetime:
 
 
 def opt_out_problem(store: Store, item) -> str:
-    """'' unless a cold first email lacks the opt-out line. The drafter adds the
-    playbook's `opt_out` line to the body; here we check it is still there, and
-    that the playbook has one at all."""
+    """'' unless a cold first email lost the opt-out line. The line is optional: a
+    playbook without `opt_out` adds none and nothing is checked. When it has one,
+    the drafter adds it to the body and here we check it is still there."""
     if item.channel != "email" or item.kind != outreach.FIRST_TOUCH:
         return ""
     rules = outreach.channel_rules(item.channel, messaging.load_messages(store.root))
@@ -759,8 +772,7 @@ def opt_out_problem(store: Store, item) -> str:
     line = outreach.opt_out_line(store.root, item.kind, item.channel, item.language or "en",
                                  rules)
     if not line:
-        return ("the playbook has no opt-out line for this language; add `opt_out:` to "
-                "MESSAGING.md (a cold email needs one)")
+        return ""
     if outreach._norm_space(line) not in outreach._norm_space(item.body):
         return "the opt-out line from the playbook is missing from the text"
     return ""

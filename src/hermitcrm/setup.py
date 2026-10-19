@@ -627,7 +627,7 @@ def plan_send(form: dict) -> tuple[dict, dict, list]:
         countries.append(part.upper())
     if errors:
         return {}, errors, warnings
-    if cap and cap > 100:
+    if cap and send.cap_warning(cap):
         warnings.append(send.cap_warning(cap))
     if ramp and cap and max(ramp) > cap:
         warnings.append(f"A ramp week above the daily cap of {cap} is held at {cap}.")

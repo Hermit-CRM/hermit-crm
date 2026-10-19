@@ -52,8 +52,8 @@ and **Import now**, which runs the import on the spot.
 Send approved outreach email from the Outreach page, from a mailbox of its own.
 The provider (Gmail and Google Workspace are tested), the sending address, an app
 password (Keychain or `.secrets.toml`), the window and days, the daily cap
-(about 100; above 150 is held at 150 after two days in a row), the ramp for a new
-mailbox, the gaps, and countries never emailed. **Send a test to myself** logs in
+(50; above 150 is held at 150 after two days in a row), the ramp for a new
+mailbox (10 a day in week 1), the gaps, and countries never emailed. **Send a test to myself** logs in
 over SMTP and IMAP and shows the server's exact reply on failure; **Turn on
 scheduled sending** installs the worker job. [How it works](/help/sending).
 

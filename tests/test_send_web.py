@@ -126,7 +126,7 @@ def test_the_strip_and_the_buttons_when_sending_is_on(env):
     items(root, 2)
     page = client.get("/outreach?tab=ready")
     body = text_of(page.text)
-    assert "Email: on · 0/20 today · 0 queued" in body and "Mon, Tue, Wed, Thu, Fri 08:30-17:30" in body
+    assert "Email: on · 0/10 today · 0 queued" in body and "Mon, Tue, Wed, Thu, Fri 08:30-17:30" in body
     assert "Scheduled (0)" in body and "Ready (2)" in body
     assert page.text.count('/send-now"') == 2 and page.text.count('/schedule"') == 2
     assert 'action="/outreach/send/pause"' in page.text
@@ -314,9 +314,23 @@ def test_the_settings_page_has_a_sending_section(env):
     assert 'id="send"' in page.text and "Sending" in body
     assert "Use a separate mailbox" in body and "Send a test to myself" in body
     assert "Turn on scheduled sending" in body
-    assert 'name="daily_cap" value="100"' in page.text
-    assert 'name="ramp" value="20, 40, 60, 80"' in page.text
+    assert 'name="daily_cap" value="50"' in page.text
+    assert 'name="ramp" value="10, 20, 30, 40"' in page.text
     assert "Gmail / Google Workspace" in body and "iCloud Mail (untested)" in body
+
+
+def test_the_password_box_says_stored_only_when_a_password_is_stored(env, monkeypatch):
+    root, store, client, smtp, imap = env
+    monkeypatch.delenv("HERMITCRM_SEND_PASSWORD")
+
+    def field():
+        page = client.get("/settings").text
+        sending = page[page.index('id="send"'):]
+        return re.search(r'<input type="password" name="password"[^>]*>', sending).group(0)
+
+    assert "stored" not in field() and "paste the 16-character app password" in field()
+    post(client, "/settings/send", **form(password="abcd efgh ijkl mnop"))
+    assert 'placeholder="stored; leave empty to keep it"' in field()
 
 
 def form(**kw):
@@ -335,7 +349,7 @@ def test_saving_the_sending_settings_writes_config_and_keeps_the_password_out(en
     assert resp.status_code == 303
     text = flash(resp)
     assert "Sending settings saved; sending is on." in text
-    assert "120 a day is above the plan of about 100" in text
+    assert "120 a day is above the plan of 50" in text
     assert "cold@mail.example.net added to your addresses." in text
     config = load_config(root)
     assert config["send_from"] == "cold@mail.example.net" and config["send_daily_cap"] == 120
@@ -362,7 +376,7 @@ def test_a_wrong_setting_is_refused_with_the_form_kept(env):
     assert "The daily cap" in body and "Give the sending address" in body
     assert "choose at least one day" in body and "Country codes of two letters" in body
     assert 'value="nonsense"' in resp.text                       # what was typed stays
-    assert load_config(root)["send_daily_cap"] == 100            # nothing was saved
+    assert load_config(root)["send_daily_cap"] == 50             # nothing was saved
 
 
 def test_a_cap_past_150_is_warned_about_on_the_page_and_in_the_flash(env):

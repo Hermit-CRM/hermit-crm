@@ -124,7 +124,7 @@ CONFIG_DOCS = {
     "send_window": "Hours when scheduled mail goes out, HH:MM-HH:MM, in your time zone.",
     "send_days": "Days when scheduled mail goes out: mon, tue, wed, thu, fri, sat, sun.",
     "send_ramp": "Daily cap for weeks 1, 2, 3... counted from the first send of a new mailbox; after the last week send_daily_cap applies.",
-    "send_daily_cap": "The most emails per day. About 100 is the plan; more than 150 for more than 1-2 days in a row is strongly discouraged, so a third day in a row is held at 150.",
+    "send_daily_cap": "The most emails per day. 50 is the plan (the ramp starts at 10 and steps up); more than 150 for more than 1-2 days in a row is strongly discouraged, so a third day in a row is held at 150.",
     "send_min_gap_minutes": "The least time between two sends.",
     "send_company_gap_hours": "The least time between two emails to one company (or one email domain).",
     "send_grace_minutes": "How long after Schedule the earliest slot is, so a mistake can still be undone.",

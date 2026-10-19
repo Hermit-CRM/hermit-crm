@@ -16,6 +16,8 @@
 2. Country guard: **no**. `send_email_block_countries` stays `[]`; the guard code exists but is off.
 3. A **separate sending mailbox**, about **100 emails a day**. The daily cap is a setting (`send_daily_cap`, default 100). Above 150 a day is strongly discouraged for more than 1-2 days in a row: Settings warns above 100 and above 150, and the planner and worker **hold a day at 150 once the two previous send-days both went over 150** (`SOFT_CEILING = 150`, `MAX_DAYS_OVER = 2`).
 
+**Changed 19 Oct:** the plan is 50 a day (`send_daily_cap` 50, ramp `[10, 20, 30, 40]`, Settings warns above 50 and above 150), and the playbook's opt-out line is optional. The numbers below are the first decision.
+
 Assumptions (called out so they can be changed): the ramp for a fresh mailbox is `[20, 40, 60, 80]` then 100; a re-plan keeps the times the page already showed and only places new, overdue or moved items (so "goes out at the time the page showed" holds); `failed` counts as an open state (no second draft for the contact, and it can be skipped); runtime state (lock, auto-pause) lives in `.git/` so it is never committed and needs no `.gitignore` migration.
 
 ## Global Constraints
