@@ -13,8 +13,9 @@
 # limitations under the License.
 
 """`hermitcrm schedule install|remove|status`: a daily `sync --apply`, a `backup`
-every few minutes, optionally a long-running `serve`, via launchd (macOS), systemd user units (Linux) or a
-printed schtasks command (Windows).
+every few minutes, optionally a long-running `serve` and the `send due` worker
+that sends scheduled email every few minutes (`--send`), via launchd (macOS),
+systemd user units (Linux) or a printed schtasks command (Windows).
 
 Every file write and command goes through seams (``home``, ``runner``,
 ``platform``, ``env``) so tests never touch the real LaunchAgents. Set
@@ -50,13 +51,17 @@ from pathlib import Path
 SYNC_LABEL = "io.hermitcrm.sync"
 SERVE_LABEL = "io.hermitcrm.serve"
 BACKUP_LABEL = "io.hermitcrm.backup"
+SEND_LABEL = "io.hermitcrm.send"
 LEGACY_LABELS = ("io.owncrm.sync", "io.owncrm.serve")  # before the rename
 SYNC_UNIT = "hermitcrm-sync"
 SERVE_UNIT = "hermitcrm-serve"
 BACKUP_UNIT = "hermitcrm-backup"
+SEND_UNIT = "hermitcrm-send"
 WIN_SYNC_TASK = r"Hermit CRM\sync"
 WIN_SERVE_TASK = r"Hermit CRM\serve"
 WIN_BACKUP_TASK = r"Hermit CRM\backup"
+WIN_SEND_TASK = r"Hermit CRM\send"
+SEND_EVERY = 3        # minutes between two ticks of the sending worker
 DRY_ENV = "HERMITCRM_DRY_SCHEDULE"
 LINGER_DIR = Path("/var/lib/systemd/linger")  # one empty file per lingering user
 RUNTIME_ROOT = Path("/run/user")  # /run/user/<uid> exists while the user manager runs
@@ -143,6 +148,9 @@ class Context:
     def backup_args(self) -> list[str]:
         return [*self.exe, "--data", str(self.data_dir), "backup", "run", "--quiet"]
 
+    def send_args(self) -> list[str]:
+        return [*self.exe, "--data", str(self.data_dir), "send", "due"]
+
 
 def _platform_kind(platform: str) -> str:
     if platform == "darwin":
@@ -204,6 +212,23 @@ def backup_plist(ctx: Context, every: int) -> bytes:
     return plistlib.dumps({
         "Label": BACKUP_LABEL,
         "ProgramArguments": ctx.backup_args(),
+        "EnvironmentVariables": {"PATH": job_path(ctx)},
+        "StartInterval": every * 60,
+        "RunAtLoad": True,
+        "StandardOutPath": log,
+        "StandardErrorPath": log,
+        "WorkingDirectory": str(ctx.data_dir),
+    }, sort_keys=True)
+
+
+def send_plist(ctx: Context, every: int = SEND_EVERY) -> bytes:
+    """The worker that sends scheduled email. launchd does not run jobs while the
+    Mac sleeps and fires once on wake; the worker re-plans what is overdue and
+    never catches up in a burst."""
+    log = str(logs_dir(ctx) / "hermitcrm-send.log")
+    return plistlib.dumps({
+        "Label": SEND_LABEL,
+        "ProgramArguments": ctx.send_args(),
         "EnvironmentVariables": {"PATH": job_path(ctx)},
         "StartInterval": every * 60,
         "RunAtLoad": True,
@@ -317,6 +342,20 @@ def backup_service(ctx: Context) -> str:
             f"ExecStart={_exec_line(ctx.backup_args())}\n")
 
 
+def send_service(ctx: Context) -> str:
+    return ("[Unit]\nDescription=Hermit CRM sends scheduled email (one per run)\n\n"
+            "[Service]\nType=oneshot\n"
+            f"WorkingDirectory={ctx.data_dir}\n"
+            f"Environment=PATH={job_path(ctx)}\n"
+            f"ExecStart={_exec_line(ctx.send_args())}\n")
+
+
+def send_timer(every: int = SEND_EVERY) -> str:
+    return ("[Unit]\nDescription=Run the Hermit CRM sending worker every few minutes\n\n"
+            f"[Timer]\nOnBootSec=2min\nOnUnitActiveSec={every}min\n\n"
+            "[Install]\nWantedBy=timers.target\n")
+
+
 def _user_name(ctx: Context) -> str:
     name = ctx.env.get("USER") or ctx.env.get("LOGNAME")
     if not name:
@@ -424,7 +463,8 @@ def _win_cmd(args: list[str]) -> str:
 
 
 def windows_commands(ctx: Context, hour: int, minute: int, serve: bool,
-                     backup_every: int | None = None, sync: bool = True) -> list[str]:
+                     backup_every: int | None = None, sync: bool = True,
+                     send: bool = False) -> list[str]:
     cmds = []
     if sync:
         cmds.append(f'schtasks /Create /F /SC DAILY /ST {hour:02d}:{minute:02d} '
@@ -432,6 +472,9 @@ def windows_commands(ctx: Context, hour: int, minute: int, serve: bool,
     if backup_every:
         cmds.append(f'schtasks /Create /F /SC MINUTE /MO {backup_every} /TN "{WIN_BACKUP_TASK}" '
                     f'/TR "{_win_cmd(ctx.backup_args())}"')
+    if send:
+        cmds.append(f'schtasks /Create /F /SC MINUTE /MO {SEND_EVERY} /TN "{WIN_SEND_TASK}" '
+                    f'/TR "{_win_cmd(ctx.send_args())}"')
     if serve:
         cmds.append(f'schtasks /Create /F /SC ONLOGON /TN "{WIN_SERVE_TASK}" '
                     f'/TR "{_win_cmd(ctx.serve_args())}"')
@@ -442,9 +485,10 @@ def windows_commands(ctx: Context, hour: int, minute: int, serve: bool,
 
 
 def install(ctx: Context, at: str = "07:00", serve: bool = False, backup: bool = True,
-            backup_every: int = 5, sync: bool = True) -> list[str]:
+            backup_every: int = 5, sync: bool = True, send: bool = False) -> list[str]:
     """Write and load the jobs. sync=False leaves the daily sync alone, for
-    Settings > Backup, which only starts the backup job."""
+    Settings > Backup, which only starts the backup job; send=True adds the
+    worker that sends scheduled email (Settings > Sending starts only that one)."""
     hour, minute = parse_time(at)
     every = parse_every(backup_every) if backup else None
     kind = _platform_kind(ctx.platform)
@@ -463,6 +507,9 @@ def install(ctx: Context, at: str = "07:00", serve: bool = False, backup: bool =
         if every:
             files.append((agents_dir(ctx) / f"{BACKUP_LABEL}.plist", backup_plist(ctx, every),
                           BACKUP_LABEL))
+        if send:
+            files.append((agents_dir(ctx) / f"{SEND_LABEL}.plist", send_plist(ctx),
+                          SEND_LABEL))
         if serve:
             files.append((agents_dir(ctx) / f"{SERVE_LABEL}.plist", serve_plist(ctx),
                           SERVE_LABEL))
@@ -476,6 +523,9 @@ def install(ctx: Context, at: str = "07:00", serve: bool = False, backup: bool =
         if every:
             lines.append(f"backup runs every {every} min; log: "
                          f"{logs_dir(ctx) / 'hermitcrm-backup.log'}")
+        if send:
+            lines.append(f"scheduled email is sent every {SEND_EVERY} min while the Mac is "
+                         f"awake; log: {logs_dir(ctx) / 'hermitcrm-send.log'}")
     elif kind == "linux":
         units_dir(ctx).mkdir(parents=True, exist_ok=True)
         files = ({f"{SYNC_UNIT}.service": sync_service(ctx),
@@ -483,6 +533,9 @@ def install(ctx: Context, at: str = "07:00", serve: bool = False, backup: bool =
         if every:
             files[f"{BACKUP_UNIT}.service"] = backup_service(ctx)
             files[f"{BACKUP_UNIT}.timer"] = backup_timer(every)
+        if send:
+            files[f"{SEND_UNIT}.service"] = send_service(ctx)
+            files[f"{SEND_UNIT}.timer"] = send_timer()
         if serve:
             files[f"{SERVE_UNIT}.service"] = serve_service(ctx)
         for name, text in files.items():
@@ -495,6 +548,7 @@ def install(ctx: Context, at: str = "07:00", serve: bool = False, backup: bool =
             ctx.run(["systemctl", "--user", "daemon-reload"], lines)
         enable = (([f"{SYNC_UNIT}.timer"] if sync else [])
                   + ([f"{BACKUP_UNIT}.timer"] if every else [])
+                  + ([f"{SEND_UNIT}.timer"] if send else [])
                   + ([f"{SERVE_UNIT}.service"] if serve else []))
         for unit in enable:
             code = ctx.run(["systemctl", "--user", "enable", "--now", unit], lines)
@@ -507,17 +561,23 @@ def install(ctx: Context, at: str = "07:00", serve: bool = False, backup: bool =
         if every:
             lines.append(f"backup runs every {every} min; log: "
                          f"journalctl --user -u {BACKUP_UNIT}")
+        if send:
+            lines.append(f"scheduled email is sent every {SEND_EVERY} min; log: "
+                         f"journalctl --user -u {SEND_UNIT}")
     else:
         lines.append("Windows: run these in a terminal (Hermit CRM does not run them for you):")
-        lines += windows_commands(ctx, hour, minute, serve, every, sync)
+        lines += windows_commands(ctx, hour, minute, serve, every, sync, send)
     return lines
 
 
-def remove(ctx: Context) -> list[str]:
+def remove(ctx: Context, only_send: bool = False) -> list[str]:
+    """Remove the jobs; `only_send` removes just the sending worker (turning
+    scheduled sending off in Settings must not stop the backup)."""
     kind = _platform_kind(ctx.platform)
     lines: list[str] = []
     if kind == "mac":
-        for label in (SYNC_LABEL, BACKUP_LABEL, SERVE_LABEL, *LEGACY_LABELS):
+        for label in ((SEND_LABEL,) if only_send else
+                      (SYNC_LABEL, BACKUP_LABEL, SEND_LABEL, SERVE_LABEL, *LEGACY_LABELS)):
             path = agents_dir(ctx) / f"{label}.plist"
             if not path.exists():
                 continue
@@ -526,11 +586,16 @@ def remove(ctx: Context) -> list[str]:
             path.unlink()
             lines.append(f"removed {path}")
     elif kind == "linux":
-        for unit in (f"{SYNC_UNIT}.timer", f"{BACKUP_UNIT}.timer", f"{SERVE_UNIT}.service"):
+        timers = ((f"{SEND_UNIT}.timer",) if only_send else
+                  (f"{SYNC_UNIT}.timer", f"{BACKUP_UNIT}.timer", f"{SEND_UNIT}.timer",
+                   f"{SERVE_UNIT}.service"))
+        for unit in timers:
             if (units_dir(ctx) / unit).exists():
                 ctx.run(["systemctl", "--user", "disable", "--now", unit], lines)
-        for name in (f"{SYNC_UNIT}.service", f"{SYNC_UNIT}.timer", f"{BACKUP_UNIT}.service",
-                     f"{BACKUP_UNIT}.timer", f"{SERVE_UNIT}.service"):
+        for name in ((f"{SEND_UNIT}.service", f"{SEND_UNIT}.timer") if only_send else
+                     (f"{SYNC_UNIT}.service", f"{SYNC_UNIT}.timer", f"{BACKUP_UNIT}.service",
+                      f"{BACKUP_UNIT}.timer", f"{SEND_UNIT}.service", f"{SEND_UNIT}.timer",
+                      f"{SERVE_UNIT}.service")):
             path = units_dir(ctx) / name
             if path.exists():
                 path.unlink()
@@ -539,9 +604,11 @@ def remove(ctx: Context) -> list[str]:
             ctx.run(["systemctl", "--user", "daemon-reload"], lines)
     else:
         lines.append("Windows: run these in a terminal:")
-        lines += [f'schtasks /Delete /F /TN "{WIN_SYNC_TASK}"',
-                  f'schtasks /Delete /F /TN "{WIN_BACKUP_TASK}"',
-                  f'schtasks /Delete /F /TN "{WIN_SERVE_TASK}"']
+        lines += ([f'schtasks /Delete /F /TN "{WIN_SEND_TASK}"'] if only_send else
+                  [f'schtasks /Delete /F /TN "{WIN_SYNC_TASK}"',
+                   f'schtasks /Delete /F /TN "{WIN_BACKUP_TASK}"',
+                   f'schtasks /Delete /F /TN "{WIN_SEND_TASK}"',
+                   f'schtasks /Delete /F /TN "{WIN_SERVE_TASK}"'])
     return lines or ["nothing installed"]
 
 
@@ -558,11 +625,13 @@ def status(ctx: Context) -> dict:
     lines: list[str] = []
     installed = False
     backup_installed = False
+    send_installed = False
     elsewhere: Path | None = None
     backup_elsewhere: Path | None = None
+    send_elsewhere: Path | None = None
     linger: bool | None = None
     if kind == "mac":
-        for label in (SYNC_LABEL, BACKUP_LABEL, SERVE_LABEL):
+        for label in (SYNC_LABEL, BACKUP_LABEL, SEND_LABEL, SERVE_LABEL):
             path = agents_dir(ctx) / f"{label}.plist"
             if not path.exists():
                 lines.append(f"{label}: not installed")
@@ -573,9 +642,11 @@ def status(ctx: Context) -> dict:
             if label == SYNC_LABEL:
                 installed = other is None
                 elsewhere = other
-            if label == BACKUP_LABEL:
-                backup_installed = other is None
-                backup_elsewhere = other
+            if label in (BACKUP_LABEL, SEND_LABEL):
+                if label == BACKUP_LABEL:
+                    backup_installed, backup_elsewhere = other is None, other
+                else:
+                    send_installed, send_elsewhere = other is None, other
                 interval = plist_value(ctx, path, "StartInterval")
                 at = f" every {int(interval) // 60} min" if interval else ""
             else:
@@ -611,16 +682,28 @@ def status(ctx: Context) -> dict:
                          f"{whose}")
         else:
             lines.append(f"{BACKUP_UNIT}.timer: not installed")
+        stimer = units_dir(ctx) / f"{SEND_UNIT}.timer"
+        if stimer.exists():
+            folder = unit_data_dir(units_dir(ctx) / f"{SEND_UNIT}.service")
+            other = folder if folder is not None and folder != ctx.data_dir else None
+            send_installed, send_elsewhere = other is None, other
+            m = re.search(r"^OnUnitActiveSec=(.*)$", stimer.read_text(encoding="utf-8"), re.M)
+            whose = f", for {other}" if other else ""
+            lines.append(f"{SEND_UNIT}.timer: installed (every {m.group(1) if m else '?'})"
+                         f"{whose}")
+        else:
+            lines.append(f"{SEND_UNIT}.timer: not installed")
         serve = units_dir(ctx) / f"{SERVE_UNIT}.service"
         lines.append(f"{SERVE_UNIT}.service: {'installed' if serve.exists() else 'not installed'}")
-        if timer.exists() or btimer.exists() or serve.exists():
+        if timer.exists() or btimer.exists() or stimer.exists() or serve.exists():
             linger = None if ctx.dry else linger_enabled(ctx)
             lines.append("lingering: " + {True: "on", None: "unknown (loginctl show-user)",
                                           False: "off; the jobs stop when you log out, run: "
                                                  "sudo loginctl enable-linger $USER"}[linger])
     else:
-        lines.append(f'Windows: check with: schtasks /Query /TN "{WIN_SYNC_TASK}" and '
-                     f'/TN "{WIN_BACKUP_TASK}"')
+        lines.append(f'Windows: check with: schtasks /Query /TN "{WIN_SYNC_TASK}", '
+                     f'/TN "{WIN_BACKUP_TASK}" and /TN "{WIN_SEND_TASK}"')
     return {"installed": installed, "backup_installed": backup_installed,
-            "elsewhere": elsewhere, "backup_elsewhere": backup_elsewhere, "linger": linger,
-            "lines": lines}
+            "send_installed": send_installed, "elsewhere": elsewhere,
+            "backup_elsewhere": backup_elsewhere, "send_elsewhere": send_elsewhere,
+            "linger": linger, "lines": lines}

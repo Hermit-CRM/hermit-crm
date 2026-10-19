@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Secrets (the Gmail app password, the calendar ICS URL) never live in config.toml.
+"""Secrets (the Gmail app passwords, the calendar ICS URL) never live in config.toml.
 
 ``get(name, data_dir, config)`` looks in this order and returns '' if nothing is set:
 
@@ -52,10 +52,10 @@ from pathlib import Path
 logger = logging.getLogger("hermitcrm.secrets")
 
 SECRETS_FILE = ".secrets.toml"
-NAMES = ("bcc_password", "calendar_ics_url")
+NAMES = ("bcc_password", "calendar_ics_url", "send_password")
 LEGACY_ENV = {"bcc_password": "CRM_BCC_PASSWORD", "calendar_ics_url": "CRM_CALENDAR_URL"}
 # The config prefix older data folders use for the Keychain service/account.
-CONFIG_PREFIX = {"bcc_password": "bcc", "calendar_ics_url": "calendar"}
+CONFIG_PREFIX = {"bcc_password": "bcc", "calendar_ics_url": "calendar", "send_password": "send"}
 
 KEYCHAIN = "keychain"
 SECRET_SERVICE = "secret-service"

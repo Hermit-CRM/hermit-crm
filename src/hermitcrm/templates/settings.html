@@ -10,7 +10,7 @@
     redirect to a section (/settings#bcc) opens the tab it is on. -#}
 {% set groups = [
   ('general', 'General', ['make-it-yours', 'you', 'enrichment', 'appearance', 'support', 'about']),
-  ('mail', 'Email & calendar', ['bcc', 'calendar']),
+  ('mail', 'Email & calendar', ['bcc', 'send', 'calendar']),
   ('crm', 'Your CRM', ['playbook', 'fields', 'messaging', 'task-types', 'stages', 'outcomes']),
   ('backup', 'Data', ['backup', 'export']),
   ('advanced', 'Advanced', ['schedule', 'access', 'mcp', 'doctor']),
@@ -18,7 +18,7 @@
 {% set lb = local_backup %}
 {% set attention = {
   'general': not state.you,
-  'mail': inbox_alert,
+  'mail': inbox_alert or send_banner,
   'backup': lb.level != 'ok',
 } %}
 {% macro group_start(key) %}{% for gid, label, sections in groups if gid == key %}<div class="settings-group" id="tab-{{ gid }}"{% for s in sections if s in form_errors %}{% if loop.first %} data-error{% endif %}{% endfor %}>{% endfor %}{% endmacro %}
@@ -225,6 +225,79 @@
     <p class="small">Keeps these copies out of your inbox. In Gmail: Settings → Filters → Create new filter.</p>
     <pre class="copy"><code>{{ gmail_filter }}</code></pre>
     {% endif %}
+  </details>
+</section>
+
+<section class="setup-step" id="send">
+  <div class="setting-head"><h2>Sending</h2>{{ status(send_form.enabled, 'on', 'off') }}{{ how('/help/sending') }}</div>
+  <p class="summary">Send approved outreach email from the Outreach page, now or spaced over the working day, from a mailbox of its own. You still approve every message. Plain text only, no links, no tracking pixel.</p>
+  <p class="meta">Use a separate mailbox, ideally on its own domain: cold email can hurt the reputation of the domain it is sent from, and a separate one keeps your main domain safe. 50 a day is the plan; a new mailbox starts at 10 a day and steps up over the ramp below.</p>
+  {% for problem in send_problems %}<p class="warning-box">Config: {{ problem }}</p>{% endfor %}
+  {% if send_cap_note %}<p class="warning-box">{{ send_cap_note }}</p>{% endif %}
+  {% if send_form.enabled %}
+  <p class="meta">{{ send_status.line }}</p>
+  {% if send_status.missing %}<p class="error">Not ready: {{ send_status.missing }}</p>{% endif %}
+  <p class="meta">Scheduled sending: {% if send_job.send_installed %}<strong>on</strong>, the queue is checked every few minutes while this computer is awake.{% elif send_job.send_elsewhere %}the job on this computer belongs to {{ send_job.send_elsewhere }}.{% else %}<strong>off</strong>: approved email waits in the queue until you turn it on.{% endif %}</p>
+  {% endif %}
+  <div class="actions">
+    {% if send_form.enabled %}
+    <form method="post" action="/settings/send/test" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" data-busy="Sending&hellip;">Send a test to myself</button>
+    </form>
+    <form method="post" action="/settings/send/job" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {% if send_job.send_installed %}<button type="submit" name="action" value="off" class="secondary">Turn off scheduled sending</button>
+      {% else %}<button type="submit" name="action" value="on">Turn on scheduled sending</button>{% endif %}
+    </form>
+    {% endif %}
+  </div>
+  {{ step_errors('send') }}
+  <details class="edit"{% if not send_form.enabled or 'send' in form_errors %} open{% endif %}>
+    <summary>{{ 'Change the sending settings' if send_form.enabled else 'Set up sending' }}</summary>
+    <form method="post" action="/settings/send" class="record-form" id="send-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label class="check"><input type="checkbox" name="enabled" value="1"{% if send_form.enabled %} checked{% endif %}> Sending is on (Send now and Schedule appear on the Outreach page)</label>
+      <label>Mail provider
+        <select id="send-provider" aria-describedby="send-provider-note">
+          <option value="">other (type the servers yourself)</option>
+          {% for key, p in send_providers.items() %}<option value="{{ key }}" data-smtp="{{ p.smtp_host }}" data-port="{{ p.smtp_port }}" data-imap="{{ p.imap_host }}"{% if send_form.smtp_host == p.smtp_host %} selected{% endif %}>{{ p.label }}</option>{% endfor %}
+        </select>
+      </label>
+      {% for key, p in send_providers.items() %}
+      <p class="small provider-note{% if not p.works %} warning{% endif %}" data-send-provider="{{ key }}" id="{{ 'send-provider-note' if loop.first else '' }}"{% if send_form.smtp_host != p.smtp_host %} hidden{% endif %}>
+        <strong>{{ p.label }}:</strong> {{ p.note }}{% if p.password_url %} <a href="{{ p.password_url }}" target="_blank" rel="noopener">Create the app password</a>.{% endif %}
+      </p>
+      {% endfor %}
+      <div class="row">
+        <label class="grow">Send from <input name="from_addr" value="{{ send_form.from_addr }}" placeholder="cold@mail.example.com" autocomplete="off"></label>
+        <label class="grow">Login (if not the same address) <input name="smtp_user" value="{{ send_form.smtp_user }}" autocomplete="off"></label>
+      </div>
+      <label>App password <input type="password" name="password" value="" autocomplete="new-password" placeholder="{{ 'stored; leave empty to keep it' if send_password_stored else 'paste the 16-character app password' }}"></label>
+      {% if os_store %}<label class="check"><input type="checkbox" name="keychain" value="1" checked> Store the password in {{ os_store_label }}</label>{% endif %}
+      <p class="small">The password goes to {% if os_store %}<code>.secrets.toml</code> (mode 600) or {{ os_store_label }}{% else %}<code>.secrets.toml</code> (mode 600){% endif %}, never to <code>config.toml</code>. One app password covers both sending and the reply check (IMAP). {% if os_store == 'secret-service' %}A keyring is locked while you are logged out, so scheduled sending that runs then cannot read it; keep it in <code>.secrets.toml</code> if the machine sends without you logged in.{% endif %}</p>
+      <div class="row">
+        <label class="grow">SMTP server <input name="smtp_host" id="send-smtp-host" value="{{ send_form.smtp_host }}"></label>
+        <label>Port <input name="smtp_port" id="send-smtp-port" value="{{ send_form.smtp_port }}" size="5" inputmode="numeric"></label>
+        <label class="grow">IMAP server (reply check, Sent check, bounces) <input name="imap_host" id="send-imap-host" value="{{ send_form.imap_host }}"></label>
+      </div>
+      <h3>When and how much</h3>
+      <div class="row">
+        <label>Window <input name="window" value="{{ send_form.window }}" size="11" placeholder="08:30-17:30"></label>
+        <label>Most per day <input name="daily_cap" value="{{ send_form.daily_cap }}" size="5" inputmode="numeric"></label>
+        <label class="grow">Ramp, per week from the first send <input name="ramp" value="{{ send_form.ramp }}" placeholder="10, 20, 30, 40"></label>
+      </div>
+      <fieldset class="send-days"><legend>Days</legend>
+        {% for d in send_weekdays %}<label class="check inline-check"><input type="checkbox" name="days" value="{{ d }}"{% if d in send_form.days %} checked{% endif %}> {{ d }}</label> {% endfor %}
+      </fieldset>
+      <div class="row">
+        <label>Least minutes between two mails <input name="min_gap" value="{{ send_form.min_gap }}" size="4" inputmode="numeric"></label>
+        <label>Least hours between two mails to one company <input name="company_gap_hours" value="{{ send_form.company_gap_hours }}" size="4" inputmode="numeric"></label>
+        <label class="grow">Never email these countries (e.g. DE, AT; empty = none) <input name="countries" value="{{ send_form.countries }}" placeholder="none"></label>
+      </div>
+      <p class="small">50 a day is the plan, reached in steps of 10 a week. More than 150 a day for more than 1-2 days in a row is strongly discouraged: after two such days the third is held at 150. Mail goes out only inside the window, on the days ticked, in your local time. German and Austrian law ask for consent to advertising email, B2B included; that is yours to judge (not legal advice), which is why a country can be switched off here.</p>
+      <button type="submit">Save</button>
+    </form>
   </details>
 </section>
 
@@ -651,6 +724,21 @@
     if (chosen.dataset.host) host.value = chosen.dataset.host;
     document.querySelectorAll(".provider-note").forEach(function (n) {
       n.hidden = n.dataset.provider !== select.value;
+    });
+  });
+})();
+// Picking a sending provider fills the SMTP and IMAP servers and shows its note.
+(function () {
+  var select = document.getElementById("send-provider");
+  if (!select) return;
+  select.addEventListener("change", function () {
+    var chosen = select.options[select.selectedIndex];
+    [["send-smtp-host", "smtp"], ["send-smtp-port", "port"], ["send-imap-host", "imap"]].forEach(function (pair) {
+      var input = document.getElementById(pair[0]);
+      if (input && chosen.dataset[pair[1]]) input.value = chosen.dataset[pair[1]];
+    });
+    document.querySelectorAll("[data-send-provider]").forEach(function (n) {
+      n.hidden = n.dataset.sendProvider !== select.value;
     });
   });
 })();

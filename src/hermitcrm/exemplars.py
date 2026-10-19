@@ -308,7 +308,7 @@ def index(store: Store, approach: str = "", config: dict | None = None,
                 doc=_doc(s.findings_used, text),
                 label=f"{RUNG_WORDS[rung]}, {_age(today, when)}", **base))
 
-        if s.state in ("ready", "sent", "logged") and s.edits and item.edits:
+        if s.state in ("ready", "queued", "failed", "sent", "logged") and s.edits and item.edits:
             has_why = bool(s.notes or s.tags)
             heavy = s.overall is not None and s.overall.changed_words >= CORRECTION_MIN_WORDS
             again = s.overall is not None and any(

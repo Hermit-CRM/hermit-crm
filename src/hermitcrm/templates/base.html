@@ -92,6 +92,10 @@
     <strong>A file your agent writes has a problem.</strong> Where Hermit cannot use a file it keeps what it read before. Paste these lines to your agent, or run <code>hermitcrm check</code>:
     <ul>{% for p in file_problems %}<li><code>{{ p }}</code></li>{% endfor %}</ul>
   </div>{% endif %}
+  {% if send_banner %}<div class="send-banner" role="alert">
+    <strong>Email sending is paused.</strong> {{ send_banner.message }} {{ send_banner.way }}
+    <a href="/outreach">Outreach</a> &middot; <a href="/settings#send">Settings &gt; Sending</a>
+  </div>{% endif %}
   {% if off_board %}<div class="warning-box">
     <strong>{{ off_board.values() | sum }} {{ 'company is' if off_board.values() | sum == 1 else 'companies are' }} in a stage that is not in Settings:</strong>
     {% for name, n in off_board.items() %}{{ name }} ({{ n }}){% if not loop.last %}, {% endif %}{% endfor %}.
