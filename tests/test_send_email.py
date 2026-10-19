@@ -746,7 +746,7 @@ def test_an_unreachable_imap_server_is_a_temporary_error(folder):
     with pytest.raises(send.SendError) as caught:
         with send.Mailbox(settings, "pw", imap.factory):
             pass
-    assert caught.value.kind == send.TEMPORARY and "imap.gmail.com" in caught.value.text
+    assert caught.value.kind == send.TEMPORARY and settings.imap_host in caught.value.text
     bad = FakeImap(login_error=imaplib.IMAP4.error(b"[AUTHENTICATIONFAILED] Invalid credentials"))
     with pytest.raises(send.SendError) as caught:
         with send.Mailbox(settings, "pw", bad.factory):
