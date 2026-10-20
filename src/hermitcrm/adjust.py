@@ -301,7 +301,7 @@ STARTERS = [
             "senior, executive], shown in the contacts list.",
             "fields.toml", UNDO, ("contact", "contacts")),
     Starter("layout-contact", "Pages", "Rearrange contact pages",
-            "On contact pages, show the [timeline] first and hide the [message drafts].",
+            "On contact pages, show the [timeline] first and hide the [merge box].",
             "layout.toml", UNDO, ("contact",)),
     Starter("columns-contacts", "Pages", "Choose the columns",
             "In the contacts list, show only [name, company, title, email].",

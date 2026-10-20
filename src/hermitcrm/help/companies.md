@@ -64,7 +64,7 @@ you disqualify it instead.
   (the first is labelled **next step**), then the done ones with the day they
   were done. **Done** / **Reopen** / **Delete** on each, and **Add task** with a
   "for" list: the company or one of its people.
-- **Message drafts** for the most recently touched contact (see [Contacts](/help/contacts)).
+- **outreach** on each row of the contacts table opens [Outreach](/help/outreach) with that person ready to generate (see [Contacts](/help/contacts)).
 - **Merge**: pick another company to compare and merge into this one.
 - **Timeline**: every interaction across all contacts, newest first, bodies
   collapsed (a note shows its text).

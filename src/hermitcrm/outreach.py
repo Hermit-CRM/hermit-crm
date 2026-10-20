@@ -125,6 +125,7 @@ ITEM_KEYS = (
     "subject", "pitch", "research_level", "model", "attempts", "seconds", "checks",
     "critic", "critic_reason", "critic_model", "flags", "norms", "findings", "proof_used",
     "lessons_used", "exemplars_used", "proposals", "edit_distance",
+    "language_pick", "notes_linked",
     "skip_reason", "skip_note", "batch", "created", "researched", "drafted", "ready",
     "sent", "sent_with", "skipped",
     "queued", "send_at", "send_hash", "message_id", "send_tries", "send_error", "send_note",
@@ -609,9 +610,10 @@ def _interaction_line(company, it) -> str:
 
 def make_brief(store: Store, company, contact, approach, research: Research,
                fit: int | None = None, messages: dict | None = None,
-               flags: list[str] | None = None) -> Brief:
+               flags: list[str] | None = None, notes_background: bool = False,
+               language: str = "") -> Brief:
     messages = messages if messages is not None else messaging.load_messages(store.root)
-    lang = messaging.draft_language(company, contact, messages=messages)
+    lang = messaging.draft_language(company, contact, override=language, messages=messages)
     personas = approach.personas if approach is not None else {}
     brief = Brief(who=contact.name, title=contact.title,
                   persona=playbook.match_persona(contact.title, personas),
@@ -630,6 +632,15 @@ def make_brief(store: Store, company, contact, approach, research: Research,
         brief.situation.append("Tags: " + ", ".join(t for t in company.tags if t != "demo"))
     usable = [f for f in research.findings if f.usable and f.source != "crm"]
     brief.situation += [f"{f.text} (source: {f.source})" for f in usable[:6]]
+    if (company.notes or "").strip():
+        brief.situation.append("Company notes: " + " ".join(company.notes.split())[:600])
+    if notes_background:   # a thread has no findings to cite: the notes are background
+        from . import notes
+        for note in notes.contact_notes(company, contact.slug)[:5]:
+            text = " ".join(note.body.split())[:300]
+            if text:
+                when = f"{note.date:%Y-%m-%d}" if note.date else "undated"
+                brief.situation.append(f"Note ({when}): {text}")
     mine = [i for i in company.interactions if i.date and i.contact == contact.slug]
     others = [i for i in company.interactions if i.date and i.contact != contact.slug
               and i.is_touch]
@@ -1135,8 +1146,9 @@ class AIDrafter:
             store.root)
 
     def context(self, kind: str, company, contact, research: Research, channel: str,
-                approach=None) -> tuple[CheckContext, dict]:
-        lang = messaging.draft_language(company, contact, messages=self.messages)
+                approach=None, language: str = "") -> tuple[CheckContext, dict]:
+        lang = messaging.draft_language(company, contact, override=language,
+                                        messages=self.messages)
         norms = culture(lang, company.country, self.messages)
         rules = channel_rules(channel, self.messages)
         opt_out = opt_out_line(self.store.root, kind, channel, lang, rules)
@@ -1152,14 +1164,15 @@ class AIDrafter:
 
     def draft(self, kind, company, contact, research, channel, approach=None,
               brief: Brief | None = None, reply=None, earlier=None, critique: str = "",
-              **_) -> Draft:
+              language: str = "", **_) -> Draft:
         if kind not in BUILT_KINDS:
             raise OutreachError(f"{kind} drafts come in a later version")
-        ctx, norms = self.context(kind, company, contact, research, channel, approach)
+        ctx, norms = self.context(kind, company, contact, research, channel, approach,
+                                  language)
         angle_note, examples = self._learned(kind, company, contact, research, channel,
-                                             approach, ctx)
+                                             approach, ctx, language)
         brief = brief or make_brief(self.store, company, contact, approach, research,
-                                    messages=self.messages)
+                                    messages=self.messages, language=language)
         try:
             text = (Path(self.store.root) / playbook.FILENAME).read_text(encoding="utf-8")
             pb_text = playbook.body_for_ai(text, approach.name if approach else "")
@@ -1210,7 +1223,8 @@ class AIDrafter:
         result.angle_note = angle_note
         return result
 
-    def _learned(self, kind, company, contact, research, channel, approach, ctx):
+    def _learned(self, kind, company, contact, research, channel, approach, ctx,
+                 language: str = ""):
         """What approach C adds to a first touch: the angle the exploration
         policy fixes (ctx.angles is narrowed to it) and the examples block.
         Both are off by default, and learning must never stop a draft: any
@@ -1227,7 +1241,8 @@ class AIDrafter:
         except Exception:
             logger.exception("the angle policy failed; the AI chooses the angle")
         try:
-            lang = messaging.draft_language(company, contact, messages=self.messages)
+            lang = messaging.draft_language(company, contact, override=language,
+                                            messages=self.messages)
             examples = exemplars.for_draft(self.store, company, contact, approach,
                                            research.findings, channel, lang, kind, self.config,
                                            angle=ctx.angles[0] if angle_note else "")
@@ -1555,6 +1570,8 @@ class Item:
     exemplars_used: list[str] = field(default_factory=list)  # examples in the prompt
     proposals: dict = field(default_factory=dict)
     edit_distance: int | None = None
+    language_pick: str = ""     # a language chosen for this card: the draft and its regenerates
+    notes_linked: bool = False  # findings are a snapshot of notes (notes.py), not its own list
     skip_reason: str = ""
     skip_note: str = ""
     batch: str = ""
@@ -1607,8 +1624,9 @@ class Item:
                 value = [f.to_dict() for f in value]
             elif key in ("edits", "earlier"):
                 value = [x.to_dict() for x in value]
-            elif key in ("lessons_used", "exemplars_used") and not value:
-                continue    # absent until a draft carried them (keeps older files' bytes)
+            elif key in ("lessons_used", "exemplars_used", "language_pick",
+                         "notes_linked") and not value:
+                continue    # absent until they apply (keeps older files' bytes)
             meta[key] = value
         return meta
 
@@ -1697,6 +1715,8 @@ def item_from_text(item_id: str, text: str) -> Item:
         proposals={str(k): str(v) for k, v in proposals.items()}
         if isinstance(proposals, dict) else {},
         edit_distance=_int_or_none(meta.get("edit_distance")),
+        language_pick=s("language_pick").strip(),
+        notes_linked=meta.get("notes_linked") is True,
         skip_reason=s("skip_reason"), skip_note=s("skip_note"), batch=s("batch"),
         created=when("created"), researched=when("researched"), drafted=when("drafted"),
         ready=when("ready"), sent=when("sent"), sent_with=s("sent_with"),
@@ -2246,7 +2266,7 @@ def select(store: Store, where: list[str] | None = None, channel: str = "email",
            today: date | None = None) -> Selection:
     """Who a batch would go to, in order, and why the rest would not. No AI, no
     writes. `contacts` ("company/contact") replaces the filter: the per-contact
-    "Research & draft" button."""
+    Generate outreach button."""
     if channel not in CHANNELS:
         raise OutreachError(f"channel {channel!r}: use email or linkedin")
     if kind not in KINDS:
@@ -2511,13 +2531,16 @@ def researcher_for(level: str, enricher, fetcher=None, today: date | None = None
 
 def build(store: Store, selection: Selection, researcher: Researcher, drafter: Drafter,
           config: dict | None = None, now: datetime | None = None,
-          batch: str = "", critic: Critic | None = None) -> BuildResult:
+          batch: str = "", critic: Critic | None = None,
+          language: str = "") -> BuildResult:
     """Research and draft every picked contact. Each step of each item is one
     commit (`store.notify`): the research, then the draft. A crash halfway
     leaves the items written so far, each committed. `batch` names the run
     (the Outreach page builds one contact per request and passes the same
     one); empty = from the start time and the channel. `critic` scores each
-    draft inside the draft step (no extra commit); none = no critic."""
+    draft inside the draft step (no extra commit); none = no critic. `language`:
+    one language for these drafts and their regenerates (kept on the item as
+    `language_pick`); empty = the contact's, else the company's country's."""
     root = Path(store.root)
     config = config if config is not None else load_config(root)
     if selection.gate:
@@ -2525,6 +2548,7 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
     if selection.kind not in BUILT_KINDS:
         raise OutreachError(f"{selection.kind} drafts come in a later version; "
                             f"use {' or '.join(BUILT_KINDS)}")
+    from . import notes
     pb = playbook.load(root)
     out = BuildResult()
     started = now or store.now()
@@ -2552,7 +2576,8 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
                     follows=row.interaction.id if row else "",
                     approach=cand.approach,
                     research_level="" if threaded else getattr(researcher, "level", ""),
-                    flags=list(cand.flags), batch=batch, created=when)
+                    flags=list(cand.flags), batch=batch, created=when,
+                    language_pick=language)
         if threaded:   # no research: the thread is the context
             research = Research(level="")
         else:
@@ -2561,24 +2586,37 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
             except (EnrichError, OutreachError) as exc:
                 research = Research(level=item.research_level,
                                     notes=[f"research failed: {exc}"])
-        item.findings = research.findings
         item.proposals = research.proposals
         item.flags += [n for n in research.notes if n not in item.flags]
-        fallback = not threaded and not any(f.usable for f in research.findings)
-        if fallback:
-            item.flags.append("nothing usable found: the draft falls back to the "
-                              "playbook's angles, gaps marked [ ]")
         item.researched = store.now() if now is None else now
-        with store.lock:
+        with store.batch("outreach: research") as ctx:
+            if not threaded:   # what research found becomes notes; the draft reads the notes
+                kept, left_out = notes.save_findings(store, cand.company.slug,
+                                                     cand.contact.slug, research.findings)
+                if left_out:
+                    item.flags.append(f"{left_out} low-confidence findings not saved as notes"
+                                      if left_out != 1 else
+                                      "1 low-confidence finding not saved as a note")
+                research.findings = notes.snapshot(store.get(cand.company.slug),
+                                                   cand.contact.slug, store.today())
+            item.findings = research.findings
+            item.notes_linked = True
+            fallback = not threaded and not any(f.usable for f in research.findings)
+            if fallback:
+                item.flags.append("nothing usable found: the draft falls back to the "
+                                  "playbook's angles, gaps marked [ ]")
+            message = (f"outreach: reply to interest {item.record} ({item.reply_to})"
+                       if answering else
+                       f"outreach: follow-up {item.record} ({item.follows})"
+                       if following else
+                       f"outreach: research {item.record} ({item.research_level}, "
+                       f"{len(item.findings)} findings)")
+            ctx["message"] = message
             write_item(root, item)
-            store.notify(f"outreach: reply to interest {item.record} ({item.reply_to})"
-                         if answering else
-                         f"outreach: follow-up {item.record} ({item.follows})"
-                         if following else
-                         f"outreach: research {item.record} ({item.research_level}, "
-                         f"{len(item.findings)} findings)", [item.path])
+            store.notify(message, [item.path])
         brief = make_brief(store, cand.company, cand.contact, approach, research,
-                           fit=cand.fit, flags=cand.flags)
+                           fit=cand.fit, flags=cand.flags, notes_background=threaded,
+                           language=language)
         thread = reply.interaction if reply else row.interaction if row else None
 
         def write(critique: str = "") -> Draft:   # called within this turn of the loop
@@ -2586,7 +2624,7 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
                                  selection.channel, approach=approach, brief=brief,
                                  reply=reply.interaction if reply else None,
                                  earlier=row.interaction if row else None,
-                                 critique=critique)
+                                 critique=critique, language=language)
 
         draft = write()
         reviewed = _review(critic, config, draft, write, selection.kind, selection.channel,
@@ -2708,8 +2746,8 @@ def mark_ready(store: Store, item_id: str, sender: Sender | None = None,
                note: str = "", tags=()) -> tuple[Item, list[str]]:
     """The person approves the draft. The hard checks run again on the text as
     it is now; what still fails is a warning, returned and kept in `checks`
-    (the person decides). The findings the draft used go to the contact's
-    notes (one note), the item becomes ready: one commit. Nothing is sent
+    (the person decides). The item becomes ready: one commit (the notes the
+    research wrote are already on the contact). Nothing is sent
     (ManualSender) or logged (ManualLogger). `subject`, `body`, `pitch`: the
     text as edited on the Outreach page, saved in the same commit; a changed
     text is a tracked edit with `note` as its explainer."""
@@ -2730,15 +2768,10 @@ def mark_ready(store: Store, item_id: str, sender: Sender | None = None,
     item.state, item.ready, item.checks = "ready", now, found
     item.edit_distance = edit_distance(item.ai_subject + "\n" + item.ai_body + item.ai_pitch,
                                        item.subject + "\n" + item.body + item.pitch)
-    # What the CRM already knew is in the record; only what research added goes.
-    used = [f for f in item.findings if f.used and f.source != "crm"]
     message = f"outreach: ready {item.record} ({item.channel})"
     with store.batch(message):
-        if used:
-            lines = [f"Outreach research for {item.channel} ({item.id}):"]
-            lines += [f"- {f.text} ({f.source})" for f in used]
-            store.create_interaction(item.company, "note", "", contact=item.contact,
-                                     body="\n".join(lines) + "\n")
+        from . import notes
+        notes.adopt(store, item)   # an older card: what it shows becomes notes, once
         write_item(store.root, item)
         store.notify(message, [item.path])
     result = (sender or ManualSender()).send(item)
@@ -2947,7 +2980,8 @@ def _item_brief(store: Store, item: Item, company, contact, approach,
     return make_brief(store, company, contact, approach, research,
                       fit=fit_value(company, str(_config(config, "outreach_fit_field"))),
                       flags=[f for f in item.flags if f != NEEDS_HAND_EDITS
-                             and not f.startswith("critic")])
+                             and not f.startswith("critic")],
+                      notes_background=in_thread(item.kind), language=item.language_pick)
 
 
 def redraft(store: Store, item_id: str, drafter: Drafter,
@@ -2971,6 +3005,10 @@ def redraft(store: Store, item_id: str, drafter: Drafter,
         raise OutreachError(f"{item.record} is not in the CRM any more")
     config = config if config is not None else load_config(store.root)
     approach = playbook.load(store.root).approach(item.approach) if item.approach else None
+    if not in_thread(item.kind):   # a regenerate reads the notes as they are now
+        from . import notes
+        notes.adopt(store, item)
+        item.findings = notes.snapshot(store.get(item.company), item.contact, store.today())
     research = Research(findings=item.findings, level=item.research_level)
     brief = _item_brief(store, item, company, contact, approach, config)
     reply = next((i for i in company.interactions if i.id == item.reply_to), None) \
@@ -2988,7 +3026,7 @@ def redraft(store: Store, item_id: str, drafter: Drafter,
     def write(critique: str = "") -> Draft:
         return drafter.draft(item.kind, company, contact, research, item.channel,
                              approach=approach, brief=brief, reply=reply, earlier=earlier,
-                             critique=critique)
+                             critique=critique, language=item.language_pick)
 
     draft = write()
     fallback = not in_thread(item.kind) and not any(f.usable for f in item.findings)
@@ -3016,34 +3054,7 @@ def redraft(store: Store, item_id: str, drafter: Drafter,
     return item
 
 
-YOURS = "you"   # the source of a finding the person added by hand
-
-
-def set_findings(store: Store, item_id: str, remove: list[int] | None = None,
-                 add: str = "", kind: str = "company") -> Item:
-    """Remove findings (by number, 1-based, as shown) and/or add one of your
-    own (source "you", confidence high: you know it). A regenerate uses the
-    list as it is now. One commit."""
-    item = _refresh(store, item_id)
-    if item.state != "drafted":
-        raise OutreachError(f"{item.id} is {item.state}; only a drafted item's findings "
-                            "can change")
-    drop = {n for n in remove or [] if 1 <= n <= len(item.findings)}
-    gone = [item.findings[n - 1].text for n in sorted(drop)]
-    item.findings = [f for n, f in enumerate(item.findings, 1) if n not in drop]
-    text = " ".join((add or "").split())
-    if text:
-        item.findings.append(Finding(text=text, source=YOURS,
-                                     kind=_choice(kind, FINDING_KINDS, "company"),
-                                     confidence="high", date=f"{store.today():%Y-%m}"))
-    if not gone and not text:
-        return item
-    what = ([f"removed {len(gone)}"] if gone else []) + (["added 1"] if text else [])
-    message = f"outreach: findings {item.record}: {', '.join(what)}"
-    with store.lock:
-        write_item(store.root, item)
-        store.notify(message, [item.path])
-    return item
+YOURS = "you"   # the source of a finding that is a note you wrote (notes.py)
 
 
 PAGE_TEXT_LIMIT = 9000   # what is read from a profile page the person adds (top card, About, activity)
@@ -3083,14 +3094,9 @@ def add_page(store: Store, item_id: str, url: str, text: str, enricher) -> tuple
         if _norm_space(finding.text) not in known:
             known.add(_norm_space(finding.text))
             added.append(finding)
-    if not added:
-        return item, 0
-    item.findings += added
-    message = f"outreach: findings {item.record}: added {len(added)} from LinkedIn"
-    with store.lock:
-        write_item(store.root, item)
-        store.notify(message, [item.path])
-    return item, len(added)
+    from . import notes
+    written, _ = notes.save_findings(store, item.company, item.contact, added)
+    return item, written
 
 
 PROPOSAL_FIELDS = {"linkedin": "contact", "website": "company", "country": "company"}

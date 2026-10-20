@@ -99,7 +99,7 @@
       <td>{{ c.role }}</td>
       <td>{% if c.email %}<a href="mailto:{{ c.email }}">{{ c.email }}</a>{% endif %}</td>
       <td>{% if c.linkedin %}<a href="{{ c.linkedin | href }}" target="_blank" rel="noopener">profile</a>{% endif %}</td>
-      <td><a href="/companies/{{ company.slug }}/contacts/{{ slug }}#quick-add">log</a> &middot; <a href="/companies/{{ company.slug }}/contacts/{{ slug }}#drafts">drafts</a></td>
+      <td><a href="/companies/{{ company.slug }}/contacts/{{ slug }}#quick-add">log</a> &middot; <a href="/outreach?contact={{ company.slug }}/{{ slug }}#generate" title="Open Outreach with {{ c.first_name or c.name }} ready to generate">outreach</a></td>
     </tr>
     {% else %}
     <tr><td colspan="6" class="empty">No contacts yet.</td></tr>
@@ -109,8 +109,6 @@
 </section>
 {% elif section == 'tasks' %}
 {{ m.task_section(company, today) }}
-{% elif section == 'drafts' %}
-{{ m.drafts_section(company, draft_contact, drafts, signal, observation, '/companies/' ~ company.slug) }}
 {% elif section == 'merge' %}
 <section id="merge">
   <h2>Merge</h2>

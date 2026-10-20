@@ -45,12 +45,15 @@ FILENAME = "layout.toml"
 # anchor on the page too, except `enrich` (the Enrich and Fetch from URL
 # buttons) and `next-step` (the next step line under them).
 SECTIONS = {
-    "company": ("enrich", "next-step", "details", "contacts", "tasks", "drafts",
-                "merge", "timeline"),
-    "contact": ("details", "tasks", "quick-add", "timeline", "drafts", "merge",
-                "delete"),
+    "company": ("enrich", "next-step", "details", "contacts", "tasks", "merge",
+                "timeline"),
+    "contact": ("details", "tasks", "quick-add", "timeline", "merge", "delete"),
     "home": ("doing", "to-file", "owed", "keep-in-touch", "going"),
 }
+
+# Section names an older layout.toml may still list: read and ignored, with no
+# problem reported (the Message drafts box is gone: Outreach replaced it).
+RETIRED_SECTIONS = ("drafts",)
 
 # Built-in fields a record page may hide (its header line, its form and the
 # list columns). The page header keeps what it is made of: a company's name
@@ -191,6 +194,8 @@ def parse(data: dict, defs: list | None = None) -> tuple[Layout, list[str]]:
                     problem(where, f"{name} is listed twice")
                 elif key == "hide_fields" and name in HEADER_FIELDS[table]:
                     problem(where, f"{name} is part of the page header and cannot be hidden")
+                elif what == "section" and name in RETIRED_SECTIONS:
+                    continue
                 elif name in known:
                     kept.append(name)
                 elif custom is None and what != "section" and name:
