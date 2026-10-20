@@ -953,7 +953,13 @@ form.outreach-skip input { width: auto; margin: 0; }
 form.outreach-build label { margin: 0; }
 form.outreach-build label.check { padding-bottom: 6px; }
 .outreach-card input[name=subject] { width: 100%; }
-.outreach-notes ol { margin: 4px 0; padding-left: 20px; }
+.outreach-notes ol, .outreach-generate ol { margin: 4px 0; padding-left: 20px; }
+.outreach-generate { border: 1px solid var(--line); border-radius: 6px; background: var(--surface); padding: 6px 14px 12px; margin: 10px 0 16px; }
+.outreach-generate h2 { margin: 6px 0; }
+.outreach-generate h3 { font-size: 14px; margin: 12px 0 2px; }
+form.outreach-generate-form { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-end; margin: 8px 0; }
+form.outreach-generate-form label.grow { flex: 1 1 320px; }
+form.outreach-generate-form label.grow input { width: 100%; }
 .outreach-flags { margin: 4px 0; padding-left: 18px; color: var(--muted); }
 /* Replies to interest: one row per reply owed, the same tag and button styles. */
 .outreach-reply-list { list-style: none; padding: 0; margin: 12px 0; }

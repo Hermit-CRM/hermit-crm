@@ -610,9 +610,10 @@ def _interaction_line(company, it) -> str:
 
 def make_brief(store: Store, company, contact, approach, research: Research,
                fit: int | None = None, messages: dict | None = None,
-               flags: list[str] | None = None, notes_background: bool = False) -> Brief:
+               flags: list[str] | None = None, notes_background: bool = False,
+               language: str = "") -> Brief:
     messages = messages if messages is not None else messaging.load_messages(store.root)
-    lang = messaging.draft_language(company, contact, messages=messages)
+    lang = messaging.draft_language(company, contact, override=language, messages=messages)
     personas = approach.personas if approach is not None else {}
     brief = Brief(who=contact.name, title=contact.title,
                   persona=playbook.match_persona(contact.title, personas),
@@ -1144,8 +1145,9 @@ class AIDrafter:
             store.root)
 
     def context(self, kind: str, company, contact, research: Research, channel: str,
-                approach=None) -> tuple[CheckContext, dict]:
-        lang = messaging.draft_language(company, contact, messages=self.messages)
+                approach=None, language: str = "") -> tuple[CheckContext, dict]:
+        lang = messaging.draft_language(company, contact, override=language,
+                                        messages=self.messages)
         norms = culture(lang, company.country, self.messages)
         rules = channel_rules(channel, self.messages)
         opt_out = opt_out_line(self.store.root, kind, channel, lang, rules)
@@ -1161,14 +1163,15 @@ class AIDrafter:
 
     def draft(self, kind, company, contact, research, channel, approach=None,
               brief: Brief | None = None, reply=None, earlier=None, critique: str = "",
-              **_) -> Draft:
+              language: str = "", **_) -> Draft:
         if kind not in BUILT_KINDS:
             raise OutreachError(f"{kind} drafts come in a later version")
-        ctx, norms = self.context(kind, company, contact, research, channel, approach)
+        ctx, norms = self.context(kind, company, contact, research, channel, approach,
+                                  language)
         angle_note, examples = self._learned(kind, company, contact, research, channel,
-                                             approach, ctx)
+                                             approach, ctx, language)
         brief = brief or make_brief(self.store, company, contact, approach, research,
-                                    messages=self.messages)
+                                    messages=self.messages, language=language)
         try:
             text = (Path(self.store.root) / playbook.FILENAME).read_text(encoding="utf-8")
             pb_text = playbook.body_for_ai(text, approach.name if approach else "")
@@ -1219,7 +1222,8 @@ class AIDrafter:
         result.angle_note = angle_note
         return result
 
-    def _learned(self, kind, company, contact, research, channel, approach, ctx):
+    def _learned(self, kind, company, contact, research, channel, approach, ctx,
+                 language: str = ""):
         """What approach C adds to a first touch: the angle the exploration
         policy fixes (ctx.angles is narrowed to it) and the examples block.
         Both are off by default, and learning must never stop a draft: any
@@ -1236,7 +1240,8 @@ class AIDrafter:
         except Exception:
             logger.exception("the angle policy failed; the AI chooses the angle")
         try:
-            lang = messaging.draft_language(company, contact, messages=self.messages)
+            lang = messaging.draft_language(company, contact, override=language,
+                                            messages=self.messages)
             examples = exemplars.for_draft(self.store, company, contact, approach,
                                            research.findings, channel, lang, kind, self.config,
                                            angle=ctx.angles[0] if angle_note else "")
@@ -2525,13 +2530,16 @@ def researcher_for(level: str, enricher, fetcher=None, today: date | None = None
 
 def build(store: Store, selection: Selection, researcher: Researcher, drafter: Drafter,
           config: dict | None = None, now: datetime | None = None,
-          batch: str = "", critic: Critic | None = None) -> BuildResult:
+          batch: str = "", critic: Critic | None = None,
+          language: str = "") -> BuildResult:
     """Research and draft every picked contact. Each step of each item is one
     commit (`store.notify`): the research, then the draft. A crash halfway
     leaves the items written so far, each committed. `batch` names the run
     (the Outreach page builds one contact per request and passes the same
     one); empty = from the start time and the channel. `critic` scores each
-    draft inside the draft step (no extra commit); none = no critic."""
+    draft inside the draft step (no extra commit); none = no critic. `language`:
+    one language for these drafts and their regenerates (kept on the item as
+    `language_pick`); empty = the contact's, else the company's country's."""
     root = Path(store.root)
     config = config if config is not None else load_config(root)
     if selection.gate:
@@ -2567,7 +2575,8 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
                     follows=row.interaction.id if row else "",
                     approach=cand.approach,
                     research_level="" if threaded else getattr(researcher, "level", ""),
-                    flags=list(cand.flags), batch=batch, created=when)
+                    flags=list(cand.flags), batch=batch, created=when,
+                    language_pick=language)
         if threaded:   # no research: the thread is the context
             research = Research(level="")
         else:
@@ -2605,7 +2614,8 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
             write_item(root, item)
             store.notify(message, [item.path])
         brief = make_brief(store, cand.company, cand.contact, approach, research,
-                           fit=cand.fit, flags=cand.flags, notes_background=threaded)
+                           fit=cand.fit, flags=cand.flags, notes_background=threaded,
+                           language=language)
         thread = reply.interaction if reply else row.interaction if row else None
 
         def write(critique: str = "") -> Draft:   # called within this turn of the loop
@@ -2613,7 +2623,7 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
                                  selection.channel, approach=approach, brief=brief,
                                  reply=reply.interaction if reply else None,
                                  earlier=row.interaction if row else None,
-                                 critique=critique)
+                                 critique=critique, language=language)
 
         draft = write()
         reviewed = _review(critic, config, draft, write, selection.kind, selection.channel,
@@ -2970,7 +2980,7 @@ def _item_brief(store: Store, item: Item, company, contact, approach,
                       fit=fit_value(company, str(_config(config, "outreach_fit_field"))),
                       flags=[f for f in item.flags if f != NEEDS_HAND_EDITS
                              and not f.startswith("critic")],
-                      notes_background=in_thread(item.kind))
+                      notes_background=in_thread(item.kind), language=item.language_pick)
 
 
 def redraft(store: Store, item_id: str, drafter: Drafter,
@@ -3015,7 +3025,7 @@ def redraft(store: Store, item_id: str, drafter: Drafter,
     def write(critique: str = "") -> Draft:
         return drafter.draft(item.kind, company, contact, research, item.channel,
                              approach=approach, brief=brief, reply=reply, earlier=earlier,
-                             critique=critique)
+                             critique=critique, language=item.language_pick)
 
     draft = write()
     fallback = not in_thread(item.kind) and not any(f.usable for f in item.findings)

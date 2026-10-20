@@ -154,23 +154,30 @@ def adopt(store, item) -> int:
     return written
 
 
+def rows(company, contact_slug: str, today: date, used=frozenset()) -> list[dict]:
+    """The contact's notes for a page, newest first: the note, its text on one line,
+    where it came from (you, or research with its source link), and whether its text
+    is one of `used` (normalised texts the draft cited)."""
+    out = []
+    for note in contact_notes(company, contact_slug):
+        f = finding_of(note, today)
+        research = f.source.startswith("http")
+        out.append({"note": note, "text": f.text, "origin": "research" if research else "you",
+                    "source_url": f.source if research else "", "date": f.date,
+                    "used": _norm(f.text) in used})
+    return out
+
+
 def card(company, contact_slug: str, item, today: date) -> dict:
     """What the card's Notes panel shows: one row per note (newest first, with
     where it came from and whether the draft used it), how many notes are newer
     than the draft, findings of an older card that are not notes yet, and the
     company's own notes field."""
     listed = contact_notes(company, contact_slug)
-    used = {_norm(f.text) for f in item.findings if f.used}
-    rows, texts = [], set()
-    for note in listed:
-        f = finding_of(note, today)
-        texts.add(_norm(f.text))
-        research = f.source.startswith("http")
-        rows.append({"note": note, "text": f.text, "origin": "research" if research else "you",
-                     "source_url": f.source if research else "", "used": _norm(f.text) in used,
-                     "date": f.date})
+    shown = rows(company, contact_slug, today, {_norm(f.text) for f in item.findings if f.used})
+    texts = {_norm(r["text"]) for r in shown}
     newer = sum(1 for n in listed if item.drafted and n.date and n.date > item.drafted)
     legacy = [] if item.notes_linked else [
         f for f in item.findings if f.source != "crm" and _norm(f.text) not in texts]
-    return {"rows": rows, "newer": newer, "legacy": legacy,
+    return {"rows": shown, "newer": newer, "legacy": legacy,
             "company_notes": (company.notes or "").strip()}
