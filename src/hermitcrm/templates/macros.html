@@ -495,3 +495,12 @@
 {% macro fix_with_ai(request) -%}
 <button type="button" class="fix-with-ai" data-fix="{{ request }}" hidden>Explain and fix with AI</button>
 {%- endmacro %}
+
+{#- The one-click upgrade button (upgrade.js follows it; without JavaScript it posts to
+    /upgrade, a plain page). `up` is upgrade_banner(): kind 'available' or 'restart'. -#}
+{% macro upgrade_form(up) -%}
+<form method="post" action="{{ '/upgrade/restart' if up.kind == 'restart' else '/upgrade' }}" class="inline" data-upgrade>
+  <input type="hidden" name="csrf_token" value="{{ upgrade_csrf() }}">
+  <button type="submit" class="primary">{{ 'Restart now' if up.kind == 'restart' else 'Upgrade to v' ~ up.version }}</button>
+</form>
+{%- endmacro %}

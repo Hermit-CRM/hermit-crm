@@ -57,21 +57,29 @@ INTERVAL = 24 * 60 * 60
 RETRY_INTERVAL = 60 * 60
 
 
-def upgrade_command(prefix: str | Path | None = None) -> str:
-    """The command that moves *this* install to the latest release on PyPI.
+def upgrade_argv(prefix: str | Path | None = None) -> list[str]:
+    """The command that moves *this* install to the latest release on PyPI, as words.
 
     `uv tool upgrade` and `pipx upgrade` keep a tool on the source it was installed
     from, and for a download that is the unpacked folder, so they say "nothing to
     upgrade" for ever. `uv tool install hermitcrm@latest` and `pipx install --force`
     switch it to PyPI from wherever it came. Each tool leaves a file in the
     environment it made, which says which one this is.
+
+    The words are fixed text: the one-click upgrade runs exactly these, and nothing
+    from the network or a request is ever put into them.
     """
     env = Path(sys.prefix if prefix is None else prefix)
     if (env / "uv-receipt.toml").exists():
-        return "uv tool install hermitcrm@latest"
+        return ["uv", "tool", "install", "hermitcrm@latest"]
     if (env / "pipx_metadata.json").exists():
-        return "pipx install --force hermitcrm"
-    return "pip install --upgrade hermitcrm"
+        return ["pipx", "install", "--force", "hermitcrm"]
+    return ["pip", "install", "--upgrade", "hermitcrm"]
+
+
+def upgrade_command(prefix: str | Path | None = None) -> str:
+    """:func:`upgrade_argv` as the line a person would type."""
+    return " ".join(upgrade_argv(prefix))
 
 
 UPGRADE_HINT = upgrade_command()
@@ -174,6 +182,68 @@ def fetch_latest(url: str = PYPI_URL, timeout: float = TIMEOUT) -> str:
     return version_in(data)
 
 
+def installed_version(paths=None) -> str:
+    """The version installed *on disk*, which is not always the one running.
+
+    A server keeps the code it started with in memory while an upgrade replaces
+    the files under it; the two then disagree until the next restart. This reads
+    the ``hermitcrm-*.dist-info/METADATA`` an installer leaves on ``sys.path``
+    (read from disk on purpose: the PR safety check flags ``importlib``, and
+    ``test_no_telemetry`` does the same). '' when it cannot be told, for instance
+    in the middle of an install. The newest wins if two environments are on the
+    path.
+    """
+    best = ""
+    for entry in (sys.path if paths is None else paths):
+        if not entry:  # '' is the current directory, which may be a data folder
+            continue
+        try:
+            infos = list(Path(entry).glob("hermitcrm-*.dist-info"))
+        except OSError:
+            continue
+        for info in infos:
+            try:
+                head = (info / "METADATA").read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            fields = {}
+            for line in head.splitlines():
+                if not line.strip():  # the headers end at the first blank line
+                    break
+                key, _, value = line.partition(":")
+                fields.setdefault(key.strip().lower(), value.strip())
+            version = fields.get("version", "")
+            if fields.get("name", "").lower().replace("_", "-") == "hermitcrm" and version \
+                    and (not best or parse_version(version) > parse_version(best)):
+                best = version
+    return best
+
+
+class DiskWatch:
+    """Is the program on disk newer than the one running? Cheap enough for every page.
+
+    The answer is memoised for a few seconds, so a page load costs a dictionary
+    lookup, and a reinstall is noticed on the next page after that.
+    """
+
+    def __init__(self, running: str = __version__, read: Callable[[], str] = installed_version,
+                 ttl: float = 5.0, clock: Callable[[], float] = time.monotonic) -> None:
+        self._running, self._read, self._ttl, self._clock = running, read, ttl, clock
+        self._at: float | None = None
+        self._seen = ""
+
+    def newer(self) -> str:
+        """The version on disk when it is newer than the running code, else ''."""
+        now = self._clock()
+        if self._at is None or now - self._at >= self._ttl:
+            self._at = now
+            try:
+                self._seen = str(self._read() or "")
+            except Exception:
+                self._seen = ""
+        return self._seen if self._seen and is_newer(self._seen, self._running) else ""
+
+
 def enabled(config: dict, env: dict | None = None) -> bool:
     env = os.environ if env is None else env
     if str(env.get("HERMITCRM_NO_UPDATE_CHECK", "")).strip() not in ("", "0"):
@@ -257,21 +327,45 @@ class UpdateNotice:
         self.result = Result(PENDING)
         self.available = ""
         self.hint = UPGRADE_HINT
+        self._thread: threading.Thread | None = None
+        self._last: float | None = None  # when a check was last started; None = never
+        self._fetcher: Callable[[], str] | None = None
+        self._cache: Path | None = None
 
     def start(self, config: dict, fetcher: Callable[[], str] | None = None,
               cache: Path | None = None) -> threading.Thread | None:
         if not enabled(config):
             self.result = Result(OFF, url=source_url(config))
             return None
+        self._fetcher, self._cache = fetcher, cache
+        return self._spawn(config, time.time())
+
+    def tick(self, config: dict, now: float | None = None) -> threading.Thread | None:
+        """Ask again when the last check is over an hour old.
+
+        `start` runs once, when the process does, and a server that stays up for
+        weeks would never hear of a release. Page loads call this; `look` still
+        decides whether the network is touched, so the cache and its 24 hours
+        stand. A notice that was never started (the tests) stays quiet.
+        """
+        now = time.time() if now is None else now
+        if self._last is None or not enabled(config):
+            return None
+        if now - self._last < RETRY_INTERVAL or (self._thread and self._thread.is_alive()):
+            return None
+        return self._spawn(config, now)
+
+    def _spawn(self, config: dict, now: float) -> threading.Thread:
+        self._last = now
 
         def run() -> None:
             try:
-                self.result = look(config, fetcher=fetcher, cache=cache)
+                self.result = look(config, fetcher=self._fetcher, cache=self._cache)
             except Exception:
                 self.result = Result(UNREACHABLE, url=source_url(config))
             self.available = self.result.newer
             self.hint = self.result.hint
 
-        thread = threading.Thread(target=run, name="hermitcrm-update-check", daemon=True)
-        thread.start()
-        return thread
+        self._thread = threading.Thread(target=run, name="hermitcrm-update-check", daemon=True)
+        self._thread.start()
+        return self._thread

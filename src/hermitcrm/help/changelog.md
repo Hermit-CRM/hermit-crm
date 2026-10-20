@@ -2,12 +2,31 @@
 
 What changed in each version of Hermit CRM, newest first. Versions follow semantic versioning; a change to the data format always comes with an automatic migration.
 
-To upgrade, run the command the update notice names (usually `uv tool install hermitcrm@latest`), or unpack the new download and run `uv tool install --reinstall .` in it, then restart the app. The notes for a version say whether your folder is migrated.
+To upgrade, press **Upgrade** in the notice (the sidebar, or Settings > About): it installs the new version, restarts the app and asks you to reload. Where it cannot do that the notice names the command instead (usually `uv tool install hermitcrm@latest`), or unpack the new download and run `uv tool install --reinstall .` in it, then restart the app. The notes for a version say whether your folder is migrated.
 
 Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups and undo](/help/backups)
 
 ## Unreleased
 
+- **One-click upgrade.** When a newer version is published, the notice in the
+  sidebar and in Settings > About has an **Upgrade** button. One click downloads
+  and installs it with the tool that installed Hermit CRM (uv, pipx or pip),
+  checks that the new files start, restarts the app and asks you to **Reload**.
+  Other open tabs ask you to reload too. While the files are replaced the app
+  answers "upgrading" instead of serving pages. It is offered only when the app
+  listens on this computer alone (no password, so not on a network), is not on
+  Windows, and takes its updates from PyPI; otherwise the notice still names the
+  command. Upgrading to this version is by hand, as before: the running app has
+  no button yet.
+- **A server that is older than its files says so.** If Hermit CRM is upgraded
+  from a terminal or by an assistant while the app keeps running, the app used
+  to read the new files with the old code and pages broke with an error that a
+  reload could not fix. It now notices, shows **Restart needed** with a **Restart
+  now** button, and if a page breaks in that state the error page explains it
+  instead of saying "Internal Server Error".
+- **A server that stays up still hears of new releases.** The update check ran
+  once, when the app started; it now asks again as pages are opened (still at
+  most once a day, the same request, no identifiers).
 - **One path to outreach, and one list of notes.** The contact page's Message
   drafts box is gone. **Generate outreach** opens [Outreach](/help/outreach)
   with that person ready: channel, draft type, signal, an observation sentence,

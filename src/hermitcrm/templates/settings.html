@@ -156,7 +156,8 @@
 <section class="setup-step" id="about">
   <div class="setting-head"><h2>About</h2></div>
   <table class="about">
-    <tr><th>Version</th><td>Hermit CRM v{{ about.version }}{% if update_notice and update_notice.available %} &mdash; <span class="update-notice">v{{ update_notice.available }} available: <code>{{ update_notice.hint }}</code></span>{% elif about.update_note %} <span class="small">({{ about.update_note }})</span>{% endif %} <a class="small" href="/help/changelog">Changelog</a></td></tr>
+    {%- set up = upgrade_banner() %}
+    <tr><th>Version</th><td>Hermit CRM v{{ about.version }}{% if up.kind == 'restart' %} &mdash; <span class="update-notice">v{{ up.version }} is installed but this server still runs v{{ up.running }}.</span>{% if up.can %}{{ m.upgrade_form(up) }}{% else %} <span class="small">{{ up.why_not }}</span>{% endif %}{% elif up.kind == 'available' %} &mdash; <span class="update-notice">v{{ up.version }} available:</span>{% if up.can %}{{ m.upgrade_form(up) }}{% else %} <code>{{ up.command }}</code>{% if up.why_not %} <span class="small">({{ up.why_not }})</span>{% endif %}{% endif %}{% elif about.update_note %} <span class="small">({{ about.update_note }})</span>{% endif %} <a class="small" href="/help/changelog">Changelog</a></td></tr>
     <tr><th>Data folder</th><td><code>{{ about.data_dir }}</code></td></tr>
     <tr><th>Data format</th><td>{% if about.data_format is none %}unknown{% else %}{{ about.data_format }}{% if about.data_format != about.latest_format %} (this Hermit CRM writes {{ about.latest_format }}; run <code>hermitcrm migrate</code>){% endif %}{% endif %}</td></tr>
     <tr><th>Help</th><td><a href="/help">All help topics</a>, or <code>hermitcrm help</code></td></tr>
