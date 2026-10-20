@@ -125,6 +125,7 @@ ITEM_KEYS = (
     "subject", "pitch", "research_level", "model", "attempts", "seconds", "checks",
     "critic", "critic_reason", "critic_model", "flags", "norms", "findings", "proof_used",
     "lessons_used", "exemplars_used", "proposals", "edit_distance",
+    "language_pick", "notes_linked",
     "skip_reason", "skip_note", "batch", "created", "researched", "drafted", "ready",
     "sent", "sent_with", "skipped",
     "queued", "send_at", "send_hash", "message_id", "send_tries", "send_error", "send_note",
@@ -1555,6 +1556,8 @@ class Item:
     exemplars_used: list[str] = field(default_factory=list)  # examples in the prompt
     proposals: dict = field(default_factory=dict)
     edit_distance: int | None = None
+    language_pick: str = ""     # a language chosen for this card: the draft and its regenerates
+    notes_linked: bool = False  # findings are a snapshot of notes (notes.py), not its own list
     skip_reason: str = ""
     skip_note: str = ""
     batch: str = ""
@@ -1607,8 +1610,9 @@ class Item:
                 value = [f.to_dict() for f in value]
             elif key in ("edits", "earlier"):
                 value = [x.to_dict() for x in value]
-            elif key in ("lessons_used", "exemplars_used") and not value:
-                continue    # absent until a draft carried them (keeps older files' bytes)
+            elif key in ("lessons_used", "exemplars_used", "language_pick",
+                         "notes_linked") and not value:
+                continue    # absent until they apply (keeps older files' bytes)
             meta[key] = value
         return meta
 
@@ -1697,6 +1701,8 @@ def item_from_text(item_id: str, text: str) -> Item:
         proposals={str(k): str(v) for k, v in proposals.items()}
         if isinstance(proposals, dict) else {},
         edit_distance=_int_or_none(meta.get("edit_distance")),
+        language_pick=s("language_pick").strip(),
+        notes_linked=meta.get("notes_linked") is True,
         skip_reason=s("skip_reason"), skip_note=s("skip_note"), batch=s("batch"),
         created=when("created"), researched=when("researched"), drafted=when("drafted"),
         ready=when("ready"), sent=when("sent"), sent_with=s("sent_with"),
