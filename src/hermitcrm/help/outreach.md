@@ -42,7 +42,7 @@ and from the command line; both do the same steps and write the same files.
     optionally with the stronger model. The old draft and its edits are kept (under "regenerated
     away"), with the reason if you typed one in the box above. Changes in the
     text box that you have not saved are not kept.
-    **Add a note** first to steer it (see [Notes](#notes)); a note you write
+    **Add a note** first to steer it (see Notes, below); a note you write
     counts as a known fact.
   - **Skip** with a reason; **Copy** copies the message.
   - **Save to the record** shows when research found a website, LinkedIn URL or
