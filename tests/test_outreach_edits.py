@@ -18,6 +18,8 @@ names are made up."""
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from hermitcrm import cli, outreach
@@ -219,6 +221,18 @@ def test_one_reason_box_serves_the_edit_and_the_regenerate(client, root):
     assert f'<form method="post" action="/outreach/{item.id}/regenerate"' not in page
     assert "helps improve the AI" in page
     assert "Why this change?" not in page and "what was wrong?" not in page
+
+
+def test_the_slow_ai_buttons_on_a_card_say_that_they_are_working(client, root):
+    # Both wait on the AI with the old page still showing; static/busy.js turns
+    # the clicked button into a spinner, but only for a button with data-busy.
+    item = drafted(client, root)
+    form = card_form(client.get("/outreach").text, item.id)
+    for label in ("Regenerate", "Save &amp; check again"):
+        [tag] = re.findall(rf"<button[^>]*>{label}</button>", form)
+        assert 'data-busy="' in tag, label
+    [ready] = re.findall(r"<button[^>]*>Mark ready</button>", form)
+    assert "data-busy" not in ready                            # no AI call: no spinner
 
 
 def test_a_regenerate_posted_from_the_edit_form_keeps_the_reason_and_drops_unsaved_text(
