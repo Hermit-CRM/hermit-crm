@@ -180,3 +180,13 @@ def test_card_marks_used_notes_counts_newer_ones_and_lists_legacy(seeded):
     assert [f.text for f in card["legacy"]] == ["Only on the card"]
     company.notes = "Series A last year"
     assert notes.card(company, "jane-doe", item, TODAY)["company_notes"] == "Series A last year"
+
+
+def test_a_note_without_a_date_does_not_break_the_brief_of_a_thread(seeded):
+    from hermitcrm.models import Interaction
+    company = seeded.get("acme")
+    company.interactions.append(Interaction(id="undated", channel="note", contact="jane-doe",
+                                            body="Prefers calls", date=None))
+    brief = outreach.make_brief(seeded, company, company.contacts["jane-doe"], None,
+                                outreach.Research(), notes_background=True)
+    assert any("Prefers calls" in line for line in brief.situation)
