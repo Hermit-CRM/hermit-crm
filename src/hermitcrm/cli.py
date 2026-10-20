@@ -96,7 +96,7 @@ def reachable_address(host: str) -> str:
 
 
 def cmd_serve(root: Path, port: int | None = None, host: str | None = None) -> None:
-    from hermitcrm import accesslog
+    from hermitcrm import accesslog, upgrade
     from hermitcrm.web import create_app
     import uvicorn
 
@@ -115,7 +115,28 @@ def cmd_serve(root: Path, port: int | None = None, host: str | None = None) -> N
               "can\n  reach this port can read and write your CRM. Use it on a "
               "network you trust,\n  or put it on a private one (Tailscale, "
               "WireGuard) rather than a public Wi-Fi.", file=sys.stderr)
-    uvicorn.run(app, host=host, port=int(config["port"]), log_config=accesslog.log_config())
+    server = uvicorn.Server(uvicorn.Config(app, host=host, port=int(config["port"]),
+                                           log_config=accesslog.log_config()))
+    restart = {"wanted": False}
+
+    def stop_for_restart() -> bool:
+        """Ask the server to finish what it is answering and stop; we re-execute below."""
+        restart["wanted"] = True
+        server.config.timeout_graceful_shutdown = upgrade.GRACE_SECONDS
+        server.should_exit = True
+        return True
+
+    app.state.restart_server = stop_for_restart  # the one-click upgrade and restart use it
+    server.run()
+    if restart["wanted"]:
+        # Same command line, same PID: launchd, systemd and a terminal all see one
+        # unbroken process, now reading the files as they are on disk.
+        print("Hermit CRM: restarting on the files now on disk.", flush=True)
+        try:
+            upgrade.exec_restart()
+        except OSError as exc:
+            print(f"Hermit CRM could not restart itself: {exc}", file=sys.stderr)
+            sys.exit(1)  # a supervisor (launchd, systemd) starts it again
 
 
 def cmd_init(target: Path, demo: bool = False) -> tuple[str, int]:

@@ -498,6 +498,31 @@ def test_cli_enrich_dry_run_and_apply(tmp_path, capsys, monkeypatch):
 # --------------------------------------------------------------- serve --host
 
 
+def stub_uvicorn(calls, on_run=None):
+    """A uvicorn that records how it was configured and serves nothing.
+
+    ``on_run(server)`` stands in for what happens while the server is up.
+    """
+    class Config:
+        def __init__(self, app, **kw):
+            self.timeout_graceful_shutdown = None
+            calls.update(kw)
+
+    class Server:
+        def __init__(self, config):
+            self.config, self.should_exit = config, False
+
+        def run(self):
+            if on_run:
+                on_run(self)
+
+    return type("M", (), {"Config": Config, "Server": Server})
+
+
+def stub_app():
+    return type("App", (), {"state": type("State", (), {})()})()
+
+
 def test_reachable_address_prints_a_typeable_one_for_a_wildcard_bind():
     """0.0.0.0 is not something you can open on a phone; a LAN address is."""
     assert crm.reachable_address("127.0.0.1") == "127.0.0.1"
@@ -512,17 +537,15 @@ def test_serve_binds_the_host_it_is_given_and_warns_off_loopback(tmp_path, capsy
     calls = {}
     monkeypatch.setattr(crm, "load_config", lambda root: {"port": 8765,
                                                           "host": "127.0.0.1"})
-    monkeypatch.setitem(sys.modules, "uvicorn",
-                        type("M", (), {"run": staticmethod(
-                            lambda app, host, port, **kw: calls.update(host=host, port=port))}))
-    monkeypatch.setattr("hermitcrm.web.create_app", lambda root, config: "app")
+    monkeypatch.setitem(sys.modules, "uvicorn", stub_uvicorn(calls))
+    monkeypatch.setattr("hermitcrm.web.create_app", lambda root, config: stub_app())
 
     crm.cmd_serve(tmp_path)
     assert calls["host"] == "127.0.0.1"
     assert "Hermit CRM has no password" not in capsys.readouterr().err
 
     crm.cmd_serve(tmp_path, host="0.0.0.0", port=9001)
-    assert calls == {"host": "0.0.0.0", "port": 9001}
+    assert (calls["host"], calls["port"]) == ("0.0.0.0", 9001)
     err = capsys.readouterr().err
     assert "Hermit CRM has no password" in err and "network you trust" in err
 
@@ -535,10 +558,8 @@ def test_serve_keeps_what_a_capture_read_out_of_its_log(tmp_path, capsys, monkey
     calls = {}
     monkeypatch.setattr(crm, "load_config", lambda root: {"port": 8765,
                                                           "host": "127.0.0.1"})
-    monkeypatch.setitem(sys.modules, "uvicorn",
-                        type("M", (), {"run": staticmethod(
-                            lambda app, **kw: calls.update(kw))}))
-    monkeypatch.setattr("hermitcrm.web.create_app", lambda root, config: "app")
+    monkeypatch.setitem(sys.modules, "uvicorn", stub_uvicorn(calls))
+    monkeypatch.setattr("hermitcrm.web.create_app", lambda root, config: stub_app())
     crm.cmd_serve(tmp_path)
     monkeypatch.undo()                      # the real uvicorn, for its formatters
 
