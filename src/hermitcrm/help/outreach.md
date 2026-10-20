@@ -38,11 +38,11 @@ and from the command line; both do the same steps and write the same files.
     together with which messages got a positive answer (`hermitcrm outreach
     edits --positive`). When you change a lot of text, a row of **quick
     reasons** appears as well.
-  - **Regenerate** writes a new draft from the same findings, optionally with
-    the stronger model. The old draft and its edits are kept (under "regenerated
+  - **Regenerate** writes a new draft from the contact's notes as they are now,
+    optionally with the stronger model. The old draft and its edits are kept (under "regenerated
     away"), with the reason if you typed one in the box above. Changes in the
     text box that you have not saved are not kept.
-    Remove a finding or **add your own** first to steer it; one you add
+    **Add a note** first to steer it (see [Notes](#notes)); a note you write
     counts as a known fact.
   - **Skip** with a reason; **Copy** copies the message.
   - **Save to the record** shows when research found a website, LinkedIn URL or
@@ -51,11 +51,42 @@ and from the command line; both do the same steps and write the same files.
     the message marks the item sent), or **Mark sent** without logging. With
     [sending](/help/sending) on, an email card also has **Send now** and
     **Schedule**, and the **Scheduled** tab shows the queue.
-- **On a contact's page**: **Research & draft** builds one item for that
-  person on the channel you pick (it says why when the person is left out),
-  and while an item is open the page links to its card. The draft type comes
-  from the history: someone who replied with interest gets **Draft a reply**
-  (a reply to interest), everyone else a first touch; you can change it.
+- **On a contact's page**: **Generate outreach** opens this page with a panel
+  for that person (`/outreach?contact=<company>/<contact>`). Nothing runs until
+  you press **Generate**. The panel has the channel and the draft type (from the
+  history: someone who replied with interest gets a reply to interest, someone
+  whose message went unanswered a follow-up, everyone else a first touch), the
+  research level, the **signal** you read off LinkedIn insights, one
+  **observation** sentence from their site or team, and a **language** for this
+  card and its regenerates (the default is the contact's draft language, else
+  the company's country's). The signal and the observation are saved as notes
+  first. It says why when the person is left out. While an item is open, the
+  button on their page says **Open outreach draft** and goes to its card.
+
+## Notes
+
+What the bot knows about a person is their **notes**: the same notes you add on
+their page, on their timeline and on the company's. A finding is a note.
+
+- Research saves what it finds as notes on the contact, one per finding, with
+  its source, kind, date and confidence on a last line
+  (`Source: https://example.com/news (trigger, 2026-09, high)`). Findings with
+  low confidence are not saved; the card says how many were left out.
+- The card's **Notes** panel lists the contact's notes, newest first, marks the
+  ones the draft used, links each to its place on the timeline, and has a box to
+  add one. Edit or delete a note where it lives, on the timeline. The company's
+  own notes field shows there too, read-only.
+- The draft is written from the newest 20 notes (and at most 4,000 characters:
+  over that, the longest go first), with the company's notes as background. A
+  note you wrote counts as a known fact and never goes stale; a research note
+  keeps its date, and one older than about 90 days never opens a message.
+- Notes added or changed after a draft are not in it: the card says "N notes
+  added since this draft was written" and **Regenerate** reads them again.
+- The web-research AI never sees your notes; only the drafting and critic steps
+  do, and they have no tools.
+- Cards made before notes were shared save the findings they showed as notes
+  the first time you regenerate or mark them ready. Sent and skipped cards are
+  left as they are.
 
 ## Replies to interest
 
@@ -92,8 +123,8 @@ the radar read the same setting, so they never disagree.
 
 - The **Follow-ups** tab lists who is due (oldest first) with **Draft follow-up**;
   a batch of them builds from the bar (**Draft type**: follow-up) or with
-  `hermitcrm outreach build --kind follow-up`. On a contact's page the button
-  says **Draft a follow-up** when one is due.
+  `hermitcrm outreach build --kind follow-up`. The Generate panel on a contact
+  preselects follow-up when one is due.
 - No research: the thread is the context, and your earlier message goes to the
   AI as data. The draft is short, has no calendar invite, link, time slot or
   price, asks one question and gives an easy way out ("a short 'not now' is
@@ -117,8 +148,8 @@ LinkedIn blocks anonymous reads, so the bot gets little about a person from it. 
 can add it yourself: on their profile, logged in, click the Hermit CRM
 bookmarklet ([Extension](/help/extension)). For someone already in the CRM whose card
 is drafted, it opens **Add to research** with the top card, About and their own
-recent posts and comments; trim what you like, press the button, and the findings
-land on the card, sourced to the profile. The page text itself is not stored.
+recent posts and comments; trim what you like, press the button, and what the AI
+finds is saved as notes on the contact, sourced to the profile. The page text itself is not stored.
 
 ## The steps
 
@@ -144,8 +175,8 @@ land on the card, sourced to the profile. The page text itself is not stored.
 
 4. **Ready or skip**: `hermitcrm outreach ready <id>` approves it. The checks
    run again on your edited text; one that still fails is a warning, kept on
-   the item, and the choice is yours. Ready adds the findings the message used
-   to the contact as a note. `hermitcrm outreach skip <id> --reason R [--note
+   the item, and the choice is yours. The research is already on the contact as
+   notes. `hermitcrm outreach skip <id> --reason R [--note
    "..."]` drops it, R one of `bad-fit`, `wrong-person`, `bad-timing`,
    `bad-draft`, `already-in-contact`, `other`. A skipped person comes back in
    batches after the cooldown; `bad-fit` keeps their company out.

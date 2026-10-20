@@ -8,6 +8,17 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **One path to outreach, and one list of notes.** The contact page's Message
+  drafts box is gone. **Generate outreach** opens [Outreach](/help/outreach)
+  with that person ready: channel, draft type, signal, an observation sentence,
+  a language for the card, and the notes the draft will use. A finding is now a
+  note: research saves what it finds as notes on the contact, the card's Notes
+  panel is the same list as the contact's and the company's timeline, and a
+  regenerate reads the notes as they are. Mark ready no longer writes a summary
+  note. A `layout.toml` that still names `drafts` keeps working. Your data
+  folder needs no migration.
+- **Copy an email address with one click**, on Outreach cards and on the contact
+  page.
 - **Send approved email from the app.** Turn it on in Settings > Email &
   calendar > Sending, with a mailbox of its own and an app password. On the
   Outreach page an approved email card has **Send now** and **Schedule**;
