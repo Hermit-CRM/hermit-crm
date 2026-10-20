@@ -27,16 +27,21 @@ and from the command line; both do the same steps and write the same files.
     that fails never blocks you.
   - **Mark ready** approves the text as it is in the box (your edit and the
     approval are one change). A failing check stays on the card as a warning.
-  - **Why this change?** is an optional one-paragraph explainer (500
-    characters at most) under the text. The AI's draft is never overwritten:
-    it stays under **AI original**, and each save or Mark ready that changes
-    the text adds one **tracked edit** with your explainer, shown as the words
-    removed and added. These are what you can later learn from, together with
-    which messages got a positive answer (`hermitcrm outreach edits
-    --positive`).
+  - **What was wrong with this draft?** is one optional box (500 characters
+    at most) under the text, for whichever button you press next. With **Save &
+    check again** or **Mark ready** it is the explainer of your edit. The AI's
+    draft is never overwritten: it stays under **AI original**, and each save
+    or Mark ready that changes the text adds one **tracked edit** with your
+    explainer, shown as the words removed and added. (If the text did not
+    change, the reason is not kept.) With **Regenerate** it is the reason the
+    old draft was replaced. Either way it is what you can later learn from,
+    together with which messages got a positive answer (`hermitcrm outreach
+    edits --positive`). When you change a lot of text, a row of **quick
+    reasons** appears as well.
   - **Regenerate** writes a new draft from the same findings, optionally with
     the stronger model. The old draft and its edits are kept (under "regenerated
-    away"), with the reason if you type one in the box next to the button.
+    away"), with the reason if you typed one in the box above. Changes in the
+    text box that you have not saved are not kept.
     Remove a finding or **add your own** first to steer it; one you add
     counts as a known fact.
   - **Skip** with a reason; **Copy** copies the message.
