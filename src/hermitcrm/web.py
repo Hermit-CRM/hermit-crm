@@ -49,6 +49,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import QueryParams
 
 from . import __version__, updates
+from . import upgrade as upgrading
 from fastapi.templating import Jinja2Templates
 
 from . import (adjust, bcc, brief, calendar_sync, capture, dashboards, disclaimer, feedback,
@@ -933,6 +934,12 @@ def create_app(root: Path, config: dict | None = None,
     app = FastAPI(title="Hermit CRM")
     app.state.messages = messages
     app.state.update_notice = updates.UpdateNotice()
+    # One-click upgrade (upgrade.py). `hermitcrm serve` sets restart_server to the
+    # function that stops uvicorn and re-executes the process; without it (tests,
+    # another way of serving) the buttons give way to the command to type.
+    app.state.disk_watch = updates.DiskWatch()
+    app.state.upgrader = upgrading.Upgrader()
+    app.state.restart_server = None
     app.state.task_types = configured_types  # config_saved replaces it after a save
     if config.get("start_update_check"):  # set by `hermitcrm serve`; tests stay offline
         app.state.update_notice.start(config)
@@ -1207,6 +1214,8 @@ def create_app(root: Path, config: dict | None = None,
                 store.requalify_due()
             except Exception:
                 logger.exception("requalify sweep failed")
+            # A server that stays up for weeks still hears of a release.
+            app.state.update_notice.tick(app.state.config)
         return await call_next(request)
 
     @app.middleware("http")
@@ -1217,6 +1226,39 @@ def create_app(root: Path, config: dict | None = None,
         if response.headers.get("content-type", "").startswith("text/html"):
             response.headers.setdefault("Content-Security-Policy", CSP)
         return response
+
+    def can_restart() -> bool:
+        return app.state.restart_server is not None
+
+    def plain(page: str, status: int, **headers: str) -> HTMLResponse:
+        """A string-built page (upgrade.py) with the same CSP as every other page."""
+        return HTMLResponse(page, status_code=status,
+                            headers={"Content-Security-Policy": CSP, **headers})
+
+    @app.middleware("http")
+    async def upgrade_gate(request: Request, call_next):
+        # While an upgrade replaces the files, this process is old code reading
+        # new templates: it must not answer pages (see upgrade.py).
+        path = request.url.path
+        if app.state.upgrader.busy and not path.startswith("/static/") \
+                and path not in ("/upgrade", "/upgrade/status"):
+            if request.method == "GET":
+                return plain(upgrading.upgrading_page(app.state.upgrader.status()), 503,
+                             **{"Retry-After": "2"})
+            return PlainTextResponse("Hermit CRM is upgrading. Try again in a moment.",
+                                     status_code=503)
+        return await call_next(request)
+
+    @app.exception_handler(Exception)
+    async def server_error(request: Request, exc: Exception):
+        # What the 500 would have said, unless the files are newer than this
+        # process: then that is the reason, and the page says so and offers the fix.
+        on_disk = app.state.disk_watch.newer()
+        if on_disk:
+            why = upgrading.blocked(app.state.config, can_restart())
+            return plain(upgrading.stale_page(__version__, on_disk, app.state.csrf_token, why),
+                         500)
+        return PlainTextResponse("Internal Server Error", status_code=500)
 
     host_names = allowed_host_names(config)
 
@@ -1278,9 +1320,30 @@ def create_app(root: Path, config: dict | None = None,
                                    app.state.custom_fields, q)
         return task_listing(store, params, task_type_options(), store.today())
 
+    def upgrade_banner() -> dict:
+        """What the nav and Settings say about versions: '' (nothing), 'restart' or 'available'.
+
+        'restart' wins: when the files are newer than this process, installing
+        again would change nothing, and a restart is what fixes the pages.
+        """
+        on_disk = app.state.disk_watch.newer()
+        if on_disk:
+            why = upgrading.blocked(app.state.config, can_restart())
+            return {"kind": "restart", "version": on_disk, "running": __version__,
+                    "can": not why, "why_not": why, "command": ""}
+        notice = app.state.update_notice
+        if notice.available:
+            plan = upgrading.install_plan(app.state.config, can_restart())
+            return {"kind": "available", "version": notice.available, "can": plan.ok,
+                    "why_not": plan.why_not, "command": notice.hint}
+        return {"kind": ""}
+
     templates = Jinja2Templates(directory=str(HERE / "templates"))
     app.state.templates = templates  # modules that add page globals (yours_pins) reach it here
     templates.env.globals.update(
+        upgrade_banner=upgrade_banner,
+        boot_id=lambda: app.state.upgrader.boot,
+        upgrade_csrf=lambda: app.state.csrf_token,
         fmt_date=fmt_date,
         fmt_datetime=fmt_datetime,
         preview=followups.first_line,
@@ -5088,6 +5151,68 @@ def create_app(root: Path, config: dict | None = None,
         referer = urlparse(request.headers.get("referer", ""))
         back = referer.path + (f"?{referer.query}" if referer.query else "")
         return goto(safe_back(back, "/"))
+
+    # ---------------------------------------------------------------- one-click upgrade
+    # The pages below are built from strings on purpose (upgrade.py): they are what
+    # you see when the templates and the code disagree, so they cannot use them.
+
+    def upgrade_refused(request: Request, message: str, status: int = 409):
+        if "application/json" in request.headers.get("accept", ""):
+            return JSONResponse({"error": message}, status_code=status)
+        return plain(upgrading.notice_page("Not done", [message], back=True), status)
+
+    def upgrade_started(request: Request, thread):
+        status = app.state.upgrader.status()
+        if "application/json" in request.headers.get("accept", ""):
+            return JSONResponse(status, status_code=202 if thread else 200)
+        return goto("/upgrade")
+
+    @app.get("/upgrade/status")
+    def upgrade_status():
+        """Polled by upgrade.js: which process this is, what it is doing, what is on disk."""
+        return JSONResponse({**app.state.upgrader.status(),
+                             "stale": app.state.disk_watch.newer(),
+                             "available": app.state.update_notice.available},
+                            headers={"Cache-Control": "no-store"})
+
+    @app.get("/upgrade")
+    def upgrade_page():
+        """The no-JavaScript view of an upgrade: what it will do, how far it is."""
+        stale = app.state.disk_watch.newer()
+        available = app.state.update_notice.available
+        plan = upgrading.install_plan(app.state.config, can_restart())
+        why = upgrading.blocked(app.state.config, can_restart()) if stale else plan.why_not
+        return plain(upgrading.status_page(app.state.upgrader.status(), available,
+                                           app.state.csrf_token, why, stale), 200,
+                     **{"Cache-Control": "no-store"})
+
+    @app.post("/upgrade")
+    def upgrade_start(request: Request, csrf_token: str = Form("")):
+        """Install the newest release, check it starts, restart on it."""
+        check_csrf(csrf_token)
+        up = app.state.upgrader
+        if up.busy:
+            return upgrade_started(request, None)
+        if not app.state.update_notice.available:
+            return upgrade_refused(request, "There is no newer version to install.")
+        plan = upgrading.install_plan(app.state.config, can_restart())
+        if not plan.ok:
+            return upgrade_refused(request, plan.why_not)
+        return upgrade_started(request, up.start(plan, app.state.restart_server,
+                                                 target=app.state.update_notice.available))
+
+    @app.post("/upgrade/restart")
+    def upgrade_restart(request: Request, csrf_token: str = Form("")):
+        """Restart on the files that are already on disk (after an upgrade made elsewhere)."""
+        check_csrf(csrf_token)
+        up = app.state.upgrader
+        if up.busy:
+            return upgrade_started(request, None)
+        why = upgrading.blocked(app.state.config, can_restart())
+        if why:
+            return upgrade_refused(request, why)
+        return upgrade_started(request, up.start(None, app.state.restart_server,
+                                                 target=app.state.disk_watch.newer()))
 
     @app.get("/health")
     def health():
