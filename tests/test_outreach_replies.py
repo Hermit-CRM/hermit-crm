@@ -261,12 +261,12 @@ def test_first_step_offer_is_left_out_when_empty(client, fake, root):
     assert "none: leave it out" in prompt and "first call is free" not in prompt
 
 
-def test_contact_page_picks_the_kind_from_the_history(client, root):
-    page = client.get(f"/companies/{MARA.replace('/', '/contacts/')}").text
-    assert '<option value="first-touch" selected>' in page and "Research &amp; draft" in page
+def test_the_generate_panel_picks_the_kind_from_the_history(client, root):
+    page = client.get(f"/outreach?contact={MARA}").text
+    assert '<option value="first-touch" selected>' in page
     log_reply(client, outcome="interested")
-    page = client.get(f"/companies/{MARA.replace('/', '/contacts/')}").text
-    assert '<option value="reply-to-interest" selected>' in page and "Draft a reply" in page
+    page = client.get(f"/outreach?contact={MARA}").text
+    assert '<option value="reply-to-interest" selected>' in page
 
 
 def test_select_refuses_a_reply_without_interest(root):
@@ -353,6 +353,7 @@ def test_item_file_keeps_reply_to(root, client):
     item, = [i for i in outreach.items(root) if i.record == MARA]
     meta, body = split_file((root / item.path).read_text())
     assert meta["reply_to"] == it.id
-    assert list(meta) == [k for k in outreach.ITEM_KEYS if k != "exemplars_used"]
+    assert list(meta) == [k for k in outreach.ITEM_KEYS
+                          if k not in ("exemplars_used", "language_pick")]
     again = outreach.item_from_text(item.id, (root / item.path).read_text())
     assert outreach.item_text(again) == (root / item.path).read_text()

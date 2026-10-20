@@ -183,9 +183,10 @@ file per conversation. Everything below is convenience on top of it.
   are logged in to into a new contact, read in your own tab. Nothing to install.
 - **Timeline per company**: email, LinkedIn, call, WhatsApp and meeting interactions,
   in or out, with bodies kept byte for byte.
-- **Message drafts without AI**: three angles per contact in English, German,
-  Dutch or French (by country; for Belgium from mails, website, postcode
-  and titles), with wording you control in `messages.toml`.
+- **Generate outreach per contact**: one button opens Outreach with that person
+  ready, in English, German, Dutch or French (by country; for Belgium from mails,
+  website, postcode and titles). What you know about them is kept as notes the
+  draft is written from, with wording you control in `messages.toml`.
 - **Messages tab**: every outbound message with its outcome (successful on a
   reply, unsuccessful after a window, or set by hand; the choices are
   `outcomes` in config.toml).

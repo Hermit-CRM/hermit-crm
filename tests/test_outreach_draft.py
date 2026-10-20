@@ -265,16 +265,19 @@ def test_build_writes_checked_items_one_commit_per_step(folder):
     assert all(i.checks == [] for i in result.items)
     log = commits(root)[:len(commits(root)) - before]
     assert len(log) == 6
-    assert log[-1] == ("outreach: research lindenhof-data/mara-keller (scrape, 2 findings)")
+    assert log[-1] == ("outreach: research lindenhof-data/mara-keller (scrape, 1 findings)")
     assert log[-2] == "outreach: draft lindenhof-data/mara-keller (email, hook): checks passed"
     for sha in git(root, "log", f"-{6}", "--format=%h").split():
         files = git(root, "show", "--name-only", "--format=", sha).split()
+        # the research step also writes what it found as notes on the contact
         assert [f for f in files if f.startswith("outreach/")] and \
-            all(f.startswith("outreach/") or f == "PIPELINE.md" for f in files)
+            all(f.startswith("outreach/") or f == "PIPELINE.md"
+                or (f.startswith("companies/") and "/interactions/" in f and "-note-" in f)
+                for f in files)
     item = result.items[0]
     assert item.id == "2026-10-16T0900-email-lindenhof-data-mara-keller"
     assert item.approach == "Scaling the sales team" and item.language == "de"
-    assert [f.used for f in item.findings] == [False, True]  # the CRM's line, the trigger
+    assert [f.used for f in item.findings] == [True]  # the trigger; the CRM's line is no finding
     assert item.body.rstrip("\n").endswith("Sam")  # no opt-out line unless the playbook has one
     assert item.ai_body == item.body and item.model and item.seconds is not None
     assert item.norms and item.norms[0].startswith("formality: informal: du")
@@ -289,7 +292,8 @@ def test_item_files_are_deterministic_and_keep_the_body_byte_for_byte(folder):
     again = outreach.get_item(root, item.id)
     assert outreach.item_text(again).encode() == text            # read, write: same bytes
     meta, body = split_file(text.decode())
-    assert list(meta) == [k for k in outreach.ITEM_KEYS if k != "exemplars_used"]   # absent when none
+    absent = ("exemplars_used", "language_pick")   # absent until they apply
+    assert list(meta) == [k for k in outreach.ITEM_KEYS if k not in absent]
     # a hand edit with odd whitespace survives a step byte for byte
     odd = "Hi Mara,  \n\n\tThe second office caught my eye.\nWhere does it hurt most?\n\n\nSam\n"
     meta["checks"] = []
@@ -313,12 +317,12 @@ def test_ready_rechecks_the_text_and_records_the_edit(folder):
     assert len(commits(root)) == before + 1
     assert commits(root)[0] == "outreach: ready lindenhof-data/mara-keller (email)"
     files = git(root, "show", "--name-only", "--format=", "HEAD").split()
-    assert item.path in files and any("/interactions/" in f for f in files)
+    assert files == [item.path]   # the notes were written with the research, not now
     fresh = Store(root)
     fresh.load()
-    note = next(i for i in fresh.get("lindenhof-data").interactions if i.is_note)
+    [note] = [i for i in fresh.get("lindenhof-data").interactions if i.is_note]
     assert note.contact == "mara-keller"
-    assert "- Opened a second office this autumn (https://lindenhof-data.example.com)" \
+    assert "Opened a second office this autumn\nSource: https://lindenhof-data.example.com" \
         in note.body
     assert fresh.get("lindenhof-data").stage == "prospect"  # a note is not a touch
     with pytest.raises(outreach.OutreachError, match="only a drafted item"):
