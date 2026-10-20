@@ -15,10 +15,25 @@
 /* Say that something is happening. A button with data-busy="Reading your
  * website..." (the AI buttons, which take from seconds to minutes) shows a
  * spinner and that text once it is clicked, and cannot be clicked twice.
+ * The page says so too: a bar along the top edge, wherever you have scrolled
+ * to, and a note with the seconds that have passed.
  * The form still submits normally; without this script nothing changes.
  * No dependencies. */
 (function () {
   "use strict";
+
+  var root = document.documentElement;
+  var timer = null;
+
+  function clock(note, since) {
+    var span = document.createElement("span");
+    span.className = "busy-clock";
+    span.setAttribute("aria-hidden", "true");   // the status text is read once, not every second
+    note.appendChild(span);
+    timer = setInterval(function () {
+      span.textContent = " Waited " + Math.round((Date.now() - since) / 1000) + " s.";
+    }, 1000);
+  }
 
   function start(button) {
     if (button.classList.contains("is-busy")) return;
@@ -30,7 +45,13 @@
     note.className = "busy-note small";
     note.setAttribute("role", "status");
     note.textContent = "This can take a minute. Keep this page open.";
+    clock(note, Date.now());
     button.insertAdjacentElement("afterend", note);
+    var bar = document.createElement("div");
+    bar.className = "busy-bar";
+    bar.setAttribute("aria-hidden", "true");
+    document.body.appendChild(bar);
+    root.classList.add("is-working");
   }
 
   function stop(button) {
@@ -40,12 +61,16 @@
     if (button.dataset.idleText) button.textContent = button.dataset.idleText;
     var next = button.nextElementSibling;
     if (next && next.classList.contains("busy-note")) next.remove();
+    clearInterval(timer);
+    document.querySelectorAll(".busy-bar").forEach(function (bar) { bar.remove(); });
+    root.classList.remove("is-working");
   }
 
   document.addEventListener("submit", function (event) {
     var button = event.submitter;
     if (!button || !button.hasAttribute || !button.hasAttribute("data-busy")) return;
     if (button.classList.contains("is-busy")) { event.preventDefault(); return; }
+    if (event.defaultPrevented) return;   // another handler stopped it: nothing is being sent
     start(button);
     // aria-disabled, not disabled: a disabled submitter can drop its own
     // formaction, and the click must still go through once.

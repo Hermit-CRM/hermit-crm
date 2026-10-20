@@ -88,7 +88,7 @@
   <p class="small">Replies you owe an answer, from the follow-up radar. A reply logged with the outcome <strong>interested</strong> is listed as it is; for the others, <strong>Check replies</strong> asks your AI CLI once per reply (no web, no tools) and you confirm what it says. The draft offers your first step and asks one question: no time slot, link or price.</p>
   <form method="post" action="/outreach/replies/check" class="inline">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <button type="submit" class="secondary"{% if ai_problem or not replies_unchecked %} disabled{% endif %} title="{% if ai_problem %}{{ ai_problem }}{% else %}{{ replies_unchecked }} not checked yet{% endif %}">Check replies ({{ replies_unchecked }})</button>
+    <button type="submit" class="secondary" data-busy="Checking replies&hellip;"{% if ai_problem or not replies_unchecked %} disabled{% endif %} title="{% if ai_problem %}{{ ai_problem }}{% else %}{{ replies_unchecked }} not checked yet{% endif %}">Check replies ({{ replies_unchecked }})</button>
   </form>
   {% if reply_rows %}
   <ul class="outreach-reply-list">
@@ -110,7 +110,7 @@
           <input type="hidden" name="kind" value="reply-to-interest">
           <input type="hidden" name="back" value="/outreach?tab=replies">
           <select name="channel" aria-label="Reply channel">{% for c in channels %}<option value="{{ c }}"{% if c == it.channel %} selected{% endif %}>{{ c }}</option>{% endfor %}</select>
-          <button type="submit"{% if gate or ai_problem %} disabled{% endif %}>Draft a reply</button>
+          <button type="submit" data-busy="Drafting&hellip;"{% if gate or ai_problem %} disabled{% endif %}>Draft a reply</button>
         </form>
       {% endif %}
       {% if r.contact.email %}
@@ -154,7 +154,7 @@
           <input type="hidden" name="kind" value="follow-up">
           <input type="hidden" name="back" value="/outreach?tab=follow-ups">
           <select name="channel" aria-label="Follow-up channel">{% for c in channels %}<option value="{{ c }}"{% if c == it.channel %} selected{% endif %}>{{ c }}</option>{% endfor %}</select>
-          <button type="submit"{% if gate or ai_problem %} disabled{% endif %}>Draft follow-up</button>
+          <button type="submit" data-busy="Drafting&hellip;"{% if gate or ai_problem %} disabled{% endif %}>Draft follow-up</button>
         </form>
       </div>
     </li>
@@ -311,12 +311,12 @@
     {% if i.proof_used %}<p class="small">Proof: {{ i.proof_used | join('; ') }}</p>{% endif %}
     <div class="draft-actions">
       <button type="submit" title="{% if i.checks %}Allowed with a failing check: it is kept as a warning{% else %}Approve this text{% endif %}">Mark ready</button>
-      <button type="submit" formaction="/outreach/{{ i.id }}/check" class="secondary" title="Saves your edit, runs the checks and asks the AI critic to score it again (an AI call)">Save &amp; check again</button>
+      <button type="submit" formaction="/outreach/{{ i.id }}/check" class="secondary" data-busy="Checking&hellip;" title="Saves your edit, runs the checks and asks the AI critic to score it again (an AI call)">Save &amp; check again</button>
       <button type="button" class="secondary" data-copy-target="body-{{ i.id }}">Copy</button>
       <button type="button" class="secondary" data-skip-toggle="{{ i.id }}" aria-controls="skip-{{ i.id }}" aria-expanded="false">Skip</button>
     </div>
     <div class="draft-actions">
-      <button type="submit" formaction="/outreach/{{ i.id }}/regenerate" class="secondary"{% if ai_problem %} disabled title="{{ ai_problem }}"{% else %} title="Writes a new draft from the same findings. Changes in the box above that you have not saved are not kept."{% endif %}>Regenerate</button>
+      <button type="submit" formaction="/outreach/{{ i.id }}/regenerate" class="secondary" data-busy="Regenerating&hellip;"{% if ai_problem %} disabled title="{{ ai_problem }}"{% else %} title="Writes a new draft from the same findings. Changes in the box above that you have not saved are not kept."{% endif %}>Regenerate</button>
       <label class="check inline-check small"><input type="checkbox" name="strong" value="1"> stronger model</label>
     </div>
   </form>
