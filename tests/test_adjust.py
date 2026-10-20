@@ -536,14 +536,14 @@ def test_edits_on_disk_show_without_a_restart(demo):
     assert "ghosted" in client.get("/messages").text                # config.toml
     assert app.state.store.outcomes == ["replied", "ghosted"]
     (demo / "messages.toml").write_text('[signals]\ngrowing = "Booming right now"\n')
-    assert "Booming right now" in client.get("/companies/northwind-robotics").text
+    assert "Booming right now" in client.get(generate_panel(app)).text   # the Generate panel
     with open(demo / "fields.toml", "a") as fh:
         fh.write('\n[[field]]\nkey = "renewal_month"\nlabel = "renewal month"\n')
     assert "renewal month" in client.get("/companies/northwind-robotics").text
     # a file that no longer parses keeps what the app had, and check names it
     (demo / "messages.toml").write_text("[signals\n")
     assert client.get("/companies/northwind-robotics").status_code == 200
-    assert "Booming right now" in client.get("/companies/northwind-robotics").text
+    assert "Booming right now" in client.get(generate_panel(app)).text
     assert any(p.startswith("messages.toml: line 1:") for p in adjust.validate(demo))
 
 
@@ -810,18 +810,25 @@ def test_a_bad_config_is_read_once_not_on_every_request(demo, monkeypatch):
     assert len(seen) == 1
 
 
+def generate_panel(app) -> str:
+    """The Outreach page for one of Northwind Robotics' contacts: it lists the signal
+    wording of messages.toml."""
+    contact = next(iter(app.state.store.get("northwind-robotics").contacts))
+    return f"/outreach?contact=northwind-robotics/{contact}"
+
+
 def test_a_wrong_shaped_messages_file_keeps_the_old_wording_and_shows_a_banner(demo):
     app, client = make(demo)
     (demo / "messages.toml").write_text('[signals]\ngrowing = "Booming right now"\n')
-    assert "Booming right now" in client.get("/companies/northwind-robotics").text
+    assert "Booming right now" in client.get(generate_panel(app)).text
     (demo / "messages.toml").write_text("languages = 5\n")
-    page = client.get("/companies/northwind-robotics")
+    page = client.get(generate_panel(app))
     assert page.status_code == 200
     assert "Booming right now" in page.text                          # the last good wording
     assert 'class="warning-box file-problems"' in page.text and "messages.toml" in page.text
     assert isinstance(app.state.messages["languages"], dict)
     (demo / "messages.toml").write_text('[signals]\ngrowing = "Up and up"\n')
-    page = client.get("/companies/northwind-robotics")
+    page = client.get(generate_panel(app))
     assert "Up and up" in page.text and "file-problems" not in page.text
 
 
