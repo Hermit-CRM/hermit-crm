@@ -953,7 +953,7 @@ form.outreach-skip input { width: auto; margin: 0; }
 form.outreach-build label { margin: 0; }
 form.outreach-build label.check { padding-bottom: 6px; }
 .outreach-card input[name=subject] { width: 100%; }
-.outreach-findings ol { margin: 4px 0; padding-left: 20px; }
+.outreach-notes ol { margin: 4px 0; padding-left: 20px; }
 .outreach-flags { margin: 4px 0; padding-left: 18px; color: var(--muted); }
 /* Replies to interest: one row per reply owed, the same tag and button styles. */
 .outreach-reply-list { list-style: none; padding: 0; margin: 12px 0; }

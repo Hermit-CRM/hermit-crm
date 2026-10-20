@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """Outreach, part 04a: the Outreach page. Build one contact per request,
-review a card (save and check, ready, regenerate, skip, sent, findings), the
+review a card (save and check, ready, regenerate, skip, sent, note), the
 contact page's card and Research & draft button. The AI and the web are
 fakes; all names are made up."""
 
@@ -258,12 +258,12 @@ def test_skip_is_a_button_that_opens_a_one_click_reason_panel(client, root):
     assert 'aria-label="Why skip"' not in page                           # no dropdown any more
 
 
-def test_norms_are_listed_with_the_findings_not_in_the_footer(client, root):
+def test_norms_are_listed_with_the_notes_not_in_the_footer(client, root):
     item = drafted(client, root)
     assert item.norms
     page = client.get("/outreach?tab=drafts").text
-    findings = re.search(r'<details class="outreach-findings".*?</details>', page, re.S).group(0)
-    assert "Norms applied" in findings and html.escape(item.norms[0]) in findings
+    panel = re.search(r'<details class="outreach-notes".*?</details>', page, re.S).group(0)
+    assert "Norms applied" in panel and html.escape(item.norms[0]) in panel
     footer = re.search(r'<p class="small quiet">.*?</p>', page, re.S).group(0)
     assert "norms:" not in footer
 
@@ -274,8 +274,8 @@ def test_mark_sent_changes_only_the_state(client, root):
     post(client, f"/outreach/{item.id}/sent")
     sent = outreach.get_item(root, item.id)
     assert sent.state == "sent" and sent.sent_with == "" and sent.body == item.body
-    # a sent item cannot be edited, regenerated or get other findings
-    for what in ("check", "regenerate", "findings"):
+    # a sent item cannot be edited, regenerated or get a note on its card
+    for what in ("check", "regenerate", "note"):
         response = post(client, f"/outreach/{item.id}/{what}", body="x", add="x")
         assert "only a drafted item" in query(response)["flash"]
     assert outreach.get_item(root, item.id) == sent
@@ -299,25 +299,19 @@ def test_regenerate_keeps_the_findings_and_replaces_the_ai_text(client, root, fa
     assert commits(root)[0].startswith(f"outreach: regenerate {MARA}")
 
 
-def test_a_finding_of_your_own_is_used_by_a_regenerate(client, root, fake):
+def test_a_note_of_your_own_is_used_by_a_regenerate(client, root, fake):
     item = drafted(client, root)
-    n = len(item.findings)
-    post(client, f"/outreach/{item.id}/findings", add="  Hiring a  second AE ",
-         kind="trigger", remove="1")
-    changed = outreach.get_item(root, item.id)
-    assert len(changed.findings) == n            # one removed, one added
-    mine = changed.findings[-1]
-    assert (mine.text, mine.source, mine.confidence, mine.kind) == (
-        "Hiring a second AE", outreach.YOURS, "high", "trigger")
-    assert commits(root)[0] == f"outreach: findings {MARA}: removed 1, added 1"
+    post(client, f"/outreach/{item.id}/note", add="  Hiring a  second AE ")
+    assert commits(root)[0].startswith("interaction: lindenhof-data note")
     fake.drafts = [lambda prompt: {
         "subject": "Your second AE", "angle": "hook",
         "body": "Hi Mara,\n\nHiring a second AE is a big step.\nWho will coach them?"
-                "\n\nSam", "pitch": "", "findings_used": [n], "proof_used": []}]
+                "\n\nSam", "pitch": "", "findings_used": [1], "proof_used": []}]
     post(client, f"/outreach/{item.id}/regenerate")
     again = outreach.get_item(root, item.id)
-    assert "Hiring a second AE" in fake.of("draft")[-1]["prompt"]
-    assert again.checks == [] and again.findings[-1].used
+    prompt = fake.of("draft")[-1]["prompt"]
+    assert re.search(r"^1\. \[person, high, usable; source you\] Hiring a second AE$", prompt, re.M)
+    assert again.checks == [] and again.findings[0].used and again.findings[0].source == outreach.YOURS
 
 
 def test_every_post_checks_csrf_and_ids(client, root):
@@ -331,7 +325,7 @@ def test_every_post_checks_csrf_and_ids(client, root):
 
 
 def outreach_actions():
-    return ("check", "ready", "regenerate", "skip", "sent", "findings", "proposal")
+    return ("check", "ready", "regenerate", "skip", "sent", "note", "proposal")
 
 
 # ------------------------------------------------- research proposals

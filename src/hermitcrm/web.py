@@ -59,7 +59,7 @@ from . import playbook, textsource
 from . import schedule, scrape, secrets, task_types, usertheme
 from . import stage_ops
 from . import stages as stages_mod
-from . import exemplars, learning, linkedin, outreach, routines, send, sendplan, sendqueue, suppress
+from . import exemplars, learning, linkedin, notes, outreach, routines, send, sendplan, sendqueue, suppress
 from . import help as helpdocs
 from . import setup as setup_steps
 from .filters import Column
@@ -4076,8 +4076,11 @@ def create_app(root: Path, config: dict | None = None,
             if company is not None and item.reply_to else None
         proposals = [(k, v) for k, v in sorted(item.proposals.items())
                      if outreach.proposal_open(company, contact, k)]
+        shown = (notes.card(company, item.contact, item, store.today())
+                 if company is not None and contact is not None else
+                 {"rows": [], "newer": 0, "legacy": [], "company_notes": ""})
         return {"item": item, "company": company, "contact": contact,
-                "proposals": proposals,
+                "proposals": proposals, "notes": shown,
                 "fit": outreach.fit_value(company, fit_field) if company else None,
                 "fit_field": fit_field, "reply": reply,
                 "steps": outreach.edit_steps(item),
@@ -4264,7 +4267,7 @@ def create_app(root: Path, config: dict | None = None,
             "form": form, "preview": preview, "preview_error": preview_error,
             "fix_request": fix_request, "note_requests": note_requests,
             "gate": gate, "ai_problem": outreach_ai_problem(),
-            "skip_reasons": outreach.SKIP_REASONS, "finding_kinds": outreach.FINDING_KINDS,
+            "skip_reasons": outreach.SKIP_REASONS,
             "channels": outreach.CHANNELS, "levels": outreach.LEVELS,
             "built_levels": outreach.BUILT_LEVELS,
             "ai_web_problem": app.state.enricher.web_only_problem(),
@@ -4537,12 +4540,12 @@ def create_app(root: Path, config: dict | None = None,
                 app.state.enricher.with_tier("medium"))
         except outreach.OutreachError as exc:
             return flashed(back, f"Not added: {exc}", anchor=anchor)
-        say = (f"Added {added} finding{'s' if added != 1 else ''} from LinkedIn. Regenerate "
+        say = (f"Added {added} note{'s' if added != 1 else ''} from LinkedIn. Regenerate "
                "to use them." if added else
-               "Nothing usable on that page that the card does not already have.")
+               "Nothing usable on that page that the notes do not already have.")
         return flashed(f"/outreach?tab={outreach_tab(item)}", say, anchor=anchor)
 
-    OUTREACH_ACTIONS = ("check", "ready", "regenerate", "skip", "sent", "findings",
+    OUTREACH_ACTIONS = ("check", "ready", "regenerate", "skip", "sent", "note",
                         "proposal", "schedule", "unschedule", "send-now", "front", "retry")
 
     @app.post("/outreach/{item_id}/{what}")
@@ -4550,8 +4553,7 @@ def create_app(root: Path, config: dict | None = None,
                               csrf_token: str = Form(""), subject: str | None = Form(None),
                               body: str | None = Form(None), pitch: str | None = Form(None),
                               reason: str = Form(""), note: str = Form(""),
-                              strong: str = Form(""), remove: list[str] = Form([]),
-                              add: str = Form(""), kind: str = Form("company"),
+                              strong: str = Form(""), add: str = Form(""),
                               key: str = Form(""), tags: list[str] = Form([])):
         check_csrf(csrf_token)
         if what not in OUTREACH_ACTIONS:
@@ -4638,11 +4640,12 @@ def create_app(root: Path, config: dict | None = None,
                         "failed": f"Not sent: {out.detail}"}.get(out.kind, out.detail)
                 if out.warnings:
                     text += " Warning: " + "; ".join(out.warnings) + "."
-            else:
-                numbers = [int(n) for n in remove if str(n).strip().isdigit()]
-                item = await run_in_threadpool(outreach.set_findings, store, item.id,
-                                               numbers, add, kind)
-                text = "Findings saved. Regenerate to use them."
+            else:   # note: what you know about them, kept on their page like any note
+                if item.state != "drafted":
+                    raise outreach.OutreachError(f"{item.id} is {item.state}; only a "
+                                                 "drafted item can take a note")
+                await run_in_threadpool(notes.add_note, store, item.company, item.contact, add)
+                text = "Note saved. Regenerate to use it."
         except (outreach.OutreachError, send.SendError) as exc:
             return flashed(f"/outreach?tab={outreach_tab(item)}", str(exc), anchor=anchor)
         return flashed(f"/outreach?tab={outreach_tab(item)}", text, anchor=anchor)

@@ -234,7 +234,7 @@
 {% endmacro %}
 
 <div class="drafts outreach-cards">
-{% for card in cards %}{% set i = card.item %}{% set co = card.company %}{% set ct = card.contact %}{% set has_findings = i.kind != 'reply-to-interest' or i.findings %}
+{% for card in cards %}{% set i = card.item %}{% set co = card.company %}{% set ct = card.contact %}{% set has_notes = i.kind != 'reply-to-interest' or card.notes.rows %}
 <article class="draft outreach-card" id="item-{{ i.id }}">
   <p class="draft-head">
     {% if ct %}<a href="/companies/{{ i.company }}/contacts/{{ i.contact }}">{{ ct.name }}</a>{% else %}{{ i.contact }}{% endif %}
@@ -268,26 +268,29 @@
   {% if card.reply %}<details class="outreach-their-reply"{% if i.state == 'drafted' %} open{% endif %}><summary>Their reply, {{ fmt_date(card.reply.date) }}</summary>
     <blockquote class="small">{% if card.reply.subject %}<strong>{{ card.reply.subject }}</strong><br>{% endif %}{{ card.reply.body }}</blockquote></details>{% endif %}
 
-  {% if has_findings %}
-  <details class="outreach-findings"{% if i.state == 'drafted' %} open{% endif %}>
-    <summary>Findings ({{ i.findings | length }}{% if i.findings %}, {{ i.findings | selectattr('used') | list | length }} used{% endif %})</summary>
-    <form method="post" action="/outreach/{{ i.id }}/findings">
+  {% if has_notes %}{% set nc = card.notes %}
+  <details class="outreach-notes"{% if i.state == 'drafted' %} open{% endif %}>
+    <summary>Notes ({{ nc.rows | length }}{% if nc.rows %}, {{ nc.rows | selectattr('used') | list | length }} used{% endif %})</summary>
+    <p class="small quiet">What is known about {{ ct.first_name or ct.name if ct else i.contact }}: the same notes as on their page and on {{ co.name if co else i.company }}'s timeline. The draft is written from them.</p>
+    {% if i.state == 'drafted' and nc.newer %}<p class="small warning">{{ nc.newer }} note{{ 's' if nc.newer != 1 }} added since this draft was written. Regenerate to use {{ 'it' if nc.newer == 1 else 'them' }}.</p>{% endif %}
+    {% if nc.company_notes %}<p class="small outreach-company-notes"><strong>Company notes</strong> (background; <a href="/companies/{{ i.company }}?edit=1#details">edit</a>): {{ nc.company_notes }}</p>{% endif %}
+    <ol class="outreach-note-list">{% for r in nc.rows %}
+      <li>{{ r.text }}
+        <span class="small">&middot; {{ fmt_date(r.note.date) }} &middot; {% if r.source_url %}<a href="{{ r.source_url }}" target="_blank" rel="noopener">{{ r.source_url | replace('https://', '') | truncate(40) }}</a>{% else %}you{% endif %}{% if r.used %} &middot; <strong>used</strong>{% endif %}
+        &middot; <a href="/companies/{{ i.company }}/contacts/{{ i.contact }}#i-{{ r.note.id }}">on the timeline</a></span>
+      </li>{% endfor %}
+    </ol>
+    {% if nc.legacy %}<p class="small">From before notes were shared, saved as notes when you regenerate or mark ready:</p>
+    <ul class="small">{% for f in nc.legacy %}<li>{{ f.text }} ({{ f.source }})</li>{% endfor %}</ul>{% endif %}
+    {% if i.state == 'drafted' %}
+    <form method="post" action="/outreach/{{ i.id }}/note">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <ol>{% for f in i.findings %}
-        <li><span class="confidence confidence-{{ f.confidence }}" title="confidence: {{ f.confidence }}">&#9679;</span>
-          {{ f.text }}{% if f.date %} <span class="small">({{ f.date }}{% if f.stale %}, stale{% endif %})</span>{% endif %}
-          <span class="small">&middot; {% if f.source.startswith('http') %}<a href="{{ f.source }}" target="_blank" rel="noopener">{{ f.source | replace('https://', '') | truncate(40) }}</a>{% else %}{{ f.source }}{% endif %}{% if f.used %} &middot; <strong>used</strong>{% endif %}</span>
-          {% if i.state == 'drafted' %}<label class="check inline-check small"><input type="checkbox" name="remove" value="{{ loop.index }}"> remove</label>{% endif %}
-        </li>{% endfor %}
-      </ol>
-      {% if i.state == 'drafted' %}
       <div class="outreach-add">
-      <input name="add" placeholder="add your own: something you know about them" aria-label="Add a finding of your own">
-      <select name="kind" aria-label="kind of finding">{% for k in finding_kinds %}<option value="{{ k }}">{{ k }}</option>{% endfor %}</select>
-      <button type="submit" class="secondary">Save findings</button>
+      <input name="add" placeholder="add a note: something you know about them" aria-label="Add a note">
+      <button type="submit" class="secondary">Add note</button>
       </div>
-      {% endif %}
     </form>
+    {% endif %}
     {% if i.norms %}<div class="outreach-norms small"><strong>Norms applied</strong>
       <ul>{% for n in i.norms %}<li>{{ n }}</li>{% endfor %}</ul></div>{% endif %}
   </details>
@@ -398,7 +401,7 @@
     {% if i.edit_distance is not none %} &middot; {{ i.edit_distance }} word{{ 's' if i.edit_distance != 1 }} edited{% endif %}</p>
   {% endif %}
   {% if i.state not in ('drafted', 'ready', 'queued', 'failed') %}{{ history(card) }}{% endif %}
-  <p class="small quiet">{{ i.id }}{% if i.model %} &middot; {{ i.model }}{% endif %}{% if i.seconds is not none %} &middot; {{ i.seconds }}s{% endif %}{% if i.norms and not has_findings %} &middot; norms: {{ i.norms | join('; ') }}{% endif %}</p>
+  <p class="small quiet">{{ i.id }}{% if i.model %} &middot; {{ i.model }}{% endif %}{% if i.seconds is not none %} &middot; {{ i.seconds }}s{% endif %}{% if i.norms and not has_notes %} &middot; norms: {{ i.norms | join('; ') }}{% endif %}</p>
 </article>
 {% endfor %}
 </div>

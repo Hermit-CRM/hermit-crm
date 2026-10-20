@@ -353,6 +353,7 @@ def test_item_file_keeps_reply_to(root, client):
     item, = [i for i in outreach.items(root) if i.record == MARA]
     meta, body = split_file((root / item.path).read_text())
     assert meta["reply_to"] == it.id
-    assert list(meta) == [k for k in outreach.ITEM_KEYS if k != "exemplars_used"]
+    assert list(meta) == [k for k in outreach.ITEM_KEYS
+                          if k not in ("exemplars_used", "language_pick")]
     again = outreach.item_from_text(item.id, (root / item.path).read_text())
     assert outreach.item_text(again) == (root / item.path).read_text()
