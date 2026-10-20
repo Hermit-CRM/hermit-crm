@@ -1004,6 +1004,9 @@ html.is-working, html.is-working a, html.is-working button { cursor: progress; }
   .busy-bar::before { animation: none; width: 100%; opacity: .6; }   /* a steady bar, no sliding */
 }
 .outreach-card .outreach-email { margin-left: 4px; }
+/* One-click copy next to an email address (copy.js). */
+.copy-btn { font: inherit; font-size: 12px; color: var(--muted); background: none; border: 1px solid var(--line); border-radius: 3px; padding: 0 6px; margin-left: 4px; cursor: pointer; }
+.copy-btn:hover { color: var(--text); background: var(--subtle); }
 
 /* --- "Explain and fix with AI" under a filter problem (macros.html, adjust.js) --- */
 .fix-with-ai { font: inherit; font-size: 12px; color: var(--accent); background: none; border: 0; padding: 0; margin-left: 4px; cursor: pointer; text-decoration: underline; }
