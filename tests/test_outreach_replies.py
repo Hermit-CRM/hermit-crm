@@ -147,6 +147,9 @@ def test_logged_interested_reply_is_listed_with_no_ai(client, fake, root):
     assert fake.calls == []
     assert f'id="reply-{it.id}"' in page and "interested (logged)" in page
     assert "Draft a reply" in page
+    # both call the AI: the clicked button says that it is working (static/busy.js)
+    assert re.search(r'<button[^>]*data-busy="[^"]+"[^>]*>Draft a reply</button>', page)
+    assert re.search(r'<button[^>]*data-busy="[^"]+"[^>]*>Check replies \(\d+\)</button>', page)
     assert ">Replies to interest (1)<" in page
     # Replies to interest is the first tab.
     assert page.index("Replies to interest (") < page.index(">Drafts (")

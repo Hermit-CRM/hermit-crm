@@ -991,8 +991,18 @@ button.is-busy::before {
   border-radius: 50%; animation: busy-spin .8s linear infinite;
 }
 .busy-note { margin-left: 8px; color: var(--muted); }
+html.is-working, html.is-working a, html.is-working button { cursor: progress; }
+/* A bar along the top edge of the window, so it shows wherever the page is scrolled to */
+.busy-bar { position: fixed; top: 0; left: 0; right: 0; height: 4px; z-index: 90; overflow: hidden;
+  pointer-events: none; background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.busy-bar::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 30%;
+  background: var(--accent); animation: busy-slide 1.3s ease-in-out infinite; }
 @keyframes busy-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { button.is-busy::before { animation-duration: 3s; } }
+@keyframes busy-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+@media (prefers-reduced-motion: reduce) {
+  button.is-busy::before { animation-duration: 3s; }
+  .busy-bar::before { animation: none; width: 100%; opacity: .6; }   /* a steady bar, no sliding */
+}
 .outreach-card .outreach-email { margin-left: 4px; }
 
 /* --- "Explain and fix with AI" under a filter problem (macros.html, adjust.js) --- */

@@ -19,6 +19,7 @@ are fakes; all names are made up."""
 
 from __future__ import annotations
 
+import re
 from datetime import timedelta
 
 import pytest
@@ -334,6 +335,8 @@ def test_the_follow_ups_tab_lists_the_due_ones_then_their_cards(client, root):
     page = client.get("/outreach?tab=follow-ups").text
     assert f"Follow-ups ({n + 1})" in page and "Mara Keller" in page
     assert "Draft follow-up" in page and 'name="kind" value="follow-up"' in page
+    # an AI call: the clicked button says that it is working (static/busy.js)
+    assert re.search(r'<button[^>]*data-busy="[^"]+"[^>]*>Draft follow-up</button>', page)
     response = build_followup(client)
     assert query(response)["tab"] == "follow-ups"
     page = client.get("/outreach?tab=follow-ups").text
