@@ -86,7 +86,7 @@
   <dl class="fields">
     {% if 'title' not in hide %}<dt>title</dt><dd>{{ contact.title or '' }}{% if not contact.title %}<a href="{{ add }}">+ title</a>{% endif %}</dd>{% endif %}
     {% if 'role' not in hide %}<dt>role</dt><dd>{{ contact.role or '' }}{% if not contact.role %}<a href="{{ add }}">+ role</a>{% endif %}</dd>{% endif %}
-    {% if 'email' not in hide %}<dt>email</dt><dd>{% if contact.email %}<a href="mailto:{{ contact.email }}">{{ contact.email }}</a>{% else %}<a href="{{ add }}">+ email</a>{% endif %}</dd>{% endif %}
+    {% if 'email' not in hide %}<dt>email</dt><dd>{% if contact.email %}<a href="mailto:{{ contact.email }}">{{ contact.email }}</a> <button type="button" class="copy-btn" data-copy-text="{{ contact.email }}" title="Copy {{ contact.email }}">copy</button>{% else %}<a href="{{ add }}">+ email</a>{% endif %}</dd>{% endif %}
     {% if 'phone' not in hide %}<dt>phone</dt><dd>{{ contact.phone or '' }}{% if not contact.phone %}<a href="{{ add }}">+ phone</a>{% endif %}</dd>{% endif %}
     {% if 'linkedin' not in hide %}<dt>linkedin</dt><dd>{% if contact.linkedin %}<a href="{{ contact.linkedin | href }}" target="_blank" rel="noopener">open</a>{% else %}<a href="{{ add }}">+ linkedin</a>{% endif %}</dd>{% endif %}
     {% if 'language' not in hide %}{% set lang = (contact.language or '') | trim | lower %}<dt>draft language</dt><dd>{{ language_names.get(lang, lang) if lang else 'from country' }}</dd>{% endif %}

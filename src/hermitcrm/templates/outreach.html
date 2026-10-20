@@ -240,7 +240,7 @@
     {% if ct %}<a href="/companies/{{ i.company }}/contacts/{{ i.contact }}">{{ ct.name }}</a>{% else %}{{ i.contact }}{% endif %}
     {% if ct and ct.title %}<span class="small">{{ ct.title }}</span>{% endif %}
     {% if ct and ct.linkedin %}<a href="{{ ct.linkedin | href }}" target="_blank" rel="noopener" class="small">LinkedIn &#8599;</a>{% endif %}
-    {% if ct and ct.email %}<a href="mailto:{{ ct.email }}" class="small outreach-email">{{ ct.email }}</a>{% endif %}
+    {% if ct and ct.email %}<a href="mailto:{{ ct.email }}" class="small outreach-email">{{ ct.email }}</a> <button type="button" class="copy-btn" data-copy-text="{{ ct.email }}" title="Copy {{ ct.email }}">copy</button>{% endif %}
     <span class="tag">{{ i.channel }}</span> <span class="tag">{{ i.state }}</span>
     {% if i.kind == 'reply-to-interest' %}<span class="tag">reply to interest</span>{% endif %}
   </p>
