@@ -639,7 +639,8 @@ def make_brief(store: Store, company, contact, approach, research: Research,
         for note in notes.contact_notes(company, contact.slug)[:5]:
             text = " ".join(note.body.split())[:300]
             if text:
-                brief.situation.append(f"Note ({note.date:%Y-%m-%d}): {text}")
+                when = f"{note.date:%Y-%m-%d}" if note.date else "undated"
+                brief.situation.append(f"Note ({when}): {text}")
     mine = [i for i in company.interactions if i.date and i.contact == contact.slug]
     others = [i for i in company.interactions if i.date and i.contact != contact.slug
               and i.is_touch]
@@ -2265,7 +2266,7 @@ def select(store: Store, where: list[str] | None = None, channel: str = "email",
            today: date | None = None) -> Selection:
     """Who a batch would go to, in order, and why the rest would not. No AI, no
     writes. `contacts` ("company/contact") replaces the filter: the per-contact
-    "Research & draft" button."""
+    Generate outreach button."""
     if channel not in CHANNELS:
         raise OutreachError(f"channel {channel!r}: use email or linkedin")
     if kind not in KINDS:

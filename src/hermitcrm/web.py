@@ -4286,8 +4286,8 @@ def create_app(root: Path, config: dict | None = None,
                              signal: str = Form(""), observation: str = Form(""),
                              language: str = Form("")):
         """Research and draft the next contact of the batch (one per request).
-        `contact` ("company/contact"): the contact page's Research & draft, or a
-        reply on the Replies tab (`kind` reply-to-interest)."""
+        `contact` ("company/contact"): the Generate panel (with its signal, observation
+        and language), or a reply on the Replies tab (`kind` reply-to-interest)."""
         check_csrf(csrf_token)
         if kind not in outreach.BUILT_KINDS or (kind == outreach.REPLY and not contact):
             kind = outreach.FIRST_TOUCH
