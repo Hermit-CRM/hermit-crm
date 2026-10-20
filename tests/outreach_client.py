@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.datastructures import URL, QueryParams
 
 from hermitcrm import outreach
 from hermitcrm.datafolder import init_folder
@@ -54,6 +55,10 @@ def client(root, fake):
 
 def post(client, path, **data):
     return client.post(path, data={"csrf_token": client.app.state.csrf_token, **data})
+
+
+def query(response) -> dict:
+    return dict(QueryParams(URL(response.headers["location"]).query))
 
 
 def commits(root) -> list[str]:

@@ -30,7 +30,7 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.datastructures import URL, QueryParams
 
-from hermitcrm import capture, outreach
+from hermitcrm import capture, notes, outreach
 from hermitcrm.datafolder import init_folder
 from hermitcrm.store import load_config
 from hermitcrm.web import create_app
@@ -171,24 +171,24 @@ def add(client, item, **pieces):
                 **{"top": TOP, "about": ABOUT, "act": ACTIVITY, **pieces})
 
 
-def test_adding_makes_sourced_person_findings_in_one_commit(client, root, fake):
+def test_adding_makes_sourced_person_notes_in_one_commit(client, root, fake):
     item = drafted(client, root)
     text_before = (root / item.path).read_text()
-    body_before = item.body
     before = commits(root)
     response = add(client, item)
     assert response.status_code == 303
-    assert "Added 2 findings from LinkedIn" in query(response)["flash"]
+    assert "Added 2 notes from LinkedIn" in query(response)["flash"]
+    company = client.app.state.store.get("lindenhof-data")
+    added = [notes.finding_of(n, NOW.date())
+             for n in notes.contact_notes(company, "mara-keller") if PROFILE in n.body]
+    assert sorted(f.text for f in added) == ["Hired a first account executive in Hamburg",
+                                             "Started the company to fix reporting"]
+    assert {f.source for f in added} == {PROFILE} and {f.kind for f in added} == {"person"}
     back = outreach.get_item(root, item.id)
-    new = back.findings[len(item.findings):]
-    assert [f.text for f in new] == ["Hired a first account executive in Hamburg",
-                                     "Started the company to fix reporting"]
-    assert {f.source for f in new} == {PROFILE} and {f.kind for f in new} == {"person"}
-    assert back.body == body_before and back.state == "drafted"      # the text is untouched
-    assert commits(root)[0] == f"outreach: findings {MARA}: added 2 from LinkedIn"
+    assert back.state == "drafted" and back.findings == item.findings   # a snapshot: Regenerate reads them
+    assert (root / item.path).read_text() == text_before                # the card is not touched
+    assert commits(root)[0] == "outreach: notes lindenhof-data/mara-keller from research"
     assert len(commits(root)) == len(before) + 1
-    # the front matter changed, the body did not
-    assert (root / item.path).read_text().split("---\n", 2)[2] == text_before.split("---\n", 2)[2]
 
 
 def test_the_ai_runs_without_tools_and_reads_the_page_as_data(client, root, fake):
@@ -261,16 +261,16 @@ def test_a_regenerate_can_use_the_added_finding(client, root, fake):
     assert back.findings[cited[0] - 1].source == PROFILE
 
 
-def test_a_page_added_findings_can_be_removed_like_any_other(client, root):
+def test_a_page_added_note_can_be_deleted_like_any_other_note(client, root):
     item = drafted(client, root)
     add(client, item)
-    back = outreach.get_item(root, item.id)
-    number = next(n for n, f in enumerate(back.findings, 1) if f.source == PROFILE)
-    post(client, f"/outreach/{item.id}/findings", remove=str(number))
+    store = client.app.state.store
+    mine = [n for n in notes.contact_notes(store.get("lindenhof-data"), "mara-keller")
+            if PROFILE in n.body]
+    store.delete_interaction("lindenhof-data", mine[0].id)
+    post(client, f"/outreach/{item.id}/regenerate")
     after = outreach.get_item(root, item.id).findings
-    assert len(after) == len(back.findings) - 1
-    assert sum(f.source == PROFILE for f in after) == sum(f.source == PROFILE
-                                                           for f in back.findings) - 1
+    assert sum(f.source == PROFILE for f in after) == len(mine) - 1
 
 
 # ------------------------------------------------------------------ refusals
