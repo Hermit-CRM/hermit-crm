@@ -4200,6 +4200,24 @@ def create_app(root: Path, config: dict | None = None,
                   **extra}
         return urlencode({k: v for k, v in values.items() if v not in ("", None, 0)})
 
+    def outreach_generate(value: str, every: list):
+        """The Generate panel of /outreach?contact=<company>/<contact>: None unless
+        both exist. Nothing here runs the AI or writes."""
+        slug, _, cslug = (value or "").partition("/")
+        company = store.get(slug) if slug and cslug and "/" not in cslug else None
+        contact = company.contacts.get(cslug) if company is not None else None
+        if contact is None:
+            return None
+        open_item = next((i for i in every if i.is_open and i.company == slug
+                          and i.contact == cslug), None)
+        return {"company": company, "contact": contact, "record": f"{slug}/{cslug}",
+                "kind": outreach.kind_for(store, company, contact, config=config),
+                "language": messaging.draft_language(company, contact,
+                                                     messages=app.state.messages),
+                "notes": notes.rows(company, cslug, store.today()),
+                "open_item": open_item,
+                "open_tab": outreach_tab(open_item) if open_item else ""}
+
     @app.get("/outreach", response_class=HTMLResponse)
     def outreach_page(request: Request):
         params = request.query_params
@@ -4258,6 +4276,7 @@ def create_app(root: Path, config: dict | None = None,
             "schedule_preview": schedule_preview, "schedule_error": schedule_error,
             "ready_email": sum(1 for i in every if i.state == "ready" and i.channel == "email"),
             "tab": tab, "cards": [outreach_card(i, known) for i in shown],
+            "gen": outreach_generate(params.get("contact", ""), every),
             "reply_rows": [r for r in reply_rows if r["item"] is None] if tab == "replies"
             else [],
             "due_rows": due_rows if tab == "follow-ups" else [],
@@ -4285,7 +4304,9 @@ def create_app(root: Path, config: dict | None = None,
                              left: str = Form(""), batch: str = Form(""),
                              contact: str = Form(""), back: str = Form(""),
                              kind: str = Form(outreach.FIRST_TOUCH),
-                             approach: str = Form(""), research: str = Form("")):
+                             approach: str = Form(""), research: str = Form(""),
+                             signal: str = Form(""), observation: str = Form(""),
+                             language: str = Form("")):
         """Research and draft the next contact of the batch (one per request).
         `contact` ("company/contact"): the contact page's Research & draft, or a
         reply on the Replies tab (`kind` reply-to-interest)."""
@@ -4324,6 +4345,20 @@ def create_app(root: Path, config: dict | None = None,
         enricher = app.state.enricher.with_tier(tier)
         if level == "ai-web" and enricher.web_only_problem():
             return flashed(back, f"Not built: {enricher.web_only_problem()}")
+        pick = ""
+        if contact:   # the Generate panel: what you checked by hand becomes notes first
+            if language in messaging.language_names(app.state.messages):
+                pick = language
+            who = selection.picked[0]
+            said = ([f"Signal (LinkedIn insights, checked {store.today():%Y-%m-%d}): {signal}."]
+                    if signal and signal in messaging.SIGNALS else [])
+            said += [observation.strip()] if observation.strip() else []
+            try:
+                for text in said:
+                    await run_in_threadpool(notes.add_note, store, who.company.slug,
+                                            who.contact.slug, text)
+            except outreach.OutreachError as exc:
+                return flashed(back, f"Not built: {exc}")
         researcher = outreach.researcher_for(
             level, enricher, fetcher=getattr(app.state, "outreach_fetcher", None),
             today=store.today(), timeout=float(config.get("fetch_timeout", 10)))
@@ -4332,7 +4367,7 @@ def create_app(root: Path, config: dict | None = None,
         batch_id = form["batch"] or f"{store.now():%Y-%m-%dT%H%M}-{form['channel']}"
         try:
             result = await run_in_threadpool(outreach.build, store, selection, researcher,
-                                              drafter, config, None, batch_id, critic)
+                                              drafter, config, None, batch_id, critic, pick)
         except outreach.OutreachError as exc:
             return flashed(back, f"Not built: {exc}")
         item = result.items[0]
@@ -4344,6 +4379,20 @@ def create_app(root: Path, config: dict | None = None,
         if remaining:
             line += f". Building the next one ({remaining} left)…"
         return flashed(f"/outreach?{query}", line, anchor=f"item-{item.id}")
+
+    @app.post("/outreach/note")
+    async def outreach_contact_note(csrf_token: str = Form(""), contact: str = Form(""),
+                                    text: str = Form(""), back: str = Form("")):
+        """A note about a person from the Generate panel: the same note you would add
+        on their page, used by the next draft."""
+        check_csrf(csrf_token)
+        slug, _, cslug = contact.partition("/")
+        back = safe_back(back, "/outreach")
+        try:
+            await run_in_threadpool(notes.add_note, store, slug, cslug, text)
+        except outreach.OutreachError as exc:
+            return flashed(back, str(exc))
+        return flashed(back, "Note saved. It is on their page and the next draft uses it.")
 
     @app.post("/outreach/replies/check")
     async def outreach_check_replies(request: Request, csrf_token: str = Form("")):
