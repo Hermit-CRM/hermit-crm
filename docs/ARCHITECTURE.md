@@ -36,7 +36,8 @@ src/hermitcrm/
 ├── pipeline.py            # PIPELINE.md (§5)
 ├── migrations.py          # data format versions and migrations
 ├── secrets.py             # env, .secrets.toml, macOS Keychain
-├── updates.py             # daily PyPI update check
+├── updates.py             # daily PyPI update check; is the code on disk newer than what runs
+├── upgrade.py             # one-click upgrade: install, verify, restart (exec); string-built pages
 ├── disclaimer.py          # the one-time acknowledgement over the web app
 ├── messaging.py           # outreach drafts (§8.3) + default_messages.toml
 ├── bcc.py, calendar_sync.py, importer.py, enrich.py, scrape.py, filters.py, reports.py
@@ -335,6 +336,10 @@ Server-rendered HTML. One base template with a top nav: Pipeline, Calendar, Comp
 | POST `/inbox/{id}/assign`, POST `/inbox/{id}/discard` | Log a queued item at a company (uses the contact with that email, else fills the email of a same-named contact without one, else creates the contact) in one commit; or discard it (remembered in `inbox/discarded.tsv`). Both redirect to `/#to-file`; an unknown company re-renders Home with status 400. |
 | GET `/help`, GET `/help/{topic}` | The help pages (§7) rendered inside the base template with a topic list on the left; unknown topic → 404. |
 | POST `/reload` | Rebuild index, redirect back. |
+| GET `/upgrade/status` | JSON for `upgrade.js`: this process's `boot` id and `version`, the upgrade `state` (`idle`, `installing`, `verifying`, `restarting`, `failed`), `error`, `stale` (the version on disk when newer than the running code) and `available`. Never cached. |
+| GET `/upgrade` | The no-JavaScript view of an upgrade, built from strings, not a template: it must work when templates and code disagree. |
+| POST `/upgrade` | CSRF token. Installs the newest release with the tool that installed Hermit CRM (`updates.upgrade_argv`), checks the new files start, restarts (`os.execv`, same PID). 202 JSON for `fetch`, else redirect to `/upgrade`; 409 with a reason where it cannot run (network-bound, Windows, not PyPI, no `serve` restart hook). While it runs a middleware answers every other page 503 and `/upgrade/restart` is refused. |
+| POST `/upgrade/restart` | CSRF token. Verify and restart on the files already on disk (after an upgrade made elsewhere). A page that raises while the disk is newer than the process renders `upgrade.stale_page` (no template) instead of a bare 500. |
 | GET `/health` | JSON: counts, last commit sha, last push status and time, validation problems. |
 
 Global: a search box in the nav that submits to `/companies?q=`. Flash messages after writes. Form validation errors re-render the form with the values kept.
