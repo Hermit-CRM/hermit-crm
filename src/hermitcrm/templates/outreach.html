@@ -300,10 +300,10 @@
     <textarea name="body" rows="9" spellcheck="true" aria-label="Draft for {{ ct.name if ct else i.contact }}" id="body-{{ i.id }}">{{ i.body }}</textarea>
     {% if i.channel != 'email' %}<label class="small">after they accept</label>
     <textarea name="pitch" rows="5" spellcheck="true" aria-label="Message after they accept">{{ i.pitch }}</textarea>{% endif %}
-    <label class="small outreach-note" data-note-for="{{ i.id }}" hidden>Why this change? (optional) Your reason is kept with the edit and helps improve the AI's next drafts.
+    <label class="small outreach-note">What was wrong with this draft? (optional) Kept with your edit, or with the old draft if you regenerate. It helps improve the AI's next drafts.
       <input name="note" maxlength="500" placeholder="e.g. too formal for a founder, or the trigger is old news"></label>
     <fieldset class="small outreach-chips" data-chips-for="{{ i.id }}" data-chip-words="{{ chip_words }}" hidden>
-      <legend>What was wrong? (optional) Reason chips count for learning when you change more than {{ chip_words }} words.</legend>
+      <legend>Quick reasons (optional) Chips count for learning when you change more than {{ chip_words }} words.</legend>
       {% for tag in edit_tags %}<label class="check inline-check"><input type="checkbox" name="tags" value="{{ tag }}"> {{ tag }}</label> {% endfor %}
     </fieldset>
     {% if i.checks %}<ul class="outreach-checks warning">{% for c in i.checks %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
@@ -315,16 +315,12 @@
       <button type="button" class="secondary" data-copy-target="body-{{ i.id }}">Copy</button>
       <button type="button" class="secondary" data-skip-toggle="{{ i.id }}" aria-controls="skip-{{ i.id }}" aria-expanded="false">Skip</button>
     </div>
+    <div class="draft-actions">
+      <button type="submit" formaction="/outreach/{{ i.id }}/regenerate" class="secondary"{% if ai_problem %} disabled title="{{ ai_problem }}"{% else %} title="Writes a new draft from the same findings. Changes in the box above that you have not saved are not kept."{% endif %}>Regenerate</button>
+      <label class="check inline-check small"><input type="checkbox" name="strong" value="1"> stronger model</label>
+    </div>
   </form>
   {{ skip_panel(i) }}
-  <div class="draft-actions">
-    <form method="post" action="/outreach/{{ i.id }}/regenerate" class="inline">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="secondary"{% if ai_problem %} disabled title="{{ ai_problem }}"{% endif %}>Regenerate</button>
-      <label class="check inline-check small"><input type="checkbox" name="strong" value="1"> stronger model</label>
-      <input name="note" maxlength="500" placeholder="what was wrong? (optional)" size="22" aria-label="What was wrong with this draft">
-    </form>
-  </div>
   {{ history(card) }}
   {% elif i.state == 'ready' %}
   {% if i.send_note %}<p class="small warning outreach-held">Held back: {{ i.send_note }}</p>{% endif %}
@@ -409,9 +405,8 @@
 
 <script>
 (function () {
-  // The "why this change?" box appears only once the text differs from what was loaded.
+  // The reason chips appear only once the text differs enough from what was loaded.
   document.querySelectorAll("form[action$='/ready']").forEach(function (form) {
-    var note = form.querySelector("[data-note-for]");
     var fields = form.querySelectorAll("textarea, input[name=subject]");
     function changed() {
       return Array.prototype.some.call(fields, function (f) { return f.value !== f.defaultValue; });
@@ -430,11 +425,16 @@
       return Math.ceil(total / 2);
     }
     function sync() {
-      if (note) note.hidden = !changed();
       if (chips) chips.hidden = !changed() || moved() <= parseInt(chips.dataset.chipWords, 10);
     }
     fields.forEach(function (f) { f.addEventListener("input", sync); });
     sync();
+    // Enter in the reason box would run Mark ready, which is not what typing a
+    // reason for a regenerate means: the buttons are the only way to act.
+    var reason = form.querySelector("input[name=note]");
+    if (reason) reason.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") e.preventDefault();
+    });
   });
   // Skip opens the reason panel under the buttons; a reason button then submits.
   function skipPanel(id, open) {
