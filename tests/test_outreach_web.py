@@ -14,7 +14,7 @@
 
 """Outreach, part 04a: the Outreach page. Build one contact per request,
 review a card (save and check, ready, regenerate, skip, sent, note), the
-contact page's card and Research & draft button. The AI and the web are
+contact page's Generate outreach button and the card. The AI and the web are
 fakes; all names are made up."""
 
 from __future__ import annotations
@@ -435,10 +435,10 @@ def test_an_unknown_approach_says_so_and_builds_nothing(client, root, fake):
 
 def test_the_contact_page_has_the_button_then_the_card(client, root):
     page = client.get("/companies/lindenhof-data/contacts/mara-keller")
-    assert "Research &amp; draft" in page.text and f'value="{MARA}"' in page.text
+    assert "Generate outreach" in page.text and f"/outreach?contact={MARA}#generate" in page.text
     item = drafted(client, root)
     page = client.get("/companies/lindenhof-data/contacts/mara-keller")
-    assert "Research &amp; draft" not in page.text
+    assert "Generate outreach" not in page.text and "Open outreach draft" in page.text
     assert f"#item-{item.id}" in page.text and "drafted" in page.text
 
 

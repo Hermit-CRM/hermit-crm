@@ -1717,32 +1717,20 @@ def test_messages_tab_lists_results_and_marking(client, app, repo):
     assert "outcome-unsuccessful" in beta and "(auto)" in beta
 
 
-def test_drafts_on_contact_and_company_pages(client, app):
+def test_contact_and_company_pages_link_to_generate_outreach_not_to_drafts(client, app):
     post_company(client, name="Brightnook", country="DE", fte_estimate="12", ae_count="2",
                  website="https://brightnook.de")
     post_contact(client, "brightnook", first_name="Johannes", last_name="W")
     page = client.get("/companies/brightnook/contacts/johannes-w").text
-    assert 'id="drafts"' in page and "(German)" in page
-    assert page.count("Hallo Johannes,") == 3
-    assert "linkedin.com/company/brightnook/insights/" in page
-    assert "[Was dir auf brightnook.de aufgefallen ist" in page
-    tuned = client.get("/companies/brightnook/contacts/johannes-w?signal=hiring"
-                       "&observation=Tolle+Demo.").text
-    assert "dass Brightnook [die Rolle] sucht" in tuned and "Tolle Demo." in tuned
-    assert '<option value="hiring" selected>' in tuned
-    assert "log as sent" in tuned
-    link = re.search(r'href="(/companies/brightnook/interactions/new\?contact=johannes-w'
-                     r'&channel=linkedin&body=[^"]+)"', tuned).group(1)
-    form = client.get(htmllib.unescape(link)).text
-    assert '<option value="linkedin" selected>' in form and "Hallo Johannes," in form
-    assert '<option value="johannes-w" selected>' in form
-
+    assert 'href="/outreach?contact=brightnook/johannes-w#generate"' in page
+    assert 'id="drafts"' not in page and "Hallo Johannes," not in page
     company_page = client.get("/companies/brightnook").text
-    assert 'id="drafts"' in company_page and "for Johannes" in company_page
-    assert 'href="/companies/brightnook/contacts/johannes-w#drafts"' in company_page
+    assert 'id="drafts"' not in company_page and "Message drafts" not in company_page
+    assert 'href="/outreach?contact=brightnook/johannes-w#generate"' in company_page
+    panel = client.get("/outreach?contact=brightnook/johannes-w").text
+    assert "Generate for Johannes" in panel and "German (default)" in panel
     post_company(client, name="Lonely", country="SE")
-    lonely = client.get("/companies/lonely").text
-    assert "Hi [first name]," in lonely and "(English)" in lonely
+    assert "Message drafts" not in client.get("/companies/lonely").text
 
 
 def test_contact_enrich_shows_sources_when_nothing_verified(client, app):
@@ -1811,14 +1799,12 @@ def test_contact_page_sections_in_order_and_nav_marks_contacts(client, app):
     post_company(client, name="Acme")
     post_contact(client, "acme", first_name="Jane", last_name="Doe")
     page = client.get("/companies/acme/contacts/jane-doe").text
-    ids = ['id="details"', 'id="tasks"', 'id="quick-add"', 'id="timeline"', 'id="drafts"',
-           'id="delete"']
+    ids = ['id="details"', 'id="tasks"', 'id="quick-add"', 'id="timeline"', 'id="delete"']
     positions = [page.index(i) for i in ids]
     assert positions == sorted(positions)
     active = re.findall(r'<a href="([^"]+)"[^>]*class="active"', page)
     assert active == ["/contacts"]
     assert re.findall(r'<a href="([^"]+)"[^>]*class="active"', client.get("/companies/acme").text) == ["/companies"]
-    assert '<option value="declining">headcount decline</option>' in page
 
 
 PROFILE_PAGE = (
@@ -2462,10 +2448,10 @@ def test_contact_page_logs_notes_and_has_no_notes_field(client, app, repo):
     assert path.read_text().endswith("old note\n") and "title: CEO" in path.read_text()
 
 
-def test_company_page_has_no_log_form_and_drafts_follow_tasks(client):
+def test_company_page_has_no_log_form_and_no_drafts_box(client):
     post_company(client, name="Acme")
     post_contact(client, "acme", first_name="Jane", last_name="Doe")
     page = client.get("/companies/acme").text
     assert 'id="quick-add"' not in page and 'class="interaction-form' not in page
     assert '/companies/acme/contacts/jane-doe#quick-add">log</a>' in page
-    assert page.index('id="tasks"') < page.index('id="drafts"')
+    assert 'id="drafts"' not in page

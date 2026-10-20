@@ -177,3 +177,32 @@ def test_the_batch_form_is_unchanged_and_picks_no_language(client, root):
     response = post(client, "/outreach/build", where="stage=prospect", limit="1")
     assert response.status_code == 303
     assert all(i.language_pick == "" for i in outreach.items(root))
+
+
+# ----------------------------------------------------- the button on the contact page
+
+
+CONTACT_PAGE = f"/companies/{CO}/contacts/{PERSON}"
+
+
+def test_the_contact_page_links_to_the_panel(client):
+    page = client.get(CONTACT_PAGE).text
+    assert f'href="/outreach?contact={MARA}#generate"' in page and "Generate outreach" in page
+
+
+def test_an_open_draft_turns_the_button_into_open_outreach_draft(client, root):
+    item = drafted(client, root)
+    page = client.get(CONTACT_PAGE).text
+    assert "Open outreach draft" in page and "Generate outreach" not in page
+    assert f"/outreach?tab=drafts#item-{item.id}" in page
+
+
+def test_the_button_says_why_when_the_ai_cannot_run(client):
+    no_ai(client)
+    page = client.get(CONTACT_PAGE).text
+    assert re.search(r'<a class="button"[^>]*title="[^"]*not available', page)
+
+
+def test_the_panel_offers_every_signal(client):
+    panel = panel_html(client)
+    assert '<option value="declining">headcount decline</option>' in panel

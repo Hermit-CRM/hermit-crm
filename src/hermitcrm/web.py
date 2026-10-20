@@ -1499,27 +1499,6 @@ def create_app(root: Path, config: dict | None = None,
             "body": body or "",
         }
 
-    def draft_context(request: Request, company: Company, contact=None) -> dict:
-        """Message drafts for a page, driven by two hand-checked signals and,
-        with ?lang=, a language picked for this page only (never saved)."""
-        signal = request.query_params.get("signal", "")
-        observation = request.query_params.get("observation", "")
-        return {
-            "drafts": messaging.drafts(
-                company, contact, signal, observation,
-                language=request.query_params.get("lang", ""),
-                messages=app.state.messages,
-                owner_name=str(config.get("owner_name", "")),
-                defs=custom_defs("company"),
-                size_field=str(config.get("messaging_size_field",
-                                          messaging.DEFAULT_SIZE_FIELD)),
-                team_field=str(config.get("messaging_team_field",
-                                          messaging.DEFAULT_TEAM_FIELD))),
-            "signal": signal if signal in messaging.SIGNALS else "",
-            "observation": observation,
-            "draft_contact": contact,
-        }
-
     # ------------------------------------------------------------------- home
 
     # What each part of the app is for, in one line, for someone who has just
@@ -2437,8 +2416,6 @@ def create_app(root: Path, config: dict | None = None,
     def company_page(request: Request, slug: str):
         company = need_company(slug, refresh=True)
         interaction = interaction_values(company)
-        draft_contact = company.contacts.get(interaction["contact"]) or next(
-            iter(company.contacts.values()), None)
         return render(request, "company.html", {
             "company": company,
             "values": with_custom(company_values(company), company, "company"),
@@ -2447,7 +2424,6 @@ def create_app(root: Path, config: dict | None = None,
             "focus_stage": request.query_params.get("stage", ""),
             "others": sorted((c for c in store.companies.values() if c.slug != slug),
                              key=lambda c: c.name.lower()),
-            **draft_context(request, company, draft_contact),
         })
 
     @app.post("/companies/{slug}")
@@ -2497,8 +2473,6 @@ def create_app(root: Path, config: dict | None = None,
                 "interaction": interaction_values(current),
                 "focus": "",
                 "others": [],
-                **draft_context(request, current,
-                                next(iter(current.contacts.values()), None)),
             }, status_code=409)
         try:
             if custom_errors:
@@ -2514,8 +2488,6 @@ def create_app(root: Path, config: dict | None = None,
                 "focus": "lost_reason" if "lost_reason" in exc.errors else "",
                 "focus_stage": values.get("stage", ""),
                 "others": [],
-                **draft_context(request, company,
-                                next(iter(company.contacts.values()), None)),
             }, status_code=400)
         return flashed(f"/companies/{slug}", "Saved")
 
@@ -2869,6 +2841,14 @@ def create_app(root: Path, config: dict | None = None,
             "has_outbound": any(i.direction == Direction.OUT.value for i in touches),
         }
 
+    def outreach_hint() -> str:
+        """Why Generate outreach cannot run, for the button's tooltip: "" when it can.
+        A hint never breaks the page."""
+        try:
+            return outreach_ai_problem()
+        except Exception:
+            return ""
+
     def contact_context(request: Request, company: Company, contact, values=None,
                         channel: str = "", editing: bool = False, **extra) -> dict:
         """Everything contact.html needs. A form sent back (errors, a stale
@@ -2885,9 +2865,7 @@ def create_app(root: Path, config: dict | None = None,
             "outreach_open": next((i for i in outreach.items(root)
                                    if i.is_open and i.company == company.slug
                                    and i.contact == contact.slug), None),
-            "outreach_channels": outreach.CHANNELS,
-            "outreach_kind": outreach.kind_for(store, company, contact),
-            **draft_context(request, company, contact),
+            "outreach_problem": outreach_hint(),
             **extra,
         }
 

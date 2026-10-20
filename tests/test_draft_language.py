@@ -13,7 +13,8 @@
 # limitations under the License.
 
 """A contact's own draft language: stored in front matter, set on the contact
-form, and overridable per page with ?lang= on the drafts form."""
+form, and the language the Generate panel on Outreach starts from (the panel's
+own picker, for one card, is tested in test_outreach_generate.py)."""
 
 from __future__ import annotations
 
@@ -46,7 +47,7 @@ def repo(tmp_path: Path) -> Path:
 @pytest.fixture
 def client(repo: Path):
     client = TestClient(create_app(repo, config=CONFIG), follow_redirects=False)
-    # No country, so the drafts would be English by default.
+    # No country, so the drafts are English by default.
     client.post("/companies", data={"name": "Acme"})
     client.post("/companies/acme/contacts",
                 data={**CONTACT, "first_name": "Jana", "last_name": "Berg"})
@@ -54,12 +55,13 @@ def client(repo: Path):
 
 
 PAGE = "/companies/acme/contacts/jana-berg"
+PANEL = "/outreach?contact=acme/jana-berg"
 FILE = Path("companies/acme/contacts/jana-berg.md")
 
 
 def test_no_language_key_until_one_is_set(client, repo):
     assert "language" not in (repo / FILE).read_text()
-    assert "Message drafts for Jana (English)" in client.get(PAGE).text
+    assert "English (default)" in client.get(PANEL).text
 
 
 def test_contact_language_saved_and_used_for_drafts(client, repo):
@@ -67,10 +69,8 @@ def test_contact_language_saved_and_used_for_drafts(client, repo):
                                 "language": "de"})
     assert r.status_code == 303
     assert "language: de" in (repo / FILE).read_text()
-    page = client.get(PAGE).text
-    assert "Message drafts for Jana (German)" in page
-    assert "Hallo Jana," in page
-    assert '<option value="de" selected>' in page
+    assert '<option value="de" selected>' in client.get(PAGE).text
+    assert "German (default)" in client.get(PANEL).text
 
 
 def test_clearing_the_language_removes_the_key(client, repo):
@@ -79,22 +79,6 @@ def test_clearing_the_language_removes_the_key(client, repo):
     client.post(PAGE, data={**CONTACT, "first_name": "Jana", "last_name": "Berg",
                             "language": ""})
     assert "language" not in (repo / FILE).read_text()
-
-
-def test_page_override_is_not_saved(client, repo):
-    page = client.get(PAGE + "?lang=fr").text
-    assert "Message drafts for Jana (French)" in page
-    assert "Bonjour Jana," in page
-    assert "language" not in (repo / FILE).read_text()
-
-
-def test_unknown_page_override_is_ignored(client):
-    assert "Message drafts for Jana (English)" in client.get(PAGE + "?lang=xx").text
-
-
-def test_company_page_override(client):
-    assert "Message drafts for Jana (German)" in \
-        client.get("/companies/acme?lang=de").text
 
 
 def test_new_contact_with_a_language(client, repo):
@@ -110,4 +94,4 @@ def test_hand_written_unknown_code_survives_a_form_save(client, repo):
     subprocess.run(["git", "commit", "-qam", "hand edit"], cwd=repo, check=True)
     page = client.get(PAGE).text
     assert '<option value="sv" selected>' in page  # offered, so a save keeps it
-    assert "Message drafts for Jana (English)" in page  # no Swedish templates
+    assert "English (default)" in client.get(PANEL).text  # no Swedish templates

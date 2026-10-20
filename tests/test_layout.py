@@ -46,7 +46,7 @@ FIELDS = ('[[field]]\nkey = "fit_score"\nlabel = "fit"\ntype = "number"\n'
 COMPANY_MARKERS = {
     "enrich": 'class="small record-actions"', "next-step": 'class="small next-step-line',
     "details": 'id="details"', "contacts": 'id="contacts"', "tasks": 'id="tasks"',
-    "drafts": 'id="drafts"', "merge": 'id="merge"', "timeline": 'id="timeline"',
+    "merge": 'id="merge"', "timeline": 'id="timeline"',
 }
 CONTACT_MARKERS = {name: f'id="{name}"' for name in layout.SECTIONS["contact"]}
 HOME_MARKERS = {name: f'id="{name}"' for name in layout.SECTIONS["home"]}
@@ -139,7 +139,7 @@ def test_listed_sections_come_first_and_the_rest_keep_their_order():
                                               "hide_sections": ["merge"]}})
     assert problems == []
     assert lay.sections("company") == ["timeline", "contacts", "enrich", "next-step",
-                                       "details", "tasks", "drafts"]
+                                       "details", "tasks"]
     assert lay.sections("contact") == list(layout.SECTIONS["contact"])
 
 
@@ -279,7 +279,7 @@ def test_sections_reorder_and_hide(client, repo, acme):
                        '[home]\nsections = ["going"]\nhide_sections = ["owed"]\n')
     company = client.get("/companies/acme").text
     assert order_of(company, COMPANY_MARKERS) == ["timeline", "tasks", "enrich", "next-step",
-                                                  "details", "contacts", "drafts"]
+                                                  "details", "contacts"]
     assert "/merge" not in company and "Can you send the pricing?" in company
     contact = client.get("/companies/acme/contacts/jane-doe").text
     assert order_of(contact, CONTACT_MARKERS) == ["tasks", "details", "quick-add",
@@ -441,3 +441,13 @@ def test_an_edit_shows_on_the_next_request_without_a_restart(client, repo, acme)
     assert order_of(client.get("/companies/acme").text, COMPANY_MARKERS)[0] == "contacts"
     (repo / layout.FILENAME).unlink()
     assert order_of(client.get("/companies/acme").text, COMPANY_MARKERS)[0] == "enrich"
+
+
+def test_a_layout_toml_naming_the_retired_drafts_section_still_loads_without_a_problem():
+    lay, problems = layout.parse({"company": {"sections": ["drafts", "details"],
+                                              "hide_sections": ["drafts"]},
+                                  "contact": {"sections": ["timeline", "drafts"]}})
+    assert problems == []
+    assert "drafts" not in lay.sections("company") and "drafts" not in lay.sections("contact")
+    assert lay.sections("contact")[0] == "timeline"
+    assert "drafts" not in layout.SECTIONS["company"] + layout.SECTIONS["contact"]
