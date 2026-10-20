@@ -79,7 +79,9 @@ def test_the_panel_preselects_the_draft_type_channel_and_language_and_lists_the_
     assert '<option value="email" selected>' in panel
     assert "German" in re.search(r'<select name="language".*?</select>', panel, re.S).group(0)
     assert "Mara runs the Hamburg office." in panel
-    assert "/insights/" in panel and "lindenhof-data.example.com" in panel
+    links = re.findall(r'href="([^"]+)"', panel)
+    assert "https://lindenhof-data.example.com" in links          # their site, the exact address
+    assert any(link.endswith("/insights/") for link in links)     # the LinkedIn insights link
 
 
 def test_the_panel_offers_a_follow_up_when_the_last_message_went_unanswered(client):
