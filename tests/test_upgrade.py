@@ -447,8 +447,11 @@ def test_this_checkout_is_not_reported_stale_by_its_own_install():
     assert updates.DiskWatch().newer() == ""
 
 
-def test_a_long_running_server_asks_again_but_only_when_an_hour_has_passed(tmp_path):
+def test_a_long_running_server_asks_again_but_only_when_an_hour_has_passed(tmp_path, monkeypatch):
     """`start` runs once at boot; a server up for weeks would never hear of a release."""
+    # CI sets HERMITCRM_NO_UPDATE_CHECK=1, which turns `start` off; this test is
+    # about the check itself, and its fetcher never touches the network.
+    monkeypatch.delenv("HERMITCRM_NO_UPDATE_CHECK", raising=False)
     calls = []
 
     def fetch():
