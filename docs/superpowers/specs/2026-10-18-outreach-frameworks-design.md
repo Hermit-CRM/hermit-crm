@@ -670,7 +670,7 @@ finding, that shows this is not a mass mail. Think: one neutral observation, a
 statement and not a question, that names a problem they may not have noticed;
 do not steer them toward a yes. Third-party proof: one proof line about similar
 companies, never a claim about the product. Talk: a low-pressure question that
-makes no an easy answer. Use the words the playbook's Personas and Voice
+makes "no" an easy answer. Use the words the playbook's Personas and Voice
 sections use for the problem, not marketing words. Under 80 words. The subject
 names the Truth.
 *Adaptation: Think is a statement, so the message keeps one question.*
