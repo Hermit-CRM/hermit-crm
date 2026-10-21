@@ -1023,8 +1023,9 @@ def clean_answer(data, ctx: CheckContext) -> Draft:
         if fw.proof == "required" and ctx.proof and not draft.proof_used:
             problems.append(f"the {fw.name} framework cites one proof line from the playbook "
                             "in proof_used (it cites none)")
+        # House's prompt never names an id to put in the field, so a guess there is no mismatch.
         given = str(data.get("framework") or "").strip().lower()
-        if given and given != fw.id:
+        if given and given != fw.id and fw.id != HOUSE:
             problems.append(f"it says framework '{given}'; this draft was asked for {fw.id}")
         draft.framework = fw.id
     stale_open = [n for n in ids if ctx.findings[n - 1].stale]
@@ -1097,7 +1098,7 @@ FRAMEWORK_CHANNEL_TEXT = {
     "linkedin": ("Channel: LinkedIn. body is the connection note: at most {note_max_chars} "
                  "characters, no pitch, at most one question. pitch is the message sent once "
                  "they accept: at most {pitch_max_chars} characters, built with the framework "
-                 "below. No subject."),
+                 "above. No subject."),
 }
 REPLY_CHANNEL_TEXT = {
     "email": ("Channel: email, a reply in their thread. A subject of at most {subject_max} "
