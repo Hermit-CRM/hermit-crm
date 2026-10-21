@@ -96,7 +96,7 @@ def reachable_address(host: str) -> str:
 
 
 def cmd_serve(root: Path, port: int | None = None, host: str | None = None) -> None:
-    from hermitcrm import accesslog
+    from hermitcrm import accesslog, upgrade
     from hermitcrm.web import create_app
     import uvicorn
 
@@ -115,7 +115,28 @@ def cmd_serve(root: Path, port: int | None = None, host: str | None = None) -> N
               "can\n  reach this port can read and write your CRM. Use it on a "
               "network you trust,\n  or put it on a private one (Tailscale, "
               "WireGuard) rather than a public Wi-Fi.", file=sys.stderr)
-    uvicorn.run(app, host=host, port=int(config["port"]), log_config=accesslog.log_config())
+    server = uvicorn.Server(uvicorn.Config(app, host=host, port=int(config["port"]),
+                                           log_config=accesslog.log_config()))
+    restart = {"wanted": False}
+
+    def stop_for_restart() -> bool:
+        """Ask the server to finish what it is answering and stop; we re-execute below."""
+        restart["wanted"] = True
+        server.config.timeout_graceful_shutdown = upgrade.GRACE_SECONDS
+        server.should_exit = True
+        return True
+
+    app.state.restart_server = stop_for_restart  # the one-click upgrade and restart use it
+    server.run()
+    if restart["wanted"]:
+        # Same command line, same PID: launchd, systemd and a terminal all see one
+        # unbroken process, now reading the files as they are on disk.
+        print("Hermit CRM: restarting on the files now on disk.", flush=True)
+        try:
+            upgrade.exec_restart()
+        except OSError as exc:
+            print(f"Hermit CRM could not restart itself: {exc}", file=sys.stderr)
+            sys.exit(1)  # a supervisor (launchd, systemd) starts it again
 
 
 def cmd_init(target: Path, demo: bool = False) -> tuple[str, int]:
@@ -275,7 +296,7 @@ def cmd_setup(root: Path, ask=input, ask_secret=None, say=print, runner=subproce
 def cmd_schedule(root: Path, action: str, at: str = "07:00", serve: bool = False,
                  home: Path | None = None, runner=subprocess.run,
                  platform: str | None = None, env: dict | None = None,
-                 backup: bool = True, backup_every: int = 5) -> int:
+                 backup: bool = True, backup_every: int = 5, send: bool = False) -> int:
     from hermitcrm import schedule
 
     ctx = schedule.Context(data_dir=root, home=home or Path.home(),
@@ -283,9 +304,9 @@ def cmd_schedule(root: Path, action: str, at: str = "07:00", serve: bool = False
     try:
         if action == "install":
             lines = schedule.install(ctx, at=at, serve=serve, backup=backup,
-                                     backup_every=backup_every)
+                                     backup_every=backup_every, send=send)
         elif action == "remove":
-            lines = schedule.remove(ctx)
+            lines = schedule.remove(ctx, only_send=send)
         else:
             lines = schedule.status(ctx)["lines"]
     except schedule.ScheduleError as exc:
@@ -1326,6 +1347,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p_sched.add_argument("action", choices=["install", "remove", "status"])
     p_sched.add_argument("--at", default="07:00", metavar="HH:MM",
                          help="time of the daily sync --apply (default 07:00)")
+    p_sched.add_argument("--send", action="store_true",
+                         help="install: also the worker that sends scheduled email every few "
+                              "minutes (hermitcrm send due); remove: only that worker")
     p_sched.add_argument("--serve", action="store_true",
                          help="also keep the web app running (install only)")
     p_sched.add_argument("--backup-every", type=int, default=5, metavar="MIN",
@@ -1625,7 +1649,37 @@ def _build_parser() -> argparse.ArgumentParser:
                         choices=["bad-fit", "wrong-person", "bad-timing", "bad-draft",
                                  "already-in-contact", "other"])
     o_skip.add_argument("--note", default="", help="anything else, in your words")
+    o_sched = o_sub.add_parser("schedule", help="queue approved email to go out over the "
+                               "working day (spaced, capped); needs sending on in Settings")
+    o_sched.add_argument("ids", nargs="*", metavar="id")
+    o_sched.add_argument("--all-ready", action="store_true",
+                         help="every ready email item, oldest approval first")
+    o_sched.add_argument("--dry-run", action="store_true",
+                         help="show the proposed times, write nothing")
+    o_sub.add_parser("unschedule", help="take a queued item out of the queue (back to ready)"
+                     ).add_argument("id")
+    o_sub.add_parser("send-now", help="send one approved email now: no window or gap, but "
+                     "the same guards, and it counts toward today's cap").add_argument("id")
+    o_sub.add_parser("retry", help="a failed item back to ready").add_argument("id")
+    o_sub.add_parser("opt-out", help="they asked not to be written to: the address goes on "
+                     "the suppression list and their open items are skipped (company/contact)"
+                     ).add_argument("record", metavar="company/contact")
+    o_sub.add_parser("front", help="make a queued item the next to go out"
+                     ).add_argument("id")
     p_out.set_defaults(action="list", state="")
+
+    p_send = sub.add_parser("send", help="sending approved email from the app: test the "
+                            "mailbox, see the queue, run the worker, pause")
+    s_sub = p_send.add_subparsers(dest="action", required=True)
+    s_test = s_sub.add_parser("test", help="log in over SMTP and IMAP and mail a test to yourself")
+    s_test.add_argument("--to", default="", help="another address (default: owner_email)")
+    s_sub.add_parser("status", help="on/off, today's count against the cap, the queue, why paused")
+    s_due = s_sub.add_parser("due", help="one tick of the worker: send the next queued email "
+                             "when it is time (what the launchd job runs every 3 minutes)")
+    s_due.add_argument("--dry-run", action="store_true",
+                       help="say what would happen; send and write nothing")
+    s_sub.add_parser("pause", help="the kill switch: nothing goes out from the next tick")
+    s_sub.add_parser("resume", help="lift the pause (the button and any automatic one)")
 
     p_learn = sub.add_parser("learn", help="learn from your edits and outcomes: report, "
                              "status, run, import, accept, reject, retire, move, suggest, "
@@ -1654,6 +1708,18 @@ def _build_parser() -> argparse.ArgumentParser:
             l.add_argument("part", choices=["worked", "failed", "open"])
         l.add_argument("--approach", default="", help="the playbook approach "
                        "(default: the first)")
+    l = l_sub.add_parser("exemplars", help="the examples a draft can be shown (your "
+                         "corrections, messages that worked); no AI. --item previews one "
+                         "item's prompt block")
+    l.add_argument("--approach", default="", help="the playbook approach (default: the first)")
+    l.add_argument("--item", default="", help="an outreach item id: what its draft would be shown")
+    for verb, text in (("pin", "show this exemplar first when it is close enough"),
+                       ("exclude", "never show this exemplar (how you delete one)"),
+                       ("unmark", "remove a pin or an exclusion")):
+        l_sub.add_parser(verb, help=text).add_argument("id")
+    l = l_sub.add_parser("angles", help="the angle bandit's table: sends, credible "
+                         "intervals, the next experiment; no AI")
+    l.add_argument("--approach", default="", help="the playbook approach (default: the first)")
     l_sub.add_parser("suggest", help="list the suggestions (word limit, never-write phrases)")
     l_sub.add_parser("apply", help="apply one suggestion").add_argument("id")
 
@@ -1770,6 +1836,85 @@ def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
     return ("\n".join(lines), 0)
 
 
+def cmd_send(store: Store | None, root: Path, config: dict, args) -> tuple[str, int]:
+    """`hermitcrm send test|status|due|pause|resume`."""
+    from hermitcrm import send, sendqueue
+
+    action = args.action
+    if action == "due":
+        from datetime import datetime
+        lines = sendqueue.due(root, dry_run=args.dry_run)
+        stamp = f"{datetime.now():%Y-%m-%d %H:%M}"       # launchd appends every tick to one log
+        return ("\n".join(f"{stamp} {line}" for line in lines), 0)
+    if action == "test":
+        result = send.send_test(root, config, to=args.to)
+        return (result.text(), 0 if result.ok else 1)
+    settings = send.settings_from_config(config)
+    if action == "pause":
+        sendqueue.pause(store)
+        return ("Sending is paused: nothing goes out from the next tick. "
+                "hermitcrm send resume lifts it.", 0)
+    if action == "resume":
+        lifted = sendqueue.resume(store)
+        return (("Resumed: " + "; ".join(lifted) + ".") if lifted else "Sending was not paused.", 0)
+    info = sendqueue.status(store, settings)
+    lines = [sendqueue.strip_line(info)]
+    if info["missing"] and info["enabled"]:
+        lines.append("Not ready: " + info["missing"])
+    if info["overdue"]:
+        lines.append(f"{info['overdue']} queued item(s) are overdue; the next tick plans them again.")
+    if info["last_sent"]:
+        lines.append(f"Last sent: {info['last_sent']:%Y-%m-%d %H:%M}")
+    lines += [f"Config: {p}" for p in info["problems"]]
+    from hermitcrm import schedule
+    try:
+        ctx = schedule.Context(data_dir=root, home=Path.home(), platform=schedule.sys.platform)
+        job = schedule.status(ctx)
+        lines.append("Worker job: " + ("installed" if job["send_installed"] else
+                                       "not installed (hermitcrm schedule install --send)"))
+    except Exception:
+        pass
+    return ("\n".join(lines), 0)
+
+
+def cmd_outreach_send(store: Store, root: Path, config: dict, args) -> tuple[str, int]:
+    """`hermitcrm outreach schedule|unschedule|send-now|retry|front`."""
+    from hermitcrm import outreach, send, sendqueue, suppress
+
+    action = args.action
+    try:
+        if action == "schedule":
+            if not args.ids and not args.all_ready:
+                return ("name the items to schedule, or use --all-ready (hermitcrm outreach "
+                        "list --state ready)", 1)
+            result = (sendqueue.schedule_all_ready(store, dry_run=args.dry_run)
+                      if args.all_ready else
+                      sendqueue.schedule(store, args.ids, dry_run=args.dry_run))
+            head = ("Proposed times (nothing was written):" if args.dry_run else
+                    f"Scheduled {len(result.scheduled)}:")
+            lines = [head, *result.lines(store)] if (result.scheduled or result.refused) else [
+                "Nothing to schedule."]
+            return ("\n".join(lines), 0 if result.scheduled or args.dry_run else 1)
+        if action == "unschedule":
+            item = sendqueue.unschedule(store, args.id)
+            return (f"{item.id} is back to ready.", 0)
+        if action == "retry":
+            item = sendqueue.retry(store, args.id)
+            return (f"{item.id} is ready again; schedule it or send it now.", 0)
+        if action == "front":
+            item = sendqueue.move_to_front(store, args.id)
+            return (f"{item.id} goes out next: {item.send_at:%a %d %b %H:%M}.", 0)
+        if action == "opt-out":
+            company, _, contact = args.record.partition("/")
+            return (sendqueue.opt_out(store, company, contact), 0)
+        out = send.send_now(store, args.id)
+    except (outreach.OutreachError, send.SendError, suppress.SuppressError) as exc:
+        return (str(exc), 1)
+    text = f"{out.kind}: {out.item.id}" + (f" ({out.detail})" if out.detail else "")
+    text += "".join(f"\nWarning: {w}" for w in out.warnings)
+    return (text, 0 if out.done else 1)
+
+
 def cmd_learn(store: Store, root: Path, config: dict, args, enricher=None) -> tuple[str, int]:
     """`hermitcrm learn report|status|run|import|accept|reject|retire|move|suggest|apply`."""
     from hermitcrm import learning, outreach
@@ -1778,7 +1923,8 @@ def cmd_learn(store: Store, root: Path, config: dict, args, enricher=None) -> tu
     action = args.action
     approach = getattr(args, "approach", "") or ""
     try:
-        if action in ("report", "status", "run", "import", "retire", "move"):
+        if action in ("report", "status", "run", "import", "retire", "move", "exemplars",
+                      "angles"):
             approach = approach or learning.default_approach(root)
             if not approach:
                 return ("No approach in MESSAGING.md yet (hermitcrm playbook).", 1)
@@ -1822,6 +1968,15 @@ def cmd_learn(store: Store, root: Path, config: dict, args, enricher=None) -> tu
         if action == "move":
             x = learning.move(store, approach, args.lesson, args.part)
             return (f"Moved {x.id} to {x.part}: {x.text}", 0)
+        if action == "exemplars":
+            return (_learn_exemplars(store, config, approach, args.item), 0)
+        if action == "angles":
+            return (_learn_angles(store, config, approach), 0)
+        if action in ("pin", "exclude", "unmark"):
+            from hermitcrm import exemplars
+            e = exemplars.set_mark(store, args.id, "clear" if action == "unmark" else action,
+                                   config)
+            return (f"{e.id}: {e.mark or 'no mark'} ({e.label}).", 0)
         sigs = learning.signals(store, "", config)
         if action == "suggest":
             found = learning.suggestions(store, sigs, config)
@@ -1842,6 +1997,72 @@ def _learn_result(result) -> list[str]:
     if result.proposals:
         lines.append("Next: hermitcrm learn accept ID  (or reject ID). Nothing has changed yet.")
     return lines
+
+
+def _learn_exemplars(store: Store, config: dict, approach: str, item_id: str) -> str:
+    """The exemplar index of an approach, and with an item id the examples its
+    prompt would show and why. No AI, no writes."""
+    from hermitcrm import exemplars, learning, outreach
+
+    sigs = learning.signals(store, approach, config)
+    found = exemplars.index(store, approach, config, sigs)
+    setting = exemplars.mode(config)
+    lines = [f"Approach: {approach}",
+             f"Setting learning_exemplars = {setting}"
+             + ("" if setting != "off" else " (examples are not added to prompts; set it to "
+                "corrections, outcomes or both in config.toml)"),
+             f"Exemplars: {sum(1 for e in found if e.kind == 'outcome')} outcome, "
+             f"{sum(1 for e in found if e.kind == 'correction')} correction; "
+             f"{sum(1 for e in found if e.mark == 'pin')} pinned, "
+             f"{sum(1 for e in found if e.mark == 'exclude')} excluded"]
+    lines += [f"  {e.id}  {e.label}  score {e.score:.2f}  {e.contact}"
+              + (f"  [{e.mark}]" if e.mark else "") for e in found]
+    if not found:
+        lines.append("  none yet: they come from edited drafts and from messages that got a "
+                     "positive reply, a deal or a win")
+    if item_id:
+        item = outreach.get_item(store.root, item_id)
+        if item is None:
+            return f"No outreach item {item_id!r} (hermitcrm outreach list)."
+        kinds = exemplars.MODE_KINDS[setting] or exemplars.KINDS
+        picked = exemplars.pick(store, exemplars.query_of_item(store, item, config), config,
+                                kinds, sigs=sigs)
+        lines += ["", f"Prompt block for {item.id}"
+                  + ("" if setting != "off" else " (if the setting were both)")
+                  + f" - phase {picked.phase}, {picked.pool} to choose from:"]
+        if not picked.choices:
+            lines.append(f"  none: {picked.why_none}")
+        for c in picked.choices:
+            lines.append(f"  {c.exemplar.id}: relevance {c.relevance}, rank {c.rank}"
+                         + (f" ({c.reason})" if c.reason else ""))
+        if picked.choices:
+            lines += ["", picked.block, "", f"About {picked.tokens} tokens added to the prompt."]
+    return "\n".join(lines)
+
+
+def _learn_angles(store: Store, config: dict, approach: str) -> str:
+    """The angle bandit's table for an approach: where it stands and what it
+    would try next. No AI, no writes."""
+    from hermitcrm import exemplars, learning, outreach
+
+    sigs = learning.signals(store, approach, config)
+    angles = tuple(a for a in (config.get("outreach_angles") or outreach.DEFAULT_ANGLES)
+                   if a in outreach.ANGLES) or outreach.DEFAULT_ANGLES
+    n = exemplars.sends_of(sigs, approach)
+    rung = exemplars.bandit_rung(sigs, config, approach)
+    rows = exemplars.angle_table(sigs, approach, angles, config=config, today=store.today(),
+                                 rung=rung)
+    lines = [f"Approach: {approach}",
+             f"Counting a send as a hit when it reached: {rung}",
+             f"First-touch sends: {n} (the bandit acts from {exemplars.BANDIT_MIN_SENDS})",
+             "Setting learning_angle_sampling = "
+             + ("on" if exemplars.sampling_on(config) else "off")
+             + ("" if exemplars.sampling_on(config) else " (the AI chooses the angle)"), ""]
+    lines += [f"  {r.angle}: {r.note}" for r in rows] or ["  fewer than two angles in play"]
+    note = exemplars.next_experiment(rows)
+    if note:
+        lines += ["", "Next experiment: " + note]
+    return "\n".join(lines)
 
 
 def _learn_report(store: Store, config: dict, approach: str) -> str:
@@ -1987,7 +2208,13 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
 
     if args.command == "schedule":
         return cmd_schedule(root, args.action, at=args.at, serve=args.serve,
-                            backup=not args.no_backup, backup_every=args.backup_every)
+                            backup=not args.no_backup, backup_every=args.backup_every,
+                            send=args.send)
+
+    if args.command == "send" and args.action in ("due", "test"):
+        text, code = cmd_send(None, root, load_config(root), args)   # no store: a tick is cheap
+        print(text, file=sys.stderr if code else sys.stdout)
+        return code
 
     if args.command == "check":
         # config.toml first: a value of the wrong kind (`outcomes = 5`) or a
@@ -2113,10 +2340,22 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
             _reload_server(config)
         return code
 
+    if args.command == "send":
+        config = load_config(root)
+        store.on_write = _writer(store, root, config)
+        text, code = cmd_send(store, root, config, args)
+        print(text, file=sys.stderr if code else sys.stdout)
+        return code
+
     if args.command == "outreach":
         config = load_config(root)
-        if args.action in ("build", "ready", "sent", "skip"):
+        if args.action in ("build", "ready", "sent", "skip", "schedule", "unschedule",
+                           "send-now", "retry", "front", "opt-out"):
             store.on_write = _writer(store, root, config)
+        if args.action in ("schedule", "unschedule", "send-now", "retry", "front", "opt-out"):
+            text, code = cmd_outreach_send(store, root, config, args)
+            print(text, file=sys.stderr if code else sys.stdout)
+            return code
         text, code = cmd_outreach(store, root, config, args)
         print(text, file=sys.stderr if code else sys.stdout)
         return code

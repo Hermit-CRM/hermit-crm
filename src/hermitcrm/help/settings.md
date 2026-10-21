@@ -47,6 +47,16 @@ companies) goes to the review queue, which is **To file** on Home. Dedup is by
 Message-ID. Below the form: the last import (time and summary, or the error)
 and **Import now**, which runs the import on the spot.
 
+## Sending
+
+Send approved outreach email from the Outreach page, from a mailbox of its own.
+The provider (Gmail and Google Workspace are tested), the sending address, an app
+password (Keychain or `.secrets.toml`), the window and days, the daily cap
+(50; above 150 is held at 150 after two days in a row), the ramp for a new
+mailbox (10 a day in week 1), the gaps, and countries never emailed. **Send a test to myself** logs in
+over SMTP and IMAP and shows the server's exact reply on failure; **Turn on
+scheduled sending** installs the worker job. [How it works](/help/sending).
+
 ## Calendar
 
 The secret ICS address of your calendar (Google: Settings, your calendar,
@@ -302,8 +312,29 @@ are. It asks PyPI unless `update_url` in `config.toml` points somewhere else;
 any URL answering `{"version": "0.4.0"}` works, so a static file on a download
 page is enough. Turn it off with `update_check = false`.
 
-A newer version comes with the command that upgrades your install: `uv tool
-install hermitcrm@latest` when uv installed it, also from a download. Restart
-the app afterwards.
+When a newer version exists, the About row and the sidebar show an **Upgrade**
+button. One click installs it (with `uv tool install hermitcrm@latest`, `pipx
+install --force hermitcrm` or `pip install --upgrade hermitcrm`, whichever
+installed Hermit CRM, also from a download), checks that the new files start,
+restarts the app and asks you to **Reload**. It takes about a minute. Your data
+is not touched; if the new version changes the data format, the folder is
+migrated when the app starts, in one git commit (see [Data format](/help/data-format)).
 
-Related: [Interactions](/help/interactions), [Enrich](/help/enrich), [CLI](/help/cli), [Data format](/help/data-format)
+If the install fails, or the new version does not start, nothing is restarted
+and the panel says what happened, with the command that goes back to the
+version you had.
+
+The button is there only when it can work. Hermit CRM has no password, so an app
+that listens on the network (`host` in `config.toml`) shows the command to type
+instead, and so does one on Windows, one whose `update_url` is not PyPI, and one
+started some other way than `hermitcrm serve`. Run the command, then restart the
+app: `launchctl kickstart -k gui/$(id -u)/io.hermitcrm.serve` on a Mac,
+`systemctl --user restart hermitcrm-serve` on Linux.
+
+**Restart needed.** If Hermit CRM was upgraded behind the app's back (a terminal,
+an assistant) the app is still running the old version while the files are the
+new one, and pages can fail in odd ways. The sidebar and About then say **Restart
+needed** with a **Restart now** button, and an error page in that state says the
+same.
+
+Related: [Interactions](/help/interactions), [Enrich](/help/enrich), [Sending](/help/sending), [CLI](/help/cli), [Data format](/help/data-format)

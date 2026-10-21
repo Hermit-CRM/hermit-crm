@@ -49,6 +49,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import QueryParams
 
 from . import __version__, updates
+from . import upgrade as upgrading
 from fastapi.templating import Jinja2Templates
 
 from . import (adjust, bcc, brief, calendar_sync, capture, dashboards, disclaimer, feedback,
@@ -59,7 +60,7 @@ from . import playbook, textsource
 from . import schedule, scrape, secrets, task_types, usertheme
 from . import stage_ops
 from . import stages as stages_mod
-from . import learning, outreach, routines
+from . import exemplars, learning, linkedin, notes, outreach, routines, send, sendplan, sendqueue, suppress
 from . import help as helpdocs
 from . import setup as setup_steps
 from .filters import Column
@@ -933,6 +934,12 @@ def create_app(root: Path, config: dict | None = None,
     app = FastAPI(title="Hermit CRM")
     app.state.messages = messages
     app.state.update_notice = updates.UpdateNotice()
+    # One-click upgrade (upgrade.py). `hermitcrm serve` sets restart_server to the
+    # function that stops uvicorn and re-executes the process; without it (tests,
+    # another way of serving) the buttons give way to the command to type.
+    app.state.disk_watch = updates.DiskWatch()
+    app.state.upgrader = upgrading.Upgrader()
+    app.state.restart_server = None
     app.state.task_types = configured_types  # config_saved replaces it after a save
     if config.get("start_update_check"):  # set by `hermitcrm serve`; tests stay offline
         app.state.update_notice.start(config)
@@ -961,6 +968,8 @@ def create_app(root: Path, config: dict | None = None,
     app.state.setup_state = None
     app.state.os_store = None  # (platform, store); probing secret-tool costs a process
     app.state.schedule_home = None  # Path.home() unless a test points elsewhere
+    app.state.send_smtp = None      # test seams for Settings > Sending and the Outreach
+    app.state.send_imap = None      # send buttons: None means the real smtplib / imaplib
     cal_url_cache: dict[str, str] = {}
 
     def calendar_url(refresh: bool = False) -> str:
@@ -1205,6 +1214,8 @@ def create_app(root: Path, config: dict | None = None,
                 store.requalify_due()
             except Exception:
                 logger.exception("requalify sweep failed")
+            # A server that stays up for weeks still hears of a release.
+            app.state.update_notice.tick(app.state.config)
         return await call_next(request)
 
     @app.middleware("http")
@@ -1215,6 +1226,39 @@ def create_app(root: Path, config: dict | None = None,
         if response.headers.get("content-type", "").startswith("text/html"):
             response.headers.setdefault("Content-Security-Policy", CSP)
         return response
+
+    def can_restart() -> bool:
+        return app.state.restart_server is not None
+
+    def plain(page: str, status: int, **headers: str) -> HTMLResponse:
+        """A string-built page (upgrade.py) with the same CSP as every other page."""
+        return HTMLResponse(page, status_code=status,
+                            headers={"Content-Security-Policy": CSP, **headers})
+
+    @app.middleware("http")
+    async def upgrade_gate(request: Request, call_next):
+        # While an upgrade replaces the files, this process is old code reading
+        # new templates: it must not answer pages (see upgrade.py).
+        path = request.url.path
+        if app.state.upgrader.busy and not path.startswith("/static/") \
+                and path not in ("/upgrade", "/upgrade/status"):
+            if request.method == "GET":
+                return plain(upgrading.upgrading_page(app.state.upgrader.status()), 503,
+                             **{"Retry-After": "2"})
+            return PlainTextResponse("Hermit CRM is upgrading. Try again in a moment.",
+                                     status_code=503)
+        return await call_next(request)
+
+    @app.exception_handler(Exception)
+    async def server_error(request: Request, exc: Exception):
+        # What the 500 would have said, unless the files are newer than this
+        # process: then that is the reason, and the page says so and offers the fix.
+        on_disk = app.state.disk_watch.newer()
+        if on_disk:
+            why = upgrading.blocked(app.state.config, can_restart())
+            return plain(upgrading.stale_page(__version__, on_disk, app.state.csrf_token, why),
+                         500)
+        return PlainTextResponse("Internal Server Error", status_code=500)
 
     host_names = allowed_host_names(config)
 
@@ -1276,9 +1320,30 @@ def create_app(root: Path, config: dict | None = None,
                                    app.state.custom_fields, q)
         return task_listing(store, params, task_type_options(), store.today())
 
+    def upgrade_banner() -> dict:
+        """What the nav and Settings say about versions: '' (nothing), 'restart' or 'available'.
+
+        'restart' wins: when the files are newer than this process, installing
+        again would change nothing, and a restart is what fixes the pages.
+        """
+        on_disk = app.state.disk_watch.newer()
+        if on_disk:
+            why = upgrading.blocked(app.state.config, can_restart())
+            return {"kind": "restart", "version": on_disk, "running": __version__,
+                    "can": not why, "why_not": why, "command": ""}
+        notice = app.state.update_notice
+        if notice.available:
+            plan = upgrading.install_plan(app.state.config, can_restart())
+            return {"kind": "available", "version": notice.available, "can": plan.ok,
+                    "why_not": plan.why_not, "command": notice.hint}
+        return {"kind": ""}
+
     templates = Jinja2Templates(directory=str(HERE / "templates"))
     app.state.templates = templates  # modules that add page globals (yours_pins) reach it here
     templates.env.globals.update(
+        upgrade_banner=upgrade_banner,
+        boot_id=lambda: app.state.upgrader.boot,
+        upgrade_csrf=lambda: app.state.csrf_token,
         fmt_date=fmt_date,
         fmt_datetime=fmt_datetime,
         preview=followups.first_line,
@@ -1399,11 +1464,33 @@ def create_app(root: Path, config: dict | None = None,
             "samples": sample.samples(store),
             "file_problems": [line for lines in file_problems.values() for line in lines],
             "off_board": off_board_stages(),
+            "send_banner": send_banner(),
         }
         context.update(ctx)
         context.update(adjust_context(request, context))
         return templates.TemplateResponse(request, name, context,
                                           status_code=status_code)
+
+    def send_banner() -> dict | None:
+        """The red banner on every page when sending stopped by itself (a login that
+        fails, the daily quota, a bounce spike): the server's own words, and the way
+        out. Never raises: a page must always render."""
+        try:
+            if not config.get("send_enabled"):
+                return None
+            state = send.SendState.load(root)
+            if not state.is_paused(store.now()):
+                return None
+            way = {send.AUTH: "Nothing is retried until Send a test passes in Settings > Sending.",
+                   send.REFUSED: "Nothing is retried until Send a test passes in Settings > Sending.",
+                   send.QUOTA: "It resumes by itself at the next sending window.",
+                   "bounces": "This is a list-quality problem: look at the bounced addresses, "
+                              "then press Resume on the Outreach page.",
+                   "state": "Press Resume on the Outreach page."}.get(state.kind, "")
+            return {"kind": state.kind, "message": state.message, "way": way}
+        except Exception:
+            logger.exception("could not read the sending state")
+            return None
 
     def need_company(slug: str, refresh: bool = False) -> Company:
         company = store.get(slug, refresh=refresh)
@@ -1473,27 +1560,6 @@ def create_app(root: Path, config: dict | None = None,
             "angle": "",
             "outcome": "",
             "body": body or "",
-        }
-
-    def draft_context(request: Request, company: Company, contact=None) -> dict:
-        """Message drafts for a page, driven by two hand-checked signals and,
-        with ?lang=, a language picked for this page only (never saved)."""
-        signal = request.query_params.get("signal", "")
-        observation = request.query_params.get("observation", "")
-        return {
-            "drafts": messaging.drafts(
-                company, contact, signal, observation,
-                language=request.query_params.get("lang", ""),
-                messages=app.state.messages,
-                owner_name=str(config.get("owner_name", "")),
-                defs=custom_defs("company"),
-                size_field=str(config.get("messaging_size_field",
-                                          messaging.DEFAULT_SIZE_FIELD)),
-                team_field=str(config.get("messaging_team_field",
-                                          messaging.DEFAULT_TEAM_FIELD))),
-            "signal": signal if signal in messaging.SIGNALS else "",
-            "observation": observation,
-            "draft_contact": contact,
         }
 
     # ------------------------------------------------------------------- home
@@ -2413,8 +2479,6 @@ def create_app(root: Path, config: dict | None = None,
     def company_page(request: Request, slug: str):
         company = need_company(slug, refresh=True)
         interaction = interaction_values(company)
-        draft_contact = company.contacts.get(interaction["contact"]) or next(
-            iter(company.contacts.values()), None)
         return render(request, "company.html", {
             "company": company,
             "values": with_custom(company_values(company), company, "company"),
@@ -2423,7 +2487,6 @@ def create_app(root: Path, config: dict | None = None,
             "focus_stage": request.query_params.get("stage", ""),
             "others": sorted((c for c in store.companies.values() if c.slug != slug),
                              key=lambda c: c.name.lower()),
-            **draft_context(request, company, draft_contact),
         })
 
     @app.post("/companies/{slug}")
@@ -2473,8 +2536,6 @@ def create_app(root: Path, config: dict | None = None,
                 "interaction": interaction_values(current),
                 "focus": "",
                 "others": [],
-                **draft_context(request, current,
-                                next(iter(current.contacts.values()), None)),
             }, status_code=409)
         try:
             if custom_errors:
@@ -2490,8 +2551,6 @@ def create_app(root: Path, config: dict | None = None,
                 "focus": "lost_reason" if "lost_reason" in exc.errors else "",
                 "focus_stage": values.get("stage", ""),
                 "others": [],
-                **draft_context(request, company,
-                                next(iter(company.contacts.values()), None)),
             }, status_code=400)
         return flashed(f"/companies/{slug}", "Saved")
 
@@ -2845,6 +2904,14 @@ def create_app(root: Path, config: dict | None = None,
             "has_outbound": any(i.direction == Direction.OUT.value for i in touches),
         }
 
+    def outreach_hint() -> str:
+        """Why Generate outreach cannot run, for the button's tooltip: "" when it can.
+        A hint never breaks the page."""
+        try:
+            return outreach_ai_problem()
+        except Exception:
+            return ""
+
     def contact_context(request: Request, company: Company, contact, values=None,
                         channel: str = "", editing: bool = False, **extra) -> dict:
         """Everything contact.html needs. A form sent back (errors, a stale
@@ -2861,9 +2928,7 @@ def create_app(root: Path, config: dict | None = None,
             "outreach_open": next((i for i in outreach.items(root)
                                    if i.is_open and i.company == company.slug
                                    and i.contact == contact.slug), None),
-            "outreach_channels": outreach.CHANNELS,
-            "outreach_kind": outreach.kind_for(store, company, contact),
-            **draft_context(request, company, contact),
+            "outreach_problem": outreach_hint(),
             **extra,
         }
 
@@ -2926,6 +2991,20 @@ def create_app(root: Path, config: dict | None = None,
                         **values, **shown},
                 errors=exc.errors), status_code=400)
         return flashed(f"/companies/{slug}/contacts/{cslug}", "Saved")
+
+    @app.post("/companies/{slug}/contacts/{cslug}/opt-out")
+    async def contact_opt_out(slug: str, cslug: str, csrf_token: str = Form(""),
+                              back: str = Form("")):
+        """They asked not to be written to: the address on the suppression list, every
+        open outreach item for them skipped. Nothing more is sent to it."""
+        check_csrf(csrf_token)
+        need_company(slug)
+        back = safe_back(back, f"/companies/{slug}/contacts/{cslug}")
+        try:
+            text = await run_in_threadpool(sendqueue.opt_out, store, slug, cslug)
+        except (outreach.OutreachError, suppress.SuppressError) as exc:
+            text = f"Not done: {exc}"
+        return flashed(back, text)
 
     @app.post("/companies/{slug}/contacts/{cslug}/delete")
     def contact_delete(request: Request, slug: str, cslug: str):
@@ -3153,7 +3232,9 @@ def create_app(root: Path, config: dict | None = None,
                             if (root / custom.FILENAME).exists() else ""},
             "custom_field_defs": app.state.custom_fields,
             "playbook_status": playbook_status(),
-            "learning_form": {"distill": learning.mode(config)},
+            "learning_form": {"distill": learning.mode(config),
+                              "exemplars": exemplars.mode(config),
+                              "sampling": exemplars.sampling_on(config)},
             "messaging_form": {
                 "size_field": str(config.get("messaging_size_field") or ""),
                 "team_field": str(config.get("messaging_team_field") or "")},
@@ -3163,6 +3244,16 @@ def create_app(root: Path, config: dict | None = None,
             "field_scopes": custom.SCOPES,
             "field_views": custom.VIEWS_FOR_SCOPE,
             "mail_providers": bcc.MAIL_PROVIDERS,
+            "send_form": setup_steps.send_form_values(config),
+            "send_providers": send.PROVIDERS,
+            "send_weekdays": sendplan.WEEKDAYS,
+            "send_status": send_strip(bool(config.get("send_enabled"))),
+            "send_password_stored": send.password_stored(
+                send.settings_from_config(config), root,
+                runner=app.state.setup_runner, platform=app.state.setup_platform),
+            "send_cap_note": send.cap_warning(
+                send.settings_from_config(config).daily_cap),
+            "send_problems": list(send.settings_from_config(config).problems),
             "enrich_providers": setup_steps.ENRICH_PROVIDERS,
             "enrich_accounts": setup_steps.ENRICH_ACCOUNTS,
             "enrich_status": {"available": enricher.available,
@@ -3193,6 +3284,7 @@ def create_app(root: Path, config: dict | None = None,
         }
         if ctx["remote_url"]:
             ctx["remote_warning"] = setup_steps.private_warning(ctx["remote_url"])
+        ctx["send_job"] = ctx["schedule"]
         ctx.update(inbox_context())
         ctx.update(extra)
         return ctx
@@ -3277,6 +3369,69 @@ def create_app(root: Path, config: dict | None = None,
         result = setup_steps.test_bcc(root, config, open_mailbox=app.state.open_mailbox,
                                       store=store)
         return flashed("/settings", result.text(), anchor="bcc")
+
+    @app.post("/settings/send")
+    def setup_send(request: Request, csrf_token: str = Form(""), enabled: str = Form(""),
+                   from_addr: str = Form(""), smtp_host: str = Form(""),
+                   smtp_port: str = Form("587"), smtp_user: str = Form(""),
+                   imap_host: str = Form(""), password: str = Form(""),
+                   keychain: str = Form(""), window: str = Form(""),
+                   days: list[str] = Form([]), daily_cap: str = Form(""), ramp: str = Form(""),
+                   min_gap: str = Form(""), company_gap_hours: str = Form(""),
+                   countries: str = Form("")):
+        check_csrf(csrf_token)
+        form = {"enabled": bool(enabled), "from_addr": from_addr, "smtp_host": smtp_host,
+                "smtp_port": smtp_port, "smtp_user": smtp_user, "imap_host": imap_host,
+                "window": window, "days": days, "daily_cap": daily_cap, "ramp": ramp,
+                "min_gap": min_gap, "company_gap_hours": company_gap_hours,
+                "countries": countries}
+        result = setup_steps.save_send(root, form, password, use_keychain=bool(keychain),
+                                       runner=app.state.setup_runner,
+                                       platform=app.state.setup_platform)
+        if not result.ok:
+            return setup_invalid(request, result, "send", send_form=form)
+        return setup_done(result, "send")
+
+    @app.post("/settings/send/test")
+    async def setup_send_test(csrf_token: str = Form("")):
+        """Send a test to myself: the server's exact reply on failure."""
+        check_csrf(csrf_token)
+        result = await run_in_threadpool(
+            lambda: send.send_test(root, dict(config), smtp_factory=app.state.send_smtp,
+                                   imap_factory=app.state.send_imap))
+        return flashed("/settings", result.text(), anchor="send")
+
+    @app.post("/settings/send/job")
+    def setup_send_job(csrf_token: str = Form(""), action: str = Form("on")):
+        """Turn scheduled sending on or off: install or remove the worker job."""
+        check_csrf(csrf_token)
+        sched = schedule_status()
+        ctx = schedule.Context(data_dir=root, home=app.state.schedule_home or Path.home(),
+                               platform=app.state.setup_platform, runner=app.state.setup_runner)
+        if action == "off":
+            lines = schedule.remove(ctx, only_send=True)
+            current_setup_state(refresh=True)
+            return flashed("/settings", "Scheduled sending is off: " + "; ".join(lines),
+                           anchor="send")
+        if sched.get("send_elsewhere"):
+            return flashed("/settings", (
+                f"Not started: this computer already sends the queue of {sched['send_elsewhere']}, "
+                "and there is one sending job per computer. Run hermitcrm --data "
+                f"{root} schedule install --send to move it here."), anchor="send")
+        try:
+            lines = schedule.install(ctx, backup=False, sync=False, send=True)
+        except Exception as exc:  # ScheduleError, launchctl missing, ...
+            logger.warning("send schedule install failed: %s", exc)
+            return flashed("/settings", f"The job could not be installed: {str(exc)[:300]}",
+                           anchor="send")
+        current_setup_state(refresh=True)
+        if app.state.setup_platform.startswith("win"):
+            return flashed("/settings", "To send the queue every few minutes, run this in a "
+                           "terminal: " + " ".join(l for l in lines if l.startswith("schtasks")),
+                           anchor="send")
+        return flashed("/settings", "Scheduled sending is on: the queue is checked every "
+                       f"{schedule.SEND_EVERY} minutes while this computer is awake.",
+                       anchor="send")
 
     @app.post("/settings/backup")
     @app.post("/setup/backup")
@@ -3932,7 +4087,8 @@ def create_app(root: Path, config: dict | None = None,
     OUTREACH_TABS = (("replies", "Replies to interest", ("researching", "drafted")),
                      ("follow-ups", "Follow-ups", ("researching", "drafted")),
                      ("drafts", "Drafts", ("researching", "drafted")),
-                     ("ready", "Ready", ("ready",)),
+                     ("ready", "Ready", ("ready", "failed")),
+                     ("scheduled", "Scheduled", ("queued",)),
                      ("sent", "Sent", ("sent", "logged")),
                      ("skipped", "Skipped", ("skipped",)))
 
@@ -3952,7 +4108,7 @@ def create_app(root: Path, config: dict | None = None,
         country=DE`), each as `hermitcrm outreach --where` takes it."""
         return [part.strip() for part in str(text or "").split(";") if part.strip()]
 
-    def outreach_card(item) -> dict:
+    def outreach_card(item, known: dict | None = None) -> dict:
         company = store.get(item.company)
         contact = company.contacts.get(item.contact) if company is not None else None
         fit_field = str(config.get("outreach_fit_field")
@@ -3961,12 +4117,41 @@ def create_app(root: Path, config: dict | None = None,
             if company is not None and item.reply_to else None
         proposals = [(k, v) for k, v in sorted(item.proposals.items())
                      if outreach.proposal_open(company, contact, k)]
+        shown = (notes.card(company, item.contact, item, store.today())
+                 if company is not None and contact is not None else
+                 {"rows": [], "newer": 0, "legacy": [], "company_notes": ""})
         return {"item": item, "company": company, "contact": contact,
-                "proposals": proposals,
+                "proposals": proposals, "notes": shown,
                 "fit": outreach.fit_value(company, fit_field) if company else None,
                 "fit_field": fit_field, "reply": reply,
                 "steps": outreach.edit_steps(item),
-                "followed": followed_lessons(item)}
+                "followed": followed_lessons(item),
+                "modeled": modeled_on(item, known)}
+
+    def modeled_on(item, known: dict | None) -> list[dict]:
+        """The 'Modeled on' line of a card: the earlier messages that were
+        shown to the drafter as examples (`exemplars_used`), each a label and a
+        link. Empty when none were, or when the index cannot be read."""
+        if not getattr(item, "exemplars_used", None) or known is None:
+            return []
+        try:
+            return [{"label": label, "url": f"/outreach?tab={outreach_tab(other)}#item-{other.id}"}
+                    for label, other_id in exemplars.model_label(store, item.exemplars_used, known)
+                    for other in [outreach.get_item(root, other_id)] if other is not None]
+        except Exception:
+            logger.exception("could not build the Modeled on line")
+            return []
+
+    def exemplar_index_for(shown) -> dict | None:
+        """The exemplar index by id, built once for a page and only when a shown
+        card has examples to label."""
+        if not any(getattr(i, "exemplars_used", None) for i in shown):
+            return None
+        try:
+            return {e.id: e for e in exemplars.index(store, config=config)}
+        except Exception:
+            logger.exception("could not build the exemplar index")
+            return None
 
     def followed_lessons(item) -> dict:
         """The lessons that were in the draft's prompt (`lessons_used`): how many,
@@ -4056,6 +4241,24 @@ def create_app(root: Path, config: dict | None = None,
                   **extra}
         return urlencode({k: v for k, v in values.items() if v not in ("", None, 0)})
 
+    def outreach_generate(value: str, every: list):
+        """The Generate panel of /outreach?contact=<company>/<contact>: None unless
+        both exist. Nothing here runs the AI or writes."""
+        slug, _, cslug = (value or "").partition("/")
+        company = store.get(slug) if slug and cslug and "/" not in cslug else None
+        contact = company.contacts.get(cslug) if company is not None else None
+        if contact is None:
+            return None
+        open_item = next((i for i in every if i.is_open and i.company == slug
+                          and i.contact == cslug), None)
+        return {"company": company, "contact": contact, "record": f"{slug}/{cslug}",
+                "kind": outreach.kind_for(store, company, contact, config=config),
+                "language": messaging.draft_language(company, contact,
+                                                     messages=app.state.messages),
+                "notes": notes.rows(company, cslug, store.today()),
+                "open_item": open_item,
+                "open_tab": outreach_tab(open_item) if open_item else ""}
+
     @app.get("/outreach", response_class=HTMLResponse)
     def outreach_page(request: Request):
         params = request.query_params
@@ -4067,6 +4270,8 @@ def create_app(root: Path, config: dict | None = None,
         shown = [i for i in every if in_tab(i, tab)]
         if tab in ("drafts", "replies"):   # the oldest draft first: review in the order built
             shown.reverse()
+        elif tab == "scheduled":           # the next to go out first
+            shown.sort(key=lambda i: (i.send_at is None, i.send_at or datetime.max, i.id))
         reply_rows = outreach_replies(every)
         waiting = [r for r in reply_rows if r["item"] is None
                    and (r["reply"].interested or r["reply"].to_confirm)]
@@ -4074,6 +4279,21 @@ def create_app(root: Path, config: dict | None = None,
         counts = {t: sum(1 for i in every if in_tab(i, t)) for t, _, _ in OUTREACH_TABS}
         counts["replies"] += len(waiting)
         counts["follow-ups"] += len(due_rows)
+        send_on = bool(config.get("send_enabled"))
+        send_info = send_strip(send_on)
+        schedule_preview, schedule_error = None, ""
+        if send_on and tab == "ready" and params.get("schedule") == "all":
+            try:
+                found = sendqueue.schedule_all_ready(store, dry_run=True)
+                schedule_preview = {
+                    "rows": [{"item": i, "at": found.times.get(i.id),
+                              "who": next((c.name for c in [
+                                  (store.get(i.company).contacts.get(i.contact)
+                                   if store.get(i.company) else None)] if c), i.contact)}
+                             for i in found.scheduled],
+                    "refused": list(found.refused.items())}
+            except (outreach.OutreachError, send.SendError) as exc:
+                schedule_error = str(exc)
         preview, preview_error = None, ""
         if params.get("preview"):
             try:
@@ -4088,10 +4308,16 @@ def create_app(root: Path, config: dict | None = None,
         note_requests = [adjust.filter_help_request("Outreach", form["where"], n)
                          for n in (preview.notes if preview else [])]
         ready, gate = outreach._ready_approaches(root)
+        known = exemplar_index_for(shown)
         return render(request, "outreach.html", {
             "approaches": [a.name for a in ready],
-            "tabs": [(t, label, counts[t]) for t, label, _ in OUTREACH_TABS],
-            "tab": tab, "cards": [outreach_card(i) for i in shown],
+            "tabs": [(t, label, counts[t]) for t, label, _ in OUTREACH_TABS
+                     if t != "scheduled" or send_on or counts[t]],
+            "send": send_info, "send_on": send_on, "li": linkedin_strip(),
+            "schedule_preview": schedule_preview, "schedule_error": schedule_error,
+            "ready_email": sum(1 for i in every if i.state == "ready" and i.channel == "email"),
+            "tab": tab, "cards": [outreach_card(i, known) for i in shown],
+            "gen": outreach_generate(params.get("contact", ""), every),
             "reply_rows": [r for r in reply_rows if r["item"] is None] if tab == "replies"
             else [],
             "due_rows": due_rows if tab == "follow-ups" else [],
@@ -4101,7 +4327,7 @@ def create_app(root: Path, config: dict | None = None,
             "form": form, "preview": preview, "preview_error": preview_error,
             "fix_request": fix_request, "note_requests": note_requests,
             "gate": gate, "ai_problem": outreach_ai_problem(),
-            "skip_reasons": outreach.SKIP_REASONS, "finding_kinds": outreach.FINDING_KINDS,
+            "skip_reasons": outreach.SKIP_REASONS,
             "channels": outreach.CHANNELS, "levels": outreach.LEVELS,
             "built_levels": outreach.BUILT_LEVELS,
             "ai_web_problem": app.state.enricher.web_only_problem(),
@@ -4119,10 +4345,12 @@ def create_app(root: Path, config: dict | None = None,
                              left: str = Form(""), batch: str = Form(""),
                              contact: str = Form(""), back: str = Form(""),
                              kind: str = Form(outreach.FIRST_TOUCH),
-                             approach: str = Form(""), research: str = Form("")):
+                             approach: str = Form(""), research: str = Form(""),
+                             signal: str = Form(""), observation: str = Form(""),
+                             language: str = Form("")):
         """Research and draft the next contact of the batch (one per request).
-        `contact` ("company/contact"): the contact page's Research & draft, or a
-        reply on the Replies tab (`kind` reply-to-interest)."""
+        `contact` ("company/contact"): the Generate panel (with its signal, observation
+        and language), or a reply on the Replies tab (`kind` reply-to-interest)."""
         check_csrf(csrf_token)
         if kind not in outreach.BUILT_KINDS or (kind == outreach.REPLY and not contact):
             kind = outreach.FIRST_TOUCH
@@ -4158,6 +4386,20 @@ def create_app(root: Path, config: dict | None = None,
         enricher = app.state.enricher.with_tier(tier)
         if level == "ai-web" and enricher.web_only_problem():
             return flashed(back, f"Not built: {enricher.web_only_problem()}")
+        pick = ""
+        if contact:   # the Generate panel: what you checked by hand becomes notes first
+            if language in messaging.language_names(app.state.messages):
+                pick = language
+            who = selection.picked[0]
+            said = ([f"Signal (LinkedIn insights, checked {store.today():%Y-%m-%d}): {signal}."]
+                    if signal and signal in messaging.SIGNALS else [])
+            said += [observation.strip()] if observation.strip() else []
+            try:
+                for text in said:
+                    await run_in_threadpool(notes.add_note, store, who.company.slug,
+                                            who.contact.slug, text)
+            except outreach.OutreachError as exc:
+                return flashed(back, f"Not built: {exc}")
         researcher = outreach.researcher_for(
             level, enricher, fetcher=getattr(app.state, "outreach_fetcher", None),
             today=store.today(), timeout=float(config.get("fetch_timeout", 10)))
@@ -4166,7 +4408,7 @@ def create_app(root: Path, config: dict | None = None,
         batch_id = form["batch"] or f"{store.now():%Y-%m-%dT%H%M}-{form['channel']}"
         try:
             result = await run_in_threadpool(outreach.build, store, selection, researcher,
-                                              drafter, config, None, batch_id, critic)
+                                              drafter, config, None, batch_id, critic, pick)
         except outreach.OutreachError as exc:
             return flashed(back, f"Not built: {exc}")
         item = result.items[0]
@@ -4178,6 +4420,20 @@ def create_app(root: Path, config: dict | None = None,
         if remaining:
             line += f". Building the next one ({remaining} left)…"
         return flashed(f"/outreach?{query}", line, anchor=f"item-{item.id}")
+
+    @app.post("/outreach/note")
+    async def outreach_contact_note(csrf_token: str = Form(""), contact: str = Form(""),
+                                    text: str = Form(""), back: str = Form("")):
+        """A note about a person from the Generate panel: the same note you would add
+        on their page, used by the next draft."""
+        check_csrf(csrf_token)
+        slug, _, cslug = contact.partition("/")
+        back = safe_back(back, "/outreach")
+        try:
+            await run_in_threadpool(notes.add_note, store, slug, cslug, text)
+        except outreach.OutreachError as exc:
+            return flashed(back, str(exc))
+        return flashed(back, "Note saved. It is on their page and the next draft uses it.")
 
     @app.post("/outreach/replies/check")
     async def outreach_check_replies(request: Request, csrf_token: str = Form("")):
@@ -4214,6 +4470,139 @@ def create_app(root: Path, config: dict | None = None,
                 if found.interested else f"{found.contact.name}: not interested.")
         return flashed("/outreach?tab=replies", text, anchor=f"reply-{found.interaction.id}")
 
+    def send_strip(on: bool) -> dict:
+        """The numbers on the strip at the top of the Outreach page."""
+        if not on:
+            return {"enabled": False}
+        try:
+            info = sendqueue.status(store, send.settings_from_config(config))
+            info["line"] = sendqueue.strip_line(info)
+            return info
+        except Exception as exc:
+            logger.exception("could not read the sending status")
+            return {"enabled": True, "line": f"Email: could not read the status ({exc})",
+                    "paused": False, "paused_by": "", "missing": "", "queued": 0,
+                    "sent_today": 0, "cap": 0, "next": None, "overdue": 0}
+
+    @app.post("/outreach/send/pause")
+    def outreach_send_pause(csrf_token: str = Form("")):
+        """The kill switch: effective from the next tick."""
+        check_csrf(csrf_token)
+        sendqueue.pause(store)
+        config_reloaded()
+        return flashed("/outreach", "Sending is paused. Nothing goes out from the next tick; "
+                       "Resume lifts it.")
+
+    @app.post("/outreach/send/resume")
+    def outreach_send_resume(csrf_token: str = Form("")):
+        check_csrf(csrf_token)
+        lifted = sendqueue.resume(store)
+        config_reloaded()
+        return flashed("/outreach", ("Resumed: " + "; ".join(lifted) + ".") if lifted
+                       else "Sending was not paused.")
+
+    @app.post("/outreach/schedule-all")
+    async def outreach_schedule_all(csrf_token: str = Form("")):
+        """Confirm the times the Ready tab showed: every ready email, in one go."""
+        check_csrf(csrf_token)
+        try:
+            result = await run_in_threadpool(sendqueue.schedule_all_ready, store)
+        except (outreach.OutreachError, send.SendError) as exc:
+            return flashed("/outreach?tab=ready", f"Not scheduled: {exc}")
+        text = f"Scheduled {len(result.scheduled)} email{'s' if len(result.scheduled) != 1 else ''}."
+        if result.refused:
+            text += f" {len(result.refused)} could not be scheduled (see each card)."
+        return flashed("/outreach?tab=scheduled" if result.scheduled else "/outreach?tab=ready",
+                       text)
+
+    # ------------------------------------------------------- LinkedIn session
+    # Option A of spec part 08: nothing here talks to LinkedIn. The page copies the
+    # text, opens the profile in a new tab and waits; the person sends it on
+    # linkedin.com and says what happened. Hermit paces and logs.
+
+    def linkedin_strip() -> dict:
+        """The LinkedIn numbers on the Outreach strip; never raises."""
+        try:
+            cfg = linkedin.settings_from_config(config)
+            have = linkedin.counters(store, store.now(), cfg)
+            return {"invites_today": have.invites_today, "invites_per_day": cfg.invites_per_day,
+                    "invites_week": have.invites_week, "invites_per_week": cfg.invites_per_week,
+                    "messages_today": have.messages_today, "messages_per_day": cfg.messages_per_day,
+                    "queue": len(linkedin.queue(store, store.now())), "ok": True}
+        except Exception:
+            logger.exception("could not read the LinkedIn counters")
+            return {"ok": False}
+
+    @app.get("/outreach/linkedin", response_class=HTMLResponse)
+    def linkedin_page(request: Request):
+        now = store.now()
+        cfg = linkedin.settings_from_config(config)
+        session = linkedin.Session.load(root)
+        have = linkedin.counters(store, now, cfg, session)
+        found = linkedin.next_card(store, now, cfg, session)
+        ok, why = linkedin.can_start(session, now, cfg)
+        card = found.card
+        company = store.get(card.item.company) if card else None
+        contact = company.contacts.get(card.item.contact) if company else None
+        rows = []
+        for row in linkedin.waiting(store, now):
+            c = store.get(row["item"].company)
+            row["contact"] = c.contacts.get(row["item"].contact) if c else None
+            rows.append(row)
+        return render(request, "outreach_linkedin.html", {
+            "cfg": cfg, "have": have, "session": session, "card": card, "company": company,
+            "contact": contact, "reason": found.reason, "wait": found.wait,
+            "can_start": ok, "why_not": why, "waiting": rows, "reasons": linkedin.REASONS,
+            "next_session": linkedin.next_session_at(session, cfg),
+            "reminder_days": linkedin.WAITING_REMINDER_DAYS})
+
+    @app.post("/outreach/linkedin/start")
+    def linkedin_start(csrf_token: str = Form("")):
+        check_csrf(csrf_token)
+        try:
+            linkedin.start(store, store.now(), linkedin.settings_from_config(config))
+        except outreach.OutreachError as exc:
+            return flashed("/outreach/linkedin", str(exc))
+        return flashed("/outreach/linkedin", "Session started. One card at a time: send it on "
+                       "LinkedIn yourself, then say what happened.")
+
+    @app.post("/outreach/linkedin/end")
+    def linkedin_end(csrf_token: str = Form("")):
+        check_csrf(csrf_token)
+        linkedin.end(store, store.now())
+        return flashed("/outreach/linkedin", "Session ended.")
+
+    @app.post("/outreach/linkedin/{item_id}/{what}")
+    async def linkedin_action(item_id: str, what: str, csrf_token: str = Form(""),
+                              reason: str = Form("other"), note: str = Form("")):
+        check_csrf(csrf_token)
+        if what not in ("sent", "already", "failed", "accepted", "withdrawn"):
+            raise HTTPException(status_code=404, detail=f"unknown action {what!r}")
+        if outreach.get_item(root, item_id) is None:
+            raise HTTPException(status_code=404, detail=f"unknown outreach item {item_id!r}")
+        now, cfg = store.now(), linkedin.settings_from_config(config)
+        try:
+            if what == "sent":
+                await run_in_threadpool(linkedin.sent, store, item_id, now, cfg)
+                text = ("Logged: the message is on the contact exactly as you sent it."
+                        + ("" if linkedin.Session.load(root).active else " That was the last "
+                           "card of this session."))
+            elif what == "already":
+                await run_in_threadpool(linkedin.already_connected, store, item_id, now)
+                text = "Already connected: the card is now the message to send."
+            elif what == "failed":
+                text = await run_in_threadpool(linkedin.couldnt_send, store, item_id, reason,
+                                               note, now, cfg)
+            elif what == "accepted":
+                await run_in_threadpool(linkedin.accepted, store, item_id, now)
+                text = "Accepted: their message is in the queue."
+            else:
+                await run_in_threadpool(linkedin.withdrawn, store, item_id, now)
+                text = "Withdrawn: it leaves the waiting list."
+        except outreach.OutreachError as exc:
+            text = str(exc)
+        return flashed("/outreach/linkedin", text)
+
     @app.post("/outreach/{item_id}/page")
     async def outreach_page(item_id: str, csrf_token: str = Form(""), url: str = Form(""),
                             top: str = Form(""), about: str = Form(""), act: str = Form("")):
@@ -4241,21 +4630,20 @@ def create_app(root: Path, config: dict | None = None,
                 app.state.enricher.with_tier("medium"))
         except outreach.OutreachError as exc:
             return flashed(back, f"Not added: {exc}", anchor=anchor)
-        say = (f"Added {added} finding{'s' if added != 1 else ''} from LinkedIn. Regenerate "
+        say = (f"Added {added} note{'s' if added != 1 else ''} from LinkedIn. Regenerate "
                "to use them." if added else
-               "Nothing usable on that page that the card does not already have.")
+               "Nothing usable on that page that the notes do not already have.")
         return flashed(f"/outreach?tab={outreach_tab(item)}", say, anchor=anchor)
 
-    OUTREACH_ACTIONS = ("check", "ready", "regenerate", "skip", "sent", "findings",
-                        "proposal")
+    OUTREACH_ACTIONS = ("check", "ready", "regenerate", "skip", "sent", "note",
+                        "proposal", "schedule", "unschedule", "send-now", "front", "retry")
 
     @app.post("/outreach/{item_id}/{what}")
     async def outreach_action(request: Request, item_id: str, what: str,
                               csrf_token: str = Form(""), subject: str | None = Form(None),
                               body: str | None = Form(None), pitch: str | None = Form(None),
                               reason: str = Form(""), note: str = Form(""),
-                              strong: str = Form(""), remove: list[str] = Form([]),
-                              add: str = Form(""), kind: str = Form("company"),
+                              strong: str = Form(""), add: str = Form(""),
                               key: str = Form(""), tags: list[str] = Form([])):
         check_csrf(csrf_token)
         if what not in OUTREACH_ACTIONS:
@@ -4287,8 +4675,10 @@ def create_app(root: Path, config: dict | None = None,
                 item, found = await run_in_threadpool(
                     lambda: outreach.mark_ready(store, item_id, subject=subject, body=body,
                                                 pitch=pitch, note=note, tags=tags))
-                text = ("Ready to send. Send it yourself, then log it: logging it marks "
-                        "it sent." + (f" Warning: {'; '.join(found)}." if found else "")
+                how = ("Ready. Schedule it or send it now from the Ready tab."
+                       if config.get("send_enabled") and item.channel == "email" else
+                       "Ready to send. Send it yourself, then log it: logging it marks it sent.")
+                text = (how + (f" Warning: {'; '.join(found)}." if found else "")
                         + edit_text(len(item.edits) - tracked, note))
             elif what == "regenerate":
                 tier = "strong" if strong else "medium"
@@ -4312,12 +4702,41 @@ def create_app(root: Path, config: dict | None = None,
             elif what == "proposal":
                 item = await run_in_threadpool(outreach.accept_proposal, store, item.id, key)
                 text = f"Saved the {key} to the record."
-            else:
-                numbers = [int(n) for n in remove if str(n).strip().isdigit()]
-                item = await run_in_threadpool(outreach.set_findings, store, item.id,
-                                               numbers, add, kind)
-                text = "Findings saved. Regenerate to use them."
-        except outreach.OutreachError as exc:
+            elif what == "schedule":
+                result = await run_in_threadpool(sendqueue.schedule, store, [item.id])
+                item = outreach.get_item(root, item.id) or item
+                at = result.times.get(item.id)
+                text = (f"Scheduled: it goes out {at:%a %d %b, %H:%M}." if result.scheduled and at
+                        else "Scheduled, but there is no free slot in the next "
+                             f"{sendplan.HORIZON_DAYS} days." if result.scheduled
+                        else f"Not scheduled: {result.refused.get(item.id, 'unknown reason')}.")
+            elif what == "unschedule":
+                item = await run_in_threadpool(sendqueue.unschedule, store, item.id)
+                text = "Unscheduled: back on the Ready tab."
+            elif what == "front":
+                item = await run_in_threadpool(sendqueue.move_to_front, store, item.id)
+                text = f"Moved to the front: it goes out {item.send_at:%a %d %b, %H:%M}."
+            elif what == "retry":
+                item = await run_in_threadpool(sendqueue.retry, store, item.id)
+                text = "Back on the Ready tab: schedule it or send it now."
+            elif what == "send-now":
+                out = await run_in_threadpool(
+                    lambda: send.send_now(store, item.id, smtp_factory=app.state.send_smtp,
+                                          imap_factory=app.state.send_imap))
+                item = out.item
+                text = {"sent": "Sent and logged.", "recovered": "It had already gone out; "
+                        "logged now.", "held": f"Not sent: {out.detail}.",
+                        "paused": f"Not sent: {out.detail}", "retry": out.detail,
+                        "failed": f"Not sent: {out.detail}"}.get(out.kind, out.detail)
+                if out.warnings:
+                    text += " Warning: " + "; ".join(out.warnings) + "."
+            else:   # note: what you know about them, kept on their page like any note
+                if item.state != "drafted":
+                    raise outreach.OutreachError(f"{item.id} is {item.state}; only a "
+                                                 "drafted item can take a note")
+                await run_in_threadpool(notes.add_note, store, item.company, item.contact, add)
+                text = "Note saved. Regenerate to use it."
+        except (outreach.OutreachError, send.SendError) as exc:
             return flashed(f"/outreach?tab={outreach_tab(item)}", str(exc), anchor=anchor)
         return flashed(f"/outreach?tab={outreach_tab(item)}", text, anchor=anchor)
 
@@ -4374,6 +4793,7 @@ def create_app(root: Path, config: dict | None = None,
         suggestions = [{"suggestion": x, "links": learning_links(x.evidence[:8], by_id)}
                        for x in found]
         state_dir = root / learning.DIR
+        ctx.update(example_context(approach, sigs, by_id))
         ctx.update({
             "status": st, "banner": st.banner, "stats": learning.trend(sigs),
             "since": learning.since_line(learning.trend(sigs)),
@@ -4387,6 +4807,47 @@ def create_app(root: Path, config: dict | None = None,
             "ai_problem": outreach_ai_problem("strong") if st.mode == "hermit" else "",
         })
         return ctx
+
+    def example_context(approach: str, sigs, by_id: dict) -> dict:
+        """The examples section (approach C): the setting, the exemplars with
+        their marks, and the angle table. Any failure here shows as a note, so
+        the rest of the page still loads."""
+        out = {"example_error": "", "example_mode": exemplars.mode(config), "examples": [],
+               "example_counts": {}, "angle_rows": [], "angle_note": "", "angle_sends": 0,
+               "angle_min": exemplars.BANDIT_MIN_SENDS, "angle_rung": "positive",
+               "sampling": exemplars.sampling_on(config), "example_count": exemplars.count(config)}
+        try:
+            found = exemplars.index(store, approach, config, sigs)
+            out["example_counts"] = {
+                "outcome": sum(1 for e in found if e.kind == "outcome"),
+                "correction": sum(1 for e in found if e.kind == "correction"),
+                "pinned": sum(1 for e in found if e.mark == "pin"),
+                "excluded": sum(1 for e in found if e.mark == "exclude")}
+            out["examples"] = [{"e": e, "links": learning_links([e.item_id], by_id)}
+                               for e in found[:30]]
+            angles = tuple(a for a in (config.get("outreach_angles") or outreach.DEFAULT_ANGLES)
+                           if a in outreach.ANGLES) or outreach.DEFAULT_ANGLES
+            rung = exemplars.bandit_rung(sigs, config, approach)
+            rows = exemplars.angle_table(sigs, approach, angles, config=config,
+                                         today=store.today(), rung=rung)
+            out.update(angle_rows=rows, angle_rung=rung, angle_note=exemplars.next_experiment(rows),
+                       angle_sends=exemplars.sends_of(sigs, approach))
+        except Exception as exc:
+            logger.exception("could not build the examples section")
+            out["example_error"] = f"The examples could not be read: {exc}"
+        return out
+
+    @app.post("/learning/exemplar")
+    def learning_exemplar(csrf_token: str = Form(""), approach: str = Form(""),
+                          exemplar: str = Form(""), mark: str = Form("")):
+        check_csrf(csrf_token)
+
+        def work(name: str) -> str:
+            done = exemplars.set_mark(store, exemplar, mark, config)
+            return {"pin": "Pinned: it leads when it is close enough.",
+                    "exclude": "Excluded: it will not be shown again.",
+                    "clear": "Back to normal."}[mark] + f" ({done.label})"
+        return learning_act(approach, work)
 
     @app.get("/learning", response_class=HTMLResponse)
     def learning_page(request: Request):
@@ -4482,14 +4943,33 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.post("/settings/learning")
     def settings_learning(request: Request, csrf_token: str = Form(""),
-                          learning_distill: str = Form("hermit")):
+                          learning_distill: str = Form("hermit"),
+                          learning_exemplars: str | None = Form(None),
+                          learning_angle_sampling: str | None = Form(None)):
+        """The learning settings. Each one is changed only when the form sent it,
+        so a form that knows only the first (an older page) leaves the rest."""
         check_csrf(csrf_token)
         value = (learning_distill or "").strip().lower()
         if value not in ("hermit", "handoff"):
             return flashed("/settings", "Learning runs as hermit or handoff", anchor="playbook")
-        setup_steps.set_config_values(root / "config.toml", {"learning_distill": value})
+        changes: dict = {"learning_distill": value}
+        saved = [value]
+        if learning_exemplars is not None:
+            shown = learning_exemplars.strip().lower()
+            if shown not in exemplars.MODES:
+                return flashed("/settings", "Examples are off, corrections, outcomes or both",
+                               anchor="playbook")
+            changes["learning_exemplars"] = shown
+            saved.append(f"examples {shown}")
+        if learning_angle_sampling is not None:
+            shown = learning_angle_sampling.strip().lower()
+            if shown not in ("on", "off"):
+                return flashed("/settings", "Angle sampling is on or off", anchor="playbook")
+            changes["learning_angle_sampling"] = shown == "on"
+            saved.append(f"angle sampling {shown}")
+        setup_steps.set_config_values(root / "config.toml", changes)
         config_saved()
-        return flashed("/settings", f"Learning saved: {value}.", anchor="playbook")
+        return flashed("/settings", f"Learning saved: {', '.join(saved)}.", anchor="playbook")
 
     # ---------------------------------------------------------- make it yours
 
@@ -4671,6 +5151,68 @@ def create_app(root: Path, config: dict | None = None,
         referer = urlparse(request.headers.get("referer", ""))
         back = referer.path + (f"?{referer.query}" if referer.query else "")
         return goto(safe_back(back, "/"))
+
+    # ---------------------------------------------------------------- one-click upgrade
+    # The pages below are built from strings on purpose (upgrade.py): they are what
+    # you see when the templates and the code disagree, so they cannot use them.
+
+    def upgrade_refused(request: Request, message: str, status: int = 409):
+        if "application/json" in request.headers.get("accept", ""):
+            return JSONResponse({"error": message}, status_code=status)
+        return plain(upgrading.notice_page("Not done", [message], back=True), status)
+
+    def upgrade_started(request: Request, thread):
+        status = app.state.upgrader.status()
+        if "application/json" in request.headers.get("accept", ""):
+            return JSONResponse(status, status_code=202 if thread else 200)
+        return goto("/upgrade")
+
+    @app.get("/upgrade/status")
+    def upgrade_status():
+        """Polled by upgrade.js: which process this is, what it is doing, what is on disk."""
+        return JSONResponse({**app.state.upgrader.status(),
+                             "stale": app.state.disk_watch.newer(),
+                             "available": app.state.update_notice.available},
+                            headers={"Cache-Control": "no-store"})
+
+    @app.get("/upgrade")
+    def upgrade_page():
+        """The no-JavaScript view of an upgrade: what it will do, how far it is."""
+        stale = app.state.disk_watch.newer()
+        available = app.state.update_notice.available
+        plan = upgrading.install_plan(app.state.config, can_restart())
+        why = upgrading.blocked(app.state.config, can_restart()) if stale else plan.why_not
+        return plain(upgrading.status_page(app.state.upgrader.status(), available,
+                                           app.state.csrf_token, why, stale), 200,
+                     **{"Cache-Control": "no-store"})
+
+    @app.post("/upgrade")
+    def upgrade_start(request: Request, csrf_token: str = Form("")):
+        """Install the newest release, check it starts, restart on it."""
+        check_csrf(csrf_token)
+        up = app.state.upgrader
+        if up.busy:
+            return upgrade_started(request, None)
+        if not app.state.update_notice.available:
+            return upgrade_refused(request, "There is no newer version to install.")
+        plan = upgrading.install_plan(app.state.config, can_restart())
+        if not plan.ok:
+            return upgrade_refused(request, plan.why_not)
+        return upgrade_started(request, up.start(plan, app.state.restart_server,
+                                                 target=app.state.update_notice.available))
+
+    @app.post("/upgrade/restart")
+    def upgrade_restart(request: Request, csrf_token: str = Form("")):
+        """Restart on the files that are already on disk (after an upgrade made elsewhere)."""
+        check_csrf(csrf_token)
+        up = app.state.upgrader
+        if up.busy:
+            return upgrade_started(request, None)
+        why = upgrading.blocked(app.state.config, can_restart())
+        if why:
+            return upgrade_refused(request, why)
+        return upgrade_started(request, up.start(None, app.state.restart_server,
+                                                 target=app.state.disk_watch.newer()))
 
     @app.get("/health")
     def health():

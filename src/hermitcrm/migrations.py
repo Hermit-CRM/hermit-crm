@@ -393,6 +393,67 @@ def m10_learning(meta: dict) -> dict:
     return out
 
 
+def m11_exemplars(meta: dict) -> dict:
+    """Outreach items gained `exemplars_used`, optional and absent when empty:
+    the ids (`correction:<item>`, `outcome:<item>`) of the examples that were in
+    the draft prompt. A hand-written one is put in the form the app writes; a
+    file without it is returned as it is."""
+    from hermitcrm.outreach import clean_exemplar_ids
+
+    if "exemplars_used" not in meta:
+        return meta
+    ids = clean_exemplar_ids(meta["exemplars_used"])
+    if not ids:
+        return {k: v for k, v in meta.items() if k != "exemplars_used"}
+    if ids != meta["exemplars_used"]:
+        return {k: (ids if k == "exemplars_used" else v) for k, v in meta.items()}
+    return meta
+
+
+def m12_send_keys(meta: dict) -> dict:
+    """Outreach items gained the keys that scheduling, sending and the LinkedIn
+    session write (`queued`, `send_at`, `send_hash`, `message_id`, `send_tries`,
+    `send_error`, `send_note`, `invite_sent`, `accepted`, `pitch_sent`). They are
+    added empty, right after `skipped` where the app writes them; a key the file
+    already has stays where it is. A file that has them all is returned as it is."""
+    from hermitcrm.outreach import SEND_KEYS
+
+    missing = [k for k in SEND_KEYS if k not in meta]
+    if not missing:
+        return meta
+    anchor = "skipped" if "skipped" in meta else next(
+        (k for k in ("sent_with", "sent", "ready") if k in meta), None)
+    empty = {k: (0 if k == "send_tries" else None) for k in missing}
+    out: dict = {}
+    for key, value in meta.items():
+        out[key] = value
+        if key == anchor:
+            out.update(empty)
+    if anchor is None:
+        out.update(empty)
+    return out
+
+
+def m14_agent_send(data_dir: Path, meta_by_path: dict, write: bool) -> list[str]:
+    """Teach the folder's agents that they never schedule or send mail unasked.
+    CLAUDE.md and AGENTS.md get the "Sending mail" rules unless they already
+    mention `hermitcrm help sending`; a folder without them does not get them."""
+    from .datafolder import AGENT_SEND_RULES
+
+    changed = []
+    for name in ("CLAUDE.md", "AGENTS.md"):
+        path = data_dir / name
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "hermitcrm help sending" in text:
+            continue
+        if write:
+            path.write_text(_insert_section(text, AGENT_SEND_RULES), encoding="utf-8")
+        changed.append(name)
+    return changed
+
+
 MIGRATIONS = [
     Migration(1, "rename gijs_score to my_score", "companies/*/company.md", m1_my_score),
     Migration(2, "country UK→GB, USA→US", "companies/*/company.md", m2_country_codes),
@@ -412,6 +473,14 @@ MIGRATIONS = [
               m9_angle),
     Migration(10, "outreach drafts record the lessons they used and your reason chips",
               "outreach/*.md", m10_learning),
+    Migration(11, "outreach drafts record the examples they were shown",
+              "outreach/*.md", m11_exemplars),
+    Migration(12, "outreach items get the keys for scheduling, sending and LinkedIn sessions",
+              "outreach/*.md", m12_send_keys),
+    Migration(13, "interactions may have the source outreach (nothing to change in a file)",
+              "companies/*/interactions/*.md", _noop),
+    Migration(14, "agents never schedule or send mail unasked (CLAUDE.md, AGENTS.md)",
+              "CLAUDE.md", folder=m14_agent_send),
 ]
 LATEST = MIGRATIONS[-1].version
 

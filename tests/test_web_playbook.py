@@ -86,6 +86,9 @@ def test_page_shows_the_approach_meter_and_what_is_missing(client):
     # the slow AI buttons say that they are working once clicked (static/busy.js)
     assert 'formaction="/settings/playbook/draft" data-busy="' in page.text
     assert '/static/busy.js' in page.text
+    # ... and so does a bar along the top edge: busy.js makes it, style.css draws it
+    assert "busy-bar" in client.get("/static/busy.js").text
+    assert ".busy-bar" in client.get("/static/style.css").text
     settings = client.get("/settings").text
     assert 'href="/settings/playbook"' in settings and "No approach is ready" in settings
 

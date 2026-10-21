@@ -209,8 +209,9 @@ requirement when the system Python is too old, so it works on a machine where
 
 If `hermitcrm --version` already answers, this is an update, not an install:
 run `uv tool install --reinstall .` (or `pipx install --force .`) from this
-folder, restart the app (`launchctl kickstart -k gui/$(id -u)/io.hermitcrm.serve`
-on a Mac, `systemctl --user restart hermitcrm-serve` on Linux), and skip steps
+folder, **restart the app** (`launchctl kickstart -k gui/$(id -u)/io.hermitcrm.serve`
+on a Mac, `systemctl --user restart hermitcrm-serve` on Linux; a running app keeps
+the old code in memory while the files change, and its pages then fail), and skip steps
 3 to 6: their data folder and settings stay as they are. If the new version
 changes the data format, the next command migrates their folder in one git
 commit; say so, and that `hermitcrm migrate --dry-run` shows it first.

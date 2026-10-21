@@ -113,6 +113,29 @@ CONFIG_DOCS = {
     "update_check": "Check for a newer Hermit CRM at most once a day (no identifiers sent).",
     "update_url": "Where that check asks; empty means PyPI. Any URL answering {\"version\": \"0.4.0\"} works.",
     "feedback_email": "Address the Feedback form offers to mail a report to; empty means copy it yourself.",
+    "send_enabled": "Master switch for sending approved outreach email from the app (Settings > Sending). Send now and Schedule are hidden while off.",
+    "send_paused": "The kill switch (the Pause button on Outreach): nothing goes out while true.",
+    "send_from": "The sending address, one of my_addresses; empty means owner_email. A separate mailbox on its own domain protects your main domain.",
+    "send_smtp_host": "SMTP server of the sending mailbox.",
+    "send_smtp_port": "587 (STARTTLS) or 465 (SSL).",
+    "send_smtp_user": "SMTP user; empty means send_from.",
+    "send_imap_host": "IMAP server of the sending mailbox (reply guard, bounce scan, the Sent check; same user and app password).",
+    "send_keychain_service": "Keychain (macOS) or Secret Service (Linux) service holding the sending mailbox's app password (account = SMTP user).",
+    "send_window": "Hours when scheduled mail goes out, HH:MM-HH:MM, in your time zone.",
+    "send_days": "Days when scheduled mail goes out: mon, tue, wed, thu, fri, sat, sun.",
+    "send_ramp": "Daily cap for weeks 1, 2, 3... counted from the first send of a new mailbox; after the last week send_daily_cap applies.",
+    "send_daily_cap": "The most emails per day. 50 is the plan (the ramp starts at 10 and steps up); more than 150 for more than 1-2 days in a row is strongly discouraged, so a third day in a row is held at 150.",
+    "send_min_gap_minutes": "The least time between two sends.",
+    "send_company_gap_hours": "The least time between two emails to one company (or one email domain).",
+    "send_grace_minutes": "How long after Schedule the earliest slot is, so a mistake can still be undone.",
+    "send_overdue_minutes": "An item later than this is moved to the next free slot, never sent in a burst.",
+    "send_email_block_countries": "ISO country codes whose companies are never mailed by email (the card suggests LinkedIn); empty means no country is blocked.",
+    "linkedin_invites_per_day": "The most connection invites in a LinkedIn session day.",
+    "linkedin_invites_per_week": "The most connection invites in any rolling 7 days.",
+    "linkedin_messages_per_day": "The most messages to existing connections per day.",
+    "linkedin_session_size": "Cards in one LinkedIn session.",
+    "linkedin_gap_seconds": "The shortest and longest countdown between two LinkedIn cards.",
+    "linkedin_session_break_minutes": "The least time between two LinkedIn sessions.",
 }
 
 
@@ -235,6 +258,22 @@ AGENT_ADJUST_RULES = """Adjusting Hermit (`hermitcrm help adjust`, or `/hermit` 
 """
 
 AGENT_RULES += "\n" + AGENT_ADJUST_RULES
+
+# Sending from the app (`hermitcrm help sending`). Its own constant so migration
+# 14 can add it to CLAUDE.md and AGENTS.md files written before it.
+AGENT_SEND_RULES = """Sending mail (`hermitcrm help sending`):
+- The person approves every outreach message; Hermit then sends approved email on a
+  schedule. You never schedule or send mail (`hermitcrm outreach schedule`,
+  `outreach send-now`, `send due`) unless the person asks for it in this conversation.
+  Drafting and `outreach ready` are not sending.
+- Never change the `send_*` and `linkedin_*` settings in config.toml, the sending
+  password, `outreach/suppressed.toml` or `.git/hermitcrm-send.json` without being asked.
+- Pause is the kill switch: `hermitcrm send pause`. Only the person lifts it
+  (`hermitcrm send resume`).
+- LinkedIn is never automated: the person sends every message and invite themselves.
+"""
+
+AGENT_RULES += "\n" + AGENT_SEND_RULES
 
 # The Claude Code skill behind `/hermit <request>`, which the Adjust handoff
 # types in. Only a pointer: the recipes live in the package's help topics, so

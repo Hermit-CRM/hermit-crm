@@ -183,9 +183,10 @@ file per conversation. Everything below is convenience on top of it.
   are logged in to into a new contact, read in your own tab. Nothing to install.
 - **Timeline per company**: email, LinkedIn, call, WhatsApp and meeting interactions,
   in or out, with bodies kept byte for byte.
-- **Message drafts without AI**: three angles per contact in English, German,
-  Dutch or French (by country; for Belgium from mails, website, postcode
-  and titles), with wording you control in `messages.toml`.
+- **Generate outreach per contact**: one button opens Outreach with that person
+  ready, in English, German, Dutch or French (by country; for Belgium from mails,
+  website, postcode and titles). What you know about them is kept as notes the
+  draft is written from, with wording you control in `messages.toml`.
 - **Messages tab**: every outbound message with its outcome (successful on a
   reply, unsuccessful after a window, or set by hand; the choices are
   `outcomes` in config.toml).
@@ -378,6 +379,11 @@ company waits on Home under **To file** (`/#to-file`).
 
 ## Updating
 
+When a newer version is published, the sidebar and Settings > About show an
+**Upgrade** button: one click installs it, restarts the app and asks you to
+reload (see [Settings](src/hermitcrm/help/settings.md#about) for when it is
+offered). Or by hand:
+
 ```bash
 uv tool install hermitcrm@latest   # or: pipx install --force hermitcrm
 ```
@@ -387,7 +393,8 @@ Both also move an install made from a download or a clone over to PyPI;
 nothing new there. The update notice names the command that fits your install.
 Restart the app afterwards: `launchctl kickstart -k gui/$(id -u)/io.hermitcrm.serve`
 on a Mac, `systemctl --user restart hermitcrm-serve` on Linux, or stop and start
-`hermitcrm serve` yourself.
+`hermitcrm serve` yourself. (Forget, and the app says **Restart needed** with a
+button, rather than failing on pages.)
 
 The web app checks at most once a day (no identifiers sent; turn it off with
 `update_check = false` or `HERMITCRM_NO_UPDATE_CHECK=1`) and shows a notice in

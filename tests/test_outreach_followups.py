@@ -19,6 +19,7 @@ are fakes; all names are made up."""
 
 from __future__ import annotations
 
+import re
 from datetime import timedelta
 
 import pytest
@@ -306,15 +307,15 @@ def test_the_offer_line_is_an_optional_slot(folder):
 # ---------------------------------------------------------- draft type choice
 
 
-def test_the_contact_page_picks_the_type_from_the_history(client, root):
+def test_the_generate_panel_picks_the_type_from_the_history(client, root):
     store = client.app.state.store
     company, contact = store.get("lindenhof-data"), store.get("lindenhof-data").contacts["mara-keller"]
     assert outreach.kind_for(store, company, contact) == outreach.FIRST_TOUCH
     send(store, days=6)
     company = store.get("lindenhof-data")
     assert outreach.kind_for(store, company, company.contacts["mara-keller"]) == FOLLOW
-    page = client.get("/companies/lindenhof-data/contacts/mara-keller").text
-    assert 'value="follow-up" selected' in page.replace(" selected>", " selected>")
+    page = client.get("/outreach?contact=lindenhof-data/mara-keller").text
+    assert '<option value="follow-up" selected>' in page
     store.create_interaction("lindenhof-data", "email", "in", subject="Re: Your second office",
                              contact="mara-keller", date=NOW - timedelta(days=1),
                              outcome="interested", body="Tell me more.\n")
@@ -334,6 +335,8 @@ def test_the_follow_ups_tab_lists_the_due_ones_then_their_cards(client, root):
     page = client.get("/outreach?tab=follow-ups").text
     assert f"Follow-ups ({n + 1})" in page and "Mara Keller" in page
     assert "Draft follow-up" in page and 'name="kind" value="follow-up"' in page
+    # an AI call: the clicked button says that it is working (static/busy.js)
+    assert re.search(r'<button[^>]*data-busy="[^"]+"[^>]*>Draft follow-up</button>', page)
     response = build_followup(client)
     assert query(response)["tab"] == "follow-ups"
     page = client.get("/outreach?tab=follow-ups").text

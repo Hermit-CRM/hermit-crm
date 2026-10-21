@@ -57,42 +57,6 @@
 </form>
 {% endmacro %}
 
-{# `fold` (the contact page): a closed box, `open` when it should start open. #}
-{% macro drafts_section(company, draft_contact, drafts, signal, observation, page, fold=false, open=true) %}
-{% set heading %}Message drafts{% if draft_contact %} for {{ draft_contact.first_name }}{% endif %} ({{ language_names[drafts[0].language] }}){% endset %}
-{% if fold %}<details id="drafts" class="drafts-box"{% if open %} open{% endif %}>
-  <summary><h2>{{ heading }}</h2></summary>
-{% else %}<section id="drafts">
-  <h2>{{ heading }}</h2>{% endif %}
-  <form method="get" action="{{ page }}" class="inline-row drafts-form">
-    <label>signal (check <a href="{{ (company.linkedin | href) ~ '/insights/' if company.linkedin | href else 'https://www.linkedin.com/company/' ~ company.slug ~ '/insights/' }}" target="_blank" rel="noopener">LinkedIn insights</a>)
-      <select name="signal">
-        {% for s in signals %}<option value="{{ s }}"{% if s == signal %} selected{% endif %}>{{ signal_labels[s] }}</option>{% endfor %}
-      </select>
-    </label>
-    <label>language
-      <select name="lang">
-        {% for code, name in language_names.items() %}<option value="{{ code }}"{% if code == drafts[0].language %} selected{% endif %}>{{ name }}</option>{% endfor %}
-      </select>
-    </label>
-    <label class="grow">observation (one sentence from {% if company.website %}<a href="{{ company.website | href }}" target="_blank" rel="noopener">their site</a>{% else %}their site{% endif %} or team; it goes word for word into draft 3)
-      <input name="observation" value="{{ observation }}" placeholder="e.g. Great to see your growth; I just tried your product-led demo.">
-    </label>
-    <button type="submit">Refresh drafts</button>
-  </form>
-  <p class="small">Three deliberately different angles, no AI. Square brackets are yours to fill. Edit in place, copy, or open it in the log form. The language is the contact's draft language, else the company's country; the picker here changes it for this page only.</p>
-  <div class="drafts">
-    {% for d in drafts %}
-    <div class="draft">
-      <div class="small">{{ d.label }}</div>
-      <textarea rows="7" spellcheck="false">{{ d.body }}</textarea>
-      <a class="small" href="/companies/{{ company.slug }}/interactions/new?contact={{ draft_contact.slug if draft_contact else '' }}&channel=linkedin&body={{ d.body | urlencode }}">log as sent</a>
-    </div>
-    {% endfor %}
-  </div>
-{% if fold %}</details>{% else %}</section>{% endif %}
-{% endmacro %}
-
 {# An interaction is always with a person. With `contact` (the contact page)
    the person is fixed; elsewhere you pick one. A note has no direction. #}
 {% macro interaction_form(action, company, values, errors=None, submit='Log interaction', contact=None) %}
@@ -530,4 +494,13 @@
     shows as a button that does nothing. -#}
 {% macro fix_with_ai(request) -%}
 <button type="button" class="fix-with-ai" data-fix="{{ request }}" hidden>Explain and fix with AI</button>
+{%- endmacro %}
+
+{#- The one-click upgrade button (upgrade.js follows it; without JavaScript it posts to
+    /upgrade, a plain page). `up` is upgrade_banner(): kind 'available' or 'restart'. -#}
+{% macro upgrade_form(up) -%}
+<form method="post" action="{{ '/upgrade/restart' if up.kind == 'restart' else '/upgrade' }}" class="inline" data-upgrade>
+  <input type="hidden" name="csrf_token" value="{{ upgrade_csrf() }}">
+  <button type="submit" class="primary">{{ 'Restart now' if up.kind == 'restart' else 'Upgrade to v' ~ up.version }}</button>
+</form>
 {%- endmacro %}

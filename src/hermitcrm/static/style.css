@@ -413,9 +413,6 @@ th .sort { vertical-align: middle; }
 a.toggle-parked { font-size: 12px; margin-left: 12px; }
 
 /* drafts */
-form.drafts-form { flex-wrap: wrap; margin-bottom: 6px; }
-form.drafts-form label.grow { flex: 1 1 320px; }
-form.drafts-form select, form.drafts-form input { width: 100%; }
 .drafts { display: flex; gap: 12px; flex-wrap: wrap; }
 .draft { flex: 1 1 300px; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 5px; padding: 8px 10px; }
 .draft textarea { width: 100%; font-family: inherit; font-size: 13px; margin: 4px 0; }
@@ -953,7 +950,13 @@ form.outreach-skip input { width: auto; margin: 0; }
 form.outreach-build label { margin: 0; }
 form.outreach-build label.check { padding-bottom: 6px; }
 .outreach-card input[name=subject] { width: 100%; }
-.outreach-findings ol { margin: 4px 0; padding-left: 20px; }
+.outreach-notes ol, .outreach-generate ol { margin: 4px 0; padding-left: 20px; }
+.outreach-generate { border: 1px solid var(--line); border-radius: 6px; background: var(--surface); padding: 6px 14px 12px; margin: 10px 0 16px; }
+.outreach-generate h2 { margin: 6px 0; }
+.outreach-generate h3 { font-size: 14px; margin: 12px 0 2px; }
+form.outreach-generate-form { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-end; margin: 8px 0; }
+form.outreach-generate-form label.grow { flex: 1 1 320px; }
+form.outreach-generate-form label.grow input { width: 100%; }
 .outreach-flags { margin: 4px 0; padding-left: 18px; color: var(--muted); }
 /* Replies to interest: one row per reply owed, the same tag and button styles. */
 .outreach-reply-list { list-style: none; padding: 0; margin: 12px 0; }
@@ -963,8 +966,8 @@ form.outreach-build label.check { padding-bottom: 6px; }
 .outreach-reply blockquote, .outreach-their-reply blockquote { margin: 4px 0; padding-left: 10px; border-left: 3px solid var(--subtle); white-space: pre-line; }
 .outreach-reply .tag { background: var(--subtle); border-radius: 3px; padding: 0 5px; font-size: 12px; }
 .outreach-reply .draft-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.outreach-reply form.inline, form.outreach-start { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.outreach-reply form.inline select, form.outreach-start select { width: auto; margin: 0; }
+.outreach-reply form.inline { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.outreach-reply form.inline select { width: auto; margin: 0; }
 .outreach-checks.warning { color: var(--warn); margin: 4px 0; padding-left: 18px; font-size: 12px; }
 .outreach-checks.ok { color: var(--muted); }
 .outreach-text { white-space: pre-wrap; font-family: inherit; background: var(--subtle); padding: 6px 8px; border-radius: 4px; }
@@ -972,7 +975,7 @@ form.outreach-build label.check { padding-bottom: 6px; }
 .confidence-high { color: var(--ok); }
 .confidence-medium { color: var(--warn); }
 .confidence-low { color: var(--muted); }
-.outreach-open, form.outreach-start { margin: 6px 0; }
+.outreach-open { margin: 6px 0; }
 .outreach-history { margin: 8px 0; }
 .outreach-original { opacity: .85; }
 .outreach-edits { margin: 6px 0; padding-left: 20px; }
@@ -991,10 +994,64 @@ button.is-busy::before {
   border-radius: 50%; animation: busy-spin .8s linear infinite;
 }
 .busy-note { margin-left: 8px; color: var(--muted); }
+html.is-working, html.is-working a, html.is-working button { cursor: progress; }
+/* A bar along the top edge of the window, so it shows wherever the page is scrolled to */
+.busy-bar { position: fixed; top: 0; left: 0; right: 0; height: 4px; z-index: 90; overflow: hidden;
+  pointer-events: none; background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.busy-bar::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 30%;
+  background: var(--accent); animation: busy-slide 1.3s ease-in-out infinite; }
 @keyframes busy-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { button.is-busy::before { animation-duration: 3s; } }
+@keyframes busy-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+@media (prefers-reduced-motion: reduce) {
+  button.is-busy::before { animation-duration: 3s; }
+  .busy-bar::before { animation: none; width: 100%; opacity: .6; }   /* a steady bar, no sliding */
+}
 .outreach-card .outreach-email { margin-left: 4px; }
+/* One-click copy next to an email address (copy.js). */
+.copy-btn { font: inherit; font-size: 12px; color: var(--muted); background: none; border: 1px solid var(--line); border-radius: 3px; padding: 0 6px; margin-left: 4px; cursor: pointer; }
+.copy-btn:hover { color: var(--text); background: var(--subtle); }
 
 /* --- "Explain and fix with AI" under a filter problem (macros.html, adjust.js) --- */
 .fix-with-ai { font: inherit; font-size: 12px; color: var(--accent); background: none; border: 0; padding: 0; margin-left: 4px; cursor: pointer; text-decoration: underline; }
 .fix-with-ai[hidden] { display: none; }
+
+/* Sending (hermitcrm/send.py): the strip on Outreach, the banner, the queue. */
+.send-banner { background: var(--error-bg); border: 1px solid var(--error-line); color: var(--text); padding: 8px 12px; border-radius: 4px; margin-bottom: 10px; }
+.send-banner strong { color: var(--danger); }
+.send-strip { margin: 8px 0 12px; }
+.send-strip .send-line { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; margin: 0 0 6px; }
+.send-strip form.inline { display: inline-flex; margin: 0; }
+.send-strip .tag.warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); border-radius: 3px; padding: 0 5px; font-size: 12px; }
+.send-when { margin: 4px 0; }
+.outreach-held, .outreach-card .warning { color: var(--warn); }
+.outreach-schedule-all { margin: 8px 0 12px; }
+table.outreach-times { border-collapse: collapse; margin: 6px 0; }
+table.outreach-times th, table.outreach-times td { text-align: left; padding: 2px 14px 2px 0; font-size: 13px; }
+fieldset.send-days { border: 0; padding: 0; margin: 8px 0; }
+fieldset.send-days legend { font-size: 12px; color: var(--muted); padding: 0; }
+.linkedin-card { flex: none; }
+.linkedin-card .draft-actions, .linkedin-waiting .draft-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
+.linkedin-card form.inline, .linkedin-waiting form.inline { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0; }
+.linkedin-card .tag { background: var(--subtle); border-radius: 3px; padding: 0 5px; font-size: 12px; }
+.linkedin-card .warning, .linkedin-waiting .warning, .linkedin-counters .warning { color: var(--warn); }
+
+/* One-click upgrade (upgrade.js, upgrade.py). The nav box and the panel that
+   follows an upgrade; both use the app's own tokens so a theme.css restyles them. */
+.sidebar-foot .upgrade-box { background: var(--info-bg); border: 1px solid var(--info-line);
+  border-radius: 6px; padding: 8px 10px; }
+.sidebar-foot .upgrade-box p { margin: 0 0 6px; }
+.sidebar-foot .upgrade-box form { margin: 0; }
+.sidebar-foot .upgrade-box button { width: 100%; }
+form.inline[data-upgrade] { display: inline; margin-left: 6px; }
+.upgrade-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(2px); }
+.upgrade-box-dialog { background: var(--surface); color: var(--text); border: 1px solid var(--line);
+  border-radius: 10px; padding: 20px 24px; max-width: 30rem; margin: 16px; }
+.upgrade-box-dialog h2 { margin: 0 0 8px; font-size: 18px; }
+.upgrade-box-dialog p { margin: 6px 0; }
+.upgrade-actions { display: flex; gap: 8px; margin-top: 14px; }
+.upgrade-bar { height: 4px; margin-top: 14px; border-radius: 2px; overflow: hidden; background: var(--subtle); }
+.upgrade-bar::before { content: ""; display: block; height: 100%; width: 35%; background: var(--accent);
+  animation: upgrade-slide 1.2s ease-in-out infinite; }
+@keyframes upgrade-slide { from { margin-left: -35%; } to { margin-left: 100%; } }
+@media (prefers-reduced-motion: reduce) { .upgrade-bar::before { animation: none; width: 100%; } }

@@ -18,6 +18,8 @@ names are made up."""
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from hermitcrm import cli, outreach
@@ -201,10 +203,46 @@ def test_the_edits_report_leaves_out_other_answers_and_says_when_empty(client, r
     assert "plainer verb" not in capsys.readouterr().out
 
 
-def test_the_explainer_box_starts_hidden_and_says_it_helps_the_ai(client, root):
-    drafted(client, root)
+def card_form(page: str, item_id: str) -> str:
+    """The Mark ready form of one card, from its opening tag to its closing tag."""
+    start = page.index(f'action="/outreach/{item_id}/ready"')
+    return page[start:page.index("</form>", start)]
+
+
+def test_one_reason_box_serves_the_edit_and_the_regenerate(client, root):
+    item = drafted(client, root)
     page = client.get("/outreach").text
-    assert 'data-note-for=' in page and 'outreach-note" data-note-for' in page
-    box = page[page.index("data-note-for"):]
-    assert box[:box.index(">")].endswith("hidden")            # revealed by the page script on an edit
+    form = card_form(page, item.id)
+    assert form.count('name="note"') == 1                      # one box, not one per action
+    label = form[form.rindex("<label", 0, form.index('name="note"')):]
+    assert "hidden" not in label[:label.index(">")]            # regenerate needs it at any time
+    assert f'formaction="/outreach/{item.id}/regenerate"' in form
+    assert 'name="strong"' in form                             # the stronger-model choice rides along
+    assert f'<form method="post" action="/outreach/{item.id}/regenerate"' not in page
     assert "helps improve the AI" in page
+    assert "Why this change?" not in page and "what was wrong?" not in page
+
+
+def test_the_slow_ai_buttons_on_a_card_say_that_they_are_working(client, root):
+    # Both wait on the AI with the old page still showing; static/busy.js turns
+    # the clicked button into a spinner, but only for a button with data-busy.
+    item = drafted(client, root)
+    form = card_form(client.get("/outreach").text, item.id)
+    for label in ("Regenerate", "Save &amp; check again"):
+        [tag] = re.findall(rf"<button[^>]*>{label}</button>", form)
+        assert 'data-busy="' in tag, label
+    [ready] = re.findall(r"<button[^>]*>Mark ready</button>", form)
+    assert "data-busy" not in ready                            # no AI call: no spinner
+
+
+def test_a_regenerate_posted_from_the_edit_form_keeps_the_reason_and_drops_unsaved_text(
+        client, root, fake):
+    item = drafted(client, root)
+    response = post(client, f"/outreach/{item.id}/regenerate", subject=item.subject,
+                    body=item.body.replace("caught my eye", "stood out"), pitch="",
+                    note="too formal", tags="too-long", strong="1")
+    assert "Regenerated" in query(response)["flash"]
+    again = reread(root, item.id)
+    [old] = again.earlier
+    assert old.why == "too formal" and old.edits == []         # the box was never saved as an edit
+    assert again.edits == []

@@ -26,9 +26,11 @@ import subprocess
 import sys
 import tomllib
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 
-from . import __version__, backup, bcc, guard, migrations, schedule, secrets, updates, usertheme
+from . import (__version__, backup, bcc, guard, migrations, schedule, secrets, send, sendqueue,
+               updates, usertheme)
 from . import setup as setup_steps
 from .datafolder import SKILL, is_data_folder
 from .enrich import Enricher
@@ -59,7 +61,8 @@ def run_checks(root: Path, *, online: bool = False, env: dict | None = None,
                which=shutil.which, runner=subprocess.run, platform: str | None = None,
                home: Path | None = None, python: tuple = tuple(sys.version_info[:3]),
                open_mailbox=None, update_fetcher=None, update_cache: Path | None = None,
-               enricher: Enricher | None = None) -> list[Check]:
+               enricher: Enricher | None = None, send_smtp=None, send_imap=None,
+               now=None) -> list[Check]:
     import os
 
     root = Path(root)
@@ -174,6 +177,9 @@ def run_checks(root: Path, *, online: bool = False, env: dict | None = None,
     except Exception as exc:
         add("backup", WARN, f"could not check: {exc}")
 
+    sending_checks(add, root, config, state, online=online, env=env, runner=runner,
+                   platform=platform, send_smtp=send_smtp, send_imap=send_imap, now=now)
+
     try:
         gone = guard.missing(root)
         if gone:
@@ -234,6 +240,84 @@ def run_checks(root: Path, *, online: bool = False, env: dict | None = None,
     result = updates.look(config, fetcher=update_fetcher, cache=update_cache, env=env)
     add("update", WARN if result.state == updates.NEWER else OK, result.sentence())
     return checks
+
+
+def mac_sleep_minutes(runner, platform: str) -> int | None:
+    """Minutes before the Mac sleeps on power (`pmset -g custom`, the AC block);
+    0 = never, None = unknown or not a Mac. Read only: Hermit never changes it."""
+    if platform != "darwin":
+        return None
+    try:
+        proc = runner(["pmset", "-g", "custom"], capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if proc.returncode != 0:
+        return None
+    block = ""
+    for line in (proc.stdout or "").splitlines():
+        if line.strip().endswith(":") and "Power" in line:
+            block = line.strip()
+            continue
+        parts = line.split()
+        if block.startswith("AC") and len(parts) >= 2 and parts[0] == "sleep":
+            try:
+                return int(parts[1])
+            except ValueError:
+                return None
+    return None
+
+
+def sending_checks(add, root: Path, config: dict, sched: dict, *, online: bool, env: dict,
+                   runner, platform: str, send_smtp=None, send_imap=None, now=None) -> None:
+    """The checks for sending email from the app (spec part 08); silent while it is
+    off. A login that fails shows the server's own words."""
+    settings = send.settings_from_config(config)
+    if not settings.enabled:
+        return
+    if settings.missing:
+        add("sending", FAIL, settings.missing)
+        return
+    for problem in settings.problems:
+        add("sending config", WARN, problem)
+    found = secrets.get("send_password", root, {"send_keychain_service": settings.keychain_service},
+                        account=settings.smtp_user, env=env, runner=runner, platform=platform)
+    add("send password", OK if found else FAIL,
+        "found (not shown)" if found else
+        f"no app password for {settings.smtp_user}; save it in Settings > Sending")
+    if found and online:
+        rows = send.login_check(root, config, smtp_factory=send_smtp, imap_factory=send_imap,
+                                password=found.replace(" ", ""))
+        for name, status, detail in rows:
+            add(name, {"ok": OK, "warn": WARN}.get(status, FAIL), detail)
+    elif found:
+        add("send login", OK, "not checked; add --online (no mail is sent)")
+    add("send job", OK if sched.get("send_installed") else WARN,
+        "the worker runs every few minutes" if sched.get("send_installed") else
+        "nothing sends the queue; run hermitcrm schedule install --send "
+        "(or Settings > Sending > Turn on scheduled sending)")
+    try:
+        state = send.SendState.load(root)
+        queued = sendqueue.queued_items(root)
+        when = now or datetime.now()
+        late = [i for i in queued if i.send_at is not None
+                and i.send_at <= when - timedelta(minutes=settings.overdue)]
+        if settings.paused:
+            add("send queue", WARN, f"paused (the Pause button), {len(queued)} queued")
+        elif state.is_paused(when):
+            add("send queue", WARN, f"paused ({state.kind}): {state.message}")
+        elif late:
+            add("send queue", WARN, f"{len(late)} of {len(queued)} queued are overdue; the Mac "
+                "may have been asleep (the next tick plans them again, without a burst)")
+        else:
+            add("send queue", OK, f"{len(queued)} queued, nothing overdue")
+    except Exception as exc:
+        add("send queue", WARN, f"could not check: {exc}")
+    minutes = mac_sleep_minutes(runner, platform)
+    if minutes:
+        add("mac sleep", WARN, f"the Mac sleeps after {minutes} min on power; scheduled email only "
+            "goes out while it is awake. Energy settings, not changed by Hermit CRM")
+    elif minutes == 0:
+        add("mac sleep", OK, "the Mac does not sleep on power")
 
 
 def report(checks: list[Check]) -> tuple[str, int]:

@@ -22,7 +22,7 @@ import pytest
 import yaml
 
 from hermitcrm import cli, datafolder, doctor, migrations
-from hermitcrm.datafolder import (AGENT_ADJUST_RULES, AGENT_RULES, AGENT_SKILL, SKILL,
+from hermitcrm.datafolder import (AGENT_ADJUST_RULES, AGENT_RULES, AGENT_SEND_RULES, AGENT_SKILL, SKILL,
                                   init_folder)
 
 ROUTINES_STATE = "inbox/.last-routines.json"
@@ -43,7 +43,7 @@ def at_format_7(root, claude_md=None, agents_md=None, gitignore=None):
     and a .gitignore from before routines existed."""
     init_folder(root)
     subprocess.run(["rm", "-rf", str(root / ".claude" / "skills")], check=True)
-    old = AGENT_RULES.replace("\n" + AGENT_ADJUST_RULES, "")
+    old = AGENT_RULES.replace("\n" + AGENT_SEND_RULES, "").replace("\n" + AGENT_ADJUST_RULES, "")
     for name, text in (("CLAUDE.md", claude_md), ("AGENTS.md", agents_md)):
         if text is False:
             (root / name).unlink()
@@ -104,8 +104,9 @@ def test_init_writes_the_skill_and_the_section(tmp_path, demo):
     assert SKILL in git(root, "ls-files").splitlines()  # a clone has it too
     for name in ("CLAUDE.md", "AGENTS.md"):
         text = (root / name).read_text()
-        assert text.endswith(AGENT_ADJUST_RULES)
+        assert text.endswith(AGENT_SEND_RULES)
         assert text.index("Backups and undo") < text.index("Adjusting Hermit")
+        assert text.index("Adjusting Hermit") < text.index("Sending mail")
     assert ROUTINES_STATE in (root / ".gitignore").read_text().splitlines()
     assert git(root, "status", "--porcelain") == ""
 
@@ -117,9 +118,13 @@ def test_migration_8_brings_a_format_7_folder_level_with_a_new_one(tmp_path):
     root = at_format_7(tmp_path / "crm")
     before = git(root, "rev-parse", "HEAD")
     note = migrations.ensure_current(root)
-    assert note.startswith("migrate: data format 7 → 10 (agents learn to adjust Hermit "
+    assert note.startswith("migrate: data format 7 → 14 (agents learn to adjust Hermit "
                            "(/hermit skill); interactions get an optional angle; outreach drafts record "
-                           "the lessons they used and your reason chips): 4 file(s) changed")
+                           "the lessons they used and your reason chips; outreach drafts record the "
+                           "examples they were shown; outreach items get the keys for scheduling, "
+                           "sending and LinkedIn sessions; interactions may have the source outreach "
+                           "(nothing to change in a file); agents never schedule or send mail unasked "
+                           "(CLAUDE.md, AGENTS.md)): 4 file(s) changed")
     assert git(root, "rev-list", "--count", f"{before}..HEAD") == "1"
     committed = git(root, "show", "--name-only", "--format=", "HEAD").splitlines()
     assert set(committed) == {".hermitcrm-format", SKILL, "CLAUDE.md", "AGENTS.md",
@@ -151,12 +156,17 @@ def test_migration_8_dry_run_lists_exactly_what_it_would_change(tmp_path):
     root = at_format_7(tmp_path / "crm", agents_md=False)
     claude = (root / "CLAUDE.md").read_bytes()
     text = migrations.dry_run(root)
-    assert "Data format 7 → 10:" in text
+    assert "Data format 7 → 14:" in text
     assert "8. agents learn to adjust Hermit (/hermit skill): 3 file(s)" in text
-    listed = [line.strip() for line in text.splitlines()[2:-3]]
+    listed = [line.strip() for line in text.splitlines()[2:5]]
     assert listed == [SKILL, "CLAUDE.md", ".gitignore"]
-    assert text.splitlines()[-3].strip() == "9. interactions get an optional angle: 0 file(s)"
-    assert text.splitlines()[-2].strip().startswith("10. outreach drafts record")
+    lines = [line.strip() for line in text.splitlines()]
+    assert lines[5] == "9. interactions get an optional angle: 0 file(s)"
+    assert lines[6].startswith("10. outreach drafts record")
+    assert lines[7].startswith("11. outreach drafts record")
+    assert lines[8].startswith("12. outreach items get the keys")
+    assert lines[9].startswith("13. interactions may have the source")
+    assert lines[10].startswith("14. agents never schedule or send mail") and lines[11] == "CLAUDE.md"
     assert not (root / SKILL).exists() and (root / "CLAUDE.md").read_bytes() == claude
     assert migrations.current_format(root) == 7
 
@@ -179,9 +189,10 @@ def test_migration_8_without_claude_or_agents_md_writes_only_the_skill(tmp_path)
 
 
 def test_migration_8_leaves_rules_that_already_point_at_adjust(tmp_path):
-    root = at_format_7(tmp_path / "crm", claude_md="Run `hermitcrm help adjust` first.\n")
+    mine = "Run `hermitcrm help adjust` first. For mail: `hermitcrm help sending`.\n"
+    root = at_format_7(tmp_path / "crm", claude_md=mine)
     migrations.ensure_current(root)
-    assert (root / "CLAUDE.md").read_text() == "Run `hermitcrm help adjust` first.\n"
+    assert (root / "CLAUDE.md").read_text() == mine
     assert "Adjusting Hermit" in (root / "AGENTS.md").read_text()
 
 

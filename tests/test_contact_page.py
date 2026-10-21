@@ -198,14 +198,11 @@ def test_the_contact_timeline_drops_the_name_and_no_subject(client, store):
 # ------------------------------------------------------------ the folded boxes
 
 
-def test_drafts_start_open_until_a_first_message_went_out(client, store):
-    assert '<details id="drafts" class="drafts-box" open>' in client.get(JANE).text
-    store.create_interaction("acme", channel="linkedin", direction="out", contact="jane-doe",
-                             date=days_ago(2), body="Hi Jane")
+def test_the_contact_page_links_to_generate_outreach_and_has_no_drafts_box(client, store):
     page = client.get(JANE).text
-    assert '<details id="drafts" class="drafts-box">' in page
-    assert '<details id="drafts" class="drafts-box" open>' in \
-        client.get(JANE + "?signal=hiring").text
+    assert 'href="/outreach?contact=acme/jane-doe#generate"' in page and "Generate outreach" in page
+    assert 'id="drafts"' not in page and "Message drafts" not in page
+    assert 'class="outreach-start"' not in page and "Refresh drafts" not in page
 
 
 def test_merge_and_delete_live_in_the_closed_more_box(client, store):

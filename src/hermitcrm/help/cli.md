@@ -15,10 +15,12 @@ hermitcrm sample add|remove                the made-up sample account in this fo
 hermitcrm setup                            the setup questions again (you, BCC, backup, calendar)
 hermitcrm serve [--port N]                 the web app on 127.0.0.1 (port from config.toml, default 8765)
 hermitcrm doctor [--online]                one ok/warn/fail line per check; exit 1 on a failure
-hermitcrm schedule install [--at HH:MM] [--serve] [--backup-every MIN | --no-backup]
+hermitcrm schedule install [--at HH:MM] [--serve] [--send] [--backup-every MIN | --no-backup]
                                         daily sync --apply and a backup every 5 minutes, via launchd
-                                        or systemd (schtasks printed on Windows)
-hermitcrm schedule remove|status
+                                        or systemd (schtasks printed on Windows); --send also installs
+                                        the worker that sends scheduled email every 3 minutes
+hermitcrm schedule remove [--send]         remove the jobs (--send: only the sending worker)
+hermitcrm schedule status
 hermitcrm migrate [--dry-run]              upgrade the data format (every command does this automatically);
                                         also puts back a missing /hermit skill (.claude/skills/hermit/)
 hermitcrm help [TOPIC]                     these pages; no topic prints the index and the topic list
@@ -65,7 +67,23 @@ hermitcrm outreach sent ID                 you sent it (logging the message does
 hermitcrm outreach skip ID --reason R [--note TEXT]
                                         drop an item: bad-fit, wrong-person, bad-timing, bad-draft,
                                         already-in-contact or other
+hermitcrm outreach schedule ID... | --all-ready [--dry-run]
+                                        queue approved email to go out over the working day, spaced
+                                        and capped; --dry-run shows the times and writes nothing
+hermitcrm outreach unschedule ID           take a queued item out of the queue (back to ready)
+hermitcrm outreach front ID                make a queued item the next to go out
+hermitcrm outreach retry ID                a failed item back to ready
+hermitcrm outreach send-now ID             send one approved email now (same checks, counts toward the cap)
+hermitcrm outreach opt-out COMPANY/CONTACT
+                                        they asked not to be written to: suppress the address and skip
+                                        their open items
+hermitcrm send test [--to ADDRESS]         log in over SMTP and IMAP and mail a test to yourself
+hermitcrm send status                      on/off, today's count against the cap, the queue, why paused
+hermitcrm send due [--dry-run]             one tick of the worker (at most one email per run)
+hermitcrm send pause | resume              the kill switch, and lifting any pause
 ```
+
+See [Sending](/help/sending) for how it works.
 
 ## Learning
 
@@ -79,6 +97,9 @@ hermitcrm learn accept ID [--text T]       apply a pending proposal to the Lesso
 hermitcrm learn reject ID                  reject it for good
 hermitcrm learn retire LESSON [--approach A]        remove a lesson
 hermitcrm learn move LESSON worked|failed|open [--approach A]   move a lesson
+hermitcrm learn exemplars [--approach A] [--item ID]   the examples a draft can be shown; --item previews one prompt block
+hermitcrm learn pin|exclude|unmark ID      pin an example, never show it (the way to delete one), or clear that
+hermitcrm learn angles [--approach A]      the angle table: sends, intervals, the next experiment; no AI
 hermitcrm learn suggest                    list the word-limit and never-write suggestions
 hermitcrm learn apply SUGGESTION           apply one; see `hermitcrm help learning`
 ```

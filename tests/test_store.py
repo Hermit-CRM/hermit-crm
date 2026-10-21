@@ -17,7 +17,8 @@ from datetime import date, datetime
 import pytest
 
 from hermitcrm.models import StageChange, ValidationError
-from hermitcrm.store import Store, build_file, load_config, normalise_body, split_file
+from hermitcrm.store import (DEFAULT_CONFIG, Store, build_file, load_config, normalise_body,
+                             split_file)
 from conftest import FIXED_NOW
 
 
@@ -30,6 +31,10 @@ def fresh(store):
     s = Store(store.root, clock=lambda: FIXED_NOW)
     s.load()
     return s
+
+
+# Sending (part 08) is pinned in test_send_foundations.py; these tests carry the keys along.
+SEND_DEFAULTS = {k: v for k, v in DEFAULT_CONFIG.items() if k.startswith(("send_", "linkedin_"))}
 
 
 # ------------------------------------------------------------------ config
@@ -64,7 +69,8 @@ def test_load_config_defaults(tmp_path):
                    "calendar_keychain_service": "crm-calendar",
                    "calendar_keychain_account": "ics", "calendar_lookback_days": 30,
                    "calendar_ignore_titles": [], "calendar_min_attendees": 2,
-                   "update_check": True, "update_url": "", "feedback_email": ""}
+                   "update_check": True, "update_url": "", "feedback_email": "",
+                   **SEND_DEFAULTS}
 
 
 def test_load_config_reads_toml(tmp_path):
@@ -98,7 +104,8 @@ def test_load_config_reads_toml(tmp_path):
                    "calendar_keychain_service": "crm-calendar",
                    "calendar_keychain_account": "ics", "calendar_lookback_days": 30,
                    "calendar_ignore_titles": [], "calendar_min_attendees": 2,
-                   "update_check": True, "update_url": "", "feedback_email": ""}
+                   "update_check": True, "update_url": "", "feedback_email": "",
+                   **SEND_DEFAULTS}
 
 
 # ------------------------------------------------------------------ clock

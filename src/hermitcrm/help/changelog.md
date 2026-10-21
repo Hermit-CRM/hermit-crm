@@ -2,12 +2,70 @@
 
 What changed in each version of Hermit CRM, newest first. Versions follow semantic versioning; a change to the data format always comes with an automatic migration.
 
-To upgrade, run the command the update notice names (usually `uv tool install hermitcrm@latest`), or unpack the new download and run `uv tool install --reinstall .` in it, then restart the app. The notes for a version say whether your folder is migrated.
+To upgrade, press **Upgrade** in the notice (the sidebar, or Settings > About): it installs the new version, restarts the app and asks you to reload. Where it cannot do that the notice names the command instead (usually `uv tool install hermitcrm@latest`), or unpack the new download and run `uv tool install --reinstall .` in it, then restart the app. The notes for a version say whether your folder is migrated.
 
 Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups and undo](/help/backups)
 
 ## Unreleased
 
+- **One-click upgrade.** When a newer version is published, the notice in the
+  sidebar and in Settings > About has an **Upgrade** button. One click downloads
+  and installs it with the tool that installed Hermit CRM (uv, pipx or pip),
+  checks that the new files start, restarts the app and asks you to **Reload**.
+  Other open tabs ask you to reload too. While the files are replaced the app
+  answers "upgrading" instead of serving pages. It is offered only when the app
+  listens on this computer alone (no password, so not on a network), is not on
+  Windows, and takes its updates from PyPI; otherwise the notice still names the
+  command. Upgrading to this version is by hand, as before: the running app has
+  no button yet.
+- **A server that is older than its files says so.** If Hermit CRM is upgraded
+  from a terminal or by an assistant while the app keeps running, the app used
+  to read the new files with the old code and pages broke with an error that a
+  reload could not fix. It now notices, shows **Restart needed** with a **Restart
+  now** button, and if a page breaks in that state the error page explains it
+  instead of saying "Internal Server Error".
+- **A server that stays up still hears of new releases.** The update check ran
+  once, when the app started; it now asks again as pages are opened (still at
+  most once a day, the same request, no identifiers).
+- **One path to outreach, and one list of notes.** The contact page's Message
+  drafts box is gone. **Generate outreach** opens [Outreach](/help/outreach)
+  with that person ready: channel, draft type, signal, an observation sentence,
+  a language for the card, and the notes the draft will use. A finding is now a
+  note: research saves what it finds as notes on the contact, the card's Notes
+  panel is the same list as the contact's and the company's timeline, and a
+  regenerate reads the notes as they are. Mark ready no longer writes a summary
+  note. A `layout.toml` that still names `drafts` keeps working. Your data
+  folder needs no migration.
+- **Copy an email address with one click**, on Outreach cards and on the contact
+  page.
+- **Send approved email from the app.** Turn it on in Settings > Email &
+  calendar > Sending, with a mailbox of its own and an app password. On the
+  Outreach page an approved email card has **Send now** and **Schedule**;
+  **Schedule all ready email** shows the proposed times and asks you to confirm.
+  A job (`hermitcrm schedule install --send`, or **Turn on scheduled sending**)
+  sends one queued email every 3 minutes, spaced over your working window with
+  jitter, a daily cap (50, starting at 10 a day; after two days in a row above 150 the third is
+  held at 150), a ramp for a new mailbox, a minimum gap and a day between two
+  mails to one company. Before every send it checks again: the text is still what
+  you approved, nobody has written to you (in the CRM and in the sending
+  mailbox), the address is not suppressed. A refused login, a quota error or a
+  bounce spike pauses everything with a red banner; **Pause** is the kill switch.
+  The mail is plain text with its Message-ID written first, logged once with
+  `source: outreach`, and a crash between sending and logging never sends twice.
+  `hermitcrm send` and `hermitcrm outreach schedule|unschedule|send-now|retry|front`
+  do the same from the terminal; `hermitcrm help sending` has the details. Off by
+  default. Data format 14: new keys on outreach items, a new interaction source and
+  the agent rule that an agent never schedules or sends unasked; the migration is
+  automatic.
+- **Bounces and opt-outs.** Delivery reports in the sending mailbox put the address
+  on a suppression list (`outreach/suppressed.toml`), note it on the contact and
+  flag the item; **Opted out** (on a reply, on the contact page, or `hermitcrm
+  outreach opt-out`) does the same and skips their open items.
+- **A paced LinkedIn session.** Outreach > LinkedIn session puts one approved note
+  or message in front of you at a time with a countdown, a session of ten and a
+  break, under daily and weekly caps. You send each one on linkedin.com yourself:
+  Hermit copies the text and opens the profile, then logs what you sent. Nothing
+  is automated, because LinkedIn's rules forbid it.
 - **A reply keeps their subject.** A reply to interest or a follow-up no longer
   gets a "subject is N characters" warning when the thread's `Re:` subject is
   long: the 60 character limit is for a first touch, where you write the

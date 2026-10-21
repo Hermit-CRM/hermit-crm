@@ -3,7 +3,7 @@
 {# The header (name, the line under it, the action row, the status strip)
    stays on top. Below it the sections come in layout.toml's order (help:
    adjust-layout); their names, in the default order: details, tasks,
-   quick-add, timeline, drafts, merge, delete. Merge and delete, the rare and
+   quick-add, timeline, merge, delete. Merge and delete, the rare and
    destructive ones, always sit in the closed "More" box at the bottom, in the
    same order. `hide` is the fields layout.toml hides on this page. #}
 {% macro ago(days) -%}
@@ -27,9 +27,17 @@
   {% if 'quick-add' in sections %}<a class="button" href="#quick-add" data-focus="#quick-add select[name=channel]">Log interaction</a>
   <a class="button" href="?channel=note#quick-add" data-focus="#quick-add textarea[name=body]">Add note</a>{% endif %}
   {% if 'tasks' in sections %}<a class="button" href="#tasks" data-focus="#tasks input[name=text]">Add task</a>{% endif %}
+  {% if outreach_open %}{% set oi = outreach_open %}<a class="button" href="/outreach?tab={{ 'ready' if oi.state == 'ready' else ('replies' if oi.kind == 'reply-to-interest' else ('follow-ups' if oi.kind == 'follow-up' else 'drafts')) }}#item-{{ oi.id }}" title="A {{ oi.kind | replace('-', ' ') }} by {{ oi.channel }} is {{ oi.state }}">Open outreach draft</a> <span class="small quiet">{{ oi.state }}</span>
+  {% else %}<a class="button" href="/outreach?contact={{ company.slug }}/{{ contact.slug }}#generate" title="{% if outreach_problem %}{{ outreach_problem }}{% else %}Open Outreach with {{ contact.first_name or contact.name }} ready to generate: nothing runs until you press Generate{% endif %}">Generate outreach</a>{% endif %}
   <span class="quiet">
     {% if contact.email and 'email' not in hide %}<a href="mailto:{{ contact.email }}" data-copy-email="{{ contact.email }}" title="Copy {{ contact.email }}; without a script this opens your mail app">copy email</a>{% endif %}
     {% if contact.linkedin and 'linkedin' not in hide %}<a href="{{ contact.linkedin | href }}" target="_blank" rel="noopener">linkedin</a>{% endif %}
+    {% if contact.email %}
+    <form method="post" action="/companies/{{ company.slug }}/contacts/{{ contact.slug }}/opt-out" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="secondary" title="They asked not to be written to: their email address goes on the suppression list and their open outreach items are skipped" onclick="return confirm({{ ("Put " ~ contact.name ~ "'s email address on the suppression list? Nothing more is sent to it, and their open outreach items are skipped.") | tojson | forceescape }})">Opted out</button>
+    </form>
+    {% endif %}
     {% if enricher and enricher.available %}
     <form method="post" action="/companies/{{ company.slug }}/contacts/{{ contact.slug }}/enrich" class="inline enrich">
       <button type="submit" title="Look up missing fields with web search via the {{ enricher.provider_name }} CLI (uses credits); you confirm before anything is saved">Enrich</button>
@@ -37,18 +45,6 @@
     {% endif %}
   </span>
 </div>
-{% if outreach_open %}{% set oi = outreach_open %}
-<p class="outreach-open small">Outreach: a {{ oi.kind }} by {{ oi.channel }} is <strong>{{ oi.state }}</strong>. <a href="/outreach?tab={{ 'ready' if oi.state == 'ready' else ('replies' if oi.kind == 'reply-to-interest' else ('follow-ups' if oi.kind == 'follow-up' else 'drafts')) }}#item-{{ oi.id }}">Review it on Outreach</a></p>
-{% else %}
-<form method="post" action="/outreach/build" class="inline outreach-start">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <input type="hidden" name="contact" value="{{ company.slug }}/{{ contact.slug }}">
-  <input type="hidden" name="back" value="/companies/{{ company.slug }}/contacts/{{ contact.slug }}">
-  <select name="channel" aria-label="Outreach channel">{% for c in outreach_channels %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
-  <select name="kind" aria-label="Draft type"><option value="first-touch"{% if outreach_kind == 'first-touch' %} selected{% endif %}>first touch</option><option value="reply-to-interest"{% if outreach_kind == 'reply-to-interest' %} selected{% endif %}>reply to interest</option><option value="follow-up"{% if outreach_kind == 'follow-up' %} selected{% endif %}>follow-up</option></select>
-  <button type="submit" class="secondary" title="{% if outreach_kind == 'reply-to-interest' %}{{ contact.first_name or contact.name }} replied with interest: draft an answer{% elif outreach_kind == 'follow-up' %}Your last message to {{ contact.first_name or contact.name }} has had no answer: draft a short follow-up{% else %}Research {{ contact.first_name or contact.name }} and draft a first touch{% endif %} with your AI CLI; you review it on Outreach. Nothing is sent.">{% if outreach_kind == 'reply-to-interest' %}Draft a reply{% elif outreach_kind == 'follow-up' %}Draft a follow-up{% else %}Research &amp; draft{% endif %}</button>
-</form>
-{% endif %}
 <dl class="status-strip">
   <div>
     <dt>Last touch</dt>
@@ -80,7 +76,7 @@
   <dl class="fields">
     {% if 'title' not in hide %}<dt>title</dt><dd>{{ contact.title or '' }}{% if not contact.title %}<a href="{{ add }}">+ title</a>{% endif %}</dd>{% endif %}
     {% if 'role' not in hide %}<dt>role</dt><dd>{{ contact.role or '' }}{% if not contact.role %}<a href="{{ add }}">+ role</a>{% endif %}</dd>{% endif %}
-    {% if 'email' not in hide %}<dt>email</dt><dd>{% if contact.email %}<a href="mailto:{{ contact.email }}">{{ contact.email }}</a>{% else %}<a href="{{ add }}">+ email</a>{% endif %}</dd>{% endif %}
+    {% if 'email' not in hide %}<dt>email</dt><dd>{% if contact.email %}<a href="mailto:{{ contact.email }}">{{ contact.email }}</a> <button type="button" class="copy-btn" data-copy-text="{{ contact.email }}" title="Copy {{ contact.email }}">copy</button>{% else %}<a href="{{ add }}">+ email</a>{% endif %}</dd>{% endif %}
     {% if 'phone' not in hide %}<dt>phone</dt><dd>{{ contact.phone or '' }}{% if not contact.phone %}<a href="{{ add }}">+ phone</a>{% endif %}</dd>{% endif %}
     {% if 'linkedin' not in hide %}<dt>linkedin</dt><dd>{% if contact.linkedin %}<a href="{{ contact.linkedin | href }}" target="_blank" rel="noopener">open</a>{% else %}<a href="{{ add }}">+ linkedin</a>{% endif %}</dd>{% endif %}
     {% if 'language' not in hide %}{% set lang = (contact.language or '') | trim | lower %}<dt>draft language</dt><dd>{{ language_names.get(lang, lang) if lang else 'from country' }}</dd>{% endif %}
@@ -113,12 +109,6 @@
   <h2>Interactions ({{ interactions | length }})</h2>
   {{ m.timeline(company, interactions, contact_page=true) }}
 </section>
-{% elif section == 'drafts' %}
-{# Open when you still need a first message, or while you are working the
-   drafts form (its Refresh reloads the page with these parameters). #}
-{% set q = request.query_params %}
-{{ m.drafts_section(company, contact, drafts, signal, observation, '/companies/' ~ company.slug ~ '/contacts/' ~ contact.slug,
-                    fold=true, open=(not s.has_outbound or q.get('signal') or q.get('observation') or q.get('lang'))) }}
 {% endif %}{% endfor %}
 <details class="more-box">
   <summary>More: {% for x in more %}{{ x }}, {% endfor %}slug and dates</summary>

@@ -126,6 +126,50 @@
   {% endfor %}
 </section>
 
+<section id="examples">
+  <h2>Examples</h2>
+  {% if example_error %}<p class="warning-box">{{ example_error }}</p>{% else %}
+  <p class="small">Instead of a rule, the drafter can be shown the closest earlier cases: how you changed a similar draft, or a similar message that got a positive reply, a deal or a win. Names are replaced; nothing is shown unless it is close enough. <a href="/settings#playbook">Setting</a>: <strong>{{ example_mode }}</strong>{% if example_mode == 'off' %} (the draft prompt is not changed){% else %}, {{ example_count }} per first-touch draft{% endif %}.</p>
+  <p class="small quiet">{{ example_counts.outcome }} from messages that worked, {{ example_counts.correction }} from your corrections{% if example_counts.pinned %}, {{ example_counts.pinned }} pinned{% endif %}{% if example_counts.excluded %}, {{ example_counts.excluded }} excluded{% endif %}. Early on corrections lead; later the ones with the highest rung do. A card shows which examples a draft was given.</p>
+  {% if examples %}
+  <ul class="learning-examples">
+    {% for row in examples %}{% set e = row.e %}
+    <li id="example-{{ e.id }}">
+      <p><strong>{{ 'Worked' if e.kind == 'outcome' else 'Corrected' }}</strong>: {{ e.label }}{% if row.links %} &middot; <a href="{{ row.links[0].url }}">{{ row.links[0].label }}</a>{% endif %}{% if e.mark == 'pin' %} <span class="tag">pinned</span>{% elif e.mark == 'exclude' %} <span class="tag">excluded</span>{% endif %}</p>
+      <details class="small"><summary>What the drafter would see</summary>
+        <pre class="small">{{ e.shown }}</pre></details>
+      <div class="draft-actions">
+        {% for mark, label in (('pin', 'Pin'), ('exclude', 'Exclude'), ('clear', 'Clear')) if (mark == 'clear' and e.mark) or (mark != 'clear' and e.mark != mark) %}
+        <form method="post" action="/learning/exemplar" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="approach" value="{{ approach }}">
+          <input type="hidden" name="exemplar" value="{{ e.id }}">
+          <input type="hidden" name="mark" value="{{ mark }}">
+          <button type="submit" class="secondary">{{ label }}</button>
+        </form>
+        {% endfor %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="small empty">None yet. Corrections appear when you edit a draft and say why, or change it a lot; outcome examples appear when a message you sent gets a positive reply, a deal or a win. Exclude is how you delete one (a message that worked for a one-off reason).</p>{% endif %}
+
+  <h3>Angles</h3>
+  <p class="small quiet">A send counts as a hit when it reached: {{ angle_rung }}. {{ angle_sends }} first-touch send{{ 's' if angle_sends != 1 }} so far; angle sampling{% if sampling %} is <strong>on</strong> and acts from {{ angle_min }} sends{% else %} is off (the AI chooses the angle){% endif %}.</p>
+  {% if angle_rows %}
+  <table class="small">
+    <tr><th>Angle</th><th>Sends</th><th>Hits</th><th>Range (80%)</th><th></th></tr>
+    {% for r in angle_rows %}
+    <tr><td>{{ r.angle }}</td><td>{{ r.n }}</td><td>{{ r.hits }}</td>
+      <td>{{ (r.low * 100) | round | int }}% to {{ (r.high * 100) | round | int }}%</td>
+      <td>{{ 'wide, still exploring' if r.exploring else 'narrowing' }}</td></tr>
+    {% endfor %}
+  </table>
+  {% if angle_note %}<p class="small">Next experiment: {{ angle_note }}.</p>{% endif %}
+  {% else %}<p class="small empty">Fewer than two angles are in play.</p>{% endif %}
+  {% endif %}
+</section>
+
 <section id="suggestions">
   <h2>Suggestions</h2>
   {% for row in suggestions %}{% set x = row.suggestion %}
