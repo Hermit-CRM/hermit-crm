@@ -76,9 +76,9 @@ from pathlib import Path
 from typing import Protocol
 from urllib.parse import urlparse
 
-from . import followups, messaging, playbook
+from . import followups, frameworks, messaging, playbook
 from .enrich import WEB_ONLY, EnrichError
-from .frameworks import Framework
+from .frameworks import HOUSE, Framework
 from .models import (
     ANGLES, DO_NOT_CONTACT, INTERESTED, ValidationError, do_not_contact, fmt_datetime,
     normalise_website, parse_datetime, slugify, unique_slug,
@@ -1089,6 +1089,16 @@ CHANNEL_TEXT = {
                  "accept: at most {pitch_max_chars} characters, the offer in one line, one "
                  "question. No subject."),
 }
+# The channel line of a first touch written with a framework other than house: the framework
+# block says how many questions, so the line does not.
+FRAMEWORK_CHANNEL_TEXT = {
+    "email": ("Channel: email. A subject of at most {subject_max} characters; the body at "
+              "most {body_max_words} words, greeting and sign-off included."),
+    "linkedin": ("Channel: LinkedIn. body is the connection note: at most {note_max_chars} "
+                 "characters, no pitch, at most one question. pitch is the message sent once "
+                 "they accept: at most {pitch_max_chars} characters, built with the framework "
+                 "below. No subject."),
+}
 REPLY_CHANNEL_TEXT = {
     "email": ("Channel: email, a reply in their thread. A subject of at most {subject_max} "
               "characters (Re: and theirs is fine); the body at most {body_max_words} words, "
@@ -1154,6 +1164,35 @@ def followup_template(messages: dict | None, language: str, first: str, company:
         "question": str(table.get("question") or "")})
 
 
+def framework_block(framework: Framework) -> str:
+    """The recipe paragraph of a first touch written with `framework` (any but house,
+    whose paragraph is its own instructions): its name, steps and instructions, then the
+    rules Python checks. Never the credit (`after`) or the `example`."""
+    lines = [
+        "This is a first touch: they have never had a message from the seller.",
+        f"--- framework \"{framework.name}\" ---",
+        f"Steps: {', '.join(framework.steps)}.",
+        framework.instructions,
+        "--- end ---",
+        "- Never open with \"I\" (or Ich, Ik, Je): the first word is about them.",
+        "- No meeting ask, no call ask, no link, no proposed day or time.",
+        "- When no finding is usable, write from one of the playbook's angles instead and "
+        "mark what only the seller can fill in with [square brackets].",
+        "- The playbook's Voice section wins over the framework on wording, greeting, "
+        "sign-off and formality.",
+        "- Exactly one question mark in the whole message." if framework.questions == (1, 1)
+        else "- At most one question mark in the whole message.",
+    ]
+    if framework.offer_line == "never":
+        lines.append("- Do not state the offer line; it is below as background.")
+    elif framework.offer_line == "required":
+        lines.append("- Say the offer in one line.")
+    if framework.proof == "required":
+        lines.append("- Cite one proof line in proof_used, word for word.")
+    lines.append(f"- Set framework to \"{framework.id}\".")
+    return "\n".join(lines)
+
+
 def draft_prompt(kind: str, brief: Brief, ctx: CheckContext, approach, playbook_text: str,
                  owner: str = "", problems: list[str] | None = None, reply=None,
                  template: str = "", earlier=None, exemplars: str = "",
@@ -1163,14 +1202,23 @@ def draft_prompt(kind: str, brief: Brief, ctx: CheckContext, approach, playbook_
     your earlier message (`earlier`) and its template. Neither has findings or
     an angle. `exemplars` is the examples block of exemplars.prompt_block (a
     first touch only; "" adds nothing); `angle_note` says why the exploration
-    policy fixed the angle (ctx.angles then holds that one angle)."""
+    policy fixed the angle (ctx.angles then holds that one angle). A first touch with
+    a framework (ctx.framework) gets the framework's recipe paragraph and channel line
+    in place of SHAPES and CHANNEL_TEXT; house is today's paragraph, word for word."""
     rules = {"subject_max": 60, "body_max_words": 120, "note_max_chars": 300,
              "pitch_max_chars": 600, **ctx.rules}
+    shape = SHAPES[kind]
     channel_text = CHANNEL_TEXTS.get(kind, CHANNEL_TEXT)[ctx.channel]
+    if kind == FIRST_TOUCH and ctx.framework is not None:
+        if ctx.framework.id == HOUSE:
+            shape = ctx.framework.instructions
+        else:
+            shape = framework_block(ctx.framework)
+            channel_text = FRAMEWORK_CHANNEL_TEXT[ctx.channel]
     parts = [
         "You draft one sales message for a person to review, edit and send themselves. "
         "Nothing you write is sent automatically.",
-        SHAPES[kind],
+        shape,
         channel_text.format(**rules)
         + (" Do not write an opt-out line: one is added for you." if ctx.opt_out else ""),
     ]
@@ -1258,11 +1306,17 @@ class AIDrafter:
             store.root)
 
     def context(self, kind: str, company, contact, research: Research, channel: str,
-                approach=None, language: str = "") -> tuple[CheckContext, dict]:
+                approach=None, language: str = "",
+                framework: Framework | None = None) -> tuple[CheckContext, dict]:
+        """The checks' context and the culture norms. `framework` applies to a first
+        touch only: a reply or a follow-up has none."""
         lang = messaging.draft_language(company, contact, override=language,
                                         messages=self.messages)
         norms = culture(lang, company.country, self.messages)
-        rules = channel_rules(channel, self.messages)
+        if kind != FIRST_TOUCH:
+            framework = None
+        rules = framework_rules(channel_rules(channel, self.messages), framework, channel,
+                                kind)
         opt_out = opt_out_line(self.store.root, kind, channel, lang, rules)
         angles = tuple(a for a in (self.config.get("outreach_angles") or DEFAULT_ANGLES)
                        if a in ANGLES) or DEFAULT_ANGLES
@@ -1271,16 +1325,18 @@ class AIDrafter:
                            proof=approach.proof if approach is not None else [],
                            offer_lines=[approach.offer_line] if approach is not None else [],
                            angles=angles, opt_out=opt_out,
-                           never_write=never_write(self.config))
+                           never_write=never_write(self.config), framework=framework)
         return ctx, norms
 
     def draft(self, kind, company, contact, research, channel, approach=None,
               brief: Brief | None = None, reply=None, earlier=None, critique: str = "",
-              language: str = "", **_) -> Draft:
+              language: str = "", framework: Framework | None = None, **_) -> Draft:
         if kind not in BUILT_KINDS:
             raise OutreachError(f"{kind} drafts come in a later version")
+        if kind == FIRST_TOUCH and framework is None:
+            framework = frameworks.load(self.store.root).house
         ctx, norms = self.context(kind, company, contact, research, channel, approach,
-                                  language)
+                                  language, framework=framework)
         angle_note, examples = self._learned(kind, company, contact, research, channel,
                                              approach, ctx, language)
         brief = brief or make_brief(self.store, company, contact, approach, research,
