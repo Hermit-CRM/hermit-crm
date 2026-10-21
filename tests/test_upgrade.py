@@ -312,7 +312,13 @@ def test_where_the_click_cannot_run_the_reason_comes_back_not_a_crash(app, clien
     assert "<form" not in page
 
 
-def test_the_nav_offers_the_button_only_where_it_can_work(app, client):
+def test_the_nav_offers_the_button_only_where_it_can_work(app, client, monkeypatch, tmp_path):
+    # How this test run was installed decides the plan (a pip install outside a
+    # venv gets no button, as it should). Pin a pip install in a venv on Linux.
+    real = upgrade.install_plan
+    monkeypatch.setattr("hermitcrm.web.upgrading.install_plan",
+                        lambda config, can_restart: real(config, can_restart, prefix=tmp_path,
+                                                         platform="linux", in_venv=True))
     app.state.update_notice.available = NEWER
     page = client.get("/companies").text
     assert f"v{NEWER} available: <code>" in page and "data-upgrade" not in page
@@ -447,8 +453,11 @@ def test_this_checkout_is_not_reported_stale_by_its_own_install():
     assert updates.DiskWatch().newer() == ""
 
 
-def test_a_long_running_server_asks_again_but_only_when_an_hour_has_passed(tmp_path):
+def test_a_long_running_server_asks_again_but_only_when_an_hour_has_passed(tmp_path, monkeypatch):
     """`start` runs once at boot; a server up for weeks would never hear of a release."""
+    # CI sets HERMITCRM_NO_UPDATE_CHECK=1, which turns `start` off; this test is
+    # about the check itself, and its fetcher never touches the network.
+    monkeypatch.delenv("HERMITCRM_NO_UPDATE_CHECK", raising=False)
     calls = []
 
     def fetch():

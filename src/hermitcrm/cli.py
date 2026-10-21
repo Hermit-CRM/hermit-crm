@@ -590,6 +590,11 @@ def cmd_check(store: Store) -> tuple[str, int]:
     pb_problems, pb_hints = playbook.check_lines(store.root)
     stray += pb_hints
     extension += pb_problems
+    # frameworks.toml (the outreach frameworks library): a key it does not know
+    # is a hint; a wrong value is a problem (adjust.VALIDATORS reports it).
+    from hermitcrm import frameworks
+    fw_hints = frameworks.hints(store.root)
+    stray += fw_hints
     # The outreach bot's items (outreach/<id>.md): one that cannot be read is
     # left out of every list, so it is said here.
     from hermitcrm import outreach
@@ -605,7 +610,7 @@ def cmd_check(store: Store) -> tuple[str, int]:
             0,
         )
     lines = [f"{p.path}: {p.message}" for p in store.problems] + extension + off_board \
-        + pb_hints
+        + pb_hints + fw_hints
     return ("\n".join(lines), 1)
 
 
@@ -1625,6 +1630,9 @@ def _build_parser() -> argparse.ArgumentParser:
                                 "searches the web; Claude Code only)")
             o.add_argument("--strong", action="store_true",
                            help="draft on the strong model tier (default: medium)")
+            o.add_argument("--framework", default="",
+                           help="the framework for first touches (default: the approach's, "
+                                "else house)")
     o_list = o_sub.add_parser("list", help="every item, newest first")
     o_list.add_argument("--state", default="", help="only items in this state")
     o_sub.add_parser("show", help="one item in full: the card").add_argument("id")
@@ -1767,7 +1775,7 @@ def cmd_playbook(root: Path, action: str = "status", dry_run: bool = False,
 def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
                  drafter=None, critic=None) -> tuple[str, int]:
     """`hermitcrm outreach preview|build|list|show|edits|ready|skip`."""
-    from hermitcrm import outreach, routines
+    from hermitcrm import frameworks, outreach, routines
 
     action = args.action or "list"
     try:
@@ -1801,6 +1809,9 @@ def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
             item = outreach.skip(store, args.id, args.reason, getattr(args, "note", ""))
             return (f"{item.id} skipped: {item.skip_reason}"
                     + (f" ({item.skip_note})" if item.skip_note else ""), 0)
+        framework = getattr(args, "framework", "")
+        if framework:   # before anyone is selected: an empty batch must not hide the refusal
+            outreach.check_framework_choice(frameworks.load(root), args.kind, framework)
         selection = outreach.select(store, where=args.where, channel=args.channel,
                                     kind=args.kind, limit=args.limit, approach=args.approach,
                                     contacts=args.contact, config=config)
@@ -1827,7 +1838,8 @@ def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
                 timeout=float(config.get("fetch_timeout", 10)))
             drafter = drafter or outreach.AIDrafter(store, enricher, config)
             critic = critic or outreach.AICritic(store, enricher)
-        result = outreach.build(store, selection, researcher, drafter, config, critic=critic)
+        result = outreach.build(store, selection, researcher, drafter, config, critic=critic,
+                                framework=framework)
     except outreach.OutreachError as exc:
         return (str(exc), 1)
     lines = result.lines + ["", f"{len(result.items)} item(s) in outreach/. Review them "

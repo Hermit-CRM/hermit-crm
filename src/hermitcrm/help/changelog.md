@@ -8,6 +8,29 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Better first drafts, for every message.** A draft now says its proof in the
+  language of the message: a German email states the proof in German, while the
+  card's "Proof cited" keeps the playbook's own line, so the check still finds
+  it. The critic is stricter on "personal": it finds the sentence that is about
+  them and asks whether the message would still fit another company of the same
+  kind; if it would, the score is 2 or less. The card also shows an **About you
+  N, about them M** line, a count of the words that speak of you and of them,
+  with a note when the message is more about you. It is a flag, not a check, so
+  it never blocks a draft.
+- **Message frameworks for first touches.** A framework is a recipe for a first
+  message: its parts, how long it may be and what it asks. Eight come built in
+  (`house`, the recipe first messages have always used, and seven more such as
+  `trigger-tension-trust` and `problem-solution-question`). Write a batch with
+  one using `hermitcrm outreach build --framework ID`, or give an approach its
+  own with `frameworks:` and `default:` in MESSAGING.md; a draft with neither is
+  written as before, with `house`. Add your own, or change a built-in one, in
+  `frameworks.toml` in your data folder; `hermitcrm check` names an id the
+  library does not have and anything in the file it cannot read. Each draft
+  records the `framework` it was built with, and so does the message you log
+  from it. The Messages tab shows it (and filters on it), and the export and the
+  learning report show it too. `hermitcrm help playbook` has the details. Your
+  data folder migrates by itself (data format 15 for outreach items, 16 for
+  interactions); there is nothing to do.
 - **One-click upgrade.** When a newer version is published, the notice in the
   sidebar and in Settings > About has an **Upgrade** button. One click downloads
   and installs it with the tool that installed Hermit CRM (uv, pipx or pip),

@@ -76,8 +76,9 @@ from pathlib import Path
 from typing import Protocol
 from urllib.parse import urlparse
 
-from . import followups, messaging, playbook
+from . import followups, frameworks, messaging, playbook
 from .enrich import WEB_ONLY, EnrichError
+from .frameworks import HOUSE, Framework
 from .models import (
     ANGLES, DO_NOT_CONTACT, INTERESTED, ValidationError, do_not_contact, fmt_datetime,
     normalise_website, parse_datetime, slugify, unique_slug,
@@ -121,7 +122,7 @@ DUPLICATE_SUFFIXES = ("ai", "hq", "app", "io", "group", "gmbh", "inc", "ltd", "l
 
 ITEM_KEYS = (
     "state", "kind", "channel", "company", "contact", "reply_to", "follows", "approach", "angle",
-    "language",
+    "framework", "language",
     "subject", "pitch", "research_level", "model", "attempts", "seconds", "checks",
     "critic", "critic_reason", "critic_model", "flags", "norms", "findings", "proof_used",
     "lessons_used", "exemplars_used", "proposals", "edit_distance",
@@ -527,6 +528,16 @@ def channel_rules(channel: str, messages: dict | None = None) -> dict:
     return {**shared, **(table.get(channel) or {})}
 
 
+def framework_rules(rules: dict, framework: Framework | None, channel: str, kind: str) -> dict:
+    """The channel rules for a draft written with `framework`: a copy. Only an email
+    first touch changes, and only to the lower of the two word limits."""
+    out = dict(rules)
+    if framework is not None and framework.max_words is not None and channel == "email" \
+            and kind == FIRST_TOUCH:
+        out["body_max_words"] = min(int(rules.get("body_max_words", 120)), framework.max_words)
+    return out
+
+
 def norms_applied(norms: dict) -> list[str]:
     return [f"{k}: {v}" for k, v in norms.items() if v != ""]
 
@@ -539,6 +550,91 @@ def opt_out_line(root, kind: str, channel: str, language: str, rules: dict) -> s
             or not rules.get("opt_out", True):
         return ""
     return playbook.load(root).opt_out(language)
+
+
+# ------------------------------------------------------- about you, about them
+
+
+def _words(text: str) -> frozenset[str]:
+    return frozenset(text.split())
+
+
+# Per language: (the seller's words, their words), lower case. The count is a flag on
+# the card, not a check: the offer line is first person by nature.
+ABOUT_WORDS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
+    "en": (_words("i i'm i've i'd i'll me my mine myself we we're we've we'd we'll us our ours"),
+           _words("you you're you've you'd you'll your yours yourself yourselves")),
+    "de": (_words("ich mich mir mein meine meinen meinem meiner meines wir uns unser unsere "
+                  "unseren unserem unserer unseres"),
+           _words("du dich dir dein deine deinen deinem deiner deines euch euer eure euren "
+                  "eurem eurer eures")),
+    "nl": (_words("ik me mij mijn wij we ons onze"),
+           _words("je jij jou jouw jullie u uw")),
+    "fr": (_words("je j' me m' moi mon ma mes nous notre nos"),
+           _words("tu te t' toi ton ta tes vous votre vos")),
+}
+_ABOUT_TOKEN = re.compile(r"[^\W\d_]+(?:'[^\W\d_]*)?")
+# German formal "you" counts as theirs only when capitalised (lower case `sie` is "she" or
+# "they", `ihr` is "her"). `Sie` also only when it is not first in a sentence, where a capital
+# is just the sentence start. `Ihr`, `Ihnen` and the other forms count wherever they stand.
+_FORMAL_YOU = _words("sie ihnen ihr ihre ihren ihrem ihrer ihres")
+
+
+def _starts_sentence(text: str, at: int) -> bool:
+    """Is the word at `at` first in a sentence: at the start of the text, after a newline,
+    or after . ! ? or : and white space?"""
+    start = at
+    while start > 0 and text[start - 1] != "\n" and text[start - 1].isspace():
+        start -= 1
+    return start == 0 or text[start - 1] == "\n" or (start < at and text[start - 1] in ".!?:")
+
+
+def about_counts(text: str, language: str) -> tuple[int, int] | None:
+    """(words about you, words about them) in the text, by the language's lists;
+    None for a language without lists. A word with an apostrophe also counts by its
+    first part (`j'aide` as `j'`). A word in all capitals (two letters or more, as in
+    a heading: `US`, `WIR`) is not a pronoun and never counts."""
+    lists = ABOUT_WORDS.get(language)
+    if lists is None:
+        return None
+    mine, theirs = lists
+    text = (text or "").replace("’", "'")
+    you = them = 0
+    for found in _ABOUT_TOKEN.finditer(text):
+        token = found.group()
+        if token.isupper() and sum(c.isalpha() for c in token) > 1:
+            continue
+        word = token.lower()
+        head = word[:word.find("'") + 1]   # "" without an apostrophe
+        if word in mine or head in mine:
+            you += 1
+        elif word in theirs or head in theirs:
+            them += 1
+        elif (language == "de" and word in _FORMAL_YOU and token[0].isupper()
+              and (word != "sie" or not _starts_sentence(text, found.start()))):
+            them += 1
+    return you, them
+
+
+def about_for_item(root, item: Item) -> tuple[int, int] | None:
+    """The count for a card: the body without the opt-out line (added for the person,
+    not written by them), plus the pitch."""
+    language = item.language or "en"
+    if language not in ABOUT_WORDS:
+        return None
+    try:
+        messages = messaging.load_messages(root)
+    except (OSError, ValueError):
+        messages = None   # a flag is not worth an error: the shipped channel rules do
+    line = opt_out_line(root, item.kind, item.channel, language,
+                        channel_rules(item.channel, messages))
+    return about_counts(without_line(item.body, line) + "\n" + item.pitch, language)
+
+
+def about_line(counts: tuple[int, int]) -> str:
+    you, them = counts
+    return (f"About you {you}, about them {them}"
+            + (": more about you than about them" if you > them else ""))
 
 
 # ------------------------------------------------------------------ the brief
@@ -724,6 +820,7 @@ class CheckContext:
     angles: tuple = DEFAULT_ANGLES
     opt_out: str = ""                                       # the line Python adds, if any
     never_write: list[str] = field(default_factory=list)    # config `outreach_never_write`
+    framework: Framework | None = None                      # a first touch only
 
     @property
     def usable_ids(self) -> set[int]:
@@ -748,9 +845,16 @@ def check_text(subject: str, body: str, pitch: str, ctx: CheckContext) -> list[s
     thread = in_thread(ctx.kind)
     for label, text in parts:
         n = count_questions(text)
-        # A LinkedIn connection note may ask nothing; everything else asks one.
-        allowed = (0, 1) if (ctx.channel == "linkedin" and label == "message"
-                             and not thread) else (1,)
+        # A LinkedIn connection note may ask nothing; a first touch with a framework asks
+        # what the framework allows (an email, or a LinkedIn pitch); everything else asks one.
+        if ctx.channel == "linkedin" and label == "message" and not thread:
+            allowed = (0, 1)
+        elif ctx.framework is not None and ctx.kind == FIRST_TOUCH and (
+                (ctx.channel == "email" and label == "message")
+                or (ctx.channel == "linkedin" and label == "pitch message")):
+            allowed = tuple(range(ctx.framework.questions[0], ctx.framework.questions[1] + 1))
+        else:
+            allowed = (1,)
         if n not in allowed:
             problems.append(f"the {label} asks {n} questions; it must ask "
                             + ("at most one" if allowed == (0, 1) else "exactly one"))
@@ -836,6 +940,7 @@ DRAFT_SCHEMA = {
                           "description": "the numbers of the findings the message uses"},
         "proof_used": {"type": "array", "items": {"type": "string"},
                        "description": "the proof lines the message cites, word for word"},
+        "framework": {"type": "string", "description": "the framework id given in the prompt"},
     },
     "required": ["subject", "body", "pitch", "angle", "findings_used", "proof_used"],
     "additionalProperties": False,
@@ -858,6 +963,7 @@ class Draft:
     lessons_used: list[str] = field(default_factory=list)   # learned lines in the prompt
     exemplars_used: list[str] = field(default_factory=list)  # example ids in the prompt
     angle_note: str = ""   # why the exploration policy chose the angle ("" = the AI chose)
+    framework: str = ""    # the id of the framework the draft was asked for ("" = none)
     failed: str = ""   # the AI gave no usable draft at all (twice): why
 
 
@@ -917,6 +1023,16 @@ def clean_answer(data, ctx: CheckContext) -> Draft:
     if ctx.kind == REPLY and ctx.proof and len(draft.proof_used) != 1:
         problems.append(f"a reply to interest cites one proof line from the playbook (it "
                         f"cites {len(draft.proof_used)})")
+    if ctx.framework is not None and ctx.kind == FIRST_TOUCH:
+        fw = ctx.framework
+        if fw.proof == "required" and ctx.proof and not draft.proof_used:
+            problems.append(f"the {fw.name} framework cites one proof line from the playbook "
+                            "in proof_used (it cites none)")
+        # House's prompt never names an id to put in the field, so a guess there is no mismatch.
+        given = str(data.get("framework") or "").strip().lower()
+        if given and given != fw.id and fw.id != HOUSE:
+            problems.append(f"it says framework '{given}'; this draft was asked for {fw.id}")
+        draft.framework = fw.id
     stale_open = [n for n in ids if ctx.findings[n - 1].stale]
     if stale_open and any(_norm_space(ctx.findings[n - 1].text)[:40]
                           in _norm_space(opening_line(draft.body)) for n in stale_open):
@@ -949,7 +1065,8 @@ SHAPES = {
         "reply is below. Keep it short and follow the template's shape:\n"
         "- If their reply asks something, answer it in a few words first.\n"
         "- The offer line, word for word as given.\n"
-        "- One proof line from the proof list (cite it word for word in proof_used).\n"
+        "- One proof line from the proof list (cite it word for word in proof_used; in the "
+        "message, say it in the message's language).\n"
         "- The first step offer, when one is given.\n"
         "- End with exactly one question about their situation. One question mark in the "
         "whole message.\n"
@@ -977,6 +1094,16 @@ CHANNEL_TEXT = {
                  "characters, no pitch, at most one question. pitch is the message sent once they "
                  "accept: at most {pitch_max_chars} characters, the offer in one line, one "
                  "question. No subject."),
+}
+# The channel line of a first touch written with a framework other than house: the framework
+# block says how many questions, so the line does not.
+FRAMEWORK_CHANNEL_TEXT = {
+    "email": ("Channel: email. A subject of at most {subject_max} characters; the body at "
+              "most {body_max_words} words, greeting and sign-off included."),
+    "linkedin": ("Channel: LinkedIn. body is the connection note: at most {note_max_chars} "
+                 "characters, no pitch, at most one question. pitch is the message sent once "
+                 "they accept: at most {pitch_max_chars} characters, built with the framework "
+                 "above. No subject."),
 }
 REPLY_CHANNEL_TEXT = {
     "email": ("Channel: email, a reply in their thread. A subject of at most {subject_max} "
@@ -1043,6 +1170,44 @@ def followup_template(messages: dict | None, language: str, first: str, company:
         "question": str(table.get("question") or "")})
 
 
+def framework_rule_lines(framework: Framework) -> list[str]:
+    """The rule lines a first touch gets after its recipe, from the fixed ones and
+    the framework's own question, offer line and proof values: what keeps the checks
+    Python runs on the text in the prompt, whatever the framework's instructions say."""
+    lines = [
+        "- Never open with \"I\" (or Ich, Ik, Je): the first word is about them.",
+        "- No meeting ask, no call ask, no link, no proposed day or time.",
+        "- When no finding is usable, write from one of the playbook's angles instead and "
+        "mark what only the seller can fill in with [square brackets].",
+        "- The playbook's Voice section wins over the framework on wording, greeting, "
+        "sign-off and formality.",
+        "- Exactly one question mark in the whole message." if framework.questions == (1, 1)
+        else "- At most one question mark in the whole message.",
+    ]
+    if framework.offer_line == "never":
+        lines.append("- Do not state the offer line; it is below as background.")
+    elif framework.offer_line == "required":
+        lines.append("- Say the offer in one line.")
+    if framework.proof == "required":
+        lines.append("- Cite one proof line in proof_used, word for word.")
+    return lines
+
+
+def framework_block(framework: Framework) -> str:
+    """The recipe paragraph of a first touch written with `framework` (any but house,
+    whose paragraph is its own instructions): its name, steps and instructions, then the
+    rules Python checks. Never the credit (`after`) or the `example`."""
+    return "\n".join([
+        "This is a first touch: they have never had a message from the seller.",
+        f"--- framework \"{framework.name}\" ---",
+        f"Steps: {', '.join(framework.steps)}.",
+        framework.instructions,
+        "--- end ---",
+        *framework_rule_lines(framework),
+        f"- Set framework to \"{framework.id}\".",
+    ])
+
+
 def draft_prompt(kind: str, brief: Brief, ctx: CheckContext, approach, playbook_text: str,
                  owner: str = "", problems: list[str] | None = None, reply=None,
                  template: str = "", earlier=None, exemplars: str = "",
@@ -1052,14 +1217,26 @@ def draft_prompt(kind: str, brief: Brief, ctx: CheckContext, approach, playbook_
     your earlier message (`earlier`) and its template. Neither has findings or
     an angle. `exemplars` is the examples block of exemplars.prompt_block (a
     first touch only; "" adds nothing); `angle_note` says why the exploration
-    policy fixed the angle (ctx.angles then holds that one angle)."""
+    policy fixed the angle (ctx.angles then holds that one angle). A first touch with
+    a framework (ctx.framework) gets the framework's recipe paragraph and channel line
+    in place of SHAPES and CHANNEL_TEXT; house is today's paragraph, word for word, and
+    when its instructions were rewritten they get the rule lines after them."""
     rules = {"subject_max": 60, "body_max_words": 120, "note_max_chars": 300,
              "pitch_max_chars": 600, **ctx.rules}
+    shape = SHAPES[kind]
     channel_text = CHANNEL_TEXTS.get(kind, CHANNEL_TEXT)[ctx.channel]
+    if kind == FIRST_TOUCH and ctx.framework is not None:
+        if ctx.framework.id == HOUSE:
+            shape = ctx.framework.instructions
+            if shape != SHAPES[FIRST_TOUCH]:   # rewritten in frameworks.toml: the rules stay
+                shape = "\n".join([shape, *framework_rule_lines(ctx.framework)])
+        else:
+            shape = framework_block(ctx.framework)
+            channel_text = FRAMEWORK_CHANNEL_TEXT[ctx.channel]
     parts = [
         "You draft one sales message for a person to review, edit and send themselves. "
         "Nothing you write is sent automatically.",
-        SHAPES[kind],
+        shape,
         channel_text.format(**rules)
         + (" Do not write an opt-out line: one is added for you." if ctx.opt_out else ""),
     ]
@@ -1115,7 +1292,8 @@ def draft_prompt(kind: str, brief: Brief, ctx: CheckContext, approach, playbook_
     if approach is not None:
         parts.append(f"--- offer line (approach \"{approach.name}\") ---\n"
                      f"{approach.offer_line}\n--- end ---")
-    parts.append("--- proof (cite only these, word for word, in proof_used) ---\n"
+    parts.append("--- proof (cite only these, word for word, in proof_used; in the message, "
+                 "say it in the message's language) ---\n"
                  + ("\n".join(f"- {p}" for p in ctx.proof) or "none") + "\n--- end ---")
     if playbook_text.strip():
         parts.append(f"--- the seller's playbook (MESSAGING.md) ---\n"
@@ -1146,11 +1324,17 @@ class AIDrafter:
             store.root)
 
     def context(self, kind: str, company, contact, research: Research, channel: str,
-                approach=None, language: str = "") -> tuple[CheckContext, dict]:
+                approach=None, language: str = "",
+                framework: Framework | None = None) -> tuple[CheckContext, dict]:
+        """The checks' context and the culture norms. `framework` applies to a first
+        touch only: a reply or a follow-up has none."""
         lang = messaging.draft_language(company, contact, override=language,
                                         messages=self.messages)
         norms = culture(lang, company.country, self.messages)
-        rules = channel_rules(channel, self.messages)
+        if kind != FIRST_TOUCH:
+            framework = None
+        rules = framework_rules(channel_rules(channel, self.messages), framework, channel,
+                                kind)
         opt_out = opt_out_line(self.store.root, kind, channel, lang, rules)
         angles = tuple(a for a in (self.config.get("outreach_angles") or DEFAULT_ANGLES)
                        if a in ANGLES) or DEFAULT_ANGLES
@@ -1159,16 +1343,18 @@ class AIDrafter:
                            proof=approach.proof if approach is not None else [],
                            offer_lines=[approach.offer_line] if approach is not None else [],
                            angles=angles, opt_out=opt_out,
-                           never_write=never_write(self.config))
+                           never_write=never_write(self.config), framework=framework)
         return ctx, norms
 
     def draft(self, kind, company, contact, research, channel, approach=None,
               brief: Brief | None = None, reply=None, earlier=None, critique: str = "",
-              language: str = "", **_) -> Draft:
+              language: str = "", framework: Framework | None = None, **_) -> Draft:
         if kind not in BUILT_KINDS:
             raise OutreachError(f"{kind} drafts come in a later version")
+        if kind == FIRST_TOUCH and framework is None:
+            framework = frameworks.load(self.store.root).house
         ctx, norms = self.context(kind, company, contact, research, channel, approach,
-                                  language)
+                                  language, framework=framework)
         angle_note, examples = self._learned(kind, company, contact, research, channel,
                                              approach, ctx, language)
         brief = brief or make_brief(self.store, company, contact, approach, research,
@@ -1278,7 +1464,9 @@ CRITIC_SCALE = (
 
 CRITIC_PERSONAL = {
     FIRST_TOUCH: "is it built on a real usable finding about them (cited by its number "
-                 "below), in the opening, rather than on a template line anyone could get?",
+                 "below), in the opening, rather than on a template line anyone could get? "
+                 "Find the sentence that is about them. If it were removed, would the message "
+                 "still fit another company of the same kind? If so, score 2 or less.",
     REPLY: "does it answer what they actually wrote in their reply, in their terms? (A reply "
            "needs no finding: do not mark it down for having none.)",
     FOLLOW_UP: "does it pick up the earlier message it follows, and its topic? (A follow-up "
@@ -1551,6 +1739,7 @@ class Item:
     follows: str = ""     # follow-up: the id of your unanswered message (an interaction)
     approach: str = ""
     angle: str = ""
+    framework: str = ""   # a first touch: the id of the framework it was drafted with
     language: str = ""
     subject: str = ""
     pitch: str = ""
@@ -1624,7 +1813,7 @@ class Item:
                 value = [f.to_dict() for f in value]
             elif key in ("edits", "earlier"):
                 value = [x.to_dict() for x in value]
-            elif key in ("lessons_used", "exemplars_used", "language_pick",
+            elif key in ("framework", "lessons_used", "exemplars_used", "language_pick",
                          "notes_linked") and not value:
                 continue    # absent until they apply (keeps older files' bytes)
             meta[key] = value
@@ -1703,6 +1892,7 @@ def item_from_text(item_id: str, text: str) -> Item:
         contact=s("contact").strip(), reply_to=s("reply_to").strip(),
         follows=s("follows").strip(),
         approach=s("approach"), angle=s("angle").strip(),
+        framework=s("framework").strip().lower(),
         language=s("language").strip(), subject=s("subject"), pitch=s("pitch"),
         research_level=s("research_level").strip(), model=s("model"),
         attempts=_int_or_none(meta.get("attempts")) or 0,
@@ -2529,10 +2719,60 @@ def researcher_for(level: str, enricher, fetcher=None, today: date | None = None
     return cls(enricher, fetcher=fetcher, today=today, timeout=timeout)
 
 
+def unmet_needs(framework: Framework, findings: list[Finding]) -> list[str]:
+    """The needs of `framework` that no usable finding meets. A finding from a note
+    you wrote (source YOURS) meets `personal-connection`; one about the person meets
+    `premise`. Findings are a snapshot of the contact's notes, so a note you wrote
+    is both."""
+    usable = [f for f in findings if f.usable]
+    met = {"personal-connection": any(f.source == YOURS for f in usable),
+           "premise": any(f.kind == "person" for f in usable)}
+    return [need for need in framework.needs if not met[need]]
+
+
+def check_framework_choice(library: frameworks.Library, kind: str, framework: str) -> None:
+    """Refuse a chosen `framework` ("" = none chosen) that cannot shape a draft of
+    this kind: only a first touch has one, and the id must be in the library."""
+    if not framework:
+        return
+    if kind != FIRST_TOUCH:
+        raise OutreachError("frameworks shape first touches only; leave out --framework "
+                            "for a reply or follow-up")
+    try:
+        frameworks.resolve(library, override=framework)
+    except ValueError as exc:
+        raise OutreachError(str(exc)) from exc
+
+
+def meet_needs(library: frameworks.Library, approach, framework: Framework,
+               findings: list[Finding]) -> tuple[Framework, str]:
+    """(framework, flag): `framework` when the research gave it what it needs. If not,
+    the approach's default when that needs nothing and is another framework, else
+    house, with the flag that says why."""
+    missing = unmet_needs(framework, findings)
+    if not missing:
+        return framework, ""
+    default = library.get(approach.default_framework) if approach is not None else None
+    fallback = default if default is not None and not default.needs \
+        and default.id != framework.id else library.house
+    return fallback, (f"{framework.id} needs "
+                      f"{' and '.join(frameworks.NEEDS[n] for n in missing)}; "
+                      f"drafted with {fallback.id}")
+
+
+def item_framework(library: frameworks.Library, item: Item) -> tuple[Framework | None, str]:
+    """(framework, note) an item is drafted and checked with: a first touch's own, house
+    for one from before frameworks, or when its framework is gone from the library (the
+    note says so); a reply or follow-up has none."""
+    if item.kind != FIRST_TOUCH:
+        return None, ""
+    return frameworks.resolve(library, item.framework)
+
+
 def build(store: Store, selection: Selection, researcher: Researcher, drafter: Drafter,
           config: dict | None = None, now: datetime | None = None,
           batch: str = "", critic: Critic | None = None,
-          language: str = "") -> BuildResult:
+          language: str = "", framework: str = "") -> BuildResult:
     """Research and draft every picked contact. Each step of each item is one
     commit (`store.notify`): the research, then the draft. A crash halfway
     leaves the items written so far, each committed. `batch` names the run
@@ -2540,7 +2780,10 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
     one); empty = from the start time and the channel. `critic` scores each
     draft inside the draft step (no extra commit); none = no critic. `language`:
     one language for these drafts and their regenerates (kept on the item as
-    `language_pick`); empty = the contact's, else the company's country's."""
+    `language_pick`); empty = the contact's, else the company's country's.
+    `framework`: the id every first touch is drafted with; empty = the approach's
+    default, else house. A framework whose needs the research does not meet falls
+    back (see meet_needs), with a flag."""
     root = Path(store.root)
     config = config if config is not None else load_config(root)
     if selection.gate:
@@ -2550,6 +2793,8 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
                             f"use {' or '.join(BUILT_KINDS)}")
     from . import notes
     pb = playbook.load(root)
+    library = frameworks.load(root)
+    check_framework_choice(library, selection.kind, framework)
     out = BuildResult()
     started = now or store.now()
     batch = batch or f"{started:%Y-%m-%dT%H%M}-{selection.channel}"
@@ -2578,6 +2823,13 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
                     research_level="" if threaded else getattr(researcher, "level", ""),
                     flags=list(cand.flags), batch=batch, created=when,
                     language_pick=language)
+        chosen: Framework | None = None   # a first touch only
+        if not threaded:
+            chosen, note = frameworks.resolve(
+                library, approach.default_framework if approach else "", framework)
+            item.framework = chosen.id
+            if note:
+                item.flags.append(note)
         if threaded:   # no research: the thread is the context
             research = Research(level="")
         else:
@@ -2601,6 +2853,11 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
                                                    cand.contact.slug, store.today())
             item.findings = research.findings
             item.notes_linked = True
+            if chosen is not None:   # the research may not have found what it needs
+                chosen, why = meet_needs(library, approach, chosen, research.findings)
+                item.framework = chosen.id
+                if why:
+                    item.flags.append(why)
             fallback = not threaded and not any(f.usable for f in research.findings)
             if fallback:
                 item.flags.append("nothing usable found: the draft falls back to the "
@@ -2624,7 +2881,7 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
                                  selection.channel, approach=approach, brief=brief,
                                  reply=reply.interaction if reply else None,
                                  earlier=row.interaction if row else None,
-                                 critique=critique, language=language)
+                                 critique=critique, language=language, framework=chosen)
 
         draft = write()
         reviewed = _review(critic, config, draft, write, selection.kind, selection.channel,
@@ -2723,7 +2980,9 @@ def check_item(store: Store, item: Item, config: dict | None = None) -> list[str
     edited it). The findings and proof it cites stay as the AI declared them."""
     company = store.get(item.company)
     messages = messaging.load_messages(store.root)
-    rules = channel_rules(item.channel, messages)
+    framework, _ = item_framework(frameworks.load(store.root), item)
+    rules = framework_rules(channel_rules(item.channel, messages), framework, item.channel,
+                            item.kind)
     opt_out = opt_out_line(store.root, item.kind, item.channel, item.language or "en", rules)
     pb = playbook.load(store.root)
     approach = pb.approach(item.approach) if item.approach else None
@@ -2732,7 +2991,8 @@ def check_item(store: Store, item: Item, config: dict | None = None) -> list[str
                        offer_lines=[approach.offer_line] if approach else [],
                        opt_out=opt_out,
                        never_write=never_write(config if config is not None
-                                               else load_config(store.root)))
+                                               else load_config(store.root)),
+                       framework=framework)
     found = check_text(item.subject, item.body, item.pitch, ctx)
     gaps = hand_edits(item.subject, item.body, item.pitch)
     if gaps and not any(p.startswith("it leaves a gap") for p in found):
@@ -3021,12 +3281,24 @@ def redraft(store: Store, item_id: str, drafter: Drafter,
     if item.kind == FOLLOW_UP and earlier is None:
         raise OutreachError(f"{item.id}: your message {item.follows!r} is not in the CRM "
                             "any more")
+    library = frameworks.load(store.root)
+    framework, note = item_framework(library, item)
+    if framework is not None:   # an old item records house now; a gone one says so
+        item.framework = framework.id
+        if note and note not in item.flags:
+            item.flags.append(note)
+        # the notes may have changed since the build: its needs are checked again
+        framework, unmet = meet_needs(library, approach, framework, item.findings)
+        item.framework = framework.id
+        if unmet and unmet not in item.flags:
+            item.flags.append(unmet)
     clock = time.monotonic()
 
     def write(critique: str = "") -> Draft:
         return drafter.draft(item.kind, company, contact, research, item.channel,
                              approach=approach, brief=brief, reply=reply, earlier=earlier,
-                             critique=critique, language=item.language_pick)
+                             critique=critique, language=item.language_pick,
+                             framework=framework)
 
     draft = write()
     fallback = not in_thread(item.kind) and not any(f.usable for f in item.findings)
@@ -3141,8 +3413,8 @@ def sent_by_interaction(root: Path | str, company: str, it) -> list[Item]:
     """The ready (or queued, or failed) items an outbound interaction just logged marks sent: same
     contact, same channel, logged at or after the item was marked ready. The
     caller (Store.create_interaction) writes them in the interaction's commit;
-    an item's angle and approach are copied onto the interaction when it has
-    none, so the Messages tab compares bot messages with your own."""
+    an item's angle, framework and approach are copied onto the interaction when
+    it has none, so the Messages tab compares bot messages with your own."""
     if it.direction != "out" or not it.is_touch or not it.contact or it.date is None:
         return []
     out = []
@@ -3182,8 +3454,9 @@ def render_item(store: Store, item: Item) -> str:
             ("LinkedIn", contact.linkedin), ("email", contact.email)) if value]
     if company is not None:
         lines.append(f"Company: {company.name} | {company.website or 'no website'}")
-    lines.append(f"Approach: {item.approach or '-'} | angle: {item.angle or '-'} | "
-                 f"language: {item.language or '-'} | research: {item.research_level}")
+    lines.append(f"Approach: {item.approach or '-'} | angle: {item.angle or '-'}"
+                 + (f" | framework: {item.framework}" if item.framework else "")
+                 + f" | language: {item.language or '-'} | research: {item.research_level}")
     if item.flags:
         lines.append("Flags:")
         lines += [f"- {f}" for f in item.flags]
@@ -3199,6 +3472,9 @@ def render_item(store: Store, item: Item) -> str:
         lines.append("Culture norms applied: " + "; ".join(item.norms))
     if item.proof_used:
         lines.append("Proof cited: " + " | ".join(item.proof_used))
+    about = about_for_item(store.root, item)
+    if about is not None:
+        lines.append(about_line(about))
     lines.append("Checks: passed" if not item.checks else "Checks: problems")
     lines += [f"- {p}" for p in item.checks]
     if item.critic:

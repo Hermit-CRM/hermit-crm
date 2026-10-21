@@ -435,7 +435,9 @@ class SmtpSender:
 class OutreachLogger:
     """Logs a sent mail as an outbound interaction (source `outreach`), the body
     byte for byte as it went out, with the angle and approach of the item. The
-    store flips the item to `sent` in the same commit (sent_by_interaction)."""
+    store flips the item to `sent` in the same commit (sent_by_interaction) and
+    lends the interaction the item's framework there, unchecked: the mail is out,
+    so a hand-written value in the file must not stop the log."""
 
     def __init__(self, store: Store, when: datetime | None = None):
         self.store, self.when = store, when

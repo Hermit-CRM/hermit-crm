@@ -240,7 +240,7 @@ def test_a_hash_changes_with_the_subject_or_the_body():
 
 def test_send_now_sends_the_approved_text_once_and_logs_it(folder):
     root, store, settings = folder
-    item = ready_item(root, store)
+    item = ready_item(root, store, framework="trigger-tension-trust")
     out, smtp, imap = deliver(store, settings, item.id)
     assert out.kind == "sent" and out.done
     assert len(smtp.sent) == 1
@@ -261,7 +261,7 @@ def test_send_now_sends_the_approved_text_once_and_logs_it(folder):
     assert (it.channel, it.direction, it.contact) == ("email", "out", MARA[1])
     assert it.body.rstrip("\n") == item.body.rstrip("\n") and it.subject == item.subject
     assert it.message_id == "<fixed.1@mail.example.com>"
-    assert it.angle == "hook"
+    assert it.angle == "hook" and it.framework == "trigger-tension-trust"
     # written in the order: Message-ID committed first, then the log + the flip together
     log = git(root, "log", "--format=%s", "-3").splitlines()
     assert log[0].startswith("interaction:") and "outreach" in log[0]
@@ -830,3 +830,18 @@ def test_a_mailbox_that_cannot_be_reached_is_retried_three_times_and_then_the_it
         assert after.send_tries == attempt and not smtp.sent and after.message_id == ""
         assert out.kind == ("retry" if attempt < 3 else "failed")
     assert after.state == "failed" and after.send_error.startswith("gave up after 3 tries: could not reach")
+
+
+def test_a_hand_edited_framework_cannot_make_send_now_send_twice(folder):
+    """A ready item whose file says `framework: our own thing` (not an id) is sent
+    once, logged once and ends sent: the log after SMTP must not raise on it."""
+    root, store, settings = folder
+    item = ready_item(root, store, framework="our own thing")
+    assert outreach.get_item(root, item.id).framework == "our own thing"
+    out, smtp, imap = deliver(store, settings, item.id)
+    assert out.kind == "sent" and out.done
+    assert len(smtp.sent) == 1
+    after = outreach.get_item(root, item.id)
+    assert after.state == "sent"
+    logged = [i for i in store.get(MARA[0]).interactions if i.source == "outreach"]
+    assert len(logged) == 1 and after.sent_with == logged[0].id

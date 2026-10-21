@@ -97,7 +97,8 @@ EDITABLE = {
     },
     # Interactions: front matter that does not move the file. date, channel,
     # direction and contact are in the file name, so they are not here.
-    "interactions": {"subject": True, "angle": True, "approach": True, "outcome": True},
+    "interactions": {"subject": True, "angle": True, "framework": True, "approach": True,
+                     "outcome": True},
 }
 
 _IDENTITY = {

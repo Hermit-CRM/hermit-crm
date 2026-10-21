@@ -47,8 +47,11 @@ def fake():
 
 @pytest.fixture
 def client(root, fake):
+    # The folder's clock (NOW) for the app too: every write regenerates
+    # PIPELINE.md, whose first line holds the minute, so on the real clock a
+    # minute boundary puts PIPELINE.md in a commit a test counts the files of.
     app = create_app(root, {**load_config(root), "push_enabled": False,
-                            "owner_name": "Sam Example"})
+                            "owner_name": "Sam Example"}, clock=lambda: NOW)
     app.state.setup_redirected = True
     app.state.enricher = ai(fake)
     app.state.outreach_fetcher = fake_page

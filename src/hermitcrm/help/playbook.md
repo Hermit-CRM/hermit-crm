@@ -35,8 +35,8 @@ message statistics.
 
 - **The front matter** (the YAML between the two `---` lines at the top) is
   for Hermit CRM itself: per approach its name, offer line, ideal customer, hard
-  disqualifiers and personas. The app reads it to pick and sort prospects; an
-  AI is never given it as instructions.
+  disqualifiers, personas and, if you set it, its message frameworks. The app
+  reads it to pick and sort prospects; an AI is never given it as instructions.
 - **The body** (everything below) is for people and AI: the general notes on
   angles, slots and languages, then one `# Approach: <name>` block per approach
   with the rest.
@@ -71,6 +71,7 @@ approaches:
 | `icp` | The ideal customer: `industries`, `countries`, `funding`, `signals` (lists of short words) and `ranges` (below). Leave any of them empty. |
 | `disqualifiers` | Hard reasons a company is not a prospect for this approach (below). |
 | `personas` | Per buyer type, the job `titles` that belong to it. Optional `pains`, `cares` and `ignores` lists. |
+| `frameworks` | Optional. The message framework this approach writes first messages with, and the ones to try against it (below). Left out, the approach uses `house`. |
 
 ### Ranges on your own fields
 
@@ -122,6 +123,38 @@ Without it, no such line is added.
 A contact's title picks the persona: whole words, any case, and the longest
 matching title wins, so `Head of Sales Operations` is not taken for
 `Head of Sales`. A title no persona lists gets no persona.
+
+### Frameworks
+
+A framework is a recipe for a first message: its parts, how long it may be
+and what it asks. `frameworks` is optional. Without it an approach uses `house`,
+the recipe first messages have always used, and nothing changes.
+
+```yaml
+approaches:
+  - name: Booking software
+    frameworks:
+      default: trigger-tension-trust
+      testing: [house]
+      answers: {deal: large, buyer: exec, volume: low, research: five, tone: plain}
+```
+
+- `default` is one framework id. The outreach bot writes this approach's first
+  messages with it.
+- `testing` is a list of up to two ids to try against the default: none twice,
+  and not the default itself. Split tests and compare mode use it; they come in
+  a later version.
+- `answers` records the answers to the setup questions the default was picked
+  from. The setup questions come in a later version; until then `hermitcrm check`
+  only makes sure each answer is one it knows: `deal` (small, mid, large, xl),
+  `buyer` (exec, lead, staff), `volume` (low, mid, high), `research` (minute,
+  five, fifteen) and `tone` (plain, warm, blunt).
+
+The ids are those of the framework library: `default_frameworks.toml` in the
+Hermit CRM package, with any framework you add or change in `frameworks.toml`
+in your data folder on top. A help page that describes each framework comes
+later. `hermitcrm check` names an id the library does not have, and a key or
+answer it does not know.
 
 ## The body
 

@@ -451,3 +451,61 @@ def test_a_card_without_an_email_shows_no_mailto(client, root):
     page = client.get("/outreach", params={"tab": "drafts"}).text
     card = page[page.index(f'id="item-{item.id}"'):]
     assert "mailto:" not in card[:card.index("</p>")]
+
+
+# ------------------------------------------------- about you, about them
+
+
+def worded(root, item, body, **fields):
+    """The saved item with this text and language, as the page reads it back."""
+    item.body, item.language = body, fields.pop("language", "en")
+    for key, value in fields.items():
+        setattr(item, key, value)
+    outreach.write_item(root, item)
+    return item
+
+
+def card_text(client, item, tab="drafts"):
+    page = client.get("/outreach", params={"tab": tab}).text
+    start = page.index(f'id="item-{item.id}"')
+    return page[start:page.index("</article>", start)]
+
+
+def test_a_card_that_leans_to_you_says_so(client, root):
+    item = worded(root, drafted(client, root),
+                  "Hi Alex,\n\nWe help teams. Our clients grow. I can show you?\n\nSam")
+    card = card_text(client, item)
+    assert '<p class="small warning">About you 3, about them 1: more about you than about ' \
+           'them</p>' in card
+
+
+def test_a_card_that_leans_to_them_shows_the_count_without_a_warning(client, root):
+    item = worded(root, drafted(client, root),
+                  "Hi Alex,\n\nYour team grew. We see you hiring. Is your pipeline "
+                  "ready?\n\nSam")
+    line = '<p class="small">About you 1, about them 3</p>'
+    assert line in card_text(client, item)
+    assert "more about you" not in card_text(client, item)
+    # the ready card shows it too
+    post(client, f"/outreach/{item.id}/ready", subject=item.subject, body=item.body)
+    ready = card_text(client, item, tab="ready")
+    assert line in ready and "Mark ready" not in ready
+
+
+def test_the_count_is_worked_out_only_for_the_cards_that_show_it(client, root, monkeypatch):
+    item = worded(root, drafted(client, root), "Hi Alex,\n\nWe help teams.\n\nSam")
+    asked, real = [], outreach.about_for_item
+    monkeypatch.setattr(outreach, "about_for_item",
+                        lambda folder, shown: asked.append(shown.id) or real(folder, shown))
+    client.get("/outreach", params={"tab": "drafts"})
+    assert asked == [item.id]
+    asked.clear()
+    worded(root, item, item.body, state="sent", sent=NOW)
+    page = client.get("/outreach", params={"tab": "sent"}).text
+    assert f'id="item-{item.id}"' in page and asked == []
+
+
+def test_a_language_without_word_lists_shows_no_count(client, root):
+    item = worded(root, drafted(client, root), "Hola Alex,\n\nTe ayudamos. ¿Te interesa?\n\nSam",
+                  language="es")
+    assert "About you" not in card_text(client, item)

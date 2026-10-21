@@ -18,10 +18,11 @@ MESSAGING.md stays the one playbook. It holds one or more approaches: an
 approach is one offer to one audience, complete on its own (one business can
 sell founder coaching to one audience and a team build-out to another). Python
 reads a YAML front matter: per approach its name, offer line, ideal customer
-(ICP), hard disqualifiers and personas. The AI reads the body: the general
-notes (angles, slots, languages) and, per approach, a `# Approach: <name>`
-block whose `## ` headings hold the rest (Offer, Personas, Proof, Why you,
-Voice, Channels, Don'ts, Disqualifiers, Lessons).
+(ICP), hard disqualifiers, personas and optionally its message frameworks. The
+AI reads the body: the general notes (angles, slots, languages) and, per
+approach, a `# Approach: <name>` block whose `## ` headings hold the rest
+(Offer, Personas, Proof, Why you, Voice, Channels, Don'ts, Disqualifiers,
+Lessons).
 
 "Approach", not "offer", because the pipeline already has an "offer" stage and
 each approach has an offer of its own (the `offer_line` and `## Offer`).
@@ -49,13 +50,18 @@ FILENAME = "MESSAGING.md"
 DEFAULT_APPROACH = "My approach"
 APPROACH_PREFIX = "Approach: "
 
-APPROACH_KEYS = ("name", "offer_line", "first_step_offer", "icp", "disqualifiers", "personas")
+APPROACH_KEYS = ("name", "offer_line", "first_step_offer", "icp", "disqualifiers", "personas",
+                 "frameworks")
 ICP_LISTS = ("industries", "countries", "funding", "signals")
 # `ranges` maps one of the folder's own company fields (fields.toml) to
 # [min, max]: a headcount, a number of salespeople, a revenue band, whatever
 # that folder records. Nothing about size is built in.
 ICP_KEYS = ("industries", "countries", "ranges", "funding", "signals")
 PERSONA_KEYS = ("titles", "pains", "cares", "ignores")
+# `frameworks`: which message recipes (frameworks.py) this approach uses. `default` is
+# the one id its first touches use, `testing` up to two to try against it,
+# `answers` the setup answers it was picked from.
+FRAMEWORKS_KEYS = ("default", "testing", "answers")
 
 # The hard disqualifiers: only what Python can decide for certain on your own
 # data, the company's tags. Everything else (they already have a Head of
@@ -254,6 +260,21 @@ class Approach:
         value = self.front.get("personas")
         return value if isinstance(value, dict) else {}
 
+    @property
+    def frameworks(self) -> dict:
+        value = self.front.get("frameworks")
+        return value if isinstance(value, dict) else {}
+
+    @property
+    def default_framework(self) -> str:
+        value = self.frameworks.get("default")
+        return value if isinstance(value, str) else ""
+
+    @property
+    def testing_frameworks(self) -> list[str]:
+        value = self.frameworks.get("testing")
+        return [v for v in value if isinstance(v, str)] if isinstance(value, list) else []
+
     def section(self, key: str) -> str:
         """A section's text without its hint comments, stripped; "" if absent."""
         span = _span(self.block, 2, SECTION_TITLES[key])
@@ -451,6 +472,54 @@ def _validate_approach(item, where: str) -> list[str]:
                     problems.append(f"{at}.{key}: must be a list, like [\"one\", \"two\"]")
             if not spec.get("titles"):
                 problems.append(f"{at}: has no titles, so no contact can match it")
+
+    chosen = item.get("frameworks")
+    if chosen is not None:
+        problems += _validate_frameworks(chosen, f"{where}.frameworks")
+    return problems
+
+
+def _validate_frameworks(value, at: str) -> list[str]:
+    """The `frameworks:` entry of an approach. Whether an id is in the library
+    is `check_lines`'s to say: this has no folder."""
+    from hermitcrm.frameworks import ANSWERS, HOUSE, ID
+
+    keys = ", ".join(FRAMEWORKS_KEYS)
+    if not isinstance(value, dict):
+        return [f"{at}: must be keys {keys}"]
+    problems = [f"{at}.{key}: not a frameworks key (known: {keys})"
+                for key in value if key not in FRAMEWORKS_KEYS]
+
+    default = value.get("default")
+    if "default" in value and not (isinstance(default, str) and ID.fullmatch(default)):
+        problems.append(f"{at}.default: one framework id, like trigger-tension-trust")
+
+    testing = value.get("testing")
+    if "testing" in value:
+        if not (isinstance(testing, list)
+                and all(isinstance(t, str) and ID.fullmatch(t) for t in testing)):
+            problems.append(f"{at}.testing: a list of framework ids, like [house]")
+        else:
+            if len(testing) > 2:
+                problems.append(f"{at}.testing: at most two")
+            # Without a default, house is the one the others are tried against.
+            current = default if "default" in value else HOUSE
+            once = list(dict.fromkeys(testing))
+            problems += [f"{at}.testing: {tid} twice" for tid in once if testing.count(tid) > 1]
+            problems += [f"{at}.testing: {tid} is the default" for tid in once if tid == current]
+
+    answers = value.get("answers")
+    if "answers" in value:
+        if not isinstance(answers, dict):
+            problems.append(f"{at}.answers: must be question: choice pairs, like {{deal: large}}")
+        else:
+            for question, choice in answers.items():
+                if question not in ANSWERS:
+                    problems.append(f"{at}.answers.{question}: not a question "
+                                    f"(known: {', '.join(ANSWERS)})")
+                elif choice not in ANSWERS[question]:
+                    problems.append(f"{at}.answers.{question}: one of "
+                                    f"{', '.join(ANSWERS[question])}")
     return problems
 
 
@@ -516,7 +585,30 @@ def check_lines(root: Path | str) -> tuple[list[str], list[str]]:
             if fkey not in known:
                 hints.append(f"{FILENAME}: {approach.name}: the range on {fkey!r} names no "
                              "company field in fields.toml, so no company can match it")
-    return [f"{FILENAME}: front matter: {p}" for p in validate_front(pb.front)], hints
+    problems = [f"{FILENAME}: front matter: {p}" for p in validate_front(pb.front)]
+    problems += _unknown_frameworks(root, pb.approaches)
+    return problems, hints
+
+
+def _unknown_frameworks(root: Path | str, approaches: list[Approach]) -> list[str]:
+    """The framework ids an approach names that the folder's library does not have.
+    An id that is not even shaped like one is `validate_front`'s to report."""
+    from hermitcrm import frameworks
+
+    problems, known = [], None
+    for approach in approaches:
+        named = (("default", [approach.default_framework]),
+                 ("testing", approach.testing_frameworks))
+        for key, ids in named:
+            for fid in ids:
+                if not frameworks.ID.fullmatch(fid):
+                    continue
+                if known is None:       # read the library only when something names one
+                    known = frameworks.load(root).ids
+                if fid not in known:
+                    problems.append(f"{FILENAME}: {approach.name}: frameworks.{key}: unknown "
+                                    f"framework {fid!r} (known: {', '.join(known)})")
+    return problems
 
 
 def _company_fields(root: Path | str) -> list:
