@@ -901,7 +901,8 @@ def validate(root: Path) -> list[str]:
 # what they find. `hermitcrm check` calls each module's validate itself.
 VALIDATORS: list[Callable[[Path], list]] = [validate, _late("layout", "validate"),
                                             _late("dashboards", "validate"),
-                                            _late("routines", "validate")]
+                                            _late("routines", "validate"),
+                                            _late("frameworks", "validate")]
 
 
 def all_problems(root: Path) -> list[str]:

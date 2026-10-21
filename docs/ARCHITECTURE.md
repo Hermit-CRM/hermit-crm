@@ -40,6 +40,7 @@ src/hermitcrm/
 ├── upgrade.py             # one-click upgrade: install, verify, restart (exec); string-built pages
 ├── disclaimer.py          # the one-time acknowledgement over the web app
 ├── messaging.py           # outreach drafts (§8.3) + default_messages.toml
+├── frameworks.py          # outreach frameworks library + default_frameworks.toml
 ├── bcc.py, calendar_sync.py, importer.py, enrich.py, scrape.py, filters.py, reports.py
 ├── help/                  # help pages (§7): __init__.py renders <topic>.md, topic_for(path)
 ├── web.py                 # FastAPI app factory and routes (§8)
@@ -55,6 +56,7 @@ Data (a folder created by `hermitcrm init`):
 <data>/
 ├── config.toml                   # every key optional, commented defaults
 ├── messages.toml                 # optional, deep-merged over default_messages.toml
+├── frameworks.toml               # optional, deep-merged over default_frameworks.toml
 ├── .secrets.toml                 # optional, gitignored, mode 600
 ├── .hermitcrm-format                # data format version (integer)
 ├── PIPELINE.md                   # generated, never edited by hand
