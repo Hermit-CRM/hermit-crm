@@ -22,6 +22,7 @@ import pytest
 
 from hermitcrm import cli, frameworks, outreach, playbook, scrape
 from hermitcrm.datafolder import init_folder
+from hermitcrm.models import ValidationError
 from outreach_fakes import FakeAI, ai, demo, fake_page, git, proof_draft
 from test_frameworks import BRANDS
 from test_outreach_draft import built, fake_cli  # noqa: F401  (fake_cli is a fixture)
@@ -392,3 +393,26 @@ def test_build_refuses_a_framework_for_a_thread_kind_before_any_work(folder):
         outreach.build(store, sel, outreach.ScrapeResearcher(ai(fake)), drafter,
                        framework="house")
     assert fake.calls == []
+
+
+def test_logging_a_ready_item_copies_its_framework(folder):
+    root, store = folder
+    item = built(folder, limit=1, drafts=[proof_draft],
+                 framework="trigger-tension-trust")[0].items[0]
+    outreach.mark_ready(store, item.id)
+    it = store.create_interaction(item.company, "email", "out", subject=item.subject,
+                                  contact=item.contact, body=item.body)
+    assert it.framework == "trigger-tension-trust"
+    text = store.interaction_file(item.company, it.id).read_text()
+    assert text.index("angle:") < text.index("framework:") < text.index("approach:")
+
+
+def test_a_hand_logged_message_may_carry_a_framework(folder):
+    _, store = folder
+    it = store.create_interaction("lindenhof-data", "email", "out", subject="Hello",
+                                  contact="mara-keller", body="Hi\n", framework=" House ")
+    assert it.framework == "house"
+    with pytest.raises(ValidationError):
+        store.create_interaction("lindenhof-data", "email", "out", subject="Hello",
+                                 contact="mara-keller", body="Hi\n", framework="Trigger tension")
+    assert store.update_interaction("lindenhof-data", it.id, framework="").framework == ""

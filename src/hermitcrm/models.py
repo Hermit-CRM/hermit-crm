@@ -161,6 +161,13 @@ def normalise_angle(value) -> str:
     return str(value or "").strip().lower() if not isinstance(value, Angle) else value.value
 
 
+def normalise_framework(value) -> str:
+    """A framework id as stored: trimmed and lower case. Whether it names a
+    framework in the library is not decided here; the Store checks only that it
+    is shaped like an id, so a message keeps the id of a framework removed later."""
+    return str(value or "").strip().lower()
+
+
 class Direction(str, Enum):
     OUT = "out"
     IN = "in"
@@ -407,6 +414,7 @@ class Interaction:
     contact: str = ""
     subject: str = ""
     angle: str = ""     # one of ANGLES, or "" (not known)
+    framework: str = ""  # the id of the outreach framework it was built with, or ""
     approach: str = ""  # the playbook approach the message was for, or ""
     outcome: str = ""  # one of config outcomes, or "" (not yet known)
     source: str = "manual"
@@ -976,6 +984,8 @@ def interaction_to_frontmatter(i: Interaction) -> dict:
     # Omitted when empty, so a file written before they existed stays the same.
     if i.angle:
         meta["angle"] = i.angle
+    if i.framework:
+        meta["framework"] = i.framework
     if i.approach:
         meta["approach"] = i.approach
     meta["outcome"] = i.outcome
@@ -999,7 +1009,7 @@ CONTACT_KEYS = frozenset({
     "role", "language", "tasks", "created", "updated",
 })
 INTERACTION_KEYS = frozenset({
-    "date", "channel", "direction", "contact", "subject", "angle", "approach",
+    "date", "channel", "direction", "contact", "subject", "angle", "framework", "approach",
     "outcome", "source", "message_id",
 })
 
@@ -1185,6 +1195,7 @@ def interaction_from_dict(meta: dict, body: str, id: str) -> Interaction:
         contact=_str(meta, "contact").strip(),
         subject=_str(meta, "subject").strip(),
         angle=normalise_angle(_str(meta, "angle")),
+        framework=normalise_framework(_str(meta, "framework")),
         approach=_str(meta, "approach").strip(),
         outcome=_str(meta, "outcome").strip(),
         source=_enum(_str(meta, "source"), InteractionSource, "source", True, errors,

@@ -160,7 +160,7 @@ def test_no_card_without_a_session_and_a_session_starts_once(folder):
 
 def test_sent_logs_the_exact_text_marks_the_item_and_starts_the_countdown(folder):
     root, store = folder
-    (item_id,) = add(root, store, 2)[:1]
+    (item_id,) = add(root, store, 2, framework="connection-problem-objection")[:1]
     started(store)
     head = git(root, "rev-list", "--count", "HEAD")
     item = linkedin.sent(store, item_id, T0, CFG)
@@ -170,6 +170,7 @@ def test_sent_logs_the_exact_text_marks_the_item_and_starts_the_countdown(folder
     (it,) = [i for i in company.interactions if i.source == "outreach"]
     assert (it.channel, it.direction, it.contact, it.date) == ("linkedin", "out", item.contact, T0)
     assert it.body.rstrip("\n") == NOTE and it.angle == "hook"
+    assert it.framework == "connection-problem-objection"
     assert item.sent_with == it.id
     assert int(git(root, "rev-list", "--count", "HEAD")) == int(head) + 1       # one commit
     assert git(root, "status", "--porcelain").strip() == ""
@@ -388,7 +389,7 @@ def test_a_gone_profile_on_a_pitch_card_does_not_try_to_skip_a_sent_item(folder)
 
 def test_accepted_brings_the_pitch_into_the_queue_and_a_sent_pitch_closes_the_loop(folder):
     root, store = folder
-    (item_id,) = add(root, store, 1)
+    (item_id,) = add(root, store, 1, framework="connection-problem-objection")
     started(store)
     linkedin.sent(store, item_id, T0, CFG)
     (row,) = linkedin.waiting(store, T0 + timedelta(days=2))
@@ -408,6 +409,9 @@ def test_accepted_brings_the_pitch_into_the_queue_and_a_sent_pitch_closes_the_lo
     bodies = sorted(i.body.rstrip("\n") for c in store.companies.values() for i in c.interactions
                     if i.source == "outreach")
     assert bodies == sorted([NOTE, PITCH])
+    # the pitch goes out after the item is `sent`, so only the explicit pass gives it the framework
+    assert {i.framework for c in store.companies.values() for i in c.interactions
+            if i.source == "outreach"} == {"connection-problem-objection"}
     with pytest.raises(outreach.OutreachError, match="not a pending invite"):
         linkedin.accepted(store, item_id, later)
 
