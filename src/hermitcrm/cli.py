@@ -590,6 +590,11 @@ def cmd_check(store: Store) -> tuple[str, int]:
     pb_problems, pb_hints = playbook.check_lines(store.root)
     stray += pb_hints
     extension += pb_problems
+    # frameworks.toml (the outreach frameworks library): a key it does not know
+    # is a hint; a wrong value is a problem (adjust.VALIDATORS reports it).
+    from hermitcrm import frameworks
+    fw_hints = frameworks.hints(store.root)
+    stray += fw_hints
     # The outreach bot's items (outreach/<id>.md): one that cannot be read is
     # left out of every list, so it is said here.
     from hermitcrm import outreach
@@ -605,7 +610,7 @@ def cmd_check(store: Store) -> tuple[str, int]:
             0,
         )
     lines = [f"{p.path}: {p.message}" for p in store.problems] + extension + off_board \
-        + pb_hints
+        + pb_hints + fw_hints
     return ("\n".join(lines), 1)
 
 
