@@ -12,12 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Outreach frameworks in the hard checks: question bounds, the word limit, proof and the
-framework id in the AI's answer."""
+"""Outreach frameworks in the hard checks (question bounds, the word limit, proof and the
+framework id in the AI's answer) and in the draft prompt (the framework block)."""
 
 from __future__ import annotations
 
-from hermitcrm import frameworks, outreach
+import pytest
+
+from hermitcrm import frameworks, outreach, playbook
+from outreach_fakes import FakeAI, ai, demo
+from test_frameworks import BRANDS
 
 LIB = frameworks.load()
 PROOF = ("A made-up example: a 30-person software company doubled its qualified "
@@ -91,3 +95,112 @@ def test_the_framework_in_the_answer_must_be_the_one_asked_for():
     draft = outreach.clean_answer(answer(), ctx)
     assert draft.problems == [] and draft.framework == "house"
     assert "framework" not in outreach.DRAFT_SCHEMA["required"]
+
+
+# ------------------------------------------------------------------ the prompt
+
+
+@pytest.fixture
+def folder(tmp_path):
+    return demo(tmp_path)
+
+
+def first_touch_prompt(store, framework, channel="email"):
+    company = store.get("lindenhof-data")
+    contact = company.contacts["mara-keller"]
+    approach = playbook.load(store.root).approaches[0]
+    research = outreach.Research(findings=[outreach.Finding(
+        text="Opened a second office this autumn", source="https://example.com/news",
+        kind="trigger", confidence="high")])
+    drafter = outreach.AIDrafter(store, ai(FakeAI()), {"owner_name": "Sam Example"})
+    ctx, _ = drafter.context(outreach.FIRST_TOUCH, company, contact, research, channel,
+                             approach, framework=framework)
+    brief = outreach.make_brief(store, company, contact, approach, research)
+    return outreach.draft_prompt(outreach.FIRST_TOUCH, brief, ctx, approach, "", "Sam Example")
+
+
+def test_house_gives_todays_prompt_byte_for_byte(folder):
+    _, store = folder
+    assert first_touch_prompt(store, LIB.house) == first_touch_prompt(store, None)
+    assert outreach.SHAPES[outreach.FIRST_TOUCH] in first_touch_prompt(store, LIB.house)
+
+
+def test_a_framework_block_replaces_the_shape_paragraph(folder):
+    _, store = folder
+    fw = LIB.get("trigger-tension-trust")
+    prompt = first_touch_prompt(store, fw)
+    assert outreach.SHAPES[outreach.FIRST_TOUCH] not in prompt
+    assert ('--- framework "Trigger, tension, trust" ---\nSteps: Trigger, Tension, Trust, '
+            "Question.\n" + fw.instructions + "\n--- end ---") in prompt
+    assert ("- The playbook's Voice section wins over the framework on wording, greeting, "
+            "sign-off and formality.") in prompt
+    assert "the body at most 60 words" in prompt
+    assert "- Exactly one question mark in the whole message." in prompt
+    assert "- Do not state the offer line; it is below as background." in prompt
+    assert '- Set framework to "trigger-tension-trust".' in prompt
+
+
+def test_credit_and_example_never_reach_a_prompt(folder):
+    root, store = folder
+    (root / "frameworks.toml").write_text(
+        '[frameworks.trigger-tension-trust]\nexample = "Hi Alex, a made-up example."\n',
+        encoding="utf-8")
+    lib = frameworks.load(root)
+    for fid in lib.ids:
+        fw = lib.get(fid)
+        prompt = first_touch_prompt(store, fw)
+        assert not fw.after or fw.after not in prompt, fid
+        assert not fw.example or fw.example not in prompt, fid
+        assert not [b for b in BRANDS if b in prompt.lower()], fid
+
+
+def test_linkedin_framework_drafts_shape_the_pitch(folder):
+    _, store = folder
+    prompt = first_touch_prompt(store, LIB.get("trigger-tension-trust"), "linkedin")
+    assert "built with the framework below" in prompt and "the offer in one line" not in prompt
+
+
+def test_replies_and_follow_ups_get_no_framework(folder):
+    _, store = folder
+    company = store.get("lindenhof-data")
+    drafter = outreach.AIDrafter(store, ai(FakeAI()), {})
+    ctx, _ = drafter.context(outreach.REPLY, company, company.contacts["mara-keller"],
+                             outreach.Research(), "email", None,
+                             framework=LIB.get("trigger-tension-trust"))
+    assert ctx.framework is None
+
+
+def test_the_rule_lines_follow_the_framework(folder):
+    root, store = folder
+    (root / "frameworks.toml").write_text(
+        '[frameworks.offer-first]\nname = "Offer first"\nsteps = ["Offer", "Ask"]\n'
+        'offer_line = "required"\nproof = "optional"\nquestions = [0, 1]\n'
+        'instructions = "State the offer, then invite a reply."\n', encoding="utf-8")
+    prompt = first_touch_prompt(store, frameworks.load(root).get("offer-first"))
+    assert "- Say the offer in one line." in prompt
+    assert "- At most one question mark in the whole message." in prompt
+    assert "Exactly one question mark" not in prompt
+    assert "Do not state the offer line" not in prompt and "Cite one proof line" not in prompt
+
+
+def test_the_drafter_uses_house_unless_a_framework_is_passed(folder):
+    _, store = folder
+    company = store.get("lindenhof-data")
+    contact = company.contacts["mara-keller"]
+    approach = playbook.load(store.root).approaches[0]
+    research = outreach.Research(findings=[outreach.Finding(
+        text="Opened a second office this autumn", source="https://example.com/news",
+        kind="trigger", confidence="high")])
+
+    def prompt_and_draft(**kw):
+        fake = FakeAI()
+        drafter = outreach.AIDrafter(store, ai(fake), {"owner_name": "Sam Example"})
+        draft = drafter.draft(outreach.FIRST_TOUCH, company, contact, research, "email",
+                              approach=approach, **kw)
+        return fake.of("draft")[0]["prompt"], draft
+
+    prompt, draft = prompt_and_draft()
+    assert outreach.SHAPES[outreach.FIRST_TOUCH] in prompt and draft.framework == "house"
+    prompt, draft = prompt_and_draft(framework=LIB.get("trigger-tension-trust"))
+    assert '- Set framework to "trigger-tension-trust".' in prompt
+    assert draft.framework == "trigger-tension-trust"
