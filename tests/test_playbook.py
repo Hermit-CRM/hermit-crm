@@ -738,3 +738,52 @@ def test_set_lessons_keeps_comments_and_untouched_parts():
     assert playbook.set_lessons(out, "Clinic software", {}) == out
     with pytest.raises(playbook.PlaybookError):
         playbook.set_lessons(text, "No such approach", {"open": "- x"})
+
+
+def front(frameworks_value):
+    return {"approaches": [{"name": "A", "offer_line": "We do X.",
+                            "frameworks": frameworks_value}]}
+
+
+def test_frameworks_in_an_approach_is_valid():
+    assert playbook.validate_front(front({
+        "default": "trigger-tension-trust", "testing": ["house"],
+        "answers": {"deal": "large", "buyer": "exec", "volume": "low", "research": "five",
+                    "tone": "plain"}})) == []
+    a = playbook.Approach(name="A", front={"frameworks": {"default": "trigger-tension-trust"}})
+    assert a.default_framework == "trigger-tension-trust" and a.testing_frameworks == []
+    assert playbook.Approach(name="B").default_framework == ""
+
+
+@pytest.mark.parametrize("value, expected", [
+    ("trigger-tension-trust", "frameworks: must be keys default, testing, answers"),
+    ({"default": "Trigger Tension"}, "frameworks.default: one framework id"),
+    ({"testing": ["house", "pain-proof-yes-no", "premise-body-ask"]}, "frameworks.testing: at most two"),
+    ({"default": "house", "testing": ["house"]}, "frameworks.testing: house is the default"),
+    ({"answers": {"deal": "huge"}}, "frameworks.answers.deal: one of small, mid, large, xl"),
+    ({"answers": {"budget": "low"}}, "frameworks.answers.budget: not a question"),
+    ({"winner": "house"}, "frameworks.winner: not a frameworks key"),
+])
+def test_a_wrong_frameworks_entry_is_a_problem(value, expected):
+    assert any(expected in p for p in playbook.validate_front(front(value)))
+
+
+def test_check_names_an_unknown_framework(tmp_path):
+    root = init_folder(tmp_path / "x", demo=True)
+    path = root / playbook.FILENAME
+    a = playbook.parse(path.read_text()).approaches[0]
+    path.write_text(playbook.apply_approach(path.read_text(), a.name,
+                                            {**a.front, "frameworks": {"default": "gone"}}))
+    problems, _ = playbook.check_lines(root)
+    assert any(f"{a.name}: frameworks.default: unknown framework 'gone'" in p for p in problems)
+
+
+def test_a_settings_save_keeps_the_frameworks_entry_byte_for_byte(tmp_path):
+    root = init_folder(tmp_path / "x", demo=True)
+    text = (root / playbook.FILENAME).read_text()
+    a = playbook.parse(text).approaches[0]
+    text = playbook.apply_approach(text, a.name,
+                                   {**a.front, "frameworks": {"default": "trigger-tension-trust"}})
+    values = playbook.form_values(playbook.parse(text).approaches[0])
+    saved, errors = playbook.save_form(text, a.name, values)
+    assert errors == {} and saved == text
