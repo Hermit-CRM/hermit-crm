@@ -122,7 +122,7 @@ DUPLICATE_SUFFIXES = ("ai", "hq", "app", "io", "group", "gmbh", "inc", "ltd", "l
 
 ITEM_KEYS = (
     "state", "kind", "channel", "company", "contact", "reply_to", "follows", "approach", "angle",
-    "language",
+    "framework", "language",
     "subject", "pitch", "research_level", "model", "attempts", "seconds", "checks",
     "critic", "critic_reason", "critic_model", "flags", "norms", "findings", "proof_used",
     "lessons_used", "exemplars_used", "proposals", "edit_distance",
@@ -1722,6 +1722,7 @@ class Item:
     follows: str = ""     # follow-up: the id of your unanswered message (an interaction)
     approach: str = ""
     angle: str = ""
+    framework: str = ""   # a first touch: the id of the framework it was drafted with
     language: str = ""
     subject: str = ""
     pitch: str = ""
@@ -1795,7 +1796,7 @@ class Item:
                 value = [f.to_dict() for f in value]
             elif key in ("edits", "earlier"):
                 value = [x.to_dict() for x in value]
-            elif key in ("lessons_used", "exemplars_used", "language_pick",
+            elif key in ("framework", "lessons_used", "exemplars_used", "language_pick",
                          "notes_linked") and not value:
                 continue    # absent until they apply (keeps older files' bytes)
             meta[key] = value
@@ -1874,6 +1875,7 @@ def item_from_text(item_id: str, text: str) -> Item:
         contact=s("contact").strip(), reply_to=s("reply_to").strip(),
         follows=s("follows").strip(),
         approach=s("approach"), angle=s("angle").strip(),
+        framework=s("framework").strip().lower(),
         language=s("language").strip(), subject=s("subject"), pitch=s("pitch"),
         research_level=s("research_level").strip(), model=s("model"),
         attempts=_int_or_none(meta.get("attempts")) or 0,
@@ -2700,10 +2702,60 @@ def researcher_for(level: str, enricher, fetcher=None, today: date | None = None
     return cls(enricher, fetcher=fetcher, today=today, timeout=timeout)
 
 
+def unmet_needs(framework: Framework, findings: list[Finding]) -> list[str]:
+    """The needs of `framework` that no usable finding meets. A finding from a note
+    you wrote (source YOURS) meets `personal-connection`; one about the person meets
+    `premise`. Findings are a snapshot of the contact's notes, so a note you wrote
+    is both."""
+    usable = [f for f in findings if f.usable]
+    met = {"personal-connection": any(f.source == YOURS for f in usable),
+           "premise": any(f.kind == "person" for f in usable)}
+    return [need for need in framework.needs if not met[need]]
+
+
+def check_framework_choice(library: frameworks.Library, kind: str, framework: str) -> None:
+    """Refuse a chosen `framework` ("" = none chosen) that cannot shape a draft of
+    this kind: only a first touch has one, and the id must be in the library."""
+    if not framework:
+        return
+    if kind != FIRST_TOUCH:
+        raise OutreachError("frameworks shape first touches only; leave out --framework "
+                            "for a reply or follow-up")
+    try:
+        frameworks.resolve(library, override=framework)
+    except ValueError as exc:
+        raise OutreachError(str(exc)) from exc
+
+
+def meet_needs(library: frameworks.Library, approach, framework: Framework,
+               findings: list[Finding]) -> tuple[Framework, str]:
+    """(framework, flag): `framework` when the research gave it what it needs. If not,
+    the approach's default when that needs nothing and is another framework, else
+    house, with the flag that says why."""
+    missing = unmet_needs(framework, findings)
+    if not missing:
+        return framework, ""
+    default = library.get(approach.default_framework) if approach is not None else None
+    fallback = default if default is not None and not default.needs \
+        and default.id != framework.id else library.house
+    return fallback, (f"{framework.id} needs "
+                      f"{' and '.join(frameworks.NEEDS[n] for n in missing)}; "
+                      f"drafted with {fallback.id}")
+
+
+def item_framework(library: frameworks.Library, item: Item) -> tuple[Framework | None, str]:
+    """(framework, note) an item is drafted and checked with: a first touch's own, house
+    for one from before frameworks, or when its framework is gone from the library (the
+    note says so); a reply or follow-up has none."""
+    if item.kind != FIRST_TOUCH:
+        return None, ""
+    return frameworks.resolve(library, item.framework)
+
+
 def build(store: Store, selection: Selection, researcher: Researcher, drafter: Drafter,
           config: dict | None = None, now: datetime | None = None,
           batch: str = "", critic: Critic | None = None,
-          language: str = "") -> BuildResult:
+          language: str = "", framework: str = "") -> BuildResult:
     """Research and draft every picked contact. Each step of each item is one
     commit (`store.notify`): the research, then the draft. A crash halfway
     leaves the items written so far, each committed. `batch` names the run
@@ -2711,7 +2763,10 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
     one); empty = from the start time and the channel. `critic` scores each
     draft inside the draft step (no extra commit); none = no critic. `language`:
     one language for these drafts and their regenerates (kept on the item as
-    `language_pick`); empty = the contact's, else the company's country's."""
+    `language_pick`); empty = the contact's, else the company's country's.
+    `framework`: the id every first touch is drafted with; empty = the approach's
+    default, else house. A framework whose needs the research does not meet falls
+    back (see meet_needs), with a flag."""
     root = Path(store.root)
     config = config if config is not None else load_config(root)
     if selection.gate:
@@ -2721,6 +2776,8 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
                             f"use {' or '.join(BUILT_KINDS)}")
     from . import notes
     pb = playbook.load(root)
+    library = frameworks.load(root)
+    check_framework_choice(library, selection.kind, framework)
     out = BuildResult()
     started = now or store.now()
     batch = batch or f"{started:%Y-%m-%dT%H%M}-{selection.channel}"
@@ -2749,6 +2806,13 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
                     research_level="" if threaded else getattr(researcher, "level", ""),
                     flags=list(cand.flags), batch=batch, created=when,
                     language_pick=language)
+        chosen: Framework | None = None   # a first touch only
+        if not threaded:
+            chosen, note = frameworks.resolve(
+                library, approach.default_framework if approach else "", framework)
+            item.framework = chosen.id
+            if note:
+                item.flags.append(note)
         if threaded:   # no research: the thread is the context
             research = Research(level="")
         else:
@@ -2772,6 +2836,11 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
                                                    cand.contact.slug, store.today())
             item.findings = research.findings
             item.notes_linked = True
+            if chosen is not None:   # the research may not have found what it needs
+                chosen, why = meet_needs(library, approach, chosen, research.findings)
+                item.framework = chosen.id
+                if why:
+                    item.flags.append(why)
             fallback = not threaded and not any(f.usable for f in research.findings)
             if fallback:
                 item.flags.append("nothing usable found: the draft falls back to the "
@@ -2795,7 +2864,7 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
                                  selection.channel, approach=approach, brief=brief,
                                  reply=reply.interaction if reply else None,
                                  earlier=row.interaction if row else None,
-                                 critique=critique, language=language)
+                                 critique=critique, language=language, framework=chosen)
 
         draft = write()
         reviewed = _review(critic, config, draft, write, selection.kind, selection.channel,
@@ -2894,7 +2963,9 @@ def check_item(store: Store, item: Item, config: dict | None = None) -> list[str
     edited it). The findings and proof it cites stay as the AI declared them."""
     company = store.get(item.company)
     messages = messaging.load_messages(store.root)
-    rules = channel_rules(item.channel, messages)
+    framework, _ = item_framework(frameworks.load(store.root), item)
+    rules = framework_rules(channel_rules(item.channel, messages), framework, item.channel,
+                            item.kind)
     opt_out = opt_out_line(store.root, item.kind, item.channel, item.language or "en", rules)
     pb = playbook.load(store.root)
     approach = pb.approach(item.approach) if item.approach else None
@@ -2903,7 +2974,8 @@ def check_item(store: Store, item: Item, config: dict | None = None) -> list[str
                        offer_lines=[approach.offer_line] if approach else [],
                        opt_out=opt_out,
                        never_write=never_write(config if config is not None
-                                               else load_config(store.root)))
+                                               else load_config(store.root)),
+                       framework=framework)
     found = check_text(item.subject, item.body, item.pitch, ctx)
     gaps = hand_edits(item.subject, item.body, item.pitch)
     if gaps and not any(p.startswith("it leaves a gap") for p in found):
@@ -3192,12 +3264,18 @@ def redraft(store: Store, item_id: str, drafter: Drafter,
     if item.kind == FOLLOW_UP and earlier is None:
         raise OutreachError(f"{item.id}: your message {item.follows!r} is not in the CRM "
                             "any more")
+    framework, note = item_framework(frameworks.load(store.root), item)
+    if framework is not None:   # an old item records house now; a gone one says so
+        item.framework = framework.id
+        if note and note not in item.flags:
+            item.flags.append(note)
     clock = time.monotonic()
 
     def write(critique: str = "") -> Draft:
         return drafter.draft(item.kind, company, contact, research, item.channel,
                              approach=approach, brief=brief, reply=reply, earlier=earlier,
-                             critique=critique, language=item.language_pick)
+                             critique=critique, language=item.language_pick,
+                             framework=framework)
 
     draft = write()
     fallback = not in_thread(item.kind) and not any(f.usable for f in item.findings)
@@ -3353,8 +3431,9 @@ def render_item(store: Store, item: Item) -> str:
             ("LinkedIn", contact.linkedin), ("email", contact.email)) if value]
     if company is not None:
         lines.append(f"Company: {company.name} | {company.website or 'no website'}")
-    lines.append(f"Approach: {item.approach or '-'} | angle: {item.angle or '-'} | "
-                 f"language: {item.language or '-'} | research: {item.research_level}")
+    lines.append(f"Approach: {item.approach or '-'} | angle: {item.angle or '-'}"
+                 + (f" | framework: {item.framework}" if item.framework else "")
+                 + f" | language: {item.language or '-'} | research: {item.research_level}")
     if item.flags:
         lines.append("Flags:")
         lines += [f"- {f}" for f in item.flags]
