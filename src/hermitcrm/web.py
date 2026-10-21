@@ -4309,6 +4309,7 @@ def create_app(root: Path, config: dict | None = None,
                          for n in (preview.notes if preview else [])]
         ready, gate = outreach._ready_approaches(root)
         known = exemplar_index_for(shown)
+        about = {i.id: outreach.about_for_item(root, i) for i in shown}
         return render(request, "outreach.html", {
             "approaches": [a.name for a in ready],
             "tabs": [(t, label, counts[t]) for t, label, _ in OUTREACH_TABS
@@ -4331,7 +4332,7 @@ def create_app(root: Path, config: dict | None = None,
             "channels": outreach.CHANNELS, "levels": outreach.LEVELS,
             "built_levels": outreach.BUILT_LEVELS,
             "ai_web_problem": app.state.enricher.web_only_problem(),
-            "critic_scores": outreach.CRITIC_SCORES,
+            "critic_scores": outreach.CRITIC_SCORES, "about": about,
             "continue_query": outreach_query(form) if form["left"] else "",
             "since_line": since_last_time(),
             "edit_tags": outreach.EDIT_TAGS,

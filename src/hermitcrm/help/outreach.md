@@ -311,6 +311,17 @@ call; it scores only and never rewrites your text). Without an AI it runs the ch
 and says the critic did not run. **Mark ready** does not ask. A score is never a
 check: the rules stay in the checks and `clean_answer`.
 
+## About you, about them
+
+Next to the critic's scores the card counts the words that are about you (I, my,
+we, our) and the words that are about them (you, your) in the message and the one
+after they accept, in the draft's language. English, German, Dutch and French have
+word lists; any other language shows no count. The opt-out line is left out. When
+there are more about you than about them, the line turns into a warning. It is a
+flag, not a check: nothing is blocked or written again, and the offer line is first
+person by nature. In German, the formal `Sie` and `Ihr` count as about them only in
+capitals and not first in a sentence. `hermitcrm outreach show` prints the same line.
+
 ## The files
 
 `outreach/<id>.md`, one per item. The front matter holds `state`
