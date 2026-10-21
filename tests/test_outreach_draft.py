@@ -64,6 +64,33 @@ def test_a_good_draft_passes():
     assert draft.body.endswith("Sam\n")
 
 
+# A made-up proof line in English, as the seller wrote it; the German draft below says it
+# in German. Named apart from PROOF, the list the other tests use.
+MADE_UP_PROOF = ("A made-up example: a 30-person software company doubled its qualified "
+                 "pipeline in two quarters.")
+
+
+def test_the_prompt_asks_for_proof_in_the_message_language(folder):
+    result, fake = built(folder, limit=1)
+    prompt = fake.of("draft")[0]["prompt"]
+    assert result.items[0].language == "de"
+    assert ("--- proof (cite only these, word for word, in proof_used; in the message, say "
+            "it in the message's language) ---") in prompt
+    assert ("cite it word for word in proof_used; in the message, say it in the message's "
+            "language") in outreach.SHAPES[outreach.REPLY]
+
+
+def test_a_translated_proof_passes_when_proof_used_keeps_the_playbook_words():
+    ctx = outreach.CheckContext(proof=[MADE_UP_PROOF],
+                                rules={"subject_max": 60, "body_max_words": 120})
+    data = {"subject": "Ihr zweites Büro", "angle": "hook", "pitch": "", "findings_used": [],
+            "body": "Hallo Mara,\n\nDas zweite Büro ist mir aufgefallen. Ein Softwareunternehmen "
+                    "mit 30 Leuten hat seine Pipeline in zwei Quartalen verdoppelt.\nWo hakt es "
+                    "gerade am meisten?\n\nSam\n",
+            "proof_used": [MADE_UP_PROOF]}
+    assert outreach.clean_answer(data, ctx).problems == []
+
+
 @pytest.mark.parametrize("body,count", [
     (GOOD.replace("deal size?", "deal size."), 0),
     (GOOD.replace("right now:", "right now? Or:"), 2),
