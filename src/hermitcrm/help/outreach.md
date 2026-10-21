@@ -285,11 +285,13 @@ premise (something they wrote, said or shared) or a personal connection (a note
 you wrote). When it was not found, the draft uses the approach's default if
 that needs nothing, else `house`, and the card says so in its flags, for example
 "connection-problem-objection needs a personal connection; drafted with house".
-The item records the `framework` it was drafted with, and `outreach show` prints
-it after the angle. Regenerate and Mark ready use that framework, so the checks
-(length, questions, proof) are its own. An item from before frameworks has none
-and counts as `house`; one whose framework has since left the library is drafted
-with `house` and says so in a flag.
+Regenerate checks this again against your notes as they are now. The item
+records the `framework` it was drafted with, and `outreach show` prints it after
+the angle. Regenerate uses that framework. A build or a Regenerate checks the
+AI's answer for its proof line; Mark ready checks the text again for that
+framework's length and questions, not for proof. An item from before frameworks
+has none and counts as `house`; one whose framework has since left the library
+is drafted with `house` and says so in a flag.
 
 **Opt-out line** (optional): set `opt_out` in the playbook's front matter, one
 sentence or one per language (`opt_out: {en: "...", de: "..."}`), and a cold
@@ -336,7 +338,9 @@ word lists; any other language shows no count. The opt-out line is left out. Whe
 there are more about you than about them, the line turns into a warning. It is a
 flag, not a check: nothing is blocked or written again, and the offer line is first
 person by nature. In German, the formal `Sie` and `Ihr` count as about them only in
-capitals and not first in a sentence. `hermitcrm outreach show` prints the same line.
+capitals; `Sie` not first in a sentence (it may mean "she" or "they" there), the
+`Ihr` forms and `Ihnen` anywhere. A word in all capitals, like `US` or `WIR`, never
+counts. `hermitcrm outreach show` prints the same line.
 
 ## The files
 

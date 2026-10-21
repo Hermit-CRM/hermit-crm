@@ -491,13 +491,13 @@ def _validate_frameworks(value, at: str) -> list[str]:
                 for key in value if key not in FRAMEWORKS_KEYS]
 
     default = value.get("default")
-    if "default" in value and not (isinstance(default, str) and ID.match(default)):
+    if "default" in value and not (isinstance(default, str) and ID.fullmatch(default)):
         problems.append(f"{at}.default: one framework id, like trigger-tension-trust")
 
     testing = value.get("testing")
     if "testing" in value:
         if not (isinstance(testing, list)
-                and all(isinstance(t, str) and ID.match(t) for t in testing)):
+                and all(isinstance(t, str) and ID.fullmatch(t) for t in testing)):
             problems.append(f"{at}.testing: a list of framework ids, like [house]")
         else:
             if len(testing) > 2:
@@ -601,7 +601,7 @@ def _unknown_frameworks(root: Path | str, approaches: list[Approach]) -> list[st
                  ("testing", approach.testing_frameworks))
         for key, ids in named:
             for fid in ids:
-                if not frameworks.ID.match(fid):
+                if not frameworks.ID.fullmatch(fid):
                     continue
                 if known is None:       # read the library only when something names one
                     known = frameworks.load(root).ids

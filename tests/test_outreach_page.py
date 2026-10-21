@@ -492,6 +492,19 @@ def test_a_card_that_leans_to_them_shows_the_count_without_a_warning(client, roo
     assert line in ready and "Mark ready" not in ready
 
 
+def test_the_count_is_worked_out_only_for_the_cards_that_show_it(client, root, monkeypatch):
+    item = worded(root, drafted(client, root), "Hi Alex,\n\nWe help teams.\n\nSam")
+    asked, real = [], outreach.about_for_item
+    monkeypatch.setattr(outreach, "about_for_item",
+                        lambda folder, shown: asked.append(shown.id) or real(folder, shown))
+    client.get("/outreach", params={"tab": "drafts"})
+    assert asked == [item.id]
+    asked.clear()
+    worded(root, item, item.body, state="sent", sent=NOW)
+    page = client.get("/outreach", params={"tab": "sent"}).text
+    assert f'id="item-{item.id}"' in page and asked == []
+
+
 def test_a_language_without_word_lists_shows_no_count(client, root):
     item = worded(root, drafted(client, root), "Hola Alex,\n\nTe ayudamos. ¿Te interesa?\n\nSam",
                   language="es")

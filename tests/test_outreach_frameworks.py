@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import pytest
 
-from hermitcrm import cli, frameworks, outreach, playbook, scrape
+from hermitcrm import cli, frameworks, notes, outreach, playbook, scrape
 from hermitcrm.datafolder import init_folder
 from hermitcrm.models import ValidationError
 from outreach_fakes import FakeAI, ai, demo, fake_page, git, proof_draft
@@ -136,6 +136,27 @@ def test_house_gives_todays_prompt_byte_for_byte(folder):
     _, store = folder
     assert first_touch_prompt(store, LIB.house) == first_touch_prompt(store, None)
     assert outreach.SHAPES[outreach.FIRST_TOUCH] in first_touch_prompt(store, LIB.house)
+    assert "--- framework" not in first_touch_prompt(store, LIB.house)
+
+
+def test_a_rewritten_house_keeps_the_fixed_rule_lines(folder):
+    root, store = folder
+    (root / "frameworks.toml").write_text(
+        '[frameworks.house]\ninstructions = "Write it short."\n', encoding="utf-8")
+    house = frameworks.load(root).house
+    assert house.instructions == "Write it short."
+    prompt = first_touch_prompt(store, house)
+    assert "Write it short." in prompt and outreach.SHAPES[outreach.FIRST_TOUCH] not in prompt
+    for line in ("- No meeting ask, no call ask, no link, no proposed day or time.",
+                 '- Never open with "I" (or Ich, Ik, Je): the first word is about them.',
+                 "- When no finding is usable, write from one of the playbook's angles instead "
+                 "and mark what only the seller can fill in with [square brackets].",
+                 "- The playbook's Voice section wins over the framework on wording, greeting, "
+                 "sign-off and formality.",
+                 "- Exactly one question mark in the whole message.",
+                 "- Say the offer in one line."):
+        assert line in prompt, line
+    assert "Set framework to" not in prompt and "--- framework" not in prompt
 
 
 def test_a_framework_block_replaces_the_shape_paragraph(folder):
@@ -355,6 +376,24 @@ def test_regenerate_keeps_the_framework_and_records_house_for_an_old_item(folder
     again = outreach.redraft(store, item.id, outreach.AIDrafter(store, ai(FakeAI()), {}))
     assert again.framework == "house"
     assert "framework gone is not in the library; drafted with house" in again.flags
+
+
+def test_regenerate_rechecks_the_needs_against_the_notes_as_they_are_now(folder):
+    root, store = folder
+    note = notes.add_note(store, "lindenhof-data", "mara-keller", "Met her at a conference.")
+    item = built(folder, limit=1, framework="connection-problem-objection")[0].items[0]
+    assert item.framework == "connection-problem-objection"      # your note meets the need
+    store.delete_interaction("lindenhof-data", note.id)
+    fake = FakeAI()
+    again = outreach.redraft(store, item.id,
+                             outreach.AIDrafter(store, ai(fake), {"owner_name": "Sam Example"}))
+    flag = "connection-problem-objection needs a personal connection; drafted with house"
+    assert again.framework == "house" and again.flags.count(flag) == 1
+    assert "--- framework" not in fake.of("draft")[0]["prompt"]     # written with house too
+    assert outreach.get_item(root, item.id).framework == "house"
+    twice = outreach.redraft(store, item.id,
+                             outreach.AIDrafter(store, ai(FakeAI()), {"owner_name": "Sam Example"}))
+    assert twice.framework == "house" and twice.flags.count(flag) == 1
 
 
 def test_an_item_without_framework_keeps_its_bytes(folder):
