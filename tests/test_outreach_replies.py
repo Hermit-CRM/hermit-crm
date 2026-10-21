@@ -354,6 +354,20 @@ def test_item_file_keeps_reply_to(root, client):
     meta, body = split_file((root / item.path).read_text())
     assert meta["reply_to"] == it.id
     assert list(meta) == [k for k in outreach.ITEM_KEYS
-                          if k not in ("exemplars_used", "language_pick")]
+                          if k not in ("framework", "exemplars_used", "language_pick")]
     again = outreach.item_from_text(item.id, (root / item.path).read_text())
     assert outreach.item_text(again) == (root / item.path).read_text()
+
+
+def test_a_reply_item_gets_no_framework_even_when_the_approach_has_a_default(root, client):
+    path = root / playbook.FILENAME
+    for approach in playbook.load(root).approaches:
+        path.write_text(playbook.apply_approach(
+            path.read_text(), approach.name,
+            {**approach.front, "frameworks": {"default": "trigger-tension-trust"}}))
+    log_reply(client, outcome="interested")
+    post(client, "/outreach/build", contact=MARA, kind=outreach.REPLY,
+         back="/outreach?tab=replies")
+    item, = [i for i in outreach.items(root) if i.record == MARA]
+    meta, _ = split_file((root / item.path).read_text())
+    assert item.kind == outreach.REPLY and item.framework == "" and "framework" not in meta

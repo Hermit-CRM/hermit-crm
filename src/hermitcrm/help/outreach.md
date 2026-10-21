@@ -275,6 +275,22 @@ The angle is one of the five template angles or `custom` (a reply has none).
 Drafts use the
 medium model; `build --strong` uses the strong one.
 
+**Framework.** A first touch is written with a framework: a recipe for its
+parts, its length and what it asks (`hermitcrm help playbook`). `build --framework
+ID` writes the whole batch with one; without it each draft uses its approach's
+`frameworks: default`, else `house`, today's recipe. An id the library does not
+have is refused, and so is `--framework` on a reply or a follow-up, which have
+no framework. A framework can need something the research must find: a
+premise (something they wrote, said or shared) or a personal connection (a note
+you wrote). When it was not found, the draft uses the approach's default if
+that needs nothing, else `house`, and the card says so in its flags, for example
+"connection-problem-objection needs a personal connection; drafted with house".
+The item records the `framework` it was drafted with, and `outreach show` prints
+it after the angle. Regenerate and Mark ready use that framework, so the checks
+(length, questions, proof) are its own. An item from before frameworks has none
+and counts as `house`; one whose framework has since left the library is drafted
+with `house` and says so in a flag.
+
 **Opt-out line** (optional): set `opt_out` in the playbook's front matter, one
 sentence or one per language (`opt_out: {en: "...", de: "..."}`), and a cold
 first email gets it added at the end, in the draft's language. It does not

@@ -52,9 +52,11 @@ hermitcrm outreach preview [--where K=V ...] [--contact CO/PERSON] [--channel em
                          [--limit N] [--approach NAME] [--kind first-touch|reply-to-interest|follow-up]
                                         who an outreach batch would go to, and why not the rest; no AI,
                                         nothing written
-hermitcrm outreach build (same flags) [--research scrape] [--strong]
+hermitcrm outreach build (same flags) [--research scrape] [--strong] [--framework ID]
                                         research, draft and check each contact: one item per contact in
-                                        outreach/, one commit per step; refused until the playbook is ready
+                                        outreach/, one commit per step; refused until the playbook is ready;
+                                        --framework writes the first touches with that framework (default:
+                                        the approach's, else house); see `hermitcrm help outreach`
 hermitcrm outreach list [--state S]        every item, newest first
 hermitcrm outreach show ID                 one item in full: links, findings, flags, checks, the draft
 hermitcrm outreach edits [--positive] [--noted]

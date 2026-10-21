@@ -271,13 +271,13 @@ def test_no_usable_answer_twice_fails(folder):
 # --------------------------------------------------------------- files, commits
 
 
-def built(folder, limit=3, drafts=None, research=None):
+def built(folder, limit=3, drafts=None, research=None, framework=""):
     root, store = folder
     fake = FakeAI(research=research, drafts=drafts)
     researcher = outreach.ScrapeResearcher(ai(fake), fetcher=fake_page, today=NOW.date())
     drafter = outreach.AIDrafter(store, ai(fake), {"owner_name": "Sam Example"})
     sel = outreach.select(store, where=["stage=prospect"], limit=limit)
-    return outreach.build(store, sel, researcher, drafter, now=NOW), fake
+    return outreach.build(store, sel, researcher, drafter, now=NOW, framework=framework), fake
 
 
 def commits(root) -> list[str]:

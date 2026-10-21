@@ -13,15 +13,18 @@
 # limitations under the License.
 
 """Outreach frameworks in the hard checks (question bounds, the word limit, proof and the
-framework id in the AI's answer) and in the draft prompt (the framework block)."""
+framework id in the AI's answer), in the draft prompt (the framework block) and on the item
+(build, regenerate, ready and the CLI)."""
 
 from __future__ import annotations
 
 import pytest
 
-from hermitcrm import frameworks, outreach, playbook
-from outreach_fakes import FakeAI, ai, demo
+from hermitcrm import cli, frameworks, outreach, playbook, scrape
+from hermitcrm.datafolder import init_folder
+from outreach_fakes import FakeAI, ai, demo, fake_page, git, proof_draft
 from test_frameworks import BRANDS
+from test_outreach_draft import built, fake_cli  # noqa: F401  (fake_cli is a fixture)
 
 LIB = frameworks.load()
 PROOF = ("A made-up example: a 30-person software company doubled its qualified "
@@ -213,3 +216,179 @@ def test_the_drafter_uses_house_unless_a_framework_is_passed(folder):
     prompt, draft = prompt_and_draft(framework=LIB.get("trigger-tension-trust"))
     assert '- Set framework to "trigger-tension-trust".' in prompt
     assert draft.framework == "trigger-tension-trust"
+
+
+# ------------------------------------------------------------ the item records it
+
+
+def test_done_when_build_with_a_framework_writes_checked_drafts_with_it_set(
+        tmp_path, monkeypatch, capsys):
+    fake = FakeAI(drafts=[proof_draft])
+    monkeypatch.setattr(outreach, "default_enricher", lambda config, tier="medium": ai(fake))
+    monkeypatch.setattr(scrape, "fetch", lambda url, timeout=10: fake_page(url))
+    root = init_folder(tmp_path / "x", demo=True)
+    code = cli.main(["outreach", "build", "--where", "stage=prospect", "--limit", "3",
+                     "--framework", "trigger-tension-trust"], root=root)
+    assert code == 0, capsys.readouterr().out
+    found = outreach.items(root)
+    assert len(found) == 3
+    assert all(i.framework == "trigger-tension-trust" and i.checks == [] for i in found)
+    assert all('--- framework "Trigger, tension, trust" ---' in c["prompt"]
+               for c in fake.of("draft"))
+    assert "\nframework: trigger-tension-trust\n" in (root / found[0].path).read_text()
+    assert git(root, "status", "--porcelain") == ""
+
+
+def test_a_folder_without_frameworks_builds_with_house(folder):
+    result, fake = built(folder, limit=1)
+    assert result.items[0].framework == "house"
+    assert outreach.SHAPES[outreach.FIRST_TOUCH] in fake.of("draft")[0]["prompt"]
+
+
+def set_default(root, framework, name="Scaling the sales team"):
+    """The approach the demo's first contact gets, with `frameworks: default` set."""
+    path = root / playbook.FILENAME
+    a = playbook.parse(path.read_text()).approach(name)
+    path.write_text(playbook.apply_approach(path.read_text(), name,
+                                            {**a.front, "frameworks": {"default": framework}}))
+
+
+def test_the_approach_default_is_used(folder):
+    root, _ = folder
+    set_default(root, "trigger-tension-trust")
+    item = built(folder, limit=1, drafts=[proof_draft])[0].items[0]
+    assert item.framework == "trigger-tension-trust" and item.flags == []
+
+
+def test_a_gone_approach_default_falls_back_to_house_with_a_flag(folder):
+    root, _ = folder
+    set_default(root, "gone")
+    item = built(folder, limit=1)[0].items[0]
+    assert item.framework == "house"
+    assert "framework gone is not in the library; drafted with house" in item.flags
+
+
+def test_the_flag_beats_the_approach_default(folder):
+    root, _ = folder
+    set_default(root, "trigger-tension-trust")
+    item = built(folder, limit=1, framework="pain-proof-yes-no")[0].items[0]
+    assert item.framework == "pain-proof-yes-no"
+
+
+def test_an_unmet_need_falls_back_to_the_approach_default_when_it_needs_nothing(folder):
+    root, _ = folder
+    set_default(root, "trigger-tension-trust")
+    item = built(folder, limit=1, drafts=[proof_draft],
+                 framework="connection-problem-objection")[0].items[0]
+    assert item.framework == "trigger-tension-trust"
+    assert ("connection-problem-objection needs a personal connection; drafted with "
+            "trigger-tension-trust") in item.flags
+
+
+def test_an_approach_default_with_needs_of_its_own_is_no_fallback(folder):
+    root, _ = folder
+    set_default(root, "premise-body-ask")
+    item = built(folder, limit=1, framework="connection-problem-objection")[0].items[0]
+    assert item.framework == "house"
+    assert ("connection-problem-objection needs a personal connection; drafted with house"
+            in item.flags)
+
+
+def test_unknown_framework_or_a_thread_kind_is_refused(tmp_path, fake_cli, capsys):
+    root = init_folder(tmp_path / "x", demo=True)
+    assert cli.main(["outreach", "build", "--framework", "gone"], root=root) == 1
+    assert "unknown framework 'gone'" in capsys.readouterr().err
+    assert cli.main(["outreach", "build", "--kind", "follow-up", "--framework", "house"],
+                    root=root) == 1
+    assert "frameworks shape first touches only" in capsys.readouterr().err
+    assert fake_cli.calls == [] and not (root / "outreach").exists()
+
+
+def test_an_unmet_need_falls_back_with_a_flag(folder):
+    item = built(folder, limit=1, framework="connection-problem-objection")[0].items[0]
+    assert item.framework == "house"
+    assert ("connection-problem-objection needs a personal connection; drafted with house"
+            in item.flags)
+
+
+def test_unmet_needs():
+    def finding(source, kind):
+        return outreach.Finding(text="Something true", source=source, kind=kind,
+                                confidence="high")
+    cpo, pba = LIB.get("connection-problem-objection"), LIB.get("premise-body-ask")
+    assert outreach.unmet_needs(cpo, [finding("https://example.com/a", "person")]) == \
+        ["personal-connection"]
+    assert outreach.unmet_needs(cpo, [finding(outreach.YOURS, "person")]) == []
+    assert outreach.unmet_needs(pba, [finding("https://example.com/a", "company")]) == ["premise"]
+    assert outreach.unmet_needs(pba, [finding("https://example.com/a", "person")]) == []
+
+
+def test_a_draft_without_the_required_proof_is_retried_once_then_shown(folder):
+    item = built(folder, limit=1, framework="trigger-tension-trust")[0].items[0]  # default_draft cites no proof
+    assert item.attempts == 2 and any("cites one proof line" in c for c in item.checks)
+
+
+def test_ready_rechecks_with_the_items_framework(folder):
+    root, store = folder
+    item = built(folder, limit=1, drafts=[proof_draft],
+                 framework="trigger-tension-trust")[0].items[0]
+    long = item.body.replace("Is that", "word " * 40 + "Is that")
+    gone = outreach.get_item(root, item.id)
+    gone.framework, gone.body = "gone", long          # its framework was deleted: house rules
+    assert not any("at most 60" in p for p in outreach.check_item(store, gone))
+    _, found = outreach.mark_ready(store, item.id, subject=item.subject, body=long)
+    assert any("at most 60" in p for p in found)
+
+
+def test_regenerate_keeps_the_framework_and_records_house_for_an_old_item(folder):
+    root, store = folder
+    item = built(folder, limit=1, drafts=[proof_draft],
+                 framework="trigger-tension-trust")[0].items[0]
+    drafter = outreach.AIDrafter(store, ai(FakeAI(drafts=[proof_draft])), {})
+    assert outreach.redraft(store, item.id, drafter).framework == "trigger-tension-trust"
+    path = root / item.path
+    path.write_text(path.read_text().replace("framework: trigger-tension-trust\n", ""))
+    assert outreach.redraft(store, item.id, outreach.AIDrafter(store, ai(FakeAI()), {})
+                            ).framework == "house"
+    path.write_text(path.read_text().replace("framework: house\n", "framework: gone\n"))
+    again = outreach.redraft(store, item.id, outreach.AIDrafter(store, ai(FakeAI()), {}))
+    assert again.framework == "house"
+    assert "framework gone is not in the library; drafted with house" in again.flags
+
+
+def test_an_item_without_framework_keeps_its_bytes(folder):
+    root, _ = folder
+    item = built(folder, limit=1)[0].items[0]
+    path = root / item.path
+    old = path.read_text().replace("framework: house\n", "")
+    path.write_text(old)
+    again = outreach.get_item(root, item.id)
+    assert again.framework == "" and outreach.item_text(again) == old
+
+
+def test_a_hand_written_framework_reads_stripped_and_lower_case(folder):
+    root, _ = folder
+    item = built(folder, limit=1)[0].items[0]
+    text = (root / item.path).read_text().replace("framework: house\n",
+                                                  'framework: " Trigger-Tension-Trust "\n')
+    assert outreach.item_from_text(item.id, text).framework == "trigger-tension-trust"
+
+
+def test_the_card_names_the_framework_after_the_angle(folder):
+    _, store = folder
+    item = built(folder, limit=1)[0].items[0]
+    assert f"| angle: {item.angle} | framework: house | language: " in \
+        outreach.render_item(store, item)
+    item.framework = ""
+    assert "framework:" not in outreach.render_item(store, item)
+
+
+def test_build_refuses_a_framework_for_a_thread_kind_before_any_work(folder):
+    _, store = folder
+    fake = FakeAI()
+    drafter = outreach.AIDrafter(store, ai(fake), {})
+    sel = outreach.select(store, kind=outreach.FOLLOW_UP)
+    with pytest.raises(outreach.OutreachError, match="frameworks shape first touches only"):
+        outreach.build(store, sel, outreach.ScrapeResearcher(ai(fake)), drafter,
+                       framework="house")
+    assert fake.calls == []

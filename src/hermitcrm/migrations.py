@@ -454,6 +454,22 @@ def m14_agent_send(data_dir: Path, meta_by_path: dict, write: bool) -> list[str]
     return changed
 
 
+def m15_framework(meta: dict) -> dict:
+    """Outreach items gained an optional `framework`: the id of the framework a
+    first touch was drafted with, absent when empty. A hand-written one is trimmed
+    and put in lower case; an empty one is dropped. A file without `framework`, or
+    with it in the form the app writes, is returned as it is."""
+    if "framework" not in meta:
+        return meta
+    raw = meta["framework"]
+    if raw is None or not str(raw).strip():
+        return {k: v for k, v in meta.items() if k != "framework"}
+    value = str(raw).strip().lower()
+    if value == raw:
+        return meta
+    return {k: (value if k == "framework" else v) for k, v in meta.items()}
+
+
 MIGRATIONS = [
     Migration(1, "rename gijs_score to my_score", "companies/*/company.md", m1_my_score),
     Migration(2, "country UK→GB, USA→US", "companies/*/company.md", m2_country_codes),
@@ -481,6 +497,7 @@ MIGRATIONS = [
               "companies/*/interactions/*.md", _noop),
     Migration(14, "agents never schedule or send mail unasked (CLAUDE.md, AGENTS.md)",
               "CLAUDE.md", folder=m14_agent_send),
+    Migration(15, "outreach drafts record their framework", "outreach/*.md", m15_framework),
 ]
 LATEST = MIGRATIONS[-1].version
 
