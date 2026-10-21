@@ -26,7 +26,8 @@ import pytest
 from hermitcrm import learning, outreach, playbook
 from hermitcrm.learning import Card, Lesson, Signal
 from hermitcrm.models import Interaction, StageChange
-from outreach_fakes import NOW, demo
+from outreach_fakes import NOW, demo, proof_draft
+from test_outreach_draft import built
 
 APPROACH = "Founder coaching"
 CONTACTS = [("lindenhof-data", "mara-keller"), ("kestrel-metrics", "daan-visser"),
@@ -218,6 +219,14 @@ def test_signals_keep_reviewed_items_with_their_attributes(folder):
     assert len(learning.signals(store)) == 3
 
 
+def test_a_signal_carries_the_items_framework(folder):
+    root, store = folder
+    item = built(folder, limit=1, drafts=[proof_draft],
+                 framework="trigger-tension-trust")[0].items[0]
+    outreach.mark_ready(store, item.id)
+    assert [s.framework for s in learning.signals(store)] == ["trigger-tension-trust"]
+
+
 def test_a_rubber_stamp_counts_at_a_quarter(folder):
     root, store = folder
     make(root, 1, minutes=0)                                   # ready in the same minute
@@ -407,6 +416,15 @@ def test_rates_shrink_toward_the_average_and_flag_small_cells():
         learning.rates(sigs, "colour")
 
 
+def test_framework_is_a_learning_dimension():
+    assert learning.DIMENSIONS == ("angle", "persona", "channel", "language", "framework")
+    sigs = [learning.Signal(item_id=str(n), rungs={"sent": "2026-10-01"},
+                            framework="house" if n % 2 else "trigger-tension-trust")
+            for n in range(4)]
+    assert [(r.value, r.n) for r in learning.rates(sigs, "framework")] == [
+        ("house", 2), ("trigger-tension-trust", 2)]
+
+
 # ------------------------------------------------------------- cards
 
 
@@ -443,6 +461,14 @@ def test_a_card_is_short_pseudonymous_and_says_what_changed(folder):
     assert learning.estimate_tokens(card.text) <= 200
     assert plain.text.endswith("\napproved as is") and plain.text.count("\n") == 1
     assert card.contact == "lindenhof-data/mara-keller"
+
+
+def test_a_card_names_its_framework_only_when_it_has_one():
+    card = learning.Card(id="x", angle="hook", framework="trigger-tension-trust",
+                         kind="first-touch", channel="email", language="de")
+    assert card.text.splitlines()[0] == ("card x | first-touch, email, de | angle hook | "
+                                         "framework trigger-tension-trust | rung none")
+    assert "framework" not in learning.Card(id="x", angle="hook").text
 
 
 def test_small_edits_are_kept_when_the_same_phrase_is_removed_again(folder):
