@@ -949,7 +949,8 @@ SHAPES = {
         "reply is below. Keep it short and follow the template's shape:\n"
         "- If their reply asks something, answer it in a few words first.\n"
         "- The offer line, word for word as given.\n"
-        "- One proof line from the proof list (cite it word for word in proof_used).\n"
+        "- One proof line from the proof list (cite it word for word in proof_used; in the "
+        "message, say it in the message's language).\n"
         "- The first step offer, when one is given.\n"
         "- End with exactly one question about their situation. One question mark in the "
         "whole message.\n"
@@ -1115,7 +1116,8 @@ def draft_prompt(kind: str, brief: Brief, ctx: CheckContext, approach, playbook_
     if approach is not None:
         parts.append(f"--- offer line (approach \"{approach.name}\") ---\n"
                      f"{approach.offer_line}\n--- end ---")
-    parts.append("--- proof (cite only these, word for word, in proof_used) ---\n"
+    parts.append("--- proof (cite only these, word for word, in proof_used; in the message, "
+                 "say it in the message's language) ---\n"
                  + ("\n".join(f"- {p}" for p in ctx.proof) or "none") + "\n--- end ---")
     if playbook_text.strip():
         parts.append(f"--- the seller's playbook (MESSAGING.md) ---\n"
