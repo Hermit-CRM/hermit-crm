@@ -89,12 +89,21 @@ def test_a_proof_required_framework_refuses_a_draft_without_proof():
 
 
 def test_the_framework_in_the_answer_must_be_the_one_asked_for():
-    ctx = ctx_for("house")
-    assert outreach.clean_answer(answer(framework="pain-proof-yes-no"), ctx).problems == [
-        "it says framework 'pain-proof-yes-no'; this draft was asked for house"]
-    draft = outreach.clean_answer(answer(), ctx)
-    assert draft.problems == [] and draft.framework == "house"
+    ctx = ctx_for("pain-proof-yes-no", proof=[PROOF])
+    assert outreach.clean_answer(answer(proof_used=[PROOF], framework="house"), ctx).problems == [
+        "it says framework 'house'; this draft was asked for pain-proof-yes-no"]
+    draft = outreach.clean_answer(answer(proof_used=[PROOF]), ctx)
+    assert draft.problems == [] and draft.framework == "pain-proof-yes-no"
     assert "framework" not in outreach.DRAFT_SCHEMA["required"]
+
+
+def test_house_asks_for_no_id_so_a_guess_in_the_answer_is_no_mismatch():
+    ctx = ctx_for("house")
+    draft = outreach.clean_answer(answer(framework="first-touch"), ctx)
+    assert draft.problems == [] and draft.framework == "house"
+    ttt = ctx_for("trigger-tension-trust", proof=[PROOF])
+    assert outreach.clean_answer(answer(proof_used=[PROOF], framework="house"), ttt).problems == [
+        "it says framework 'house'; this draft was asked for trigger-tension-trust"]
 
 
 # ------------------------------------------------------------------ the prompt
@@ -157,7 +166,7 @@ def test_credit_and_example_never_reach_a_prompt(folder):
 def test_linkedin_framework_drafts_shape_the_pitch(folder):
     _, store = folder
     prompt = first_touch_prompt(store, LIB.get("trigger-tension-trust"), "linkedin")
-    assert "built with the framework below" in prompt and "the offer in one line" not in prompt
+    assert "built with the framework above" in prompt and "the offer in one line" not in prompt
 
 
 def test_replies_and_follow_ups_get_no_framework(folder):
