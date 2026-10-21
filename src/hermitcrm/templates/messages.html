@@ -20,6 +20,7 @@
     <td>{% if r.contact_slug %}<a href="/companies/{{ r.company_slug }}/contacts/{{ r.contact_slug }}">{{ r.contact }}</a>{% else %}{{ r.contact }}{% endif %}</td>
     <td>{{ r.channel }}</td>
     <td>{{ r.angle }}</td>
+    <td>{{ r.framework }}</td>
     <td>{{ r.country }}</td>
     <td>{{ r.stage }}</td>
     <td class="outcome-{{ r.status | slug }}">{{ r.status }}{% if not r.explicit and r.status != 'unknown' %} <span class="small">(auto)</span>{% endif %}</td>
