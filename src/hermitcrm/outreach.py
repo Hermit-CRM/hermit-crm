@@ -78,6 +78,7 @@ from urllib.parse import urlparse
 
 from . import followups, messaging, playbook
 from .enrich import WEB_ONLY, EnrichError
+from .frameworks import Framework
 from .models import (
     ANGLES, DO_NOT_CONTACT, INTERESTED, ValidationError, do_not_contact, fmt_datetime,
     normalise_website, parse_datetime, slugify, unique_slug,
@@ -527,6 +528,16 @@ def channel_rules(channel: str, messages: dict | None = None) -> dict:
     return {**shared, **(table.get(channel) or {})}
 
 
+def framework_rules(rules: dict, framework: Framework | None, channel: str, kind: str) -> dict:
+    """The channel rules for a draft written with `framework`: a copy. Only an email
+    first touch changes, and only to the lower of the two word limits."""
+    out = dict(rules)
+    if framework is not None and framework.max_words is not None and channel == "email" \
+            and kind == FIRST_TOUCH:
+        out["body_max_words"] = min(int(rules.get("body_max_words", 120)), framework.max_words)
+    return out
+
+
 def norms_applied(norms: dict) -> list[str]:
     return [f"{k}: {v}" for k, v in norms.items() if v != ""]
 
@@ -804,6 +815,7 @@ class CheckContext:
     angles: tuple = DEFAULT_ANGLES
     opt_out: str = ""                                       # the line Python adds, if any
     never_write: list[str] = field(default_factory=list)    # config `outreach_never_write`
+    framework: Framework | None = None                      # a first touch only
 
     @property
     def usable_ids(self) -> set[int]:
@@ -828,9 +840,16 @@ def check_text(subject: str, body: str, pitch: str, ctx: CheckContext) -> list[s
     thread = in_thread(ctx.kind)
     for label, text in parts:
         n = count_questions(text)
-        # A LinkedIn connection note may ask nothing; everything else asks one.
-        allowed = (0, 1) if (ctx.channel == "linkedin" and label == "message"
-                             and not thread) else (1,)
+        # A LinkedIn connection note may ask nothing; a first touch with a framework asks
+        # what the framework allows (an email, or a LinkedIn pitch); everything else asks one.
+        if ctx.channel == "linkedin" and label == "message" and not thread:
+            allowed = (0, 1)
+        elif ctx.framework is not None and ctx.kind == FIRST_TOUCH and (
+                (ctx.channel == "email" and label == "message")
+                or (ctx.channel == "linkedin" and label == "pitch message")):
+            allowed = tuple(range(ctx.framework.questions[0], ctx.framework.questions[1] + 1))
+        else:
+            allowed = (1,)
         if n not in allowed:
             problems.append(f"the {label} asks {n} questions; it must ask "
                             + ("at most one" if allowed == (0, 1) else "exactly one"))
@@ -916,6 +935,7 @@ DRAFT_SCHEMA = {
                           "description": "the numbers of the findings the message uses"},
         "proof_used": {"type": "array", "items": {"type": "string"},
                        "description": "the proof lines the message cites, word for word"},
+        "framework": {"type": "string", "description": "the framework id given in the prompt"},
     },
     "required": ["subject", "body", "pitch", "angle", "findings_used", "proof_used"],
     "additionalProperties": False,
@@ -938,6 +958,7 @@ class Draft:
     lessons_used: list[str] = field(default_factory=list)   # learned lines in the prompt
     exemplars_used: list[str] = field(default_factory=list)  # example ids in the prompt
     angle_note: str = ""   # why the exploration policy chose the angle ("" = the AI chose)
+    framework: str = ""    # the id of the framework the draft was asked for ("" = none)
     failed: str = ""   # the AI gave no usable draft at all (twice): why
 
 
@@ -997,6 +1018,15 @@ def clean_answer(data, ctx: CheckContext) -> Draft:
     if ctx.kind == REPLY and ctx.proof and len(draft.proof_used) != 1:
         problems.append(f"a reply to interest cites one proof line from the playbook (it "
                         f"cites {len(draft.proof_used)})")
+    if ctx.framework is not None and ctx.kind == FIRST_TOUCH:
+        fw = ctx.framework
+        if fw.proof == "required" and ctx.proof and not draft.proof_used:
+            problems.append(f"the {fw.name} framework cites one proof line from the playbook "
+                            "in proof_used (it cites none)")
+        given = str(data.get("framework") or "").strip().lower()
+        if given and given != fw.id:
+            problems.append(f"it says framework '{given}'; this draft was asked for {fw.id}")
+        draft.framework = fw.id
     stale_open = [n for n in ids if ctx.findings[n - 1].stale]
     if stale_open and any(_norm_space(ctx.findings[n - 1].text)[:40]
                           in _norm_space(opening_line(draft.body)) for n in stale_open):
