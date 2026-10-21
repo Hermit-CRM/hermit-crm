@@ -458,7 +458,8 @@ def m15_framework(meta: dict) -> dict:
     """Outreach items gained an optional `framework`: the id of the framework a
     first touch was drafted with, absent when empty. A hand-written one is trimmed
     and put in lower case; an empty one is dropped. A file without `framework`, or
-    with it in the form the app writes, is returned as it is."""
+    with it in the form the app writes, is returned as it is. Format 16 runs the
+    same step over interactions, which carry the framework of the item they log."""
     if "framework" not in meta:
         return meta
     raw = meta["framework"]
@@ -498,6 +499,8 @@ MIGRATIONS = [
     Migration(14, "agents never schedule or send mail unasked (CLAUDE.md, AGENTS.md)",
               "CLAUDE.md", folder=m14_agent_send),
     Migration(15, "outreach drafts record their framework", "outreach/*.md", m15_framework),
+    Migration(16, "interactions get an optional framework", "companies/*/interactions/*.md",
+              m15_framework),
 ]
 LATEST = MIGRATIONS[-1].version
 

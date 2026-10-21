@@ -3390,8 +3390,8 @@ def sent_by_interaction(root: Path | str, company: str, it) -> list[Item]:
     """The ready (or queued, or failed) items an outbound interaction just logged marks sent: same
     contact, same channel, logged at or after the item was marked ready. The
     caller (Store.create_interaction) writes them in the interaction's commit;
-    an item's angle and approach are copied onto the interaction when it has
-    none, so the Messages tab compares bot messages with your own."""
+    an item's angle, framework and approach are copied onto the interaction when
+    it has none, so the Messages tab compares bot messages with your own."""
     if it.direction != "out" or not it.is_touch or not it.contact or it.date is None:
         return []
     out = []
