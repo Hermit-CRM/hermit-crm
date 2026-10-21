@@ -260,6 +260,7 @@
 {% endmacro %}
 {% macro diff(parts) %}{% for kind, text in parts %}{% if kind == 'add' %}<ins>{{ text }}</ins>{% elif kind == 'del' %}<del>{{ text }}</del>{% else %}{{ text }}{% endif %}{% endfor %}{% endmacro %}
 
+{% macro about_line(counts) %}{% if counts %}{% set more = counts[0] > counts[1] %}<p class="small{% if more %} warning{% endif %}">About you {{ counts[0] }}, about them {{ counts[1] }}{% if more %}: more about you than about them{% endif %}</p>{% endif %}{% endmacro %}
 {% macro skip_panel(i) %}
   <form method="post" action="/outreach/{{ i.id }}/skip" class="outreach-skip" id="skip-{{ i.id }}" hidden>
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -348,6 +349,7 @@
     </fieldset>
     {% if i.checks %}<ul class="outreach-checks warning">{% for c in i.checks %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
     {% if i.critic %}<details class="small outreach-critic" title="Scored by the AI, 1 (bad) to 5 (good). A guide, not a rule: it never blocks anything."><summary><strong>Critic {{ i.critic_score }}/5</strong></summary><p>Lowest: {% for name in critic_scores %}{{ name }} {{ i.critic[name] }}{% if not loop.last %}, {% endif %}{% endfor %}{% if i.critic_reason %}. {{ i.critic_reason }}{% endif %}</p></details>{% endif %}
+    {{ about_line(about.get(i.id)) }}
     {% if i.proof_used %}<p class="small">Proof: {{ i.proof_used | join('; ') }}</p>{% endif %}
     <div class="draft-actions">
       <button type="submit" title="{% if i.checks %}Allowed with a failing check: it is kept as a warning{% else %}Approve this text{% endif %}">Mark ready</button>
@@ -369,6 +371,7 @@
   {% if i.pitch %}<p class="small">after they accept</p><pre class="outreach-text">{{ i.pitch }}</pre>{% endif %}
   {% if i.checks %}<ul class="outreach-checks warning">{% for c in i.checks %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
   {% if i.critic %}<details class="small outreach-critic" title="Scored by the AI, 1 (bad) to 5 (good). A guide, not a rule: it never blocks anything."><summary><strong>Critic {{ i.critic_score }}/5</strong></summary><p>Lowest: {% for name in critic_scores %}{{ name }} {{ i.critic[name] }}{% if not loop.last %}, {% endif %}{% endfor %}{% if i.critic_reason %}. {{ i.critic_reason }}{% endif %}</p></details>{% endif %}
+  {{ about_line(about.get(i.id)) }}
   <div class="draft-actions">
     {% if send_on and i.channel == 'email' %}
     <form method="post" action="/outreach/{{ i.id }}/send-now" class="inline">

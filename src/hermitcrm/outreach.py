@@ -541,6 +541,86 @@ def opt_out_line(root, kind: str, channel: str, language: str, rules: dict) -> s
     return playbook.load(root).opt_out(language)
 
 
+# ------------------------------------------------------- about you, about them
+
+
+def _words(text: str) -> frozenset[str]:
+    return frozenset(text.split())
+
+
+# Per language: (the seller's words, their words), lower case. The count is a flag on
+# the card, not a check: the offer line is first person by nature.
+ABOUT_WORDS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
+    "en": (_words("i i'm i've i'd i'll me my mine myself we we're we've we'd we'll us our ours"),
+           _words("you you're you've you'd you'll your yours yourself yourselves")),
+    "de": (_words("ich mich mir mein meine meinen meinem meiner meines wir uns unser unsere "
+                  "unseren unserem unserer unseres"),
+           _words("du dich dir dein deine deinen deinem deiner deines euch euer eure euren "
+                  "eurem eurer eures")),
+    "nl": (_words("ik me mij mijn wij we ons onze"),
+           _words("je jij jou jouw jullie u uw")),
+    "fr": (_words("je j' me m' moi mon ma mes nous notre nos"),
+           _words("tu te t' toi ton ta tes vous votre vos")),
+}
+_ABOUT_TOKEN = re.compile(r"[^\W\d_]+(?:'[^\W\d_]*)?")
+# German formal "you" counts as theirs only when capitalised and not first in a sentence:
+# there a capital is just the sentence start (lower case `sie` is "she" or "they").
+_FORMAL_YOU = _words("sie ihnen ihr ihre ihren ihrem ihrer ihres")
+
+
+def _starts_sentence(text: str, at: int) -> bool:
+    """Is the word at `at` first in a sentence: at the start of the text, after a newline,
+    or after . ! ? or : and white space?"""
+    start = at
+    while start > 0 and text[start - 1] != "\n" and text[start - 1].isspace():
+        start -= 1
+    return start == 0 or text[start - 1] == "\n" or (start < at and text[start - 1] in ".!?:")
+
+
+def about_counts(text: str, language: str) -> tuple[int, int] | None:
+    """(words about you, words about them) in the text, by the language's lists;
+    None for a language without lists. A word with an apostrophe also counts by its
+    first part (`j'aide` as `j'`)."""
+    lists = ABOUT_WORDS.get(language)
+    if lists is None:
+        return None
+    mine, theirs = lists
+    text = (text or "").replace("’", "'")
+    you = them = 0
+    for found in _ABOUT_TOKEN.finditer(text):
+        word = found.group().lower()
+        head = word[:word.find("'") + 1]   # "" without an apostrophe
+        if word in mine or head in mine:
+            you += 1
+        elif word in theirs or head in theirs:
+            them += 1
+        elif (language == "de" and word in _FORMAL_YOU and found.group()[0].isupper()
+              and not _starts_sentence(text, found.start())):
+            them += 1
+    return you, them
+
+
+def about_for_item(root, item: Item) -> tuple[int, int] | None:
+    """The count for a card: the body without the opt-out line (added for the person,
+    not written by them), plus the pitch."""
+    language = item.language or "en"
+    if language not in ABOUT_WORDS:
+        return None
+    try:
+        messages = messaging.load_messages(root)
+    except (OSError, ValueError):
+        messages = None   # a flag is not worth an error: the shipped channel rules do
+    line = opt_out_line(root, item.kind, item.channel, language,
+                        channel_rules(item.channel, messages))
+    return about_counts(without_line(item.body, line) + "\n" + item.pitch, language)
+
+
+def about_line(counts: tuple[int, int]) -> str:
+    you, them = counts
+    return (f"About you {you}, about them {them}"
+            + (": more about you than about them" if you > them else ""))
+
+
 # ------------------------------------------------------------------ the brief
 
 
@@ -3203,6 +3283,9 @@ def render_item(store: Store, item: Item) -> str:
         lines.append("Culture norms applied: " + "; ".join(item.norms))
     if item.proof_used:
         lines.append("Proof cited: " + " | ".join(item.proof_used))
+    about = about_for_item(store.root, item)
+    if about is not None:
+        lines.append(about_line(about))
     lines.append("Checks: passed" if not item.checks else "Checks: problems")
     lines += [f"- {p}" for p in item.checks]
     if item.critic:
