@@ -665,11 +665,13 @@ class Store:
         return value
 
     @staticmethod
-    def _coerce_framework(value) -> str:
-        """Empty, or the shape of a framework id. The library is not asked: a
-        message keeps the id of a framework removed after it went out."""
+    def _coerce_framework(value, current: str = "") -> str:
+        """Empty, the shape of a framework id, or unchanged (a hand-written value
+        in the file, such as `our own thing`, must not block saving the rest of the
+        form). The library is not asked: a message keeps the id of a framework
+        removed after it went out."""
         value = normalise_framework(value)
-        if value and not FRAMEWORK_ID.match(value):
+        if value and value != normalise_framework(current) and not FRAMEWORK_ID.match(value):
             raise ValidationError(
                 {"framework": "a framework id: lower case letters, digits and hyphens"})
         return value
@@ -1640,7 +1642,7 @@ class Store:
             new.angle = self._coerce_enum(normalise_angle(fields["angle"]), Angle, "angle",
                                           True, "")
         if "framework" in fields:
-            new.framework = self._coerce_framework(fields["framework"])
+            new.framework = self._coerce_framework(fields["framework"], old.framework)
         if "approach" in fields:
             new.approach = (fields["approach"] or "").strip()
         if "outcome" in fields:

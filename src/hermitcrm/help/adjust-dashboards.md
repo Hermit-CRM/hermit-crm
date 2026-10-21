@@ -128,6 +128,7 @@ or call with a body, newest first.
 | `contact` | text | the person's name |
 | `channel` | fixed values | `email`, `linkedin`, `call` |
 | `angle` | fixed values | `scale`, `unblock`, `hook`, `bridge`, `decline`, `custom`, or empty |
+| `framework` | text | the id of the message framework it was built with, or empty |
 | `country` | fixed values | the company's country |
 | `stage` | fixed values | the company's stage |
 | `status` | fixed values | the outcome: your outcomes (Settings), or `unknown` while you wait |

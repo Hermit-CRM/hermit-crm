@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 
 import pytest
@@ -325,3 +326,165 @@ def test_a_bulk_set_keeps_the_framework(tmp_path):
     fresh.load()
     again = next(i for i in fresh.get(company.slug).interactions if i.id == it.id)
     assert (again.angle, again.framework) == ("scale", "trigger-tension-trust")
+
+
+# ------------------------------------------------- framework: bulk set, Messages, forms
+
+
+def demo_message(root):
+    """(store, company, message) of an email in the demo folder."""
+    store = Store(root)
+    store.load()
+    company = next(c for c in store.all() if any(
+        i.is_message and i.channel == "email" for i in c.interactions))
+    it = next(i for i in company.interactions if i.is_message and i.channel == "email")
+    return store, company, it
+
+
+def test_hermitcrm_set_sets_framework_in_bulk(tmp_path):
+    from hermitcrm import bulk
+    from hermitcrm.bulk import BulkError, Ops
+    from hermitcrm.datafolder import init_folder
+
+    root = init_folder(tmp_path / "crm", demo=True)
+    store = Store(root)
+    store.load()
+    before = {p: p.read_bytes() for p in (root / "companies").rglob("*.md")}
+    plan = bulk.plan(store, "interactions", ["channel=email"], Ops(set={"framework": "house"}))
+    assert plan.changed and "framework: (empty) → house" in plan.render()
+    assert {p: p.read_bytes() for p in (root / "companies").rglob("*.md")} == before  # dry run
+    bulk.apply(store, plan)
+    fresh = Store(root)
+    fresh.load()
+    messages = [i for c in fresh.all() for i in c.interactions
+                if i.channel == "email" and i.is_message]
+    assert messages and {i.framework for i in messages} == {"house"}
+    others = [i for c in fresh.all() for i in c.interactions
+              if i.channel != "email" and i.is_message]
+    assert {i.framework for i in others} == {""}
+    # the value is the store's to judge: the shape of an id, and a case is folded
+    with pytest.raises(BulkError, match="framework"):
+        bulk.plan(store, "interactions", ["channel=email"], Ops(set={"framework": "two words"}))
+    cleared = bulk.plan(store, "interactions", ["channel=email"], Ops(unset=["framework"]))
+    bulk.apply(store, cleared)
+    fresh = Store(root)
+    fresh.load()
+    assert {i.framework for c in fresh.all() for i in c.interactions} == {""}
+
+
+def test_messages_tab_shows_and_filters_framework(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from hermitcrm.datafolder import init_folder
+    from hermitcrm.web import create_app
+
+    root = init_folder(tmp_path / "crm", demo=True)
+    store, company, it = demo_message(root)
+    store.update_interaction(company.slug, it.id, framework="trigger-tension-trust")
+    client = TestClient(create_app(root))
+    page = client.get("/messages").text
+    heads = [h.strip() for h in re.findall(r"<th>\s*([a-z ]+?)\s*<span class=\"sort\"", page)]
+    assert heads.index("framework") == heads.index("angle") + 1
+    page = client.get("/messages?f_framework=trigger").text
+    assert f"/interactions/{it.id}/edit" in page
+    assert page.count("/edit\">edit</a>") == 1
+    assert "<td>trigger-tension-trust</td>" in page
+    assert "no messages" not in page.lower()
+    assert "/edit\">edit</a>" not in client.get("/messages?f_framework=house").text
+
+
+def test_the_log_form_sets_the_framework_and_the_edit_form_shows_it(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from hermitcrm import frameworks
+    from hermitcrm.datafolder import init_folder
+    from hermitcrm.web import create_app
+
+    root = init_folder(tmp_path / "crm", demo=True)
+    store, company, message = demo_message(root)
+    contact = message.contact
+    client = TestClient(create_app(root), follow_redirects=False)
+    new = client.get(f"/companies/{company.slug}/interactions/new").text
+    for fid in frameworks.load(root).ids:
+        assert f'<option value="{fid}"' in new
+    assert '<option value="" selected>not known</option>' in new
+    # a framework added to the folder's frameworks.toml shows without a restart
+    (root / "frameworks.toml").write_text(
+        '[frameworks.open-gap-question]\nname = "Open, gap, question"\n'
+        'steps = ["Open", "Gap", "Question"]\ninstructions = "Open. Name the gap. Ask."\n',
+        encoding="utf-8")
+    assert '<option value="open-gap-question"' in client.get(
+        f"/companies/{company.slug}/interactions/new").text
+    form = {"channel": "email", "direction": "out", "contact": contact,
+            "date": "2026-09-10T09:00", "subject": "Hello", "angle": "hook",
+            "framework": "trigger-tension-trust", "outcome": "", "body": "Hi there.\n"}
+    posted = client.post(f"/companies/{company.slug}/interactions", data=form)
+    assert posted.status_code == 303
+    fresh = Store(root)
+    fresh.load()
+    made = next(i for i in fresh.get(company.slug).interactions if i.subject == "Hello")
+    assert (made.angle, made.framework) == ("hook", "trigger-tension-trust")
+    edit = client.get(f"/companies/{company.slug}/interactions/{made.id}/edit").text
+    assert '<option value="trigger-tension-trust" selected>' in edit
+    assert '<option value="house" selected>' not in edit
+    # saving the form changes it, and a bad value is answered on the field
+    saved = client.post(f"/companies/{company.slug}/interactions/{made.id}/edit",
+                        data={**form, "framework": "house"})
+    assert saved.status_code == 303
+    fresh.load()
+    assert next(i for i in fresh.get(company.slug).interactions
+                if i.id == made.id).framework == "house"
+    bad = client.post(f"/companies/{company.slug}/interactions/{made.id}/edit",
+                      data={**form, "framework": "two words"})
+    assert bad.status_code == 400
+    assert FRAMEWORK_BAD["framework"] in bad.text
+
+
+def test_a_framework_outside_the_library_stays_selectable_and_saves(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from hermitcrm.datafolder import init_folder
+    from hermitcrm.web import create_app
+
+    root = init_folder(tmp_path / "crm", demo=True)
+    store, company, message = demo_message(root)
+    store.update_interaction(company.slug, message.id, framework="removed-later")
+    client = TestClient(create_app(root), follow_redirects=False)
+    edit = client.get(f"/companies/{company.slug}/interactions/{message.id}/edit").text
+    assert '<option value="removed-later" selected>removed-later</option>' in edit
+    form = {"channel": message.channel, "direction": message.direction,
+            "contact": message.contact, "date": message.date.strftime("%Y-%m-%dT%H:%M"),
+            "subject": "Changed", "angle": "", "framework": "removed-later",
+            "outcome": "", "body": message.body}
+    saved = client.post(f"/companies/{company.slug}/interactions/{message.id}/edit", data=form)
+    assert saved.status_code == 303
+    fresh = Store(root)
+    fresh.load()
+    again = next(i for i in fresh.get(company.slug).interactions if i.subject == "Changed")
+    assert again.framework == "removed-later"
+
+
+def test_update_interaction_takes_the_stored_framework_unchanged(store, tmp_path):
+    """A hand-written `Our own thing` reads as `our own thing`, which is no id. The
+    edit form posts it back, so it must save; a new value still has to be an id."""
+    store.create_company("Delta")
+    store.create_contact("delta", "Dee", "Fox")
+    it = store.create_interaction("delta", "email", "out", subject="Hi", contact="dee-fox",
+                                  body="Hello.\n")
+    path = tmp_path / f"companies/delta/interactions/{it.id}.md"
+    path.write_text(path.read_text().replace("subject: Hi\n",
+                                             "subject: Hi\nframework: Our own thing\n"))
+    fresh = Store(tmp_path)
+    fresh.load()
+    assert fresh.get("delta").interactions[0].framework == "our own thing"
+    kept = fresh.update_interaction("delta", it.id, framework="our own thing",
+                                    subject="Hi again")
+    assert (kept.framework, kept.subject) == ("our own thing", "Hi again")
+    assert fresh.update_interaction("delta", it.id, framework=" Our Own Thing ").framework == (
+        "our own thing")
+    with pytest.raises(ValidationError) as err:
+        fresh.update_interaction("delta", it.id, framework="another thing")
+    assert err.value.errors == FRAMEWORK_BAD
+    assert fresh.update_interaction("delta", it.id, framework="house").framework == "house"
+    with pytest.raises(ValidationError):           # the old value is no longer the stored one
+        fresh.update_interaction("delta", it.id, framework="our own thing")
