@@ -574,8 +574,9 @@ ABOUT_WORDS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
            _words("tu te t' toi ton ta tes vous votre vos")),
 }
 _ABOUT_TOKEN = re.compile(r"[^\W\d_]+(?:'[^\W\d_]*)?")
-# German formal "you" counts as theirs only when capitalised and not first in a sentence:
-# there a capital is just the sentence start (lower case `sie` is "she" or "they").
+# German formal "you" counts as theirs only when capitalised (lower case `sie` is "she" or
+# "they", `ihr` is "her"). `Sie` also only when it is not first in a sentence, where a capital
+# is just the sentence start. `Ihr`, `Ihnen` and the other forms count wherever they stand.
 _FORMAL_YOU = _words("sie ihnen ihr ihre ihren ihrem ihrer ihres")
 
 
@@ -591,7 +592,8 @@ def _starts_sentence(text: str, at: int) -> bool:
 def about_counts(text: str, language: str) -> tuple[int, int] | None:
     """(words about you, words about them) in the text, by the language's lists;
     None for a language without lists. A word with an apostrophe also counts by its
-    first part (`j'aide` as `j'`)."""
+    first part (`j'aide` as `j'`). A word in all capitals (two letters or more, as in
+    a heading: `US`, `WIR`) is not a pronoun and never counts."""
     lists = ABOUT_WORDS.get(language)
     if lists is None:
         return None
@@ -599,14 +601,17 @@ def about_counts(text: str, language: str) -> tuple[int, int] | None:
     text = (text or "").replace("’", "'")
     you = them = 0
     for found in _ABOUT_TOKEN.finditer(text):
-        word = found.group().lower()
+        token = found.group()
+        if token.isupper() and sum(c.isalpha() for c in token) > 1:
+            continue
+        word = token.lower()
         head = word[:word.find("'") + 1]   # "" without an apostrophe
         if word in mine or head in mine:
             you += 1
         elif word in theirs or head in theirs:
             them += 1
-        elif (language == "de" and word in _FORMAL_YOU and found.group()[0].isupper()
-              and not _starts_sentence(text, found.start())):
+        elif (language == "de" and word in _FORMAL_YOU and token[0].isupper()
+              and (word != "sie" or not _starts_sentence(text, found.start()))):
             them += 1
     return you, them
 
@@ -1165,16 +1170,11 @@ def followup_template(messages: dict | None, language: str, first: str, company:
         "question": str(table.get("question") or "")})
 
 
-def framework_block(framework: Framework) -> str:
-    """The recipe paragraph of a first touch written with `framework` (any but house,
-    whose paragraph is its own instructions): its name, steps and instructions, then the
-    rules Python checks. Never the credit (`after`) or the `example`."""
+def framework_rule_lines(framework: Framework) -> list[str]:
+    """The rule lines a first touch gets after its recipe, from the fixed ones and
+    the framework's own question, offer line and proof values: what keeps the checks
+    Python runs on the text in the prompt, whatever the framework's instructions say."""
     lines = [
-        "This is a first touch: they have never had a message from the seller.",
-        f"--- framework \"{framework.name}\" ---",
-        f"Steps: {', '.join(framework.steps)}.",
-        framework.instructions,
-        "--- end ---",
         "- Never open with \"I\" (or Ich, Ik, Je): the first word is about them.",
         "- No meeting ask, no call ask, no link, no proposed day or time.",
         "- When no finding is usable, write from one of the playbook's angles instead and "
@@ -1190,8 +1190,22 @@ def framework_block(framework: Framework) -> str:
         lines.append("- Say the offer in one line.")
     if framework.proof == "required":
         lines.append("- Cite one proof line in proof_used, word for word.")
-    lines.append(f"- Set framework to \"{framework.id}\".")
-    return "\n".join(lines)
+    return lines
+
+
+def framework_block(framework: Framework) -> str:
+    """The recipe paragraph of a first touch written with `framework` (any but house,
+    whose paragraph is its own instructions): its name, steps and instructions, then the
+    rules Python checks. Never the credit (`after`) or the `example`."""
+    return "\n".join([
+        "This is a first touch: they have never had a message from the seller.",
+        f"--- framework \"{framework.name}\" ---",
+        f"Steps: {', '.join(framework.steps)}.",
+        framework.instructions,
+        "--- end ---",
+        *framework_rule_lines(framework),
+        f"- Set framework to \"{framework.id}\".",
+    ])
 
 
 def draft_prompt(kind: str, brief: Brief, ctx: CheckContext, approach, playbook_text: str,
@@ -1205,7 +1219,8 @@ def draft_prompt(kind: str, brief: Brief, ctx: CheckContext, approach, playbook_
     first touch only; "" adds nothing); `angle_note` says why the exploration
     policy fixed the angle (ctx.angles then holds that one angle). A first touch with
     a framework (ctx.framework) gets the framework's recipe paragraph and channel line
-    in place of SHAPES and CHANNEL_TEXT; house is today's paragraph, word for word."""
+    in place of SHAPES and CHANNEL_TEXT; house is today's paragraph, word for word, and
+    when its instructions were rewritten they get the rule lines after them."""
     rules = {"subject_max": 60, "body_max_words": 120, "note_max_chars": 300,
              "pitch_max_chars": 600, **ctx.rules}
     shape = SHAPES[kind]
@@ -1213,6 +1228,8 @@ def draft_prompt(kind: str, brief: Brief, ctx: CheckContext, approach, playbook_
     if kind == FIRST_TOUCH and ctx.framework is not None:
         if ctx.framework.id == HOUSE:
             shape = ctx.framework.instructions
+            if shape != SHAPES[FIRST_TOUCH]:   # rewritten in frameworks.toml: the rules stay
+                shape = "\n".join([shape, *framework_rule_lines(ctx.framework)])
         else:
             shape = framework_block(ctx.framework)
             channel_text = FRAMEWORK_CHANNEL_TEXT[ctx.channel]
@@ -3264,11 +3281,17 @@ def redraft(store: Store, item_id: str, drafter: Drafter,
     if item.kind == FOLLOW_UP and earlier is None:
         raise OutreachError(f"{item.id}: your message {item.follows!r} is not in the CRM "
                             "any more")
-    framework, note = item_framework(frameworks.load(store.root), item)
+    library = frameworks.load(store.root)
+    framework, note = item_framework(library, item)
     if framework is not None:   # an old item records house now; a gone one says so
         item.framework = framework.id
         if note and note not in item.flags:
             item.flags.append(note)
+        # the notes may have changed since the build: its needs are checked again
+        framework, unmet = meet_needs(library, approach, framework, item.findings)
+        item.framework = framework.id
+        if unmet and unmet not in item.flags:
+            item.flags.append(unmet)
     clock = time.monotonic()
 
     def write(critique: str = "") -> Draft:

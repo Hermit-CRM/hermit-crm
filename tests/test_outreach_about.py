@@ -59,11 +59,24 @@ def test_apostrophes_and_curly_quotes():
 def test_german_formal_you_counts_only_in_capitals_and_not_first_in_a_sentence():
     text = ("Sie haben ein neues Büro.\nSie wachsen. Wie geht es Ihnen? Ihr Team: Sie sind "
             "gut. Haben Sie Zeit? Was macht ihr Team? Ich frage Sie.")
-    # counted: Ihnen, Haben Sie, Sie (last). Not counted: Sie at the start of the text, after a
-    # newline, after ". " and after ": ", Ihr after "? ", and the lower case ihr.
-    assert outreach.about_counts(text, "de") == (1, 3)
+    # counted: Ihnen, Ihr (a possessive counts at the start of a sentence too), Haben Sie, Sie
+    # (last). Not counted: Sie at the start of the text, after a newline, after ". " and after
+    # ": ", and the lower case ihr.
+    assert outreach.about_counts(text, "de") == (1, 4)
     # a full stop with no white space after it does not start a sentence
     assert outreach.about_counts("Danke.Sie wissen", "de") == (0, 1)
+
+
+def test_a_capital_possessive_counts_at_the_start_of_a_sentence_but_sie_does_not():
+    assert outreach.about_counts("Ihr zweites Büro in Köln ist mir aufgefallen. Wir helfen "
+                                 "Gründern.", "de") == (2, 1)
+    assert outreach.about_counts("Sie wissen, wie das ist.", "de") == (0, 0)
+
+
+def test_a_word_in_capitals_is_no_pronoun_but_a_lone_capital_i_is():
+    assert outreach.about_counts("We sell in the US and EU.", "en") == (1, 0)
+    assert outreach.about_counts("WIR HELFEN. Wir helfen.", "de") == (1, 0)
+    assert outreach.about_counts("WE HELP YOU. I help you.", "en") == (1, 1)
 
 
 def test_the_count_for_an_item_leaves_out_the_opt_out_line(tmp_path):

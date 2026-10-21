@@ -416,6 +416,22 @@ def test_accepted_brings_the_pitch_into_the_queue_and_a_sent_pitch_closes_the_lo
         linkedin.accepted(store, item_id, later)
 
 
+def test_a_hand_edited_framework_is_cleaned_for_the_pitch_and_never_raises(folder):
+    root, store = folder
+    (item_id,) = add(root, store, 1, framework="our own thing")
+    started(store)
+    linkedin.sent(store, item_id, T0, CFG)
+    linkedin.accepted(store, item_id, T0 + timedelta(days=2))
+    linkedin.end(store, T0)
+    later = T0 + timedelta(days=2, hours=3)
+    started(store, now=later)
+    done = linkedin.sent(store, item_id, later, CFG)
+    assert done.state == "sent" and done.pitch_sent == later
+    (pitch,) = [i for c in store.companies.values() for i in c.interactions
+                if i.source == "outreach" and i.body.rstrip("\n") == PITCH]
+    assert pitch.framework == ""
+
+
 def test_an_invite_pending_for_21_days_gets_a_reminder_and_withdrawn_clears_it(folder):
     root, store = folder
     a, b = add(root, store, 2)

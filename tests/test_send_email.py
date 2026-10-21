@@ -830,3 +830,18 @@ def test_a_mailbox_that_cannot_be_reached_is_retried_three_times_and_then_the_it
         assert after.send_tries == attempt and not smtp.sent and after.message_id == ""
         assert out.kind == ("retry" if attempt < 3 else "failed")
     assert after.state == "failed" and after.send_error.startswith("gave up after 3 tries: could not reach")
+
+
+def test_a_hand_edited_framework_cannot_make_send_now_send_twice(folder):
+    """A ready item whose file says `framework: our own thing` (not an id) is sent
+    once, logged once and ends sent: the log after SMTP must not raise on it."""
+    root, store, settings = folder
+    item = ready_item(root, store, framework="our own thing")
+    assert outreach.get_item(root, item.id).framework == "our own thing"
+    out, smtp, imap = deliver(store, settings, item.id)
+    assert out.kind == "sent" and out.done
+    assert len(smtp.sent) == 1
+    after = outreach.get_item(root, item.id)
+    assert after.state == "sent"
+    logged = [i for i in store.get(MARA[0]).interactions if i.source == "outreach"]
+    assert len(logged) == 1 and after.sent_with == logged[0].id

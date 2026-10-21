@@ -671,7 +671,7 @@ class Store:
         form). The library is not asked: a message keeps the id of a framework
         removed after it went out."""
         value = normalise_framework(value)
-        if value and value != normalise_framework(current) and not FRAMEWORK_ID.match(value):
+        if value and value != normalise_framework(current) and not FRAMEWORK_ID.fullmatch(value):
             raise ValidationError(
                 {"framework": "a framework id: lower case letters, digits and hyphens"})
         return value

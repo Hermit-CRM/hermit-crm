@@ -758,6 +758,8 @@ def test_frameworks_in_an_approach_is_valid():
 @pytest.mark.parametrize("value, expected", [
     ("trigger-tension-trust", "frameworks: must be keys default, testing, answers"),
     ({"default": "Trigger Tension"}, "frameworks.default: one framework id"),
+    ({"default": "house\n"}, "frameworks.default: one framework id"),
+    ({"testing": ["house\n"]}, "frameworks.testing: a list of framework ids"),
     ({"testing": ["house", "pain-proof-yes-no", "premise-body-ask"]}, "frameworks.testing: at most two"),
     ({"default": "house", "testing": ["house"]}, "frameworks.testing: house is the default"),
     ({"answers": {"deal": "huge"}}, "frameworks.answers.deal: one of small, mid, large, xl"),

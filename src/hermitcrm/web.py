@@ -4318,7 +4318,8 @@ def create_app(root: Path, config: dict | None = None,
                          for n in (preview.notes if preview else [])]
         ready, gate = outreach._ready_approaches(root)
         known = exemplar_index_for(shown)
-        about = {i.id: outreach.about_for_item(root, i) for i in shown}
+        about = {i.id: outreach.about_for_item(root, i) for i in shown
+                 if i.state in ("drafted", "ready")}   # the cards that show the line
         return render(request, "outreach.html", {
             "approaches": [a.name for a in ready],
             "tabs": [(t, label, counts[t]) for t, label, _ in OUTREACH_TABS
