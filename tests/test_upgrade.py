@@ -312,7 +312,13 @@ def test_where_the_click_cannot_run_the_reason_comes_back_not_a_crash(app, clien
     assert "<form" not in page
 
 
-def test_the_nav_offers_the_button_only_where_it_can_work(app, client):
+def test_the_nav_offers_the_button_only_where_it_can_work(app, client, monkeypatch, tmp_path):
+    # How this test run was installed decides the plan (a pip install outside a
+    # venv gets no button, as it should). Pin a pip install in a venv on Linux.
+    real = upgrade.install_plan
+    monkeypatch.setattr("hermitcrm.web.upgrading.install_plan",
+                        lambda config, can_restart: real(config, can_restart, prefix=tmp_path,
+                                                         platform="linux", in_venv=True))
     app.state.update_notice.available = NEWER
     page = client.get("/companies").text
     assert f"v{NEWER} available: <code>" in page and "data-upgrade" not in page
