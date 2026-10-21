@@ -103,6 +103,18 @@ def default_draft(prompt):
             "proof_used": []}
 
 
+def proof_draft(prompt):
+    """A trigger, tension, trust draft: one proof line cited, under 60 words."""
+    first = re.search(r"^Person: (\S+)", prompt, re.M).group(1)
+    proof = re.search(r"--- proof \(cite only these[^\n]*\n- (.*)\n", prompt).group(1)
+    usable = re.search(r"^(\d+)\. \[\w+, (?:high|medium), usable; source (?!crm)", prompt, re.M)
+    return {"subject": "Your second office", "angle": "hook", "framework": "trigger-tension-trust",
+            "body": f"Hi {first},\n\nA second office usually means hiring sales next.\nThat is "
+                    f"where founders lose time. {proof}\nIs that on your radar right now?\n\nSam",
+            "pitch": "", "findings_used": [int(usable.group(1))] if usable else [],
+            "proof_used": [proof]}
+
+
 def reply_draft(prompt, first):
     """A reply to interest in the approved shape, from what the prompt gives."""
     offer = re.search(r"--- offer line \(approach [^)]*\) ---\n(.*)\n", prompt).group(1)

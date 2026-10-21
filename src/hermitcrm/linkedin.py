@@ -43,7 +43,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from . import outreach
+from . import frameworks, outreach
 from .send import runtime_dir
 from .store import Store
 
@@ -361,10 +361,13 @@ def sent(store: Store, item_id: str, now: datetime, cfg: LinkedInSettings) -> ou
     if card is None:
         raise outreach.OutreachError(f"{item.id} has nothing left to send on LinkedIn")
     message = f"outreach: sent {card.label} to {item.record} (linkedin)"
+    # A framework written by hand in the file (not shaped like an id) must not stop the log.
+    framework = item.framework if frameworks.ID.fullmatch(item.framework or "") else ""
     with store.batch(message):
         store.create_interaction(item.company, "linkedin", "out", contact=item.contact,
                                  date=now, body=card.text, source="outreach",
-                                 angle=item.angle, approach=item.approach)
+                                 angle=item.angle, framework=framework,
+                                 approach=item.approach)
         item = outreach._refresh(store, item_id)       # create_interaction may have flipped it
         if card.kind == NOTE_KIND:
             item.invite_sent = now

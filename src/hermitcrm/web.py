@@ -60,7 +60,8 @@ from . import playbook, textsource
 from . import schedule, scrape, secrets, task_types, usertheme
 from . import stage_ops
 from . import stages as stages_mod
-from . import exemplars, learning, linkedin, notes, outreach, routines, send, sendplan, sendqueue, suppress
+from . import (exemplars, frameworks, learning, linkedin, notes, outreach, routines, send,
+               sendplan, sendqueue, suppress)
 from . import help as helpdocs
 from . import setup as setup_steps
 from .filters import Column
@@ -357,6 +358,7 @@ class MessageRow:
         self.channel = it.channel
         self.subject = it.subject
         self.angle = it.angle
+        self.framework = it.framework
         self.body = it.body
         self.preview = " ".join(it.body.split())
         self.status = status
@@ -376,6 +378,7 @@ def message_columns(statuses: list[str], defs: list | None = None,
         Column("contact", "contact"),
         Column("channel", "channel", "enum", CHANNELS),
         Column("angle", "angle", "enum", list(ANGLES)),
+        Column("framework", "framework"),
         Column("country", "country", "enum", COUNTRIES),
         Column("stage", "stage", "enum", (stages or DEFAULT_STAGES).names),
         Column("status", "outcome", "enum", statuses),
@@ -1350,6 +1353,9 @@ def create_app(root: Path, config: dict | None = None,
         stage_exits=stage_exits,
         stage_keeps=lambda name: stage_keeps(store.stages, name),
         angles=list(ANGLES),
+        # the log form's framework select; read per page, so a framework added in
+        # frameworks.toml shows without a restart
+        framework_ids=lambda: frameworks.load(root).ids,
         stages=list(store.stages.names),   # config_reloaded keeps it current in place
         sources=SOURCES,
         countries=COUNTRIES,
@@ -1558,6 +1564,7 @@ def create_app(root: Path, config: dict | None = None,
             "date": fmt_datetime(store.now()),
             "subject": "",
             "angle": "",
+            "framework": "",
             "outcome": "",
             "body": body or "",
         }
@@ -3041,13 +3048,14 @@ def create_app(root: Path, config: dict | None = None,
         date: str = Form(""),
         subject: str = Form(""),
         angle: str = Form(""),
+        framework: str = Form(""),
         outcome: str = Form(""),
         body: str = Form(""),
     ):
         company = need_company(slug)
         values = {"channel": channel, "direction": direction, "contact": contact,
                   "date": date, "subject": subject, "angle": angle,
-                  "outcome": outcome, "body": body}
+                  "framework": framework, "outcome": outcome, "body": body}
         extra, shown, custom_errors = await custom_submitted(request, "interaction")
         try:
             errors = dict(custom_errors)
@@ -3076,7 +3084,7 @@ def create_app(root: Path, config: dict | None = None,
         values = {
             "channel": it.channel, "direction": it.direction, "contact": it.contact,
             "date": fmt_datetime(it.date), "subject": it.subject, "angle": it.angle,
-            "outcome": it.outcome, "body": it.body,
+            "framework": it.framework, "outcome": it.outcome, "body": it.body,
         }
         return render(request, "interaction_edit.html",
                       {"company": company, "id": id, "interaction": values})
@@ -3092,6 +3100,7 @@ def create_app(root: Path, config: dict | None = None,
         date: str = Form(""),
         subject: str = Form(""),
         angle: str = Form(""),
+        framework: str = Form(""),
         outcome: str = Form(""),
         body: str = Form(""),
     ):
@@ -3100,7 +3109,7 @@ def create_app(root: Path, config: dict | None = None,
             raise HTTPException(status_code=404, detail=f"unknown interaction {id!r}")
         values = {"channel": channel, "direction": direction, "contact": contact,
                   "date": date, "subject": subject, "angle": angle,
-                  "outcome": outcome, "body": body}
+                  "framework": framework, "outcome": outcome, "body": body}
         extra, shown, custom_errors = await custom_submitted(request, "interaction")
         try:
             if custom_errors:
@@ -4309,6 +4318,8 @@ def create_app(root: Path, config: dict | None = None,
                          for n in (preview.notes if preview else [])]
         ready, gate = outreach._ready_approaches(root)
         known = exemplar_index_for(shown)
+        about = {i.id: outreach.about_for_item(root, i) for i in shown
+                 if i.state in ("drafted", "ready")}   # the cards that show the line
         return render(request, "outreach.html", {
             "approaches": [a.name for a in ready],
             "tabs": [(t, label, counts[t]) for t, label, _ in OUTREACH_TABS
@@ -4331,7 +4342,7 @@ def create_app(root: Path, config: dict | None = None,
             "channels": outreach.CHANNELS, "levels": outreach.LEVELS,
             "built_levels": outreach.BUILT_LEVELS,
             "ai_web_problem": app.state.enricher.web_only_problem(),
-            "critic_scores": outreach.CRITIC_SCORES,
+            "critic_scores": outreach.CRITIC_SCORES, "about": about,
             "continue_query": outreach_query(form) if form["left"] else "",
             "since_line": since_last_time(),
             "edit_tags": outreach.EDIT_TAGS,

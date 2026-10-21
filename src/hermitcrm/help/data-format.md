@@ -154,7 +154,11 @@ both keys on its next save.
 (out, in; empty for a note), `contact` (contact slug; empty only in older or
 imported files), `subject`, `angle` (optional, omitted when empty: scale,
 unblock, hook, bridge, decline or custom; the angle the message was written
-from, so your messages and the outreach bot's compare), `approach` (optional,
+from, so your messages and the outreach bot's compare), `framework` (optional,
+omitted when empty: the id of the outreach framework the message was built with,
+such as `house` or `trigger-tension-trust`, lower case letters, digits and hyphens;
+it is the item's when logging marks an outreach item sent, and the id stays if the
+framework is removed later), `approach` (optional,
 omitted when empty: the playbook approach the message was for),
 `outcome` (one line; see the configured outcomes), `result` (legacy: success,
 unsuccessful or empty), `source` (manual, bcc-import, calendar-import, migration, outreach),
@@ -209,7 +213,9 @@ keys scheduling, sending and the LinkedIn session write to every outreach item
 `send_note`, `invite_sent`, `accepted`, `pitch_sent`), empty; format 13 allows
 `source: outreach` on an interaction and changes no file; format 14 adds the
 "Sending mail" rules to `CLAUDE.md` / `AGENTS.md`: an agent never schedules or sends
-unasked, see [Sending](/help/sending));
+unasked, see [Sending](/help/sending); formats 15 and 16 trim a hand-written
+`framework` and put it in lower case, and drop an empty one, on outreach items and
+then on interactions);
 `hermitcrm migrate --dry-run` lists the files first and `git revert` undoes it. A
 folder written by a newer Hermit CRM is refused until you upgrade.
 

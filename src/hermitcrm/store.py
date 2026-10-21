@@ -39,6 +39,7 @@ except ImportError:  # pragma: no cover
     fcntl = None
 
 from . import fields as fields_mod
+from .frameworks import ID as FRAMEWORK_ID
 from .paths import contained
 from .stages import DEFAULT_STAGES, StageSet
 from .models import (
@@ -67,6 +68,7 @@ from .models import (
     interaction_to_frontmatter,
     normalise_country,
     normalise_email,
+    normalise_framework,
     normalise_language,
     normalise_linkedin,
     normalise_website,
@@ -286,8 +288,8 @@ CONTACT_COPY_FIELDS = (
 CONTACT_MERGE_FIELDS = tuple(
     f for f in CONTACT_COPY_FIELDS if f not in ("slug", "created", "updated", "tasks"))
 INTERACTION_COPY_FIELDS = (
-    "id", "date", "channel", "direction", "contact", "subject", "angle", "approach",
-    "outcome", "source", "message_id", "body",
+    "id", "date", "channel", "direction", "contact", "subject", "angle", "framework",
+    "approach", "outcome", "source", "message_id", "body",
 )
 
 
@@ -660,6 +662,18 @@ class Store:
                 {field_name: f"unknown {field_name} {value!r} "
                              f"(allowed: {', '.join(allowed)})"}
             )
+        return value
+
+    @staticmethod
+    def _coerce_framework(value, current: str = "") -> str:
+        """Empty, the shape of a framework id, or unchanged (a hand-written value
+        in the file, such as `our own thing`, must not block saving the rest of the
+        form). The library is not asked: a message keeps the id of a framework
+        removed after it went out."""
+        value = normalise_framework(value)
+        if value and value != normalise_framework(current) and not FRAMEWORK_ID.fullmatch(value):
+            raise ValidationError(
+                {"framework": "a framework id: lower case letters, digits and hyphens"})
         return value
 
     def _coerce_stage(self, value, current: str = "") -> str:
@@ -1528,7 +1542,7 @@ class Store:
     def create_interaction(self, company_slug: str, channel, direction, subject="",
                            contact="", date=None, outcome="", body="",
                            source="manual", message_id="", custom=None, angle="",
-                           approach="") -> Interaction:
+                           approach="", framework="") -> Interaction:
         company = self._current(company_slug)
         if company is None:
             raise ValidationError({"company": f"unknown company {company_slug!r}"})
@@ -1550,6 +1564,7 @@ class Store:
             contact=contact,
             subject=subject,
             angle=self._coerce_enum(normalise_angle(angle), Angle, "angle", True, ""),
+            framework=self._coerce_framework(framework),
             approach=(approach or "").strip(),
             outcome=self._coerce_outcome(outcome),
             source=self._coerce_enum(source, InteractionSource, "source", False),
@@ -1568,11 +1583,12 @@ class Store:
             message += f"; stage {entry} -> {target}"
         # An outreach item marked ready is sent once you log the message, by
         # hand, BCC or the extension: same commit. It lends the interaction
-        # its angle and approach when the interaction has none.
+        # its angle, framework and approach when the interaction has none.
         from . import outreach
         sent = outreach.sent_by_interaction(self.root, company_slug, it)
         for item in sent:
             it.angle = it.angle or item.angle
+            it.framework = it.framework or item.framework
             it.approach = it.approach or item.approach
             message += f"; outreach {item.id} sent"
         with self.batch(message):
@@ -1625,6 +1641,8 @@ class Store:
         if "angle" in fields:
             new.angle = self._coerce_enum(normalise_angle(fields["angle"]), Angle, "angle",
                                           True, "")
+        if "framework" in fields:
+            new.framework = self._coerce_framework(fields["framework"], old.framework)
         if "approach" in fields:
             new.approach = (fields["approach"] or "").strip()
         if "outcome" in fields:

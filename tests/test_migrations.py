@@ -70,7 +70,7 @@ def test_format_detection(tmp_path, old_folder):
 def test_dry_run_lists_files_and_writes_nothing(old_folder):
     before = {p: p.read_bytes() for p in old_folder.rglob("company.md")}
     text = migrations.dry_run(old_folder)
-    assert "Data format 0 → 14" in text
+    assert "Data format 0 → 16" in text
     assert "1. rename gijs_score to my_score: 3 file(s)" in text  # bolt has an empty key
     assert "2. country UK→GB, USA→US: 2 file(s)" in text
     assert "3. interaction result folded into outcome: 0 file(s)" in text
@@ -91,7 +91,7 @@ def test_migrate_before_after_in_one_commit(old_folder):
 
     summary = migrations.ensure_current(old_folder)
 
-    assert summary.startswith("migrate: data format 0 → 14 (rename gijs_score to my_score; "
+    assert summary.startswith("migrate: data format 0 → 16 (rename gijs_score to my_score; "
                               "country UK→GB, USA→US; interaction result folded into "
                               "outcome; stage reached-out renamed to engaged; scores and "
                               "team size become fields you define; agents may not rewrite "
@@ -102,13 +102,15 @@ def test_migrate_before_after_in_one_commit(old_folder):
                               "outreach drafts record the examples they were shown; "
                               "outreach items get the keys for scheduling, sending and LinkedIn sessions; "
                               "interactions may have the source outreach (nothing to change in a file); "
-                              "agents never schedule or send mail unasked (CLAUDE.md, AGENTS.md))")
+                              "agents never schedule or send mail unasked (CLAUDE.md, AGENTS.md); "
+                              "outreach drafts record their framework; "
+                              "interactions get an optional framework)")
     assert acme.read_text() == expected and acme.read_text().endswith(BODY)
     bolt = (old_folder / "companies/bolt/company.md").read_text()
     assert "country: US\n" in bolt and "my_score:\n" in bolt and "gijs_score" not in bolt.split("---")[1]
     assert (old_folder / ".hermitcrm-format").read_text() == f"{migrations.LATEST}\n"
     assert int(git(["rev-list", "--count", "HEAD"], old_folder)) == commits_before + 1
-    assert git(["log", "-1", "--format=%s|%an"], old_folder).startswith("migrate: data format 0 → 14")
+    assert git(["log", "-1", "--format=%s|%an"], old_folder).startswith("migrate: data format 0 → 16")
     assert "hermitcrm" in git(["log", "-1", "--format=%an"], old_folder)
     changed = git(["show", "--name-only", "--format=", "HEAD"], old_folder).split()
     assert sorted(changed) == [".claude/settings.json", ".claude/skills/hermit/SKILL.md",
@@ -286,3 +288,52 @@ def test_m7_does_not_overwrite_an_existing_interaction(tmp_path):
     migrations.ensure_current(root)
     assert (folder / "2026-10-01T0000-note-jan.md").read_text().endswith("mine\n")
     assert (folder / "2026-10-01T0000-note-jan-2.md").read_text().endswith("01/10/2026: one\n")
+
+
+@pytest.mark.parametrize("meta, expected", [
+    ({"state": "drafted"}, {"state": "drafted"}),
+    ({"state": "drafted", "framework": ""}, {"state": "drafted"}),
+    ({"state": "drafted", "framework": None}, {"state": "drafted"}),
+    ({"state": "drafted", "framework": " Trigger-Tension-Trust "},
+     {"state": "drafted", "framework": "trigger-tension-trust"}),
+])
+def test_the_framework_migration_normalises_and_is_idempotent(meta, expected):
+    once = migrations.m15_framework(meta)
+    assert once == expected and migrations.m15_framework(once) == once
+
+
+def test_the_framework_migration_returns_an_unchanged_value_as_it_is():
+    meta = {"state": "drafted", "framework": "house"}
+    assert migrations.m15_framework(meta) is meta
+    assert next(m for m in migrations.MIGRATIONS if m.version == 15).glob == "outreach/*.md"
+
+
+def test_a_folder_at_format_14_gets_the_framework_normalised_in_one_run(tmp_path):
+    from hermitcrm import outreach
+    from hermitcrm.datafolder import init_folder
+
+    root = init_folder(tmp_path / "crm", demo=True)
+
+    def write(item_id, framework):
+        item = outreach.Item(id=item_id, state="drafted", company="lindenhof-data",
+                             contact="mara-keller", framework=framework,
+                             body="Hi Mara,\n\nA first message.\n\nSam\n")
+        path = root / item.path
+        path.parent.mkdir(exist_ok=True)
+        return path, item
+
+    messy, item = write("2026-10-16T0900-email-lindenhof-data-mara-keller", "house")
+    messy.write_text(outreach.item_text(item).replace("framework: house\n",
+                                                      'framework: " House"\n'), encoding="utf-8")
+    plain, old = write("2026-10-16T0901-email-kestrel-metrics-daan-visser", "")
+    plain.write_text(outreach.item_text(old), encoding="utf-8")
+    before = plain.read_bytes()
+    assert b"framework" not in before and b'framework: " House"' in messy.read_bytes()
+
+    migrations.write_format(root, 14)
+    migrations.ensure_current(root)
+
+    assert migrations.current_format(root) == migrations.LATEST
+    assert messy.read_text(encoding="utf-8") == outreach.item_text(item)
+    assert outreach.get_item(root, item.id).framework == "house"
+    assert plain.read_bytes() == before

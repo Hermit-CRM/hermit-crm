@@ -23,6 +23,7 @@ the inbox files in test_inbox_commit.py.
 from __future__ import annotations
 
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -53,9 +54,15 @@ def dirty(repo: Path) -> str:
     return git(["status", "--porcelain"], repo)
 
 
+# Every write regenerates PIPELINE.md, whose first line holds the minute, and
+# commits it with the change. One fixed clock keeps a save that crosses a
+# minute boundary on a slow machine from putting PIPELINE.md in the commit.
+NOW = datetime(2026, 10, 21, 9, 0)
+
+
 @pytest.fixture
 def folder(tmp_path: Path) -> Path:
-    path = init_folder(tmp_path / "crm")
+    path = init_folder(tmp_path / "crm", now=NOW)
     assert git(["rev-parse", "HEAD"], path).strip() and not dirty(path)
     return path
 
@@ -64,7 +71,7 @@ def folder(tmp_path: Path) -> Path:
 def client(folder: Path) -> TestClient:
     config = load_config(folder)
     config["push_enabled"] = False
-    app = create_app(folder, config)
+    app = create_app(folder, config, clock=lambda: NOW)
     app.state.setup_platform = "linux"
     app.state.setup_push = lambda: (True, "")
     app.state.setup_redirected = True

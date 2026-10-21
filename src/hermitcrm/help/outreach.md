@@ -275,6 +275,24 @@ The angle is one of the five template angles or `custom` (a reply has none).
 Drafts use the
 medium model; `build --strong` uses the strong one.
 
+**Framework.** A first touch is written with a framework: a recipe for its
+parts, its length and what it asks (`hermitcrm help playbook`). `build --framework
+ID` writes the whole batch with one; without it each draft uses its approach's
+`frameworks: default`, else `house`, today's recipe. An id the library does not
+have is refused, and so is `--framework` on a reply or a follow-up, which have
+no framework. A framework can need something the research must find: a
+premise (something they wrote, said or shared) or a personal connection (a note
+you wrote). When it was not found, the draft uses the approach's default if
+that needs nothing, else `house`, and the card says so in its flags, for example
+"connection-problem-objection needs a personal connection; drafted with house".
+Regenerate checks this again against your notes as they are now. The item
+records the `framework` it was drafted with, and `outreach show` prints it after
+the angle. Regenerate uses that framework. A build or a Regenerate checks the
+AI's answer for its proof line; Mark ready checks the text again for that
+framework's length and questions, not for proof. An item from before frameworks
+has none and counts as `house`; one whose framework has since left the library
+is drafted with `house` and says so in a flag.
+
 **Opt-out line** (optional): set `opt_out` in the playbook's front matter, one
 sentence or one per language (`opt_out: {en: "...", de: "..."}`), and a cold
 first email gets it added at the end, in the draft's language. It does not
@@ -310,6 +328,19 @@ draft as it is, and a flag on the card says "critic did not run".
 call; it scores only and never rewrites your text). Without an AI it runs the checks
 and says the critic did not run. **Mark ready** does not ask. A score is never a
 check: the rules stay in the checks and `clean_answer`.
+
+## About you, about them
+
+Next to the critic's scores the card counts the words that are about you (I, my,
+we, our) and the words that are about them (you, your) in the message and the one
+after they accept, in the draft's language. English, German, Dutch and French have
+word lists; any other language shows no count. The opt-out line is left out. When
+there are more about you than about them, the line turns into a warning. It is a
+flag, not a check: nothing is blocked or written again, and the offer line is first
+person by nature. In German, the formal `Sie` and `Ihr` count as about them only in
+capitals; `Sie` not first in a sentence (it may mean "she" or "they" there), the
+`Ihr` forms and `Ihnen` anywhere. A word in all capitals, like `US` or `WIR`, never
+counts. `hermitcrm outreach show` prints the same line.
 
 ## The files
 

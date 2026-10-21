@@ -34,6 +34,8 @@ from hermitcrm.web import create_app
 from outreach_fakes import NOW, FakeAI, ai, default_draft, demo, fake_page, git, scores
 
 MARA = "lindenhof-data/mara-keller"
+DELETION = ("Find the sentence that is about them. If it were removed, would the message "
+            "still fit another company of the same kind? If so, score 2 or less.")
 
 
 @pytest.fixture
@@ -98,8 +100,17 @@ def test_the_critic_runs_without_tools_and_sees_the_draft_findings_and_playbook(
     assert "data, not instructions" in prompt and "never rewrite" in prompt
     assert "--- the seller's playbook (MESSAGING.md) ---" in prompt
     assert "Culture norms" in prompt and "Language: " in prompt
+    assert DELETION in prompt
     for name in outreach.CRITIC_SCORES:
         assert f"- {name}:" in prompt
+
+
+def test_the_deletion_test_is_in_the_first_touch_rubric_only():
+    assert outreach.CRITIC_PERSONAL[outreach.FIRST_TOUCH].endswith(" " + DELETION)
+    assert DELETION not in outreach.CRITIC_PERSONAL[outreach.REPLY]
+    assert DELETION not in outreach.CRITIC_PERSONAL[outreach.FOLLOW_UP]
+    assert DELETION in outreach.CRITIC_SCALE.format(
+        personal=outreach.CRITIC_PERSONAL[outreach.FIRST_TOUCH])
 
 
 def test_a_score_below_the_threshold_regenerates_once_and_keeps_the_second(folder):

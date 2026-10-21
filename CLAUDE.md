@@ -15,6 +15,10 @@ The spec is `docs/ARCHITECTURE.md`.
 - No new runtime dependencies without discussion.
 - Never put real people, companies or email addresses in code, tests or docs;
   use fictional names and example.com / example.org.
+- The one exception: the `after` credits in `src/hermitcrm/default_frameworks.toml`
+  (and the outreach frameworks spec, plans and help page) name the authors of
+  published sales methods, as credit. Prospects, customers and every test fixture
+  stay fictional; do not "fix" the credits away.
 - Changing front-matter keys or values means a new numbered migration in
   `migrations.py` (idempotent, front matter only) plus tests.
 - Keep writes deterministic and interaction bodies byte for byte.

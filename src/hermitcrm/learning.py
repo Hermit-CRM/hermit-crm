@@ -373,6 +373,7 @@ class Signal:
     persona: str = ""
     channel: str = ""
     language: str = ""
+    framework: str = ""
     kind: str = ""
     model: str = ""
     findings_used: list[str] = field(default_factory=list)
@@ -536,7 +537,7 @@ def signal_of(store: Store, item, config: dict | None = None, checks: dict | Non
     return Signal(
         item_id=item.id, approach=item.approach, angle=item.angle,
         persona=_persona(store, item, pb), channel=item.channel, language=item.language,
-        kind=item.kind, model=item.model,
+        framework=item.framework, kind=item.kind, model=item.model,
         findings_used=[f.text for f in item.findings if f.used],
         state=item.state, drafted=item.drafted, ready=item.ready, sent=item.sent,
         edit_words=edit_words or 0, rubber_stamp=stamp, weight=round(weight, 6),
@@ -986,7 +987,7 @@ class RateRow:
     too_few: bool
 
 
-DIMENSIONS = ("angle", "persona", "channel", "language")
+DIMENSIONS = ("angle", "persona", "channel", "language", "framework")
 
 
 def rates(sigs: list[Signal], dimension: str) -> list[RateRow]:
@@ -1024,6 +1025,7 @@ class Card:
     company: str = ""
     approach: str = ""
     angle: str = ""
+    framework: str = ""        # "" for items from before frameworks: the head line is as it was
     kind: str = ""
     channel: str = ""
     language: str = ""
@@ -1041,7 +1043,9 @@ class Card:
     @property
     def text(self) -> str:
         head = (f"card {self.id} | {self.kind}, {self.channel}, {self.language or '-'} | "
-                f"angle {self.angle or '-'} | rung {self.rung or 'none'}")
+                f"angle {self.angle or '-'} | "
+                + (f"framework {self.framework} | " if self.framework else "")
+                + f"rung {self.rung or 'none'}")
         if self.skip_reason:
             line = f"{head}\nskipped: {self.skip_reason}"
             return line + (f": {self.skip_note}" if self.skip_note else "")
@@ -1116,8 +1120,8 @@ def _card_of(store: Store, s: Signal, item) -> Card:
         if final and _norm(item.ai_subject) != _norm(final.subject) else []
     return Card(
         id=s.item_id, contact=s.contact_key, company=s.company, approach=s.approach,
-        angle=s.angle, kind=s.kind, channel=s.channel, language=s.language, rung=s.top_rung,
-        hunks=hunks[:CARD_HUNKS], subject=subject,
+        angle=s.angle, framework=s.framework, kind=s.kind, channel=s.channel,
+        language=s.language, rung=s.top_rung, hunks=hunks[:CARD_HUNKS], subject=subject,
         notes=[_pseudonymise(n, names) for n in s.notes], tags=list(s.tags),
         skip_reason=s.skip_reason if s.state == "skipped" else "",
         skip_note=_pseudonymise(s.skip_note, names) if s.state == "skipped" else "",

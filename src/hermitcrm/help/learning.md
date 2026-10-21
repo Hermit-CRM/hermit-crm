@@ -18,8 +18,11 @@ to outcomes over edits. `hermitcrm learn report` opens with a banner such as
 
 1. `hermitcrm learn report` shows the efficiency trend (are your edits getting
    smaller?), the patterns in your edits, the outcome rates per angle, persona,
-   channel and language (cells under 10 sent items are marked "too few"), and a
-   style table. No AI is used.
+   channel, language and framework (cells under 10 sent items are marked "too
+   few"), and a style table. No AI is used. The framework is the one a first
+   touch was built with (`outreach build --framework`); older items, replies
+   and follow-ups have none and count under "-". A card names its framework
+   too, so a lesson can tell the frameworks apart.
 2. `hermitcrm learn status` shows what a run would send: the cards (anonymised
    evidence from your edits), the prompt size and a token estimate.
 3. `hermitcrm learn run` asks the AI once (strong tier) for proposals. With
