@@ -1280,7 +1280,9 @@ CRITIC_SCALE = (
 
 CRITIC_PERSONAL = {
     FIRST_TOUCH: "is it built on a real usable finding about them (cited by its number "
-                 "below), in the opening, rather than on a template line anyone could get?",
+                 "below), in the opening, rather than on a template line anyone could get? "
+                 "Find the sentence that is about them. If it were removed, would the message "
+                 "still fit another company of the same kind? If so, score 2 or less.",
     REPLY: "does it answer what they actually wrote in their reply, in their terms? (A reply "
            "needs no finding: do not mark it down for having none.)",
     FOLLOW_UP: "does it pick up the earlier message it follows, and its topic? (A follow-up "
