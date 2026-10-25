@@ -11,12 +11,19 @@ license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "Hermit CRM contributors" }]
 requires-python = ">=3.11"
+keywords = ["crm", "personal-crm", "markdown", "local-first", "git", "mcp", "ai-agents", "solopreneur", "freelancer", "sales"]
 classifiers = [
     "Development Status :: 3 - Alpha",
-    "Programming Language :: Python :: 3",
-    "Framework :: FastAPI",
     "Environment :: Web Environment",
-    "Operating System :: OS Independent",
+    "Framework :: FastAPI",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business",
 ]
 dependencies = [
     "fastapi",
@@ -32,7 +39,11 @@ dependencies = [
 dev = ["pytest", "httpx"]
 
 [project.urls]
-Homepage = "https://hermitcrm.io"
+Homepage = "https://hermitcrm.io/?ref=pypi"
+Documentation = "https://hermitcrm.io/docs/?ref=pypi"
+Changelog = "https://hermitcrm.io/changelog/?ref=pypi"
+Source = "https://github.com/Hermit-CRM/hermit-crm"
+Issues = "https://github.com/Hermit-CRM/hermit-crm/issues"
 Funding = "https://ko-fi.com/gijsbos"
 
 [project.scripts]
