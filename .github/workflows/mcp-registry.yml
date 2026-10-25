@@ -1,0 +1,31 @@
+name: mcp-registry
+
+# Publishes server.json to the MCP Registry under io.github.Hermit-CRM/*.
+# The interactive `mcp-publisher login github` cannot read org roles, so this
+# runs in CI and authenticates with GitHub OIDC instead. Manual trigger only:
+# run it after a PyPI release has the version server.json points at.
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # GitHub OIDC login for the Hermit-CRM namespace
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" \
+            | tar xz mcp-publisher
+          sudo mv mcp-publisher /usr/local/bin/
+      - name: Validate server.json
+        run: mcp-publisher validate
+      - name: Log in with GitHub OIDC
+        run: mcp-publisher login github-oidc
+      - name: Publish
+        run: mcp-publisher publish

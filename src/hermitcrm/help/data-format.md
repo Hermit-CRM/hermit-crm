@@ -152,9 +152,7 @@ both keys on its next save.
 
 `date` (datetime), `channel` (email, linkedin, call, whatsapp, meeting, note), `direction`
 (out, in; empty for a note), `contact` (contact slug; empty only in older or
-imported files), `subject`, `angle` (optional, omitted when empty: scale,
-unblock, hook, bridge, decline or custom; the angle the message was written
-from, so your messages and the outreach bot's compare), `framework` (optional,
+imported files), `subject`, `framework` (optional,
 omitted when empty: the id of the outreach framework the message was built with,
 such as `house` or `trigger-tension-trust`, lower case letters, digits and hyphens;
 it is the item's when logging marks an outreach item sent, and the id stays if the
@@ -206,8 +204,8 @@ moves each contact's notes body into note interactions, a line starting
 `DD/MM/YYYY:` dated that day, the rest dated the contact's `created`; format 8
 adds the `/hermit` skill (a skill file of your own is kept), the "Adjusting
 Hermit" rules in `CLAUDE.md` / `AGENTS.md` when they do not mention
-`hermitcrm help adjust` yet, and `inbox/.last-routines.json` to `.gitignore`; format 9 trims a hand-written
-interaction `angle` and puts it in lower case, and drops an empty one; format 12 adds the
+`hermitcrm help adjust` yet, and `inbox/.last-routines.json` to `.gitignore`; format 9 tidies one hand-written
+interaction key (format 18 drops it again); format 12 adds the
 keys scheduling, sending and the LinkedIn session write to every outreach item
 (`queued`, `send_at`, `send_hash`, `message_id`, `send_tries`, `send_error`,
 `send_note`, `invite_sent`, `accepted`, `pitch_sent`), empty; format 13 allows
@@ -215,7 +213,8 @@ keys scheduling, sending and the LinkedIn session write to every outreach item
 "Sending mail" rules to `CLAUDE.md` / `AGENTS.md`: an agent never schedules or sends
 unasked, see [Sending](/help/sending); formats 15 and 16 trim a hand-written
 `framework` and put it in lower case, and drop an empty one, on outreach items and
-then on interactions);
+then on interactions); format 17 drops the `angle` key from outreach items and
+format 18 drops it from interactions. The latest format is 18;
 `hermitcrm migrate --dry-run` lists the files first and `git revert` undoes it. A
 folder written by a newer Hermit CRM is refused until you upgrade.
 

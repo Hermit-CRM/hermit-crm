@@ -43,7 +43,6 @@ from .frameworks import ID as FRAMEWORK_ID
 from .paths import contained
 from .stages import DEFAULT_STAGES, StageSet
 from .models import (
-    Angle,
     Channel,
     Company,
     Contact,
@@ -52,7 +51,6 @@ from .models import (
     Direction,
     Interaction,
     InteractionSource,
-    normalise_angle,
     Role,
     Source,
     Task,
@@ -126,8 +124,6 @@ DEFAULT_CONFIG = {
     "outreach_high_fit": 65,
     "outreach_batch_size": 10,
     "outreach_critic_threshold": 2,
-    # The angles a draft may take: the template angles and custom (your own).
-    "outreach_angles": ["scale", "unblock", "hook", "bridge", "decline", "custom"],
     "messaging_size_field": "fte_estimate",
     "messaging_team_field": "ae_count",
     "enrich_provider": "auto",
@@ -288,7 +284,7 @@ CONTACT_COPY_FIELDS = (
 CONTACT_MERGE_FIELDS = tuple(
     f for f in CONTACT_COPY_FIELDS if f not in ("slug", "created", "updated", "tasks"))
 INTERACTION_COPY_FIELDS = (
-    "id", "date", "channel", "direction", "contact", "subject", "angle", "framework",
+    "id", "date", "channel", "direction", "contact", "subject", "framework",
     "approach", "outcome", "source", "message_id", "body",
 )
 
@@ -1541,7 +1537,7 @@ class Store:
     @_locked
     def create_interaction(self, company_slug: str, channel, direction, subject="",
                            contact="", date=None, outcome="", body="",
-                           source="manual", message_id="", custom=None, angle="",
+                           source="manual", message_id="", custom=None,
                            approach="", framework="") -> Interaction:
         company = self._current(company_slug)
         if company is None:
@@ -1563,7 +1559,6 @@ class Store:
             direction=direction,
             contact=contact,
             subject=subject,
-            angle=self._coerce_enum(normalise_angle(angle), Angle, "angle", True, ""),
             framework=self._coerce_framework(framework),
             approach=(approach or "").strip(),
             outcome=self._coerce_outcome(outcome),
@@ -1583,11 +1578,10 @@ class Store:
             message += f"; stage {entry} -> {target}"
         # An outreach item marked ready is sent once you log the message, by
         # hand, BCC or the extension: same commit. It lends the interaction
-        # its angle, framework and approach when the interaction has none.
+        # its framework and approach when the interaction has none.
         from . import outreach
         sent = outreach.sent_by_interaction(self.root, company_slug, it)
         for item in sent:
-            it.angle = it.angle or item.angle
             it.framework = it.framework or item.framework
             it.approach = it.approach or item.approach
             message += f"; outreach {item.id} sent"
@@ -1638,9 +1632,6 @@ class Store:
             new.contact = contact
         if "subject" in fields:
             new.subject = (fields["subject"] or "").strip()
-        if "angle" in fields:
-            new.angle = self._coerce_enum(normalise_angle(fields["angle"]), Angle, "angle",
-                                          True, "")
         if "framework" in fields:
             new.framework = self._coerce_framework(fields["framework"], old.framework)
         if "approach" in fields:

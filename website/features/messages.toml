@@ -39,5 +39,4 @@ no reply within 14 days makes it **unsuccessful**, and before that it is **unkno
 heading = "From messages to learning"
 text = """
 The Reports page breaks outcomes down by language, by channel and for your most reused texts, so you can see whether the German version beats the English one.
-The drafts on each contact page use your own fields as `{field}` slots, so a draft improves when your data does.
 """

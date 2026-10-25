@@ -59,7 +59,7 @@
   <p class="small"><a href="{{ w.url }}">{{ w.total }} in all</a> by {{ w.label }} date, {{ fmt_date(w.start) }} to {{ fmt_date(w.end) }}. A number opens the rows from that {{ w.every }} on.{% if w.clamped %} The newest {{ w.bars | length }} {{ w.every }}s are shown; {{ w.clamped }} older {{ 'one is' if w.clamped == 1 else 'ones are' }} left out.{% endif %}</p>
   {% elif w.type == 'report' %}
   {% set p = w.report.period %}
-  <p class="small">{{ fmt_date(p.start) }} to {{ fmt_date(p.end) }} ({{ p.days }}d). Click a number for the rows behind it.</p>
+  <p class="small">{{ fmt_date(p.start) }} to {{ fmt_date(p.end) }} ({{ p.days }}d). Click a number for its rows.</p>
   {{ rs['section_' ~ w.section](w.report, w.rows_query) }}
   {% endif %}
 </section>

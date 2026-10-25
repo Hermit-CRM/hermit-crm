@@ -38,7 +38,7 @@ hermitcrm set <companies|contacts|interactions> [--where KEY=VALUE ...] [--all]
 |---|---|---|
 | `companies` | the Companies list | `website`, `linkedin`, `country`, `source`, `lost_reason`, `requalify_on`, `value_eur_month`, `product_oneliner`, `next_step`, `next_step_due`, `next_step_status`, `next_step_type`, `tags`, and your own fields |
 | `contacts` | the Contacts list | `title`, `linkedin`, `email`, `phone`, `role`, `language`, and your own fields |
-| `interactions` | the rows of the Messages page (messages you sent) | `outcome`, `subject`, `angle`, `framework`, `approach`, and your own fields |
+| `interactions` | the rows of the Messages page (messages you sent) | `outcome`, `subject`, `framework`, `approach`, and your own fields |
 
 - `--set FIELD=VALUE` sets a field. An empty value (`--set next_step=`) clears it,
   and so does `--unset FIELD`. Values are read the way the forms read them: numbers,
@@ -81,7 +81,7 @@ underscore for a space (`last touch` is `last_touch`, and the Messages heading
 |---|---|
 | `companies` | `name`, `country`, `stage`, `source`, your own fields, `tags`, `last_touch`, `next_step`, `next_type` (when you have task types), `next_step_due` |
 | `contacts` | `name`, `company_name`, `title`, `email`, `linkedin`, `last_touch`, `interaction_count`, your own contact fields |
-| `interactions` | `date`, `company_name`, `contact`, `channel`, `angle`, `framework`, `country`, `stage`, `status` (the outcome, explicit or worked out), `uses`, your own interaction fields, `body` |
+| `interactions` | `date`, `company_name`, `contact`, `channel`, `framework`, `country`, `stage`, `status` (the outcome, explicit or worked out), `uses`, your own interaction fields, `body` |
 
 Things worth knowing:
 

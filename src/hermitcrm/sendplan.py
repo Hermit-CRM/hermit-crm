@@ -85,6 +85,20 @@ def parse_days(names) -> tuple[int, ...]:
     return tuple(sorted(out))
 
 
+def compact_days(text: str) -> str:
+    """'Mon, Tue, Wed, Thu, Fri' as 'Mon–Fri' and all seven as 'every day', for
+    reading. Any other list (Mon, Wed, Fri; or only two days) comes back as it was."""
+    names = [n.strip().lower()[:3] for n in str(text or "").split(",") if n.strip()]
+    if not names or any(n not in WEEKDAYS for n in names):
+        return str(text or "")
+    days = sorted({WEEKDAYS.index(n) for n in names})
+    if len(days) == len(WEEKDAYS):
+        return "every day"
+    if len(days) >= 3 and days[-1] - days[0] == len(days) - 1:
+        return f"{WEEKDAYS[days[0]].capitalize()}–{WEEKDAYS[days[-1]].capitalize()}"
+    return str(text)
+
+
 @dataclass(frozen=True)
 class PlanConfig:
     days: tuple[int, ...] = (0, 1, 2, 3, 4)

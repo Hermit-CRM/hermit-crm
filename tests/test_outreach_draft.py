@@ -44,9 +44,9 @@ def ctx(**kw):
     return outreach.CheckContext(**base)
 
 
-def answer(body=GOOD, subject="Your second office", angle="hook", findings_used=(1,),
+def answer(body=GOOD, subject="Your second office", findings_used=(1,),
            proof_used=(), pitch=""):
-    return {"subject": subject, "body": body, "pitch": pitch, "angle": angle,
+    return {"subject": subject, "body": body, "pitch": pitch,
             "findings_used": list(findings_used), "proof_used": list(proof_used)}
 
 
@@ -59,7 +59,7 @@ def problems(data, **kw):
 
 def test_a_good_draft_passes():
     draft = outreach.clean_answer(answer(proof_used=PROOF), ctx())
-    assert draft.problems == [] and draft.angle == "hook"
+    assert draft.problems == []
     assert draft.findings_used == [1] and draft.proof_used == PROOF
     assert draft.body.endswith("Sam\n")
 
@@ -83,7 +83,7 @@ def test_the_prompt_asks_for_proof_in_the_message_language(folder):
 def test_a_translated_proof_passes_when_proof_used_keeps_the_playbook_words():
     ctx = outreach.CheckContext(proof=[MADE_UP_PROOF],
                                 rules={"subject_max": 60, "body_max_words": 120})
-    data = {"subject": "Ihr zweites Büro", "angle": "hook", "pitch": "", "findings_used": [],
+    data = {"subject": "Ihr zweites Büro", "pitch": "", "findings_used": [],
             "body": "Hallo Mara,\n\nDas zweite Büro ist mir aufgefallen. Ein Softwareunternehmen "
                     "mit 30 Leuten hat seine Pipeline in zwei Quartalen verdoppelt.\nWo hakt es "
                     "gerade am meisten?\n\nSam\n",
@@ -293,7 +293,7 @@ def test_build_writes_checked_items_one_commit_per_step(folder):
     log = commits(root)[:len(commits(root)) - before]
     assert len(log) == 6
     assert log[-1] == ("outreach: research lindenhof-data/mara-keller (scrape, 1 findings)")
-    assert log[-2] == "outreach: draft lindenhof-data/mara-keller (email, hook): checks passed"
+    assert log[-2] == "outreach: draft lindenhof-data/mara-keller (email, first touch): checks passed"
     for sha in git(root, "log", f"-{6}", "--format=%h").split():
         files = git(root, "show", "--name-only", "--format=", sha).split()
         # the research step also writes what it found as notes on the contact
@@ -354,6 +354,80 @@ def test_ready_rechecks_the_text_and_records_the_edit(folder):
     assert fresh.get("lindenhof-data").stage == "prospect"  # a note is not a touch
     with pytest.raises(outreach.OutreachError, match="only a drafted item"):
         outreach.mark_ready(store, item.id)
+
+
+def test_unready_takes_the_approval_back_in_one_commit(folder):
+    root, store = folder
+    result, _ = built(folder, limit=1)
+    item = result.items[0]
+    path = root / item.path
+    head, body = path.read_text().split("\n---\n", 1)
+    path.write_text(head + "\n---\n" + body.replace("caught my eye", "stood out"),
+                    encoding="utf-8")
+    ready, _ = outreach.mark_ready(store, item.id)
+    assert ready.state == "ready" and ready.ready is not None and len(ready.edits) == 1
+    before = len(commits(root))
+    back = outreach.unready(store, item.id)
+    assert (back.state, back.ready, back.edit_distance) == ("drafted", None, None)
+    assert back.body == ready.body and "stood out" in back.body    # the approved text stays
+    assert len(back.edits) == 1                  # tracked edits are append-only: kept
+    assert outreach.get_item(root, item.id) == back
+    assert len(commits(root)) == before + 1
+    assert commits(root)[0] == "outreach: unready lindenhof-data/mara-keller (email)"
+    assert git(root, "show", "--name-only", "--format=", "HEAD").split() == [item.path]
+    again, _ = outreach.mark_ready(store, item.id)   # and it can be approved again
+    assert again.state == "ready" and again.body == back.body
+
+
+def test_unready_without_an_edit_restores_the_drafted_file_byte_for_byte(folder):
+    root, store = folder
+    result, _ = built(folder, limit=1)
+    item = result.items[0]
+    path = root / item.path
+    drafted_bytes = path.read_bytes()
+    outreach.mark_ready(store, item.id)
+    assert path.read_bytes() != drafted_bytes
+    outreach.unready(store, item.id)
+    assert path.read_bytes() == drafted_bytes
+
+
+def test_unready_drops_the_held_back_note_of_the_ready_state(folder):
+    root, store = folder
+    result, _ = built(folder, limit=1)
+    item = result.items[0]
+    outreach.mark_ready(store, item.id)
+    held = outreach.get_item(root, item.id)
+    held.send_note = "they wrote to you since 21 Oct"   # what a guard leaves on a ready card
+    outreach.write_item(root, held)
+    assert outreach.unready(store, item.id).send_note == ""
+
+
+def test_only_a_ready_item_can_go_back_to_a_draft(folder):
+    root, store = folder
+    result, _ = built(folder, limit=3)
+    drafted_item, skipped_item, stuck_item = result.items
+    outreach.skip(store, skipped_item.id, "bad-timing")
+    stuck = outreach.get_item(root, stuck_item.id)
+    stuck.state = "queued"
+    outreach.write_item(root, stuck)
+    before = len(commits(root))
+    with pytest.raises(outreach.OutreachError, match="is drafted; only a ready item can go "
+                                                     "back to a draft"):
+        outreach.unready(store, drafted_item.id)
+    with pytest.raises(outreach.OutreachError, match="is skipped; only a ready item"):
+        outreach.unready(store, skipped_item.id)
+    with pytest.raises(outreach.OutreachError, match="is queued; only a ready item.*"
+                                                     "unschedule it first"):
+        outreach.unready(store, stuck_item.id)
+    stuck.state = "failed"
+    outreach.write_item(root, stuck)
+    with pytest.raises(outreach.OutreachError, match="is failed; only a ready item.*"
+                                                     "retry it first"):
+        outreach.unready(store, stuck_item.id)
+    with pytest.raises(outreach.OutreachError, match="no outreach item"):
+        outreach.unready(store, "nope")
+    assert len(commits(root)) == before                  # a refusal writes nothing
+    assert outreach.get_item(root, stuck_item.id).state == "failed"
 
 
 def test_skip_is_one_commit_and_frees_the_contact(folder):
@@ -451,6 +525,24 @@ def test_done_when_build_writes_three_checked_items(tmp_path, fake_cli, capsys):
     assert cli.main(["outreach", "skip", second, "--reason", "wrong-person"], root=root) == 0
     assert cli.main(["outreach", "list", "--state", "ready"], root=root) == 0
     assert capsys.readouterr().out.count(" | ready | ") == 1
+
+
+def test_cli_unready_puts_a_ready_item_back_to_drafted(tmp_path, fake_cli, capsys):
+    from hermitcrm.datafolder import init_folder
+
+    root = init_folder(tmp_path / "x", demo=True)
+    assert cli.main(["outreach", "build", "--where", "stage=prospect", "--channel", "email",
+                     "--limit", "1"], root=root) == 0
+    [item] = outreach.items(root)
+    assert cli.main(["outreach", "ready", item.id], root=root) == 0
+    capsys.readouterr()
+    assert cli.main(["outreach", "unready", item.id], root=root) == 0
+    out = capsys.readouterr().out
+    assert f"{item.id} is back to a draft" in out and "Not sent." in out
+    assert outreach.get_item(root, item.id).state == "drafted"
+    assert git(root, "status", "--porcelain") == ""      # one commit, nothing left over
+    assert cli.main(["outreach", "unready", item.id], root=root) == 1
+    assert "only a ready item can go back to a draft" in capsys.readouterr().err
 
 
 def test_build_refuses_when_the_playbook_is_not_ready(tmp_path, fake_cli, capsys):
@@ -557,9 +649,9 @@ def test_3_a_linkedin_note_may_ask_nothing_the_message_after_asks_one():
                for p in problems(answer(GOOD.replace("deal size?", "deal size."))))
 
 
-def test_5_custom_is_an_angle_too():
-    assert outreach.clean_answer(answer(angle="custom"), ctx()).problems == []
-    assert any(p.startswith("angle loud") for p in problems(answer(angle="loud")))
+def test_5_an_angle_in_the_reply_of_an_older_prompt_is_ignored():
+    assert outreach.clean_answer({**answer(), "angle": "loud"}, ctx()).problems == []
+    assert "angle" not in outreach.DRAFT_SCHEMA["properties"]
 
 
 def test_7_logging_the_message_after_ready_marks_it_sent_in_the_same_commit(folder):
@@ -582,7 +674,7 @@ def test_7_logging_the_message_after_ready_marks_it_sent_in_the_same_commit(fold
     assert commits(root)[0].endswith(f"; outreach {mark} sent")
     files = git(root, "show", "--name-only", "--format=", "HEAD").split()
     assert sent.path in files and any(f.endswith(f"{it.id}.md") for f in files)
-    assert (it.angle, it.approach) == ("hook", "Scaling the sales team")
+    assert it.approach == "Scaling the sales team"
     # sent is not open: the contact may get a later item, after the cooldown
     sel = outreach.select(store, where=["stage=engaged,prospect"], limit=10)
     reasons = {c.record: c.reason for c in sel.excluded}
