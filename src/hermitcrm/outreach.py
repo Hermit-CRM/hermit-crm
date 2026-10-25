@@ -343,11 +343,20 @@ def research_prompt(company, contact, pages: list[tuple[str, str]], today: date)
     return "\n\n".join(parts) + "\n"
 
 
+def light(enricher):
+    """`enricher` on the light tier: the model for a call that reads and scores
+    (the scrape research, the critic) rather than writes. An enricher without
+    tiers is returned as it is."""
+    with_tier = getattr(enricher, "with_tier", None)
+    return with_tier("light") if with_tier else enricher
+
+
 class ScrapeResearcher:
     """The free level: scrape.py on the company website, its LinkedIn page and the
     person's LinkedIn page (LinkedIn usually refuses anonymous requests; that is
-    a note, not an error), then one small AI call with no tools that turns what
-    was read into findings. Nothing read is ever written to a record here."""
+    a note, not an error), then one small AI call with no tools, on the light
+    model, that turns what was read into findings. Nothing read is ever written
+    to a record here."""
 
     level = "scrape"
 
@@ -355,7 +364,7 @@ class ScrapeResearcher:
                  timeout: float = 10):
         from . import scrape
 
-        self.enricher = enricher
+        self.enricher = light(enricher)
         self.fetcher = fetcher or (lambda url: scrape.fetch(url, timeout=timeout))
         self.today = today or date.today()
 
@@ -1524,12 +1533,13 @@ class Critic(Protocol):              # the AI CLI, no tools
 
 
 class AICritic:
-    """One call to the AI CLI, no tools, JSON out. A failure raises Rejected or
-    EnrichError: the caller notes it and goes on, the critic never blocks."""
+    """One call to the AI CLI, no tools, JSON out, on the light model: it scores,
+    it never writes. A failure raises Rejected or EnrichError: the caller notes
+    it and goes on, the critic never blocks."""
 
     def __init__(self, store: Store, enricher):
         self.store = store
-        self.enricher = enricher
+        self.enricher = light(enricher)
 
     def critique(self, kind, channel, subject, body, pitch, findings, brief, approach=None,
                  thread=None) -> CriticResult:
