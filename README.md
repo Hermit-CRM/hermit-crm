@@ -9,7 +9,7 @@ you and a CLI and MCP server for your AI agent. No account, no cloud, Apache 2.0
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/hermitcrm.svg)](https://pypi.org/project/hermitcrm/)
 [![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)](DISCLAIMER.md)
-[![Website](https://img.shields.io/badge/web-hermitcrm.io-1E8A60.svg)](https://hermitcrm.io)
+[![Website](https://img.shields.io/badge/web-hermitcrm.io-1E8A60.svg)](https://hermitcrm.io/?ref=readme)
 
 ![Hermit CRM: the pipeline, a company with its drafts and timeline, the calendar and the reports](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/demo.gif)
 
