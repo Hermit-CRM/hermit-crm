@@ -1552,6 +1552,8 @@ def create_app(root: Path, config: dict | None = None,
             return form
         if contact is None:
             contact = company.latest_contact_slug
+            if not contact and len(company.contacts) == 1:   # nobody else to pick
+                contact = next(iter(company.contacts))
         if contact and contact not in company.contacts:
             contact = ""
         return {
@@ -2478,12 +2480,19 @@ def create_app(root: Path, config: dict | None = None,
                           status_code=400)
         return flashed(f"/companies/{company.slug}", "Company created")
 
+    def company_notes_context(company: Company) -> dict:
+        """What company.html shows about notes, for every way the page is rendered."""
+        return {"company_notes": notes.company_notes(company),
+                "note_counts": {cs: len(notes.contact_notes(company, cs))
+                                for cs in company.contacts}}
+
     @app.get("/companies/{slug}", response_class=HTMLResponse)
     def company_page(request: Request, slug: str):
         company = need_company(slug, refresh=True)
         interaction = interaction_values(company)
         return render(request, "company.html", {
             "company": company,
+            **company_notes_context(company),
             "values": with_custom(company_values(company), company, "company"),
             "interaction": interaction,
             "focus": request.query_params.get("focus", ""),
@@ -2532,6 +2541,7 @@ def create_app(root: Path, config: dict | None = None,
             current = need_company(slug, refresh=True)
             return render(request, "company.html", {
                 "company": current,
+                **company_notes_context(current),
                 "values": {**with_custom(company_values(current), current, "company"),
                            **values, **shown},
                 "flash": stale_form_text("company",
@@ -2547,6 +2557,7 @@ def create_app(root: Path, config: dict | None = None,
         except ValidationError as exc:
             return render(request, "company.html", {
                 "company": company,
+                **company_notes_context(company),
                 "values": {**with_custom(company_values(company), company, "company"),
                            **values, **shown},
                 "errors": exc.errors,
@@ -2927,6 +2938,7 @@ def create_app(root: Path, config: dict | None = None,
             "interactions": interactions,
             "interaction": interaction_values(company, contact=contact.slug, channel=channel),
             "summary": contact_summary(company, contact, interactions, store.today()),
+            "elsewhere": notes.elsewhere(company, contact.slug),
             "editing": editing or values is not None,
             "outreach_open": next((i for i in outreach.items(root)
                                    if i.is_open and i.company == company.slug
@@ -3026,11 +3038,13 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.get("/companies/{slug}/interactions/new", response_class=HTMLResponse)
     def interaction_new(request: Request, slug: str, contact: str = "",
-                        channel: str = "", body: str = ""):
+                        channel: str = "", body: str = "", whole: str = ""):
         company = need_company(slug, refresh=True)
+        # `whole=1` (the "note for the whole company" links) starts on no contact.
+        who = "" if whole and channel == "note" else (contact or None)
         return render(request, "interaction_new.html", {
             "company": company,
-            "interaction": interaction_values(company, contact=contact or None,
+            "interaction": interaction_values(company, contact=who,
                                               channel=channel, body=body),
         })
 
@@ -3054,8 +3068,9 @@ def create_app(root: Path, config: dict | None = None,
         extra, shown, custom_errors = await custom_submitted(request, "interaction")
         try:
             errors = dict(custom_errors)
-            if not contact.strip():
-                errors["contact"] = "pick a contact: an interaction is always with a person"
+            if not contact.strip() and channel != Channel.NOTE.value:
+                errors["contact"] = ("pick a contact: only a note can be about the "
+                                     "whole company")
             if errors:
                 raise ValidationError(errors)
             created = store.create_interaction(slug, custom=extra, **values)
@@ -3066,7 +3081,9 @@ def create_app(root: Path, config: dict | None = None,
                 "interaction": values,
                 "errors": exc.errors,
             }, status_code=400)
-        return flashed(f"/companies/{slug}/contacts/{created.contact}",
+        back = (f"/companies/{slug}/contacts/{created.contact}" if created.contact
+                else f"/companies/{slug}")   # a note for the whole company
+        return flashed(back,
                        "Note added" if created.is_note else "Interaction logged",
                        anchor=f"i-{created.id}")
 

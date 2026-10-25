@@ -59,7 +59,9 @@ you disqualify it instead.
   form: slug, created, updated, stage changed, and the stage history collapsed.
 - **Contacts** with title, role, email and LinkedIn, a **log** link to each
   person's Log an interaction form (an interaction is always with a person, so
-  the company page has no form of its own), and a New contact link.
+  the company page has no form of its own), and a New contact link. Under the
+  list, **Company notes**: notes about the company as a whole, with an **Add
+  company note** link; each contact row shows how many notes that person has.
 - **Tasks**: one list for the company and its people, open ones by due date
   (the first is labelled **next step**), then the done ones with the day they
   were done. **Done** / **Reopen** / **Delete** on each, and **Add task** with a
