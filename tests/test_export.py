@@ -152,18 +152,17 @@ def test_every_record_is_in_the_export(demo):
     assert row["body"] == some.body
 
 
-def test_the_interactions_csv_has_the_framework_right_after_the_angle(demo):
+def test_the_interactions_csv_has_the_framework_right_after_the_subject(demo):
     store = open_store(demo)
     company = next(c for c in store.all() if any(i.is_message for i in c.interactions))
     it = next(i for i in company.interactions if i.is_message)
-    store.update_interaction(company.slug, it.id, angle="hook",
-                             framework="trigger-tension-trust")
+    store.update_interaction(company.slug, it.id, framework="trigger-tension-trust")
     header, rows = table(unzip(export.zip_bytes(open_store(demo)))["interactions.csv"])
-    assert header[header.index("angle") + 1] == "framework"
+    assert header[header.index("subject") + 1] == "framework"
     assert header.count("framework") == 1
     by_id = {(r["company_slug"], r["id"]): r for r in rows}
     row = by_id[(company.slug, it.id)]
-    assert (row["angle"], row["framework"]) == ("hook", "trigger-tension-trust")
+    assert row["framework"] == "trigger-tension-trust"
     assert {r["framework"] for k, r in by_id.items() if k != (company.slug, it.id)} == {""}
 
 

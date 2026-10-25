@@ -59,7 +59,6 @@ from . import fields as fields_mod
 from . import filters, pipeline
 from .gitops import GitOps
 from .models import (
-    ANGLES,
     Country,
     Role,
     Source,
@@ -97,7 +96,7 @@ EDITABLE = {
     },
     # Interactions: front matter that does not move the file. date, channel,
     # direction and contact are in the file name, so they are not here.
-    "interactions": {"subject": True, "angle": True, "framework": True, "approach": True,
+    "interactions": {"subject": True, "framework": True, "approach": True,
                      "outcome": True},
 }
 
@@ -418,7 +417,6 @@ def _check_choice(name: str, value: str) -> str:
         "source": [s.value for s in Source],
         "role": [r.value for r in Role],
         "next_step_status": ["open", "done"],
-        "angle": list(ANGLES),
     }.get(name)
     if options is not None and value not in options:
         raise BulkError(f"{name}: unknown value {value!r}.{_hint(value.lower(), options)} "

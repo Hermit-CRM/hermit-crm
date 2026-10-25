@@ -120,11 +120,11 @@ def test_m3_before_after(old_folder):
     folder = old_folder / "companies" / "acme" / "interactions"
     before = {name: (folder / f"{name}.md").read_text() for name in CASES}
     text = migrations.dry_run(old_folder)
-    assert "Data format 2 → 16" in text
+    assert "Data format 2 → 18" in text
     assert "3. interaction result folded into outcome: 9 file(s)" in text
 
     summary = migrations.ensure_current(old_folder)
-    assert summary.startswith("migrate: data format 2 → 16 (interaction result folded into "
+    assert summary.startswith("migrate: data format 2 → 18 (interaction result folded into "
                               "outcome; stage reached-out renamed to engaged; scores and "
                               "team size become fields you define; agents may not "
                               "rewrite history (.claude/settings.json); contact notes "
@@ -136,7 +136,9 @@ def test_m3_before_after(old_folder):
                               "interactions may have the source outreach (nothing to change in a file); "
                               "agents never schedule or send mail unasked (CLAUDE.md, AGENTS.md); "
                               "outreach drafts record their framework; "
-                              "interactions get an optional framework)")
+                              "interactions get an optional framework; "
+                              "outreach items lose the retired angle; "
+                              "interactions lose the retired angle)")
     for name, (_, after) in CASES.items():
         meta, body = split_file((folder / f"{name}.md").read_text())
         assert str(meta.get("outcome") or "") == after, name

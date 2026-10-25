@@ -89,7 +89,8 @@
 {% elif section == 'tasks' %}
 <section id="tasks">
   <h2>Tasks for {{ contact.name }}</h2>
-  <p class="small">Things you owe this person. {{ company.name }}'s <a href="/companies/{{ company.slug }}#tasks">next step</a> is its open task due first, which can be one of these.</p>
+  <p class="small">Things you owe this person.
+    {%- call m.hint('contact-next-step-help', 'What the next step is') %} {{ company.name }}'s <a href="/companies/{{ company.slug }}#tasks">next step</a> is its open task due first, which can be one of these.{% endcall %}</p>
   {{ m.task_list(company, contact.tasks, today, contact=contact.slug) }}
 </section>
 {% elif section == 'quick-add' %}

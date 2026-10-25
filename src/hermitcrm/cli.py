@@ -1649,6 +1649,9 @@ def _build_parser() -> argparse.ArgumentParser:
     from hermitcrm.outreach import EDIT_TAGS as _edit_tags
     o_ready.add_argument("--tag", action="append", default=[], choices=list(_edit_tags),
                          help="why you changed the draft (repeatable)")
+    o_sub.add_parser("unready", help="take a ready item back to a draft, to edit, "
+                     "regenerate or skip it (a queued item: unschedule it first); "
+                     "nothing is sent").add_argument("id")
     o_sub.add_parser("sent", help="you sent it yourself (logging it does this too); "
                      "logs nothing").add_argument("id")
     o_skip = o_sub.add_parser("skip", help="do not send this one, and say why")
@@ -1725,9 +1728,6 @@ def _build_parser() -> argparse.ArgumentParser:
                        ("exclude", "never show this exemplar (how you delete one)"),
                        ("unmark", "remove a pin or an exclusion")):
         l_sub.add_parser(verb, help=text).add_argument("id")
-    l = l_sub.add_parser("angles", help="the angle bandit's table: sends, credible "
-                         "intervals, the next experiment; no AI")
-    l.add_argument("--approach", default="", help="the playbook approach (default: the first)")
     l_sub.add_parser("suggest", help="list the suggestions (word limit, never-write phrases)")
     l_sub.add_parser("apply", help="apply one suggestion").add_argument("id")
 
@@ -1774,7 +1774,7 @@ def cmd_playbook(root: Path, action: str = "status", dry_run: bool = False,
 
 def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
                  drafter=None, critic=None) -> tuple[str, int]:
-    """`hermitcrm outreach preview|build|list|show|edits|ready|skip`."""
+    """`hermitcrm outreach preview|build|list|show|edits|ready|unready|skip`."""
     from hermitcrm import frameworks, outreach, routines
 
     action = args.action or "list"
@@ -1802,6 +1802,10 @@ def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
                 text += ("\nWarning: it still breaks these rules (kept on the item):\n"
                          + "\n".join(f"- {p}" for p in found))
             return (text, 0)
+        if action == "unready":
+            item = outreach.unready(store, args.id)
+            return (f"{item.id} is back to a draft: edit it on the Outreach page, then mark "
+                    "it ready again. Not sent.", 0)
         if action == "sent":
             item = outreach.mark_sent(store, args.id)
             return (f"{item.id} is sent. Nothing was logged: log the message as usual.", 0)
@@ -1935,8 +1939,7 @@ def cmd_learn(store: Store, root: Path, config: dict, args, enricher=None) -> tu
     action = args.action
     approach = getattr(args, "approach", "") or ""
     try:
-        if action in ("report", "status", "run", "import", "retire", "move", "exemplars",
-                      "angles"):
+        if action in ("report", "status", "run", "import", "retire", "move", "exemplars"):
             approach = approach or learning.default_approach(root)
             if not approach:
                 return ("No approach in MESSAGING.md yet (hermitcrm playbook).", 1)
@@ -1982,8 +1985,6 @@ def cmd_learn(store: Store, root: Path, config: dict, args, enricher=None) -> tu
             return (f"Moved {x.id} to {x.part}: {x.text}", 0)
         if action == "exemplars":
             return (_learn_exemplars(store, config, approach, args.item), 0)
-        if action == "angles":
-            return (_learn_angles(store, config, approach), 0)
         if action in ("pin", "exclude", "unmark"):
             from hermitcrm import exemplars
             e = exemplars.set_mark(store, args.id, "clear" if action == "unmark" else action,
@@ -2049,31 +2050,6 @@ def _learn_exemplars(store: Store, config: dict, approach: str, item_id: str) ->
                          + (f" ({c.reason})" if c.reason else ""))
         if picked.choices:
             lines += ["", picked.block, "", f"About {picked.tokens} tokens added to the prompt."]
-    return "\n".join(lines)
-
-
-def _learn_angles(store: Store, config: dict, approach: str) -> str:
-    """The angle bandit's table for an approach: where it stands and what it
-    would try next. No AI, no writes."""
-    from hermitcrm import exemplars, learning, outreach
-
-    sigs = learning.signals(store, approach, config)
-    angles = tuple(a for a in (config.get("outreach_angles") or outreach.DEFAULT_ANGLES)
-                   if a in outreach.ANGLES) or outreach.DEFAULT_ANGLES
-    n = exemplars.sends_of(sigs, approach)
-    rung = exemplars.bandit_rung(sigs, config, approach)
-    rows = exemplars.angle_table(sigs, approach, angles, config=config, today=store.today(),
-                                 rung=rung)
-    lines = [f"Approach: {approach}",
-             f"Counting a send as a hit when it reached: {rung}",
-             f"First-touch sends: {n} (the bandit acts from {exemplars.BANDIT_MIN_SENDS})",
-             "Setting learning_angle_sampling = "
-             + ("on" if exemplars.sampling_on(config) else "off")
-             + ("" if exemplars.sampling_on(config) else " (the AI chooses the angle)"), ""]
-    lines += [f"  {r.angle}: {r.note}" for r in rows] or ["  fewer than two angles in play"]
-    note = exemplars.next_experiment(rows)
-    if note:
-        lines += ["", "Next experiment: " + note]
     return "\n".join(lines)
 
 
@@ -2361,8 +2337,8 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
 
     if args.command == "outreach":
         config = load_config(root)
-        if args.action in ("build", "ready", "sent", "skip", "schedule", "unschedule",
-                           "send-now", "retry", "front", "opt-out"):
+        if args.action in ("build", "ready", "unready", "sent", "skip", "schedule",
+                           "unschedule", "send-now", "retry", "front", "opt-out"):
             store.on_write = _writer(store, root, config)
         if args.action in ("schedule", "unschedule", "send-now", "retry", "front", "opt-out"):
             text, code = cmd_outreach_send(store, root, config, args)

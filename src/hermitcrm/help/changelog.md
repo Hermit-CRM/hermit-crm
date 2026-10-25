@@ -8,6 +8,29 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Shorter page intros.** The line under the title on Calendar, Tasks, Messages,
+  Outreach, Learning, Extension and Reports is now one short sentence. What a
+  first-time reader needs once (what a next step is, how an outcome is set, how
+  conversion is counted) sits behind a **?** you can hover, tab to or tap; the rest
+  moved onto the button or column it describes, or stayed in Help. The send strip
+  reads *Mon–Fri 08:30–17:30* instead of listing every day. Nothing was removed
+  from Help.
+- **Shorter Settings and Playbook.** The notes under the Settings headings are
+  one short sentence each. What you need once (the roles of a deal stage, how
+  each agent is started, why a subscription asks for no particular model, how
+  to set up a system keyring) sits behind a **?**; the rest moved onto the
+  control it describes, such as the Window box or the Delete button. What you
+  must see before acting stays on the page, only shorter: the sending limits
+  and deliverability note, where passwords are kept, the open-network warning,
+  the private-repository warning. The Playbook page is trimmed the same way. A
+  **?** near the right edge of a narrow window now opens inside the window, and
+  a Settings form row no longer makes the page wider than a phone.
+- **Angle retired (2026-10-25).** The angle label is gone from interactions,
+  outreach items, the Learning page, settings (`learning_angle_sampling` and
+  `outreach_angles`), the CLI (`hermitcrm learn angles` is removed) and the
+  exports, with no replacement. A message is described by its framework, its
+  approach and the findings it used. Data format 17 and 18 migrate your folder by
+  themselves and drop the old `angle` key from outreach items and interactions.
 - **Better first drafts, for every message.** A draft now says its proof in the
   language of the message: a German email states the proof in German, while the
   card's "Proof cited" keeps the playbook's own line, so the check still finds

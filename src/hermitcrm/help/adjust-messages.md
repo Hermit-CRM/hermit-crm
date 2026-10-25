@@ -7,10 +7,10 @@ always drafts: nothing in Hermit sends them, and neither do you.
 
 ## What the user can ask for
 
-- The three drafts on every company and contact page, in their own words
+- The wording of the outreach drafts (the Outreach page), in their own words
   ("shorter", "less salesy", "sign off with Best, Alex").
 - Another language for the drafts.
-- A template the three drafts do not cover (a connection note, a follow-up, a
+- A template the built-in wording does not cover (a connection note, a follow-up, a
   reply to a no): that goes in the playbook, `MESSAGING.md`, where they and you
   find it when drafting.
 
@@ -27,17 +27,13 @@ when you need a key's current text, never change it.
 
 ## How the drafts are built
 
-Each page shows three drafts, each a greeting, one body and a sign-off:
-
-1. `scale` (they are growing); a hiring signal swaps it for `bridge`, a
-   declining one for `decline`;
-2. `unblock` (past the next headcount hurdle);
-3. `hook` (one observation, then an open question).
-
-The text is per language under `[languages.<code>]`: `greeting`, `signoff`,
-`scale`, `bridge`, `decline`, `unblock`, `hook`, `observation`, and the tables
-`growth` (keys `growing`, `stalled`, `declining`, `""`), `size` and `team` (keys
-`known`, `unknown`). `[labels]` names the three drafts on the page.
+The Messages page lists the messages you sent and drafted, with their outcomes;
+it has no drafts box of its own. Outreach drafts are written on the Outreach page
+from the playbook (`MESSAGING.md`), and their wording is in `messages.toml`, per
+language under `[languages.<code>]` (for example `greeting` and `signoff`), with
+the reply and follow-up templates under `[outreach.reply_to_interest.<lang>]` and
+`[outreach.follow_up.<lang>]`. Check the key names in `default_messages.toml`
+before you change one.
 
 Slots in `{braces}`: `{first}` `{company}` `{growth}` `{size}` `{hurdle}`
 `{team}` `{observation}` `{fte}` `{ae}` `{site}` `{owner_first_name}`, plus one
@@ -52,8 +48,6 @@ or `}}`.
 ```toml
 [languages.en]
 signoff = "Best,\n{owner_first_name}"
-scale = "{growth}\nWorth 15 minutes to see whether [your offer] fits {company}?"
-hook = "{observation}\nWhat would make [the problem you solve] a priority this quarter?"
 ```
 
 Then:
@@ -64,7 +58,7 @@ git add messages.toml && git commit -m "ai: adjust: shorter English drafts"
 ```
 
 "Write a LinkedIn connection note template for operations leads, in English
-and German." That is not one of the three drafts, so add it to `MESSAGING.md`
+and German." That is not part of the built-in wording, so add it to `MESSAGING.md`
 under its own heading, one block per language, with `[square brackets]` for what
 the user fills in, and commit `ai: adjust: connection note in the playbook`.
 

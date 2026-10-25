@@ -127,7 +127,7 @@ def test_the_strip_and_the_buttons_when_sending_is_on(env):
     items(root, 2)
     page = client.get("/outreach?tab=ready")
     body = text_of(page.text)
-    assert "Email: on · 0/10 today · 0 queued" in body and "Mon, Tue, Wed, Thu, Fri 08:30-17:30" in body
+    assert "Email: on · 0/10 today · 0 queued" in body and "Mon–Fri 08:30–17:30" in body
     assert "Scheduled (0)" in body and "Ready (2)" in body
     assert page.text.count('/send-now"') == 2 and page.text.count('/schedule"') == 2
     assert 'action="/outreach/send/pause"' in page.text
@@ -182,6 +182,7 @@ def test_schedule_moves_an_item_to_the_scheduled_tab_with_its_time(env):
     more = page.split('<details class="row-more">', 1)[1].split("</details>", 1)[0]
     assert "Move to front" in more and "Mark sent (no log)" in more and "Skip" in more
     assert "Unschedule" not in more and "Send now" not in more
+    assert "Back to draft" not in body       # a queued card is unscheduled first
     assert outreach.get_item(root, item.id).state == "queued"
 
 
@@ -198,7 +199,8 @@ def test_unschedule_and_move_to_front(env):
     resp = post(client, f"/outreach/{a.id}/unschedule")
     assert "tab=ready" in resp.headers["location"] and "Unscheduled" in flash(resp)
     assert outreach.get_item(root, a.id).state == "ready"
-    assert "Held back: unscheduled" in text_of(client.get("/outreach?tab=ready").text)
+    ready_tab = text_of(client.get("/outreach?tab=ready").text)
+    assert "Held back: unscheduled" in ready_tab and "Back to draft" in ready_tab
 
 
 def test_a_schedule_that_is_refused_says_why(env):
@@ -416,5 +418,5 @@ def test_every_new_route_wants_the_form_token(env):
     for path in ("/outreach/send/pause", "/outreach/send/resume", "/outreach/schedule-all",
                  "/settings/send", "/settings/send/test", "/settings/send/job",
                  "/outreach/x/schedule", "/outreach/x/unschedule", "/outreach/x/send-now",
-                 "/outreach/x/front", "/outreach/x/retry"):
+                 "/outreach/x/front", "/outreach/x/retry", "/outreach/x/unready"):
         assert client.post(path, data={}).status_code == 403, path

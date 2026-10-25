@@ -81,7 +81,6 @@ from .importer import (
 from .gitops import GitOps
 from .paths import contained
 from .models import (
-    ANGLES,
     Channel,
     Company,
     DEFAULT_OUTCOMES,
@@ -357,7 +356,6 @@ class MessageRow:
         self.contact_slug = it.contact
         self.channel = it.channel
         self.subject = it.subject
-        self.angle = it.angle
         self.framework = it.framework
         self.body = it.body
         self.preview = " ".join(it.body.split())
@@ -377,7 +375,6 @@ def message_columns(statuses: list[str], defs: list | None = None,
         Column("company_name", "company"),
         Column("contact", "contact"),
         Column("channel", "channel", "enum", CHANNELS),
-        Column("angle", "angle", "enum", list(ANGLES)),
         Column("framework", "framework"),
         Column("country", "country", "enum", COUNTRIES),
         Column("stage", "stage", "enum", (stages or DEFAULT_STAGES).names),
@@ -1352,7 +1349,6 @@ def create_app(root: Path, config: dict | None = None,
         preview=followups.first_line,
         stage_exits=stage_exits,
         stage_keeps=lambda name: stage_keeps(store.stages, name),
-        angles=list(ANGLES),
         # the log form's framework select; read per page, so a framework added in
         # frameworks.toml shows without a restart
         framework_ids=lambda: frameworks.load(root).ids,
@@ -1391,6 +1387,7 @@ def create_app(root: Path, config: dict | None = None,
 
     templates.env.filters["slug"] = slugify  # CSS class names from outcome values
     templates.env.filters["href"] = safe_href  # stored URLs: http(s) or nothing
+    templates.env.filters["day_span"] = sendplan.compact_days  # "Mon, Tue, Wed" as "Mon–Wed"
     templates.env.filters["placeholders"] = placeholders  # a starter's [placeholders]
     templates.env.filters["inline"] = lambda text: Markup(helpdocs.inline(str(text or "")))
     # The sidebar's pinned dashboards (contract 6): the dashboards module
@@ -1563,7 +1560,6 @@ def create_app(root: Path, config: dict | None = None,
             "contact": contact or "",
             "date": fmt_datetime(store.now()),
             "subject": "",
-            "angle": "",
             "framework": "",
             "outcome": "",
             "body": body or "",
@@ -2206,7 +2202,7 @@ def create_app(root: Path, config: dict | None = None,
                                name, cslug=s.contact, contact=name, date=s.reviewed_at,
                                stage=company.stage if company else "",
                                status=s.top_rung or s.state,
-                               note=f"{s.edit_words} words changed, {s.angle or '-'}")
+                               note=f"{s.edit_words} words changed")
 
         by_id = {s.item_id: s for s in sigs}
         style = [{"text": p.text, "hits": p.hits, "of": p.of,
@@ -3047,14 +3043,13 @@ def create_app(root: Path, config: dict | None = None,
         contact: str = Form(""),
         date: str = Form(""),
         subject: str = Form(""),
-        angle: str = Form(""),
         framework: str = Form(""),
         outcome: str = Form(""),
         body: str = Form(""),
     ):
         company = need_company(slug)
         values = {"channel": channel, "direction": direction, "contact": contact,
-                  "date": date, "subject": subject, "angle": angle,
+                  "date": date, "subject": subject,
                   "framework": framework, "outcome": outcome, "body": body}
         extra, shown, custom_errors = await custom_submitted(request, "interaction")
         try:
@@ -3083,7 +3078,7 @@ def create_app(root: Path, config: dict | None = None,
             raise HTTPException(status_code=404, detail=f"unknown interaction {id!r}")
         values = {
             "channel": it.channel, "direction": it.direction, "contact": it.contact,
-            "date": fmt_datetime(it.date), "subject": it.subject, "angle": it.angle,
+            "date": fmt_datetime(it.date), "subject": it.subject,
             "framework": it.framework, "outcome": it.outcome, "body": it.body,
         }
         return render(request, "interaction_edit.html",
@@ -3099,7 +3094,6 @@ def create_app(root: Path, config: dict | None = None,
         contact: str = Form(""),
         date: str = Form(""),
         subject: str = Form(""),
-        angle: str = Form(""),
         framework: str = Form(""),
         outcome: str = Form(""),
         body: str = Form(""),
@@ -3108,7 +3102,7 @@ def create_app(root: Path, config: dict | None = None,
         if not any(i.id == id for i in company.interactions):
             raise HTTPException(status_code=404, detail=f"unknown interaction {id!r}")
         values = {"channel": channel, "direction": direction, "contact": contact,
-                  "date": date, "subject": subject, "angle": angle,
+                  "date": date, "subject": subject,
                   "framework": framework, "outcome": outcome, "body": body}
         extra, shown, custom_errors = await custom_submitted(request, "interaction")
         try:
@@ -3242,8 +3236,7 @@ def create_app(root: Path, config: dict | None = None,
             "custom_field_defs": app.state.custom_fields,
             "playbook_status": playbook_status(),
             "learning_form": {"distill": learning.mode(config),
-                              "exemplars": exemplars.mode(config),
-                              "sampling": exemplars.sampling_on(config)},
+                              "exemplars": exemplars.mode(config)},
             "messaging_form": {
                 "size_field": str(config.get("messaging_size_field") or ""),
                 "team_field": str(config.get("messaging_team_field") or "")},
@@ -4646,7 +4639,7 @@ def create_app(root: Path, config: dict | None = None,
                "Nothing usable on that page that the notes do not already have.")
         return flashed(f"/outreach?tab={outreach_tab(item)}", say, anchor=anchor)
 
-    OUTREACH_ACTIONS = ("check", "ready", "regenerate", "skip", "sent", "note",
+    OUTREACH_ACTIONS = ("check", "ready", "unready", "regenerate", "skip", "sent", "note",
                         "proposal", "schedule", "unschedule", "send-now", "front", "retry")
 
     @app.post("/outreach/{item_id}/{what}")
@@ -4691,6 +4684,9 @@ def create_app(root: Path, config: dict | None = None,
                        "Ready to send. Send it yourself, then log it: logging it marks it sent.")
                 text = (how + (f" Warning: {'; '.join(found)}." if found else "")
                         + edit_text(len(item.edits) - tracked, note))
+            elif what == "unready":
+                item = await run_in_threadpool(outreach.unready, store, item.id)
+                text = "Back to draft: edit it, then mark it ready again."
             elif what == "regenerate":
                 tier = "strong" if strong else "medium"
                 blocked = outreach_ai_problem(tier)
@@ -4821,12 +4817,10 @@ def create_app(root: Path, config: dict | None = None,
 
     def example_context(approach: str, sigs, by_id: dict) -> dict:
         """The examples section (approach C): the setting, the exemplars with
-        their marks, and the angle table. Any failure here shows as a note, so
+        their marks. Any failure here shows as a note, so
         the rest of the page still loads."""
         out = {"example_error": "", "example_mode": exemplars.mode(config), "examples": [],
-               "example_counts": {}, "angle_rows": [], "angle_note": "", "angle_sends": 0,
-               "angle_min": exemplars.BANDIT_MIN_SENDS, "angle_rung": "positive",
-               "sampling": exemplars.sampling_on(config), "example_count": exemplars.count(config)}
+               "example_counts": {}, "example_count": exemplars.count(config)}
         try:
             found = exemplars.index(store, approach, config, sigs)
             out["example_counts"] = {
@@ -4836,13 +4830,6 @@ def create_app(root: Path, config: dict | None = None,
                 "excluded": sum(1 for e in found if e.mark == "exclude")}
             out["examples"] = [{"e": e, "links": learning_links([e.item_id], by_id)}
                                for e in found[:30]]
-            angles = tuple(a for a in (config.get("outreach_angles") or outreach.DEFAULT_ANGLES)
-                           if a in outreach.ANGLES) or outreach.DEFAULT_ANGLES
-            rung = exemplars.bandit_rung(sigs, config, approach)
-            rows = exemplars.angle_table(sigs, approach, angles, config=config,
-                                         today=store.today(), rung=rung)
-            out.update(angle_rows=rows, angle_rung=rung, angle_note=exemplars.next_experiment(rows),
-                       angle_sends=exemplars.sends_of(sigs, approach))
         except Exception as exc:
             logger.exception("could not build the examples section")
             out["example_error"] = f"The examples could not be read: {exc}"
@@ -4955,8 +4942,7 @@ def create_app(root: Path, config: dict | None = None,
     @app.post("/settings/learning")
     def settings_learning(request: Request, csrf_token: str = Form(""),
                           learning_distill: str = Form("hermit"),
-                          learning_exemplars: str | None = Form(None),
-                          learning_angle_sampling: str | None = Form(None)):
+                          learning_exemplars: str | None = Form(None)):
         """The learning settings. Each one is changed only when the form sent it,
         so a form that knows only the first (an older page) leaves the rest."""
         check_csrf(csrf_token)
@@ -4972,12 +4958,6 @@ def create_app(root: Path, config: dict | None = None,
                                anchor="playbook")
             changes["learning_exemplars"] = shown
             saved.append(f"examples {shown}")
-        if learning_angle_sampling is not None:
-            shown = learning_angle_sampling.strip().lower()
-            if shown not in ("on", "off"):
-                return flashed("/settings", "Angle sampling is on or off", anchor="playbook")
-            changes["learning_angle_sampling"] = shown == "on"
-            saved.append(f"angle sampling {shown}")
         setup_steps.set_config_values(root / "config.toml", changes)
         config_saved()
         return flashed("/settings", f"Learning saved: {', '.join(saved)}.", anchor="playbook")
