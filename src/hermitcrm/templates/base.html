@@ -19,7 +19,7 @@
   <script src="/static/hint.js?v={{ asset_version }}" defer></script>
   <script src="/static/upgrade.js?v={{ asset_version }}" defer></script>
 </head>
-<body>
+<body{% if request.url.path.startswith("/settings") or request.url.path.startswith("/help") %} class="classic"{% endif %}>
 {% set path = request.url.path %}
 {% macro navlink(href, label, name, active) -%}
 <a href="{{ href }}" data-tour="{{ name }}"{% if active %} class="active" aria-current="page"{% endif %}>{{ icon(name) }}<span>{{ label }}{{ caller() if caller }}</span></a>

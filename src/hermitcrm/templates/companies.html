@@ -1,11 +1,12 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
+{% from "icons.html" import icon %}
 {# filter_columns are the columns shown, in order: the defaults, or
    layout.toml's [companies] columns (help: adjust-layout). #}
 {% block title %}Companies{% endblock %}
 {% block content %}
 <h1>Companies ({{ companies | length }}){% if q %} matching &ldquo;{{ q }}&rdquo;{% endif %}</h1>
-<p class="page-actions"><a class="button" href="/companies/new">New company</a> <a class="button" href="/import?mode=companies">Import</a></p>
+<p class="page-actions"><span class="btn-group"><a class="button" href="/companies/new">{{ icon('plus') }}New company</a><a class="button" href="/import?mode=companies">Import</a></span></p>
 {{ m.filter_form('company-filters', '/companies', active, q, sort, dir) }}
 {% if parked_label %}<a class="toggle-parked" href="{{ toggle_url }}">{% if show_parked %}Hide {{ parked_label }}{% else %}Show {{ parked_label }} ({{ hidden_parked }}){% endif %}</a>{% endif %}
 {% if show_parked %}<input type="hidden" name="parked" value="1" form="company-filters">{% endif %}
