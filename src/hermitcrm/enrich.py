@@ -239,7 +239,8 @@ def error_lines(text: str, limit: int = 3) -> list[str]:
             seen.append(line)
     return seen[-limit:]
 MODEL_LABELS = {"claude-opus-5": "Opus", "claude-fable-5-1": "Fable",
-                "claude-sonnet-5": "Sonnet", "claude-sonnet-5-5": "Sonnet", "claude-haiku-4-5": "Haiku", "claude-haiku-5-5": "Haiku"}
+                "claude-sonnet-5": "Sonnet", "claude-sonnet-5-5": "Sonnet",
+                "claude-haiku-5-5": "Haiku", "claude-haiku-4-5": "Haiku"}
 
 
 def model_label(model: str) -> str:
