@@ -730,7 +730,7 @@ def make_brief(store: Store, company, contact, approach, research: Research,
         brief.situation.append("Company notes: " + " ".join(company.notes.split())[:600])
     if notes_background:   # a thread has no findings to cite: the notes are background
         from . import notes
-        for note in notes.contact_notes(company, contact.slug)[:5]:
+        for note in notes.notes_for(company, contact.slug)[:5]:
             text = " ".join(note.body.split())[:300]
             if text:
                 when = f"{note.date:%Y-%m-%d}" if note.date else "undated"

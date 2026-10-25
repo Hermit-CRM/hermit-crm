@@ -190,3 +190,20 @@ def test_a_note_without_a_date_does_not_break_the_brief_of_a_thread(seeded):
     brief = outreach.make_brief(seeded, company, company.contacts["jane-doe"], None,
                                 outreach.Research(), notes_background=True)
     assert any("Prefers calls" in line for line in brief.situation)
+
+
+def test_snapshot_includes_the_companys_own_notes(seeded):
+    seeded.create_interaction("acme", "note", "", body="Acme just raised a Series B",
+                              date=FIXED_NOW - timedelta(days=1))
+    seeded.create_interaction("acme", "note", "", contact="jane-doe", body="Jane likes tea",
+                              date=FIXED_NOW - timedelta(days=2))
+    for who in ("jane-doe", "max-roe"):
+        texts = [f.text for f in notes.snapshot(seeded.get("acme"), who, TODAY)]
+        assert "Acme just raised a Series B" in texts
+    assert "Jane likes tea" not in [f.text for f in notes.snapshot(seeded.get("acme"), "max-roe", TODAY)]
+
+
+def test_card_rows_label_company_notes(seeded):
+    seeded.create_interaction("acme", "note", "", body="Acme just raised a Series B")
+    [row] = notes.rows(seeded.get("acme"), "jane-doe", TODAY)
+    assert row["origin"] == "company"
