@@ -70,7 +70,7 @@ def test_format_detection(tmp_path, old_folder):
 def test_dry_run_lists_files_and_writes_nothing(old_folder):
     before = {p: p.read_bytes() for p in old_folder.rglob("company.md")}
     text = migrations.dry_run(old_folder)
-    assert "Data format 0 → 16" in text
+    assert "Data format 0 → 18" in text
     assert "1. rename gijs_score to my_score: 3 file(s)" in text  # bolt has an empty key
     assert "2. country UK→GB, USA→US: 2 file(s)" in text
     assert "3. interaction result folded into outcome: 0 file(s)" in text
@@ -91,7 +91,7 @@ def test_migrate_before_after_in_one_commit(old_folder):
 
     summary = migrations.ensure_current(old_folder)
 
-    assert summary.startswith("migrate: data format 0 → 16 (rename gijs_score to my_score; "
+    assert summary.startswith("migrate: data format 0 → 18 (rename gijs_score to my_score; "
                               "country UK→GB, USA→US; interaction result folded into "
                               "outcome; stage reached-out renamed to engaged; scores and "
                               "team size become fields you define; agents may not rewrite "
@@ -104,13 +104,15 @@ def test_migrate_before_after_in_one_commit(old_folder):
                               "interactions may have the source outreach (nothing to change in a file); "
                               "agents never schedule or send mail unasked (CLAUDE.md, AGENTS.md); "
                               "outreach drafts record their framework; "
-                              "interactions get an optional framework)")
+                              "interactions get an optional framework; "
+                              "outreach items lose the retired angle; "
+                              "interactions lose the retired angle)")
     assert acme.read_text() == expected and acme.read_text().endswith(BODY)
     bolt = (old_folder / "companies/bolt/company.md").read_text()
     assert "country: US\n" in bolt and "my_score:\n" in bolt and "gijs_score" not in bolt.split("---")[1]
     assert (old_folder / ".hermitcrm-format").read_text() == f"{migrations.LATEST}\n"
     assert int(git(["rev-list", "--count", "HEAD"], old_folder)) == commits_before + 1
-    assert git(["log", "-1", "--format=%s|%an"], old_folder).startswith("migrate: data format 0 → 16")
+    assert git(["log", "-1", "--format=%s|%an"], old_folder).startswith("migrate: data format 0 → 18")
     assert "hermitcrm" in git(["log", "-1", "--format=%an"], old_folder)
     changed = git(["show", "--name-only", "--format=", "HEAD"], old_folder).split()
     assert sorted(changed) == [".claude/settings.json", ".claude/skills/hermit/SKILL.md",
@@ -337,3 +339,51 @@ def test_a_folder_at_format_14_gets_the_framework_normalised_in_one_run(tmp_path
     assert messy.read_text(encoding="utf-8") == outreach.item_text(item)
     assert outreach.get_item(root, item.id).framework == "house"
     assert plain.read_bytes() == before
+
+
+@pytest.mark.parametrize("meta, expected", [
+    ({"state": "drafted"}, {"state": "drafted"}),
+    ({"state": "drafted", "angle": "hook"}, {"state": "drafted"}),
+    ({"state": "drafted", "angle": " Hook "}, {"state": "drafted"}),     # a hand-edited value
+    ({"state": "drafted", "angle": ""}, {"state": "drafted"}),
+    ({"state": "drafted", "angle": "hook", "critic_reason": "wrong angle"},
+     {"state": "drafted", "critic_reason": "wrong angle"}),              # free text stays
+])
+def test_the_drop_angle_migration_removes_only_the_key_and_is_idempotent(meta, expected):
+    once = migrations.m17_drop_angle(meta)
+    assert once == expected and migrations.m17_drop_angle(once) == once
+
+
+def test_the_drop_angle_migration_returns_a_file_without_angle_as_it_is():
+    meta = {"state": "drafted", "framework": "house"}
+    assert migrations.m17_drop_angle(meta) is meta
+    by_version = {m.version: m for m in migrations.MIGRATIONS}
+    assert by_version[17].glob == "outreach/*.md"
+    assert by_version[18].glob == "companies/*/interactions/*.md"
+    assert migrations.LATEST == 18
+
+
+def test_a_folder_at_format_16_loses_angle_from_items_and_interactions(tmp_path):
+    from hermitcrm.datafolder import init_folder
+
+    root = init_folder(tmp_path / "crm", demo=True)
+    body = "Hi Mara,\n\nBody mentioning the word angle stays.\n\nSam\n"
+    files = {
+        root / "outreach/2026-10-16T0900-email-lindenhof-data-mara-keller.md":
+            f"---\nstate: drafted\nkind: first\nangle: hook\nframework: house\n---\n{body}",
+        root / "companies/lindenhof-data/interactions/2026-10-16T0900-email-mara.md":
+            f"---\nchannel: email\nangle: Bridge\nframework: house\n---\n{body}",
+    }
+    for path, text in files.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    migrations.write_format(root, 16)
+    migrations.ensure_current(root)
+    assert migrations.current_format(root) == migrations.LATEST
+    for path in files:
+        text = path.read_text(encoding="utf-8")
+        head, _, rest = text.partition("\n---\n")
+        assert "angle" not in head and "framework: house" in head
+        assert rest == body
+    migrations.ensure_current(root)     # a second run is a no-op
+    assert all("angle:" not in p.read_text(encoding="utf-8") for p in files)

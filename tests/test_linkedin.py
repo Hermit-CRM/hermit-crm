@@ -66,7 +66,7 @@ def add(root, store, n, kind="first-touch", **extra):
             item = outreach.Item(
                 id=f"li-{company.slug}", state="ready", kind=kind, channel="linkedin",
                 company=company.slug, contact=contact.slug, body=NOTE, pitch=PITCH,
-                language="en", ready=NOW, created=NOW, drafted=NOW, angle="hook",
+                language="en", ready=NOW, created=NOW, drafted=NOW,
                 **extra)
             outreach.write_item(root, item)
             ids.append(item.id)
@@ -169,7 +169,7 @@ def test_sent_logs_the_exact_text_marks_the_item_and_starts_the_countdown(folder
     company = store.get(item.company)
     (it,) = [i for i in company.interactions if i.source == "outreach"]
     assert (it.channel, it.direction, it.contact, it.date) == ("linkedin", "out", item.contact, T0)
-    assert it.body.rstrip("\n") == NOTE and it.angle == "hook"
+    assert it.body.rstrip("\n") == NOTE
     assert it.framework == "connection-problem-objection"
     assert item.sent_with == it.id
     assert int(git(root, "rev-list", "--count", "HEAD")) == int(head) + 1       # one commit

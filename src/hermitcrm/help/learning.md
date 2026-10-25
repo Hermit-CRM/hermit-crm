@@ -17,7 +17,7 @@ to outcomes over edits. `hermitcrm learn report` opens with a banner such as
 ## The steps
 
 1. `hermitcrm learn report` shows the efficiency trend (are your edits getting
-   smaller?), the patterns in your edits, the outcome rates per angle, persona,
+   smaller?), the patterns in your edits, the outcome rates per persona,
    channel, language and framework (cells under 10 sent items are marked "too
    few"), and a style table. No AI is used. The framework is the one a first
    touch was built with (`outreach build --framework`); older items, replies
@@ -61,13 +61,6 @@ creep in: watch for that.
 
 `hermitcrm learn exemplars --item ID` shows what the prompt for one item would
 contain, with the reason for each example and a token count; no AI is used.
-
-**Angle sampling** (`learning_angle_sampling = true`, off by default) lets the
-drafter try the angles by what has worked, once an approach has 30 sends:
-better angles are picked more often, thin ones are still tried, and the card
-says why ("exploring: 4 sends so far"). `hermitcrm learn angles` shows the
-table. With few sends this looks like randomness; leave it off until you have
-volume.
 
 Add `--approach NAME` when you have more than one approach; the default is the
 first. Tell Hermit why you changed a draft with `hermitcrm outreach ready ID

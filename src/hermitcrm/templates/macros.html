@@ -92,14 +92,6 @@
   </div>
   <div class="row">
     <label class="grow">subject <input name="subject" value="{{ values.subject }}"></label>
-    <label>angle
-      <select name="angle">
-        <option value=""{% if not values.angle %} selected{% endif %}>not known</option>
-        {% for a in angles %}<option value="{{ a }}"{% if values.angle == a %} selected{% endif %}>{{ a }}</option>{% endfor %}
-        {% if values.angle and values.angle not in angles %}<option value="{{ values.angle }}" selected>{{ values.angle }}</option>{% endif %}
-      </select>
-      {{ err(errors, 'angle') }}
-    </label>
     <label>framework
       <select name="framework">
         <option value=""{% if not values.framework %} selected{% endif %}>not known</option>

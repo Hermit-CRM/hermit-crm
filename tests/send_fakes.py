@@ -218,7 +218,7 @@ def ready_item(root, store, *, item_id="2026-10-19T0800-email-lindenhof-data-mar
         "If this is not for you, tell me and I will not write again.\n")
     item = outreach.Item(id=item_id, state=state, kind=kind, channel="email", company=company,
                          contact=contact, subject=subject, body=body, language="en",
-                         ready=ready or NOW, created=NOW, drafted=NOW, angle="hook",
+                         ready=ready or NOW, created=NOW, drafted=NOW,
                          approach=extra.pop("approach", ""), **extra)
     outreach.write_item(root, item)
     return item

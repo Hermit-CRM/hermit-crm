@@ -49,7 +49,7 @@ def test_report_shows_banner_trend_patterns_rates_and_features(folder):
     assert code == 0
     assert "reviewed drafts" in text and "phase" in text
     assert "Efficiency" in text and "shortened the text in 6 of 6" in text
-    assert "Outcome rates" in text and "by angle:" in text and "nothing sent yet" in text
+    assert "Outcome rates" in text and "by persona:" in text and "nothing sent yet" in text
     assert "by framework:" in text
     assert "t00 " in text and "words -" in text
 

@@ -235,7 +235,7 @@ def test_reply_draft_from_the_tab(client, fake, root):
     if approach.first_step_offer:
         assert approach.first_step_offer in prompt
     assert "--- wording template" in prompt and "--- findings" not in prompt
-    assert item.angle == "" and len(item.proof_used) == 1
+    assert len(item.proof_used) == 1
     assert len(commits(root)) == before + 2
     assert commits(root)[1] == f"outreach: reply to interest {MARA} ({it.id})"
     page = client.get("/outreach?tab=replies").text
@@ -296,7 +296,7 @@ def test_a_reply_without_the_offer_line_is_refused():
     # clean_answer turns that into a refused draft (problems), which the drafter retries.
     answer = {"subject": "Re: hi", "body": GOOD.replace("I work as your fractional Head of "
                                                        "Sales. ", ""),
-              "pitch": "", "angle": "custom", "findings_used": [],
+              "pitch": "", "findings_used": [],
               "proof_used": ["A made-up firm doubled its pipeline."]}
     assert "offer line" in " ".join(outreach.clean_answer(answer, _ctx()).problems)
 
@@ -316,10 +316,8 @@ def test_a_reply_has_no_slot_link_price_or_gap(extra, says):
 
 
 def test_a_reply_cites_one_proof_line():
-    answer = {"subject": "Re: hi", "body": GOOD, "pitch": "", "angle": "hook",
-              "findings_used": [], "proof_used": []}
+    answer = {"subject": "Re: hi", "body": GOOD, "pitch": "", "findings_used": [], "proof_used": []}
     draft = outreach.clean_answer(answer, _ctx())
-    assert draft.angle == ""   # no angle on a reply; no complaint about it either
     assert draft.problems == ["a reply to interest cites one proof line from the playbook "
                               "(it cites 0)"]
 

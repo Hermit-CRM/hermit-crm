@@ -54,7 +54,7 @@ def shorter(body):
 
 
 def make(root, n, contact=0, *, edits=(), state="ready", minutes=5, days=0, sent=None,
-         skipped=None, kind="first-touch", channel="email", approach=APPROACH, angle="hook",
+         skipped=None, kind="first-touch", channel="email", approach=APPROACH,
          language="en", batch="b1", lessons_used=(), findings=(), skip_reason="",
          skip_note="", why="", body=None, subject="Your second office", exemplars_used=()):
     """One outreach item written to the folder. `edits`: (body, note, tags)
@@ -65,7 +65,7 @@ def make(root, n, contact=0, *, edits=(), state="ready", minutes=5, days=0, sent
     original = body or ai_body(first)
     item = outreach.Item(
         id=f"t{n:02d}", state=state, kind=kind, channel=channel, company=company,
-        contact=slug, approach=approach, angle=angle, language=language, subject=subject,
+        contact=slug, approach=approach, language=language, subject=subject,
         batch=batch, created=drafted, drafted=drafted, ai_subject=subject, ai_body=original,
         body=original, findings=[outreach.Finding(t, "https://example.com", "trigger", "high",
                                                   used=True) for t in findings])
@@ -209,7 +209,7 @@ def test_signals_keep_reviewed_items_with_their_attributes(folder):
     found = learning.signals(store, APPROACH)
     assert [s.item_id for s in found] == ["t01", "t03"]
     s = found[0]
-    assert (s.persona, s.channel, s.kind, s.angle) == ("founder", "email", "first-touch", "hook")
+    assert (s.persona, s.channel, s.kind) == ("founder", "email", "first-touch")
     assert s.notes == ["too long"] and s.regenerate_whys == ["stiff"]
     assert s.findings_used == ["Opened a second office this autumn"]
     assert s.edit_words > 0 and len(s.edits) == 1 and s.overall.words_delta < 0
@@ -401,23 +401,23 @@ def test_the_trend_gives_median_edits_and_unchanged_rate_per_batch(folder):
 
 def test_rates_shrink_toward_the_average_and_flag_small_cells():
     d = date(2026, 10, 1)
-    sigs = [sig(angle="hook", rungs={"sent": d, "replied": d, "positive": d})]
-    sigs += [sig(angle="scale", rungs={"sent": d, "replied": d, "positive": d})
+    sigs = [sig(persona="founder", rungs={"sent": d, "replied": d, "positive": d})]
+    sigs += [sig(persona="vp", rungs={"sent": d, "replied": d, "positive": d})
              for _ in range(12)]
-    sigs += [sig(angle="scale") for _ in range(18)]
-    rows = {r.value: r for r in learning.rates(sigs, "angle")}
-    assert rows["hook"].counts["positive"] == 1 and rows["hook"].n == 1
-    assert rows["hook"].too_few and not rows["scale"].too_few
+    sigs += [sig(persona="vp") for _ in range(18)]
+    rows = {r.value: r for r in learning.rates(sigs, "persona")}
+    assert rows["founder"].counts["positive"] == 1 and rows["founder"].n == 1
+    assert rows["founder"].too_few and not rows["vp"].too_few
     # 1 of 1 is pulled to the average; it does not beat 12 of 30 by much
-    assert rows["hook"].rates["positive"] < 0.5
+    assert rows["founder"].rates["positive"] < 0.5
     base = 13 / 31
-    assert rows["hook"].rates["positive"] == pytest.approx((1 + 10 * base) / 11, abs=1e-4)
+    assert rows["founder"].rates["positive"] == pytest.approx((1 + 10 * base) / 11, abs=1e-4)
     with pytest.raises(ValueError):
         learning.rates(sigs, "colour")
 
 
 def test_framework_is_a_learning_dimension():
-    assert learning.DIMENSIONS == ("angle", "persona", "channel", "language", "framework")
+    assert learning.DIMENSIONS == ("persona", "channel", "language", "framework")
     sigs = [learning.Signal(item_id=str(n), rungs={"sent": "2026-10-01"},
                             framework="house" if n % 2 else "trigger-tension-trust")
             for n in range(4)]
@@ -464,11 +464,11 @@ def test_a_card_is_short_pseudonymous_and_says_what_changed(folder):
 
 
 def test_a_card_names_its_framework_only_when_it_has_one():
-    card = learning.Card(id="x", angle="hook", framework="trigger-tension-trust",
+    card = learning.Card(id="x", framework="trigger-tension-trust",
                          kind="first-touch", channel="email", language="de")
-    assert card.text.splitlines()[0] == ("card x | first-touch, email, de | angle hook | "
+    assert card.text.splitlines()[0] == ("card x | first-touch, email, de | "
                                          "framework trigger-tension-trust | rung none")
-    assert "framework" not in learning.Card(id="x", angle="hook").text
+    assert "framework" not in learning.Card(id="x").text
 
 
 def test_small_edits_are_kept_when_the_same_phrase_is_removed_again(folder):
