@@ -44,9 +44,9 @@ def ctx(**kw):
     return outreach.CheckContext(**base)
 
 
-def answer(body=GOOD, subject="Your second office", angle="hook", findings_used=(1,),
+def answer(body=GOOD, subject="Your second office", findings_used=(1,),
            proof_used=(), pitch=""):
-    return {"subject": subject, "body": body, "pitch": pitch, "angle": angle,
+    return {"subject": subject, "body": body, "pitch": pitch,
             "findings_used": list(findings_used), "proof_used": list(proof_used)}
 
 
@@ -59,7 +59,7 @@ def problems(data, **kw):
 
 def test_a_good_draft_passes():
     draft = outreach.clean_answer(answer(proof_used=PROOF), ctx())
-    assert draft.problems == [] and draft.angle == "hook"
+    assert draft.problems == []
     assert draft.findings_used == [1] and draft.proof_used == PROOF
     assert draft.body.endswith("Sam\n")
 
@@ -83,7 +83,7 @@ def test_the_prompt_asks_for_proof_in_the_message_language(folder):
 def test_a_translated_proof_passes_when_proof_used_keeps_the_playbook_words():
     ctx = outreach.CheckContext(proof=[MADE_UP_PROOF],
                                 rules={"subject_max": 60, "body_max_words": 120})
-    data = {"subject": "Ihr zweites Büro", "angle": "hook", "pitch": "", "findings_used": [],
+    data = {"subject": "Ihr zweites Büro", "pitch": "", "findings_used": [],
             "body": "Hallo Mara,\n\nDas zweite Büro ist mir aufgefallen. Ein Softwareunternehmen "
                     "mit 30 Leuten hat seine Pipeline in zwei Quartalen verdoppelt.\nWo hakt es "
                     "gerade am meisten?\n\nSam\n",
@@ -293,7 +293,7 @@ def test_build_writes_checked_items_one_commit_per_step(folder):
     log = commits(root)[:len(commits(root)) - before]
     assert len(log) == 6
     assert log[-1] == ("outreach: research lindenhof-data/mara-keller (scrape, 1 findings)")
-    assert log[-2] == "outreach: draft lindenhof-data/mara-keller (email, hook): checks passed"
+    assert log[-2] == "outreach: draft lindenhof-data/mara-keller (email, first touch): checks passed"
     for sha in git(root, "log", f"-{6}", "--format=%h").split():
         files = git(root, "show", "--name-only", "--format=", sha).split()
         # the research step also writes what it found as notes on the contact
@@ -649,9 +649,9 @@ def test_3_a_linkedin_note_may_ask_nothing_the_message_after_asks_one():
                for p in problems(answer(GOOD.replace("deal size?", "deal size."))))
 
 
-def test_5_custom_is_an_angle_too():
-    assert outreach.clean_answer(answer(angle="custom"), ctx()).problems == []
-    assert any(p.startswith("angle loud") for p in problems(answer(angle="loud")))
+def test_5_an_angle_in_the_reply_of_an_older_prompt_is_ignored():
+    assert outreach.clean_answer({**answer(), "angle": "loud"}, ctx()).problems == []
+    assert "angle" not in outreach.DRAFT_SCHEMA["properties"]
 
 
 def test_7_logging_the_message_after_ready_marks_it_sent_in_the_same_commit(folder):
@@ -674,7 +674,7 @@ def test_7_logging_the_message_after_ready_marks_it_sent_in_the_same_commit(fold
     assert commits(root)[0].endswith(f"; outreach {mark} sent")
     files = git(root, "show", "--name-only", "--format=", "HEAD").split()
     assert sent.path in files and any(f.endswith(f"{it.id}.md") for f in files)
-    assert (it.angle, it.approach) == ("hook", "Scaling the sales team")
+    assert it.approach == "Scaling the sales team"
     # sent is not open: the contact may get a later item, after the cooldown
     sel = outreach.select(store, where=["stage=engaged,prospect"], limit=10)
     reasons = {c.record: c.reason for c in sel.excluded}

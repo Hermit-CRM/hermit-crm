@@ -2,8 +2,8 @@ order   = 6
 name    = "Contacts"
 nav     = "Contacts"
 title   = "Contacts: every person and their history in Hermit CRM"
-description = "Contacts in Hermit CRM: every person across your companies, a page per person with their roles, history and tasks, and three message drafts with no AI."
-summary = "Every person across your companies, with a page of their own: roles, history, tasks and three message drafts."
+description = "Contacts in Hermit CRM: every person across your companies, a page per person with their roles, history and tasks."
+summary = "Every person across your companies, with a page of their own: roles, history and tasks."
 intro = """
 Contacts lists every person across all your companies. Each person has a page with what you last did,
 who is waiting on whom, and the messages you could send next.
@@ -38,16 +38,6 @@ text = """
 An email, a LinkedIn message, a call, a WhatsApp message or a meeting, in or out, with the text kept exactly as you pasted it. A note is a memo
 that shows on the timeline but never counts as contact made. Logging a first touch on a prospect moves the company to **engaged** in the same commit.
 """
-
-[[sections]]
-heading = "Three message drafts, written from your own data"
-text = """
-Each contact page offers three deliberately different drafts, in the contact's language (English, German, Dutch or French), built from what your CRM knows: the company, its team size and fields of your own.
-No AI is involved. Square brackets are the parts only you can fill, so a draft never goes out quietly blank. Edit in place, copy, or **log as sent** and it becomes an interaction.
-"""
-image   = "feature-contact-drafts.png"
-alt     = "The message drafts on a Hermit CRM contact page: three German drafts for Jonas Brandt with square brackets to fill in, above each a short description of its angle."
-address = "127.0.0.1:8765/companies/northwind-robotics/contacts/jonas-brandt"
 
 [[sections]]
 heading = "Where people come from"

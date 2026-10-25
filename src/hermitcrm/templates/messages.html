@@ -3,7 +3,8 @@
 {% block title %}Messages{% endblock %}
 {% block content %}
 <h1>Messages ({{ rows | length }}){% if q %} matching &ldquo;{{ q }}&rdquo;{% endif %}</h1>
-<p class="small">Every outbound interaction with a body. Outcome: what you set on the message, else <strong>{{ outcomes[0] }}</strong> when a reply from the same contact was logged afterwards, <strong>{{ outcomes[-1] }}</strong> when nothing came back within {{ window }} days, <strong>unknown</strong> until then.
+<p class="small">Outbound messages and how each turned out.
+  {%- call m.hint('outcome-help', 'How outcomes are set') %} Every outbound interaction with a body. The outcome is what you set on the message. Otherwise it is <b>{{ outcomes[0] }}</b> when a reply from the same contact was logged afterwards, <b>{{ outcomes[-1] }}</b> when nothing came back within {{ window }} days, and <b>unknown</b> until then.{% endcall %}
   Totals: {% for s in message_statuses %}{{ counts.get(s, 0) }} {{ s }}{% if not loop.last %} &middot; {% endif %}{% endfor %}.</p>
 <form class="inline search" action="/messages" method="get">
   <input name="q" value="{{ q }}" placeholder="Search message text, company, contact">
@@ -19,7 +20,6 @@
     <td><a href="/companies/{{ r.company_slug }}">{{ r.company_name }}</a></td>
     <td>{% if r.contact_slug %}<a href="/companies/{{ r.company_slug }}/contacts/{{ r.contact_slug }}">{{ r.contact }}</a>{% else %}{{ r.contact }}{% endif %}</td>
     <td>{{ r.channel }}</td>
-    <td>{{ r.angle }}</td>
     <td>{{ r.framework }}</td>
     <td>{{ r.country }}</td>
     <td>{{ r.stage }}</td>

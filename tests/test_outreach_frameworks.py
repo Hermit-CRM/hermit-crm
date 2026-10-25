@@ -40,7 +40,7 @@ def ctx_for(fid, channel="email", proof=()):
 
 
 def answer(**over):
-    return {"subject": "Your second office", "angle": "hook", "pitch": "", "findings_used": [],
+    return {"subject": "Your second office", "pitch": "", "findings_used": [],
             "proof_used": [],
             "body": "Hi Mara,\n\nA second office this autumn usually means a sales hire.\n"
                     "Is that on your radar right now?\n\nSam\n", **over}
@@ -149,7 +149,7 @@ def test_a_rewritten_house_keeps_the_fixed_rule_lines(folder):
     assert "Write it short." in prompt and outreach.SHAPES[outreach.FIRST_TOUCH] not in prompt
     for line in ("- No meeting ask, no call ask, no link, no proposed day or time.",
                  '- Never open with "I" (or Ich, Ik, Je): the first word is about them.',
-                 "- When no finding is usable, write from one of the playbook's angles instead "
+                 "- When no finding is usable, write from the playbook's general notes instead "
                  "and mark what only the seller can fill in with [square brackets].",
                  "- The playbook's Voice section wins over the framework on wording, greeting, "
                  "sign-off and formality.",
@@ -414,10 +414,10 @@ def test_a_hand_written_framework_reads_stripped_and_lower_case(folder):
     assert outreach.item_from_text(item.id, text).framework == "trigger-tension-trust"
 
 
-def test_the_card_names_the_framework_after_the_angle(folder):
+def test_the_card_names_the_framework_after_the_approach(folder):
     _, store = folder
     item = built(folder, limit=1)[0].items[0]
-    assert f"| angle: {item.angle} | framework: house | language: " in \
+    assert f"| framework: house | language: " in \
         outreach.render_item(store, item)
     item.framework = ""
     assert "framework:" not in outreach.render_item(store, item)
@@ -443,7 +443,7 @@ def test_logging_a_ready_item_copies_its_framework(folder):
                                   contact=item.contact, body=item.body)
     assert it.framework == "trigger-tension-trust"
     text = store.interaction_file(item.company, it.id).read_text()
-    assert text.index("angle:") < text.index("framework:") < text.index("approach:")
+    assert text.index("framework:") < text.index("approach:")
 
 
 def test_a_hand_logged_message_may_carry_a_framework(folder):
