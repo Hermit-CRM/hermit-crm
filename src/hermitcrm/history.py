@@ -35,7 +35,7 @@ from . import pipeline
 # only for the keys it may change, which commit subjects name.
 EXTENSION_FILES = ("fields.toml", "layout.toml", "routines.toml", "theme.css",
                    "messages.toml", "MESSAGING.md")
-CONFIG_KEYS = ("task_types", "outcomes", "silent_days", "adjust_agent")
+CONFIG_KEYS = ("task_types", "outcomes", "silent_days")
 # Commit subjects Hermit and agents write for changes worth listing.
 SUBJECTS = ("ai: adjust:", "ai: bulk:", "bulk:", "routine:", 'Revert "')
 IDENTITY = ["-c", "user.name=hermitcrm", "-c", "user.email=hermitcrm@localhost"]

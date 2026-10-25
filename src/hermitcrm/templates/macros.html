@@ -66,14 +66,15 @@
 </form>
 {% endmacro %}
 
-{# An interaction is always with a person. With `contact` (the contact page)
-   the person is fixed; elsewhere you pick one. A note has no direction. #}
+{# An interaction is with a person. With `contact` (the contact page)
+   the person is fixed; elsewhere you pick one. A note has no direction and may
+   be about the whole company instead (contact left empty). #}
 {% macro interaction_form(action, company, values, errors=None, submit='Log interaction', contact=None) %}
 <form method="post" action="{{ action }}" class="interaction-form{% if values.channel == 'note' %} is-note{% endif %}">
   {{ errors_box(errors) }}
   <div class="row">
     <label>channel
-      <select name="channel" onchange="this.form.classList.toggle('is-note', this.value === 'note')">
+      <select name="channel" onchange="this.form.classList.toggle('is-note', this.value === 'note'); var c = this.form.elements.contact; if (c && c.options && c.options[0].value === '') c.options[0].text = this.value === 'note' ? 'whole company (no one in particular)' : 'pick a contact'">
         {% for ch in channels %}
         <option value="{{ ch }}"{% if values.channel == ch %} selected{% endif %}>{{ ch }}</option>
         {% endfor %}
@@ -89,7 +90,7 @@
     {% else %}
     <label>contact
       <select name="contact">
-        {% if not values.contact %}<option value="" selected>pick a contact</option>{% endif %}
+        <option value=""{% if not values.contact %} selected{% endif %}>{{ 'whole company (no one in particular)' if values.channel == 'note' else 'pick a contact' }}</option>
         {% for slug, person in company.contacts.items() %}
         <option value="{{ slug }}"{% if values.contact == slug %} selected{% endif %}>{{ person.name }}</option>
         {% endfor %}
@@ -322,6 +323,20 @@
 </ul>
 {% endmacro %}
 
+
+{# One group of someone else's notes on a contact page: a one-line summary
+   (who, how many, the newest note's first line) that opens to every note. #}
+{% macro note_group(label, notes, href='') %}
+<details class="note-group">
+  <summary><strong>{{ label }}</strong> ({{ notes | length }}) <span class="first-line">{{ preview(notes[0].body) }}</span> <span class="small">more</span></summary>
+  <ul class="timeline">
+    {% for n in notes %}
+    <li class="interaction note"><div class="meta"><span class="when">{{ fmt_datetime(n.date).replace('T', ' ') }}</span></div><pre>{{ n.body }}</pre></li>
+    {% endfor %}
+  </ul>
+  {% if href %}<p class="small"><a href="{{ href }}">Open {{ label }}</a></p>{% endif %}
+</details>
+{% endmacro %}
 
 {% macro type_select(current='', autosubmit=false, name='type') -%}
 {%- set options = type_names() -%}
