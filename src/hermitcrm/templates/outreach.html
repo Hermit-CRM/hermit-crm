@@ -78,6 +78,8 @@
 {% endif %}
 </section>
 
+<details class="outreach-build-box"{% if form.left or preview or preview_error %} open{% endif %}>
+<summary>Build a batch</summary>
 <form class="outreach-build" method="post" action="/outreach/build" id="outreach-build">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <input type="hidden" name="batch" value="{{ form.batch }}">
@@ -93,6 +95,7 @@
   <button type="submit" data-busy="Building…"{% if gate or ai_problem %} disabled{% endif %}>{% if form.left %}Build the next one{% else %}Build queue{% endif %}</button>
   {% if form.left %}<a href="/outreach" class="small" id="outreach-stop">Stop</a> <span class="small">Building: {{ form.left }} left</span>{% endif %}
 </form>
+</details>
 
 {% if preview_error %}<p class="error">{{ preview_error }} {{ fix_with_ai(fix_request) }}</p>{% endif %}
 {% if preview %}
@@ -150,6 +153,25 @@
           <button type="submit" data-busy="Drafting&hellip;"{% if gate or ai_problem %} disabled{% endif %}>Draft a reply</button>
         </form>
       {% endif %}
+      {% set can_verdict = not r.logged and (r.verdict != 'interested' or r.by != 'you') %}
+      {% if can_verdict and r.to_confirm %}
+        <form method="post" action="/outreach/replies/confirm" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="reply" value="{{ r.key }}">
+          <button type="submit" name="answer" value="yes" class="secondary">Confirm: interested</button>
+          {% if r.verdict != 'not-interested' %}<button type="submit" name="answer" value="no" class="secondary">Not interested</button>{% endif %}
+        </form>
+      {% endif %}
+      {% if r.contact.email or (can_verdict and not r.to_confirm) %}
+      {% call row_more() %}
+      {% if can_verdict and not r.to_confirm %}
+        <form method="post" action="/outreach/replies/confirm" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="reply" value="{{ r.key }}">
+          <button type="submit" name="answer" value="yes" class="secondary">Interested</button>
+          {% if r.verdict != 'not-interested' %}<button type="submit" name="answer" value="no" class="secondary">Not interested</button>{% endif %}
+        </form>
+      {% endif %}
       {% if r.contact.email %}
         <form method="post" action="/companies/{{ r.company.slug }}/contacts/{{ r.contact.slug }}/opt-out" class="inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -157,13 +179,7 @@
           <button type="submit" class="secondary" title="They asked not to be written to: {{ r.contact.email }} goes on the suppression list and their open outreach items are skipped" onclick="return confirm({{ ('Put ' ~ r.contact.email ~ ' on the suppression list? Nothing more is sent to it.') | tojson | forceescape }})">Opted out</button>
         </form>
       {% endif %}
-      {% if not r.logged and (r.verdict != 'interested' or r.by != 'you') %}
-        <form method="post" action="/outreach/replies/confirm" class="inline">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <input type="hidden" name="reply" value="{{ r.key }}">
-          <button type="submit" name="answer" value="yes" class="secondary">{% if r.to_confirm %}Confirm: interested{% else %}Interested{% endif %}</button>
-          {% if r.verdict != 'not-interested' %}<button type="submit" name="answer" value="no" class="secondary">Not interested</button>{% endif %}
-        </form>
+      {% endcall %}
       {% endif %}
       </div>
     </li>
@@ -191,7 +207,7 @@
           <input type="hidden" name="kind" value="follow-up">
           <input type="hidden" name="back" value="/outreach?tab=follow-ups">
           <select name="channel" aria-label="Follow-up channel">{% for c in channels %}<option value="{{ c }}"{% if c == it.channel %} selected{% endif %}>{{ c }}</option>{% endfor %}</select>
-          <button type="submit" data-busy="Drafting&hellip;"{% if gate or ai_problem %} disabled{% endif %}>Draft follow-up</button>
+          <button type="submit" class="secondary" data-busy="Drafting&hellip;"{% if gate or ai_problem %} disabled{% endif %}>Draft follow-up</button>
         </form>
       </div>
     </li>
@@ -353,8 +369,7 @@
     {% if i.proof_used %}<p class="small">Proof: {{ i.proof_used | join('; ') }}</p>{% endif %}
     <div class="draft-actions">
       <button type="submit" title="{% if i.checks %}Allowed with a failing check: it is kept as a warning{% else %}Approve this text{% endif %}">Mark ready</button>
-      <button type="submit" formaction="/outreach/{{ i.id }}/check" class="secondary" data-busy="Checking&hellip;" title="Saves your edit, runs the checks and asks the AI critic to score it again (an AI call)">Save &amp; check again</button>
-      <button type="button" class="secondary" data-copy-target="body-{{ i.id }}">Copy</button>
+      <button type="submit" formaction="/outreach/{{ i.id }}/check" class="secondary" data-busy="Checking&hellip;" title="Saves your edit, runs the checks and asks the AI critic to score it again (an AI call)">Re-check</button>
       <button type="button" class="secondary" data-skip-toggle="{{ i.id }}" aria-controls="skip-{{ i.id }}" aria-expanded="false">Skip</button>
     </div>
     <div class="draft-actions">
