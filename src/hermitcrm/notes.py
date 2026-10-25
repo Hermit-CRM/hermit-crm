@@ -53,6 +53,19 @@ def contact_notes(company, contact_slug: str) -> list:
     return sorted(mine, key=lambda i: (i.date or datetime.min, i.id), reverse=True)
 
 
+def company_notes(company) -> list:
+    """The notes about the company itself (on no one in particular), newest first.
+    A draft to any of its people is written from them too."""
+    mine = [i for i in company.interactions if i.is_note and not i.contact]
+    return sorted(mine, key=lambda i: (i.date or datetime.min, i.id), reverse=True)
+
+
+def notes_for(company, contact_slug: str) -> list:
+    """What a draft to this person reads: their notes and the company's, newest first."""
+    both = contact_notes(company, contact_slug) + company_notes(company)
+    return sorted(both, key=lambda i: (i.date or datetime.min, i.id), reverse=True)
+
+
 def research_note(finding) -> tuple[str, str]:
     """(subject, body) of the note that keeps a research finding: the text, then
     its origin on a line of its own."""
@@ -80,10 +93,10 @@ def finding_of(note, today: date):
 
 
 def snapshot(company, contact_slug: str, today: date) -> list:
-    """The findings a draft is written from: the contact's newest notes, at most
-    NOTE_COUNT, and when their text runs over NOTE_CHARS the longest ones go."""
+    """The findings a draft is written from: the newest notes about the contact and
+    about their company, at most NOTE_COUNT, and when their text runs over NOTE_CHARS the longest ones go."""
     found = [f for f in (finding_of(n, today)
-                         for n in contact_notes(company, contact_slug)[:NOTE_COUNT]) if f.text]
+                         for n in notes_for(company, contact_slug)[:NOTE_COUNT]) if f.text]
     while found and sum(len(f.text) for f in found) > NOTE_CHARS:
         del found[max(range(len(found)), key=lambda i: len(found[i].text))]
     return found
@@ -159,10 +172,11 @@ def rows(company, contact_slug: str, today: date, used=frozenset()) -> list[dict
     where it came from (you, or research with its source link), and whether its text
     is one of `used` (normalised texts the draft cited)."""
     out = []
-    for note in contact_notes(company, contact_slug):
+    for note in notes_for(company, contact_slug):
         f = finding_of(note, today)
         research = f.source.startswith("http")
-        out.append({"note": note, "text": f.text, "origin": "research" if research else "you",
+        origin = "research" if research else "company" if not note.contact else "you"
+        out.append({"note": note, "text": f.text, "origin": origin,
                     "source_url": f.source if research else "", "date": f.date,
                     "used": _norm(f.text) in used})
     return out
@@ -173,7 +187,7 @@ def card(company, contact_slug: str, item, today: date) -> dict:
     where it came from and whether the draft used it), how many notes are newer
     than the draft, findings of an older card that are not notes yet, and the
     company's own notes field."""
-    listed = contact_notes(company, contact_slug)
+    listed = notes_for(company, contact_slug)
     shown = rows(company, contact_slug, today, {_norm(f.text) for f in item.findings if f.used})
     texts = {_norm(r["text"]) for r in shown}
     newer = sum(1 for n in listed if item.drafted and n.date and n.date > item.drafted)
