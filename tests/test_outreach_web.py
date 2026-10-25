@@ -238,6 +238,32 @@ def test_mark_ready_with_a_failing_check_warns_and_keeps_it(client, root):
     assert ready.checks == ["the message asks 0 questions; it must ask exactly one"]
 
 
+def test_back_to_draft_moves_a_ready_card_to_the_drafts_tab(client, root):
+    item = drafted(client, root)
+    post(client, f"/outreach/{item.id}/ready", subject=item.subject, body=item.body)
+    ready_page = client.get("/outreach?tab=ready").text
+    assert f'action="/outreach/{item.id}/unready"' in ready_page and "Back to draft" in ready_page
+    before = len(commits(root))
+    response = post(client, f"/outreach/{item.id}/unready")
+    assert response.status_code == 303
+    assert query(response)["tab"] == "drafts" and "Back to draft" in query(response)["flash"]
+    assert len(commits(root)) == before + 1
+    assert commits(root)[0] == f"outreach: unready {MARA} (email)"
+    back = outreach.get_item(root, item.id)
+    assert back.state == "drafted" and back.ready is None and back.body == item.body
+    page = client.get("/outreach?tab=drafts").text
+    assert "Drafts (1)" in page and "Ready (0)" in page and "Mark ready" in page
+    assert "/unready" not in page          # a draft has nothing to take back
+
+
+def test_back_to_draft_is_refused_for_a_card_that_is_not_ready(client, root):
+    item = drafted(client, root)
+    before = len(commits(root))
+    response = post(client, f"/outreach/{item.id}/unready")
+    assert "only a ready item can go back to a draft" in query(response)["flash"]
+    assert len(commits(root)) == before and outreach.get_item(root, item.id) == item
+
+
 def test_skip_needs_a_reason_and_is_one_commit(client, root):
     item = drafted(client, root)
     before = len(commits(root))

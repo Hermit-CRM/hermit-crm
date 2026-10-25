@@ -41,14 +41,16 @@ order, so the same item gives the same bytes. Every step is one commit:
                                 queued ──> failed      │
                                   └──────────────────>─┘
     researching, drafted, ready, queued, failed ──> skipped (skip_reason)
+    ready ──> drafted (unready: the person takes the approval back)
 
 `researching`: research is stored, the draft is not written yet (a run that
 stopped halfway leaves this). `drafted`: the draft is written and checked;
 `checks` lists what is still wrong ([] = every hard check passed). `ready`:
 the person approved it (the text they approved is the body; `edit_distance`
-says how much they changed; a check that still fails is kept in `checks`).
-`queued`: approved and scheduled by send.py (`send_at` says when); an open
-state like `ready`. `failed`: the mail was refused for good (address unknown);
+says how much they changed; a check that still fails is kept in `checks`);
+unready takes that back (the text and tracked edits stay). `queued`:
+approved and scheduled by send.py (`send_at` says when); an open state like
+`ready`. `failed`: the mail was refused for good (address unknown);
 Retry puts it back to `ready`, as does a guard that holds a queued item (they
 wrote to you since). `sent`: the person sent it, or send.py did. That happens
 by itself when an outbound interaction on the item's channel is logged for the
@@ -3037,6 +3039,26 @@ def mark_ready(store: Store, item_id: str, sender: Sender | None = None,
     result = (sender or ManualSender()).send(item)
     (logger or ManualLogger()).log(item, result)
     return item, found
+
+
+def unready(store: Store, item_id: str) -> Item:
+    """The person takes the approval back: a ready item is a draft again, to edit,
+    regenerate or skip. Only what approving wrote goes: `ready`, `edit_distance`
+    (the words changed before approving) and the note a guard left on the ready
+    card. The text stays as it was approved and the tracked edits stay (they are
+    append-only), so approving again starts from there. Queued and failed items
+    go back to ready first (unschedule, retry). One commit; nothing is sent."""
+    with store.lock:
+        item = _refresh(store, item_id)    # under the lock: a send tick may have queued it
+        if item.state != "ready":
+            hint = {"queued": " (unschedule it first)",
+                    "failed": " (retry it first)"}.get(item.state, "")
+            raise OutreachError(f"{item.id} is {item.state}; only a ready item can go back "
+                                f"to a draft{hint}")
+        item.state, item.ready, item.edit_distance, item.send_note = "drafted", None, None, ""
+        write_item(store.root, item)
+        store.notify(f"outreach: unready {item.record} ({item.channel})", [item.path])
+    return item
 
 
 def skip(store: Store, item_id: str, reason: str, note: str = "") -> Item:

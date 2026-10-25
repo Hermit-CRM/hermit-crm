@@ -356,6 +356,80 @@ def test_ready_rechecks_the_text_and_records_the_edit(folder):
         outreach.mark_ready(store, item.id)
 
 
+def test_unready_takes_the_approval_back_in_one_commit(folder):
+    root, store = folder
+    result, _ = built(folder, limit=1)
+    item = result.items[0]
+    path = root / item.path
+    head, body = path.read_text().split("\n---\n", 1)
+    path.write_text(head + "\n---\n" + body.replace("caught my eye", "stood out"),
+                    encoding="utf-8")
+    ready, _ = outreach.mark_ready(store, item.id)
+    assert ready.state == "ready" and ready.ready is not None and len(ready.edits) == 1
+    before = len(commits(root))
+    back = outreach.unready(store, item.id)
+    assert (back.state, back.ready, back.edit_distance) == ("drafted", None, None)
+    assert back.body == ready.body and "stood out" in back.body    # the approved text stays
+    assert len(back.edits) == 1                  # tracked edits are append-only: kept
+    assert outreach.get_item(root, item.id) == back
+    assert len(commits(root)) == before + 1
+    assert commits(root)[0] == "outreach: unready lindenhof-data/mara-keller (email)"
+    assert git(root, "show", "--name-only", "--format=", "HEAD").split() == [item.path]
+    again, _ = outreach.mark_ready(store, item.id)   # and it can be approved again
+    assert again.state == "ready" and again.body == back.body
+
+
+def test_unready_without_an_edit_restores_the_drafted_file_byte_for_byte(folder):
+    root, store = folder
+    result, _ = built(folder, limit=1)
+    item = result.items[0]
+    path = root / item.path
+    drafted_bytes = path.read_bytes()
+    outreach.mark_ready(store, item.id)
+    assert path.read_bytes() != drafted_bytes
+    outreach.unready(store, item.id)
+    assert path.read_bytes() == drafted_bytes
+
+
+def test_unready_drops_the_held_back_note_of_the_ready_state(folder):
+    root, store = folder
+    result, _ = built(folder, limit=1)
+    item = result.items[0]
+    outreach.mark_ready(store, item.id)
+    held = outreach.get_item(root, item.id)
+    held.send_note = "they wrote to you since 21 Oct"   # what a guard leaves on a ready card
+    outreach.write_item(root, held)
+    assert outreach.unready(store, item.id).send_note == ""
+
+
+def test_only_a_ready_item_can_go_back_to_a_draft(folder):
+    root, store = folder
+    result, _ = built(folder, limit=3)
+    drafted_item, skipped_item, stuck_item = result.items
+    outreach.skip(store, skipped_item.id, "bad-timing")
+    stuck = outreach.get_item(root, stuck_item.id)
+    stuck.state = "queued"
+    outreach.write_item(root, stuck)
+    before = len(commits(root))
+    with pytest.raises(outreach.OutreachError, match="is drafted; only a ready item can go "
+                                                     "back to a draft"):
+        outreach.unready(store, drafted_item.id)
+    with pytest.raises(outreach.OutreachError, match="is skipped; only a ready item"):
+        outreach.unready(store, skipped_item.id)
+    with pytest.raises(outreach.OutreachError, match="is queued; only a ready item.*"
+                                                     "unschedule it first"):
+        outreach.unready(store, stuck_item.id)
+    stuck.state = "failed"
+    outreach.write_item(root, stuck)
+    with pytest.raises(outreach.OutreachError, match="is failed; only a ready item.*"
+                                                     "retry it first"):
+        outreach.unready(store, stuck_item.id)
+    with pytest.raises(outreach.OutreachError, match="no outreach item"):
+        outreach.unready(store, "nope")
+    assert len(commits(root)) == before                  # a refusal writes nothing
+    assert outreach.get_item(root, stuck_item.id).state == "failed"
+
+
 def test_skip_is_one_commit_and_frees_the_contact(folder):
     root, store = folder
     result, _ = built(folder, limit=1)
@@ -451,6 +525,24 @@ def test_done_when_build_writes_three_checked_items(tmp_path, fake_cli, capsys):
     assert cli.main(["outreach", "skip", second, "--reason", "wrong-person"], root=root) == 0
     assert cli.main(["outreach", "list", "--state", "ready"], root=root) == 0
     assert capsys.readouterr().out.count(" | ready | ") == 1
+
+
+def test_cli_unready_puts_a_ready_item_back_to_drafted(tmp_path, fake_cli, capsys):
+    from hermitcrm.datafolder import init_folder
+
+    root = init_folder(tmp_path / "x", demo=True)
+    assert cli.main(["outreach", "build", "--where", "stage=prospect", "--channel", "email",
+                     "--limit", "1"], root=root) == 0
+    [item] = outreach.items(root)
+    assert cli.main(["outreach", "ready", item.id], root=root) == 0
+    capsys.readouterr()
+    assert cli.main(["outreach", "unready", item.id], root=root) == 0
+    out = capsys.readouterr().out
+    assert f"{item.id} is back to a draft" in out and "Not sent." in out
+    assert outreach.get_item(root, item.id).state == "drafted"
+    assert git(root, "status", "--porcelain") == ""      # one commit, nothing left over
+    assert cli.main(["outreach", "unready", item.id], root=root) == 1
+    assert "only a ready item can go back to a draft" in capsys.readouterr().err
 
 
 def test_build_refuses_when_the_playbook_is_not_ready(tmp_path, fake_cli, capsys):
