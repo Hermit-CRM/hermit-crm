@@ -55,7 +55,7 @@ def test_stats_page_includes_the_numbers_with_a_fallback():
 def test_every_footer_links_to_the_stats_page():
     c = content()
     hub, pages = build.load_compare()
-    assert "[Stats](stats/)" in c["footer"]["text"]
+    assert '<a href="stats/">Stats</a>' in build.render(c)
     assert '<a href="../stats/">Stats</a>' in build.render_about(c, hub, build.load_about())
     assert '<a href="../../stats/">Stats</a>' in build.render_compare(c, hub, pages[0], pages)
     assert '<a href="../stats/">Stats</a>' in build.render_hub(c, hub, pages)

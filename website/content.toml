@@ -128,6 +128,10 @@ slug = "messages"
 text = "Outreach drafts in English, German, Dutch or French, in your wording, and the outcome of every message."
 
 [[features.items]]
+name = "Outreach"
+text = "Researches a company's website, drafts a first message or a follow-up in your wording, and waits for your approval."
+
+[[features.items]]
 name = "Extension"
 slug = "extension"
 text = "Turn the page you are looking at into a company or a contact, from one bookmark."
@@ -150,23 +154,29 @@ text = "Your name, mail and calendar capture, backups, fields, deal stages and o
 
 # ── The three principles (bold word, then the sentence) ──────────────
 [[principles]]
-name = "Local."
-text = "It runs on your computer. Your data is a folder of Markdown files in git, on your own disk."
+name = "Your data stays with you."
+text = """
+Hermit runs on your computer, not in the cloud. Your companies, contacts and
+notes are ordinary text files in a folder you own, so you can open, copy or
+back them up like any document. Technically: Markdown files in a git
+repository.
+"""
 
 [[principles]]
-name = "Your AI is the admin."
+name = "Your AI does the admin."
 text = """
-Plain files, a small CLI and an MCP server, so the agent you already use can
-read your pipeline, log a call and change how Hermit works. Ask Hermit answers
-questions on every page.
+Use the assistant you already have. Ask what is in your pipeline this week, or
+to log a call with a contact, and it reads and updates your records for you.
+Ask Hermit answers questions on every page. For developers: plain files, a
+small command line tool and an MCP server.
 """
 
 [[principles]]
 name = "Yours to change."
 text = """
 Press Adjust on any page and describe what you want: a dashboard, a field, a
-page layout, a routine. Your agent builds it, every change can be undone, and
-the code is open source.
+page layout, a routine. Your AI assistant builds it, every change can be
+undone, and the code is open source.
 """
 
 
@@ -215,6 +225,28 @@ alt     = "Home in Hermit CRM with a draft from the Nudge quiet threads routine:
 address = "127.0.0.1:8765"
 
 
+# ── Outreach ─────────────────────────────────────────────────────────
+# Shown between "Make it yours" and "What you get".
+[outreach]
+label   = "Outreach"
+heading = "Hermit writes the first message. You decide what goes out."
+promise = """
+Choose who to contact. Hermit reads what their website says, drafts a short
+message in your own voice and in their language, and checks it against your
+rules. You read it, change it and approve it.
+"""
+steps = [
+  "**Choose who.** A filter such as `stage=prospect; country=DE`, and how many drafts you want.",
+  "**Hermit researches.** It reads the company's website and shows what it found, with the source of each point.",
+  "**It drafts.** In English, German, Dutch or French, following your playbook. Every draft shows the checks it passed.",
+  "**You approve.** Edit it, approve it, then send it yourself or switch on sending from your own mailbox. Replies that show interest and threads nobody answered get drafts too.",
+]
+safety = """
+**You stay in charge.** Nothing is sent that you did not approve, and sending
+is off until you turn it on. Every step is saved as a version you can undo.
+"""
+
+
 # ── One company, one file ────────────────────────────────────────────
 [file]
 label   = "The idea"
@@ -250,11 +282,21 @@ label = "Questions"
 [[questions.items]]
 q = "Where does my data live?"
 a = """
-In a folder on your Mac, `~/crm` unless you choose another. Every company,
-contact and conversation is a Markdown file, and every change is a git
-commit, so any mistake is one `git revert` away.
+In one folder on your computer, `~/crm` unless you choose another. Every
+company, contact and conversation is its own plain text file, and Hermit saves
+a version each time something changes, so any mistake can be undone.
+Technically: Markdown files in a git repository, and `git revert` goes back.
 """
 open = true
+
+[[questions.items]]
+q = "What are Markdown and git?"
+a = """
+Markdown is a simple text format that any editor can open, so your records are
+never locked inside Hermit. Git is a free tool that remembers every version of
+your files. Hermit uses both so that you can read your data without Hermit and
+undo any change. You never have to type a git command yourself.
+"""
 
 [[questions.items]]
 q = "Does anything leave my Mac?"
@@ -350,7 +392,7 @@ llms_intro     = "What Hermit CRM does, feature by feature: the app's own Help p
 title       = "Hermit CRM changelog: what changed in each version"
 description = "What is new in each Hermit CRM release, newest first, with how to upgrade and whether your data folder is migrated."
 h1          = "Changelog"
-lead        = "The same page as Help > Changelog inside the app and `hermitcrm help changelog`: what changed in each version, newest first."
+lead        = "Also in the app under Help > Changelog, and on the command line as `hermitcrm help changelog`."
 
 
 # ── Stats page (/stats/) ─────────────────────────────────────────────
@@ -385,7 +427,7 @@ text  = "Free and open source. Your data stays in a folder on your computer."
 [footer]
 # {github} is replaced by a link to [links].github labelled with
 # [header].github_label, {sha256} by a link to [links].sha256.
-text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · {github} · {sha256} · [Features](features/) · [Docs](docs/) · [Changelog](changelog/) · [Stats](stats/) · [Compare](compare/) · [About](about/) · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
+text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · {github} · {sha256} · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
 
 
 # ── Share image (og.png, 1200 x 630) ─────────────────────────────────

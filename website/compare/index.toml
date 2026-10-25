@@ -145,4 +145,13 @@ before you decide. Found a mistake? Message
 """
 
 [footer]
-text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · [All comparisons]({compare}) · [Features]({features}) · [Docs]({docs}) · [Changelog]({changelog}) · [Stats]({stats}) · [About]({about}) · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
+text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
+site_heading    = "Hermit CRM"
+features        = "Features"
+docs            = "Docs"
+changelog       = "Changelog"
+stats           = "Stats"
+about           = "About"
+compare_heading = "Compare"
+all_comparisons = "All comparisons"
+versus          = "Hermit CRM vs {name}"
