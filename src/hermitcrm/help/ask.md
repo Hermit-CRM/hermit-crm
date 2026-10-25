@@ -40,6 +40,12 @@ Override either with `enrich_model` / `enrich_model_strong` in `config.toml`
 (or the Settings fields) when your CLI names a model differently. Only the
 claude IDs are verified. Fable needs Claude Code 2.1.251 or newer.
 
+A third, **light** tier is used only by the outreach bot's scrape research and
+critic, which read and score rather than write. For claude it is
+`claude-haiku-4-5` (Haiku). If you set `enrich_model` yourself, light follows it, so
+Hermit never swaps a model you named; set `enrich_model_light` in `config.toml` to
+choose one. For the other providers it is the medium model.
+
 ## Notes
 
 - The page waits for the answer (no JavaScript): usually 10 to 30 seconds for

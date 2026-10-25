@@ -721,6 +721,7 @@ def build_enricher(config: dict) -> Enricher:
         command=str(config.get("enrich_command", "")),
         model=str(config.get("enrich_model", "")),
         model_strong=str(config.get("enrich_model_strong", "")),
+        model_light=str(config.get("enrich_model_light", "")),
         tier=str(config.get("ai_tier") or "medium"),
         timeout=float(config.get("enrich_timeout", 180)),
     )
