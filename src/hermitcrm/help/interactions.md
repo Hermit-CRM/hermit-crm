@@ -4,6 +4,13 @@ An interaction is one touch with a person: an email, LinkedIn message, call, Wha
 
 ## Logging one
 
+Notes may also be about the whole company: pick **whole company** in the
+contact dropdown, or use **Add company note** (on the company page and on every
+contact page). Only a note can be left without a contact. A company note shows
+on the company page and, under **Notes elsewhere**, on every contact's page, as
+do the notes on the company's other contacts, so nothing a colleague knows is
+hidden from you.
+
 An interaction is always with a person, so the **Log an interaction** form
 sits on every contact page (the "log" link in a company's contact list goes
 there), and on its own at `/companies/<slug>/interactions/new` where you pick

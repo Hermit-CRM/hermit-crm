@@ -2455,3 +2455,79 @@ def test_company_page_has_no_log_form_and_no_drafts_box(client):
     assert 'id="quick-add"' not in page and 'class="interaction-form' not in page
     assert '/companies/acme/contacts/jane-doe#quick-add">log</a>' in page
     assert 'id="drafts"' not in page
+
+
+# ------------------------------------------------------------ company notes
+
+
+def test_note_can_be_about_the_whole_company_but_other_channels_cannot(client, repo):
+    post_company(client, name="Acme GmbH")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe")
+    post_contact(client, "acme", first_name="Joe", last_name="Roe")
+
+    # Several contacts: the form offers the whole company as an explicit choice.
+    page = client.get("/companies/acme/interactions/new",
+                      params={"channel": "note", "whole": "1"}).text
+    assert '<option value="" selected>whole company' in page
+
+    ok = post_interaction(client, "acme", channel="note", direction="",
+                          contact="", date="2026-09-03T09:00", body="budget freeze in Q1")
+    assert ok.status_code == 303
+    assert ok.headers["location"].startswith("/companies/acme")
+    assert "/contacts/" not in ok.headers["location"]
+    assert (repo / "companies/acme/interactions").exists()
+
+    nobody = post_interaction(client, "acme", channel="call", direction="in",
+                              contact="", body="x")
+    assert nobody.status_code == 400 and "only a note can be about the whole company" in nobody.text
+
+
+def test_single_contact_is_preselected_for_a_note(client):
+    post_company(client, name="Acme GmbH")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe")
+    page = client.get("/companies/acme/interactions/new", params={"channel": "note"}).text
+    assert '<option value="jane-doe" selected>' in page
+
+
+def test_contact_page_shows_company_notes_and_other_contacts_notes(client):
+    post_company(client, name="Acme GmbH")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe")
+    post_contact(client, "acme", first_name="Joe", last_name="Roe")
+    own = client.get("/companies/acme/contacts/jane-doe").text
+    assert "Notes elsewhere" not in own        # nothing to show, so no box
+
+    post_interaction(client, "acme", channel="note", direction="", contact="",
+                     date="2026-09-03T09:00", body="budget freeze in Q1")
+    post_interaction(client, "acme", channel="note", direction="", contact="joe-roe",
+                     date="2026-09-04T09:00", body="prefers phone calls")
+    post_interaction(client, "acme", channel="note", direction="", contact="jane-doe",
+                     date="2026-09-05T09:00", body="knows our product")
+
+    page = client.get("/companies/acme/contacts/jane-doe").text
+    assert "Notes elsewhere at Acme GmbH" in page
+    assert "budget freeze in Q1" in page                     # the company's note
+    assert "prefers phone calls" in page                     # Joe's note, seen from Jane
+    assert "/companies/acme/contacts/joe-roe" in page
+    elsewhere = page.split('id="other-notes"')[1].split("</section>")[0]
+    assert "knows our product" not in elsewhere              # her own stay in the timeline
+
+    company = client.get("/companies/acme").text
+    assert "Company notes (1)" in company and "budget freeze in Q1" in company
+    assert "1 note</span>" in company
+
+
+def test_company_note_is_not_contact_made(client, app):
+    post_company(client, name="Acme GmbH", stage="prospect")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe")
+    post_interaction(client, "acme", channel="note", direction="", contact="", body="hi")
+    assert app.state.store.get("acme").stage == "prospect"   # still not engaged
+
+
+def test_company_page_with_a_form_error_still_shows_its_notes(client):
+    post_company(client, name="Acme GmbH")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe")
+    post_interaction(client, "acme", channel="note", direction="", contact="",
+                     body="budget freeze in Q1")
+    bad = client.post("/companies/acme", data={**COMPANY_BLANK, "name": "Acme GmbH",
+                                               "stage": "lost"})
+    assert bad.status_code == 400 and "budget freeze in Q1" in bad.text
