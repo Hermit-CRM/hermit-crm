@@ -83,9 +83,9 @@ def built(request, tmp_path, cli):
 def test_research_and_the_critic_run_on_the_light_model_and_the_draft_does_not(cli, built):
     item, drafting_model = built
     assert [(c["kind"], c["model"]) for c in cli.calls] == [
-        ("research", "claude-haiku-4-5"), ("draft", drafting_model),
-        ("critic", "claude-haiku-4-5")]
-    assert (item.model, item.critic_model) == (drafting_model, "claude-haiku-4-5")
+        ("research", "claude-haiku-5-5"), ("draft", drafting_model),
+        ("critic", "claude-haiku-5-5")]
+    assert (item.model, item.critic_model) == (drafting_model, "claude-haiku-5-5")
 
 
 def test_none_of_the_three_calls_carries_the_users_mcp_connectors(cli, built):
@@ -102,6 +102,18 @@ def test_ai_web_reads_the_scrape_on_the_light_model_and_searches_on_the_medium_o
     outreach.researcher_for("ai-web", enricher, fetcher=fake_page,
                             today=NOW.date()).research(company, contact)
     assert [(c["kind"], c["model"]) for c in cli.calls] == [
-        ("research", "claude-haiku-4-5"), ("web", "claude-opus-5")]
+        ("research", "claude-haiku-5-5"), ("web", "claude-opus-5")]
     web = cli.calls[1]["argv"]
     assert web[web.index("--tools") + 1] == "WebSearch,WebFetch"
+
+
+def test_escalated_research_runs_on_the_light_model(cli, tmp_path):
+    root, store = demo(tmp_path)
+    store.update_company("lindenhof-data", website="")
+    company = store.get("lindenhof-data")
+    contact = company.contacts["mara-keller"]
+    enricher = Enricher(provider="claude", which=ALL)
+    out = outreach.researcher_for("scrape", enricher, fetcher=fake_page, today=NOW.date(),
+                                  escalate=True).research(company, contact)
+    assert out.level == "ai-web"
+    assert [(c["kind"], c["model"]) for c in cli.calls] == [("web", "claude-haiku-5-5")]
