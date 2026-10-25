@@ -15,6 +15,16 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   moved onto the button or column it describes, or stayed in Help. The send strip
   reads *Mon–Fri 08:30–17:30* instead of listing every day. Nothing was removed
   from Help.
+- **Shorter Settings and Playbook.** The notes under the Settings headings are
+  one short sentence each. What you need once (the roles of a deal stage, how
+  each agent is started, why a subscription asks for no particular model, how
+  to set up a system keyring) sits behind a **?**; the rest moved onto the
+  control it describes, such as the Window box or the Delete button. What you
+  must see before acting stays on the page, only shorter: the sending limits
+  and deliverability note, where passwords are kept, the open-network warning,
+  the private-repository warning. The Playbook page is trimmed the same way. A
+  **?** near the right edge of a narrow window now opens inside the window, and
+  a Settings form row no longer makes the page wider than a phone.
 - **Better first drafts, for every message.** A draft now says its proof in the
   language of the message: a German email states the proof in German, while the
   card's "Proof cited" keeps the playbook's own line, so the check still finds
