@@ -23,13 +23,12 @@ and from the command line; both do the same steps and write the same files.
   Drafts (first touches to review), Ready (to send), Sent, Skipped.
 - **A card**: the person and company with their links, fit, flags, what
   research found (with source and a confidence dot), the draft and its checks.
-  - **Save & check again** saves your edit and runs the checks on it. A check
+  - **Re-check** saves your edit and runs the checks on it. A check
     that fails never blocks you.
   - **Mark ready** approves the text as it is in the box (your edit and the
     approval are one change). A failing check stays on the card as a warning.
   - **What was wrong with this draft?** is one optional box (500 characters
-    at most) under the text, for whichever button you press next. With **Save &
-    check again** or **Mark ready** it is the explainer of your edit. The AI's
+    at most) under the text, for whichever button you press next. With **Re-check** or **Mark ready** it is the explainer of your edit. The AI's
     draft is never overwritten: it stays under **AI original**, and each save
     or Mark ready that changes the text adds one **tracked edit** with your
     explainer, shown as the words removed and added. (If the text did not
@@ -318,7 +317,7 @@ seen some scores against the drafts you actually liked; `0` turns the critic off
 A critic that fails (the CLI errors, the answer is not four scores) leaves the
 draft as it is, and a flag on the card says "critic did not run".
 
-**Save & check again** also asks the critic about the text as you edited it (an AI
+**Re-check** also asks the critic about the text as you edited it (an AI
 call; it scores only and never rewrites your text). Without an AI it runs the checks
 and says the critic did not run. **Mark ready** does not ask. A score is never a
 check: the rules stay in the checks and `clean_answer`.

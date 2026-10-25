@@ -116,6 +116,7 @@ def test_with_sending_off_the_page_is_what_it_was(env):
     assert "Send now" not in body and "Schedule" not in body.replace("Settings", "")
     assert "Scheduled (0)" not in body
     assert "Mark sent" in body and "Open in mail" in body
+    assert "row-more" in page.text and "copy-btn" not in page.text
 
 
 # ----------------------------------------------------------- strip, buttons
@@ -177,6 +178,10 @@ def test_schedule_moves_an_item_to_the_scheduled_tab_with_its_time(env):
     assert "Scheduled (1)" in body and re.search(r"Goes out \w{3} \d\d \w{3}, \d\d:\d\d", body)
     for label in ("Send now", "Move to front", "Unschedule", "Mark sent"):
         assert label in body
+    # The rare actions sit in the closed More overflow, the state fix stays out.
+    more = page.split('<details class="row-more">', 1)[1].split("</details>", 1)[0]
+    assert "Move to front" in more and "Mark sent (no log)" in more and "Skip" in more
+    assert "Unschedule" not in more and "Send now" not in more
     assert "Back to draft" not in body       # a queued card is unscheduled first
     assert outreach.get_item(root, item.id).state == "queued"
 

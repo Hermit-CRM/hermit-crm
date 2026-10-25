@@ -228,7 +228,7 @@ def test_the_slow_ai_buttons_on_a_card_say_that_they_are_working(client, root):
     # the clicked button into a spinner, but only for a button with data-busy.
     item = drafted(client, root)
     form = card_form(client.get("/outreach").text, item.id)
-    for label in ("Regenerate", "Save &amp; check again"):
+    for label in ("Regenerate", "Re-check"):
         [tag] = re.findall(rf"<button[^>]*>{label}</button>", form)
         assert 'data-busy="' in tag, label
     [ready] = re.findall(r"<button[^>]*>Mark ready</button>", form)
