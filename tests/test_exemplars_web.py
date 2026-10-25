@@ -25,14 +25,13 @@ from test_learning import APPROACH, folder, make  # noqa: F401
 from test_learning_web import flash, make_client, post, text
 
 
-def test_the_page_says_none_yet_and_shows_the_angle_table(folder):
+def test_the_page_says_none_yet(folder):
     root, store = folder
     page = text(make_client(root).get(f"/learning?approach={APPROACH}"))
     assert 'id="examples"' in page and "None yet. Corrections appear" in page
     assert "Setting</a>: <strong>off</strong>" in page
     assert "the draft prompt is not changed" in page
-    assert "<td>scale</td>" in page and "wide, still exploring" in page
-    assert "0 first-touch sends so far" in page and "angle sampling is off" in page
+    assert "angle" not in page.lower()
 
 
 def test_the_page_lists_exemplars_and_what_the_drafter_would_see(folder):
@@ -82,31 +81,28 @@ def test_a_bad_mark_or_exemplar_is_a_flash_not_an_error(folder):
     assert not (root / exemplars.MARKS_FILE).exists()
 
 
-def test_the_settings_save_examples_and_sampling_and_leave_others_alone(folder):
+def test_the_settings_save_examples_and_leave_others_alone(folder):
     root, store = folder
     client = make_client(root)
     page = client.get("/settings").text
-    assert 'name="learning_exemplars"' in page and 'name="learning_angle_sampling"' in page
+    assert 'name="learning_exemplars"' in page and "learning_angle_sampling" not in page
     assert flash(post(client, "/settings/learning", learning_distill="hermit",
-                      learning_exemplars="both", learning_angle_sampling="on")).startswith(
-        "Learning saved: hermit, examples both, angle sampling on.")
+                      learning_exemplars="both")).startswith(
+        "Learning saved: hermit, examples both.")
     config = load_config(root)
-    assert config["learning_exemplars"] == "both" and config["learning_angle_sampling"] is True
+    assert config["learning_exemplars"] == "both"
     assert 'value="both" selected' in client.get("/settings").text
     # a form that only knows the distil setting changes nothing else
     flash(post(client, "/settings/learning", learning_distill="handoff"))
     config = load_config(root)
     assert config["learning_distill"] == "handoff"
-    assert config["learning_exemplars"] == "both" and config["learning_angle_sampling"] is True
+    assert config["learning_exemplars"] == "both"
     assert "Examples are off" in flash(post(client, "/settings/learning",
                                             learning_distill="hermit", learning_exemplars="all"))
-    assert "on or off" in flash(post(client, "/settings/learning", learning_distill="hermit",
-                                     learning_angle_sampling="maybe"))
     assert load_config(root)["learning_exemplars"] == "both"
     flash(post(client, "/settings/learning", learning_distill="hermit",
-               learning_exemplars="off", learning_angle_sampling="off"))
+               learning_exemplars="off"))
     assert load_config(root)["learning_exemplars"] == "off"
-    assert load_config(root)["learning_angle_sampling"] is False
 
 
 def test_the_card_says_what_the_draft_was_modeled_on(folder):

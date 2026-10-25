@@ -80,7 +80,7 @@ from . import followups, frameworks, messaging, playbook
 from .enrich import WEB_ONLY, EnrichError
 from .frameworks import HOUSE, Framework
 from .models import (
-    ANGLES, DO_NOT_CONTACT, INTERESTED, ValidationError, do_not_contact, fmt_datetime,
+    DO_NOT_CONTACT, INTERESTED, ValidationError, do_not_contact, fmt_datetime,
     normalise_website, parse_datetime, slugify, unique_slug,
 )
 from .paths import contained
@@ -94,7 +94,7 @@ OPEN_STATES = ("researching", "drafted", "ready", "queued", "failed")
 FIRST_TOUCH, REPLY, FOLLOW_UP = "first-touch", "reply-to-interest", "follow-up"
 KINDS = (FIRST_TOUCH, REPLY, FOLLOW_UP)
 BUILT_KINDS = KINDS
-THREAD_KINDS = (REPLY, FOLLOW_UP)   # answer a thread: no research, no angle asked of the AI
+THREAD_KINDS = (REPLY, FOLLOW_UP)   # answer a thread: no research
 KIND_LABELS = {FIRST_TOUCH: "first touch", REPLY: "reply to interest", FOLLOW_UP: "follow-up"}
 SKIP_REASONS = ("bad-fit", "wrong-person", "bad-timing", "bad-draft", "already-in-contact",
                 "other")  # what this version drafts; the others are later phases
@@ -102,9 +102,6 @@ CHANNELS = ("email", "linkedin")
 LEVELS = ("scrape", "ai-web")
 BUILT_LEVELS = LEVELS
 CRITIC_SCORES = ("relevance", "personal", "tone", "honesty")
-# The template angles (messaging.py) plus `custom`; outreach_angles narrows them.
-TEMPLATE_ANGLES = ("scale", "unblock", "hook", "bridge", "decline")
-DEFAULT_ANGLES = (*TEMPLATE_ANGLES, "custom")
 FINDING_KINDS = ("company", "person", "trigger")
 CONFIDENCE = ("high", "medium", "low")
 USABLE = ("high", "medium")
@@ -113,15 +110,14 @@ STALE_DAYS = 90
 # that make `acme-robotics` and `acme-robotics-ai` one company twice. Legal
 # forms (GmbH, Ltd, BV...) go through slugify(strip_legal=True).
 def in_thread(kind: str) -> bool:
-    """A reply to interest or a follow-up answers a thread: no research, and the
-    angle is not the AI's to choose."""
+    """A reply to interest or a follow-up answers a thread: no research."""
     return kind in THREAD_KINDS
 
 
 DUPLICATE_SUFFIXES = ("ai", "hq", "app", "io", "group", "gmbh", "inc", "ltd", "llc", "bv")
 
 ITEM_KEYS = (
-    "state", "kind", "channel", "company", "contact", "reply_to", "follows", "approach", "angle",
+    "state", "kind", "channel", "company", "contact", "reply_to", "follows", "approach",
     "framework", "language",
     "subject", "pitch", "research_level", "model", "attempts", "seconds", "checks",
     "critic", "critic_reason", "critic_model", "flags", "norms", "findings", "proof_used",
@@ -817,7 +813,6 @@ class CheckContext:
     findings: list[Finding] = field(default_factory=list)   # numbered 1..n in the prompt
     proof: list[str] = field(default_factory=list)
     offer_lines: list[str] = field(default_factory=list)    # the offer line, translations
-    angles: tuple = DEFAULT_ANGLES
     opt_out: str = ""                                       # the line Python adds, if any
     never_write: list[str] = field(default_factory=list)    # config `outreach_never_write`
     framework: Framework | None = None                      # a first touch only
@@ -935,14 +930,13 @@ DRAFT_SCHEMA = {
         "pitch": {"type": "string",
                   "description": "LinkedIn only: the message sent after they accept; "
                                  "empty for email"},
-        "angle": {"type": "string", "enum": list(ANGLES)},
         "findings_used": {"type": "array", "items": {"type": "integer"},
                           "description": "the numbers of the findings the message uses"},
         "proof_used": {"type": "array", "items": {"type": "string"},
                        "description": "the proof lines the message cites, word for word"},
         "framework": {"type": "string", "description": "the framework id given in the prompt"},
     },
-    "required": ["subject", "body", "pitch", "angle", "findings_used", "proof_used"],
+    "required": ["subject", "body", "pitch", "findings_used", "proof_used"],
     "additionalProperties": False,
 }
 
@@ -952,7 +946,6 @@ class Draft:
     subject: str = ""
     body: str = ""
     pitch: str = ""
-    angle: str = ""
     findings_used: list[int] = field(default_factory=list)
     proof_used: list[str] = field(default_factory=list)
     problems: list[str] = field(default_factory=list)
@@ -962,7 +955,6 @@ class Draft:
     norms: list[str] = field(default_factory=list)
     lessons_used: list[str] = field(default_factory=list)   # learned lines in the prompt
     exemplars_used: list[str] = field(default_factory=list)  # example ids in the prompt
-    angle_note: str = ""   # why the exploration policy chose the angle ("" = the AI chose)
     framework: str = ""    # the id of the framework the draft was asked for ("" = none)
     failed: str = ""   # the AI gave no usable draft at all (twice): why
 
@@ -995,14 +987,7 @@ def clean_answer(data, ctx: CheckContext) -> Draft:
     if ctx.opt_out and _norm_space(ctx.opt_out) not in _norm_space(body):
         body = body + "\n\n" + ctx.opt_out
     draft = Draft(subject=subject, body=body + "\n", pitch=pitch + "\n" if pitch else "")
-    angle = str(data.get("angle") or "").strip().lower()
     problems = check_text(draft.subject, draft.body, draft.pitch, ctx)
-    if in_thread(ctx.kind):
-        angle = ""   # a reply or follow-up continues a thread; the angles open one
-    elif angle not in ctx.angles:
-        problems.append(f"angle {angle or '(none)'} is not one to use now "
-                        f"({', '.join(ctx.angles)})")
-    draft.angle = angle if angle in ANGLES else ""
     used = data.get("findings_used") or []
     ids = []
     for n in used if isinstance(used, list) else []:
@@ -1058,7 +1043,7 @@ SHAPES = {
         "example: where does it hurt most right now: pipeline, conversion or deal size?). "
         "One question mark in the whole message.\n"
         "- No meeting ask, no call ask, no link, no proposed day or time.\n"
-        "- When no finding is usable, write from one of the playbook's angles instead and "
+        "- When no finding is usable, write from the playbook's general notes instead and "
         "mark what only the seller can fill in with [square brackets]."),
     REPLY: (
         "This is a reply to someone who answered the seller and showed interest; their "
@@ -1072,7 +1057,7 @@ SHAPES = {
         "whole message.\n"
         "- No time slot, no day, no booking link, no link at all, no price, no rate, no "
         "days per week: a meeting is proposed only after they answer the question.\n"
-        "- No [square brackets]: everything needed is given. angle is custom."),
+        "- No [square brackets]: everything needed is given."),
     FOLLOW_UP: (
         "This is a follow-up: the seller wrote to them and nothing came back; the earlier "
         "message is below. Keep it very short and follow the template's shape:\n"
@@ -1084,7 +1069,7 @@ SHAPES = {
         "- End with exactly one question. One question mark in the whole message.\n"
         "- No link, no proposed day or time, no price, no new pitch, no \"just checking "
         "in\" guilt.\n"
-        "- No [square brackets]: everything needed is given. angle is custom."),
+        "- No [square brackets]: everything needed is given."),
 }
 CHANNEL_TEXT = {
     "email": ("Channel: email. A subject of at most {subject_max} characters; the body at "
@@ -1122,7 +1107,6 @@ FOLLOWUP_CHANNEL_TEXT = {
                  "subject are empty."),
 }
 CHANNEL_TEXTS = {REPLY: REPLY_CHANNEL_TEXT, FOLLOW_UP: FOLLOWUP_CHANNEL_TEXT}
-ANGLE_FLAG = "angle policy: "   # the card's note when the exploration policy fixed the angle
 PLAYBOOK_LIMIT = 12000
 REPLY_LIMIT = 3000
 
@@ -1177,7 +1161,7 @@ def framework_rule_lines(framework: Framework) -> list[str]:
     lines = [
         "- Never open with \"I\" (or Ich, Ik, Je): the first word is about them.",
         "- No meeting ask, no call ask, no link, no proposed day or time.",
-        "- When no finding is usable, write from one of the playbook's angles instead and "
+        "- When no finding is usable, write from the playbook's general notes instead and "
         "mark what only the seller can fill in with [square brackets].",
         "- The playbook's Voice section wins over the framework on wording, greeting, "
         "sign-off and formality.",
@@ -1210,14 +1194,12 @@ def framework_block(framework: Framework) -> str:
 
 def draft_prompt(kind: str, brief: Brief, ctx: CheckContext, approach, playbook_text: str,
                  owner: str = "", problems: list[str] | None = None, reply=None,
-                 template: str = "", earlier=None, exemplars: str = "",
-                 angle_note: str = "") -> str:
+                 template: str = "", earlier=None, exemplars: str = "") -> str:
     """The prompt for one draft. A reply to interest also gets their reply
     (`reply`, an interaction) and the filled wording template; a follow-up gets
-    your earlier message (`earlier`) and its template. Neither has findings or
-    an angle. `exemplars` is the examples block of exemplars.prompt_block (a
-    first touch only; "" adds nothing); `angle_note` says why the exploration
-    policy fixed the angle (ctx.angles then holds that one angle). A first touch with
+    your earlier message (`earlier`) and its template. Neither has findings.
+    `exemplars` is the examples block of exemplars.prompt_block (a first touch
+    only; "" adds nothing). A first touch with
     a framework (ctx.framework) gets the framework's recipe paragraph and channel line
     in place of SHAPES and CHANNEL_TEXT; house is today's paragraph, word for word, and
     when its instructions were rewritten they get the rule lines after them."""
@@ -1240,13 +1222,6 @@ def draft_prompt(kind: str, brief: Brief, ctx: CheckContext, approach, playbook_
         channel_text.format(**rules)
         + (" Do not write an opt-out line: one is added for you." if ctx.opt_out else ""),
     ]
-    if not in_thread(kind):
-        if angle_note and len(ctx.angles) == 1:
-            parts.append(f"Angle: {ctx.angles[0]} ({angle_note}); write the message from this "
-                         f"angle and put {ctx.angles[0]} in angle.")
-        else:
-            parts.append(f"Angle: one of {', '.join(ctx.angles)} (custom: your own, none of "
-                         "the playbook's angles); say which in angle.")
     parts += [
         f"Language: {brief.language_name}. Culture norms (starting points; the playbook's "
         f"Voice section wins where it says otherwise): "
@@ -1336,13 +1311,11 @@ class AIDrafter:
         rules = framework_rules(channel_rules(channel, self.messages), framework, channel,
                                 kind)
         opt_out = opt_out_line(self.store.root, kind, channel, lang, rules)
-        angles = tuple(a for a in (self.config.get("outreach_angles") or DEFAULT_ANGLES)
-                       if a in ANGLES) or DEFAULT_ANGLES
         ctx = CheckContext(kind=kind, channel=channel, rules=rules,
                            findings=list(research.findings),
                            proof=approach.proof if approach is not None else [],
                            offer_lines=[approach.offer_line] if approach is not None else [],
-                           angles=angles, opt_out=opt_out,
+                           opt_out=opt_out,
                            never_write=never_write(self.config), framework=framework)
         return ctx, norms
 
@@ -1355,8 +1328,8 @@ class AIDrafter:
             framework = frameworks.load(self.store.root).house
         ctx, norms = self.context(kind, company, contact, research, channel, approach,
                                   language, framework=framework)
-        angle_note, examples = self._learned(kind, company, contact, research, channel,
-                                             approach, ctx, language)
+        examples = self._learned(kind, company, contact, research, channel,
+                                 approach, ctx, language)
         brief = brief or make_brief(self.store, company, contact, approach, research,
                                     messages=self.messages, language=language)
         try:
@@ -1382,8 +1355,7 @@ class AIDrafter:
         for attempt in (1, 2):
             prompt = draft_prompt(kind, brief, ctx, approach, pb_text, owner, problems,
                                   reply=reply, template=template, earlier=earlier,
-                                  exemplars=examples.block if examples else "",
-                                  angle_note=angle_note)
+                                  exemplars=examples.block if examples else "")
             try:
                 data = self.enricher.runner(prompt, DRAFT_SCHEMA, tools="")
                 result = clean_answer(data, ctx)
@@ -1406,35 +1378,25 @@ class AIDrafter:
         from hermitcrm import learning
         result.lessons_used = learning.lesson_ids(pb_text)
         result.exemplars_used = examples.ids if examples else []
-        result.angle_note = angle_note
         return result
 
     def _learned(self, kind, company, contact, research, channel, approach, ctx,
                  language: str = ""):
-        """What approach C adds to a first touch: the angle the exploration
-        policy fixes (ctx.angles is narrowed to it) and the examples block.
-        Both are off by default, and learning must never stop a draft: any
-        failure here is logged and the draft goes on without it."""
+        """What approach C adds to a first touch: the examples block. It is off
+        by default, and learning must never stop a draft: any failure here is
+        logged and the draft goes on without it."""
         if kind != FIRST_TOUCH or approach is None:
-            return "", None
+            return None
         from hermitcrm import exemplars
-        angle_note, examples = "", None
-        try:
-            chosen = exemplars.sample_for_draft(self.store, company, contact, approach,
-                                                ctx.angles, self.config)
-            if chosen is not None and chosen.angle in ctx.angles:
-                ctx.angles, angle_note = (chosen.angle,), chosen.reason
-        except Exception:
-            logger.exception("the angle policy failed; the AI chooses the angle")
+        examples = None
         try:
             lang = messaging.draft_language(company, contact, override=language,
                                             messages=self.messages)
             examples = exemplars.for_draft(self.store, company, contact, approach,
-                                           research.findings, channel, lang, kind, self.config,
-                                           angle=ctx.angles[0] if angle_note else "")
+                                           research.findings, channel, lang, kind, self.config)
         except Exception:
             logger.exception("could not pick examples; drafting without them")
-        return angle_note, examples
+        return examples
 
 
 # ------------------------------------------------------------------- critic
@@ -1738,7 +1700,6 @@ class Item:
     reply_to: str = ""    # reply-to-interest: the id of their reply (an interaction)
     follows: str = ""     # follow-up: the id of your unanswered message (an interaction)
     approach: str = ""
-    angle: str = ""
     framework: str = ""   # a first touch: the id of the framework it was drafted with
     language: str = ""
     subject: str = ""
@@ -1891,7 +1852,7 @@ def item_from_text(item_id: str, text: str) -> Item:
         channel=s("channel").strip(), company=s("company").strip(),
         contact=s("contact").strip(), reply_to=s("reply_to").strip(),
         follows=s("follows").strip(),
-        approach=s("approach"), angle=s("angle").strip(),
+        approach=s("approach"),
         framework=s("framework").strip().lower(),
         language=s("language").strip(), subject=s("subject"), pitch=s("pitch"),
         research_level=s("research_level").strip(), model=s("model"),
@@ -2861,7 +2822,7 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
             fallback = not threaded and not any(f.usable for f in research.findings)
             if fallback:
                 item.flags.append("nothing usable found: the draft falls back to the "
-                                  "playbook's angles, gaps marked [ ]")
+                                  "playbook's general notes, gaps marked [ ]")
             message = (f"outreach: reply to interest {item.record} ({item.reply_to})"
                        if answering else
                        f"outreach: follow-up {item.record} ({item.follows})"
@@ -2889,8 +2850,7 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
         if reviewed is not None:
             draft = reviewed.draft
         item.seconds = int(round(time.monotonic() - clock))
-        message = _apply_draft(item, draft, fallback, store.now() if now is None else now,
-                               angle=row.interaction.angle if row else None)
+        message = _apply_draft(item, draft, fallback, store.now() if now is None else now)
         if reviewed is not None and not draft.failed:
             apply_critic(item, reviewed)
         if draft.failed:
@@ -2930,12 +2890,9 @@ def _verdict(problems: list[str]) -> str:
             f"{len(problems)} problem{'s' if len(problems) > 1 else ''}")
 
 
-def _apply_draft(item: Item, draft: Draft, fallback: bool, when: datetime,
-                 angle: str | None = None) -> str:
+def _apply_draft(item: Item, draft: Draft, fallback: bool, when: datetime) -> str:
     """Put a draft (or the AI's failure to write one) on the item; returns the
-    commit message. Shared by build and regenerate. `angle` replaces the
-    draft's: a follow-up keeps the angle of the message it follows, so the
-    Messages statistics count it under the angle that opened the thread."""
+    commit message. Shared by build and regenerate."""
     item.model, item.attempts = draft.model, draft.attempts
     item.language = draft.language
     if draft.failed:
@@ -2948,15 +2905,11 @@ def _apply_draft(item: Item, draft: Draft, fallback: bool, when: datetime,
     for n in draft.findings_used:
         item.findings[n - 1].used = True
     item.state = "drafted"
-    item.angle = draft.angle if angle is None else angle
     item.subject, item.pitch = draft.subject, draft.pitch
     item.body, item.checks, item.norms = draft.body, draft.problems, draft.norms
     item.proof_used = draft.proof_used
     item.lessons_used = list(draft.lessons_used)
     item.exemplars_used = list(draft.exemplars_used)
-    item.flags = [f for f in item.flags if not f.startswith(ANGLE_FLAG)]
-    if draft.angle_note:
-        item.flags.append(f"{ANGLE_FLAG}{draft.angle_note}")
     item.ai_subject, item.ai_pitch, item.ai_body = draft.subject, draft.pitch, draft.body
     item.drafted = when
     item.flags = [f for f in item.flags if f != NEEDS_HAND_EDITS and not f.startswith("critic")]
@@ -2964,7 +2917,7 @@ def _apply_draft(item: Item, draft: Draft, fallback: bool, when: datetime,
     if fallback and hand_edits(draft.subject, draft.body, draft.pitch):
         item.flags.append(NEEDS_HAND_EDITS)
     return (f"outreach: draft {item.record} ({item.channel}, "
-            f"{item.angle or (KIND_LABELS[item.kind] if in_thread(item.kind) else 'no angle')}): "
+            f"{KIND_LABELS[item.kind]}): "
             f"{_verdict(draft.problems)}")
 
 
@@ -3314,8 +3267,7 @@ def redraft(store: Store, item_id: str, drafter: Drafter,
             model=item.model, drafted=fmt_datetime(item.drafted),
             replaced=fmt_datetime(store.now()), why=why, edits=item.edits))
         item.edits = []
-    message = _apply_draft(item, draft, fallback, store.now(),
-                           angle=earlier.angle if earlier is not None else None)
+    message = _apply_draft(item, draft, fallback, store.now())
     if reviewed is not None and not draft.failed:
         apply_critic(item, reviewed)
     if not draft.failed:
@@ -3413,7 +3365,7 @@ def sent_by_interaction(root: Path | str, company: str, it) -> list[Item]:
     """The ready (or queued, or failed) items an outbound interaction just logged marks sent: same
     contact, same channel, logged at or after the item was marked ready. The
     caller (Store.create_interaction) writes them in the interaction's commit;
-    an item's angle, framework and approach are copied onto the interaction when
+    an item's framework and approach are copied onto the interaction when
     it has none, so the Messages tab compares bot messages with your own."""
     if it.direction != "out" or not it.is_touch or not it.contact or it.date is None:
         return []
@@ -3439,7 +3391,7 @@ def list_lines(root: Path | str, state: str = "") -> list[str]:
         if i.state in ("researching", "skipped"):
             checks = i.skip_reason or "-"
         out.append(f"{i.id} | {i.state} | {i.record} | {i.channel} | "
-                   f"{i.angle or '-'} | {checks}")
+                   f"{checks}")
     return out
 
 
@@ -3454,7 +3406,7 @@ def render_item(store: Store, item: Item) -> str:
             ("LinkedIn", contact.linkedin), ("email", contact.email)) if value]
     if company is not None:
         lines.append(f"Company: {company.name} | {company.website or 'no website'}")
-    lines.append(f"Approach: {item.approach or '-'} | angle: {item.angle or '-'}"
+    lines.append(f"Approach: {item.approach or '-'}"
                  + (f" | framework: {item.framework}" if item.framework else "")
                  + f" | language: {item.language or '-'} | research: {item.research_level}")
     if item.flags:
@@ -3574,7 +3526,7 @@ def edits_report(store: Store, positive_only: bool = False, with_notes_only: boo
         if (positive_only and answer != POSITIVE) or (with_notes_only and not any(notes)):
             continue
         lines += [f"## {item.record} ({item.channel}, {item.kind}, "
-                  f"{item.angle or 'no angle'}, {item.language or '-'}) : {answer}", "",
+                  f"{item.language or '-'}) : {answer}", "",
                   f"id {item.id} | state {item.state} | model {item.model or '-'}", ""]
         for number, old in enumerate(item.earlier, 1):
             lines += [f"Regenerated away (draft {number}), because: {old.why or '-'}",

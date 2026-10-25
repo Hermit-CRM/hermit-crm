@@ -38,7 +38,7 @@ message statistics.
   disqualifiers, personas and, if you set it, its message frameworks. The app
   reads it to pick and sort prospects; an AI is never given it as instructions.
 - **The body** (everything below) is for people and AI: the general notes on
-  angles, slots and languages, then one `# Approach: <name>` block per approach
+  slots and languages, then one `# Approach: <name>` block per approach
   with the rest.
 
 ## The front matter

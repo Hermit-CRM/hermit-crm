@@ -101,7 +101,6 @@ hermitcrm learn retire LESSON [--approach A]        remove a lesson
 hermitcrm learn move LESSON worked|failed|open [--approach A]   move a lesson
 hermitcrm learn exemplars [--approach A] [--item ID]   the examples a draft can be shown; --item previews one prompt block
 hermitcrm learn pin|exclude|unmark ID      pin an example, never show it (the way to delete one), or clear that
-hermitcrm learn angles [--approach A]      the angle table: sends, intervals, the next experiment; no AI
 hermitcrm learn suggest                    list the word-limit and never-write suggestions
 hermitcrm learn apply SUGGESTION           apply one; see `hermitcrm help learning`
 ```

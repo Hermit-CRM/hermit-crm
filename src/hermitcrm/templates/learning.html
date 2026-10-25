@@ -157,21 +157,8 @@
     </li>
     {% endfor %}
   </ul>
-  {% else %}<p class="small empty">None yet. Corrections appear when you edit a draft and say why, or change it a lot; outcome examples, when a message you sent gets a positive reply, a deal or a win.</p>{% endif %}
+  {% else %}<p class="small empty">None yet. Corrections appear when you edit a draft and say why, or change it a lot; outcome examples appear when a message you sent gets a positive reply, a deal or a win. Exclude is how you delete one (a message that worked for a one-off reason).</p>{% endif %}
 
-  <h3>Angles</h3>
-  <p class="small quiet">A send counts as a hit when it reached: {{ angle_rung }}. {{ angle_sends }} first-touch send{{ 's' if angle_sends != 1 }} so far; angle sampling{% if sampling %} is <strong>on</strong> and acts from {{ angle_min }} sends{% else %} is off (the AI chooses the angle){% endif %}.</p>
-  {% if angle_rows %}
-  <table class="small">
-    <tr><th>Angle</th><th>Sends</th><th>Hits</th><th>Range (80%)</th><th></th></tr>
-    {% for r in angle_rows %}
-    <tr><td>{{ r.angle }}</td><td>{{ r.n }}</td><td>{{ r.hits }}</td>
-      <td>{{ (r.low * 100) | round | int }}% to {{ (r.high * 100) | round | int }}%</td>
-      <td>{{ 'wide, still exploring' if r.exploring else 'narrowing' }}</td></tr>
-    {% endfor %}
-  </table>
-  {% if angle_note %}<p class="small">Next experiment: {{ angle_note }}.</p>{% endif %}
-  {% else %}<p class="small empty">Fewer than two angles are in play.</p>{% endif %}
   {% endif %}
 </section>
 

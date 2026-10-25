@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """Learning by example (approach C): the exemplar index, retrieval, the prompt
-block, pins and exclusions, the angle bandit, and the draft that carries them.
+block, pins and exclusions, and the draft that carries them.
 The AI is a fake; every name is made up."""
 
 from __future__ import annotations
@@ -78,9 +78,6 @@ def test_the_settings_default_to_off_and_ignore_typos():
     assert exemplars.count({"learning_exemplar_count": 9}) == 3
     assert exemplars.count({"learning_exemplar_count": 0}) == 0
     assert exemplars.count({"learning_exemplar_count": "3"}) == 2     # not a number
-    assert exemplars.sampling_on({}) is False
-    assert exemplars.sampling_on({"learning_angle_sampling": True}) is True
-    assert exemplars.sampling_on({"learning_angle_sampling": "true"}) is False
 
 
 # ------------------------------------------------------------------- index
@@ -188,17 +185,17 @@ def test_hard_filters_keep_other_channels_languages_approaches_and_the_same_comp
     assert picked.pool == 1
 
 
-def test_the_persona_the_angle_and_the_findings_decide_relevance(folder):
+def test_the_persona_and_the_findings_decide_relevance(folder):
     root, store = folder
-    worked(root, store, 1, 0, angle="hook")
-    worked(root, store, 2, 1, angle="scale")
-    picked = exemplars.pick(store, query(angle="scale"), k=3)
-    assert picked.ids == ["outcome:t02", "outcome:t01"]       # the same angle wins
+    worked(root, store, 1, 0)
+    worked(root, store, 2, 1, findings=("Sponsors a chess league",))
+    picked = exemplars.pick(store, query(), k=3)
+    assert picked.ids == ["outcome:t01", "outcome:t02"]       # the shared findings win
     top, other = picked.choices
-    assert "same persona (founder)" in top.reason and "same angle (scale)" in top.reason
-    assert "same angle" not in other.reason and "findings overlap: " in other.reason
-    assert top.relevance == pytest.approx(other.relevance + exemplars.W_ANGLE, abs=1e-3)
-    unrelated = exemplars.pick(store, query(persona="", findings=["Sponsors a chess league"]))
+    assert "same persona (founder)" in top.reason and "findings overlap: " in top.reason
+    assert "findings overlap" not in other.reason and top.relevance > other.relevance
+    assert exemplars.W_PERSONA + exemplars.W_TEXT == pytest.approx(1.0)
+    unrelated = exemplars.pick(store, query(persona="", findings=["Grows tomatoes"]))
     assert "none close enough" in unrelated.why_none      # no persona, nothing in common
 
 
@@ -329,7 +326,7 @@ def test_with_the_setting_off_the_prompt_has_no_examples_and_is_unchanged(folder
     draft, fake = draft_for_target(store, {})
     prompt = fake.of("draft")[0]["prompt"]
     assert "examples from the seller" not in prompt and draft.exemplars_used == []
-    assert "Angle: one of " in prompt and draft.angle_note == ""
+    assert "angle" not in prompt.lower()
     again, fake2 = draft_for_target(store, {"learning_exemplars": "off"})
     assert fake2.of("draft")[0]["prompt"] == prompt
 
@@ -371,9 +368,7 @@ def test_a_failure_in_learning_never_stops_a_draft(folder, monkeypatch):
     def boom(*a, **k):
         raise RuntimeError("index broke")
     monkeypatch.setattr(exemplars, "for_draft", boom)
-    monkeypatch.setattr(exemplars, "sample_for_draft", boom)
-    draft, fake = draft_for_target(store, {"learning_exemplars": "both",
-                                           "learning_angle_sampling": True})
+    draft, fake = draft_for_target(store, {"learning_exemplars": "both"})
     assert draft.failed == "" and draft.exemplars_used == [] and draft.body
 
 
@@ -388,22 +383,17 @@ def test_the_item_records_the_examples_it_was_shown(folder):
         == ["outcome:a"]
 
 
-def test_apply_draft_sets_the_examples_and_one_angle_flag(folder):
+def test_apply_draft_sets_the_examples(folder):
     item = outreach.Item(id="x", state="researching", channel="email",
                          findings=[outreach.Finding("f", "https://a.example.com", "trigger",
                                                     "high")])
-    draft = outreach.Draft(subject="S", body="Hi,\nQ?\n", angle="scale",
-                           exemplars_used=["outcome:a"], angle_note="angle scale chosen: 1 of 4")
+    draft = outreach.Draft(subject="S", body="Hi,\nQ?\n", exemplars_used=["outcome:a"])
     when = outreach.datetime(2026, 10, 16, 9, 0)
     outreach._apply_draft(item, draft, False, when)
-    assert item.exemplars_used == ["outcome:a"]
-    assert item.flags == [f"{outreach.ANGLE_FLAG}angle scale chosen: 1 of 4"]
-    draft.angle_note = "angle hook chosen: exploring"
+    assert item.exemplars_used == ["outcome:a"] and item.flags == []
+    draft.exemplars_used = []
     outreach._apply_draft(item, draft, False, when)
-    assert item.flags == [f"{outreach.ANGLE_FLAG}angle hook chosen: exploring"]
-    draft.angle_note, draft.exemplars_used = "", []
-    outreach._apply_draft(item, draft, False, when)
-    assert item.flags == [] and item.exemplars_used == []
+    assert item.exemplars_used == []
 
 
 def test_migration_11_normalises_exemplars_used():
@@ -416,167 +406,6 @@ def test_migration_11_normalises_exemplars_used():
     assert "exemplars_used" not in migrations.m11_exemplars({"exemplars_used": ["junk"]})
     m = next(x for x in migrations.MIGRATIONS if x.version == 11)
     assert m.version == 11 and m.glob == "outreach/*.md" and m.apply is migrations.m11_exemplars
-
-
-# -------------------------------------------------------------- angle bandit
-
-
-def send(angle, hit, days=5, persona="founder", company="c1", kind="first-touch"):
-    rungs = {"sent": TODAY - timedelta(days=days)}
-    if hit:
-        rungs["positive"] = TODAY - timedelta(days=days - 1)
-    return learning.Signal(item_id=f"{angle}{days}{hit}{company}", approach=APPROACH,
-                           angle=angle, kind=kind, persona=persona, company=company,
-                           state="sent", rungs=rungs)
-
-
-ANGLES = ("scale", "unblock", "hook")
-
-
-def many(angle, n, hits, **kw):
-    return [send(angle, i < hits, company=f"c{i}", **kw) for i in range(n)]
-
-
-def test_the_table_learns_which_angle_gets_replies():
-    sigs = many("hook", 20, 8) + many("scale", 10, 1) + many("unblock", 2, 0)
-    rows = {r.angle: r for r in exemplars.angle_table(sigs, APPROACH, ANGLES, today=TODAY)}
-    assert (rows["hook"].n, rows["hook"].hits) == (20, 8)
-    assert rows["hook"].mean > rows["scale"].mean
-    assert rows["unblock"].exploring and "still exploring" in rows["unblock"].note
-    assert rows["hook"].low < rows["hook"].mean < rows["hook"].high
-    assert rows["unblock"].high - rows["unblock"].low > rows["hook"].high - rows["hook"].low
-
-
-def test_an_angle_without_sends_starts_from_the_approach_rate_and_the_playbook_order():
-    sigs = many("hook", 10, 5)
-    rows = exemplars.angle_table(sigs, APPROACH, ANGLES, today=TODAY)
-    by = {r.angle: r for r in rows}
-    assert by["scale"].n == 0 and by["unblock"].n == 0
-    assert by["scale"].mean > by["unblock"].mean         # first in the list is trusted a bit more
-    assert 0.0 < by["scale"].mean < 0.9
-    assert [r.angle for r in rows] == list(ANGLES)       # `custom` is never an arm
-    assert [r.angle for r in exemplars.angle_table(sigs, APPROACH, (*ANGLES, "custom"),
-                                                   today=TODAY)] == list(ANGLES)
-
-
-def test_old_sends_count_less_than_new_ones():
-    fresh = exemplars.angle_table(many("hook", 10, 10, days=5) + many("scale", 10, 0, days=5),
-                                  APPROACH, ("hook", "scale"), today=TODAY)
-    stale = exemplars.angle_table(many("hook", 10, 10, days=400) + many("scale", 10, 0, days=400),
-                                  APPROACH, ("hook", "scale"), today=TODAY)
-    assert fresh[0].mean > stale[0].mean > 0.5 - 0.3
-    assert fresh[1].mean < stale[1].mean                 # old failures fade toward the prior too
-
-
-def test_a_persona_with_enough_sends_uses_its_own_evidence():
-    sigs = (many("hook", 12, 0, persona="cto") + many("scale", 12, 6, persona="cto")
-            + many("hook", 12, 6, persona="founder") + many("scale", 12, 0, persona="founder"))
-    cto = {r.angle: r for r in exemplars.angle_table(sigs, APPROACH, ("hook", "scale"),
-                                                     persona="cto", today=TODAY)}
-    founder = {r.angle: r for r in exemplars.angle_table(sigs, APPROACH, ("hook", "scale"),
-                                                         persona="founder", today=TODAY)}
-    assert cto["scale"].mean > cto["hook"].mean
-    assert founder["hook"].mean > founder["scale"].mean
-    assert cto["scale"].n == 12
-
-
-def test_the_bandit_counts_deals_only_with_support():
-    sigs = many("hook", 40, 10)
-    assert exemplars.bandit_rung(sigs, {}, APPROACH) == "positive"
-    for s in sigs[:3]:
-        s.rungs["deal"] = TODAY
-    for s in sigs[3:12]:
-        s.rungs["replied"] = TODAY
-    deals = exemplars.bandit_rung(sigs, {"learning_phase_pin": 3}, APPROACH)
-    assert deals == "deal"                                  # 3 events from 3 companies
-    for s in sigs[:3]:
-        s.company = "same"
-    assert exemplars.bandit_rung(sigs, {"learning_phase_pin": 3}, APPROACH) == "positive"
-
-
-class StubRng:
-    def __init__(self, *draws):
-        self.draws = list(draws)
-
-    def betavariate(self, a, b):
-        return self.draws.pop(0)
-
-
-def test_thompson_sampling_picks_the_highest_draw_and_says_why():
-    rows = exemplars.angle_table(many("hook", 20, 8) + many("scale", 10, 1)
-                                 + many("unblock", 2, 0), APPROACH, ANGLES, today=TODAY)
-    explore = exemplars.choose_angle(rows, StubRng(0.1, 0.9, 0.2))
-    assert explore.angle == "unblock"
-    assert explore.reason == ("angle unblock chosen by the exploration policy: exploring: "
-                              "2 sends so far")
-    lead = exemplars.choose_angle(rows, StubRng(0.1, 0.2, 0.9))
-    assert lead.angle == "hook" and "8 of 20 sends reached positive" in lead.reason
-
-
-def test_the_bandit_mostly_picks_the_better_angle_but_not_always():
-    import random
-    rows = exemplars.angle_table(many("hook", 30, 15) + many("scale", 30, 3), APPROACH,
-                                 ("hook", "scale"), today=TODAY)
-    picks = [exemplars.choose_angle(rows, random.Random(i)).angle for i in range(300)]
-    assert picks.count("hook") > 270            # the better angle, nearly always
-    assert "scale" in picks                     # but the other one is still tried sometimes
-
-
-def test_next_experiment_names_the_least_tried_angle():
-    rows = exemplars.angle_table(many("hook", 20, 8) + many("scale", 10, 1)
-                                 + many("unblock", 2, 0), APPROACH, ANGLES, today=TODAY)
-    assert exemplars.next_experiment(rows).startswith("unblock has 2 sends so far")
-    assert exemplars.next_experiment(rows[:1]) == ""
-    steady = exemplars.angle_table(many("hook", 400, 200) + many("scale", 400, 40),
-                                   APPROACH, ("hook", "scale"), today=TODAY)
-    assert "mostly picks the leader" in exemplars.next_experiment(steady)
-
-
-def sends(root, store, n):
-    """n sent first touches, alternating two angles, a few with positive replies."""
-    for k in range(n):
-        item = make(root, k, k % len(CONTACTS), state="sent", days=40 - k % 20,
-                    angle="hook" if k % 2 else "scale")
-        if k % 5 == 0:
-            company, slug = CONTACTS[k % len(CONTACTS)]
-            answer(store, company, slug, item.sent + timedelta(days=1), "interested", f"r{k}")
-
-
-def pick_angle(prompt):
-    return {**default_draft(prompt),
-            "angle": re.search(r"^Angle: (\w+) \(", prompt, re.M).group(1)}
-
-
-def test_the_bandit_waits_for_thirty_sends_and_for_the_setting(folder):
-    root, store = folder
-    drafter, _, company, contact, approach, _ = drafter_and_inputs(store, {})
-    angles = ("scale", "hook", "custom")
-    config = {"learning_angle_sampling": True}
-    sends(root, store, 12)
-    assert exemplars.sample_for_draft(store, company, contact, approach, angles, config) is None
-    sends(root, store, 31)
-    assert exemplars.sample_for_draft(store, company, contact, approach, angles, {}) is None
-    chosen = exemplars.sample_for_draft(store, company, contact, approach, angles, config)
-    assert chosen.angle in ("scale", "hook") and "exploration policy" in chosen.reason
-    again = exemplars.sample_for_draft(store, company, contact, approach, angles, config)
-    assert again == chosen                                  # a preview matches the draft
-    only_one = exemplars.sample_for_draft(store, company, contact, approach, ("scale",), config)
-    assert only_one is None
-
-
-def test_a_sampled_angle_narrows_the_prompt_and_the_checks_to_it(folder):
-    root, store = folder
-    sends(root, store, 31)
-    config = {"learning_angle_sampling": True, "outreach_angles": ["scale", "hook", "custom"]}
-    draft, fake = draft_for_target(store, config, FakeAI(drafts=[pick_angle]))
-    prompt = fake.of("draft")[0]["prompt"]
-    assert "Angle: one of " not in prompt and "chosen by the exploration policy" in prompt
-    assert draft.angle in ("scale", "hook") and draft.problems == []
-    assert draft.angle_note.startswith(f"angle {draft.angle} chosen by the exploration policy")
-    off, fake_off = draft_for_target(store, {"outreach_angles": ["scale", "hook", "custom"]},
-                                     FakeAI(drafts=[default_draft]))
-    assert "Angle: one of scale, hook, custom" in fake_off.of("draft")[0]["prompt"]
-    assert off.angle_note == ""
 
 
 # --------------------------------------------------------------------- CLI
@@ -617,13 +446,3 @@ def test_pin_exclude_and_unmark_commands(folder):
     assert learn(store, root, "unmark", "outcome:t01")[0].startswith("outcome:t01: no mark")
     text, code = learn(store, root, "pin", "outcome:zzz")
     assert code == 1 and "no exemplar" in text
-
-
-def test_the_angles_command_shows_the_table_and_the_gate(folder):
-    root, store = folder
-    sends(root, store, 12)
-    text, code = learn(store, root, "angles")
-    assert code == 0
-    assert "First-touch sends: 12 (the bandit acts from 30)" in text
-    assert "Setting learning_angle_sampling = off" in text
-    assert "  scale: " in text and "  hook: " in text and "Next experiment: " in text

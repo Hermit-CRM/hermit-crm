@@ -367,12 +367,6 @@
           <option value="both"{% if learning_form.exemplars == 'both' %} selected{% endif %}>both (adds roughly 300 to 500 tokens to each first-touch draft)</option>
         </select>
       </label>
-      <label>Angle sampling
-        <select name="learning_angle_sampling">
-          <option value="off"{% if not learning_form.sampling %} selected{% endif %}>off: the AI chooses the angle</option>
-          <option value="on"{% if learning_form.sampling %} selected{% endif %}>on: tries the angles by what worked (from 30 sends)</option>
-        </select>
-      </label>
       <button type="submit">Save</button>
     </div>
   </form>

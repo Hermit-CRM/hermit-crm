@@ -213,7 +213,7 @@ def test_a_new_dashboard_in_a_new_folder(tools, folder):
     ("routines.toml", '[[routine]]\nname = "x"\naction = "brif"\n', "did you mean brief?"),
     ("theme.css", ":root { --acent: red; }\n", "did you mean --accent?"),
     ("layout.toml", '[company]\nsections = ["timelin"]\n', "layout.toml"),
-    ("messages.toml", '[languages.en]\nscale = "Hi {frist}"\n', "messages.toml"),
+    ("messages.toml", '[outreach.follow_up.en]\ntemplate = "Hi {frist}"\n', "messages.toml"),
 ])
 def test_invalid_content_leaves_the_file_and_makes_no_commit(tools, folder, path, content,
                                                              problem):

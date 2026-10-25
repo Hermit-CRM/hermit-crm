@@ -19,7 +19,7 @@
       {% if contact and contact.title %}<span class="small">{{ contact.title }}</span>{% endif %}
       <span class="tag">{{ card.label }}</span>
     </p>
-    <p class="small">{% if company %}<a href="/companies/{{ i.company }}">{{ company.name }}</a> &middot; {{ company.stage }}{% endif %}{% if i.angle %} &middot; angle {{ i.angle }}{% endif %}</p>
+    <p class="small">{% if company %}<a href="/companies/{{ i.company }}">{{ company.name }}</a> &middot; {{ company.stage }}{% endif %}</p>
     <pre class="outreach-text" id="li-text">{{ card.text }}</pre>
     <p class="small{% if card.length > card.limit %} warning{% endif %}">{{ card.length }} / {{ card.limit }} characters</p>
     <p class="small" id="li-wait" aria-live="polite"></p>
