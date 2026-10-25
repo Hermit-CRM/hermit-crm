@@ -202,7 +202,7 @@ def test_an_open_draft_turns_the_button_into_open_outreach_draft(client, root):
 def test_the_button_says_why_when_the_ai_cannot_run(client):
     no_ai(client)
     page = client.get(CONTACT_PAGE).text
-    assert re.search(r'<a class="button"[^>]*title="[^"]*not available', page)
+    assert re.search(r'<a class="button ai"[^>]*title="[^"]*not available', page)
 
 
 def test_the_panel_offers_every_signal(client):

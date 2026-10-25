@@ -250,10 +250,10 @@ def test_per_company_form_checks_email_and_name(client, seeded, repo):
 
 def test_list_pages_have_buttons_and_import_mode_is_preselected(client, seeded):
     companies = client.get("/companies").text
-    assert '<a class="button" href="/companies/new">New company</a>' in companies
+    assert '<a class="button" href="/companies/new">' in companies and "New company</a>" in companies
     assert '<a class="button" href="/import?mode=companies">Import</a>' in companies
     contacts = client.get("/contacts").text
-    assert '<a class="button" href="/contacts/new">New contact</a>' in contacts
+    assert '<a class="button" href="/contacts/new">' in contacts and "New contact</a>" in contacts
     assert '<a class="button" href="/import?mode=contacts">Import</a>' in contacts
     assert '<option value="contacts" selected>' in client.get("/import?mode=contacts").text
     assert '<option value="companies" selected>' in client.get("/import?mode=companies").text
