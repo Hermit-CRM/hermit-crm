@@ -496,3 +496,14 @@ details p { margin: 0 0 24px; }
   details::details-content { content-visibility: visible; display: block; }  /* build.py also opens them */
   summary::after { content: none; }
 }
+
+/* ── Footer link columns and the Outreach section ───────────────── */
+.footer-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 28px 40px; margin: 0 0 28px; }
+.footer-cols h2 { margin: 0 0 8px; font-size: 15px; font-weight: 700; color: var(--text); }
+.footer-cols ul { margin: 0; padding: 0; list-style: none; }
+.footer-cols li { margin: 0 0 4px; }
+.outreach h2.big { margin: 12px 0 0; font-size: 48px; font-weight: 400; line-height: 1.1; letter-spacing: -.01em; }
+.outreach .lead { margin-top: 24px; }
+.outreach .steps { margin-top: 28px; gap: 14px; }
+.outreach .safety { margin-top: 32px; }
+@media (max-width: 640px) { .outreach h2.big { font-size: 34px; line-height: 1.12; } }

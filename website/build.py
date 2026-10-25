@@ -323,6 +323,41 @@ def figure(root: str, image: str, alt: str, address: str) -> str:
             f'        </figure>')
 
 
+def outreach_section(c: dict) -> str:
+    """Outreach: what the bot does in four steps, and who stays in charge."""
+    o = c["outreach"]
+    steps = "\n".join(f"        <li><span>{md(x)}</span></li>" for x in o["steps"])
+    return f"""  <section class="outreach col" id="outreach" aria-labelledby="outreach-h">
+    <p class="label">{md(o["label"])}</p>
+    <h2 class="big" id="outreach-h">{md(o["heading"])}</h2>
+    <p class="lead">{md(o["promise"])}</p>
+    <ol class="steps">
+{steps}
+    </ol>
+    <p class="safety">{md(o["safety"])}</p>
+  </section>
+"""
+
+
+def footer_columns(hub: dict, pages: list[dict], *, features: str, docs: str, changelog: str,
+                   stats: str, compare: str, about: str) -> str:
+    """Link columns for the footer, the same on every page: the site, and one
+    link per comparison with the competitor's name in the link text (crawlers
+    and AI search read the anchor). Links end in a slash, like the rest."""
+    f = hub["footer"]
+    site = [(f["features"], features), (f["docs"], docs), (f["changelog"], changelog),
+            (f["stats"], stats), (f["about"], about)]
+    comp = [(f["all_comparisons"], compare)] + [
+        (f["versus"].replace("{name}", p["name"]), f"{compare}{p['slug']}/") for p in pages]
+
+    def column(title: str, links: list[tuple[str, str]]) -> str:
+        items = "".join(f'<li><a href="{attr(href)}">{md(text)}</a></li>' for text, href in links)
+        return f'<div><h2>{md(title)}</h2><ul>{items}</ul></div>'
+
+    return ('  <nav class="footer-cols" aria-label="Footer">'
+            + column(f["site_heading"], site) + column(f["compare_heading"], comp) + "</nav>\n")
+
+
 def render(c: dict, ld: str = "") -> str:
     p, h, i, f = c["page"], c["hero"], c["install"], c["file"]
     description = flat(p["description"] or h["subline"])
@@ -368,6 +403,10 @@ def render(c: dict, ld: str = "") -> str:
         footer_text = footer_text.replace("{github} · ", "").replace(" · {github}", "")
     footer = (md(footer_text.replace("{github}", "\x01").replace("{sha256}", "\x02"))
               .replace("\x01", github).replace("\x02", sha256))
+    hub, compare_pages = load_compare()
+    footer_nav = footer_columns(hub, compare_pages, features="features/", docs="docs/",
+                                changelog="changelog/", stats="stats/", compare="compare/",
+                                about="about/")
 
     return f"""<!doctype html>
 <html lang="en">
@@ -439,6 +478,9 @@ def render(c: dict, ld: str = "") -> str:
 {yours_section(c)}
   <hr class="rule blank">
 
+{outreach_section(c)}
+  <hr class="rule blank">
+
   <section class="features col" aria-labelledby="features">
     <h2 class="label" id="features">{md(c["features"]["label"])}</h2>
     <dl>
@@ -464,7 +506,9 @@ def render(c: dict, ld: str = "") -> str:
   </section>
 </main>
 
-<footer class="site-footer col">{footer}</footer>
+<footer class="site-footer col">
+{footer_nav}  <p>{footer}</p>
+</footer>
 
 <script>
 // Copy button: shown only when scripts run. "Copied" only when the copy
@@ -629,6 +673,9 @@ def page_foot(hub: dict, compare_link: str, about_link: str, docs_link: str, sta
             .replace("{about}", about_link).replace("{docs}", docs_link).replace("{stats}", stats_link)
             .replace("{changelog}", changelog_link).replace("{features}", features_link))
     return ('<footer class="site-footer col">\n'
+            + footer_columns(hub, load_compare()[1], features=features_link, docs=docs_link,
+                             changelog=changelog_link, stats=stats_link, compare=compare_link,
+                             about=about_link)
             + (f'  <p class="notice">{md(hub["notice"]["text"])}</p>\n' if notice else "")
             + f'  <p>{md(text)}</p>\n</footer>\n</body>\n</html>\n')
 

@@ -180,6 +180,21 @@ next_step_due: 2026-09-24
 
   <hr class="rule blank">
 
+  <section class="outreach col" id="outreach" aria-labelledby="outreach-h">
+    <p class="label">Outreach</p>
+    <h2 class="big" id="outreach-h">Hermit writes the first message. You decide what goes out.</h2>
+    <p class="lead">Choose who to contact. Hermit reads what their website says, drafts a short message in your own voice and in their language, and checks it against your rules. You read it, change it and approve it.</p>
+    <ol class="steps">
+        <li><span><strong>Choose who.</strong> A filter such as <code>stage=prospect; country=DE</code>, and how many drafts you want.</span></li>
+        <li><span><strong>Hermit researches.</strong> It reads the company’s website and shows what it found, with the source of each point.</span></li>
+        <li><span><strong>It drafts.</strong> In English, German, Dutch or French, following your playbook. Every draft shows the checks it passed.</span></li>
+        <li><span><strong>You approve.</strong> Edit it, approve it, then send it yourself or switch on sending from your own mailbox. Replies that show interest and threads nobody answered get drafts too.</span></li>
+    </ol>
+    <p class="safety"><strong>You stay in charge.</strong> Nothing is sent that you did not approve, and sending is off until you turn it on. Every step is saved as a version you can undo.</p>
+  </section>
+
+  <hr class="rule blank">
+
   <section class="features col" aria-labelledby="features">
     <h2 class="label" id="features">What you get</h2>
     <dl>
@@ -190,6 +205,7 @@ next_step_due: 2026-09-24
       <dt><a href="features/companies/">Companies</a></dt><dd>Sortable tables of companies, and one timeline per company of every email, call and meeting.</dd>
       <dt><a href="features/contacts/">Contacts</a></dt><dd>Every person across your companies, with a page of their own: roles, history, tasks and three message drafts.</dd>
       <dt><a href="features/messages/">Messages</a></dt><dd>Outreach drafts in English, German, Dutch or French, in your wording, and the outcome of every message.</dd>
+      <dt>Outreach</dt><dd>Researches a company’s website, drafts a first message or a follow-up in your wording, and waits for your approval.</dd>
       <dt><a href="features/extension/">Extension</a></dt><dd>Turn the page you are looking at into a company or a contact, from one bookmark.</dd>
       <dt><a href="features/reports/">Reports</a></dt><dd>Weekly activity, funnel and conversion, time in stage, and which messages get answers.</dd>
       <dt><a href="features/make-it-yours/">Make it yours</a></dt><dd>Pages of your own with lists, counts and bar charts. Describe one in a sentence, your AI builds it, and you pin it to the sidebar.</dd>
@@ -197,9 +213,9 @@ next_step_due: 2026-09-24
     </dl>
     <p class="all-features"><a href="features/">Every page, with a screenshot of each</a></p>
     <div class="principles">
-      <p><strong>Local.</strong> It runs on your computer. Your data is a folder of Markdown files in git, on your own disk.</p>
-      <p><strong>Your AI is the admin.</strong> Plain files, a small CLI and an MCP server, so the agent you already use can read your pipeline, log a call and change how Hermit works. Ask Hermit answers questions on every page.</p>
-      <p><strong>Yours to change.</strong> Press Adjust on any page and describe what you want: a dashboard, a field, a page layout, a routine. Your agent builds it, every change can be undone, and the code is open source.</p>
+      <p><strong>Your data stays with you.</strong> Hermit runs on your computer, not in the cloud. Your companies, contacts and notes are ordinary text files in a folder you own, so you can open, copy or back them up like any document. Technically: Markdown files in a git repository.</p>
+      <p><strong>Your AI does the admin.</strong> Use the assistant you already have. Ask what is in your pipeline this week, or to log a call with a contact, and it reads and updates your records for you. Ask Hermit answers questions on every page. For developers: plain files, a small command line tool and an MCP server.</p>
+      <p><strong>Yours to change.</strong> Press Adjust on any page and describe what you want: a dashboard, a field, a page layout, a routine. Your AI assistant builds it, every change can be undone, and the code is open source.</p>
     </div>
   </section>
 
@@ -208,7 +224,8 @@ next_step_due: 2026-09-24
   <section class="questions col" aria-labelledby="questions">
     <h2 class="label" id="questions">Questions</h2>
     <div>
-      <details open><summary>Where does my data live?</summary><p>In a folder on your Mac, <code>~/crm</code> unless you choose another. Every company, contact and conversation is a Markdown file, and every change is a git commit, so any mistake is one <code>git revert</code> away.</p></details>
+      <details open><summary>Where does my data live?</summary><p>In one folder on your computer, <code>~/crm</code> unless you choose another. Every company, contact and conversation is its own plain text file, and Hermit saves a version each time something changes, so any mistake can be undone. Technically: Markdown files in a git repository, and <code>git revert</code> goes back.</p></details>
+      <details><summary>What are Markdown and git?</summary><p>Markdown is a simple text format that any editor can open, so your records are never locked inside Hermit. Git is a free tool that remembers every version of your files. Hermit uses both so that you can read your data without Hermit and undo any change. You never have to type a git command yourself.</p></details>
       <details open><summary>Does anything leave my Mac?</summary><p>Only what you send. A private git backup, if you add one. The AI tool you ask, when you use Ask Hermit or enrichment. A once-a-day version check with no identifiers, which you can turn off.</p></details>
       <details><summary>Do I need to be a developer?</summary><p>No. Your AI tool runs the commands and tells you in plain words what it is doing. On a fresh Mac you click Install once in an Apple dialog.</p></details>
       <details><summary>Does it run on Linux?</summary><p>Yes, but it is less tested than on a Mac. The install is the same: your AI tool checks for git and Python and installs what is missing, which on Linux may ask for your password. There is no keychain on Linux, so the mail password is kept in a file only your user account can read.</p></details>
@@ -230,7 +247,10 @@ next_step_due: 2026-09-24
   </section>
 </main>
 
-<footer class="site-footer col">Hermit CRM · Apache License 2.0 · alpha, no warranty · <a href="https://github.com/Hermit-CRM/hermit-crm">GitHub</a> · <a href="download/hermitcrm-0.8.0.tar.gz.sha256">SHA-256</a> · <a href="features/">Features</a> · <a href="docs/">Docs</a> · <a href="changelog/">Changelog</a> · <a href="stats/">Stats</a> · <a href="compare/">Compare</a> · <a href="about/">About</a> · Built by <a href="https://www.linkedin.com/in/gijsbos">Gijs Bos</a></footer>
+<footer class="site-footer col">
+  <nav class="footer-cols" aria-label="Footer"><div><h2>Hermit CRM</h2><ul><li><a href="features/">Features</a></li><li><a href="docs/">Docs</a></li><li><a href="changelog/">Changelog</a></li><li><a href="stats/">Stats</a></li><li><a href="about/">About</a></li></ul></div><div><h2>Compare</h2><ul><li><a href="compare/">All comparisons</a></li><li><a href="compare/hubspot/">Hermit CRM vs HubSpot</a></li><li><a href="compare/attio/">Hermit CRM vs Attio</a></li><li><a href="compare/pipedrive/">Hermit CRM vs Pipedrive</a></li><li><a href="compare/folk/">Hermit CRM vs folk</a></li><li><a href="compare/twenty/">Hermit CRM vs Twenty</a></li><li><a href="compare/notion/">Hermit CRM vs Notion</a></li></ul></div></nav>
+  <p>Hermit CRM · Apache License 2.0 · alpha, no warranty · <a href="https://github.com/Hermit-CRM/hermit-crm">GitHub</a> · <a href="download/hermitcrm-0.8.0.tar.gz.sha256">SHA-256</a> · Built by <a href="https://www.linkedin.com/in/gijsbos">Gijs Bos</a></p>
+</footer>
 
 <script>
 // Copy button: shown only when scripts run. "Copied" only when the copy
