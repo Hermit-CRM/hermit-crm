@@ -437,6 +437,26 @@ def test_recent_changes_lists_the_right_commits(empty):
                              __import__("datetime").datetime(2026, 10, 3, 9)) == "1 Oct"
 
 
+def test_the_agent_choice_is_not_a_recent_change(empty):
+    app, client = make(empty)
+    settle(empty)
+    st.set_config_values(empty / "config.toml", {"adjust_agent": "codex"})
+    git(empty, "commit", "-qam", "settings: adjust_agent unset -> codex")
+    assert history.recent_changes(empty) == []
+    assert 'action="/yours/undo"' not in client.get("/yours").text
+    # a real config change still counts, alone or next to the agent choice
+    st.set_config_values(empty / "config.toml", {"silent_days": 30})
+    git(empty, "commit", "-qam", "settings: silent_days 14 -> 30")
+    st.set_config_values(empty / "config.toml", {"adjust_agent": "claude", "silent_days": 21})
+    git(empty, "commit", "-qam", "settings: adjust_agent codex -> claude; silent_days 30 -> 21")
+    st.set_config_values(empty / "config.toml", {"task_types": [{"name": "call", "colour": "blue"}]})
+    git(empty, "commit", "-qam", "ai: change task_types")
+    assert [c.subject for c in history.recent_changes(empty)] == [
+        "ai: change task_types",
+        "settings: adjust_agent codex -> claude; silent_days 30 -> 21",
+        "settings: silent_days 14 -> 30"]
+
+
 # --------------------------------------------------------------------- undo
 
 
