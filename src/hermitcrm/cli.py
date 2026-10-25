@@ -1839,7 +1839,7 @@ def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
                 return (f"Refused: {enricher.web_only_problem()}", 1)
             researcher = researcher or outreach.researcher_for(
                 level, enricher, today=store.today(),
-                timeout=float(config.get("fetch_timeout", 10)))
+                timeout=float(config.get("fetch_timeout", 10)), escalate=True)
             drafter = drafter or outreach.AIDrafter(store, enricher, config)
             critic = critic or outreach.AICritic(store, enricher)
         result = outreach.build(store, selection, researcher, drafter, config, critic=critic,

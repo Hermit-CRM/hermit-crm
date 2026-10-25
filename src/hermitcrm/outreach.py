@@ -473,13 +473,14 @@ class AiWebResearcher:
                                        timeout=timeout)
         self.enricher, self.fetcher, self.today = enricher, self.scrape.fetcher, self.scrape.today
 
-    def research(self, company, contact) -> Research:
+    def research(self, company, contact, base: Research | None = None) -> Research:
+        """`base` is a scrape result already in hand: it is extended, not redone."""
         from . import scrape
 
         problem = self.enricher.web_only_problem()
         if problem:
             raise OutreachError(problem)
-        out = self.scrape.research(company, contact)
+        out = base if base is not None else self.scrape.research(company, contact)
         out.level = self.level
         prompt = ai_web_prompt(company, contact, out, self.today)
         try:
@@ -509,6 +510,33 @@ class AiWebResearcher:
         out.findings += [f for f in found if all(f.text != g.text for g in out.findings)]
         out.sources += [u for u in trusted if u not in out.sources]
         return out
+
+
+class EscalatingResearcher:
+    """The `scrape` level with a safety net: when the free scrape finds nothing
+    usable (a company with no website, LinkedIn refusing), one `ai-web` pass runs
+    on the light model, building on what the scrape read. If ai-web is not
+    possible with this AI CLI, the scrape result stands and a note says why."""
+
+    level = "scrape"
+
+    def __init__(self, enricher, fetcher=None, today: date | None = None,
+                 timeout: float = 10):
+        self.scrape = ScrapeResearcher(enricher, fetcher=fetcher, today=today,
+                                       timeout=timeout)
+        self.web = AiWebResearcher(light(enricher), fetcher=self.scrape.fetcher,
+                                   today=self.scrape.today)
+
+    def research(self, company, contact) -> Research:
+        out = self.scrape.research(company, contact)
+        if any(f.usable and f.source != "crm" for f in out.findings):
+            return out
+        problem = self.web.enricher.web_only_problem()
+        if problem:
+            out.notes.append(f"no usable findings and ai-web is not available: {problem}")
+            return out
+        out.notes.append("scrape found nothing usable: ai-web research ran")
+        return self.web.research(company, contact, base=out)
 
 
 # ------------------------------------------------------------- culture, rules
@@ -2719,10 +2747,14 @@ def research_level(config: dict | None, override: str = "") -> str:
 
 
 def researcher_for(level: str, enricher, fetcher=None, today: date | None = None,
-                   timeout: float = 10):
+                   timeout: float = 10, escalate: bool = False):
     """The researcher for a level (`research_level` has checked it): the CLI and
-    the Outreach page both build theirs here."""
-    cls = AiWebResearcher if level == "ai-web" else ScrapeResearcher
+    the Outreach page both build theirs here. `escalate` lets a scrape-level
+    build fall back to one ai-web pass when the scrape finds nothing."""
+    if level == "ai-web":
+        cls = AiWebResearcher
+    else:
+        cls = EscalatingResearcher if escalate else ScrapeResearcher
     return cls(enricher, fetcher=fetcher, today=today, timeout=timeout)
 
 
@@ -2845,6 +2877,7 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
             except (EnrichError, OutreachError) as exc:
                 research = Research(level=item.research_level,
                                     notes=[f"research failed: {exc}"])
+            item.research_level = research.level   # what actually ran (scrape may escalate)
         item.proposals = research.proposals
         item.flags += [n for n in research.notes if n not in item.flags]
         item.researched = store.now() if now is None else now
