@@ -25,10 +25,10 @@ from outreach_client import MARA_EMAIL, client, drafted, root, fake  # noqa: F40
 CONTACT = "/companies/lindenhof-data/contacts/mara-keller"
 
 
-def test_outreach_card_has_a_copy_button_next_to_the_email(client, root):
+def test_outreach_card_keeps_the_mailto_link_without_a_copy_chip(client, root):
     drafted(client, root)
     page = client.get("/outreach").text
-    assert f'data-copy-text="{MARA_EMAIL}"' in page
+    assert f'data-copy-text="{MARA_EMAIL}"' not in page   # the address is selectable text
     assert f'href="mailto:{MARA_EMAIL}"' in page
 
 

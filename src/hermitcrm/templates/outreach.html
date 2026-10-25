@@ -413,10 +413,6 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="secondary" title="The state only: nothing is logged">Mark sent (no log)</button>
     </form>
-    <form method="post" action="/outreach/{{ i.id }}/unready" class="inline">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="secondary" title="Take the approval back: it returns to the draft tab to edit, regenerate or skip. Nothing is sent.">Back to draft</button>
-    </form>
     <button type="button" class="secondary" data-skip-toggle="{{ i.id }}" aria-controls="skip-{{ i.id }}" aria-expanded="false">Skip</button>
     {% endcall %}
   </div>
