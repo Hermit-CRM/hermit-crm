@@ -58,7 +58,7 @@ uses the strong model.
 
 A third, **light** tier is used only by the outreach bot's scrape research and
 critic, which read and score rather than write. For claude it is
-`claude-haiku-4-5` (Haiku). If you set `enrich_model` yourself, light follows it, so
+`claude-haiku-5-5` (Haiku). If you set `enrich_model` yourself, light follows it, so
 Hermit never swaps a model you named; set `enrich_model_light` in `config.toml` to
 choose one. For the other providers it is the medium model.
 
