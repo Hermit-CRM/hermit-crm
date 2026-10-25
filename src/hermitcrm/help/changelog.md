@@ -8,6 +8,11 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **The light model is now Haiku 5.5.** The outreach bot's scrape research and
+  critic (the cheaper "light" tier) run on `claude-haiku-5-5` for Claude instead of
+  `claude-haiku-4-5`. A model you named yourself still wins: `enrich_model` is
+  followed by light, and `enrich_model_light` overrides both, so pin
+  `claude-haiku-4-5` there to keep the old one. No data migration.
 - **Ask answers CRM-wide questions in one fast call, with links that work.**
   Hermit now builds a compact index of the CRM (a row per contact: link, stage
   and its role, last touch, last logged interaction, next open task, days since

@@ -205,8 +205,8 @@ def test_tiers_overrides_and_with_tier(monkeypatch):
 
 
 @pytest.mark.parametrize("kwargs, light", [
-    ({"provider": "claude"}, "claude-haiku-4-5"),
-    ({"provider": "claude", "model_light": "claude-haiku-5-5"}, "claude-haiku-5-5"),
+    ({"provider": "claude"}, "claude-haiku-5-5"),
+    ({"provider": "claude", "model_light": "claude-haiku-4-5"}, "claude-haiku-4-5"),
     # a medium model you named yourself is never swapped for another: light follows it
     ({"provider": "claude", "model": "claude-sonnet-5-5"}, "claude-sonnet-5-5"),
     ({"provider": "claude", "model": "claude-sonnet-5-5", "model_light": "claude-haiku-4-5"},
@@ -228,8 +228,13 @@ def test_the_light_tier_asks_the_cli_for_its_model(monkeypatch):
     e = Enricher(provider="claude", which=ALL)
     e.with_tier("light").runner("p", {})
     argv = run.seen["argv"]
-    assert argv[argv.index("--model") + 1] == "claude-haiku-4-5"
+    assert argv[argv.index("--model") + 1] == "claude-haiku-5-5"
     assert e.model == "claude-opus-5"        # the original keeps its tier
+
+
+def test_both_haiku_generations_are_labelled_haiku():
+    # 4-5 stays labelled for anyone who pinned it with enrich_model_light
+    assert model_label("claude-haiku-5-5") == "Haiku" and model_label("claude-haiku-4-5") == "Haiku"
 
 
 def test_the_web_app_reads_the_light_model_from_config():
