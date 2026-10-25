@@ -711,6 +711,39 @@ def _interaction_line(company, it) -> str:
     return f"{it.date:%Y-%m-%d} {it.label} ({who})" + (f": {what}" if what else "")
 
 
+INTERACTION_BUDGET = 4000   # characters of this contact's thread the brief may carry
+BODY_LIMIT = 600            # one interaction's body, cut here
+
+
+def _interaction_detail(company, it) -> str:
+    """One interaction with what was said: date, label, who, subject, then the
+    body (greeting line skipped, whitespace collapsed, cut at BODY_LIMIT)."""
+    who = company.contacts[it.contact].name if it.contact in company.contacts else "company"
+    lines = [line.strip() for line in (it.body or "").splitlines() if line.strip()]
+    if len(lines) > 1 and followups._is_greeting(lines[0]):
+        lines = lines[1:]
+    elif len(lines) == 1 and followups._is_greeting(lines[0]):
+        lines = []
+    body = " ".join(" ".join(lines).split())
+    if len(body) > BODY_LIMIT:
+        body = body[:BODY_LIMIT - 1].rstrip() + "…"
+    text = " | ".join(part for part in (it.subject, body) if part)
+    return f"{it.date:%Y-%m-%d} {it.label} ({who})" + (f": {text}" if text else "")
+
+
+def _thread(company, interactions) -> list[str]:
+    """Newest interactions that fit INTERACTION_BUDGET, rendered oldest first.
+    The newest is always kept; older ones are dropped first."""
+    kept, used = [], 0
+    for it in sorted(interactions, key=lambda i: (i.date, i.id), reverse=True):
+        line = _interaction_detail(company, it)
+        if kept and used + len(line) > INTERACTION_BUDGET:
+            break
+        kept.append(line)
+        used += len(line)
+    return kept[::-1]
+
+
 def make_brief(store: Store, company, contact, approach, research: Research,
                fit: int | None = None, messages: dict | None = None,
                flags: list[str] | None = None, notes_background: bool = False,
@@ -747,7 +780,8 @@ def make_brief(store: Store, company, contact, approach, research: Research,
     mine = [i for i in company.interactions if i.date and i.contact == contact.slug]
     others = [i for i in company.interactions if i.date and i.contact != contact.slug
               and i.is_touch]
-    brief.relationship = ([_interaction_line(company, i) for i in mine[:3]]
+    others.sort(key=lambda i: (i.date, i.id), reverse=True)   # the store's order is not a contract
+    brief.relationship = (_thread(company, mine)
                           + [_interaction_line(company, i) for i in others[:2]])
     brief.fit = f"fit score {fit}" if fit is not None else "no fit score"
     if approach is not None:
