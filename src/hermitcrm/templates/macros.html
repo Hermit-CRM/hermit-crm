@@ -517,3 +517,7 @@
   <button type="submit" class="primary">{{ 'Restart now' if up.kind == 'restart' else 'Upgrade to v' ~ up.version }}</button>
 </form>
 {%- endmacro %}
+
+{# A closed overflow for the rare actions of a card or row: a plain <details>, so it
+   works without a script. Use as {% call more() %}<forms and buttons>{% endcall %}. #}
+{% macro more(label='More') %}<details class="row-more"><summary>{{ label }}</summary><div class="draft-actions">{{ caller() }}</div></details>{% endmacro %}

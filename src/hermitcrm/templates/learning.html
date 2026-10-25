@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import more as row_more %}
 {# The Learning page (spec 2026-10-18-learning-approaches, hermitcrm/learning.py).
    Nothing changes the playbook until you accept: proposals, suggestions and
    lessons are all yours to decide. #}
@@ -104,8 +105,7 @@
       {% if sc.flag %}<p class="small warning">{{ sc.flag }}</p>{% endif %}
       {% if sc.promotion %}<p class="small"><em>{{ sc.promotion }}</em></p>{% endif %}
       {% if r.links %}<p class="small">Drafts: {{ links(r.links) }}</p>{% endif %}
-      <div class="draft-actions">
-        {% if can_move %}{% for key, title in parts if key != r.lesson.part %}
+      {% macro move_form(r, key, title) %}
         <form method="post" action="/learning/move" class="inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="approach" value="{{ approach }}">
@@ -113,13 +113,17 @@
           <input type="hidden" name="part" value="{{ key }}">
           <button type="submit" class="secondary">{% if key == 'worked' %}Promote to Worked{% elif key == 'failed' %}Demote to Didn't work{% else %}Move to {{ title }}{% endif %}</button>
         </form>
-        {% endfor %}{% endif %}
+      {% endmacro %}
+      {# Only the move the score suggests is out in the open; the others sit in More. #}
+      <div class="draft-actions">
+        {% if can_move and sc.promotion %}{% for key, title in parts if key == 'worked' and key != r.lesson.part %}{{ move_form(r, key, title) }}{% endfor %}{% endif %}
         <form method="post" action="/learning/retire" class="inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="approach" value="{{ approach }}">
           <input type="hidden" name="lesson" value="{{ r.lesson.id }}">
           <button type="submit" class="secondary">Retire</button>
         </form>
+        {% if can_move %}{% call row_more() %}{% for key, title in parts if key != r.lesson.part and not (sc.promotion and key == 'worked') %}{{ move_form(r, key, title) }}{% endfor %}{% endcall %}{% endif %}
       </div>
     </li>
     {% endfor %}
@@ -141,9 +145,9 @@
     {% for row in examples %}{% set e = row.e %}
     <li id="example-{{ e.id }}">
       <p><strong>{{ 'Worked' if e.kind == 'outcome' else 'Corrected' }}</strong>: {{ e.label }}{% if row.links %} &middot; <a href="{{ row.links[0].url }}">{{ row.links[0].label }}</a>{% endif %}{% if e.mark == 'pin' %} <span class="tag">pinned</span>{% elif e.mark == 'exclude' %} <span class="tag">excluded</span>{% endif %}</p>
-      <details class="small"><summary>What the drafter would see</summary>
-        <pre class="small">{{ e.shown }}</pre></details>
-      <div class="draft-actions">
+      <details class="small"><summary>What the drafter would see, pin or exclude</summary>
+        <pre class="small">{{ e.shown }}</pre>
+        <div class="draft-actions">
         {% for mark, label, why in (('pin', 'Pin', 'Always show it to the drafter'), ('exclude', 'Exclude', 'Never show it: this is how you delete one, e.g. a message that worked for a one-off reason'), ('clear', 'Clear', 'Back to automatic')) if (mark == 'clear' and e.mark) or (mark != 'clear' and e.mark != mark) %}
         <form method="post" action="/learning/exemplar" class="inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -153,7 +157,7 @@
           <button type="submit" class="secondary" title="{{ why }}">{{ label }}</button>
         </form>
         {% endfor %}
-      </div>
+        </div></details>
     </li>
     {% endfor %}
   </ul>
