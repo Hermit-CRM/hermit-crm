@@ -8,6 +8,11 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Ask runs on Sonnet and shows it is working.** Ask the Hermit now answers on
+  Sonnet for Claude (the other providers' mid-size models already were the
+  default), unless you set `enrich_model` or `ai_tier = "strong"`. The Ask button,
+  and "Retry" and "Search the whole CRM instead", now show a spinner and the
+  seconds waited while the answer is on its way. No data migration.
 - **A cheaper outreach.** Generating an outreach is three AI calls (research, draft,
   critic). The research and the critic only read and score, so they now run on a
   light model (Claude: Haiku) instead of Opus; the draft stays on the medium

@@ -3809,13 +3809,19 @@ def create_app(root: Path, config: dict | None = None,
             return ""
         return b"".join(chunks).decode("utf-8", "replace")
 
+    def ask_tier(tier: str) -> str:
+        """Ask the Hermit answers on its own mid-size model unless ai_tier says strong."""
+        return "ask" if tier == "medium" else tier
+
     def ask_page_view(request: Request, page: str, status_code: int = 200, **extra):
         enricher = app.state.enricher
         ctx = {"ask_page": page, "question": "", "answer": None, "error": "", "tried": "",
                "ai": {"available": enricher.available, "provider": enricher.provider_name,
                       "reason": "" if enricher.available else enricher.unavailable_reason(),
                       "medium": enricher.model_for("medium"),
-                      "strong": enricher.model_for("strong"), "tier": enricher.tier}}
+                      "ask": enricher.model_for("ask"),
+                      "strong": enricher.model_for("strong"),
+                      "tier": ask_tier(enricher.tier)}}
         ctx.update(extra)
         return render(request, "ask.html", ctx, status_code=status_code)
 
@@ -3830,7 +3836,7 @@ def create_app(root: Path, config: dict | None = None,
         check_csrf(csrf_token)
         page = safe_page(page)
         enricher = app.state.enricher.with_tier(tier) if tier else app.state.enricher
-        enricher = enricher.with_tier(enricher.tier)  # a copy: the timeout changes below
+        enricher = enricher.with_tier(ask_tier(enricher.tier))  # a copy: the timeout changes below
         html = await page_html(page)
         try:
             answer = await run_in_threadpool(

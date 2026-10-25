@@ -140,6 +140,7 @@ def test_ask_route_uses_the_rendered_page_then_offers_retry(app_client):
     assert r.status_code == 200
     assert "<strong>fine</strong>" in r.text and "Answered from this page" in r.text
     assert "Retry with Fable" in r.text and "Search the whole CRM instead" in r.text
+    assert "Sonnet" in r.text and 'data-busy="Asking' in r.text   # Ask's own model, and a spinner
     name = app.state.store.companies[slug].name
     assert name in runner.calls[0]["prompt"]
 

@@ -23,7 +23,7 @@
       <input type="hidden" name="question" value="{{ answer.question }}">
       <input type="hidden" name="scope" value="{{ 'crm' if answer.scope == 'crm' else 'auto' }}">
       <input type="hidden" name="tier" value="strong">
-      <button type="submit">Retry with {{ model_label(ai.strong) }}</button>
+      <button type="submit" data-busy="Retrying&hellip;">Retry with {{ model_label(ai.strong) }}</button>
     </form>
     {% endif %}
     {% if answer.scope == 'page' %}
@@ -33,7 +33,7 @@
       <input type="hidden" name="question" value="{{ answer.question }}">
       <input type="hidden" name="scope" value="crm">
       <input type="hidden" name="tier" value="{{ answer.tier }}">
-      <button type="submit">Search the whole CRM instead</button>
+      <button type="submit" data-busy="Searching&hellip;">Search the whole CRM instead</button>
     </form>
     {% endif %}
   </div>
@@ -47,7 +47,7 @@
     <textarea name="question" rows="3" required>{% if error %}{{ question }}{% endif %}</textarea>
   </label>
   <label class="check"><input type="checkbox" name="scope" value="crm"> Skip the page, search the whole CRM</label>
-  <button type="submit">Ask</button>
+  <button type="submit" data-busy="Asking&hellip;">Ask</button>
   {% if error and question and ai.strong %}
   <button type="submit" name="tier" value="strong">Ask with {{ model_label(ai.strong) }}</button>
   {% endif %}
