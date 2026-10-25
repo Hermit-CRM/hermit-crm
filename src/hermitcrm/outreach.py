@@ -630,7 +630,7 @@ def about_for_item(root, item: Item) -> tuple[int, int] | None:
 def about_line(counts: tuple[int, int]) -> str:
     you, them = counts
     return (f"About you {you}, about them {them}"
-            + (": more about you than about them" if you > them else ""))
+            + (": more about you" if you > them else ""))
 
 
 # ------------------------------------------------------------------ the brief
