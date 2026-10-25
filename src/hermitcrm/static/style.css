@@ -225,7 +225,7 @@ textarea { font-family: var(--mono); font-size: 13px; }
 .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
 @media (min-width: 1000px) { form.record-form .row, form.interaction-form .row { flex-wrap: nowrap; } }
 form.record-form .row > label.grow, form.interaction-form .row > label.grow { min-width: 0; }
-.row > label { flex: 0 0 auto; }
+.row > label { flex: 0 0 auto; max-width: 100%; }   /* a select with a long option cannot make its row wider than the screen */
 .row > label.grow { flex: 1 1 220px; }
 /* The company form: groups of fields on a 12-column grid instead of long rows.
    A field says how many columns it takes (span-N); on a phone every field takes
