@@ -8,6 +8,13 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Shorter page intros.** The line under the title on Calendar, Tasks, Messages,
+  Outreach, Learning, Extension and Reports is now one short sentence. What a
+  first-time reader needs once (what a next step is, how an outcome is set, how
+  conversion is counted) sits behind a **?** you can hover, tab to or tap; the rest
+  moved onto the button or column it describes, or stayed in Help. The send strip
+  reads *Mon–Fri 08:30–17:30* instead of listing every day. Nothing was removed
+  from Help.
 - **Better first drafts, for every message.** A draft now says its proof in the
   language of the message: a German email states the proof in German, while the
   card's "Proof cited" keeps the playbook's own line, so the check still finds

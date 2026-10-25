@@ -47,6 +47,15 @@
 </span>
 {%- endmacro %}
 
+{# A "?" that explains on hover, focus or tap: the detail a page needs once, so the
+   line next to it can stay short. `id` is unique on the page (the "?" is described
+   by it); `label` names the "?" for a screen reader. The text is the call block:
+   {% call hint('some-id', 'What this means') %}Text, links and <b>bold</b>.{% endcall %}
+   Keep it out of a .table-scroll, which would clip the tip. #}
+{% macro hint(id, label='More detail') %}
+<span class="help hint" tabindex="0" role="button" aria-label="{{ label }}" aria-describedby="{{ id }}"><span class="help-dot" aria-hidden="true">?</span><span class="tip" role="tooltip" id="{{ id }}">{{ caller() }}</span></span>
+{%- endmacro %}
+
 {% macro filter_form(form_id, action, active, q=None, sort='', dir='asc') %}
 <form method="get" action="{{ action }}" id="{{ form_id }}" class="filter-form">
   {% if q is not none %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
@@ -401,7 +410,9 @@
 {% set first = company.next_todo() %}
 <section id="tasks">
   <h2>Tasks</h2>
-  <p class="small">For the company and its people. The <strong>next step</strong> is the open task due first; change a due date to change what is next. <a href="/tasks?f_company_name={{ ('=' ~ company.name) | urlencode }}">This company on the Tasks page</a>.</p>
+  <p class="small">For the company and its people.
+    {%- call hint('company-next-step-help', 'What the next step is') %} The <b>next step</b> is the open task due first. Change a due date to change what is next.{% endcall %}
+    <a href="/tasks?f_company_name={{ ('=' ~ company.name) | urlencode }}">This company on the Tasks page</a></p>
   <div class="table-scroll"><table class="tasks">
     <tr><th>task</th>{% if type_names() %}<th>type</th>{% endif %}<th>for</th><th>due</th><th>status</th><th></th></tr>
     {% for t in company.open_todos() + (company.todos() | selectattr('done') | list) %}
