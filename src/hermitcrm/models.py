@@ -140,27 +140,6 @@ class Channel(str, Enum):
     NOTE = "note"  # a memo about a person: no direction, never a touch
 
 
-class Angle(str, Enum):
-    """The angle a message was written from: the messaging.py draft keys plus
-    `custom` (your own). Empty is "not known". The outreach bot's drafts carry
-    the same values, so its messages and yours compare on the Messages tab."""
-    SCALE = "scale"
-    UNBLOCK = "unblock"
-    HOOK = "hook"
-    BRIDGE = "bridge"
-    DECLINE = "decline"
-    CUSTOM = "custom"
-
-
-ANGLES = tuple(a.value for a in Angle)
-
-
-def normalise_angle(value) -> str:
-    """A hand-written angle as stored: trimmed and lower case. A value outside
-    ANGLES is kept as written (the Store refuses one on a new write)."""
-    return str(value or "").strip().lower() if not isinstance(value, Angle) else value.value
-
-
 def normalise_framework(value) -> str:
     """A framework id as stored: trimmed and lower case. Whether it names a
     framework in the library is not decided here; the Store checks only that it
@@ -413,7 +392,6 @@ class Interaction:
     direction: str = ""
     contact: str = ""
     subject: str = ""
-    angle: str = ""     # one of ANGLES, or "" (not known)
     framework: str = ""  # the id of the outreach framework it was built with, or ""
     approach: str = ""  # the playbook approach the message was for, or ""
     outcome: str = ""  # one of config outcomes, or "" (not yet known)
@@ -982,8 +960,6 @@ def interaction_to_frontmatter(i: Interaction) -> dict:
         "subject": i.subject,
     }
     # Omitted when empty, so a file written before they existed stays the same.
-    if i.angle:
-        meta["angle"] = i.angle
     if i.framework:
         meta["framework"] = i.framework
     if i.approach:
@@ -1009,7 +985,7 @@ CONTACT_KEYS = frozenset({
     "role", "language", "tasks", "created", "updated",
 })
 INTERACTION_KEYS = frozenset({
-    "date", "channel", "direction", "contact", "subject", "angle", "framework", "approach",
+    "date", "channel", "direction", "contact", "subject", "framework", "approach",
     "outcome", "source", "message_id",
 })
 
@@ -1194,7 +1170,6 @@ def interaction_from_dict(meta: dict, body: str, id: str) -> Interaction:
                    else _enum(_str(meta, "direction"), Direction, "direction", False, errors)),
         contact=_str(meta, "contact").strip(),
         subject=_str(meta, "subject").strip(),
-        angle=normalise_angle(_str(meta, "angle")),
         framework=normalise_framework(_str(meta, "framework")),
         approach=_str(meta, "approach").strip(),
         outcome=_str(meta, "outcome").strip(),

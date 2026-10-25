@@ -287,8 +287,7 @@ def test_mark_sent_changes_only_the_state(client, root):
 def test_regenerate_keeps_the_findings_and_replaces_the_ai_text(client, root, fake):
     item = drafted(client, root)
     fake.drafts = [lambda prompt: {
-        "subject": "Another subject", "angle": "scale",
-        "body": "Hi Mara,\n\nYour second office stood out.\nWhere does it hurt most?"
+        "subject": "Another subject", "body": "Hi Mara,\n\nYour second office stood out.\nWhere does it hurt most?"
                 "\n\nSam", "pitch": "", "findings_used": [2], "proof_used": []}]
     research_calls = len(fake.of("research"))
     before = len(commits(root))
@@ -296,7 +295,7 @@ def test_regenerate_keeps_the_findings_and_replaces_the_ai_text(client, root, fa
     again = outreach.get_item(root, item.id)
     assert len(fake.of("research")) == research_calls      # no new research
     assert again.subject == again.ai_subject == "Another subject"
-    assert again.angle == "scale" and again.state == "drafted"
+    assert again.state == "drafted"
     assert [f.text for f in again.findings] == [f.text for f in item.findings]
     assert len(commits(root)) == before + 1
     assert commits(root)[0].startswith(f"outreach: regenerate {MARA}")
@@ -307,8 +306,7 @@ def test_a_note_of_your_own_is_used_by_a_regenerate(client, root, fake):
     post(client, f"/outreach/{item.id}/note", add="  Hiring a  second AE ")
     assert commits(root)[0].startswith("interaction: lindenhof-data note")
     fake.drafts = [lambda prompt: {
-        "subject": "Your second AE", "angle": "hook",
-        "body": "Hi Mara,\n\nHiring a second AE is a big step.\nWho will coach them?"
+        "subject": "Your second AE", "body": "Hi Mara,\n\nHiring a second AE is a big step.\nWho will coach them?"
                 "\n\nSam", "pitch": "", "findings_used": [1], "proof_used": []}]
     post(client, f"/outreach/{item.id}/regenerate")
     again = outreach.get_item(root, item.id)

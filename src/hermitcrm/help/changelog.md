@@ -8,6 +8,12 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Angle retired (2026-10-25).** The angle label is gone from interactions,
+  outreach items, the Learning page, settings (`learning_angle_sampling` and
+  `outreach_angles`), the CLI (`hermitcrm learn angles` is removed) and the
+  exports, with no replacement. A message is described by its framework, its
+  approach and the findings it used. Data format 17 and 18 migrate your folder by
+  themselves and drop the old `angle` key from outreach items and interactions.
 - **Better first drafts, for every message.** A draft now says its proof in the
   language of the message: a German email states the proof in German, while the
   card's "Proof cited" keeps the playbook's own line, so the check still finds

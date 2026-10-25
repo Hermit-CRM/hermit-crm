@@ -163,7 +163,7 @@ select = "records"
 scope = "companies"
 filters = { stage = "prospect", my_score = ">7", last_touch = "-" }
 limit = 3
-prompt = "Draft a short first message using the playbook's hook angle."
+prompt = "Draft a short first message using the framework the playbook sets for this approach."
 ```
 
 ## Steps for the agent

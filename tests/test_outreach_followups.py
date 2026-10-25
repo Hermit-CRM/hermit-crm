@@ -14,7 +14,7 @@
 
 """Outreach, part 05a: follow-ups. Who is due (the radar's rule), who is left
 out and why, the draft (no research, the earlier message as data, the first
-message's angle), the hard checks and the Follow-ups tab. The AI and the web
+message), the hard checks and the Follow-ups tab. The AI and the web
 are fakes; all names are made up."""
 
 from __future__ import annotations
@@ -74,12 +74,12 @@ def commits(root) -> list[str]:
     return git(root, "log", "--format=%s").splitlines()
 
 
-def send(store, days=6, channel="email", subject="Your second office", angle="hook",
+def send(store, days=6, channel="email", subject="Your second office",
          company="lindenhof-data", contact="mara-keller", body="Hi Mara,\n\nA first message.\n\nSam\n"):
     """An outbound message `days` before the demo's today, with nothing back."""
     return store.create_interaction(company, channel, "out", subject=subject,
                                     contact=contact, date=NOW - timedelta(days=days),
-                                    body=body, angle=angle)
+                                    body=body)
 
 
 def mara_due(store, **kw) -> list:
@@ -196,15 +196,14 @@ def build_followup(client, **extra):
                 **extra)
 
 
-def test_the_draft_has_no_research_the_first_angle_and_the_message_as_data(client, root, fake):
-    sent = send(client.app.state.store, days=6, angle="unblock")
+def test_the_draft_has_no_research_and_the_message_as_data(client, root, fake):
+    sent = send(client.app.state.store, days=6)
     before = commits(root)
     response = build_followup(client)
     assert response.status_code == 303 and "Not built" not in query(response).get("flash", "")
     [item] = outreach.items(root)
     assert item.kind == FOLLOW and item.follows == sent.id and item.reply_to == ""
     assert item.research_level == "" and item.findings == []
-    assert item.angle == "unblock"           # the angle that opened the thread, not the AI's
     assert item.state == "drafted" and item.checks == []
     assert fake.of("research") == [] and len(fake.of("draft")) == 1
     prompt = fake.of("draft")[0]["prompt"]
@@ -216,13 +215,13 @@ def test_the_draft_has_no_research_the_first_angle_and_the_message_as_data(clien
     assert "follow-up" in commits(root)[1]
 
 
-def test_a_regenerate_keeps_the_earlier_message_and_the_angle(client, root, fake):
-    send(client.app.state.store, days=6, angle="bridge")
+def test_a_regenerate_keeps_the_earlier_message(client, root, fake):
+    send(client.app.state.store, days=6)
     build_followup(client)
     [item] = outreach.items(root)
     post(client, f"/outreach/{item.id}/regenerate")
     again = outreach.get_item(root, item.id)
-    assert again.state == "drafted" and again.angle == "bridge" and again.follows == item.follows
+    assert again.state == "drafted" and again.follows == item.follows
     assert len(fake.of("draft")) == 2 and fake.of("research") == []
 
 

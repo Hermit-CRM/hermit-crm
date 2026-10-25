@@ -205,7 +205,7 @@ def test_reports_show_the_style_profile_and_outreach_quality(folder):
     root, store = folder
     shortened_batch(root)
     for n in range(6):
-        make(root, 10 + n, n, state="sent", days=9, angle="scale")
+        make(root, 10 + n, n, state="sent", days=9)
     client = make_client(root)
     page = client.get("/reports")
     assert page.status_code == 200
@@ -216,7 +216,7 @@ def test_reports_show_the_style_profile_and_outreach_quality(folder):
     assert link
     rows = client.get(html.unescape(link.group(1)))
     assert rows.status_code == 200 and "Lindenhof" in rows.text
-    quality = re.search(r'href="(/reports/rows\?key=learning\.rate(?::|%3A)angle[^"]*)"', page.text)
+    quality = re.search(r'href="(/reports/rows\?key=learning\.rate(?::|%3A)persona[^"]*)"', page.text)
     assert quality and client.get(html.unescape(quality.group(1))).status_code == 200
 
 
