@@ -596,6 +596,9 @@ def test_ask_adjust_on_every_page(demo):
     assert panel.count('class="starter"') == 4 and 'href="/yours"' in panel
     assert "Nothing opened? Run <code>claude</code> once in a terminal, then try again." in panel
     assert '<script src="/static/adjust.js' in page
+    # Home names itself "Home" to the agent, not the app
+    home = client.get("/").text.split('id="adjust-form"')[1].split("</details>")[0]
+    assert 'data-page-title="Home"' in home and 'data-path="/"' in home
     # the flash is not part of the page the agent hears about
     page = client.get("/companies?flash=Saved&f_stage=prospect").text
     assert 'data-path="/companies?f_stage=prospect"' in page
