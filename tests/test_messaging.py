@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Deterministic outreach drafts: three angles, right language, no AI, TOML-driven."""
+"""The wording and languages of the outreach bot: TOML-driven, the right language, no AI."""
 
 from hermitcrm import messaging
-from hermitcrm.messaging import deep_merge, drafts, load_messages, next_hurdle
+from hermitcrm.messaging import deep_merge, load_messages, next_hurdle
 from hermitcrm.models import Company, Contact, language_for
 
 
@@ -62,46 +62,6 @@ def test_default_languages_and_labels_come_from_toml():
         assert set(lang["growth"]) == {"growing", "stalled", "declining", ""}
 
 
-def test_three_distinct_drafts_in_german_with_signal():
-    jo = Contact(first_name="Johannes", last_name="W", slug="jw")
-    out = drafts(company(), jo, signal="stalled", observation="", owner_name="Sam Owner")
-    assert [d.key for d in out] == ["scale", "unblock", "hook"]
-    assert all(d.language == "de" and d.body.startswith("Hallo Johannes,") for d in out)
-    assert len({d.body for d in out}) == 3
-    assert "Wachstum scheint etwas zu stocken" in out[0].body
-    assert "20-Mitarbeiter-Marke" in out[1].body and "~12 Leute" in out[1].body
-    assert "[Was dir auf acme.example.com aufgefallen ist" in out[2].body
-    assert "schon 2 Leute im Vertrieb" in out[2].body
-    assert all(d.body.endswith("\n\nSam\n") for d in out)
-
-
-def test_hiring_signal_swaps_scale_for_bridge_and_observation_is_used():
-    out = drafts(company(country="SE", ae_count=None), Contact("Johan", "B", "jb"),
-                 signal="hiring", observation="Loved the declarative approach.")
-    assert [d.key for d in out] == ["bridge", "unblock", "hook"]
-    assert "Acme is hiring for [the role]" in out[0].body
-    assert out[2].body.splitlines()[1] == "Loved the declarative approach."
-    assert "[One thing you noticed about the team.]" in out[2].body
-    assert out[0].body.endswith("[your name]\n")
-
-
-def test_messages_without_decline_fall_back_to_scale():
-    messages = messaging.default_messages()
-    for t in messages["languages"].values():
-        del t["decline"]
-    out = drafts(company(country="NL"), None, signal="declining", messages=messages)
-    assert [d.key for d in out] == ["scale", "unblock", "hook"]
-
-
-def test_unknown_signal_and_missing_data_leave_brackets():
-    out = drafts(company(country="NL", fte_estimate="", ae_count=None), None, signal="nope")
-    assert out[0].body.startswith("Hoi [first name],")
-    assert "[groeit hard / is ver gekomen]" in out[0].body
-    assert "[N]" in out[1].body
-    fr = drafts(company(country="FR"), Contact("Marie", "D", "md"))
-    assert fr[0].body.startswith("Bonjour Marie,") and fr[0].language == "fr"
-
-
 def test_deep_merge_keeps_untouched_keys():
     base = {"a": {"b": 1, "c": {"d": 2, "e": 3}}, "f": 4}
     assert deep_merge(base, {"a": {"c": {"d": 9}}, "g": 5}) == \
@@ -111,18 +71,14 @@ def test_deep_merge_keeps_untouched_keys():
 
 def test_messages_toml_in_data_folder_is_merged_over_defaults(tmp_path):
     (tmp_path / "messages.toml").write_text(
-        '[labels]\nhook = "3. my hook"\n\n'
         '[languages.en]\nsignoff = "Cheers,\\n{owner_first_name}"\n\n'
         '[languages.en.team]\nunknown = "Small team, big plans."\n\n'
         '[languages.xx]\nname = "Pirate"\n', encoding="utf-8")
     messages = load_messages(tmp_path)
     assert messages["languages"]["en"]["greeting"] == "Hi {first},"  # default kept
     assert messaging.language_names(messages)["xx"] == "Pirate"
-    out = drafts(company(country="SE", ae_count=None), Contact("Ann", "B", "ab"),
-                 messages=messages, owner_name="Robin Roe")
-    assert out[2].label == "3. my hook" and out[0].label.startswith("1. scale")
-    assert "Small team, big plans." in out[2].body
-    assert out[0].body.endswith("Cheers,\nRobin\n")
+    assert messages["languages"]["en"]["signoff"] == "Cheers,\n{owner_first_name}"
+    assert messages["languages"]["en"]["team"]["unknown"] == "Small team, big plans."
     assert load_messages(tmp_path / "missing")["languages"]["en"]["signoff"] == \
         "{owner_first_name}"
 
@@ -171,26 +127,12 @@ def test_belgian_language_signals():
 
 def test_belgian_drafts_use_the_inferred_language():
     c = company(country="BE", website="https://acme.be/fr/")
-    fr = drafts(c, messages=load_messages())
-    en = drafts(company(country="BE"), messages=load_messages())
-    assert fr[0].body != en[0].body
+    assert messaging.draft_language(c) == "fr"
+    assert messaging.draft_language(company(country="BE")) == "en"
 
 
-def test_declining_signal_has_its_own_growth_sentence():
-    out = drafts(company(country="NL"), None, signal="declining")
-    assert "het team is de laatste tijd kleiner geworden" in out[0].body
-    assert [d.key for d in out] == ["decline", "unblock", "hook"]
-    assert "[jouw aanbod]" in out[0].body
+def test_signal_labels_come_from_the_toml():
     assert messaging.signal_labels()["declining"] == "headcount decline"
-
-
-def test_messages_without_a_declining_sentence_fall_back_to_unchecked():
-    messages = messaging.default_messages()
-    for t in messages["languages"].values():
-        del t["growth"]["declining"]
-    out = drafts(company(country="NL"), None, signal="declining", messages=messages)
-    assert out[0].body.splitlines()[1] == messages["languages"]["nl"]["growth"][""].format(
-        company=company().name)
 
 
 # ---------------------------------------------------- fields in the playbook
@@ -212,56 +154,7 @@ def test_every_field_of_your_own_is_a_slot():
     assert slots == {"segment": "smb", "fit_score": "[fit]"}
 
 
-def test_a_template_can_name_a_field_of_your_own():
-    """The point of the change: wording that is data, not code."""
-    from hermitcrm.fields import FieldDef
-
-    messages = deep_merge(load_messages(None), {"languages": {"en": {
-        "hook": "You sell to {segment}.\nWhat would make this worth a look?"}}})
-    defs = [FieldDef(key="segment", label="segment")]
-
-    out = drafts(company(country="GB", extra={"segment": "enterprise"}),
-                 Contact("Ada", "L", "ada"), messages=messages, defs=defs)
-    assert "You sell to enterprise." in out[2].body
-
-    # ...and an empty one says so rather than going blank
-    out = drafts(company(country="GB", extra={}), Contact("Ada", "L", "ada"),
-                 messages=messages, defs=defs)
-    assert "You sell to [segment]." in out[2].body
-
-
-def test_which_field_plays_the_size_role_is_configurable():
-    c = company(country="GB", extra={"headcount": "~40", "reps": 3})
-    out = drafts(c, Contact("Ada", "L", "ada"),
-                 size_field="headcount", team_field="reps")
-    bodies = "\n".join(d.body for d in out)
-    assert "~40 people now" in bodies and "3 people in sales" in bodies
-
-    # with neither role filled, the wording falls back instead of inventing
-    out = drafts(company(country="GB", extra={}), Contact("Ada", "L", "ada"),
-                 size_field="", team_field="")
-    bodies = "\n".join(d.body for d in out)
-    assert "people now" not in bodies and "you're at N people" in bodies
-
-
 # ---------------------------------------------------------- per-person language
-
-
-def test_contact_language_beats_the_country():
-    anna = Contact("Anna", "B", "ab", language="de")
-    out = drafts(company(country="NL"), anna)
-    assert all(d.language == "de" and d.body.startswith("Hallo Anna,") for d in out)
-
-
-def test_page_override_beats_the_contact_language():
-    anna = Contact("Anna", "B", "ab", language="de")
-    out = drafts(company(country="NL"), anna, language="fr")
-    assert all(d.language == "fr" for d in out)
-
-
-def test_company_page_override_without_a_contact():
-    out = drafts(company(country=""), None, language="de")
-    assert all(d.language == "de" for d in out)
 
 
 def test_unknown_or_blank_codes_fall_through_to_the_country():
@@ -282,6 +175,13 @@ def test_contact_language_still_wins_in_belgium():
 def test_a_language_added_in_messages_toml_can_be_chosen():
     messages = deep_merge(load_messages(), {"languages": {"sv": {
         **load_messages()["languages"]["en"], "name": "Swedish", "greeting": "Hej {first},"}}})
-    out = drafts(company(country="DE"), Contact("Ann", "B", "ab", language="sv"),
-                 messages=messages)
-    assert out[0].language == "sv" and out[0].body.startswith("Hej Ann,")
+    ann = Contact("Ann", "B", "ab", language="sv")
+    assert messaging.draft_language(company(country="DE"), ann, messages=messages) == "sv"
+    assert messaging.draft_language(company(country="DE"), ann) == "de"   # not in the defaults
+
+
+def test_page_override_beats_the_contact_language():
+    anna = Contact("Anna", "B", "ab", language="de")
+    assert messaging.draft_language(company(country="NL"), anna) == "de"
+    assert messaging.draft_language(company(country="NL"), anna, "fr") == "fr"
+    assert messaging.draft_language(company(country=""), None, "de") == "de"
