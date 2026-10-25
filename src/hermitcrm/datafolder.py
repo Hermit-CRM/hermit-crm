@@ -83,7 +83,6 @@ CONFIG_DOCS = {
     "outreach_high_fit": "The fit score from which the outreach preview counts a company as high fit (and says how many were never contacted).",
     "outreach_batch_size": "How many contacts an outreach batch takes when you do not say (--limit).",
     "outreach_critic_threshold": "The outreach bot asks the AI to score each draft from 1 to 5 (relevance, personal, tone, honesty). A draft whose lowest score is below this is written once more. 0 turns the critic off. Starts low (2): only a draft that scores 1 somewhere is redone.",
-    "outreach_angles": "The angles an outreach draft may take: the five template angles and custom (your own). Leave some out to compare fewer at a time.",
     "messaging_size_field": "Which of your fields holds a headcount, for the drafts that mention team size; empty means the size line always uses its 'unknown' wording.",
     "messaging_team_field": "Which of your fields holds a count of sales people, for the drafts that mention the team; empty means the team line always uses its 'unknown' wording.",
     "enrich_provider": "AI CLI for Enrich: auto, claude, codex, gemini, grok or custom.",
@@ -319,50 +318,30 @@ def write_skill(root: Path, apply: bool = True) -> bool:
 
 MESSAGING = """# Messaging playbook
 
-Hermit CRM writes three outreach drafts per contact without AI (the Messages part
-of a company or contact page). The wording is not in code but in TOML:
+Hermit CRM's outreach bot reads this file before it writes a draft for you.
+Write here what you want said and how it should sound, in your own words. The
+bot follows these notes, so be specific: a sentence it may use is worth more
+than a rule it has to guess at.
 
-- the package ships neutral defaults (`hermitcrm/default_messages.toml`);
-- a `messages.toml` in this folder is deep-merged over them, so you only
-  write the keys you want to change.
+## General notes
 
-## The three angles
+Write the tone and the rules that apply to every approach: how formal you are,
+how you address people, what you never say or promise, and anything the bot
+must leave for you to check by hand (a price, a client name, a claim).
 
-1. **scale**: they are growing (or growth is levelling off); offer help to keep
-   the pace. A `hiring` signal swaps this for **bridge**: help while the role is open;
-   a `declining` signal for **decline**: a tough stretch, then an open question.
-2. **unblock**: "you are at N people"; get past the next headcount hurdle.
-3. **hook**: one concrete observation about their product, then an open question.
+## Approaches
 
-The signal (growing / stalled / headcount decline / hiring) and the observation are the two things
-you check by hand on LinkedIn and the website. Square brackets mark what only
-you can fill in.
-
-## Slots
-
-`{first} {company} {growth} {size} {hurdle} {team} {observation} {fte} {ae}
-{site} {owner_first_name}`. `size` and `team` have `known` / `unknown`
-variants; `growth` has `growing`, `stalled`, `declining` and `""` (not checked).
+Each approach is one offer to one audience, with its own `# Approach: <name>`
+block below these notes. The sections in a block are Offer, Personas, Proof,
+Why you, Voice, Channels, Don'ts, Disqualifiers and Lessons. Fill in what you
+know; the hint under each heading says what goes there. Lessons is filled by
+you or by accepting a suggestion from the learning page.
 
 ## Languages
 
 The draft language follows the company's country: German for DE/AT/CH/LI,
 Dutch for NL, French for FR/LU/MC, English for everything else (Belgium
 included, since it depends on the region).
-
-## Example messages.toml
-
-```toml
-[labels]
-hook = "3. hook: what I noticed, then a question"
-
-[languages.en]
-signoff = "Best,\\n{owner_first_name}"
-scale = "{growth}\\nWe help teams like yours [outcome].\\nWorth 15 minutes to see if it fits {company}?"
-
-[languages.en.team]
-unknown = "[Something specific about the team.]"
-```
 
 ## What worked (write your own notes here)
 

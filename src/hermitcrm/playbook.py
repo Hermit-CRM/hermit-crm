@@ -19,7 +19,7 @@ approach is one offer to one audience, complete on its own (one business can
 sell founder coaching to one audience and a team build-out to another). Python
 reads a YAML front matter: per approach its name, offer line, ideal customer
 (ICP), hard disqualifiers, personas and optionally its message frameworks. The
-AI reads the body: the general notes (angles, slots, languages) and, per
+AI reads the body: the general notes (slots, languages) and, per
 approach, a `# Approach: <name>` block whose `## ` headings hold the rest
 (Offer, Personas, Proof, Why you, Voice, Channels, Don'ts, Disqualifiers,
 Lessons).

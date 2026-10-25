@@ -292,7 +292,7 @@
     {% if co %}<a href="/companies/{{ i.company }}">{{ co.name }}</a> &middot; {{ co.stage }}{% else %}{{ i.company }}{% endif %}
     &middot; {% if card.fit is not none %}fit {{ card.fit }}{% else %}no fit score{% endif %}
     {% if co and co.website %}&middot; <a href="{{ co.website | href }}" target="_blank" rel="noopener">website &#8599;</a>{% endif %}
-    &middot; {{ i.approach or 'no approach' }}{% if i.angle %} &middot; angle {{ i.angle }}{% endif %}{% if i.language %} &middot; {{ i.language }}{% endif %}
+    &middot; {{ i.approach or 'no approach' }}{% if i.language %} &middot; {{ i.language }}{% endif %}
   </p>
   {% if card.followed.count %}<details class="small outreach-followed"><summary>Followed {{ card.followed.count }} lesson{{ 's' if card.followed.count != 1 }}</summary>
     {% if card.followed.texts %}<ul>{% for t in card.followed.texts %}<li>{{ t }}</li>{% endfor %}</ul>{% endif %}

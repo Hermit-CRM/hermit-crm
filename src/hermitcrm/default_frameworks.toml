@@ -43,7 +43,7 @@ This is a first touch: they have never had a message from the seller.
 - Then the offer in one line.
 - End with exactly one question, a diagnostic one about their situation (for example: where does it hurt most right now: pipeline, conversion or deal size?). One question mark in the whole message.
 - No meeting ask, no call ask, no link, no proposed day or time.
-- When no finding is usable, write from one of the playbook's angles instead and mark what only the seller can fill in with [square brackets].'''
+- When no finding is usable, write from the playbook's general notes instead and mark what only the seller can fill in with [square brackets].'''
 
 [frameworks.trigger-tension-trust]
 name = "Trigger, tension, trust"

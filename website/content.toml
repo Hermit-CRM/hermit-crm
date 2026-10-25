@@ -120,7 +120,7 @@ text = "Sortable tables of companies, and one timeline per company of every emai
 [[features.items]]
 name = "Contacts"
 slug = "contacts"
-text = "Every person across your companies, with a page of their own: roles, history, tasks and three message drafts."
+text = "Every person across your companies, with a page of their own: roles, history and tasks."
 
 [[features.items]]
 name = "Messages"
