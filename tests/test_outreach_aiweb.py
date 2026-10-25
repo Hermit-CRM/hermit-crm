@@ -83,8 +83,8 @@ def test_claude_is_held_to_web_search_and_fetch_without_mcp_servers():
 
 
 def test_the_other_runs_are_unchanged():
-    none = claude_argv("")
-    assert none[none.index("--tools") + 1] == "" and "--strict-mcp-config" not in none
+    none = claude_argv("")   # no tools at all, so no MCP connectors either
+    assert none[none.index("--tools") + 1] == "" and "--strict-mcp-config" in none
     default = claude_argv(None)
     assert "--tools" not in default and "--strict-mcp-config" not in default
     assert default[default.index("--allowedTools") + 1] == "WebSearch,WebFetch"

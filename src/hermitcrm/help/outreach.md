@@ -267,7 +267,10 @@ word), one proof line, exactly one question, and no link, time, price or day
 rate (`€900`, `2 days a week`); on LinkedIn it is a message of up to 600
 characters, not a connection note.
 
-Drafts use the medium model; `build --strong` uses the strong one.
+Drafts use the medium model; `build --strong` uses the strong one. The scrape
+research and the critic read and score rather than write, so they run on the light
+model whichever you pick (Claude: Haiku; `enrich_model_light`, see
+[Ask the Hermit](/help/ask)). The `ai-web` search run uses the model of the draft.
 
 **Framework.** A first touch is written with a framework: a recipe for its
 parts, its length and what it asks (`hermitcrm help playbook`). `build --framework

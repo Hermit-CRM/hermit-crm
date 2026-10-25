@@ -204,6 +204,41 @@ def test_tiers_overrides_and_with_tier(monkeypatch):
     assert model_label("claude-fable-5-1") == "Fable" and model_label("gpt-5") == "gpt-5"
 
 
+@pytest.mark.parametrize("kwargs, light", [
+    ({"provider": "claude"}, "claude-haiku-4-5"),
+    ({"provider": "claude", "model_light": "claude-haiku-5-5"}, "claude-haiku-5-5"),
+    # a medium model you named yourself is never swapped for another: light follows it
+    ({"provider": "claude", "model": "claude-sonnet-5-5"}, "claude-sonnet-5-5"),
+    ({"provider": "claude", "model": "claude-sonnet-5-5", "model_light": "claude-haiku-4-5"},
+     "claude-haiku-4-5"),
+    # no cheaper model is verified for the others: light is the medium model
+    ({"provider": "gemini"}, "gemini-2.5-flash"),
+    ({"provider": "gemini", "model": "my-flash"}, "my-flash"),
+    # a ChatGPT subscription gets no model flag at all, light or not
+    ({"provider": "codex"}, ""),
+    ({"provider": "custom", "command": "llm"}, ""),
+])
+def test_the_light_tier_is_a_cheaper_claude_and_the_medium_model_elsewhere(kwargs, light):
+    assert Enricher(which=ALL, **kwargs).model_for("light") == light
+
+
+def test_the_light_tier_asks_the_cli_for_its_model(monkeypatch):
+    run = FakeRun(CLAUDE_STDOUT)
+    monkeypatch.setattr(subprocess, "run", run)
+    e = Enricher(provider="claude", which=ALL)
+    e.with_tier("light").runner("p", {})
+    argv = run.seen["argv"]
+    assert argv[argv.index("--model") + 1] == "claude-haiku-4-5"
+    assert e.model == "claude-opus-5"        # the original keeps its tier
+
+
+def test_the_web_app_reads_the_light_model_from_config():
+    from hermitcrm.web import build_enricher
+
+    enricher = build_enricher({"enrich_provider": "claude", "enrich_model_light": "my-light"})
+    assert enricher.model_for("light") == "my-light"
+
+
 # A ChatGPT account refuses the model id an API key gets. Reported verbatim by
 # the first person to install Hermit CRM, on both Enrich and Ask the Hermit.
 CODEX_REFUSAL = (
@@ -444,6 +479,20 @@ def test_claude_with_no_tools_gets_tools_empty_not_only_allowedtools(monkeypatch
     assert "--tools" not in run.seen["argv"]
     Enricher(provider="claude", which=ALL).runner("p", {}, tools="Read,Grep")
     assert "--tools" not in run.seen["argv"]
+
+
+def test_a_run_with_no_tools_leaves_the_users_mcp_connectors_out(monkeypatch):
+    """--tools "" takes the built-in tools away, not the MCP connectors (Gmail,
+    Calendar, Drive): their schemas rode along on every cold call, ~40k tokens
+    on a call that can use none of them."""
+    run = FakeRun(CLAUDE_STDOUT)
+    monkeypatch.setattr(subprocess, "run", run)
+    Enricher(provider="claude", which=ALL).runner("p", {}, tools="")
+    assert "--strict-mcp-config" in run.seen["argv"]
+    Enricher(provider="claude", which=ALL).runner("p", {})                # the default run
+    assert "--strict-mcp-config" not in run.seen["argv"]
+    Enricher(provider="claude", which=ALL).runner("p", {}, tools="Read,Grep")
+    assert "--strict-mcp-config" not in run.seen["argv"]
 
 
 def test_codex_with_no_tools_runs_in_its_read_only_sandbox(monkeypatch):

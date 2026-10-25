@@ -179,18 +179,23 @@ def _schema_instruction(prompt: str, schema: dict) -> str:
             f"other text:\n{json.dumps(schema)}\n")
 
 
-# Two model tiers per provider: "medium" is the default for Enrich and Ask
-# Hermit, "strong" is what "Retry with ..." uses. Overridable in config.toml
-# (enrich_model, enrich_model_strong). Only the claude IDs are verified against
-# the installed CLI; the others follow each vendor's naming and may need a
-# Settings override.
-TIERS = ("medium", "strong")
+# Three model tiers per provider: "medium" is the default for Enrich and Ask
+# Hermit, "strong" is what "Retry with ..." uses, and "light" is for work that
+# reads and scores rather than writes (the outreach scrape research and the
+# critic). Overridable in config.toml (enrich_model, enrich_model_strong,
+# enrich_model_light). Only the claude IDs are verified against the installed
+# CLI; the others follow each vendor's naming and may need a Settings override.
+TIERS = ("medium", "strong", "light")
 DEFAULT_MODELS = {
     "claude": {"medium": "claude-opus-5", "strong": "claude-fable-5-1"},
     "codex": {"medium": "gpt-5-mini", "strong": "gpt-5"},
     "gemini": {"medium": "gemini-2.5-flash", "strong": "gemini-2.5-pro"},
     "grok": {"medium": "grok-4-fast", "strong": "grok-4"},
 }
+
+# The light tier's own default, only where a cheaper model is verified. Everywhere
+# else, and wherever you named your own medium model, light is the medium model.
+LIGHT_MODELS = {"claude": "claude-haiku-4-5"}
 
 # How the CLI is signed in. A subscription (a ChatGPT, Claude or Gemini plan)
 # is not entitled to the same model ids as an API key, and asking for one it
@@ -308,8 +313,11 @@ class ClaudeProvider(Provider):
             argv += ["--tools", "WebSearch,WebFetch", "--strict-mcp-config"]
         if self.tools == "":
             # --allowedTools only says what needs no approval: Claude still reads
-            # files with its read-only tools. --tools "" takes every tool away.
-            argv += ["--tools", ""]
+            # files with its read-only tools. --tools "" takes every built-in tool
+            # away, but not the MCP connectors of the signed-in account (Gmail,
+            # Calendar, Drive): their schemas, some 40k tokens, rode along on a
+            # cold call that can use none of them. --strict-mcp-config leaves them out.
+            argv += ["--tools", "", "--strict-mcp-config"]
         if model:
             argv += ["--model", model]
         return argv
@@ -537,10 +545,11 @@ class Enricher:
     def __init__(self, provider: str = "auto", command: str = "", model: str = "",
                  timeout: float = 180, runner=None, which=find_executable,
                  model_strong: str = "", tier: str = "medium",
-                 account: str = "subscription"):
+                 account: str = "subscription", model_light: str = ""):
         self.requested = (provider or "auto").strip().lower()
         self.command = command or ""
-        self.overrides = {"medium": model or "", "strong": model_strong or ""}
+        self.overrides = {"medium": model or "", "strong": model_strong or "",
+                          "light": model_light or ""}
         self.tier = tier if tier in TIERS else "medium"
         self.account = account if account in ACCOUNTS else "subscription"
         self.timeout = float(timeout)
@@ -559,6 +568,10 @@ class Enricher:
         if self.overrides.get(tier):
             return self.overrides[tier]
         name = self.provider_name
+        if tier == "light":
+            # A medium model you named yourself is never swapped for another.
+            cheaper = "" if self.overrides.get("medium") else LIGHT_MODELS.get(name, "")
+            return cheaper or self.model_for("medium")
         if self.account == "subscription" and name in SUBSCRIPTION_MODELS:
             return SUBSCRIPTION_MODELS[name].get(tier, "")
         return DEFAULT_MODELS.get(name, {}).get(tier, "")
