@@ -8,6 +8,14 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Ask answers CRM-wide questions in one fast call, with links that work.**
+  Hermit now builds a compact index of the CRM (a row per contact: link, stage
+  and its role, last touch, last logged interaction, next open task, days since
+  touch) and the model answers from it in a single call, about 5 to 10 seconds.
+  The slow walk through the data folder runs only for questions the index cannot
+  answer, and no longer carries your claude.ai connectors. Every link in an
+  answer is checked: it opens the person or company, or it is shown as plain
+  text. The answer shows how long it took. No data migration.
 - **Ask runs on Sonnet and shows it is working.** Ask the Hermit now answers on
   Sonnet for Claude (the other providers' mid-size models already were the
   default), unless you set `enrich_model` or `ai_tier = "strong"`. The Ask button,

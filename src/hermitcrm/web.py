@@ -3841,8 +3841,8 @@ def create_app(root: Path, config: dict | None = None,
         try:
             answer = await run_in_threadpool(
                 asking.ask, enricher, question, page, html, root,
-                "crm" if scope == "crm" else "auto",
-                float(config.get("ask_timeout") or 300))
+                scope if scope in ("crm", "deep") else "auto",
+                float(config.get("ask_timeout") or 300), store=store)
         except EnrichError as exc:
             return ask_page_view(request, page, question=question, error=str(exc),
                                  tried=enricher.model,

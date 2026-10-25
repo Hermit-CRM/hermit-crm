@@ -491,8 +491,10 @@ def test_a_run_with_no_tools_leaves_the_users_mcp_connectors_out(monkeypatch):
     assert "--strict-mcp-config" in run.seen["argv"]
     Enricher(provider="claude", which=ALL).runner("p", {})                # the default run
     assert "--strict-mcp-config" not in run.seen["argv"]
+    # A custom tool list (Ask's walk of the data folder) leaves them out too.
     Enricher(provider="claude", which=ALL).runner("p", {}, tools="Read,Grep")
-    assert "--strict-mcp-config" not in run.seen["argv"]
+    assert "--strict-mcp-config" in run.seen["argv"]
+    assert "--tools" not in run.seen["argv"]
 
 
 def test_codex_with_no_tools_runs_in_its_read_only_sandbox(monkeypatch):
