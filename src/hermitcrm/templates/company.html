@@ -94,7 +94,7 @@
     <tr><th>name</th><th>title</th><th>role</th><th>email</th><th>linkedin</th><th></th></tr>
     {% for slug, c in company.contacts.items() %}
     <tr>
-      <td><a href="/companies/{{ company.slug }}/contacts/{{ slug }}">{{ c.name }}</a></td>
+      <td><a href="/companies/{{ company.slug }}/contacts/{{ slug }}">{{ c.name }}</a>{% if note_counts[slug] %} <span class="small quiet">{{ note_counts[slug] }} note{{ 's' if note_counts[slug] != 1 }}</span>{% endif %}</td>
       <td>{{ c.title }}</td>
       <td>{{ c.role }}</td>
       <td>{% if c.email %}<a href="mailto:{{ c.email }}">{{ c.email }}</a>{% endif %}</td>
@@ -105,7 +105,10 @@
     <tr><td colspan="6" class="empty">No contacts yet.</td></tr>
     {% endfor %}
   </table></div>
-  <p><a href="/companies/{{ company.slug }}/contacts/new">New contact</a> <span class="small">&middot; an interaction is always with a person: log it, or a note, on their page.</span></p>
+  <p><a href="/companies/{{ company.slug }}/contacts/new">New contact</a> <span class="small">&middot; log an interaction on a person's page; a note can also be about the whole company.</span></p>
+  <h3 id="company-notes">Company notes ({{ company_notes | length }})</h3>
+  <p class="small">About {{ company.name }} as a whole, not one person. Every contact's page shows them. <a class="button" href="/companies/{{ company.slug }}/interactions/new?channel=note&amp;whole=1">Add company note</a></p>
+  {% if company_notes %}{{ m.timeline(company, company_notes) }}{% endif %}
 </section>
 {% elif section == 'tasks' %}
 {{ m.task_section(company, today) }}

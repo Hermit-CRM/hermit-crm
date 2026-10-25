@@ -25,7 +25,8 @@
 </p>
 <div class="contact-actions">
   {% if 'quick-add' in sections %}<a class="button" href="#quick-add" data-focus="#quick-add select[name=channel]">Log interaction</a>
-  <a class="button" href="?channel=note#quick-add" data-focus="#quick-add textarea[name=body]">Add note</a>{% endif %}
+  <a class="button" href="?channel=note#quick-add" data-focus="#quick-add textarea[name=body]">Add note</a>
+  <a class="button" href="/companies/{{ company.slug }}/interactions/new?channel=note&amp;whole=1" title="A note about {{ company.name }} as a whole, not about {{ contact.name }}">Add company note</a>{% endif %}
   {% if 'tasks' in sections %}<a class="button" href="#tasks" data-focus="#tasks input[name=text]">Add task</a>{% endif %}
   {% if outreach_open %}{% set oi = outreach_open %}<a class="button" href="/outreach?tab={{ 'ready' if oi.state == 'ready' else ('replies' if oi.kind == 'reply-to-interest' else ('follow-ups' if oi.kind == 'follow-up' else 'drafts')) }}#item-{{ oi.id }}" title="A {{ oi.kind | replace('-', ' ') }} by {{ oi.channel }} is {{ oi.state }}">Open outreach draft</a> <span class="small quiet">{{ oi.state }}</span>
   {% else %}<a class="button" href="/outreach?contact={{ company.slug }}/{{ contact.slug }}#generate" title="{% if outreach_problem %}{{ outreach_problem }}{% else %}Open Outreach with {{ contact.first_name or contact.name }} ready to generate: nothing runs until you press Generate{% endif %}">Generate outreach</a>{% endif %}
@@ -61,6 +62,14 @@
     {% else %}<dd class="empty">no touches yet</dd>{% endif %}
   </div>
 </dl>
+{% if elsewhere.company or elsewhere.others %}
+<section id="other-notes" class="other-notes">
+  <h2>Notes elsewhere at {{ company.name }}</h2>
+  <p class="small">Not about {{ contact.first_name or contact.name }}, but part of what you know here. {{ contact.first_name or contact.name }}'s own notes are in the timeline below.</p>
+  {% if elsewhere.company %}{{ m.note_group('Whole company', elsewhere.company) }}{% endif %}
+  {% for o in elsewhere.others %}{{ m.note_group(o.name, o.notes, '/companies/' ~ company.slug ~ '/contacts/' ~ o.slug) }}{% endfor %}
+</section>
+{% endif %}
 {% for section in sections %}{% if section == 'details' %}
 <section id="details">
   <h2>Details</h2>
