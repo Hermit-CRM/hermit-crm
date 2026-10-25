@@ -179,6 +179,7 @@ def test_check_replies_asks_once_per_reply_and_waits_for_you(client, fake, root)
     assert reply.to_confirm and not reply.interested   # the AI alone is not enough
     page = client.get("/outreach?tab=replies").text
     assert "AI: interested?" in page and "Confirm: interested" in page
+    assert page.index("Confirm: interested") < page.index('<details class="row-more">')
     # Once per reply: a second check asks nothing.
     post(client, "/outreach/replies/check")
     assert len(fake.of("classify")) == len(asked)
@@ -201,6 +202,11 @@ def test_not_interested_needs_no_draft(client, fake, root):
     assert reply.verdict == "not-interested" and not reply.interested
     section = client.get("/outreach?tab=replies").text
     assert f'id="reply-{it.id}" class="outreach-reply quiet"' in section
+    # A settled verdict keeps its buttons, and Opted out, in the More overflow.
+    row = section.split(f'id="reply-{it.id}"', 1)[1].split("</li>", 1)[0]
+    assert "Confirm: interested" not in row
+    more = row.split('<details class="row-more">', 1)[1]
+    assert ">Interested<" in more and ">Opted out<" in more
     r = post(client, "/outreach/build", contact=MARA, kind=outreach.REPLY,
              back="/outreach?tab=replies")
     assert "no reply showing interest" in r.headers["location"].replace("%20", " ")
