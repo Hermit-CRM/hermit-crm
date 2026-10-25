@@ -1004,6 +1004,8 @@ label.outreach-note { display: block; margin: 6px 0; }
 
 /* A button that has been clicked and is waiting for the AI (static/busy.js) */
 button.is-busy { cursor: progress; opacity: .85; }
+/* The busy note says the same thing as the Ask hint: show one of them */
+.busy-note ~ .ask-hint { display: none; }
 button.is-busy::before {
   content: ""; display: inline-block; width: .9em; height: .9em; margin-right: .5em;
   vertical-align: -.1em; border: 2px solid currentColor; border-right-color: transparent;
