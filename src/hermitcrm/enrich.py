@@ -185,7 +185,7 @@ def _schema_instruction(prompt: str, schema: dict) -> str:
 # critic). Overridable in config.toml (enrich_model, enrich_model_strong,
 # enrich_model_light). Only the claude IDs are verified against the installed
 # CLI; the others follow each vendor's naming and may need a Settings override.
-TIERS = ("medium", "strong", "light")
+TIERS = ("medium", "strong", "light", "ask")
 DEFAULT_MODELS = {
     "claude": {"medium": "claude-opus-5", "strong": "claude-fable-5-1"},
     "codex": {"medium": "gpt-5-mini", "strong": "gpt-5"},
@@ -196,6 +196,12 @@ DEFAULT_MODELS = {
 # The light tier's own default, only where a cheaper model is verified. Everywhere
 # else, and wherever you named your own medium model, light is the medium model.
 LIGHT_MODELS = {"claude": "claude-haiku-4-5"}
+
+# Ask the Hermit answers a question from a page or a read-only look at the CRM,
+# which a mid-size model does well. Claude's medium tier is Opus, so Ask gets
+# Sonnet; the other providers' medium models already are their mid-size ones.
+# A medium model you named yourself still wins, as for light.
+ASK_MODELS = {"claude": "claude-sonnet-5-5"}
 
 # How the CLI is signed in. A subscription (a ChatGPT, Claude or Gemini plan)
 # is not entitled to the same model ids as an API key, and asking for one it
@@ -233,7 +239,7 @@ def error_lines(text: str, limit: int = 3) -> list[str]:
             seen.append(line)
     return seen[-limit:]
 MODEL_LABELS = {"claude-opus-5": "Opus", "claude-fable-5-1": "Fable",
-                "claude-sonnet-5": "Sonnet", "claude-haiku-4-5": "Haiku"}
+                "claude-sonnet-5": "Sonnet", "claude-sonnet-5-5": "Sonnet", "claude-haiku-4-5": "Haiku"}
 
 
 def model_label(model: str) -> str:
@@ -568,6 +574,9 @@ class Enricher:
         if self.overrides.get(tier):
             return self.overrides[tier]
         name = self.provider_name
+        if tier == "ask":
+            default = "" if self.overrides.get("medium") else ASK_MODELS.get(name, "")
+            return default or self.model_for("medium")
         if tier == "light":
             # A medium model you named yourself is never swapped for another.
             cheaper = "" if self.overrides.get("medium") else LIGHT_MODELS.get(name, "")

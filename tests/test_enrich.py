@@ -517,3 +517,12 @@ def test_claude_and_codex_and_a_missing_cli_have_no_such_problem():
     assert Enricher(provider="claude", which=ALL).no_tools_problem() == ""
     assert Enricher(provider="codex", which=ALL).no_tools_problem() == ""
     assert Enricher(provider="auto", which=lambda name: None).no_tools_problem() == ""
+
+
+def test_ask_tier_is_sonnet_on_claude_and_follows_a_named_medium_model():
+    claude = Enricher(provider="claude", which=ALL)
+    assert claude.model_for("ask") == "claude-sonnet-5-5" and claude.model == "claude-opus-5"
+    named = Enricher(provider="claude", which=ALL, model="my-model")
+    assert named.model_for("ask") == "my-model"
+    gemini = Enricher(provider="gemini", which=ALL)
+    assert gemini.model_for("ask") == gemini.model_for("medium") == "gemini-2.5-flash"

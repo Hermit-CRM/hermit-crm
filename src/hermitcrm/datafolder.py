@@ -88,7 +88,7 @@ CONFIG_DOCS = {
     "enrich_provider": "AI CLI for Enrich: auto, claude, codex, gemini, grok or custom.",
     "enrich_account": "How the AI CLI is signed in: subscription (a ChatGPT, Claude or Gemini plan) or api (an API key). A subscription is not entitled to the same model ids, so Hermit CRM asks for no particular model where that is known to matter.",
     "enrich_command": "Custom enrich command; empty means the provider's own binary.",
-    "enrich_model": "Medium-tier model for Enrich and Ask the Hermit; empty means the provider default (Claude: claude-opus-5).",
+    "enrich_model": "Medium-tier model for Enrich and outreach drafts (Ask the Hermit uses Sonnet on Claude unless you set this); empty means the provider default (Claude: claude-opus-5).",
     "enrich_model_strong": "Strong-tier model for Retry; empty means the provider default (Claude: claude-fable-5-1).",
     "enrich_model_light": "Light-tier model for the outreach bot's scrape research and critic, which read and score rather than write; empty means the provider's cheaper model (Claude: claude-haiku-4-5), or your enrich_model if you set one, or the medium model where no cheaper one is known.",
     "enrich_timeout": "Seconds before an enrich call is abandoned.",
