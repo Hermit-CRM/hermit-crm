@@ -1055,3 +1055,9 @@ form.inline[data-upgrade] { display: inline; margin-left: 6px; }
   animation: upgrade-slide 1.2s ease-in-out infinite; }
 @keyframes upgrade-slide { from { margin-left: -35%; } to { margin-left: 100%; } }
 @media (prefers-reduced-motion: reduce) { .upgrade-bar::before { animation: none; width: 100%; } }
+
+/* The "More" overflow of a card or row (macros.html: more). */
+details.row-more { display: inline-block; margin: 0; }
+details.row-more > summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 3px 6px; }
+details.row-more[open] { display: block; flex-basis: 100%; }
+details.row-more > .draft-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
