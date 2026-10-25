@@ -2,7 +2,7 @@
 
 > How every part of Hermit CRM works: pipeline, contacts, mail capture, reports, the CLI, the MCP server and how your AI agent can change it.
 
-For version 0.8.0. The same text as https://hermitcrm.io/docs/ and as `hermitcrm help <topic>` in the app.
+For version 0.8.0, 2026-10-16. The same text as https://hermitcrm.io/docs/ and as `hermitcrm help <topic>` in the app.
 
 ## Pipeline
 
@@ -206,7 +206,7 @@ you disqualify it instead.
   (the first is labelled **next step**), then the done ones with the day they
   were done. **Done** / **Reopen** / **Delete** on each, and **Add task** with a
   "for" list: the company or one of its people.
-- **outreach** on each row of the contacts table opens [Outreach](https://hermitcrm.io/docs/#outreach) with that person ready to generate (see [Contacts](https://hermitcrm.io/docs/#contacts)).
+- **Message drafts** for the most recently touched contact (see [Contacts](https://hermitcrm.io/docs/#contacts)).
 - **Merge**: pick another company to compare and merge into this one.
 - **Timeline**: every interaction across all contacts, newest first, bodies
   collapsed (a note shows its text).
@@ -269,7 +269,7 @@ Related: [Pipeline](https://hermitcrm.io/docs/#pipeline), [Contacts](https://her
 
 ## Contacts
 
-`/contacts` lists every person across companies; a contact page holds the fields, this person's interactions, notes and a button that opens Outreach for them.
+`/contacts` lists every person across companies; a contact page holds the fields, this person's interactions and three message drafts.
 
 ### The table
 
@@ -291,7 +291,7 @@ box matches name, email, title and company.
 - **Log an interaction** for this contact: an email, LinkedIn message, call,
   meeting or note.
 - **Tasks** you owe this person.
-- **Generate outreach** (below).
+- **Message drafts** (below).
 - **Merge** another contact of the same company into this one (only shown when
   the company has more than one contact).
 - **Delete contact** (asks first). Their interactions stay on the company
@@ -302,49 +302,34 @@ New contacts come from the company page's New contact link
 (`/companies/<slug>/contacts/new`), from Import in contacts mode, and from the
 BCC and calendar imports (a new person at a company whose domain is known).
 
-### Keep in touch
-
-The follow-up radar and the silent list are about deals. **Keep in touch** on
-Home is about everyone else: people you have not spoken to in
-`keep_in_touch_days` days (default 180, about six months) who are not in an
-open deal. It is a read-only list, longest quiet first, eight on Home;
-`hermitcrm keep-in-touch` (and the `keep_in_touch` tool for an AI client)
-prints all of them.
-
-- **Last touch** is the latest interaction logged against that person, in
-  either direction: an email, a message, a call or a meeting. Notes do not
-  count, and neither does an interaction logged against the company with no
-  person on it.
-- **Left out**: people at a company in an open stage (prospect, engaged,
-  discovery, offer, or whatever your open stages are), so the list holds
-  customers, lost and disqualified deals and parked companies; anyone tagged
-  `do-not-contact`, on the company or on the person; people you never had any
-  interaction with; and the sample account.
-- Logging anything with a person takes them off the list.
-- Change the threshold in `config.toml` (`keep_in_touch_days = 90`), move
-  or hide the section with `layout.toml` (`keep-in-touch`, see
-  [Make it yours: layout](https://hermitcrm.io/docs/#adjust-layout)).
-
 ### Tasks
 
 The contact page lists the tasks you owe this person, with **Done**, **Delete**
 and a form to add one. They also show in the company's task list, and when one
 of them is the company's task due first, it is the company's next step.
 
-### Generate outreach
+### Message drafts
 
-The **Generate outreach** button in the action row opens [Outreach](https://hermitcrm.io/docs/#outreach)
-with this person ready to draft: channel, draft type, signal, one observation
-sentence, a language, and the notes the draft will be written from. Nothing runs
-until you press **Generate**. When the person already has an open draft, the
-button says **Open outreach draft** and goes to its card.
+Three deliberately different drafts, written from CRM data alone, no AI. They
+are in the contact's **draft language** when you have set one on the contact
+(say, a German speaker at a Dutch company), else in the language of the
+company's country. The language picker above the drafts changes it for that
+page only, without saving it. The drafts are:
 
-The no-AI **Message drafts** box that used to sit here is gone; its signal,
-observation and language picker moved to that panel, and what you write there is
-kept as notes. The contact's **draft language** (set on the contact, say for a
-German speaker at a Dutch company) is where the panel starts, else the language
-of the company's country. The wording of reply and follow-up templates lives in
-the package's `default_messages.toml`; a `messages.toml` in the data folder
+1. **scale** (they are growing; offer help to keep the pace), or **bridge**
+   when the signal is hiring (help while the role is open), or **decline** when
+   the signal is headcount decline (a tough stretch, then an open question);
+2. **unblock**: past the next headcount hurdle (10, 20, 50, 100, 250, 500,
+   from the company's own fields);
+3. **hook**: one observation, then an open question.
+
+Two inputs are yours: the **signal** (growing, stalled, headcount decline, hiring, read off
+LinkedIn company insights; the link is right there) and one **observation**
+sentence from their website or team, which goes word for word into draft 3
+(it is not read as an instruction: set the language on the contact). Whatever the CRM cannot know is left in
+square brackets. Edit in place, copy, or **log as sent**, which opens the
+quick-add form with the draft as body and channel LinkedIn. The wording lives
+in the package's `default_messages.toml`; a `messages.toml` in the data folder
 overrides any part of it, and `MESSAGING.md` there is your playbook.
 
 Related: [Companies](https://hermitcrm.io/docs/#companies), [Interactions](https://hermitcrm.io/docs/#interactions), [Messages](https://hermitcrm.io/docs/#messages), [Merge](https://hermitcrm.io/docs/#merge)
@@ -379,9 +364,8 @@ file.
 ### Outcome
 
 `outcome` is one line: what came of it. The choices are configured on the
-Settings page (`outcomes` in `config.toml`, default `successful`,
-`interested` and `unsuccessful`). Set `interested` on a reply that shows
-interest: the Outreach page lists it under Replies to interest. For a sent message the outcome decides its status on the
+Settings page (`outcomes` in `config.toml`, default `successful` and
+`unsuccessful`). For a sent message the outcome decides its status on the
 Messages tab: an explicit outcome wins; otherwise a later inbound interaction
 from the same contact (or a company-level one) counts as the **first**
 configured outcome; otherwise, once the message is older than
@@ -512,10 +496,10 @@ message statistics.
 
 - **The front matter** (the YAML between the two `---` lines at the top) is
   for Hermit CRM itself: per approach its name, offer line, ideal customer, hard
-  disqualifiers, personas and, if you set it, its message frameworks. The app
-  reads it to pick and sort prospects; an AI is never given it as instructions.
+  disqualifiers and personas. The app reads it to pick and sort prospects; an
+  AI is never given it as instructions.
 - **The body** (everything below) is for people and AI: the general notes on
-  slots and languages, then one `# Approach: <name>` block per approach
+  angles, slots and languages, then one `# Approach: <name>` block per approach
   with the rest.
 
 ### The front matter
@@ -544,11 +528,9 @@ approaches:
 |---|---|
 | `name` | The approach's name, unique in the file; its body block is `# Approach: <name>`. |
 | `offer_line` | What you sell, in one sentence. One per approach: a list is refused. |
-| `first_step_offer` | Optional. The first step a reply to interest offers, in one sentence ("The first call is free and all about you, without a sales pitch."). Left out of the draft when empty. |
 | `icp` | The ideal customer: `industries`, `countries`, `funding`, `signals` (lists of short words) and `ranges` (below). Leave any of them empty. |
 | `disqualifiers` | Hard reasons a company is not a prospect for this approach (below). |
 | `personas` | Per buyer type, the job `titles` that belong to it. Optional `pains`, `cares` and `ignores` lists. |
-| `frameworks` | Optional. The message framework this approach writes first messages with, and the ones to try against it (below). Left out, the approach uses `house`. |
 
 #### Ranges on your own fields
 
@@ -580,58 +562,11 @@ approaches stay equal, the bot asks you, and says what was missing ("no
 employees"). Funding and positive signals are for research, not for this
 choice.
 
-#### Opt-out line (optional)
-
-Beside `approaches:`, the front matter may hold one `opt_out` for the whole
-folder: the line the outreach bot adds at the end of a cold first email.
-One sentence for every language, or one per language code, falling back to
-`en`:
-
-```yaml
-opt_out:
-  en: "Not for you? Say so and I won't write again."
-  de: "Passt nicht? Sag kurz Bescheid, dann schreibe ich nicht mehr."
-```
-
-Without it, no such line is added.
-
 #### Personas
 
 A contact's title picks the persona: whole words, any case, and the longest
 matching title wins, so `Head of Sales Operations` is not taken for
 `Head of Sales`. A title no persona lists gets no persona.
-
-#### Frameworks
-
-A framework is a recipe for a first message: its parts, how long it may be
-and what it asks. `frameworks` is optional. Without it an approach uses `house`,
-the recipe first messages have always used, and nothing changes.
-
-```yaml
-approaches:
-  - name: Booking software
-    frameworks:
-      default: trigger-tension-trust
-      testing: [house]
-      answers: {deal: large, buyer: exec, volume: low, research: five, tone: plain}
-```
-
-- `default` is one framework id. The outreach bot writes this approach's first
-  messages with it.
-- `testing` is a list of up to two ids to try against the default: none twice,
-  and not the default itself. Split tests and compare mode use it; they come in
-  a later version.
-- `answers` records the answers to the setup questions the default was picked
-  from. The setup questions come in a later version; until then `hermitcrm check`
-  only makes sure each answer is one it knows: `deal` (small, mid, large, xl),
-  `buyer` (exec, lead, staff), `volume` (low, mid, high), `research` (minute,
-  five, fifteen) and `tone` (plain, warm, blunt).
-
-The ids are those of the framework library: `default_frameworks.toml` in the
-Hermit CRM package, with any framework you add or change in `frameworks.toml`
-in your data folder on top. A help page that describes each framework comes
-later. `hermitcrm check` names an id the library does not have, and a key or
-answer it does not know.
 
 ### The body
 
@@ -694,625 +629,7 @@ the end, and keeps every line you had, byte for byte (your "What worked"
 notes included). Running it again changes nothing. Saving Settings > Playbook
 does the same and fills it in at once.
 
-Related: [Outreach bot](https://hermitcrm.io/docs/#outreach), [Messages](https://hermitcrm.io/docs/#messages), [Adjust messages](https://hermitcrm.io/docs/#adjust-messages), [Settings](https://hermitcrm.io/docs/#settings), [Enrich](https://hermitcrm.io/docs/#enrich), [CLI](https://hermitcrm.io/docs/#cli)
-
-## Outreach bot
-
-Picks a batch of contacts, reads what their websites say, drafts a first message per person and checks it, answers replies that show interest and follows up on messages nobody answered; you review and approve each one. Nothing is sent that you did not approve, and until you turn on [sending](https://hermitcrm.io/docs/#sending) nothing is sent for you at all: you send and log it yourself.
-
-The outreach bot works from your [playbook](https://hermitcrm.io/docs/#playbook) (`MESSAGING.md`):
-what you sell, to whom, and how you write. It will not build anything until at
-least one approach in it is filled in (`hermitcrm playbook` says what is
-missing). It runs on the **Outreach** page (in the menu, next to Messages)
-and from the command line; both do the same steps and write the same files.
-
-### On the Outreach page
-
-- **Who**, **Draft type**, **Channel**, **Batch size**, **Approach**: the filter (conditions
-  separated by `;`, for example `stage=prospect; country=DE`), a first touch or a
-  follow-up, email or LinkedIn, how many, and which playbook approach to use. Left on "the best fit per
-  company" it picks one per company, as the command line does without
-  `--approach`.
-  **Preview** shows who would get a draft and why not the others; no AI runs
-  and nothing is written. **Build queue** researches and drafts them one at a
-  time: each card appears when it is done and the page asks for the next one
-  by itself. **Stop** ends the batch; what was built stays.
-- **Tabs**: Replies to interest (first: that is where deals leak), Follow-ups,
-  Drafts (first touches to review), Ready (to send), Sent, Skipped.
-- **A card**: the person and company with their links, fit, flags, what
-  research found (with source and a confidence dot), the draft and its checks.
-  - **Save & check again** saves your edit and runs the checks on it. A check
-    that fails never blocks you.
-  - **Mark ready** approves the text as it is in the box (your edit and the
-    approval are one change). A failing check stays on the card as a warning.
-  - **What was wrong with this draft?** is one optional box (500 characters
-    at most) under the text, for whichever button you press next. With **Save &
-    check again** or **Mark ready** it is the explainer of your edit. The AI's
-    draft is never overwritten: it stays under **AI original**, and each save
-    or Mark ready that changes the text adds one **tracked edit** with your
-    explainer, shown as the words removed and added. (If the text did not
-    change, the reason is not kept.) With **Regenerate** it is the reason the
-    old draft was replaced. Either way it is what you can later learn from,
-    together with which messages got a positive answer (`hermitcrm outreach
-    edits --positive`). When you change a lot of text, a row of **quick
-    reasons** appears as well.
-  - **Regenerate** writes a new draft from the contact's notes as they are now,
-    optionally with the stronger model. The old draft and its edits are kept (under "regenerated
-    away"), with the reason if you typed one in the box above. Changes in the
-    text box that you have not saved are not kept.
-    **Add a note** first to steer it (see Notes, below); a note you write
-    counts as a known fact.
-  - **Skip** with a reason; **Copy** copies the message.
-  - **Save to the record** shows when research found a website, LinkedIn URL or
-    country for a field that is empty; it writes that one value and nothing else.
-  - On a ready card: **Copy**, open your mail or LinkedIn, **Log it** (logging
-    the message marks the item sent), or **Mark sent** without logging. With
-    [sending](https://hermitcrm.io/docs/#sending) on, an email card also has **Send now** and
-    **Schedule**, and the **Scheduled** tab shows the queue.
-- **On a contact's page**: **Generate outreach** opens this page with a panel
-  for that person (`/outreach?contact=<company>/<contact>`). Nothing runs until
-  you press **Generate**. The panel has the channel and the draft type (from the
-  history: someone who replied with interest gets a reply to interest, someone
-  whose message went unanswered a follow-up, everyone else a first touch), the
-  research level, the **signal** you read off LinkedIn insights, one
-  **observation** sentence from their site or team, and a **language** for this
-  card and its regenerates (the default is the contact's draft language, else
-  the company's country's). The signal and the observation are saved as notes
-  first. It says why when the person is left out. While an item is open, the
-  button on their page says **Open outreach draft** and goes to its card.
-
-### Notes
-
-What the bot knows about a person is their **notes**: the same notes you add on
-their page, on their timeline and on the company's. A finding is a note.
-
-- Research saves what it finds as notes on the contact, one per finding, with
-  its source, kind, date and confidence on a last line
-  (`Source: https://example.com/news (trigger, 2026-09, high)`). Findings with
-  low confidence are not saved; the card says how many were left out.
-- The card's **Notes** panel lists the contact's notes, newest first, marks the
-  ones the draft used, links each to its place on the timeline, and has a box to
-  add one. Edit or delete a note where it lives, on the timeline. The company's
-  own notes field shows there too, read-only.
-- The draft is written from the newest 20 notes (and at most 4,000 characters:
-  over that, the longest go first), with the company's notes as background. A
-  note you wrote counts as a known fact and never goes stale; a research note
-  keeps its date, and one older than about 90 days never opens a message.
-- Notes added or changed after a draft are not in it: the card says "N notes
-  added since this draft was written" and **Regenerate** reads them again.
-- The web-research AI never sees your notes; only the drafting and critic steps
-  do, and they have no tools.
-- Cards made before notes were shared save the findings they showed as notes
-  the first time you regenerate or mark them ready. Sent and skipped cards are
-  left as they are.
-
-### Replies to interest
-
-Someone answered and wants to know more. The tab lists every reply you owe an
-answer (the follow-up radar's "you owe a reply", per person, from the day it
-came in) and what is known about it:
-
-- **Logged with the outcome `interested`**: listed as it is, no AI needed.
-  Set the outcome when you log the reply (Settings > Outcomes offers the
-  value to a folder that set its own list before it existed).
-- **Otherwise, Check replies** asks your AI CLI, with no tools and no web,
-  once per reply: interested, not interested or unclear. The answer is kept in
-  `outreach/replies.json` (one commit) and never changes the interaction. An
-  "interested" from the AI waits for you: **Confirm: interested** or **Not
-  interested**. You can also mark any reply yourself.
-- **Draft a reply** on an interested reply builds a reply-to-interest draft:
-  no research, their reply is the context. It says the approach's offer line,
-  one proof line, the playbook's **first step offer** (`first_step_offer`,
-  left out when empty: not everyone offers a free first call) and asks one
-  question. No time slot, booking link, link or price: a meeting comes after
-  they answer. The wording template per language is
-  `[outreach.reply_to_interest.<lang>]` in `messages.toml`.
-
-The card shows their reply above the draft; Regenerate, Skip, Mark ready and
-the rest work as on a first touch. Once you send and log your answer, the
-reply leaves the list.
-
-### Follow-ups
-
-A message of yours that nobody answered. It is due on the follow-up radar's
-rule: your latest message to that person has gone `followup_nudge_days` (5,
-Settings) without an answer and nothing is planned for the company. The bot and
-the radar read the same setting, so they never disagree.
-
-- The **Follow-ups** tab lists who is due (oldest first) with **Draft follow-up**;
-  a batch of them builds from the bar (**Draft type**: follow-up) or with
-  `hermitcrm outreach build --kind follow-up`. The Generate panel on a contact
-  preselects follow-up when one is due.
-- No research: the thread is the context, and your earlier message goes to the
-  AI as data. The draft is short, has no calendar invite, link, time slot or
-  price, asks one question and gives an easy way out ("a short 'not now' is
-  fine, then I'll close the loop"). The wording template is
-  `[outreach.follow_up.<lang>]` in `messages.toml`; `{offer_line}` is an
-  optional line it leaves out by default.
-- **Who is left out**: someone whose unanswered message was on another channel
-  than the batch's (or on a call or in a meeting: write that one yourself);
-  someone you already followed up with once (two messages of yours since they
-  last wrote: close the loop); the usual do-not-contact, closed stage and open
-  item. The 30-day cooldown does not apply to a follow-up: it is due after 5.
-- A cold follow-up email gets the playbook's opt-out line, as a first touch does.
-  A LinkedIn follow-up is a message in the conversation, so it only works if they
-  accepted your connection; the bot cannot know that.
-
-### Add what you see on their LinkedIn profile
-
-LinkedIn blocks anonymous reads, so the bot gets little about a person from it. You
-can add it yourself: on their profile, logged in, click the Hermit CRM
-bookmarklet ([Extension](https://hermitcrm.io/docs/#extension)). For someone already in the CRM whose card
-is drafted, it opens **Add to research** with the top card, About and their own
-recent posts and comments; trim what you like, press the button, and what the AI
-finds is saved as notes on the contact, sourced to the profile. The page text itself is not stored.
-
-### The steps
-
-1. **Preview**: who a batch would go to, and why not the others. No AI, nothing
-   written.
-
-   ```text
-   hermitcrm outreach preview --where 'stage=prospect' --channel email --limit 10
-   ```
-
-2. **Build**: for each contact in the batch, research, then a draft, then the
-   checks. Each item is a file in `outreach/`; each step is one commit, so
-   `hermitcrm undo` takes any of it back.
-
-   ```text
-   hermitcrm outreach build --where 'stage=prospect' --channel email --limit 10
-   ```
-
-3. **Review**: `hermitcrm outreach list`, then `hermitcrm outreach show <id>`
-   for the card: the contact and company links, what research found and where,
-   the flags, the culture norms used, the checks, and the draft. Edit the draft
-   in the file if you want: the text below the second `---` is the message.
-
-4. **Ready or skip**: `hermitcrm outreach ready <id>` approves it. The checks
-   run again on your edited text; one that still fails is a warning, kept on
-   the item, and the choice is yours. The research is already on the contact as
-   notes. `hermitcrm outreach skip <id> --reason R [--note
-   "..."]` drops it, R one of `bad-fit`, `wrong-person`, `bad-timing`,
-   `bad-draft`, `already-in-contact`, `other`. A skipped person comes back in
-   batches after the cooldown; `bad-fit` keeps their company out.
-
-5. **Send and log** it yourself, as you always do (by hand, BCC or the
-   extension). The bot does neither. Logging the message on the item's channel
-   after you marked it ready marks the item **sent**; `hermitcrm outreach sent <id>` does the same
-   without logging anything.
-
-### Who gets picked
-
-- **The filter** is the Companies page's (`stage=prospect`, `country=DE,NL`,
-  `fit_score=>60`, `tags=saas`). A contact key works too (`contact.title=CEO`).
-  Or name people outright: `--contact acme/jane-doe`.
-  The comparison goes inside the value, after the `=`: `fte_estimate=>24`, not
-  `fte_estimate >24`. `>` and `<` compare numbers only on a number field; on a text
-  field they compare letter by letter (100 counts as smaller than 24), and the preview
-  says so. A filter that does not work shows what to type instead and an
-  **Explain and fix with AI** link that opens Ask · Adjust with the problem filled in.
-- **Order**: highest fit first, by the company field `outreach_fit_field`
-  (default `fit_score`, 0 to 100). A company without one comes last, with "no
-  fit score" on its card; the bot never makes one up. Within a company, someone
-  the playbook has a persona for goes first.
-- **Left out**, with the reason in the preview: a company in a closed or parked
-  stage; anything tagged `do-not-contact`; a company an approach's disqualifier
-  hits or that misses every approach's ideal customer; a contact the channel
-  cannot reach (email needs an address, LinkedIn a profile URL); a contact with
-  an open item (researching, drafted or ready); a contact you messaged or
-  skipped in the last `outreach_cooldown_days` (30); a company skipped as
-  `bad-fit`; for a first touch, anyone you messaged before. A reply to
-  interest needs an interested reply owed, and skips the cooldown and the fit
-  test: they asked (the approach is the one the conversation started with).
-- **One item per company**, likely duplicates included: the same website
-  domain, or names that are the same once `-ai`, `-hq`, `GmbH` and the like are
-  dropped. The preview lists such pairs; merge them on the company page.
-- **Flags, not exclusions**: no country (English and the default culture are
-  used), no headcount, no number of salespeople. The card says what was not
-  checked.
-- **Which approach**: the one the company fits best (see the playbook). A tie
-  takes the first one in the playbook and says so; `--approach NAME` picks.
-
-### Research
-
-Two levels, `outreach_research` in `config.toml` (default `scrape`), or the
-**Research** select on the Outreach page and `--research` on the command line.
-
-**`scrape`** (free): the company website, its LinkedIn page and the person's
-LinkedIn page are read (LinkedIn usually refuses anonymous requests; the card
-says so), then one small AI call with no tools lists the facts on them. Every
-finding has its source; one without is dropped. A finding older than about 90
-days is marked stale and never opens a message. Nothing found: the draft uses
-the approach's parts from the playbook and marks gaps `[like this]`. A website, LinkedIn URL or
-country found for an empty field is proposed on the card (a **Save to the
-record** button), never written without it.
-
-**`ai-web`** (AI tokens): the scrape first, then one more AI run that may search
-the web and read pages, for what the company's own pages do not say: recent news,
-a hire, a launch, something the person said. Only Claude Code can be held to
-that (web search and fetch only, no files, no shell, no MCP servers, run in an
-empty temporary folder); with any other AI CLI the level is refused with the
-reason, and you use `scrape`. What the run is told is public only: the company
-name, website, country, LinkedIn pages, the person's name and title, and what the
-scrape found. Never your notes, messages, email addresses or phone numbers, since
-a page written by a stranger could try to make the run repeat what it knows. A
-finding stays only if it names a page the run listed as read, that page is an
-http(s) address, and it can be read again (LinkedIn is taken as listed); the rest
-are dropped, never shown as fact. If the run fails, the scrape findings stand and
-the card says why.
-
-### The draft and its checks
-
-A first touch opens with something about them (never "I"), says the offer in
-one line, and ends with exactly one question about their situation: no meeting
-ask, no link, no time slot. It is written in the contact's draft language,
-otherwise the company's country's, with the culture norms of `[culture.<lang>]`
-in `messages.toml` (German first contact uses `du`); your playbook's Voice wins
-over them.
-
-The checks are rules, not AI: exactly one question (a LinkedIn connection note
-may ask none); not opening with I, Ich, Ik or Je; no calendar link or proposed
-time; the channel's length (email: subject 60 characters, except in a reply or
-follow-up, which keeps their "Re:" subject however long; 120 words; LinkedIn:
-a 300-character connection note and a 600-character message for after they
-accept); only findings and proof lines that exist; no `[ ]` gap. A draft that
-breaks one is written again once; if it still breaks it, it is shown with the
-problem marked. Only a fallback draft, written when research found nothing
-usable, keeps its gaps: it says "needs hand edits".
-
-A reply to interest is checked for the offer line (it must be there word for
-word), one proof line, exactly one question, and no link, time, price or day
-rate (`€900`, `2 days a week`); on LinkedIn it is a message of up to 600
-characters, not a connection note.
-
-Drafts use the medium model; `build --strong` uses the strong one.
-
-**Framework.** A first touch is written with a framework: a recipe for its
-parts, its length and what it asks (`hermitcrm help playbook`). `build --framework
-ID` writes the whole batch with one; without it each draft uses its approach's
-`frameworks: default`, else `house`, today's recipe. An id the library does not
-have is refused, and so is `--framework` on a reply or a follow-up, which have
-no framework. A framework can need something the research must find: a
-premise (something they wrote, said or shared) or a personal connection (a note
-you wrote). When it was not found, the draft uses the approach's default if
-that needs nothing, else `house`, and the card says so in its flags, for example
-"connection-problem-objection needs a personal connection; drafted with house".
-Regenerate checks this again against your notes as they are now. The item
-records the `framework` it was drafted with, and `outreach show` prints it. Regenerate uses that framework. A build or a Regenerate checks the
-AI's answer for its proof line; Mark ready checks the text again for that
-framework's length and questions, not for proof. An item from before frameworks
-has none and counts as `house`; one whose framework has since left the library
-is drafted with `house` and says so in a flag.
-
-**Opt-out line** (optional): set `opt_out` in the playbook's front matter, one
-sentence or one per language (`opt_out: {en: "...", de: "..."}`), and a cold
-first email gets it added at the end, in the draft's language. It does not
-count towards the 120 words. Without it, nothing is added.
-
-### The critic
-
-The checks cannot tell whether a draft is any good, so after the checks a second
-AI call (no tools) scores the draft from 1 to 5 on four things: **relevance**
-(does it touch the likely problem of this role, and your offer), **personal**
-(is it built on a real finding about them; for a reply, does it answer what they
-wrote; for a follow-up, does it pick up your earlier message), **tone** (the
-language, culture norms, channel and your playbook's Voice) and **honesty** (any
-claim of familiarity or fact with nothing behind it scores 1). The card shows
-the four scores, the lowest one, and the critic's one-line reason under the
-checks. `hermitcrm outreach show` prints them too, and `build` adds the lowest
-score to its line.
-
-The lowest of the four counts, so a draft that invents familiarity is caught even
-when the rest is fine. If it is below `outreach_critic_threshold`, the draft is
-written once more with the critic's reason as the thing to fix, and **the second
-draft is kept**, scored again, whatever it scores: never a third time, and a
-low score never blocks you. That is at most four draft calls and two critic calls
-per card; `attempts` on the item counts the draft calls.
-
-The threshold starts low, **2**: only a draft that scores 1 somewhere is redone,
-because nothing says yet what a 3 is worth on your own folder. Raise it once you have
-seen some scores against the drafts you actually liked; `0` turns the critic off.
-A critic that fails (the CLI errors, the answer is not four scores) leaves the
-draft as it is, and a flag on the card says "critic did not run".
-
-**Save & check again** also asks the critic about the text as you edited it (an AI
-call; it scores only and never rewrites your text). Without an AI it runs the checks
-and says the critic did not run. **Mark ready** does not ask. A score is never a
-check: the rules stay in the checks and `clean_answer`.
-
-### About you, about them
-
-Next to the critic's scores the card counts the words that are about you (I, my,
-we, our) and the words that are about them (you, your) in the message and the one
-after they accept, in the draft's language. English, German, Dutch and French have
-word lists; any other language shows no count. The opt-out line is left out. When
-there are more about you than about them, the line turns into a warning. It is a
-flag, not a check: nothing is blocked or written again, and the offer line is first
-person by nature. In German, the formal `Sie` and `Ihr` count as about them only in
-capitals; `Sie` not first in a sentence (it may mean "she" or "they" there), the
-`Ihr` forms and `Ihnen` anywhere. A word in all capitals, like `US` or `WIR`, never
-counts. `hermitcrm outreach show` prints the same line.
-
-### The files
-
-`outreach/<id>.md`, one per item. The front matter holds `state`
-(`researching`, `drafted`, `ready`, `sent`, `skipped`; `logged` is for later), the
-channel, contact, company, the reply it answers (`reply_to`) or the message it
-follows up (`follows`), approach,
-findings, check results, the critic's scores (`critic`, `critic_reason`,
-`critic_model`), flags,
-timestamps, the AI's original text and how much you changed it. The body is
-the message, byte for byte. `hermitcrm check` reports a file it cannot read.
-
-Settings in `config.toml`: `outreach_research` (`scrape` or `ai-web`), `outreach_cooldown_days`,
-`outreach_fit_field`, `outreach_high_fit` (65: the preview counts high-fit
-companies never contacted), `outreach_batch_size` (10), `outreach_critic_threshold` (2; 0 = no critic).
-Channel rules and culture norms: `[outreach.<channel>]` and `[culture.<lang>]`
-in `messages.toml`, over the shipped defaults.
-
-Related: [Playbook](https://hermitcrm.io/docs/#playbook), [Messages](https://hermitcrm.io/docs/#messages), [Sending](https://hermitcrm.io/docs/#sending), [CLI](https://hermitcrm.io/docs/#cli)
-
-## Sending
-
-Sends the email you approved from the Outreach page, now or spaced over the working day, from a mailbox of its own; LinkedIn is a paced session where you click Send yourself. You approve every message.
-
-Until now the outreach bot only wrote and checked: you copied each message into
-your mail or LinkedIn, and logging it afterwards marked the item sent. That is
-fine at five a day and breaks at fifty. Sending adds two things, both off until
-you turn them on, and neither one writes anything you did not approve.
-
-### Set it up (about 30 minutes, once)
-
-1. **A separate mailbox.** Use a mailbox on its own domain (for example
-   `sam@try-example.com`, not your main address). Cold email can hurt the
-   reputation of the domain it is sent from; a separate one keeps your main
-   domain safe. Give the new domain SPF, DKIM and DMARC (a DMARC record with
-   `p=none` is enough at this volume).
-2. **An app password.** With Gmail or Google Workspace: turn on 2-Step
-   Verification, then make an app password named "Hermit CRM"
-   (<https://myaccount.google.com/apppasswords>). A Workspace admin can switch
-   app passwords off, and changing the account password revokes them. Only
-   Gmail and Google Workspace are tested; iCloud and Fastmail should work;
-   Microsoft has switched off password sign-in, so Outlook.com and Microsoft
-   365 do not.
-3. **Settings > Email & calendar > Sending.** Pick the provider, the sending
-   address and the app password (kept in the Keychain or `.secrets.toml`, never
-   in `config.toml`), tick **Sending is on**, press **Send a test to myself**
-   (a wrong password shows the server's exact reply), then **Turn on scheduled
-   sending**. One app password covers sending and the reply check. (An empty IMAP server switches the
-   reply check, the Sent check and the bounce scan off: then a send that stopped halfway cannot be
-   looked up in Sent, so use it only if your provider has no IMAP.)
-4. **An opt-out line** (optional). If your playbook sets `opt_out:` in
-   `MESSAGING.md`, one sentence or one per language, a cold first touch carries
-   it and a scheduled one is held when it was edited out. Without it nothing is
-   added and nothing is checked. The **Opted out** button and the suppression
-   list work either way.
-5. **Energy settings.** The Mac must not sleep on power during the window:
-   launchd runs nothing while it sleeps. `hermitcrm doctor` reads the setting
-   and warns; it never changes it.
-
-### What it does
-
-On the Ready tab each email card has **Send now** and **Schedule**, and **Schedule
-all ready email** shows the proposed times first and asks you to confirm. A
-queued card says when it goes out ("goes out Tue 20 Oct, 09:47"); the
-**Scheduled** tab lists them with **Unschedule**, **Send now** and **Move to
-front**. The strip at the top of the page shows today's count against the cap,
-the next send and **Pause**, the kill switch: one click, effective from the
-next tick.
-
-A job (`hermitcrm send due`, every 3 minutes) sends **one** queued email per run.
-Before each send it checks again:
-
-- sending is on, not paused, inside the window, under today's cap, and the last
-  send was at least the minimum gap ago;
-- the text is still exactly what you approved (an edit on the page, or by hand
-  in the file, puts it back to Ready);
-- the contact has an email address that is not on the suppression list, and the
-  company is still open and not do-not-contact;
-- **nobody there has written to you** since you approved it: in the CRM, and in
-  the sending mailbox itself (one IMAP search, only when an item is about to go
-  out). If they did, it goes back to Ready with "they wrote to you on 16 Oct";
-- the checks still pass, and, when your playbook has an opt-out line, a cold
-  first touch still carries it.
-
-Nothing is dropped silently: whatever holds an item puts it back on the Ready
-tab with the reason.
-
-#### The spacing
-
-How many a day, and when:
-
-| Setting | Default | Meaning |
-|---|---|---|
-| `send_window`, `send_days` | `08:30-17:30`, Mon-Fri | when mail may go out, in your time zone |
-| `send_daily_cap` | 50 | the most per day, after the ramp |
-| `send_ramp` | `[10, 20, 30, 40]` | the cap for weeks 1, 2, 3... counted from the first send |
-| `send_min_gap_minutes` | 3 | the least time between two sends |
-| `send_company_gap_hours` | 24 | two contacts at one company (or one email domain) go out a day apart |
-| `send_grace_minutes` | 10 | the earliest slot after Schedule, so a mistake can be undone |
-| `send_overdue_minutes` | 20 | later than this an item is planned again, never sent in a burst |
-| `send_email_block_countries` | none | countries never emailed (see below) |
-
-The gap between two sends is the window divided by the day's cap, times a factor
-between 0.6 and 1.4 that depends only on the item (so the page and the worker
-agree), never below the minimum gap: at 50 a day about 11 minutes, at 10 about
-54. Follow-ups and replies to interest go first, then first touches in the order
-they were queued. An item keeps the time the page showed unless it is overdue.
-A Mac that slept for two hours plans what is overdue again and sends one at a
-time; it never catches up in a burst.
-
-**How much is too much.** 50 a day is the plan, reached from 10 a day in the
-first week, 20 in the second, 30 and 40 after that. Raise `send_daily_cap` (and
-the ramp) in steps, only while replies hold up and bounces stay low. More than 150 a day for more than one or two days in a row is
-strongly discouraged (a mailbox that does it ends up in spam), so after two
-send-days above 150 the third is held at 150 whatever the setting says.
-Settings says the same next to the box. Reputation, not the provider's limit
-(Gmail allows 2,000 a day), is the ceiling, and a brand new domain deserves a
-slower start than the default ramp: lower `send_ramp` if you are unsure.
-
-**Send now** ignores the window and the gap (a reply to interest should not wait
-for a slot), but it counts toward today's cap, runs the same checks and is
-refused while sending is paused. It is meant for replies and one-offs.
-
-#### When it goes wrong
-
-| What happened | What it does |
-|---|---|
-| The login is refused (a revoked app password) | Pauses everything; a red banner on every page shows the server's own words; nothing retries until a new **Send a test** passes |
-| The daily quota is exceeded | Pauses until the next window, then plans again |
-| A temporary error (421, 450, a timeout, no network) | Tries again in 15 minutes, up to 3 times, then the item is failed |
-| The address does not exist | The item is failed and the address goes on the suppression list |
-| The process stopped between sending and logging | The next run looks for the Message-ID in Sent: found, it logs it; not found, it sends again with the same Message-ID. Never twice |
-| Too many bounced (more than 3 of the last 50, or over 5%) | Pauses with a banner: a list-quality problem, check where the addresses came from |
-
-Each message gets a `Message-ID` on your sending domain, written on the item and
-committed **before** it goes out; a follow-up or reply carries `In-Reply-To` and
-`References`, so it threads under the mail it follows. The mail is plain text,
-UTF-8, exactly as approved: no HTML, no links in a first touch, no tracking
-pixel, no BCC and no List-Unsubscribe header (a one-to-one mail that looks like
-a newsletter is what filters punish). It is logged once, as an outbound email
-with `source: outreach`; a later BCC import of the same mail adds nothing.
-
-### Bounces and opt-outs
-
-Every half hour, while something is queued or went out in the last three days,
-the sending mailbox is searched for delivery reports (from mailer-daemon or
-postmaster). An address that bounced goes on the **suppression list**
-(`outreach/suppressed.toml`: address, reason, date, item), a note goes on the
-contact's timeline and the item is flagged. The planner never schedules a
-suppressed address and the worker never sends to one.
-
-**Opted out** (on a reply under Replies to interest, on the contact page, or
-`hermitcrm outreach opt-out company/contact`) puts the address on the list and
-skips every open item for that person. Delete a table from the file to mail an
-address again.
-
-### LinkedIn
-
-LinkedIn's User Agreement (8.2) forbids automated sending, and a restricted account
-is lost for good, so Hermit does not send on LinkedIn, ever. The **LinkedIn
-session** on the Outreach page puts one approved touch in front of you at a time:
-
-1. **Start session.** Counters at the top: invites today 0/20, the last 7 days
-   0/80, messages today 0/40, this session 0/10.
-2. A card shows the person and the text (a connection note up to 300 characters,
-   a message up to 600). **Open profile & copy** copies the text and opens their
-   profile in a new tab. You click Connect, Add a note, paste, Send.
-3. Back on the card: **Sent** logs an outbound LinkedIn message with the exact
-   text; **Already connected** turns the card into the message that would have
-   followed the note; **Couldn't send** asks why (profile gone, LinkedIn's
-   weekly-limit message, something else). The weekly-limit message pauses invites
-   until the 7-day count drops.
-4. The next card unlocks after a 45-120 second countdown that varies. After 10
-   touches the session is done and the next can start two hours later.
-
-The queue is answers and follow-ups to people you already talk to, then
-connection notes, then messages to people who accepted. Sent invites wait under
-**Waiting to accept**; **Accepted** brings the person's message into the queue.
-An invite pending for 21 days gets a reminder to withdraw it: many pending
-invites count against the account. Realistic volume is about 20 invites and
-30-40 messages to connections a day. 50-100 invites a day is not available by
-any method.
-
-### Countries
-
-German and Austrian law (UWG §7(2) no. 2, TKG §174) require prior consent for
-advertising email, business to business included, and an opt-out line does not
-cure that. The UK and the Netherlands are looser for B2B. This is not legal
-advice. `send_email_block_countries` (Settings > Sending > Never email these
-countries) keeps a country's companies out of the queue; the card then suggests
-LinkedIn. It is empty by default: each folder decides.
-
-### From the command line
-
-```
-hermitcrm send test               log in over SMTP and IMAP and mail a test to yourself
-hermitcrm send status             on/off, today's count against the cap, the queue, why paused
-hermitcrm send due [--dry-run]    one tick of the worker
-hermitcrm send pause | resume     the kill switch
-hermitcrm outreach schedule ID... | --all-ready [--dry-run]
-hermitcrm outreach unschedule ID | front ID | retry ID | send-now ID
-hermitcrm outreach opt-out COMPANY/CONTACT
-hermitcrm schedule install --send
-```
-
-Agents never schedule or send unless you ask in that conversation: there is no
-MCP tool for it, and the folder's `AGENTS.md` says so. The real limit on any
-damage is the daily cap and the window.
-
-Related: [Outreach bot](https://hermitcrm.io/docs/#outreach), [Playbook](https://hermitcrm.io/docs/#playbook), [Settings](https://hermitcrm.io/docs/#settings), [CLI](https://hermitcrm.io/docs/#cli)
-
-## Learning
-
-What your edits and the answers to your messages teach the outreach bot, as short lessons in `MESSAGING.md` that you accept one by one.
-
-Every time you change a draft before approving it, and every time a message
-gets (or does not get) an answer, Hermit CRM keeps a signal. Nothing is
-learned silently: a run turns the signals into **proposals**, and a proposal
-only changes your Lessons when you accept it.
-
-### The phases
-
-The more you have reviewed and the more replies you have, the more weight goes
-to outcomes over edits. `hermitcrm learn report` opens with a banner such as
-"12 reviewed drafts, 2 replies, 1 positive: phase 1". Pin a phase with
-`learning_phase_pin` in `config.toml`.
-
-### The steps
-
-1. `hermitcrm learn report` shows the efficiency trend (are your edits getting
-   smaller?), the patterns in your edits, the outcome rates per persona,
-   channel, language and framework (cells under 10 sent items are marked "too
-   few"), and a style table. No AI is used. The framework is the one a first
-   touch was built with (`outreach build --framework`); older items, replies
-   and follow-ups have none and count under "-". A card names its framework
-   too, so a lesson can tell the frameworks apart.
-2. `hermitcrm learn status` shows what a run would send: the cards (anonymised
-   evidence from your edits), the prompt size and a token estimate.
-3. `hermitcrm learn run` asks the AI once (strong tier) for proposals. With
-   `learning_distill = "handoff"` in `config.toml` it writes
-   `learning/evidence-pack.md` instead; give that to your own agent, save its
-   answer as `learning/proposals.json`, then `hermitcrm learn import`.
-4. `hermitcrm learn accept ID [--text "..."]` or `reject ID`. A rejected
-   proposal is never proposed again.
-5. `hermitcrm learn retire LESSON_ID` removes a lesson;
-   `hermitcrm learn move LESSON_ID worked|failed|open` moves one.
-6. `hermitcrm learn suggest` lists deterministic suggestions (a lower email word
-   limit, phrases you keep deleting); `hermitcrm learn apply ID` applies one.
-
-### Examples instead of rules
-
-Lessons are advice. Examples show the drafter what you mean: the closest
-earlier cases, picked by the same persona, channel and language and by what
-the findings have in common. Two kinds exist, and both are built from your own
-history, with names replaced:
-
-- **Corrections**: the paragraph the AI wrote and the way you changed it, with
-  your reason. They come from drafts you explained or changed a lot.
-- **Messages that worked**: the text of a first touch that got a positive reply,
-  a deal or a win. Newer and higher-rung ones count more.
-
-Early on corrections lead; once replies and deals exist, the ones that worked
-do. If nothing is close enough, nothing is shown. This is off until you choose
-it in Settings (Playbook > Examples in drafts), or set `learning_exemplars` to
-`corrections`, `outcomes` or `both` in `config.toml`. It adds roughly 300 to 500
-tokens to each first-touch draft (`learning_exemplar_count`, default 2, sets
-how many). A card says which earlier messages a draft was modeled on, and the
-Examples section of the Learning page lets you pin an example, or exclude one
-you do not want copied (a message that worked for a one-off reason). Drafts are
-told to copy the approach, never the words, but similar openers can still
-creep in: watch for that.
-
-`hermitcrm learn exemplars --item ID` shows what the prompt for one item would
-contain, with the reason for each example and a token count; no AI is used.
-
-Add `--approach NAME` when you have more than one approach; the default is the
-first. Tell Hermit why you changed a draft with `hermitcrm outreach ready ID
---tag too-long` (repeatable).
-
-Related: [Outreach bot](https://hermitcrm.io/docs/#outreach), [Playbook](https://hermitcrm.io/docs/#playbook), [CLI](https://hermitcrm.io/docs/#cli)
+Related: [Messages](https://hermitcrm.io/docs/#messages), [Adjust messages](https://hermitcrm.io/docs/#adjust-messages), [Settings](https://hermitcrm.io/docs/#settings), [Enrich](https://hermitcrm.io/docs/#enrich), [CLI](https://hermitcrm.io/docs/#cli)
 
 ## Reports
 
@@ -1380,11 +697,6 @@ folder (the one with `config.toml` and `companies/`), and:
    id, `hermitcrm undo <commit>`, or Undo on the Make it yours page).
 
 If the request is unclear or would change many records, ask before writing.
-
-A request that quotes a filter problem ("Filter … failed: …", from Explain and fix
-with AI): explain in plain words what is wrong, give the corrected filter, and
-change nothing. If the cause is a field type (`>` on a text field), show the
-`fields.toml` change and wait for a yes before making it.
 
 ### Files you may write
 
@@ -1567,16 +879,6 @@ queue instead. Everything else (personal addresses, a domain that fits several
 companies) goes to the review queue, which is **To file** on Home. Dedup is by
 Message-ID. Below the form: the last import (time and summary, or the error)
 and **Import now**, which runs the import on the spot.
-
-### Sending
-
-Send approved outreach email from the Outreach page, from a mailbox of its own.
-The provider (Gmail and Google Workspace are tested), the sending address, an app
-password (Keychain or `.secrets.toml`), the window and days, the daily cap
-(50; above 150 is held at 150 after two days in a row), the ramp for a new
-mailbox (10 a day in week 1), the gaps, and countries never emailed. **Send a test to myself** logs in
-over SMTP and IMAP and shows the server's exact reply on failure; **Turn on
-scheduled sending** installs the worker job. [How it works](https://hermitcrm.io/docs/#sending).
 
 ### Calendar
 
@@ -1775,14 +1077,7 @@ The outcome choices for interactions, one per line, in order: the first is
 what a detected reply counts as, the last what silence past the message
 window counts as. Also here: `message_window_days` (default 14) and
 `silent_days` (default 14, the Calendar's silent list and `PIPELINE.md`).
-Keep in touch on Home reads `keep_in_touch_days` (default 180), set in
-`config.toml` only.
-Duplicates and an empty list are refused. The default is `successful`,
-`interested`, `unsuccessful`: `interested` marks a reply that shows interest
-(the Outreach page's Replies to interest). A folder that set its own list
-before `interested` existed is offered it here, placed before the last
-outcome so replies and silence count as before; nothing changes until you
-press **Add interested**.
+Duplicates and an empty list are refused.
 
 ### Schedule
 
@@ -1833,36 +1128,15 @@ are. It asks PyPI unless `update_url` in `config.toml` points somewhere else;
 any URL answering `{"version": "0.4.0"}` works, so a static file on a download
 page is enough. Turn it off with `update_check = false`.
 
-When a newer version exists, the About row and the sidebar show an **Upgrade**
-button. One click installs it (with `uv tool install hermitcrm@latest`, `pipx
-install --force hermitcrm` or `pip install --upgrade hermitcrm`, whichever
-installed Hermit CRM, also from a download), checks that the new files start,
-restarts the app and asks you to **Reload**. It takes about a minute. Your data
-is not touched; if the new version changes the data format, the folder is
-migrated when the app starts, in one git commit (see [Data format](https://hermitcrm.io/docs/#data-format)).
+A newer version comes with the command that upgrades your install: `uv tool
+install hermitcrm@latest` when uv installed it, also from a download. Restart
+the app afterwards.
 
-If the install fails, or the new version does not start, nothing is restarted
-and the panel says what happened, with the command that goes back to the
-version you had.
+Related: [Interactions](https://hermitcrm.io/docs/#interactions), [Enrich](https://hermitcrm.io/docs/#enrich), [CLI](https://hermitcrm.io/docs/#cli), [Data format](https://hermitcrm.io/docs/#data-format)
 
-The button is there only when it can work. Hermit CRM has no password, so an app
-that listens on the network (`host` in `config.toml`) shows the command to type
-instead, and so does one on Windows, one whose `update_url` is not PyPI, and one
-started some other way than `hermitcrm serve`. Run the command, then restart the
-app: `launchctl kickstart -k gui/$(id -u)/io.hermitcrm.serve` on a Mac,
-`systemctl --user restart hermitcrm-serve` on Linux.
+## Import
 
-**Restart needed.** If Hermit CRM was upgraded behind the app's back (a terminal,
-an assistant) the app is still running the old version while the files are the
-new one, and pages can fail in odd ways. The sidebar and About then say **Restart
-needed** with a **Restart now** button, and an error page in that state says the
-same.
-
-Related: [Interactions](https://hermitcrm.io/docs/#interactions), [Enrich](https://hermitcrm.io/docs/#enrich), [Sending](https://hermitcrm.io/docs/#sending), [CLI](https://hermitcrm.io/docs/#cli), [Data format](https://hermitcrm.io/docs/#data-format)
-
-## Import and export
-
-`/import` (and `hermitcrm import FILE`): companies or contacts from a spreadsheet, previewed before anything is written. Export, below, takes everything out again.
+`/import` (and `hermitcrm import FILE`): companies or contacts from a spreadsheet, previewed before anything is written.
 
 ### Input
 
@@ -1895,32 +1169,6 @@ country or a non-numeric score. Every column can be remapped to a field, to
 
 In the CLI: `hermitcrm import FILE [--mode companies|contacts] [--map "Header=field" ...]`
 prints the plan; `--apply` writes it.
-
-### Export
-
-Settings > Data > Export everything (or `hermitcrm export`) gives you a zip
-of five CSV files: `companies.csv`, `contacts.csv`, `interactions.csv`,
-`tasks.csv` and `stage_history.csv`. Exporting only reads: nothing in your
-folder changes and nothing is committed.
-
-- **Column names.** `generic` uses Hermit CRM's own names; `hubspot` and
-  `pipedrive` rename the company and contact columns to what those CRMs
-  call them. Your own fields and any key the app does not know come after
-  the known columns, so nothing is left out.
-- **For Excel** (`--excel`) starts each file with a UTF-8 byte-order mark, so
-  Excel shows accents correctly.
-- **Formulas.** A cell that starts with `=`, `+`, `-` or `@` gets an
-  apostrophe in front, so a spreadsheet does not run it. Importing the file
-  back removes the apostrophe again.
-- **JSON.** `hermitcrm export --format json` writes one file with every
-  company and its contacts, interactions, tasks and stage history.
-
-The CLI writes `hermitcrm-export-DATE.zip` in the current folder, or where
-`--output` says (`-` for stdout). It refuses a path inside the data folder,
-where the export would end up in git.
-
-Every column of the export is one the importer recognises: import
-`companies.csv` first, then `contacts.csv`.
 
 Related: [Companies](https://hermitcrm.io/docs/#companies), [Contacts](https://hermitcrm.io/docs/#contacts), [CLI](https://hermitcrm.io/docs/#cli)
 
@@ -1970,23 +1218,6 @@ in it; take the bookmarklet again from this page to read the real thing. A
 person's headline is never read as a company's one-liner -- that produced
 sentences like "Most companies don't have a lead problem... - Experience: ...
 - 500+ connections on LinkedIn", which is how the profile path was found.
-
-### Add to research: someone you have, with a card waiting
-
-When the profile is already in the CRM and its contact has an outreach card that
-is **drafted**, the bookmarklet does not just take you to the contact. It opens
-**Add to research**: the top card, the **About** section and the text of the
-**posts and comments by them** from their Activity (their likes, reposts and
-other people's posts are left out), each in a box you can trim. Press the
-button and the AI (no tools; it reads the text as data) turns what is left into
-findings sourced to that profile. They join the card's findings (duplicates are
-skipped), you can remove them like any other, and **Regenerate** uses them. This
-is the reliable way to get person-level detail, because LinkedIn blocks
-anonymous fetches. The text you trimmed is not kept, only the findings; the
-card's message is not touched. It needs your AI CLI. A card that is still
-researching or already ready says it cannot take research now. Take the
-bookmarklet again from this page: older ones do not send About or Activity (the
-top card still works).
 
 ### The bookmarklet
 
@@ -2165,12 +1396,10 @@ hermitcrm sample add|remove                the made-up sample account in this fo
 hermitcrm setup                            the setup questions again (you, BCC, backup, calendar)
 hermitcrm serve [--port N]                 the web app on 127.0.0.1 (port from config.toml, default 8765)
 hermitcrm doctor [--online]                one ok/warn/fail line per check; exit 1 on a failure
-hermitcrm schedule install [--at HH:MM] [--serve] [--send] [--backup-every MIN | --no-backup]
+hermitcrm schedule install [--at HH:MM] [--serve] [--backup-every MIN | --no-backup]
                                         daily sync --apply and a backup every 5 minutes, via launchd
-                                        or systemd (schtasks printed on Windows); --send also installs
-                                        the worker that sends scheduled email every 3 minutes
-hermitcrm schedule remove [--send]         remove the jobs (--send: only the sending worker)
-hermitcrm schedule status
+                                        or systemd (schtasks printed on Windows)
+hermitcrm schedule remove|status
 hermitcrm migrate [--dry-run]              upgrade the data format (every command does this automatically);
                                         also puts back a missing /hermit skill (.claude/skills/hermit/)
 hermitcrm help [TOPIC]                     these pages; no topic prints the index and the topic list
@@ -2183,8 +1412,6 @@ hermitcrm show SLUG [--bodies N | --all]   one company: fields, notes, contacts,
 hermitcrm digest [--days 7]                recent interactions oldest first, 150 characters of body each
 hermitcrm followups [--reply-after N] [--nudge-after N]
                                         threads you owe a reply, then ones you are waiting on
-hermitcrm keep-in-touch [--after N]        people outside an open deal you have not spoken to in N days
-                                        (default keep_in_touch_days, 180), longest first
 hermitcrm brief [--days 7]                 each upcoming meeting with its stage, next step, contacts and last 3 interactions
 hermitcrm mcp                              serve this folder to AI clients over MCP (stdio); see the AI agents topic
 hermitcrm report [--days N | --from D --to D] [--md]
@@ -2198,61 +1425,6 @@ hermitcrm playbook [status]                per approach: what the playbook has a
                                         `hermitcrm help playbook`
 hermitcrm playbook upgrade [--dry-run]     add the front matter and missing headings to MESSAGING.md,
                                         keeping every line; one commit, and a second run changes nothing
-hermitcrm outreach preview [--where K=V ...] [--contact CO/PERSON] [--channel email|linkedin]
-                         [--limit N] [--approach NAME] [--kind first-touch|reply-to-interest|follow-up]
-                                        who an outreach batch would go to, and why not the rest; no AI,
-                                        nothing written
-hermitcrm outreach build (same flags) [--research scrape] [--strong] [--framework ID]
-                                        research, draft and check each contact: one item per contact in
-                                        outreach/, one commit per step; refused until the playbook is ready;
-                                        --framework writes the first touches with that framework (default:
-                                        the approach's, else house); see `hermitcrm help outreach`
-hermitcrm outreach list [--state S]        every item, newest first
-hermitcrm outreach show ID                 one item in full: links, findings, flags, checks, the draft
-hermitcrm outreach edits [--positive] [--noted]
-                                        your tracked edits as Markdown: the AI's original, each change
-                                        with your explainer, and how the message was answered
-hermitcrm outreach ready ID [--tag T ...]  approve a draft (the checks run again on your text; a failing
-                                        one is a warning); never sent; --tag says why you changed it
-                                        (too-long, wrong-tone, wrong-pain, bad-finding, wrong-fact, cliche, other)
-hermitcrm outreach sent ID                 you sent it (logging the message does this too); logs nothing
-hermitcrm outreach skip ID --reason R [--note TEXT]
-                                        drop an item: bad-fit, wrong-person, bad-timing, bad-draft,
-                                        already-in-contact or other
-hermitcrm outreach schedule ID... | --all-ready [--dry-run]
-                                        queue approved email to go out over the working day, spaced
-                                        and capped; --dry-run shows the times and writes nothing
-hermitcrm outreach unschedule ID           take a queued item out of the queue (back to ready)
-hermitcrm outreach front ID                make a queued item the next to go out
-hermitcrm outreach retry ID                a failed item back to ready
-hermitcrm outreach send-now ID             send one approved email now (same checks, counts toward the cap)
-hermitcrm outreach opt-out COMPANY/CONTACT
-                                        they asked not to be written to: suppress the address and skip
-                                        their open items
-hermitcrm send test [--to ADDRESS]         log in over SMTP and IMAP and mail a test to yourself
-hermitcrm send status                      on/off, today's count against the cap, the queue, why paused
-hermitcrm send due [--dry-run]             one tick of the worker (at most one email per run)
-hermitcrm send pause | resume              the kill switch, and lifting any pause
-```
-
-See [Sending](https://hermitcrm.io/docs/#sending) for how it works.
-
-### Learning
-
-```text
-hermitcrm learn report [--approach A]      phase, efficiency trend, patterns, outcome rates, style features; no AI
-hermitcrm learn status [--approach A]      what a run would send and cost, pending proposals; no AI
-hermitcrm learn run [--approach A]         distill your edits into proposals (one AI call), or write the
-                                        evidence pack when learning_distill = "handoff"
-hermitcrm learn import [--approach A]      read learning/proposals.json after a handoff run
-hermitcrm learn accept ID [--text T]       apply a pending proposal to the Lessons (optionally reworded)
-hermitcrm learn reject ID                  reject it for good
-hermitcrm learn retire LESSON [--approach A]        remove a lesson
-hermitcrm learn move LESSON worked|failed|open [--approach A]   move a lesson
-hermitcrm learn exemplars [--approach A] [--item ID]   the examples a draft can be shown; --item previews one prompt block
-hermitcrm learn pin|exclude|unmark ID      pin an example, never show it (the way to delete one), or clear that
-hermitcrm learn suggest                    list the word-limit and never-write suggestions
-hermitcrm learn apply SUGGESTION           apply one; see `hermitcrm help learning`
 ```
 
 ### Backups
@@ -2292,8 +1464,6 @@ hermitcrm stages [rename OLD NEW | add NAME | move NAME | set NAME | remove NAME
                                         companies, one `ai: adjust:` commit per step). See Make it yours: deal stages
 hermitcrm rebuild                          rebuild the index and PIPELINE.md, commit "pipeline: rebuild"
 hermitcrm import FILE [--mode companies|contacts] [--map HEADER=FIELD ...] [--apply]
-hermitcrm export [--format csv|json] [--profile generic|hubspot|pipedrive] [--excel] [-o PATH]
-                                        everything as a zip of CSVs (or one JSON file); reads only. See Import and export
 hermitcrm fetch SLUG [--url URL] [--apply] fields from the website or LinkedIn page (no AI)
 hermitcrm enrich SLUG [--contact CSLUG] [--apply]
                                         fields from an AI CLI
@@ -2519,7 +1689,6 @@ Every record is a Markdown file with YAML front matter in a fixed key order; the
   .claude/settings.json       git commands Claude Code may not run (see Backups and undo)
   .claude/skills/hermit/SKILL.md  the /hermit skill: Claude Code runs `hermitcrm help adjust` (Make it yours)
   MESSAGING.md                your outreach playbook (hermitcrm help playbook)
-  outreach/<id>.md            one outreach item each; outreach/suppressed.toml, addresses never mailed again
   dashboards/<name>.toml      optional pages of your own at /d/<name> (see Dashboards)
   inbox/                      BCC and calendar items waiting for a decision
   routines.toml               optional routines: a morning brief, AI drafts (see Routines)
@@ -2657,15 +1826,10 @@ both keys on its next save.
 
 `date` (datetime), `channel` (email, linkedin, call, whatsapp, meeting, note), `direction`
 (out, in; empty for a note), `contact` (contact slug; empty only in older or
-imported files), `subject`, `framework` (optional,
-omitted when empty: the id of the outreach framework the message was built with,
-such as `house` or `trigger-tension-trust`, lower case letters, digits and hyphens;
-it is the item's when logging marks an outreach item sent, and the id stays if the
-framework is removed later), `approach` (optional,
-omitted when empty: the playbook approach the message was for),
+imported files), `subject`,
 `outcome` (one line; see the configured outcomes), `result` (legacy: success,
-unsuccessful or empty), `source` (manual, bcc-import, calendar-import, migration, outreach),
-`message_id` (imports, and email Hermit CRM sent itself: the mail's Message-ID, or
+unsuccessful or empty), `source` (manual, bcc-import, calendar-import, migration),
+`message_id` (imports only: the mail's Message-ID, or
 `ical:<UID>:<RECURRENCE-ID>:<attendee>` for a meeting). Body: the message or
 notes verbatim. Id: `YYYY-MM-DDTHHMM-<channel>-<direction>-<contact or company>`
 (a note: `YYYY-MM-DDTHHMM-note-<contact>`), `-2`, `-3` on collision. A note is a
@@ -2709,17 +1873,7 @@ moves each contact's notes body into note interactions, a line starting
 `DD/MM/YYYY:` dated that day, the rest dated the contact's `created`; format 8
 adds the `/hermit` skill (a skill file of your own is kept), the "Adjusting
 Hermit" rules in `CLAUDE.md` / `AGENTS.md` when they do not mention
-`hermitcrm help adjust` yet, and `inbox/.last-routines.json` to `.gitignore`; format 9 tidies one hand-written
-interaction key (format 18 drops it again); format 12 adds the
-keys scheduling, sending and the LinkedIn session write to every outreach item
-(`queued`, `send_at`, `send_hash`, `message_id`, `send_tries`, `send_error`,
-`send_note`, `invite_sent`, `accepted`, `pitch_sent`), empty; format 13 allows
-`source: outreach` on an interaction and changes no file; format 14 adds the
-"Sending mail" rules to `CLAUDE.md` / `AGENTS.md`: an agent never schedules or sends
-unasked, see [Sending](https://hermitcrm.io/docs/#sending); formats 15 and 16 trim a hand-written
-`framework` and put it in lower case, and drop an empty one, on outreach items and
-then on interactions); format 17 drops the `angle` key from outreach items and
-format 18 drops it from interactions. The latest format is 18;
+`hermitcrm help adjust` yet, and `inbox/.last-routines.json` to `.gitignore`);
 `hermitcrm migrate --dry-run` lists the files first and `git revert` undoes it. A
 folder written by a newer Hermit CRM is refused until you upgrade.
 
@@ -2735,7 +1889,7 @@ enrichment and agent-made changes (`ai: adjust: <what>` for a change made throug
 `hermitcrm undo <sha>`, a new commit named `Revert "<subject>"` (git's own
 revert), or plain git: `git checkout <sha> -- <path>`, then `hermitcrm rebuild`.
 
-Related: [Companies](https://hermitcrm.io/docs/#companies), [Interactions](https://hermitcrm.io/docs/#interactions), [AI agents](https://hermitcrm.io/docs/#ai-agents), [Sending](https://hermitcrm.io/docs/#sending), [CLI](https://hermitcrm.io/docs/#cli)
+Related: [Companies](https://hermitcrm.io/docs/#companies), [Interactions](https://hermitcrm.io/docs/#interactions), [AI agents](https://hermitcrm.io/docs/#ai-agents), [CLI](https://hermitcrm.io/docs/#cli)
 
 ## AI agents
 
@@ -2895,7 +2049,6 @@ The tools, reads first:
 | `digest` | Interactions in the last N days. |
 | `report` | Activity, funnel, time in stage, outcomes, hygiene. |
 | `followups` | Threads you owe a reply, then ones you are waiting on. |
-| `keep_in_touch` | People outside an open deal you have not spoken to in a while. |
 | `brief` | Each upcoming meeting with the record behind it. |
 | `add_company` | Create a company; returns the slug. |
 | `add_contact` | Create a contact under a company. |
@@ -3270,10 +2423,10 @@ always drafts: nothing in Hermit sends them, and neither do you.
 
 ### What the user can ask for
 
-- The wording of the outreach drafts (the Outreach page), in their own words
+- The three drafts on every company and contact page, in their own words
   ("shorter", "less salesy", "sign off with Best, Alex").
 - Another language for the drafts.
-- A template the built-in wording does not cover (a connection note, a follow-up, a
+- A template the three drafts do not cover (a connection note, a follow-up, a
   reply to a no): that goes in the playbook, `MESSAGING.md`, where they and you
   find it when drafting.
 
@@ -3290,13 +2443,17 @@ when you need a key's current text, never change it.
 
 ### How the drafts are built
 
-The Messages page lists the messages you sent and drafted, with their outcomes;
-it has no drafts box of its own. Outreach drafts are written on the Outreach page
-from the playbook (`MESSAGING.md`), and their wording is in `messages.toml`, per
-language under `[languages.<code>]` (for example `greeting` and `signoff`), with
-the reply and follow-up templates under `[outreach.reply_to_interest.<lang>]` and
-`[outreach.follow_up.<lang>]`. Check the key names in `default_messages.toml`
-before you change one.
+Each page shows three drafts, each a greeting, one body and a sign-off:
+
+1. `scale` (they are growing); a hiring signal swaps it for `bridge`, a
+   declining one for `decline`;
+2. `unblock` (past the next headcount hurdle);
+3. `hook` (one observation, then an open question).
+
+The text is per language under `[languages.<code>]`: `greeting`, `signoff`,
+`scale`, `bridge`, `decline`, `unblock`, `hook`, `observation`, and the tables
+`growth` (keys `growing`, `stalled`, `declining`, `""`), `size` and `team` (keys
+`known`, `unknown`). `[labels]` names the three drafts on the page.
 
 Slots in `{braces}`: `{first}` `{company}` `{growth}` `{size}` `{hurdle}`
 `{team}` `{observation}` `{fte}` `{ae}` `{site}` `{owner_first_name}`, plus one
@@ -3311,6 +2468,8 @@ or `}}`.
 ```toml
 [languages.en]
 signoff = "Best,\n{owner_first_name}"
+scale = "{growth}\nWorth 15 minutes to see whether [your offer] fits {company}?"
+hook = "{observation}\nWhat would make [the problem you solve] a priority this quarter?"
 ```
 
 Then:
@@ -3321,7 +2480,7 @@ git add messages.toml && git commit -m "ai: adjust: shorter English drafts"
 ```
 
 "Write a LinkedIn connection note template for operations leads, in English
-and German." That is not part of the built-in wording, so add it to `MESSAGING.md`
+and German." That is not one of the three drafts, so add it to `MESSAGING.md`
 under its own heading, one block per language, with `[square brackets]` for what
 the user fills in, and commit `ai: adjust: connection note in the playbook`.
 
@@ -3503,7 +2662,7 @@ Related: [Make it yours](https://hermitcrm.io/docs/#adjust), Feedback
 
 ## Make it yours: dashboards
 
-Pages of your own at `/d/<name>`: lists, counts, bars, trends over time and report sections, written as `dashboards/<name>.toml` by you or your AI agent, and pinned in the sidebar if you like.
+Pages of your own at `/d/<name>`: lists, counts, bars and report sections, written as `dashboards/<name>.toml` by you or your AI agent, and pinned in the sidebar if you like.
 
 This page is the recipe an AI agent follows when someone asks for a
 dashboard. It is complete: you can write any dashboard from it without
@@ -3517,7 +2676,6 @@ reading Hermit's code.
 - "A page with every message I sent on LinkedIn in the last month that got no
   answer."
 - "Count the companies tagged priority per stage."
-- "Messages I sent per week this quarter."
 
 A dashboard only reads. It never changes a record, so it is safe to try.
 
@@ -3549,7 +2707,6 @@ on exactly the records you counted.
 | `list` | `scope`, `filters`, `columns`, `sort`, `limit`, `when` | rows of a list page; the first column links to the record |
 | `count` | `scope`, `filters`, `when` | one number, linking to those records |
 | `group` | `scope`, `by`, `filters`, `limit`, `when` | how many rows per value of `by`, as bars; each bar links to its rows |
-| `trend` | `scope`, `by`, `every`, `period`, `filters`, `when` | how many rows per week or month of the date column `by`, as bars, oldest first |
 | `report` | `section`, `period` | one section of the Reports page; every number links to the rows behind it |
 
 - `scope`: which list page: `companies`, `contacts`, `messages` or `tasks`.
@@ -3566,21 +2723,8 @@ on exactly the records you counted.
   Without it, rows come in the list page's own order.
 - `limit`: how many rows a list shows (default 20; the rest are one click
   away), or how many bars a group draws (default 20). At most 50.
-- `by` (group): the column to count per value. A list value such as
+- `by` (group only): the column to count per value. A list value such as
   `tags` counts once per tag.
-- `by` (trend): a **date** column of the scope (the columns of kind date in
-  the tables below, and date fields of your own that the list shows):
-  companies `last_touch`, `next_step_due`; contacts `last_touch`; messages
-  `date`; tasks `due`, `done_on`. Rows with an empty date are left out.
-- `every` (trend only): `week` (the default; weeks start on Monday) or
-  `month`.
-- `period` (trend and report): `7d`, `30d`, `90d`, `quarter`, `ytd` or `all`,
-  the same periods as Reports (see below). A trend's default is `90d`; a
-  report's is `30d`. Every period ends today, so a trend counts what already
-  happened: dates in the future (a task due next week) are not in it. The
-  first bar is a whole week or month, so it can start a few days before the
-  period does. A trend draws at most 50 bars: with `all` by week, only the
-  newest 50 weeks show, and the widget says how many it left out.
 - `when` (tasks only): the Tasks page's date buttons, one or a list of
   `overdue`, `today`, `week` (the next 7 days), `later` and `none` (no date).
   These follow the calendar, unlike a fixed date in a filter.
@@ -3630,7 +2774,6 @@ or call with a body, newest first.
 | `company_name` | text | |
 | `contact` | text | the person's name |
 | `channel` | fixed values | `email`, `linkedin`, `call` |
-| `framework` | text | the id of the message framework it was built with, or empty |
 | `country` | fixed values | the company's country |
 | `stage` | fixed values | the company's stage |
 | `status` | fixed values | the outcome: your outcomes (Settings), or `unknown` while you wait |
@@ -3731,36 +2874,6 @@ dashboard". When the user asks for a Monday review and that file is there,
 change it in place rather than writing a second one. Once it is changed it is
 the user's, and `hermitcrm sample remove` leaves it.
 
-### Example: messages per week
-
-"Messages I sent per week this quarter, and how many on LinkedIn."
-
-```toml
-title = "Outreach"
-
-[[widget]]
-type = "trend"
-title = "Messages sent per week"
-scope = "messages"
-by = "date"
-every = "week"
-period = "quarter"
-
-[[widget]]
-type = "trend"
-title = "LinkedIn messages per month"
-scope = "messages"
-by = "date"
-every = "month"
-period = "ytd"
-filters = { channel = "linkedin" }
-```
-
-Empty weeks show as zero, so gaps stay visible. Each number links to the
-Messages page with the widget's filters from that week on (a list page
-cannot filter one week only yet), so the page can list more rows than the
-bar counts.
-
 ### Example: partners
 
 "Show me my partners: how many, the quietest first, and where they are."
@@ -3859,7 +2972,7 @@ hermitcrm set <companies|contacts|interactions> [--where KEY=VALUE ...] [--all]
 |---|---|---|
 | `companies` | the Companies list | `website`, `linkedin`, `country`, `source`, `lost_reason`, `requalify_on`, `value_eur_month`, `product_oneliner`, `next_step`, `next_step_due`, `next_step_status`, `next_step_type`, `tags`, and your own fields |
 | `contacts` | the Contacts list | `title`, `linkedin`, `email`, `phone`, `role`, `language`, and your own fields |
-| `interactions` | the rows of the Messages page (messages you sent) | `outcome`, `subject`, `framework`, `approach`, and your own fields |
+| `interactions` | the rows of the Messages page (messages you sent) | `outcome`, `subject`, and your own fields |
 
 - `--set FIELD=VALUE` sets a field. An empty value (`--set next_step=`) clears it,
   and so does `--unset FIELD`. Values are read the way the forms read them: numbers,
@@ -3902,7 +3015,7 @@ underscore for a space (`last touch` is `last_touch`, and the Messages heading
 |---|---|
 | `companies` | `name`, `country`, `stage`, `source`, your own fields, `tags`, `last_touch`, `next_step`, `next_type` (when you have task types), `next_step_due` |
 | `contacts` | `name`, `company_name`, `title`, `email`, `linkedin`, `last_touch`, `interaction_count`, your own contact fields |
-| `interactions` | `date`, `company_name`, `contact`, `channel`, `framework`, `country`, `stage`, `status` (the outcome, explicit or worked out), `uses`, your own interaction fields, `body` |
+| `interactions` | `date`, `company_name`, `contact`, `channel`, `country`, `stage`, `status` (the outcome, explicit or worked out), `uses`, your own interaction fields, `body` |
 
 Things worth knowing:
 
@@ -4089,11 +3202,9 @@ Disqualify) always stays on top and is not a section.
 
 | Page | Section names, in their default order |
 |---|---|
-| `[company]` | `enrich` (the Enrich and Fetch from URL buttons), `next-step` (the next step line), `details` (the edit form), `contacts`, `tasks`, `merge`, `timeline` |
-| `[contact]` | `details` (the fields, with an Edit button), `tasks`, `quick-add` (Log an interaction), `timeline` (interactions), `merge` (only shown when the company has two or more people), `delete`. Merge and delete always sit in the closed More box at the bottom; their order applies inside it. |
-| `[home]` | `doing` (What needs doing), `to-file` (To file, only while there is something to file), `owed` (Replies you owe, only when you owe some), `keep-in-touch` (Keep in touch, only when somebody is on it), `going` (How it is going) |
-
-A `drafts` section named in an older file is ignored: the Message drafts box is gone (Outreach replaced it), and nothing is reported.
+| `[company]` | `enrich` (the Enrich and Fetch from URL buttons), `next-step` (the next step line), `details` (the edit form), `contacts`, `tasks`, `drafts` (message drafts), `merge`, `timeline` |
+| `[contact]` | `details` (the fields, with an Edit button), `tasks`, `quick-add` (Log an interaction), `timeline` (interactions), `drafts`, `merge` (only shown when the company has two or more people), `delete`. Merge and delete always sit in the closed More box at the bottom; their order applies inside it. |
+| `[home]` | `doing` (What needs doing), `to-file` (To file, only while there is something to file), `owed` (Replies you owe, only when you owe some), `going` (How it is going) |
 
 On Home the layout applies once the folder has companies. The empty-folder
 start cards and the Getting started block do not move.
@@ -4358,7 +3469,7 @@ select = "records"
 scope = "companies"
 filters = { stage = "prospect", my_score = ">7", last_touch = "-" }
 limit = 3
-prompt = "Draft a short first message using the framework the playbook sets for this approach."
+prompt = "Draft a short first message using the playbook's hook angle."
 ```
 
 ### Steps for the agent
