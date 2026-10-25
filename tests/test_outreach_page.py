@@ -475,8 +475,7 @@ def test_a_card_that_leans_to_you_says_so(client, root):
     item = worded(root, drafted(client, root),
                   "Hi Alex,\n\nWe help teams. Our clients grow. I can show you?\n\nSam")
     card = card_text(client, item)
-    assert '<p class="small warning">About you 3, about them 1: more about you than about ' \
-           'them</p>' in card
+    assert '<p class="small warning">About you 3, about them 1: more about you</p>' in card
 
 
 def test_a_card_that_leans_to_them_shows_the_count_without_a_warning(client, root):
