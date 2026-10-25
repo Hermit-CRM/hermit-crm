@@ -662,7 +662,8 @@ def test_check_names_problems_in_the_files_an_agent_writes(demo, capsys):
     (demo / "fields.toml").write_text('[[field]]\nkey = "renewal"\ntype = "dat"\n')
     (demo / "theme.css").write_text(":root {\n  --acent: blue;\n  --my-own: 1px;\n}\n"
                                     "@import url(x.css);\n")
-    (demo / "messages.toml").write_text('[languages.en]\nhook = "{observation} {segmnt}"\n')
+    (demo / "messages.toml").write_text(
+        '[outreach.reply_to_interest.en]\ntemplate = "Hi {first}, {segmnt}"\n')
     st.set_config_values(demo / "config.toml", {
         "task_types": [{"name": "call", "colour": "bleu"}], "adjust_agent": "claud",
         "silent_dayz": 3})
@@ -679,7 +680,7 @@ def test_check_names_problems_in_the_files_an_agent_writes(demo, capsys):
     ]
     for line in expected:
         assert line in problems, (line, problems)
-    assert any(p.startswith("messages.toml: languages.en: {segmnt}") for p in problems)
+    assert any(p.startswith("messages.toml: outreach.reply_to_interest.en: {segmnt}") for p in problems)
     assert not any("--my-own" in p for p in problems)               # own variables are fine
     assert cli.main(["--data", str(demo), "check"]) == 1
     out = capsys.readouterr().out

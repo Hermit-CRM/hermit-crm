@@ -131,8 +131,6 @@ the radar read the same setting, so they never disagree.
   fine, then I'll close the loop"). The wording template is
   `[outreach.follow_up.<lang>]` in `messages.toml`; `{offer_line}` is an
   optional line it leaves out by default.
-- The message's angle is the first message's, not the AI's, so Messages
-  statistics count the follow-up under the angle that opened the thread.
 - **Who is left out**: someone whose unanswered message was on another channel
   than the batch's (or on a call or in a meeting: write that one yourself);
   someone you already followed up with once (two messages of yours since they
@@ -183,8 +181,7 @@ finds is saved as notes on the contact, sourced to the profile. The page text it
 
 5. **Send and log** it yourself, as you always do (by hand, BCC or the
    extension). The bot does neither. Logging the message on the item's channel
-   after you marked it ready marks the item **sent** (and gives the logged
-   message the item's angle); `hermitcrm outreach sent <id>` does the same
+   after you marked it ready marks the item **sent**; `hermitcrm outreach sent <id>` does the same
    without logging anything.
 
 ## Who gets picked
@@ -229,7 +226,7 @@ LinkedIn page are read (LinkedIn usually refuses anonymous requests; the card
 says so), then one small AI call with no tools lists the facts on them. Every
 finding has its source; one without is dropped. A finding older than about 90
 days is marked stale and never opens a message. Nothing found: the draft uses
-the playbook's angles and marks gaps `[like this]`. A website, LinkedIn URL or
+the approach's parts from the playbook and marks gaps `[like this]`. A website, LinkedIn URL or
 country found for an empty field is proposed on the card (a **Save to the
 record** button), never written without it.
 
@@ -271,9 +268,7 @@ word), one proof line, exactly one question, and no link, time, price or day
 rate (`€900`, `2 days a week`); on LinkedIn it is a message of up to 600
 characters, not a connection note.
 
-The angle is one of the five template angles or `custom` (a reply has none).
-Drafts use the
-medium model; `build --strong` uses the strong one.
+Drafts use the medium model; `build --strong` uses the strong one.
 
 **Framework.** A first touch is written with a framework: a recipe for its
 parts, its length and what it asks (`hermitcrm help playbook`). `build --framework
@@ -286,8 +281,7 @@ you wrote). When it was not found, the draft uses the approach's default if
 that needs nothing, else `house`, and the card says so in its flags, for example
 "connection-problem-objection needs a personal connection; drafted with house".
 Regenerate checks this again against your notes as they are now. The item
-records the `framework` it was drafted with, and `outreach show` prints it after
-the angle. Regenerate uses that framework. A build or a Regenerate checks the
+records the `framework` it was drafted with, and `outreach show` prints it. Regenerate uses that framework. A build or a Regenerate checks the
 AI's answer for its proof line; Mark ready checks the text again for that
 framework's length and questions, not for proof. An item from before frameworks
 has none and counts as `house`; one whose framework has since left the library
@@ -347,7 +341,7 @@ counts. `hermitcrm outreach show` prints the same line.
 `outreach/<id>.md`, one per item. The front matter holds `state`
 (`researching`, `drafted`, `ready`, `sent`, `skipped`; `logged` is for later), the
 channel, contact, company, the reply it answers (`reply_to`) or the message it
-follows up (`follows`), approach, angle,
+follows up (`follows`), approach,
 findings, check results, the critic's scores (`critic`, `critic_reason`,
 `critic_model`), flags,
 timestamps, the AI's original text and how much you changed it. The body is
@@ -355,7 +349,7 @@ the message, byte for byte. `hermitcrm check` reports a file it cannot read.
 
 Settings in `config.toml`: `outreach_research` (`scrape` or `ai-web`), `outreach_cooldown_days`,
 `outreach_fit_field`, `outreach_high_fit` (65: the preview counts high-fit
-companies never contacted), `outreach_batch_size` (10), `outreach_angles`, `outreach_critic_threshold` (2; 0 = no critic).
+companies never contacted), `outreach_batch_size` (10), `outreach_critic_threshold` (2; 0 = no critic).
 Channel rules and culture norms: `[outreach.<channel>]` and `[culture.<lang>]`
 in `messages.toml`, over the shipped defaults.
 

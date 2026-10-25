@@ -2,6 +2,7 @@
    widget draws exactly what /reports draws. Import "with context" (the
    macros use `delta` and `fmt_date`). `q` is the period's query string, which
    every number's link to /reports/rows carries. #}
+{% import "macros.html" as ui %}
 {% macro pct(r) %}{{ '-' if r is none else '%d%%' % (r * 100) | round }}{% endmacro %}
 {% macro d(cur, prev) %}{% set t = delta(cur, prev) %}<span class="delta {{ 'up' if t.startswith('+') else ('down' if t.startswith('−') else '') }}">{{ t }}</span>{% endmacro %}
 {% macro bar(n, max) %}<div class="bar" style="width: {{ (100 * n / max) | round(1) if max else 0 }}%"></div>{% endmacro %}
@@ -33,10 +34,10 @@
   {% for r in f.entered %}<tr><td>{{ r.stage }}</td><td class="num">{{ n(r.count, r.key, q) }} {{ d(r.count, r.previous) }}</td><td class="num">{{ n(r.previous, r.previous_key, q) }}</td></tr>{% endfor %}
 </table></div>
 <div><table class="report">
-  <tr><th>conversion</th><th class="num">reached from</th><th class="num">reached to</th><th class="num">rate</th><th></th></tr>
+  <tr><th>conversion
+    {%- call ui.hint('funnel-conversion-help', 'How conversion is counted') %} Of the companies that reached a stage (or later) by the period end, the share that also reached the next one.{% endcall %}</th><th class="num">reached from</th><th class="num">reached to</th><th class="num">rate</th><th></th></tr>
   {% for r in f.conversion %}<tr><td>{{ r.from }} &rarr; {{ r.to }}</td><td class="num">{{ n(r.base, r.base_key, q) }}</td><td class="num">{{ n(r.reached, r.reached_key, q) }}</td><td class="num">{{ pct(r.rate) }}</td><td class="bar-cell">{{ bar(r.rate or 0, 1) }}</td></tr>{% endfor %}
-</table>
-<p class="small">Of the companies that reached a stage (or later) by the period end, the share that also reached the next one.</p></div>
+</table></div>
 <div><table class="report">
   <tr><th>stage</th><th class="num">companies</th><th class="num">median days</th></tr>
   {% for r in f.median_days %}<tr><td>{{ r.stage }}</td><td class="num">{{ n(r.companies, r.key, q) }}</td><td class="num">{{ '%g' % r.median }}</td></tr>{% endfor %}
@@ -110,7 +111,8 @@
   <tr><th>what you keep changing in drafts</th><th class="num">drafts</th><th class="num">of the last</th></tr>
   {% for p in l.style %}<tr><td>{{ p.text }}</td><td class="num">{{ n(p.hits, p.key, q) }}</td><td class="num">{{ p.of }}</td></tr>{% endfor %}
 </table>
-{% else %}<p class="small empty">{{ l.reviewed }} reviewed draft{{ '' if l.reviewed == 1 else 's' }}, no repeated edit yet. A pattern needs 5 of the last 10 drafts over 3 contacts.</p>{% endif %}
+{% else %}<p class="small empty">{{ l.reviewed }} reviewed draft{{ '' if l.reviewed == 1 else 's' }}, no repeated edit yet.
+  {%- call ui.hint('style-pattern-help', 'What counts as a pattern') %} A pattern needs 5 of the last 10 drafts over 3 contacts.{% endcall %}</p>{% endif %}
 <p class="small"><a href="/learning">Learning</a>: lessons, proposals and suggestions.</p>
 {% endmacro %}
 
@@ -123,5 +125,7 @@
     {% else %}{% for rung in ['replied', 'positive', 'deal', 'won'] %}<td class="num" title="{{ r.counts[rung] }} of {{ r.n }}">{{ pct(r.rates[rung]) }}</td>{% endfor %}{% endif %}</tr>{% endfor %}
 </table>
 {% else %}<p class="small empty">Nothing sent through the outreach bot yet.</p>{% endfor %}
-{% if l.quality %}<p class="small">Rates are pulled toward the folder average, so one lucky send does not win. With under {{ l.too_few }} sends a rate is not shown. <a href="/learning">Learning</a></p>{% endif %}
+{% if l.quality %}<p class="small">Rates are pulled toward the folder average.
+  {%- call ui.hint('quality-rates-help', 'Why rates are pulled toward the average') %} So one lucky send does not win.{% endcall %}
+  <a href="/learning">Learning</a></p>{% endif %}
 {% endmacro %}

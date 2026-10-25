@@ -126,7 +126,7 @@ def test_the_strip_and_the_buttons_when_sending_is_on(env):
     items(root, 2)
     page = client.get("/outreach?tab=ready")
     body = text_of(page.text)
-    assert "Email: on · 0/10 today · 0 queued" in body and "Mon, Tue, Wed, Thu, Fri 08:30-17:30" in body
+    assert "Email: on · 0/10 today · 0 queued" in body and "Mon–Fri 08:30–17:30" in body
     assert "Scheduled (0)" in body and "Ready (2)" in body
     assert page.text.count('/send-now"') == 2 and page.text.count('/schedule"') == 2
     assert 'action="/outreach/send/pause"' in page.text

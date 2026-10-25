@@ -2,7 +2,7 @@
    Nothing here is ever sent: the user sends it, then logs it with "I sent it". #}
 <section class="routine-drafts" id="routine-drafts">
 <h2>Drafts from routines ({{ routine_drafts|length }})</h2>
-<p class="small">Written by your routines with your AI CLI. Nothing has been sent. Check and edit a draft, send it yourself, then click <em>I sent it</em> to log it. <em>Discard</em> drops it; the routine will not write it again for the same thread.</p>
+<p class="small">Written by your routines. Nothing has been sent: edit a draft, send it yourself, then click <em>I sent it</em> to log it.</p>
 <div class="drafts">
 {% for row in routine_drafts %}{% set d = row.draft %}
 <form class="draft routine-draft" id="draft-{{ d.id }}" method="post" action="/yours/routines/{{ d.routine }}/drafts/{{ d.id }}/sent">
@@ -14,7 +14,7 @@
   <textarea name="body" rows="8" spellcheck="true" aria-label="Draft for {{ row.contact_name or row.company_name }}">{{ d.body }}</textarea>
   <div class="draft-actions">
     <button type="submit">I sent it</button>
-    <button type="submit" formaction="/yours/routines/{{ d.routine }}/drafts/{{ d.id }}/discard" class="secondary">Discard</button>
+    <button type="submit" formaction="/yours/routines/{{ d.routine }}/drafts/{{ d.id }}/discard" class="secondary" title="Drop it. The routine will not write it again for the same thread.">Discard</button>
   </div>
 </form>
 {% endfor %}

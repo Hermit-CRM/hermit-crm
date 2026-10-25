@@ -95,8 +95,7 @@ def default_draft(prompt):
                        re.M)
     opening = ("The second office this autumn caught my eye." if usable else
                "Teams at your stage often hit the same wall.")
-    return {"subject": "Your second office", "angle": "hook",
-            "body": f"Hi {first},\n\n{opening}\nWe help founders build a sales team "
+    return {"subject": "Your second office", "body": f"Hi {first},\n\n{opening}\nWe help founders build a sales team "
                     "that sells without them.\nWhere does it hurt most right now: "
                     "pipeline, conversion or deal size?\n\nSam",
             "pitch": "", "findings_used": [int(usable.group(1))] if usable else [],
@@ -108,7 +107,7 @@ def proof_draft(prompt):
     first = re.search(r"^Person: (\S+)", prompt, re.M).group(1)
     proof = re.search(r"--- proof \(cite only these[^\n]*\n- (.*)\n", prompt).group(1)
     usable = re.search(r"^(\d+)\. \[\w+, (?:high|medium), usable; source (?!crm)", prompt, re.M)
-    return {"subject": "Your second office", "angle": "hook", "framework": "trigger-tension-trust",
+    return {"subject": "Your second office", "framework": "trigger-tension-trust",
             "body": f"Hi {first},\n\nA second office usually means hiring sales next.\nThat is "
                     f"where founders lose time. {proof}\nIs that on your radar right now?\n\nSam",
             "pitch": "", "findings_used": [int(usable.group(1))] if usable else [],
@@ -123,7 +122,7 @@ def reply_draft(prompt, first):
     step = "" if step.startswith("none:") else step
     body = (f"Hi {first},\n\nFair question. {offer} {proof} {step}".rstrip()
             + "\nWhere does it hurt most right now: pipeline, conversion or deal size?\n\nSam")
-    return {"subject": "Re: Your second office", "angle": "custom", "body": body,
+    return {"subject": "Re: Your second office", "body": body,
             "pitch": "", "findings_used": [], "proof_used": [proof]}
 
 
@@ -131,8 +130,7 @@ def followup_draft(prompt, first):
     """A follow-up in the approved shape: short, one question, an easy way out."""
     earlier = re.search(r"--- your earlier message \([^)]*?subject: ([^)\n]*)\) ---", prompt)
     subject = f"Re: {earlier.group(1)}" if earlier else "Following up"
-    return {"subject": subject, "angle": "custom",
-            "body": f"Hi {first},\n\nQuick follow-up, no calendar invite: is the topic of my "
+    return {"subject": subject, "body": f"Hi {first},\n\nQuick follow-up, no calendar invite: is the topic of my "
                     "first message a priority for you right now, or not really? A short "
                     "'not now' is fine too, then I'll close the loop.\n\nSam",
             "pitch": "", "findings_used": [], "proof_used": []}

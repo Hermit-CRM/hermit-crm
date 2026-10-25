@@ -174,8 +174,7 @@ def test_the_send_config_keys_have_the_decided_defaults():
 def test_logging_the_mail_marks_the_item_sent_and_keeps_its_message_id(tmp_path, state):
     root, store = demo(tmp_path)
     item = ready_item(company="lindenhof-data", contact="mara-keller", state=state,
-                      ready=datetime(2026, 10, 16, 8, 0), message_id="<m9@mail.example.com>",
-                      angle="hook")
+                      ready=datetime(2026, 10, 16, 8, 0), message_id="<m9@mail.example.com>")
     outreach.write_item(root, item)
     it = store.create_interaction("lindenhof-data", "email", "out", subject="Hello",
                                   contact="mara-keller", date=datetime(2026, 10, 16, 9, 30),
@@ -184,7 +183,7 @@ def test_logging_the_mail_marks_the_item_sent_and_keeps_its_message_id(tmp_path,
     after = outreach.get_item(root, item.id)
     assert after.state == "sent" and after.sent_with == it.id
     assert after.message_id == "<m9@mail.example.com>"
-    assert it.angle == "hook"
+    assert it.source == "outreach"
 
 
 def test_an_inbound_mail_does_not_flip_a_queued_item(tmp_path):

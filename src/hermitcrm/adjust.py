@@ -841,7 +841,7 @@ def validate_theme(root: Path) -> list[str]:
 
 
 def validate_messages(root: Path) -> list[str]:
-    """messages.toml reads, and every language in it renders a draft."""
+    """messages.toml reads, and the reply and follow-up templates name only slots they fill."""
     path = Path(root) / messaging.MESSAGES_FILE
     if not path.is_file():
         return []
@@ -858,28 +858,23 @@ def validate_messages(root: Path) -> list[str]:
         defs = custom.load(root)
     except Exception:
         defs = []
-    from .models import Company, Contact
-
-    sample_company = Company(name="Example Ltd", slug="example", website="example.com")
-    person = Contact(slug="jane-roe", first_name="Jane", last_name="Roe")
     languages = messages.get("languages")
     if not isinstance(languages, dict):
         return [f"{messaging.MESSAGES_FILE}: languages: must be a table of languages"]
-    for code in languages:
-        for signal in messaging.SIGNALS:
-            try:
-                messaging.drafts(sample_company, person, signal, messages=messages,
-                                 defs=defs, language=code)
-            except KeyError as exc:
-                name = str(exc).strip("'\"")
-                slots = sorted(messaging.RESERVED_SLOTS | {d.key for d in defs})
-                problems.append(f"{messaging.MESSAGES_FILE}: languages.{code}: "
-                                f"{{{name}}} is not a slot or a missing key{near(name, slots)}")
-                break
-            except Exception as exc:
-                problems.append(f"{messaging.MESSAGES_FILE}: languages.{code}: "
-                                f"cannot write a draft ({type(exc).__name__}: {exc})")
-                break
+    # The slots a reply or follow-up template may name (outreach.reply_template,
+    # outreach.followup_template); anything else would reach the draft as it is.
+    known = {"reply_to_interest": ["first", "offer_line", "proof", "first_step_offer",
+                                   "question"],
+             "follow_up": ["first", "company", "topic", "offer_line", "question"]}
+    outreach_tables = messages.get("outreach")
+    for name, slots in known.items():
+        tables = outreach_tables.get(name) if isinstance(outreach_tables, dict) else None
+        for code, table in (tables.items() if isinstance(tables, dict) else ()):
+            text = table.get("template") if isinstance(table, dict) else None
+            for slot in dict.fromkeys(re.findall(r"\{(\w+)\}", str(text or ""))):
+                if slot not in slots:
+                    problems.append(f"{messaging.MESSAGES_FILE}: outreach.{name}.{code}: "
+                                    f"{{{slot}}} is not a slot{near(slot, slots)}")
     return problems
 
 

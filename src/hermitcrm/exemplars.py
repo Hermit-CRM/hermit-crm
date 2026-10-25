@@ -22,19 +22,16 @@ the evidence itself and shows the closest cases to the drafter:
 - Outcome exemplars: the text of messages that reached a positive reply, a deal
   or a win, scored by rung (positive 3, deal 6, won 12) and decayed by age.
 - Retrieval without dependencies: hard filters (approach, channel, language,
-  first touch, another company), then the persona, the angle and a plain-Python
+  first touch, another company), then the persona and a plain-Python
   TF-IDF overlap of the findings. Nothing close enough means no example.
 - The phase (learning.phase) decides which kind leads: early the corrections,
   later the rung-scored outcome exemplars.
-- An angle bandit (Thompson sampling over Beta posteriors), used only once an
-  approach has BANDIT_MIN_SENDS sends and only when the person turns it on.
 
 Everything is derived on demand from the outreach items; nothing here is
 learned in a file. The only thing kept is `exemplars.toml`: the exemplars the
 person pinned or excluded. Settings (config.toml, all off by default):
 `learning_exemplars` = "off" | "corrections" | "outcomes" | "both",
-`learning_exemplar_count` (examples per draft, default 2),
-`learning_angle_sampling` = true | false.
+`learning_exemplar_count` (examples per draft, default 2).
 """
 
 from __future__ import annotations
@@ -42,7 +39,6 @@ from __future__ import annotations
 import difflib
 import json
 import math
-import random
 import re
 import tomllib
 from collections import Counter
@@ -63,7 +59,7 @@ MARKS = ("pin", "exclude", "clear")
 DEFAULT_COUNT = 2
 MAX_COUNT = 3
 MIN_RELEVANCE = 0.2         # below this nothing is close enough: no example at all
-W_PERSONA, W_ANGLE, W_TEXT = 0.35, 0.15, 0.5
+W_PERSONA, W_TEXT = 0.4, 0.6
 KIND_FLOOR = 0.05           # a kind the phase gives no weight still shows when nothing else fits
 PIN_BOOST = 10.0
 CORRECTION_MIN_WORDS = 10   # a correction without a reason must change at least this much
@@ -71,11 +67,6 @@ CORRECTION_CHARS = 400      # per side: the one differing paragraph, not the who
 OUTCOME_CHARS = 700         # the opening of the message that worked, not all of it
 OUTCOME_RUNGS = ("positive", "deal", "won")
 
-BANDIT_MIN_SENDS = 30       # sends of an approach before the angle bandit may act
-BANDIT_PRIOR = 6            # strength of the prior an angle's Beta starts from
-BANDIT_FALLBACK_RATE = 0.1  # the prior mean before a single send exists
-WIDE = 0.25                 # an 80% interval wider than this is "wide, still exploring"
-Z80 = 1.2816                # the normal quantile for an 80% interval
 
 _ID = re.compile(r"^(correction|outcome):[\w.\-]+$")
 RUNG_WORDS = {"positive": "positive reply", "deal": "deal created", "won": "won"}
@@ -103,8 +94,6 @@ def count(config: dict | None) -> int:
     return max(0, min(MAX_COUNT, value))
 
 
-def sampling_on(config: dict | None) -> bool:
-    return learning._cfg(config, "learning_angle_sampling", False) is True
 
 
 # --------------------------------------------------------------------- marks
@@ -172,7 +161,6 @@ class Exemplar:
     persona: str = ""
     channel: str = ""
     language: str = ""
-    angle: str = ""
     rung: str = ""                # outcome: the highest rung reached
     when: date | None = None      # the rung's date, or the review
     score: float = 0.0            # before the phase: evidence x recency
@@ -294,7 +282,7 @@ def index(store: Store, approach: str = "", config: dict | None = None,
         names = learning._names(store, item)
         base = dict(item_id=s.item_id, company=s.company, contact=s.contact_key,
                     approach=s.approach, persona=s.persona, channel=s.channel,
-                    language=(s.language or "").lower(), angle=s.angle)
+                    language=(s.language or "").lower())
 
         rung = next((r for r in reversed(OUTCOME_RUNGS) if r in s.rungs), "")
         if rung and "sent" in s.rungs:
@@ -370,7 +358,6 @@ class Query:
     channel: str
     language: str
     persona: str = ""
-    angle: str = ""               # known only when the bandit chose one
     kind: str = outreach.FIRST_TOUCH
     company: str = ""
     findings: list[str] = field(default_factory=list)   # the usable findings' texts
@@ -378,11 +365,11 @@ class Query:
 
 
 def query_for_draft(company, contact, approach, findings, channel: str, language: str,
-                    kind: str, angle: str = "") -> Query:
+                    kind: str) -> Query:
     persona = playbook.match_persona(contact.title, approach.personas) \
         if approach is not None else ""
     return Query(approach=approach.name if approach is not None else "", channel=channel,
-                 language=(language or "").lower(), persona=persona, angle=angle, kind=kind,
+                 language=(language or "").lower(), persona=persona, kind=kind,
                  company=company.slug, findings=[f.text for f in findings if f.usable])
 
 
@@ -392,7 +379,7 @@ def query_of_item(store: Store, item, config: dict | None = None) -> Query:
     pb = playbook.load(store.root)
     return Query(approach=item.approach, channel=item.channel,
                  language=(item.language or "").lower(), persona=learning._persona(store, item, pb),
-                 angle=item.angle, kind=item.kind, company=item.company,
+                 kind=item.kind, company=item.company,
                  findings=[f.text for f in item.findings if f.usable], item_id=item.id)
 
 
@@ -440,8 +427,8 @@ def pick(store: Store, query: Query, config: dict | None = None,
     """The closest examples for a draft, at most `k` (default the setting).
 
     Hard filters first: the same approach, channel and language, a first-touch
-    draft, another company, not excluded. Then relevance = persona 0.35 + angle
-    0.15 + findings overlap (TF-IDF cosine) 0.5; under MIN_RELEVANCE it is not
+    draft, another company, not excluded. Then relevance = persona 0.4 +
+    findings overlap (TF-IDF cosine) 0.6; under MIN_RELEVANCE it is not
     close enough and is not shown. The rank is relevance x the exemplar's
     evidence score (relative to the best of its kind) x the phase's weight for
     its kind, so corrections lead early and rung-scored outcomes later. A
@@ -474,8 +461,7 @@ def pick(store: Store, query: Query, config: dict | None = None,
         cosine = sum(w * vec.get(t, 0.0) for t, w in ask.items())
         common = sorted((t for t in ask if t in vec), key=lambda t: -ask[t] * vec[t])[:3]
         persona = bool(query.persona) and _same(e.persona, query.persona)
-        angle = bool(query.angle) and _same(e.angle, query.angle)
-        relevance = W_PERSONA * persona + W_ANGLE * angle + W_TEXT * cosine
+        relevance = W_PERSONA * persona + W_TEXT * cosine
         if relevance < MIN_RELEVANCE:
             continue
         rank = relevance * (e.score / top[e.kind]) * _kind_weight(e, ph.weights)
@@ -484,8 +470,6 @@ def pick(store: Store, query: Query, config: dict | None = None,
         parts = []
         if persona:
             parts.append(f"same persona ({e.persona})")
-        if angle:
-            parts.append(f"same angle ({e.angle})")
         if common:
             parts.append("findings overlap: " + ", ".join(common))
         if e.mark == "pin":
@@ -525,14 +509,14 @@ def prompt_block(choices: list[Choice]) -> str:
 
 
 def for_draft(store: Store, company, contact, approach, findings, channel: str, language: str,
-              kind: str, config: dict | None = None, angle: str = "") -> Picked:
+              kind: str, config: dict | None = None) -> Picked:
     """What `AIDrafter` adds to a first-touch prompt now: the examples the
     `learning_exemplars` setting allows. An empty Picked when it is off."""
     config = config if config is not None else load_config(store.root)
     kinds = MODE_KINDS[mode(config)]
     if not kinds or approach is None:
         return Picked()
-    query = query_for_draft(company, contact, approach, findings, channel, language, kind, angle)
+    query = query_for_draft(company, contact, approach, findings, channel, language, kind)
     return pick(store, query, config, kinds)
 
 
@@ -551,169 +535,3 @@ def model_label(store: Store, ids: list[str],
         if e is not None and e.item_id in have:
             out.append((e.label, e.item_id))
     return out
-
-
-# -------------------------------------------------------------- angle bandit
-
-
-@dataclass
-class AngleRow:
-    angle: str
-    n: int                  # sends
-    hits: int               # sends that reached the rung
-    a: float                # Beta posterior
-    b: float
-    mean: float
-    low: float              # 80% interval
-    high: float
-    exploring: bool         # few sends, or a wide interval
-
-    @property
-    def note(self) -> str:
-        word = "wide, still exploring" if self.exploring else "narrowing"
-        return (f"{self.hits} of {self.n} sends; {self.low:.0%} to {self.high:.0%} "
-                f"({word})")
-
-
-@dataclass
-class AngleChoice:
-    angle: str
-    reason: str
-    rung: str
-
-
-def _reached(s: learning.Signal, rung: str) -> bool:
-    return any(r in s.rungs for r in learning.RUNGS[learning.RUNGS.index(rung):])
-
-
-def bandit_rung(sigs: list[learning.Signal], config: dict | None, approach: str) -> str:
-    """The rung the bandit counts as a success: positive replies, then deals
-    and wins once the phase has them and they pass the support rule (3 events
-    from 3 companies), so a single lucky deal never steers it."""
-    mine = [s for s in sigs if learning._same_approach(s.approach, approach)]
-    number = learning.phase(learning.counts(mine), config, approach).number
-    for rung, needs in (("won", 4), ("deal", 3)):
-        if number >= needs:
-            hit = [s for s in mine if rung in s.rungs and "sent" in s.rungs]
-            if (len(hit) >= learning.SUPPORT_EVENTS
-                    and len({s.company for s in hit}) >= learning.SUPPORT_COMPANIES):
-                return rung
-    return "positive"
-
-
-def angle_table(sigs: list[learning.Signal], approach: str, angles: tuple[str, ...],
-                persona: str = "", config: dict | None = None, today: date | None = None,
-                rung: str = "") -> list[AngleRow]:
-    """Per angle (never `custom`), the Beta posterior of "this send reached the
-    rung". The prior starts from the approach's overall rate, tilted by the
-    angle's place in the playbook's list (the first is trusted a little more),
-    with a weight of BANDIT_PRIOR sends. For a persona with enough evidence its
-    own sends are added on top of the approach-level posterior, so a thin
-    persona cell borrows from the whole approach. Sends are decayed by age."""
-    config = config if config is not None else {}
-    mine = [s for s in sigs if learning._same_approach(s.approach, approach)
-            and "sent" in s.rungs and s.kind == outreach.FIRST_TOUCH]
-    rung = rung or bandit_rung(sigs, config, approach)
-    today = today or date.today()
-    half = float(learning._cfg(config, "learning_half_life_days", learning.HALF_LIFE_DAYS)
-                 or learning.HALF_LIFE_DAYS)
-
-    def weight(s) -> float:
-        day = s.rungs["sent"]
-        return 0.5 ** (max(0, (today - day).days) / half) if half > 0 else 1.0
-
-    base = (sum(1 for s in mine if _reached(s, rung)) / len(mine)) if mine \
-        else BANDIT_FALLBACK_RATE
-    arms = [a for a in angles if a != "custom"]
-    rows = []
-    for rank, arm in enumerate(arms):
-        tilt = 1.0 + 0.15 * ((len(arms) - 1 - 2 * rank) / (len(arms) - 1)) if len(arms) > 1 \
-            else 1.0
-        mean0 = min(0.9, max(0.02, base * tilt))
-        a = BANDIT_PRIOR * mean0
-        b = BANDIT_PRIOR * (1 - mean0)
-        sent = [s for s in mine if s.angle == arm]
-        for s in sent:
-            w = weight(s)
-            a += w if _reached(s, rung) else 0.0
-            b += 0.0 if _reached(s, rung) else w
-        hits = sum(1 for s in sent if _reached(s, rung))
-        rows.append([arm, len(sent), hits, a, b])
-    if persona:
-        for row in rows:
-            cell = [s for s in mine if s.angle == row[0] and _same(s.persona, persona)]
-            if len(cell) >= learning.TOO_FEW:
-                # this persona has its own evidence: start from the approach-level
-                # posterior, scaled to the prior's strength, then add the cell
-                m = row[3] / (row[3] + row[4])
-                row[3], row[4] = BANDIT_PRIOR * m, BANDIT_PRIOR * (1 - m)
-                row[1], row[2] = len(cell), sum(1 for s in cell if _reached(s, rung))
-                for s in cell:
-                    w = weight(s)
-                    row[3] += w if _reached(s, rung) else 0.0
-                    row[4] += 0.0 if _reached(s, rung) else w
-    out = []
-    for arm, n, hits, a, b in rows:
-        total = a + b
-        mean = a / total
-        sd = math.sqrt(a * b / (total * total * (total + 1)))
-        low, high = max(0.0, mean - Z80 * sd), min(1.0, mean + Z80 * sd)
-        out.append(AngleRow(arm, n, hits, round(a, 4), round(b, 4), round(mean, 4),
-                            round(low, 4), round(high, 4),
-                            n < learning.TOO_FEW or (high - low) > WIDE))
-    return out
-
-
-def next_experiment(rows: list[AngleRow]) -> str:
-    """The angle the policy will try most to learn about: the fewest sends,
-    the widest interval on a tie. "" with nothing to compare."""
-    if len(rows) < 2:
-        return ""
-    row = min(rows, key=lambda r: (r.n, -(r.high - r.low), r.angle))
-    return (f"{row.angle} has {row.n} send{'s' if row.n != 1 else ''} so far, so the "
-            "bandit will try it again to learn more" if row.exploring else
-            "every angle has enough sends; the bandit now mostly picks the leader")
-
-
-def sends_of(sigs: list[learning.Signal], approach: str) -> int:
-    return sum(1 for s in sigs if learning._same_approach(s.approach, approach)
-               and "sent" in s.rungs and s.kind == outreach.FIRST_TOUCH)
-
-
-def choose_angle(rows: list[AngleRow], rng: random.Random, rung: str = "positive") -> AngleChoice:
-    """Thompson sampling: one draw from each angle's Beta, the highest wins.
-    The reason says whether it is exploring or leading, with the numbers."""
-    drawn = sorted(((rng.betavariate(r.a, r.b), r.angle) for r in rows), reverse=True)
-    pick_ = next(r for r in rows if r.angle == drawn[0][1])
-    leader = max(rows, key=lambda r: (r.mean, r.angle))
-    if pick_.exploring and pick_.angle != leader.angle:
-        why = f"exploring: {pick_.n} send{'s' if pick_.n != 1 else ''} so far"
-    elif pick_.exploring:
-        why = f"leading, but still wide ({pick_.hits} of {pick_.n} reached {rung})"
-    else:
-        why = f"{pick_.hits} of {pick_.n} sends reached {rung}"
-    return AngleChoice(pick_.angle, f"angle {pick_.angle} chosen by the exploration policy: "
-                       + why, rung)
-
-
-def sample_for_draft(store: Store, company, contact, approach, angles: tuple[str, ...],
-                     config: dict | None = None) -> AngleChoice | None:
-    """The angle the bandit picks for this first touch, or None: it is off
-    (`learning_angle_sampling`), the approach has fewer than BANDIT_MIN_SENDS
-    sends, or fewer than two angles are in play. The draw is seeded with the
-    contact and the number of sends so far, so a preview matches the draft and
-    a regenerate keeps the angle until another send lands."""
-    config = config if config is not None else load_config(store.root)
-    if not sampling_on(config) or approach is None:
-        return None
-    sigs = learning.signals(store, approach.name, config)
-    n = sends_of(sigs, approach.name)
-    if n < BANDIT_MIN_SENDS:
-        return None
-    persona = playbook.match_persona(contact.title, approach.personas)
-    rung = bandit_rung(sigs, config, approach.name)
-    rows = angle_table(sigs, approach.name, angles, persona, config, store.today(), rung)
-    if len(rows) < 2:
-        return None
-    rng = random.Random(f"{approach.name}|{company.slug}|{contact.name}|{n}")
-    return choose_angle(rows, rng, rung)

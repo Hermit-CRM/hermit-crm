@@ -103,7 +103,7 @@ SMOOTH_PRIOR = {"edits": 15, "replied": 20, "positive": 10, "deal": 6, "won": 4}
 COUNT_WORDS = {"reviewed": "reviewed drafts", "sent": "sent", "replied": "replies",
                "positive": "positive", "deal": "deals", "won": "won"}
 WEIGHT_WORDS = {"edits": "your edits", "replied": "replies", "positive": "positive replies",
-                "deal": "deals", "won": "wins", "other": "skips and reasons"}
+                "deal": "deals", "won": "wins", "other": "skip reasons"}
 
 # Honesty and opt-out rules are never removed or weakened by learning.
 _PROTECTED = re.compile(r"opt[- ]?out|unsubscri|abmeld|afmeld|désinscri|desinscri|honest|"
@@ -369,7 +369,6 @@ def edit_features(before: tuple[str, str, str], after: tuple[str, str, str],
 class Signal:
     item_id: str
     approach: str = ""
-    angle: str = ""
     persona: str = ""
     channel: str = ""
     language: str = ""
@@ -535,7 +534,7 @@ def signal_of(store: Store, item, config: dict | None = None, checks: dict | Non
     edit_words = item.edit_distance if item.edit_distance is not None else \
         sum(e.words for e in item.edits)
     return Signal(
-        item_id=item.id, approach=item.approach, angle=item.angle,
+        item_id=item.id, approach=item.approach,
         persona=_persona(store, item, pb), channel=item.channel, language=item.language,
         framework=item.framework, kind=item.kind, model=item.model,
         findings_used=[f.text for f in item.findings if f.used],
@@ -642,7 +641,7 @@ def phase(counts: dict, config: dict | None = None, approach: str = "") -> Phase
         reason = ", ".join(f"{counts.get(k, 0)} {COUNT_WORDS.get(k, k)} (needs {v})"
                            for k, v in chosen["when"].items())
     else:
-        reason = "start: no threshold reached yet"
+        reason = "no threshold reached yet"
     return Phase(chosen["number"], chosen["name"], chosen["weights"], dict(counts), reason,
                  chosen["optimises"])
 
@@ -987,7 +986,7 @@ class RateRow:
     too_few: bool
 
 
-DIMENSIONS = ("angle", "persona", "channel", "language", "framework")
+DIMENSIONS = ("persona", "channel", "language", "framework")
 
 
 def rates(sigs: list[Signal], dimension: str) -> list[RateRow]:
@@ -1024,7 +1023,6 @@ class Card:
     contact: str = ""          # company/contact, for the support rule; never in the text
     company: str = ""
     approach: str = ""
-    angle: str = ""
     framework: str = ""        # "" for items from before frameworks: the head line is as it was
     kind: str = ""
     channel: str = ""
@@ -1043,7 +1041,6 @@ class Card:
     @property
     def text(self) -> str:
         head = (f"card {self.id} | {self.kind}, {self.channel}, {self.language or '-'} | "
-                f"angle {self.angle or '-'} | "
                 + (f"framework {self.framework} | " if self.framework else "")
                 + f"rung {self.rung or 'none'}")
         if self.skip_reason:
@@ -1120,7 +1117,7 @@ def _card_of(store: Store, s: Signal, item) -> Card:
         if final and _norm(item.ai_subject) != _norm(final.subject) else []
     return Card(
         id=s.item_id, contact=s.contact_key, company=s.company, approach=s.approach,
-        angle=s.angle, framework=s.framework, kind=s.kind, channel=s.channel,
+        framework=s.framework, kind=s.kind, channel=s.channel,
         language=s.language, rung=s.top_rung, hunks=hunks[:CARD_HUNKS], subject=subject,
         notes=[_pseudonymise(n, names) for n in s.notes], tags=list(s.tags),
         skip_reason=s.skip_reason if s.state == "skipped" else "",

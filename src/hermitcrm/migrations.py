@@ -33,7 +33,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from .models import COUNTRY_CODE_ALIASES, DEFAULT_OUTCOMES, normalise_angle
+from .models import COUNTRY_CODE_ALIASES, DEFAULT_OUTCOMES
 from .store import build_file, split_file
 from .updates import UPGRADE_HINT
 
@@ -359,7 +359,7 @@ def m9_angle(meta: dict) -> dict:
     raw = meta["angle"]
     if raw is None or not str(raw).strip():
         return {k: v for k, v in meta.items() if k != "angle"}
-    value = normalise_angle(raw)
+    value = str(raw).strip().lower()
     if value == raw:
         return meta
     return {k: (value if k == "angle" else v) for k, v in meta.items()}
@@ -454,6 +454,15 @@ def m14_agent_send(data_dir: Path, meta_by_path: dict, write: bool) -> list[str]
     return changed
 
 
+def m17_drop_angle(meta: dict) -> dict:
+    """The angle concept was retired: the `angle` key is dropped from outreach
+    items (format 17) and interactions (format 18). Nothing else changes; a file
+    without `angle` is returned as it is."""
+    if "angle" not in meta:
+        return meta
+    return {k: v for k, v in meta.items() if k != "angle"}
+
+
 def m15_framework(meta: dict) -> dict:
     """Outreach items gained an optional `framework`: the id of the framework a
     first touch was drafted with, absent when empty. A hand-written one is trimmed
@@ -501,6 +510,9 @@ MIGRATIONS = [
     Migration(15, "outreach drafts record their framework", "outreach/*.md", m15_framework),
     Migration(16, "interactions get an optional framework", "companies/*/interactions/*.md",
               m15_framework),
+    Migration(17, "outreach items lose the retired angle", "outreach/*.md", m17_drop_angle),
+    Migration(18, "interactions lose the retired angle", "companies/*/interactions/*.md",
+              m17_drop_angle),
 ]
 LATEST = MIGRATIONS[-1].version
 

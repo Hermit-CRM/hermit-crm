@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "macros.html" as m %}
 {% block title %}Playbook{% endblock %}
 {#- Settings > Playbook: MESSAGING.md as a form, one tab per approach. Each approach is
     complete on its own; "Duplicate" copies all of it. The examples beside the
@@ -15,7 +16,9 @@
 {%- endmacro %}
 {% block content %}
 <h1>Playbook</h1>
-<p class="summary">What you sell, to whom, and how you write: the drafts, routines and the outreach bot read it from <code>MESSAGING.md</code>. Selling more than one thing, or to more than one audience? Give each its own approach; the bot picks the approach a company fits. <a class="how" href="/help/playbook">How it works</a> · <a href="/settings#playbook">Back to Settings</a></p>
+<p class="summary">What you sell, to whom, and how you write: drafts, routines and the outreach bot read it from <code>MESSAGING.md</code>.
+  {%- call m.hint('approaches-help', 'When to add an approach') %} Selling more than one thing, or to more than one audience? Give each its own approach; the bot picks the approach a company fits.{% endcall %}
+  <a class="how" href="/help/playbook">How it works</a> · <a href="/settings#playbook">Back to Settings</a></p>
 
 {% if pb_error %}
 <div class="errors"><p>The front matter of <code>MESSAGING.md</code> cannot be read: {{ pb_error }}. Fix it in the file (or ask your agent to); this page would overwrite it.</p></div>
@@ -57,7 +60,7 @@
   <label class="approach-name">Name of this approach
     <input name="name" form="playbook-form" value="{{ values.get('name', '') }}" required{% if rename %} autofocus data-select{% endif %}>
     {%- if errors.get('name') %}<span class="small error">{{ errors.get('name') }}</span>{% endif %}
-    <span class="small">Only for you, to tell approaches apart; change it here and Save.</span></label>
+    <span class="small">Only for you; change it here and Save.</span></label>
   <p><strong>{{ filled }} of {{ parts | length }} parts filled</strong>
     <meter min="0" max="{{ parts | length }}" value="{{ filled }}" aria-label="approach filled">{{ filled }} of {{ parts | length }}</meter></p>
   <ul class="small">{% for label, ok in parts %}<li>{{ '✓' if ok else '·' }} {{ label }}</li>{% endfor %}</ul>
@@ -86,7 +89,8 @@
 
   <details class="card no-dirty" id="draft"{% if draft_open %} open{% endif %}>
     <summary><strong>Draft it from my website or a document</strong></summary>
-    <p class="small">Give your website, a sales deck or a document (PDF, Word or .txt), or paste text. Hermit CRM reads it, and your AI CLI (Settings &gt; AI, run without tools) proposes each part of this approach from that alone. The proposal fills the boxes below; nothing is saved until you click Save. It never makes up a customer result.</p>
+    <p class="small">Your AI CLI proposes each part of this approach from the source alone; the boxes below fill in, and nothing is saved until you click Save.
+      {%- call m.hint('draft-help', 'How the draft is made') %} Hermit CRM reads your website, deck or document, and your AI CLI (Settings &gt; AI) runs without tools. It never makes up a customer result.{% endcall %}</p>
     {% if not ai.available %}<p class="small">No AI CLI is set up: {{ ai.reason }}. <a href="/settings#enrichment">Settings &gt; AI</a></p>{% endif %}
     {% if draft_error %}<div class="errors"><p>{{ draft_error }}</p></div>{% endif %}
     <div class="form-grid">
@@ -121,7 +125,8 @@
     {{ field('range_%d_min' % i, 'from', span=3, kind='number', error_key='ranges') }}
     {{ field('range_%d_max' % i, 'to', span=3, kind='number', error_key='ranges') }}
     {%- endfor %}
-    <p class="small span-12">Any number your companies record: headcount, revenue, number of salespeople, locations. {% if range_fields %}Fill the empty row and Save to add another.{% else %}Add a field under <a href="/settings#fields">Settings &gt; Fields</a> first.{% endif %} A text field counts by its first number, so "~13" is 13.</p>
+    <p class="small span-12">Any number your companies record, such as headcount or revenue. {% if range_fields %}Fill the empty row and Save to add another.{% else %}Add a field under <a href="/settings#fields">Settings &gt; Fields</a> first.{% endif %}
+      {%- call m.hint('range-help', 'How a text field counts') %} A text field counts by its first number, so "~13" is 13.{% endcall %}</p>
     {{ field('icp_funding', 'Funding stage', 'bootstrapped, seed, series-a, private-equity', span=6) }}
     {{ field('icp_signals', 'Positive signals', 'What makes now a good moment: hiring-sales, new-location, new-ceo, just-raised', span=6) }}
   </div>

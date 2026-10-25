@@ -12,29 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Outreach drafts without AI: three distinct angles per contact, written in
-the contact's own draft language or else the company's country's, from what the CRM already knows plus
-two things you check by hand on LinkedIn insights and the website.
+"""The wording the outreach bot works from, kept in TOML rather than code: the
+languages (names, culture norms, the reply and follow-up templates) and the
+signal labels the pages show.
 
-The wording lives in TOML, not in code. The package ships
-``hermitcrm/default_messages.toml`` with neutral B2B angles; a ``messages.toml``
-in the data folder is deep-merged over it, so you only override what you
-want to change. The three angles:
-
-1. scale   they are growing (or levelling off): offer help to keep the pace
-2. unblock "you are at N people": get past the next headcount hurdle
-3. hook    one concrete observation about their product, then an open question
-
-A ``hiring`` signal swaps angle 1 for ``bridge`` (help while the role is open),
-a ``declining`` signal for ``decline`` (a tough stretch, then an open question).
-Square brackets mark what only you can fill in.
+The package ships ``hermitcrm/default_messages.toml``; a ``messages.toml`` in
+the data folder is deep-merged over it, so you only override what you want to
+change. Draft language comes from the contact, else the company's country
+(Belgium by its evidence).
 
 Slots: {first} {company} {growth} {size} {hurdle} {team} {observation} {fte}
 {ae} {site}, plus {owner_first_name} (from ``owner_name`` in config.toml), plus
-one slot per field the folder defined itself, named by its key. The ``size``
-and ``team`` tables have ``known`` / ``unknown`` variants, and which field
-feeds them is ``messaging_size_field`` / ``messaging_team_field`` in
-config.toml: the wording the playbook has is fixed, the field it reads is not.
+one slot per field the folder defined itself, named by its key. ``field_slots``
+and the ``messaging_size_field`` / ``messaging_team_field`` settings are what
+is left of the retired no-AI template drafts.
 """
 
 from __future__ import annotations
@@ -42,7 +33,6 @@ from __future__ import annotations
 import copy
 import re
 import tomllib
-from dataclasses import dataclass
 from functools import lru_cache
 from importlib import resources
 from pathlib import Path
@@ -65,15 +55,6 @@ DEFAULT_TEAM_FIELD = "ae_count"
 GROWTH_SIGNALS = ("growing", "stalled", "declining")
 HURDLES = [10, 20, 50, 100, 250, 500]
 MESSAGES_FILE = "messages.toml"
-DRAFT_KEYS = ("scale", "bridge", "decline", "unblock", "hook")
-
-
-@dataclass
-class Draft:
-    key: str      # scale | bridge | decline | unblock | hook
-    label: str
-    language: str
-    body: str
 
 
 def fte_number(fte_estimate: str) -> int | None:
@@ -284,62 +265,3 @@ def draft_language(company: Company, contact: Contact | None = None,
     lang = (belgian_language(company) if normalise_country(company.country) == "BE"
             else language_for(company.country))
     return lang if lang in languages else "en"
-
-
-def drafts(company: Company, contact: Contact | None = None, signal: str = "",
-           observation: str = "", messages: dict | None = None,
-           owner_name: str = "", defs: list | None = None,
-           size_field: str = DEFAULT_SIZE_FIELD,
-           team_field: str = DEFAULT_TEAM_FIELD, language: str = "") -> list[Draft]:
-    """Three distinct drafts for one contact (company-level when None).
-
-    `defs` are the folder's own field definitions; each becomes a slot the
-    templates may use. `size_field` and `team_field` name which of them play
-    the two roles the shipped playbook has wording for. `language` overrides
-    the contact's and the country's language for this one call.
-    """
-    messages = messages if messages is not None else default_messages()
-    lang = draft_language(company, contact, language, messages)
-    t = messages["languages"][lang]
-    labels = messages.get("labels", {})
-    signal = signal if signal in SIGNALS else ""
-    extra = company.extra or {}
-    fte_estimate = str(extra.get(size_field) or "") if size_field else ""
-    ae_count = (extra.get(team_field) or 0) if team_field else 0
-    fte = fte_number(fte_estimate)
-    hurdle = next_hurdle(fte_estimate)
-    site = (company.website or company.linkedin or "their site").replace(
-        "https://", "").replace("http://", "").rstrip("/")
-    first = (contact.first_name if contact else "") or "[first name]"
-    observation = " ".join((observation or "").split())
-    slots = {
-        **field_slots(company, defs),
-        "first": first,
-        "company": company.name,
-        "fte": fte if fte is not None else "N",
-        "hurdle": hurdle if hurdle is not None else "[N]",
-        "ae": ae_count,
-        "site": site,
-        "owner_first_name": owner_first_name(owner_name),
-    }
-    growth = t["growth"]  # a messages.toml from before a signal existed falls back to ""
-    slots["growth"] = growth.get(signal if signal in GROWTH_SIGNALS else "", growth[""]).format_map(slots)
-    slots["size"] = t["size"]["known" if fte is not None else "unknown"].format_map(slots)
-    slots["team"] = t["team"]["known" if ae_count else "unknown"].format_map(slots)
-    slots["observation"] = observation or t["observation"].format_map(slots)
-
-    first_key = {"hiring": "bridge", "declining": "decline"}.get(signal, "scale")
-    if first_key not in t:  # a messages.toml from before this angle existed
-        first_key = "scale"
-    keys = [first_key, "unblock", "hook"]
-    out = []
-    for key in keys:
-        body = "\n".join([
-            t["greeting"].format_map(slots),
-            t[key].format_map(slots),
-            "",
-            t["signoff"].format_map(slots),
-        ])
-        out.append(Draft(key=key, label=str(labels.get(key, key)), language=lang,
-                         body=body + "\n"))
-    return out

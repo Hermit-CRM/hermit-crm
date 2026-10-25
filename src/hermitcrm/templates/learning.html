@@ -4,9 +4,10 @@
    lessons are all yours to decide. #}
 {% block title %}Learning{% endblock %}
 {% block content %}
+{% from "macros.html" import hint %}
 {% macro links(list) %}{% for l in list %}<a href="{{ l.url }}">{{ l.label }}</a>{% if not loop.last %}, {% endif %}{% endfor %}{% endmacro %}
 <h1>Learning</h1>
-<p class="small">What the outreach bot learns from the changes you make to its drafts and from the replies that follow. Lessons go into the draft prompt of the approach; you accept or reject every one. <a href="/help/learning">How it works</a></p>
+<p class="small">What the outreach bot learns from your edits and the replies that follow. Accepted lessons go into the approach's draft prompt; you decide on each one. <a href="/help/learning">How it works</a></p>
 
 {% if learning_error %}<p class="warning-box">{{ learning_error }}</p>{% endif %}
 
@@ -23,18 +24,19 @@
 {% if status %}
 <section id="phase">
   <p class="phase-banner"><strong>{{ banner }}</strong></p>
-  <p class="small quiet">Optimising for: {{ status.phase.optimises or 'efficiency' }}. {{ status.phase.reason }}</p>
+  <p class="small quiet">Optimising for {{ status.phase.optimises or 'efficiency' }}.
+    {%- call hint('phase-help', 'Why this phase') %} Why this phase: {{ status.phase.reason }}.{% endcall %}</p>
 </section>
 
 <section id="efficiency">
-  <h2>Efficiency</h2>
+  <h2>Efficiency
+    {%- call hint('efficiency-help', 'What good looks like') %} If learning works, the median edit gets smaller and more drafts go out unchanged.{% endcall %}</h2>
   {% if stats %}
   <table class="report" style="max-width: 640px">
     <tr><th>batch</th><th class="num">drafts</th><th class="num">median edit (words)</th><th class="num">approved unchanged</th></tr>
     {% for b in stats %}<tr><td>{{ b.batch }}</td><td class="num">{{ b.drafts }}</td><td class="num">{{ b.median_edit_words | round(1) }}</td><td class="num">{{ b.ready_without_edit }} of {{ b.drafts }} ({{ (b.rate * 100) | round | int }}%)</td></tr>{% endfor %}
   </table>
   {% if since %}<p class="small">Since last time: {{ since }}.</p>{% endif %}
-  <p class="small quiet">If learning works, the median edit gets smaller and more drafts go out unchanged.</p>
   {% else %}<p class="small empty">No reviewed draft yet. Review a few on the <a href="/outreach">Outreach</a> page first.</p>{% endif %}
 </section>
 
@@ -129,8 +131,11 @@
 <section id="examples">
   <h2>Examples</h2>
   {% if example_error %}<p class="warning-box">{{ example_error }}</p>{% else %}
-  <p class="small">Instead of a rule, the drafter can be shown the closest earlier cases: how you changed a similar draft, or a similar message that got a positive reply, a deal or a win. Names are replaced; nothing is shown unless it is close enough. <a href="/settings#playbook">Setting</a>: <strong>{{ example_mode }}</strong>{% if example_mode == 'off' %} (the draft prompt is not changed){% else %}, {{ example_count }} per first-touch draft{% endif %}.</p>
-  <p class="small quiet">{{ example_counts.outcome }} from messages that worked, {{ example_counts.correction }} from your corrections{% if example_counts.pinned %}, {{ example_counts.pinned }} pinned{% endif %}{% if example_counts.excluded %}, {{ example_counts.excluded }} excluded{% endif %}. Early on corrections lead; later the ones with the highest rung do. A card shows which examples a draft was given.</p>
+  <p class="small">The drafter can be shown the closest earlier cases instead of a rule.
+    {%- call hint('examples-help', 'What examples are') %} How you changed a similar draft, or a similar message that got a positive reply, a deal or a win. Names are replaced; nothing is shown unless it is close enough.{% endcall %}
+    <a href="/settings#playbook">Setting</a>: <strong>{{ example_mode }}</strong>{% if example_mode == 'off' %} (the draft prompt is not changed){% else %}, {{ example_count }} per first-touch draft{% endif %}.</p>
+  <p class="small quiet">{{ example_counts.outcome }} from messages that worked, {{ example_counts.correction }} from your corrections{% if example_counts.pinned %}, {{ example_counts.pinned }} pinned{% endif %}{% if example_counts.excluded %}, {{ example_counts.excluded }} excluded{% endif %}.
+    {%- call hint('example-order-help', 'Which examples are used first') %} Early on corrections lead; later the ones with the highest rung do. A draft's card shows which examples it was given.{% endcall %}</p>
   {% if examples %}
   <ul class="learning-examples">
     {% for row in examples %}{% set e = row.e %}
@@ -139,13 +144,13 @@
       <details class="small"><summary>What the drafter would see</summary>
         <pre class="small">{{ e.shown }}</pre></details>
       <div class="draft-actions">
-        {% for mark, label in (('pin', 'Pin'), ('exclude', 'Exclude'), ('clear', 'Clear')) if (mark == 'clear' and e.mark) or (mark != 'clear' and e.mark != mark) %}
+        {% for mark, label, why in (('pin', 'Pin', 'Always show it to the drafter'), ('exclude', 'Exclude', 'Never show it: this is how you delete one, e.g. a message that worked for a one-off reason'), ('clear', 'Clear', 'Back to automatic')) if (mark == 'clear' and e.mark) or (mark != 'clear' and e.mark != mark) %}
         <form method="post" action="/learning/exemplar" class="inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="approach" value="{{ approach }}">
           <input type="hidden" name="exemplar" value="{{ e.id }}">
           <input type="hidden" name="mark" value="{{ mark }}">
-          <button type="submit" class="secondary">{{ label }}</button>
+          <button type="submit" class="secondary" title="{{ why }}">{{ label }}</button>
         </form>
         {% endfor %}
       </div>
@@ -154,19 +159,6 @@
   </ul>
   {% else %}<p class="small empty">None yet. Corrections appear when you edit a draft and say why, or change it a lot; outcome examples appear when a message you sent gets a positive reply, a deal or a win. Exclude is how you delete one (a message that worked for a one-off reason).</p>{% endif %}
 
-  <h3>Angles</h3>
-  <p class="small quiet">A send counts as a hit when it reached: {{ angle_rung }}. {{ angle_sends }} first-touch send{{ 's' if angle_sends != 1 }} so far; angle sampling{% if sampling %} is <strong>on</strong> and acts from {{ angle_min }} sends{% else %} is off (the AI chooses the angle){% endif %}.</p>
-  {% if angle_rows %}
-  <table class="small">
-    <tr><th>Angle</th><th>Sends</th><th>Hits</th><th>Range (80%)</th><th></th></tr>
-    {% for r in angle_rows %}
-    <tr><td>{{ r.angle }}</td><td>{{ r.n }}</td><td>{{ r.hits }}</td>
-      <td>{{ (r.low * 100) | round | int }}% to {{ (r.high * 100) | round | int }}%</td>
-      <td>{{ 'wide, still exploring' if r.exploring else 'narrowing' }}</td></tr>
-    {% endfor %}
-  </table>
-  {% if angle_note %}<p class="small">Next experiment: {{ angle_note }}.</p>{% endif %}
-  {% else %}<p class="small empty">Fewer than two angles are in play.</p>{% endif %}
   {% endif %}
 </section>
 
@@ -181,7 +173,8 @@
     {% if row.links %}<p class="small">Drafts: {{ links(row.links) }}</p>{% endif %}
     <div class="draft-actions"><button type="submit">Apply</button> <span class="small quiet">One commit; Undo is in Make it yours.</span></div>
   </form>
-  {% else %}<p class="small empty">No suggestion now. One shows up when you keep shortening drafts or keep removing the same phrase.</p>{% endfor %}
+  {% else %}<p class="small empty">No suggestion yet.
+    {%- call hint('suggestion-help', 'When a suggestion appears') %} One shows up when you keep shortening drafts or keep removing the same phrase.{% endcall %}</p>{% endfor %}
 </section>
 {% endif %}
 {% endif %}

@@ -3,12 +3,16 @@
    ever sent: you send it yourself, then log it (logging it marks the item sent). #}
 {% block title %}Outreach{% endblock %}
 {% block content %}
-{% from "macros.html" import fix_with_ai %}
+{% from "macros.html" import fix_with_ai, hint %}
 <h1>Outreach</h1>
 {% if send_on %}
-<p class="small">Research and draft first touches with your AI CLI and review each one. Approved email goes out from here, now or spaced over the working day; LinkedIn is a session where you click Send yourself. Nothing is sent that you did not approve. <a href="/help/outreach">How it works</a> &middot; <a href="/help/sending">Sending</a></p>
+<p class="small">Your AI CLI researches and drafts first touches; you review each one before anything goes out.
+  {%- call hint('outreach-sending-help', 'How approved messages go out') %} Approved email goes out from here, now or spaced over the working day. LinkedIn is a session where you click Send yourself. Nothing is sent that you did not approve.{% endcall %}
+  <a href="/help/outreach">How it works</a> &middot; <a href="/help/sending">Sending</a></p>
 {% else %}
-<p class="small">Research and draft first touches with your AI CLI, review each one, then send it yourself. Nothing is sent from here. Logging the message on the contact marks its item sent. <a href="/help/outreach">How it works</a></p>
+<p class="small">Your AI CLI researches and drafts first touches; you review each one and send it yourself. Nothing is sent from here.
+  {%- call hint('outreach-sending-help', 'What logging a message does') %} Logging the message on the contact marks its item sent.{% endcall %}
+  <a href="/help/outreach">How it works</a></p>
 {% endif %}
 {% if since_line %}<p class="small outreach-since"><strong>Since last time:</strong> {{ since_line }}. <a href="/learning">Learning</a></p>{% endif %}
 
@@ -36,7 +40,7 @@
     <label>Signal (check <a href="{{ (gen.company.linkedin | href) ~ '/insights/' if gen.company.linkedin | href else 'https://www.linkedin.com/company/' ~ gen.company.slug ~ '/insights/' }}" target="_blank" rel="noopener">LinkedIn insights</a>)
       <select name="signal">{% for sg in signals %}<option value="{{ sg }}">{{ signal_labels[sg] }}</option>{% endfor %}</select></label>
     <label>Language <select name="language"><option value="">{{ language_names[gen.language] }} (default)</option>{% for code, name in language_names.items() %}<option value="{{ code }}">{{ name }}</option>{% endfor %}</select></label>
-    <label class="grow">Observation (one sentence from {% if gen.company.website %}<a href="{{ gen.company.website | href }}" target="_blank" rel="noopener">their site</a>{% else %}their site{% endif %} or team; saved as a note and used in the draft)
+    <label class="grow">Observation (one sentence from {% if gen.company.website %}<a href="{{ gen.company.website | href }}" target="_blank" rel="noopener">their site</a>{% else %}their site{% endif %} or team; saved as a note)
       <input name="observation" placeholder="e.g. Great to see your growth; I just tried your product-led demo."></label>
     <button type="submit" data-busy="Generating&hellip;"{% if gate or ai_problem %} disabled{% endif %}>Generate</button>
   </form>
@@ -61,16 +65,16 @@
     <strong>Email:</strong>
     {% if send.paused %}<span class="tag warn">paused</span> {{ send.paused_by }}{% else %}on{% endif %}
     &middot; {{ send.sent_today }}/{{ send.cap }} today &middot; {{ send.queued }} queued{% if send.next and not send.paused %} &middot; next {{ send.next.strftime('%a %H:%M') }}{% endif %}
-    &middot; {{ send.days }} {{ send.window }}
+    &middot; {{ send.days | day_span }} {{ send.window | replace('-', '–') }}
     <form method="post" action="/outreach/send/{{ 'resume' if send.paused else 'pause' }}" class="inline">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit"{% if not send.paused %} class="secondary" title="The kill switch: nothing goes out from the next tick"{% endif %}>{{ 'Resume' if send.paused else 'Pause' }}</button>
     </form>
   </div>
   {% if send.missing %}<p class="warning-box">Sending cannot start: {{ send.missing }} <a href="/settings#send">Settings &gt; Sending</a></p>{% endif %}
-  {% if send.overdue %}<p class="small warning">{{ send.overdue }} queued {{ 'email is' if send.overdue == 1 else 'emails are' }} overdue. The Mac may have been asleep: the next tick plans them again, one at a time, without a burst.</p>{% endif %}
+  {% if send.overdue %}<p class="small warning">{{ send.overdue }} queued {{ 'email is' if send.overdue == 1 else 'emails are' }} overdue (the Mac may have been asleep). The next tick plans them again, one at a time.</p>{% endif %}
 {% else %}
-  <p class="small">Email sending is off. <a href="/settings#send">Turn it on in Settings &gt; Sending</a> to send approved email from here.</p>
+  <p class="small">Email sending is off. <a href="/settings#send">Turn it on in Settings &gt; Sending</a>.</p>
 {% endif %}
 {% if li.ok %}
   <p class="send-line"><strong>LinkedIn:</strong> invites {{ li.invites_today }}/{{ li.invites_per_day }} today &middot; {{ li.invites_week }}/{{ li.invites_per_week }} this week &middot; messages {{ li.messages_today }}/{{ li.messages_per_day }} today &middot; {{ li.queue }} waiting
@@ -122,7 +126,8 @@
 
 {% if tab == 'replies' %}
 <section class="outreach-replies">
-  <p class="small">Replies you owe an answer, from the follow-up radar. A reply logged with the outcome <strong>interested</strong> is listed as it is; for the others, <strong>Check replies</strong> asks your AI CLI once per reply (no web, no tools) and you confirm what it says. The draft offers your first step and asks one question: no time slot, link or price.</p>
+  <p class="small">Replies you owe an answer. The draft offers your first step and asks one question: no time slot, link or price.
+    {%- call hint('replies-help', 'Where these replies come from') %} From the follow-up radar. A reply logged with the outcome <b>interested</b> is listed as it is; for the others, <b>Check replies</b> asks your AI CLI once per reply (no web, no tools) and you confirm what it says.{% endcall %}</p>
   <form method="post" action="/outreach/replies/check" class="inline">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <button type="submit" class="secondary" data-busy="Checking replies&hellip;"{% if ai_problem or not replies_unchecked %} disabled{% endif %} title="{% if ai_problem %}{{ ai_problem }}{% else %}{{ replies_unchecked }} not checked yet{% endif %}">Check replies ({{ replies_unchecked }})</button>
@@ -177,7 +182,8 @@
 
 {% if tab == 'follow-ups' %}
 <section class="outreach-followups">
-  <p class="small">Messages of yours that went {{ nudge_days }} days without an answer, from the follow-up radar (Settings: <code>followup_nudge_days</code>). A follow-up is short, has no calendar invite and gives an easy way out; the bot does no research for it. One per silence: after a follow-up the bot lets it go.</p>
+  <p class="small">Messages of yours with no answer after {{ nudge_days }} days.
+    {%- call hint('followups-help', 'How follow-ups work') %} From the follow-up radar (Settings: <code>followup_nudge_days</code>). A follow-up is short, has no calendar invite and gives an easy way out; the bot does no research for it. There is one per silence: after it, the bot lets it go.{% endcall %}</p>
   {% if due_rows %}
   <ul class="outreach-reply-list">
   {% for f in due_rows %}{% set it = f.interaction %}
@@ -238,7 +244,7 @@
 {% if i.ai_body %}
   <details class="outreach-history"{% if card.steps and i.state == 'drafted' %} open{% endif %}>
     <summary>AI original{% if card.steps %} and {{ card.steps | length }} tracked edit{{ 's' if card.steps | length != 1 }}{% endif %}{% if i.earlier %}, {{ i.earlier | length }} regenerated away{% endif %}</summary>
-    <p class="small quiet">The AI's text as it was drafted. It is kept as it is: your changes are tracked edits next to it, each with the reason you gave.</p>
+    <p class="small quiet">The AI's original, kept as drafted. Your changes are tracked edits next to it, each with your reason.</p>
     {% if i.ai_subject %}<p class="small"><strong>{{ i.ai_subject }}</strong></p>{% endif %}
     <pre class="outreach-text outreach-original">{{ i.ai_body }}</pre>
     {% if i.ai_pitch %}<p class="small">after they accept</p><pre class="outreach-text outreach-original">{{ i.ai_pitch }}</pre>{% endif %}
@@ -260,7 +266,7 @@
 {% endmacro %}
 {% macro diff(parts) %}{% for kind, text in parts %}{% if kind == 'add' %}<ins>{{ text }}</ins>{% elif kind == 'del' %}<del>{{ text }}</del>{% else %}{{ text }}{% endif %}{% endfor %}{% endmacro %}
 
-{% macro about_line(counts) %}{% if counts %}{% set more = counts[0] > counts[1] %}<p class="small{% if more %} warning{% endif %}">About you {{ counts[0] }}, about them {{ counts[1] }}{% if more %}: more about you than about them{% endif %}</p>{% endif %}{% endmacro %}
+{% macro about_line(counts) %}{% if counts %}{% set more = counts[0] > counts[1] %}<p class="small{% if more %} warning{% endif %}">About you {{ counts[0] }}, about them {{ counts[1] }}{% if more %}: more about you{% endif %}</p>{% endif %}{% endmacro %}
 {% macro skip_panel(i) %}
   <form method="post" action="/outreach/{{ i.id }}/skip" class="outreach-skip" id="skip-{{ i.id }}" hidden>
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -286,7 +292,7 @@
     {% if co %}<a href="/companies/{{ i.company }}">{{ co.name }}</a> &middot; {{ co.stage }}{% else %}{{ i.company }}{% endif %}
     &middot; {% if card.fit is not none %}fit {{ card.fit }}{% else %}no fit score{% endif %}
     {% if co and co.website %}&middot; <a href="{{ co.website | href }}" target="_blank" rel="noopener">website &#8599;</a>{% endif %}
-    &middot; {{ i.approach or 'no approach' }}{% if i.angle %} &middot; angle {{ i.angle }}{% endif %}{% if i.language %} &middot; {{ i.language }}{% endif %}
+    &middot; {{ i.approach or 'no approach' }}{% if i.language %} &middot; {{ i.language }}{% endif %}
   </p>
   {% if card.followed.count %}<details class="small outreach-followed"><summary>Followed {{ card.followed.count }} lesson{{ 's' if card.followed.count != 1 }}</summary>
     {% if card.followed.texts %}<ul>{% for t in card.followed.texts %}<li>{{ t }}</li>{% endfor %}</ul>{% endif %}
@@ -309,7 +315,7 @@
   {% if has_notes %}{% set nc = card.notes %}
   <details class="outreach-notes"{% if i.state == 'drafted' %} open{% endif %}>
     <summary>Notes ({{ nc.rows | length }}{% if nc.rows %}, {{ nc.rows | selectattr('used') | list | length }} used{% endif %})</summary>
-    <p class="small quiet">What is known about {{ ct.first_name or ct.name if ct else i.contact }}: the same notes as on their page and on {{ co.name if co else i.company }}'s timeline. The draft is written from them.</p>
+    <p class="small quiet">The draft is written from these notes, which also appear on their page and the company timeline.</p>
     {% if i.state == 'drafted' and nc.newer %}<p class="small warning">{{ nc.newer }} note{{ 's' if nc.newer != 1 }} added since this draft was written. Regenerate to use {{ 'it' if nc.newer == 1 else 'them' }}.</p>{% endif %}
     {% if nc.company_notes %}<p class="small outreach-company-notes"><strong>Company notes</strong> (background; <a href="/companies/{{ i.company }}?edit=1#details">edit</a>): {{ nc.company_notes }}</p>{% endif %}
     <ol class="outreach-note-list">{% for r in nc.rows %}
@@ -341,10 +347,12 @@
     <textarea name="body" rows="9" spellcheck="true" aria-label="Draft for {{ ct.name if ct else i.contact }}" id="body-{{ i.id }}">{{ i.body }}</textarea>
     {% if i.channel != 'email' %}<label class="small">after they accept</label>
     <textarea name="pitch" rows="5" spellcheck="true" aria-label="Message after they accept">{{ i.pitch }}</textarea>{% endif %}
-    <label class="small outreach-note">What was wrong with this draft? (optional) Kept with your edit, or with the old draft if you regenerate. It helps improve the AI's next drafts.
+    <label class="small outreach-note">What was wrong with this draft? (optional)
+      {%- call hint('why-help-' ~ i.id, 'What this note is for') %} Kept with your edit, or with the old draft if you regenerate. It helps improve the AI's next drafts.{% endcall %}
       <input name="note" maxlength="500" placeholder="e.g. too formal for a founder, or the trigger is old news"></label>
     <fieldset class="small outreach-chips" data-chips-for="{{ i.id }}" data-chip-words="{{ chip_words }}" hidden>
-      <legend>Quick reasons (optional) Chips count for learning when you change more than {{ chip_words }} words.</legend>
+      <legend>Quick reasons (optional)
+        {%- call hint('chips-help-' ~ i.id, 'When quick reasons count') %} Chips count for learning when you change more than {{ chip_words }} words.{% endcall %}</legend>
       {% for tag in edit_tags %}<label class="check inline-check"><input type="checkbox" name="tags" value="{{ tag }}"> {{ tag }}</label> {% endfor %}
     </fieldset>
     {% if i.checks %}<ul class="outreach-checks warning">{% for c in i.checks %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
