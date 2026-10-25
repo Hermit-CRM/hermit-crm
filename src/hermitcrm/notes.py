@@ -60,6 +60,20 @@ def company_notes(company) -> list:
     return sorted(mine, key=lambda i: (i.date or datetime.min, i.id), reverse=True)
 
 
+def elsewhere(company, contact_slug: str) -> dict:
+    """The notes on a person's page that are not theirs, newest first: the
+    company's own, and each other contact's (contacts with no notes left out,
+    in the order the company lists them)."""
+    others = []
+    for slug, person in company.contacts.items():
+        if slug == contact_slug:
+            continue
+        theirs = contact_notes(company, slug)
+        if theirs:
+            others.append({"slug": slug, "name": person.name, "notes": theirs})
+    return {"company": company_notes(company), "others": others}
+
+
 def notes_for(company, contact_slug: str) -> list:
     """What a draft to this person reads: their notes and the company's, newest first."""
     both = contact_notes(company, contact_slug) + company_notes(company)
