@@ -177,6 +177,7 @@ def test_schedule_moves_an_item_to_the_scheduled_tab_with_its_time(env):
     assert "Scheduled (1)" in body and re.search(r"Goes out \w{3} \d\d \w{3}, \d\d:\d\d", body)
     for label in ("Send now", "Move to front", "Unschedule", "Mark sent"):
         assert label in body
+    assert "Back to draft" not in body       # a queued card is unscheduled first
     assert outreach.get_item(root, item.id).state == "queued"
 
 
@@ -193,7 +194,8 @@ def test_unschedule_and_move_to_front(env):
     resp = post(client, f"/outreach/{a.id}/unschedule")
     assert "tab=ready" in resp.headers["location"] and "Unscheduled" in flash(resp)
     assert outreach.get_item(root, a.id).state == "ready"
-    assert "Held back: unscheduled" in text_of(client.get("/outreach?tab=ready").text)
+    ready_tab = text_of(client.get("/outreach?tab=ready").text)
+    assert "Held back: unscheduled" in ready_tab and "Back to draft" in ready_tab
 
 
 def test_a_schedule_that_is_refused_says_why(env):
@@ -411,5 +413,5 @@ def test_every_new_route_wants_the_form_token(env):
     for path in ("/outreach/send/pause", "/outreach/send/resume", "/outreach/schedule-all",
                  "/settings/send", "/settings/send/test", "/settings/send/job",
                  "/outreach/x/schedule", "/outreach/x/unschedule", "/outreach/x/send-now",
-                 "/outreach/x/front", "/outreach/x/retry"):
+                 "/outreach/x/front", "/outreach/x/retry", "/outreach/x/unready"):
         assert client.post(path, data={}).status_code == 403, path

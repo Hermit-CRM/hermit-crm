@@ -4646,7 +4646,7 @@ def create_app(root: Path, config: dict | None = None,
                "Nothing usable on that page that the notes do not already have.")
         return flashed(f"/outreach?tab={outreach_tab(item)}", say, anchor=anchor)
 
-    OUTREACH_ACTIONS = ("check", "ready", "regenerate", "skip", "sent", "note",
+    OUTREACH_ACTIONS = ("check", "ready", "unready", "regenerate", "skip", "sent", "note",
                         "proposal", "schedule", "unschedule", "send-now", "front", "retry")
 
     @app.post("/outreach/{item_id}/{what}")
@@ -4691,6 +4691,9 @@ def create_app(root: Path, config: dict | None = None,
                        "Ready to send. Send it yourself, then log it: logging it marks it sent.")
                 text = (how + (f" Warning: {'; '.join(found)}." if found else "")
                         + edit_text(len(item.edits) - tracked, note))
+            elif what == "unready":
+                item = await run_in_threadpool(outreach.unready, store, item.id)
+                text = "Back to draft: edit it, then mark it ready again."
             elif what == "regenerate":
                 tier = "strong" if strong else "medium"
                 blocked = outreach_ai_problem(tier)

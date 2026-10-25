@@ -1649,6 +1649,9 @@ def _build_parser() -> argparse.ArgumentParser:
     from hermitcrm.outreach import EDIT_TAGS as _edit_tags
     o_ready.add_argument("--tag", action="append", default=[], choices=list(_edit_tags),
                          help="why you changed the draft (repeatable)")
+    o_sub.add_parser("unready", help="take a ready item back to a draft, to edit, "
+                     "regenerate or skip it (a queued item: unschedule it first); "
+                     "nothing is sent").add_argument("id")
     o_sub.add_parser("sent", help="you sent it yourself (logging it does this too); "
                      "logs nothing").add_argument("id")
     o_skip = o_sub.add_parser("skip", help="do not send this one, and say why")
@@ -1774,7 +1777,7 @@ def cmd_playbook(root: Path, action: str = "status", dry_run: bool = False,
 
 def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
                  drafter=None, critic=None) -> tuple[str, int]:
-    """`hermitcrm outreach preview|build|list|show|edits|ready|skip`."""
+    """`hermitcrm outreach preview|build|list|show|edits|ready|unready|skip`."""
     from hermitcrm import frameworks, outreach, routines
 
     action = args.action or "list"
@@ -1802,6 +1805,10 @@ def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
                 text += ("\nWarning: it still breaks these rules (kept on the item):\n"
                          + "\n".join(f"- {p}" for p in found))
             return (text, 0)
+        if action == "unready":
+            item = outreach.unready(store, args.id)
+            return (f"{item.id} is back to a draft: edit it on the Outreach page, then mark "
+                    "it ready again. Not sent.", 0)
         if action == "sent":
             item = outreach.mark_sent(store, args.id)
             return (f"{item.id} is sent. Nothing was logged: log the message as usual.", 0)
@@ -2361,8 +2368,8 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
 
     if args.command == "outreach":
         config = load_config(root)
-        if args.action in ("build", "ready", "sent", "skip", "schedule", "unschedule",
-                           "send-now", "retry", "front", "opt-out"):
+        if args.action in ("build", "ready", "unready", "sent", "skip", "schedule",
+                           "unschedule", "send-now", "retry", "front", "opt-out"):
             store.on_write = _writer(store, root, config)
         if args.action in ("schedule", "unschedule", "send-now", "retry", "front", "opt-out"):
             text, code = cmd_outreach_send(store, root, config, args)
