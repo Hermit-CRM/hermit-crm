@@ -62,12 +62,12 @@
     {% else %}<dd class="empty">no touches yet</dd>{% endif %}
   </div>
 </dl>
-{% if elsewhere.company or elsewhere.others %}
+{% if elsewhere.company.total or elsewhere.others %}
 <section id="other-notes" class="other-notes">
   <h2>Notes elsewhere at {{ company.name }}</h2>
   <p class="small">Not about {{ contact.first_name or contact.name }}, but part of what you know here. {{ contact.first_name or contact.name }}'s own notes are in the timeline below.</p>
-  {% if elsewhere.company %}{{ m.note_group('Whole company', elsewhere.company) }}{% endif %}
-  {% for o in elsewhere.others %}{{ m.note_group(o.name, o.notes, '/companies/' ~ company.slug ~ '/contacts/' ~ o.slug) }}{% endfor %}
+  {% if elsewhere.company.total %}{{ m.note_group('Whole company', elsewhere.company, '/companies/' ~ company.slug ~ '#company-notes', 'the company page') }}{% endif %}
+  {% for o in elsewhere.others %}{{ m.note_group(o.name, o, '/companies/' ~ company.slug ~ '/contacts/' ~ o.slug) }}{% endfor %}
 </section>
 {% endif %}
 {% for section in sections %}{% if section == 'details' %}

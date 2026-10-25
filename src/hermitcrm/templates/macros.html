@@ -325,16 +325,20 @@
 
 
 {# One group of someone else's notes on a contact page: a one-line summary
-   (who, how many, the newest note's first line) that opens to every note. #}
-{% macro note_group(label, notes, href='') %}
+   (who, how many, the newest note's first line) that opens to the newest ones.
+   `group.total` can exceed what is listed; `href` is where all of them are,
+   `where` what its link calls that place (default: the label). #}
+{% macro note_group(label, group, href='', where='') %}
+{% set notes = group.notes %}
 <details class="note-group">
-  <summary><strong>{{ label }}</strong> ({{ notes | length }}) <span class="first-line">{{ preview(notes[0].body) }}</span> <span class="small">more</span></summary>
+  <summary><strong>{{ label }}</strong> ({{ group.total }}) <span class="first-line">{{ preview(notes[0].body) }}</span> <span class="small">more</span></summary>
   <ul class="timeline">
     {% for n in notes %}
     <li class="interaction note"><div class="meta"><span class="when">{{ fmt_datetime(n.date).replace('T', ' ') }}</span></div><pre>{{ n.body }}</pre></li>
     {% endfor %}
   </ul>
-  {% if href %}<p class="small"><a href="{{ href }}">Open {{ label }}</a></p>{% endif %}
+  {% if group.total > notes | length %}<p class="small">Showing the newest {{ notes | length }} of {{ group.total }}.</p>{% endif %}
+  {% if href %}<p class="small"><a href="{{ href }}">{{ 'Open ' ~ (where or label) ~ (' to see all' if group.total > notes | length else '') }}</a></p>{% endif %}
 </details>
 {% endmacro %}
 
