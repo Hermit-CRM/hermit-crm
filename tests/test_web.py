@@ -2531,3 +2531,25 @@ def test_company_page_with_a_form_error_still_shows_its_notes(client):
     bad = client.post("/companies/acme", data={**COMPANY_BLANK, "name": "Acme GmbH",
                                                "stage": "lost"})
     assert bad.status_code == 400 and "budget freeze in Q1" in bad.text
+
+
+def test_notes_elsewhere_box_shows_the_newest_five_per_contact(client):
+    post_company(client, name="Acme GmbH")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe")
+    post_contact(client, "acme", first_name="Joe", last_name="Roe")
+    for day in range(1, 8):                       # seven notes on Joe, one a day
+        post_interaction(client, "acme", channel="note", direction="", contact="joe-roe",
+                         date=f"2026-09-{day:02d}T09:00", body=f"joe note {day}")
+    post_interaction(client, "acme", channel="note", direction="", contact="",
+                     date="2026-09-01T09:00", body="the one company note")
+
+    page = client.get("/companies/acme/contacts/jane-doe").text
+    box = page.split('id="other-notes"')[1].split("</section>")[0]
+    assert "Roe</strong> (7)" in box                       # the count is the real one
+    for day in range(3, 8):
+        assert f"joe note {day}\n</pre>" in box              # the newest five
+    assert "joe note 1\n" not in box and "joe note 2\n" not in box
+    assert "Showing the newest 5 of 7." in box
+    assert "Open Joe Roe to see all" in box
+    assert "the one company note" in box and box.count("Showing the newest") == 1
+    assert "Open the company page</a>" in box
