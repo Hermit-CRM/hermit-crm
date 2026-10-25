@@ -93,6 +93,10 @@ def test_the_page_renders_with_data(folder):
     assert "Run now" in body and "Write evidence pack" not in body
     assert "Worked" in body and "Still testing" in body and "Retire" in body
     assert "Promote to Worked" in body       # learning.move exists
+    # Without a promotion hint from the score, moves sit in More and Retire stays out.
+    mores = [m.split("</details>", 1)[0] for m in page.text.split('<details class="row-more">')[1:]]
+    assert any("Promote to Worked" in m for m in mores)
+    assert not any("Retire" in m for m in mores)
 
 
 def test_run_now_stores_proposals_and_they_can_be_accepted_or_rejected(folder):
