@@ -24,7 +24,7 @@ Prefer to type the commands yourself? See [Install](#install).
 
 | Pipeline | A company | Calendar |
 |---|---|---|
-| [![The pipeline board with the follow-up radar above it](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/pipeline.png)](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/pipeline.png) | [![A company page: message drafts in three angles and the timeline of every email, call and meeting](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/company.png)](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/company.png) | [![The calendar: every next step on a month grid](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/calendar.png)](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/calendar.png) |
+| [![The pipeline board with the follow-up radar above it](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/pipeline.png)](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/pipeline.png) | [![A company page: the timeline of every email, call and meeting](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/company.png)](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/company.png) | [![The calendar: every next step on a month grid](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/calendar.png)](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/calendar.png) |
 
 > **Alpha software.** Hermit CRM is incomplete, it changes without notice, and
 > it has bugs nobody has found yet. It is free and comes with **no warranty of
@@ -268,7 +268,7 @@ deep-merged, so a two-line file is enough:
 signoff = "Best,\n{owner_first_name}"
 ```
 
-`MESSAGING.md` in your data folder explains the angles, slots and languages.
+`MESSAGING.md` in your data folder holds your tone, your approaches and the languages.
 
 ## CLI
 
