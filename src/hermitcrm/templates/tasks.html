@@ -3,7 +3,8 @@
 {% block title %}Tasks{% endblock %}
 {% block content %}
 <h1>Tasks ({{ rows | length }})</h1>
-<p class="small">Every task for a company or one of its people. A company's <strong>next step</strong> is its open task due first.{% if type_names() %} Filter by type to see one kind of work.{% endif %}</p>
+<p class="small">Tasks for companies and their people.
+  {%- call m.hint('next-step-help', 'What a next step is') %} A company's <b>next step</b> is its open task due first.{% endcall %}</p>
 
 <p class="chips" id="when">
   <a class="chip{% if not when %} on{% endif %}" href="{{ all_url }}">All dates</a>
@@ -20,7 +21,7 @@
   {% for r in rows %}
   <tr class="{% if r.todo.overdue(today) %}overdue{% endif %}{% if r.todo.done %} done{% endif %}">
     <td class="due{% if r.todo.overdue(today) %} overdue{% endif %}">{{ fmt_date(r.due) if r.due else 'no date' }}</td>
-    <td>{{ r.text or '(no text)' }}{% if r.is_next %} <span class="tag next-step">next step</span>{% endif %}</td>
+    <td>{{ r.text or '(no text)' }}{% if r.is_next %} <span class="tag next-step" title="The open task due first for this company">next step</span>{% endif %}</td>
     {% if filter_columns | selectattr('key', 'equalto', 'type') | list %}<td>{{ m.type_chip(r.type) }}</td>{% endif %}
     <td><a href="{{ r.href }}">{{ r.who }}</a></td>
     <td><a href="/companies/{{ r.company.slug }}#tasks">{{ r.company_name }}</a></td>

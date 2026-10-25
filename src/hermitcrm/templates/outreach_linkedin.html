@@ -4,7 +4,7 @@
 {% block title %}LinkedIn session{% endblock %}
 {% block content %}
 <h1>LinkedIn session</h1>
-<p class="small">You send every message yourself on linkedin.com, so the account stays yours. Hermit puts one approved touch in front of you at a time, keeps the caps and a pause between cards, and logs what you sent exactly as you sent it. <a href="/help/sending#linkedin">Why it works this way</a> &middot; <a href="/outreach">Back to Outreach</a></p>
+<p class="small">You send every message yourself on linkedin.com, so the account stays yours. Hermit shows one approved touch at a time, keeps the caps and a pause between cards, and logs exactly what you sent. <a href="/help/sending#linkedin">Why it works this way</a> &middot; <a href="/outreach">Back to Outreach</a></p>
 
 <section class="linkedin-counters" aria-label="Today">
   <p>Invites today <strong>{{ have.invites_today }}/{{ cfg.invites_per_day }}</strong> &middot; last 7 days <strong>{{ have.invites_week }}/{{ cfg.invites_per_week }}</strong> &middot; messages today <strong>{{ have.messages_today }}/{{ cfg.messages_per_day }}</strong> &middot; this session <strong>{{ session.count if session.active else 0 }}/{{ cfg.session_size }}</strong>{% if have.blocked %} &middot; <span class="warning">invites paused: LinkedIn's weekly limit was hit</span>{% endif %}</p>

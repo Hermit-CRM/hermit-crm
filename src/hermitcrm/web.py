@@ -1387,6 +1387,7 @@ def create_app(root: Path, config: dict | None = None,
 
     templates.env.filters["slug"] = slugify  # CSS class names from outcome values
     templates.env.filters["href"] = safe_href  # stored URLs: http(s) or nothing
+    templates.env.filters["day_span"] = sendplan.compact_days  # "Mon, Tue, Wed" as "Mon–Wed"
     templates.env.filters["placeholders"] = placeholders  # a starter's [placeholders]
     templates.env.filters["inline"] = lambda text: Markup(helpdocs.inline(str(text or "")))
     # The sidebar's pinned dashboards (contract 6): the dashboards module

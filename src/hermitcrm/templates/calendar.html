@@ -3,7 +3,7 @@
 {% block content %}
 <h1>Calendar</h1>
 
-<p class="small" id="top-priority">Every task in one list, with filters, is on the <a href="/tasks">Tasks</a> page{% if due_now %}: <a href="/tasks?when=overdue&amp;when=today">{{ due_now }} due today or earlier</a>{% endif %}.</p>
+<p class="small" id="top-priority"><a href="/tasks">All tasks</a>{% if due_now %}: <a href="/tasks?when=overdue&amp;when=today">{{ due_now }} due today or earlier</a>{% endif %}</p>
 
 <h2 id="meetings">Meetings this week ({{ upcoming | length }})</h2>
 <table>

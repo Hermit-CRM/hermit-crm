@@ -36,8 +36,8 @@
 {{ group_start('general') }}
 <section class="setup-step" id="make-it-yours">
   <div class="setting-head"><h2>Make it yours with your AI</h2>{{ how('/help/adjust') }}</div>
-  <p class="summary">Describe a change, such as a field, a dashboard, a new look or a routine, and your own AI agent builds it in your data folder. Every change is one commit you can undo.</p>
-  <p class="meta">{% if handoff.how == 'copy' %}You get a prompt to paste into your agent; name the agent under AI below for a one-click button.{% else %}Requests go to {{ handoff.label }}; change that under AI below.{% endif %}</p>
+  <p class="summary">Describe a change (a field, a dashboard, a new look, a routine) and your own AI agent builds it in your data folder, one undoable commit each.</p>
+  <p class="meta">{% if handoff.how == 'copy' %}You get a prompt to paste; name your agent under AI below for a one-click button.{% else %}Requests go to {{ handoff.label }}; change that under AI below.{% endif %}</p>
   <div class="actions"><a class="button primary" href="/yours">Open Make it yours</a></div>
 </section>
 
@@ -69,7 +69,7 @@
   <p class="summary">Fills a record's empty fields and answers questions about your CRM, using an AI command-line tool you already have.</p>
   {% if not enrich_status.available %}
   <p class="warning">Unavailable: {{ enrich_status.reason }}</p>
-  <p class="small">Started by launchd or systemd (<code>hermitcrm schedule install --serve</code>), Hermit CRM has a bare PATH: put the CLI in <code>/usr/local/bin</code>, <code>/opt/homebrew/bin</code> or <code>~/.local/bin</code>, or give its full path as the command below.</p>
+  <p class="small">Under launchd or systemd (<code>hermitcrm schedule install --serve</code>) the PATH is bare: put the CLI in <code>/usr/local/bin</code>, <code>/opt/homebrew/bin</code> or <code>~/.local/bin</code>, or give its full path as the command below.</p>
   {% endif %}
   {{ step_errors('enrichment') }}
   <form method="post" action="/settings/enrichment" class="record-form">
@@ -87,9 +87,8 @@
     <fieldset class="switch across">
       <legend>Model</legend>
       <label><input type="radio" name="tier" value="medium"{% if enrich_form.tier != 'strong' %} checked{% endif %}> Medium: {{ model_label(tier_models.medium) }} (default)</label>
-      <label><input type="radio" name="tier" value="strong"{% if enrich_form.tier == 'strong' %} checked{% endif %}> Strong: {{ model_label(tier_models.strong) }}</label>
+      <label{% if tier_models.strong %} title="Answers made on the medium model offer &quot;Retry with {{ model_label(tier_models.strong) }}&quot;"{% endif %}><input type="radio" name="tier" value="strong"{% if enrich_form.tier == 'strong' %} checked{% endif %}> Strong: {{ model_label(tier_models.strong) }}</label>
     </fieldset>
-    {% if tier_models.strong %}<p class="small">Answers made on the medium model offer "Retry with {{ model_label(tier_models.strong) }}".</p>{% endif %}
     <details class="edit"{% if enrich_form.provider == 'custom' or 'enrichment' in form_errors %} open{% endif %}>
       <summary>Command, timeout and model ids</summary>
       <div class="row">
@@ -100,7 +99,8 @@
         <label class="grow">Medium model (empty: the default) <input name="model" value="{{ enrich_form.model }}" placeholder="{{ tier_models.medium if not enrich_form.model else '' }}"></label>
         <label class="grow">Strong model (empty: the default) <input name="model_strong" value="{{ enrich_form.model_strong }}" placeholder="{{ tier_models.strong if not enrich_form.model_strong else '' }}"></label>
       </div>
-      <p class="small">Only for a CLI that names a model differently; an id set here is used on any account. A subscription is not entitled to every API model id, so on one Hermit CRM asks for no particular model where that matters.</p>
+      <p class="small">Only for a CLI that names a model differently; an id set here is used on any account.
+        {%- call m.hint('model-ids-help', 'Why a subscription asks for no model') %} A subscription is not entitled to every API model id, so on one Hermit CRM asks for no particular model where that matters.{% endcall %}</p>
     </details>
     <button type="submit">Save</button>
   </form>
@@ -112,7 +112,8 @@
         {% for value, label in agent_choices %}<option value="{{ value }}"{% if value == handoff.chosen %} selected{% endif %}>{{ label }}</option>{% endfor %}
       </select>
     </label>
-    <p class="small">The agent that builds what you describe under <a href="/yours">Make it yours</a>, in <code>{{ handoff.folder_shown }}</code>. Claude Code and Cursor open with one click; Codex and Gemini CLI get a command to paste in a terminal; with none you copy the prompt into any agent.</p>
+    <p class="small">The agent that builds what you describe under <a href="/yours">Make it yours</a>, in <code>{{ handoff.folder_shown }}</code>.
+      {%- call m.hint('agent-handoff-help', 'How each agent is started') %} Claude Code and Cursor open with one click; Codex and Gemini CLI get a command to paste in a terminal; with none, you copy the prompt into any agent.{% endcall %}</p>
     <button type="submit">Save</button>
   </form>
 </section>
@@ -133,24 +134,24 @@
   <details class="edit"{% if theme_file.problems %} open{% endif %}>
     <summary>Your own look: {{ 'in use' if theme_file.active else 'not in use' }}</summary>
     {% if theme_file.active %}
-    <p class="small theme-status"><strong>In use:</strong> <code>{{ theme_file.path }}</code>. It changes colours and fonts on top of the default. Delete the file to go back to the default look.</p>
+    <p class="small theme-status"><strong>In use:</strong> <code>{{ theme_file.path }}</code> sets colours and fonts. Delete the file to go back to the default look.</p>
     {% if theme_file.problems %}
     <ul class="small provider-note warning">
       {% for line, problem in theme_file.problems %}<li>Line {{ line }}: {{ problem }}</li>{% endfor %}
     </ul>
     {% endif %}
     {% else %}
-    <p class="small theme-status"><strong>Not in use.</strong> To change colours or fonts, ask your AI tool to write <code>{{ theme_file.path }}</code>, for example "make my Hermit CRM blue". It is one block like this; <a href="/help/settings">Help > Settings</a> lists what you can change.</p>
-    <pre class="small theme-example">{{ theme_example }}</pre>
+    <p class="small theme-status"><strong>Not in use.</strong> Ask your AI tool to write <code>{{ theme_file.path }}</code>, for example "make my Hermit CRM blue"; <a href="/help/settings">Help > Settings</a> lists what you can change.</p>
+    <pre class="small theme-example" title="What the file looks like">{{ theme_example }}</pre>
     {% endif %}
   </details>
 </section>
 
 <section class="setup-step" id="support">
   <div class="setting-head"><h2>Support Hermit</h2></div>
-  <p>Hermit CRM is free and open source, and stays that way. If it earns its place in your week, you can support its development with a tip on Ko-fi.</p>
+  <p>Hermit CRM is free and open source, and stays that way. A tip on Ko-fi supports its development.</p>
   <p><a class="button" href="{{ support_url }}" target="_blank" rel="noopener">Support Hermit on Ko-fi</a></p>
-  <p class="small">Opens <code>{{ support_url | replace('https://', '') }}</code> in your browser. Nothing in the app depends on it, and Hermit CRM sends nothing to Ko-fi.</p>
+  <p class="small">Opens <code>{{ support_url | replace('https://', '') }}</code> in your browser; Hermit CRM sends nothing to Ko-fi.</p>
 </section>
 
 <section class="setup-step" id="about">
@@ -172,7 +173,8 @@
   {% if state.bcc and bcc_form.address %}
   <p class="summary">BCC <code>{{ bcc_form.address }}</code> when you email a prospect, or forward a thread to it, and the mail is logged on the right company.</p>
   {% else %}
-  <p class="summary">Put a tracking address in BCC when you email a prospect, and the mail is logged on the right company. With Gmail, <code>you+crm@gmail.com</code> reaches your own inbox, so no second account is needed.</p>
+  <p class="summary">Put a tracking address in BCC when you email a prospect, and the mail is logged on the right company.
+    {%- call m.hint('bcc-gmail-help', 'Which address to use with Gmail') %} With Gmail, <code>you+crm@gmail.com</code> reaches your own inbox, so no second account is needed.{% endcall %}</p>
   {% endif %}
   <div class="bcc-status">
     {% if last_run %}
@@ -218,7 +220,8 @@
       </div>
       <label>App password <input type="password" name="password" value="" autocomplete="new-password" placeholder="{{ 'stored; leave empty to keep it' if state.bcc else '' }}"></label>
       {% if os_store %}<label class="check"><input type="checkbox" name="keychain" value="1" checked> Store the password in {{ os_store_label }}</label>{% endif %}
-      <p class="small">{% if os_store %}Secrets are stored in <code>.secrets.toml</code> (mode 600) or {{ os_store_label }}, never in <code>config.toml</code>.{% if os_store == 'secret-service' %} A keyring is locked while you are logged out, so a daily import that runs then cannot read the password; keep it in <code>.secrets.toml</code> if the machine imports without you logged in.{% endif %}{% elif is_windows %}Secrets are stored in <code>.secrets.toml</code>, never in <code>config.toml</code>. They are plain text, readable only by your user account and never committed to git.{% else %}Secrets are stored in <code>.secrets.toml</code>, never in <code>config.toml</code>. No system keyring was found (install <code>libsecret-tools</code> and run a Secret Service such as GNOME Keyring or KWallet to use one), so they are plain text, readable only by your user account (mode 600) and never committed to git.{% endif %}</p>
+      <p class="small">{% if os_store %}Stored in <code>.secrets.toml</code> (mode 600) or {{ os_store_label }}, never in <code>config.toml</code>.{% if os_store == 'secret-service' %} A keyring is locked while you are logged out, so an import that runs then cannot read the password: keep it in <code>.secrets.toml</code> if the machine imports without you.{% endif %}{% elif is_windows %}Stored in <code>.secrets.toml</code>, never in <code>config.toml</code>: plain text, readable only by your user account, never committed to git.{% else %}Stored in <code>.secrets.toml</code> (mode 600), never in <code>config.toml</code>: plain text, readable only by your user account, never committed to git. No system keyring was found
+        {%- call m.hint('keyring-help', 'How to use a system keyring') %} Install <code>libsecret-tools</code> and run a Secret Service such as GNOME Keyring or KWallet to use one.{% endcall %}.{% endif %}</p>
       <button type="submit">Save</button>
     </form>
     {% if gmail_filter %}
@@ -231,8 +234,9 @@
 
 <section class="setup-step" id="send">
   <div class="setting-head"><h2>Sending</h2>{{ status(send_form.enabled, 'on', 'off') }}{{ how('/help/sending') }}</div>
-  <p class="summary">Send approved outreach email from the Outreach page, now or spaced over the working day, from a mailbox of its own. You still approve every message. Plain text only, no links, no tracking pixel.</p>
-  <p class="meta">Use a separate mailbox, ideally on its own domain: cold email can hurt the reputation of the domain it is sent from, and a separate one keeps your main domain safe. 50 a day is the plan; a new mailbox starts at 10 a day and steps up over the ramp below.</p>
+  <p class="summary">Send approved outreach from the Outreach page, now or spaced over the working day, from a mailbox of its own.
+    {%- call m.hint('send-help', 'What goes out') %} You still approve every message. Mail is plain text only: no links, no tracking pixel.{% endcall %}</p>
+  <p class="meta">Use a separate mailbox, ideally on its own domain: cold email can hurt the reputation of the domain it is sent from. 50 a day is the plan; a new mailbox starts at 10 and steps up over the ramp below.</p>
   {% for problem in send_problems %}<p class="warning-box">Config: {{ problem }}</p>{% endfor %}
   {% if send_cap_note %}<p class="warning-box">{{ send_cap_note }}</p>{% endif %}
   {% if send_form.enabled %}
@@ -276,7 +280,7 @@
       </div>
       <label>App password <input type="password" name="password" value="" autocomplete="new-password" placeholder="{{ 'stored; leave empty to keep it' if send_password_stored else 'paste the 16-character app password' }}"></label>
       {% if os_store %}<label class="check"><input type="checkbox" name="keychain" value="1" checked> Store the password in {{ os_store_label }}</label>{% endif %}
-      <p class="small">The password goes to {% if os_store %}<code>.secrets.toml</code> (mode 600) or {{ os_store_label }}{% else %}<code>.secrets.toml</code> (mode 600){% endif %}, never to <code>config.toml</code>. One app password covers both sending and the reply check (IMAP). {% if os_store == 'secret-service' %}A keyring is locked while you are logged out, so scheduled sending that runs then cannot read it; keep it in <code>.secrets.toml</code> if the machine sends without you logged in.{% endif %}</p>
+      <p class="small">Stored in {% if os_store %}<code>.secrets.toml</code> (mode 600) or {{ os_store_label }}{% else %}<code>.secrets.toml</code> (mode 600){% endif %}, never in <code>config.toml</code>. One app password covers sending and the reply check (IMAP). {% if os_store == 'secret-service' %}A keyring is locked while you are logged out, so scheduled sending then cannot read it: keep it in <code>.secrets.toml</code> if the machine sends without you.{% endif %}</p>
       <div class="row">
         <label class="grow">SMTP server <input name="smtp_host" id="send-smtp-host" value="{{ send_form.smtp_host }}"></label>
         <label>Port <input name="smtp_port" id="send-smtp-port" value="{{ send_form.smtp_port }}" size="5" inputmode="numeric"></label>
@@ -284,7 +288,7 @@
       </div>
       <h3>When and how much</h3>
       <div class="row">
-        <label>Window <input name="window" value="{{ send_form.window }}" size="11" placeholder="08:30-17:30"></label>
+        <label title="Mail goes out only inside this window, on the days ticked, in your local time">Window <input name="window" value="{{ send_form.window }}" size="11" placeholder="08:30-17:30"></label>
         <label>Most per day <input name="daily_cap" value="{{ send_form.daily_cap }}" size="5" inputmode="numeric"></label>
         <label class="grow">Ramp, per week from the first send <input name="ramp" value="{{ send_form.ramp }}" placeholder="10, 20, 30, 40"></label>
       </div>
@@ -296,7 +300,7 @@
         <label>Least hours between two mails to one company <input name="company_gap_hours" value="{{ send_form.company_gap_hours }}" size="4" inputmode="numeric"></label>
         <label class="grow">Never email these countries (e.g. DE, AT; empty = none) <input name="countries" value="{{ send_form.countries }}" placeholder="none"></label>
       </div>
-      <p class="small">50 a day is the plan, reached in steps of 10 a week. More than 150 a day for more than 1-2 days in a row is strongly discouraged: after two such days the third is held at 150. Mail goes out only inside the window, on the days ticked, in your local time. German and Austrian law ask for consent to advertising email, B2B included; that is yours to judge (not legal advice), which is why a country can be switched off here.</p>
+      <p class="small">More than 150 a day for more than 1-2 days in a row is strongly discouraged: after two such days the third is held at 150. German and Austrian law ask for consent to advertising email, B2B included; that is yours to judge (not legal advice), so a country can be switched off above.</p>
       <button type="submit">Save</button>
     </form>
   </details>
@@ -313,7 +317,7 @@
         <p class="error">Last meeting import {{ calendar_last_run.at | replace('T', ' ') }} failed: {{ calendar_last_run.error }}</p>
       {% endif %}
     {% else %}
-      <p class="meta">No meeting import has run yet. Past meetings whose attendees match no company wait on <a href="/#to-file">Home, under To file</a>.</p>
+      <p class="meta">No meeting import has run yet. Meetings that match no company wait on <a href="/#to-file">Home, under To file</a>.</p>
     {% endif %}
   </div>
   <div class="actions">
@@ -370,7 +374,8 @@
 
 <section class="setup-step" id="fields">
   <div class="setting-head"><h2>Fields</h2>{{ how('/help/settings#fields') }}{{ describe('fields') }}</div>
-  <p class="summary">Fields of your own, on top of the ones Hermit CRM has. Their values live in your records' front matter; <code>fields.toml</code> describes them.</p>
+  <p class="summary">Fields of your own, on top of the built-in ones, described in <code>fields.toml</code>.
+    {%- call m.hint('fields-values-help', 'Where the values live') %} Their values live in your records' front matter.{% endcall %}</p>
   {{ step_errors('fields') }}
   {% if custom_field_defs %}
   <div class="table-scroll"><table class="fields-list small">
@@ -419,7 +424,7 @@
     <form method="post" action="/settings/fields" class="record-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <label class="grow">fields.toml <textarea name="fields_toml" rows="12" spellcheck="false">{{ fields_form.toml }}</textarea></label>
-      <p class="small">This is the file itself. Removing a field stops Hermit CRM showing it; the values stay in your records, and putting the field back brings them back.</p>
+      <p class="small">Removing a field only hides it: the values stay in your records and return with the field.</p>
       <button type="submit">Save fields</button>
     </form>
   </details>
@@ -427,7 +432,8 @@
 
 <section class="setup-step" id="messaging">
   <div class="setting-head"><h2>Drafts</h2>{{ how('/help/messages') }}{{ describe('messaging') }}</div>
-  <p class="summary">Outreach drafts can use any field of your own as <code>{{ '{' }}key{{ '}' }}</code>. These two also fill the sentences about team size; with neither set, those sentences leave a line for you to fill in.</p>
+  <p class="summary">Which fields fill the team-size sentences in outreach drafts; with neither set, those sentences leave a line for you to fill in.
+    {%- call m.hint('draft-fields-help', 'Using your own fields in drafts') %} Any field of your own can also be used in a draft as <code>{{ '{' }}key{{ '}' }}</code>.{% endcall %}</p>
   {{ step_errors('messaging') }}
   <form method="post" action="/settings/messaging" class="record-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -451,7 +457,8 @@
 
 <section class="setup-step" id="task-types">
   <div class="setting-head"><h2>Task types</h2>{{ describe('task-types') }}</div>
-  <p class="summary">Your own labels for tasks and next steps, used as filters. Renaming one renames it on every task; deleting one leaves it on its tasks, in grey.</p>
+  <p class="summary">Your own labels for tasks and next steps, used as filters.
+    {%- call m.hint('task-types-help', 'What renaming and deleting do') %} Renaming a type renames it on every task; deleting one leaves it on its tasks, in grey.{% endcall %}</p>
   {{ step_errors('task-types') }}
   <form method="post" action="/settings/task-types" class="record-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -464,7 +471,7 @@
         <td class="actions">
           {% if not loop.first %}<button type="submit" name="move" value="{{ loop.index0 }}-up" title="Move up">Up</button>{% endif %}
           {% if not loop.last %}<button type="submit" name="move" value="{{ loop.index0 }}-down" title="Move down">Down</button>{% endif %}
-          <button type="submit" name="delete" value="{{ loop.index0 }}" title="Remove this type">Delete</button>
+          <button type="submit" name="delete" value="{{ loop.index0 }}" title="Remove this type; its tasks keep it, in grey">Delete</button>
         </td>
       </tr>
       {% endfor %}
@@ -480,11 +487,8 @@
 
 <section class="setup-step" id="stages">
   <div class="setting-head"><h2>Deal stages</h2>{{ how('/help/settings#deal-stages') }}</div>
-  <p class="summary">The steps a deal goes through, in order: the Pipeline columns, the filters and the funnel follow this list. Each stage has a role that tells Hermit what it means.
-    <strong>open</strong> is a column on the board (the first one is where new companies start and where a requalified one returns).
-    <strong>won</strong> and <strong>lost</strong> end a deal (lost needs a reason).
-    <strong>closed</strong> is any other end, such as disqualified. <strong>parked</strong> is out of the pipeline for now, with a date to come back.
-    Renaming a stage renames it on every company and in its history; deleting one asks where its companies go.</p>
+  <p class="summary">The steps a deal goes through, in order: the Pipeline columns, the filters and the funnel follow this list.
+    {%- call m.hint('stage-roles-help', 'What each role means') %} Each stage has a role that tells Hermit what it means. <b>open</b> is a column on the board (the first one is where new companies start and where a requalified one returns). <b>won</b> and <b>lost</b> end a deal (lost needs a reason). <b>closed</b> is any other end, such as disqualified. <b>parked</b> is out of the pipeline for now, with a date to come back.{% endcall %}</p>
   {{ step_errors('stages') }}
   <form method="post" action="/settings/stages" class="record-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -502,17 +506,17 @@
     </div>
     {% endif %}
     <div class="table-scroll"><table class="stages-table">
-      <tr><th>stage</th><th>role</th><th title="Show the monthly value in the PIPELINE.md heading">valued</th><th>companies</th><th></th></tr>
+      <tr><th>stage</th><th title="What the stage means to Hermit: open, won, lost, closed or parked">role</th><th title="Show the monthly value in the PIPELINE.md heading">valued</th><th>companies</th><th></th></tr>
       {% for r in stages_form.rows %}
       <tr>
-        <td><input name="name" value="{{ r.name }}" maxlength="30" aria-label="stage name"><input type="hidden" name="old" value="{{ r.old }}"></td>
+        <td><input name="name" value="{{ r.name }}" maxlength="30" aria-label="stage name" title="Renaming a stage renames it on every company and in its history"><input type="hidden" name="old" value="{{ r.old }}"></td>
         <td><select name="role" aria-label="role">{% for x in stages_form.roles %}<option value="{{ x }}"{% if x == r.role %} selected{% endif %}>{{ x }}</option>{% endfor %}</select></td>
         <td><input type="checkbox" name="valued" value="{{ loop.index0 }}"{% if r.valued %} checked{% endif %} aria-label="show value"></td>
         <td class="num">{{ r.count }}</td>
         <td class="actions">
           {% if not loop.first %}<button type="submit" name="move" value="{{ loop.index0 }}-up" title="Move up">Up</button>{% endif %}
           {% if not loop.last %}<button type="submit" name="move" value="{{ loop.index0 }}-down" title="Move down">Down</button>{% endif %}
-          <button type="submit" name="delete" value="{{ loop.index0 }}" title="Remove this stage">Delete</button>
+          <button type="submit" name="delete" value="{{ loop.index0 }}" title="Remove this stage; if companies are in it, you choose where they go">Delete</button>
         </td>
       </tr>
       {% endfor %}
@@ -529,7 +533,7 @@
 
 <section class="setup-step" id="outcomes">
   <div class="setting-head"><h2>Outcomes</h2>{{ how('/help/settings#outcomes') }}{{ describe('outcomes') }}</div>
-  <p class="summary">One per line, in order. The <strong>first</strong> is what a detected reply counts as; the <strong>last</strong> is what silence past the message window counts as.</p>
+  <p class="summary">One per line, in order: a detected reply counts as the <strong>first</strong>, silence past the message window as the <strong>last</strong>.</p>
   {{ step_errors('outcomes') }}
   {% if outcomes_offer %}
   <form method="post" action="/settings/outcomes" class="inline outcomes-offer">
@@ -537,8 +541,9 @@
     <input type="hidden" name="outcomes" value="{{ outcomes_offer | join('\n') }}">
     <input type="hidden" name="message_window_days" value="{{ outcomes_form.message_window_days }}">
     <input type="hidden" name="silent_days" value="{{ outcomes_form.silent_days }}">
-    <p class="small">New: an <strong>interested</strong> outcome, for a reply that shows interest. Set it when you log such a reply and the Outreach page lists it under Replies to interest, no AI needed. It goes in the middle, so replies and silence count as before: {{ outcomes_offer | join(', ') }}.
-    <button type="submit" class="secondary">Add interested</button></p>
+    <p class="small">New: an <strong>interested</strong> outcome, for a reply that shows interest. It goes in the middle, so replies and silence count as before: {{ outcomes_offer | join(', ') }}.
+      {%- call m.hint('interested-help', 'What the interested outcome does') %} Set it when you log such a reply and the Outreach page lists it under Replies to interest, no AI needed.{% endcall %}
+      <button type="submit" class="secondary">Add interested</button></p>
   </form>
   {% endif %}
   <form method="post" action="/settings/outcomes" class="record-form">
@@ -571,7 +576,7 @@
   </p>
   <p class="meta">Every few minutes, to a repository outside this folder that can only grow, so any version can be put back.</p>
   {% if schedule.backup_elsewhere %}
-  <p class="warning">This computer's backup job is set up for another folder, <code>{{ schedule.backup_elsewhere }}</code>; there is one per computer. To back up this folder instead, run <code>hermitcrm --data {{ about.data_dir }} schedule install</code>; that folder is then no longer backed up.</p>
+  <p class="warning">This computer's backup job is set up for another folder, <code>{{ schedule.backup_elsewhere }}</code> (there is one per computer). To back up this folder instead, run <code>hermitcrm --data {{ about.data_dir }} schedule install</code>; the other folder is then no longer backed up.</p>
   {% elif not schedule.backup_installed or not lb.last_ok %}
   <form method="post" action="/settings/backup/local" class="record-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -581,7 +586,7 @@
   {% endif %}
   <details class="edit">
     <summary>Where it is kept</summary>
-    <p class="small">In <code>{{ lb.dest }}</code>, outside your CRM folder, so deleting the folder does not delete the backup. To keep it somewhere else, such as another disk or a synced folder, set <code>backup_dir</code> in <code>config.toml</code>.</p>
+    <p class="small">In <code>{{ lb.dest }}</code>, outside your CRM folder, so deleting the folder keeps the backup. For another disk or a synced folder, set <code>backup_dir</code> in <code>config.toml</code>.</p>
     {% if lb.lines[1:] %}<ul class="schedule-lines small">{% for line in lb.lines[1:] %}<li><code>{{ line }}</code></li>{% endfor %}</ul>{% endif %}
   </details>
 
@@ -589,7 +594,7 @@
   {% if remote_url %}
   <p class="summary">Pushed to <code>{{ remote_url }}</code> after every change.</p>
   {% else %}
-  <p class="summary">The backup above lives on the same disk as your data. For a copy that survives a lost laptop, push the folder to a git remote after every change.</p>
+  <p class="summary">The backup above is on the same disk as your data; push to a git remote after every change for a copy that survives a lost laptop.</p>
   {% endif %}
   {% if remote_warning %}<p class="warning">{{ remote_warning }}</p>
   {% else %}<p class="warning"><strong>The repository must be PRIVATE</strong> on GitHub, GitLab or Bitbucket: it holds your contacts and mail.</p>{% endif %}
@@ -605,7 +610,7 @@
 
 <section class="setup-step" id="export">
   <div class="setting-head"><h2>Export everything</h2>{{ how('/help/import#export') }}</div>
-  <p class="summary">Your companies, contacts, interactions, tasks and stage history as a zip of CSV files, to open in a spreadsheet or import into another CRM. Exporting changes nothing here.</p>
+  <p class="summary">Your companies, contacts, interactions, tasks and stage history as a zip of CSV files, for a spreadsheet or another CRM.</p>
   <form method="get" action="/export.zip" class="record-form">
     <div class="row">
       <label>Column names
@@ -617,7 +622,7 @@
       </label>
       <label><input type="checkbox" name="excel" value="true"> For Excel</label>
     </div>
-    <button type="submit">Export everything</button>
+    <button type="submit" title="Exporting changes nothing in your CRM">Export everything</button>
   </form>
   <p class="meta">Also from a terminal: <code>hermitcrm --data {{ about.data_dir }} export</code> (add <code>--format json</code> for one JSON file).</p>
 </section>
@@ -625,7 +630,7 @@
 
 {# ================================================================ Advanced #}
 {{ group_start('advanced') }}
-<p class="small">These are set up from a terminal. This tab shows what is running and the commands to copy.</p>
+<p class="small">Set up from a terminal; this tab shows what is running and the commands to copy.</p>
 <section class="setup-step" id="schedule">
   <div class="setting-head"><h2>Schedule</h2>{{ status(schedule.installed) }}{{ how('/help/settings#schedule') }}</div>
   <p class="summary">A daily job runs <code>hermitcrm sync --apply</code>: the BCC import, then the calendar import.</p>
@@ -641,7 +646,7 @@
 
 <section class="setup-step" id="access">
   <div class="setting-head"><h2>Access from your phone</h2>{% if access.on_network %}{{ status(true, 'on') }}{% endif %}{{ how('/help/settings#access') }}</div>
-  {% set no_password %}<p class="warning">Hermit CRM has no password. Anyone who can reach that port can read and write your CRM, so use it on a network you trust, or a private one (Tailscale, WireGuard) rather than public Wi-Fi.</p>{% endset %}
+  {% set no_password %}<p class="warning">Hermit CRM has no password: anyone who can reach that port can read and write your CRM. Use a network you trust or a private one (Tailscale, WireGuard), not public Wi-Fi.</p>{% endset %}
   {% if access.on_network %}
   <p class="summary">The app answers on your network: open <code>{{ access.lan_url }}</code> on a phone on the same Wi-Fi.</p>
   {{ no_password }}
@@ -658,10 +663,11 @@
 
 <section class="setup-step" id="mcp">
   <div class="setting-head"><h2>Access from an AI app (MCP)</h2>{{ how('/help/ai-agents') }}</div>
-  <p class="summary">Lets Claude Desktop, ChatGPT desktop or Cursor on this computer read and write this CRM: your pipeline, the replies you owe, a brief before a meeting, and logging the call afterwards. It can also make Hermit yours (fields, dashboards, routines, the look), each change one commit you can undo.</p>
+  <p class="summary">Lets Claude Desktop, ChatGPT desktop or Cursor on this computer read and write this CRM.
+    {%- call m.hint('mcp-help', 'What an AI app can do here') %} It can show your pipeline and the replies you owe, brief you before a meeting and log the call afterwards, and make Hermit yours (fields, dashboards, routines, the look), each change one commit you can undo.{% endcall %}</p>
   <details class="edit">
     <summary>The config to paste</summary>
-    <p class="small">Your AI app starts it for you: paste this into its MCP config. It talks over stdin and stdout, so the app must run on this computer.</p>
+    <p class="small">Paste this into your AI app's MCP config; it starts the server itself, over stdin and stdout, so the app must run on this computer.</p>
     <pre class="copy"><code>{{ access.mcp_config }}</code></pre>
     <p class="small">The command on its own: <code>{{ access.mcp_command }}</code></p>
   </details>

@@ -114,8 +114,7 @@ def test_the_line_in_the_text_view_says_when_it_leans_to_you(tmp_path):
     root, store = demo(tmp_path)
     item = outreach.Item(id="x", language="en", body="Hi Alex,\n\nWe help teams. Our clients "
                          "grow. I can show you?\n\nSam")
-    assert "About you 3, about them 1: more about you than about them" in \
-        outreach.render_item(store, item)
+    assert "About you 3, about them 1: more about you" in outreach.render_item(store, item)
     item.body = "Hi Alex,\n\nYour team grew. We see you hiring.\n\nSam"
     text = outreach.render_item(store, item)
     assert "About you 1, about them 2\n" in text and "more about you" not in text

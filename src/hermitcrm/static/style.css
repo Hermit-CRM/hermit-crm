@@ -225,7 +225,7 @@ textarea { font-family: var(--mono); font-size: 13px; }
 .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
 @media (min-width: 1000px) { form.record-form .row, form.interaction-form .row { flex-wrap: nowrap; } }
 form.record-form .row > label.grow, form.interaction-form .row > label.grow { min-width: 0; }
-.row > label { flex: 0 0 auto; }
+.row > label { flex: 0 0 auto; max-width: 100%; }   /* a select with a long option cannot make its row wider than the screen */
 .row > label.grow { flex: 1 1 220px; }
 /* The company form: groups of fields on a 12-column grid instead of long rows.
    A field says how many columns it takes (span-N); on a phone every field takes
@@ -405,6 +405,20 @@ table.month .task.overdue a { color: var(--danger); }
   .filter-form { position: relative; }
   .filter-form .help { position: static; }
   .filter-form .help .tip { top: calc(100% + 4px); max-width: calc(100vw - 48px); }
+}
+/* A hint: the same "?" and tip as the filter help, for the detail a page needs once.
+   The tip is narrower and its <b> stays in the line. The ::before keeps the few pixels
+   between the "?" and the tip hoverable, so a link in the tip can be reached. On a phone
+   the tip is a sheet along the bottom edge, whatever the line it hangs from. */
+.hint { margin-left: 4px; }
+.hint .tip { width: 360px; }
+.hint .tip::before { content: ""; position: absolute; left: 0; right: 0; top: -8px; height: 8px; }
+/* Back to plain text inside a heading (small caps) or an italic empty-state line. */
+.hint .tip { font-variant-caps: normal; letter-spacing: 0; font-weight: 400; font-style: normal; }
+.hint .tip b { font-weight: 600; }
+.hint .tip p { margin: 4px 0 0; }
+@media (max-width: 760px) {
+  .hint .tip { position: fixed; left: 12px; right: 12px; top: auto; bottom: 12px; width: auto; max-width: none; }
 }
 .sort { white-space: nowrap; font-size: 11px; margin-left: 2px; }
 .sort a { color: var(--muted); text-decoration: none; padding: 2px 1px; }

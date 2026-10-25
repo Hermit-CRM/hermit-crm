@@ -14,7 +14,7 @@
   <button type="submit">Custom period</button>
 </form>
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
-<p class="small">{{ fmt_date(p.start) }} to {{ fmt_date(p.end) }} ({{ p.days }}d); deltas against {{ fmt_date(report.previous.start) }} to {{ fmt_date(report.previous.end) }}. Click a number for the rows behind it.</p>
+<p class="small">{{ fmt_date(p.start) }} to {{ fmt_date(p.end) }} ({{ p.days }}d) vs {{ fmt_date(report.previous.start) }} to {{ fmt_date(report.previous.end) }}. Click a number for its rows.</p>
 
 <section id="activity">
 <h2>Activity</h2>

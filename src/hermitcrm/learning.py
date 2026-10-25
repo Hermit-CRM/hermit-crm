@@ -103,7 +103,7 @@ SMOOTH_PRIOR = {"edits": 15, "replied": 20, "positive": 10, "deal": 6, "won": 4}
 COUNT_WORDS = {"reviewed": "reviewed drafts", "sent": "sent", "replied": "replies",
                "positive": "positive", "deal": "deals", "won": "won"}
 WEIGHT_WORDS = {"edits": "your edits", "replied": "replies", "positive": "positive replies",
-                "deal": "deals", "won": "wins", "other": "skips and reasons"}
+                "deal": "deals", "won": "wins", "other": "skip reasons"}
 
 # Honesty and opt-out rules are never removed or weakened by learning.
 _PROTECTED = re.compile(r"opt[- ]?out|unsubscri|abmeld|afmeld|désinscri|desinscri|honest|"
@@ -641,7 +641,7 @@ def phase(counts: dict, config: dict | None = None, approach: str = "") -> Phase
         reason = ", ".join(f"{counts.get(k, 0)} {COUNT_WORDS.get(k, k)} (needs {v})"
                            for k, v in chosen["when"].items())
     else:
-        reason = "start: no threshold reached yet"
+        reason = "no threshold reached yet"
     return Phase(chosen["number"], chosen["name"], chosen["weights"], dict(counts), reason,
                  chosen["optimises"])
 
