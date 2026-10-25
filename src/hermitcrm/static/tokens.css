@@ -65,6 +65,21 @@
   --sidebar-active: light-dark(#ded7c8, #35322c);
   --shadow-color: light-dark(rgba(40, 32, 20, .16), rgba(0, 0, 0, .5));
   --shadow: 0 8px 28px var(--shadow-color);
+
+  /* buttons: the whole look of a button; Settings and Help keep the flat one (body.classic) */
+  --btn-bg: var(--surface);
+  --btn-bg-hover: var(--type-green-bg);
+  --btn-border: var(--line);
+  --btn-border-hover: var(--info-line);
+  --btn-radius: 8px;
+  --btn-seam: color-mix(in srgb, var(--line) 55%, transparent);
+}
+
+body.classic {
+  --btn-bg: var(--subtle);
+  --btn-bg-hover: var(--subtle);
+  --btn-border-hover: var(--line);
+  --btn-radius: 3px;
 }
 
 [data-theme="dark"] { color-scheme: dark; }

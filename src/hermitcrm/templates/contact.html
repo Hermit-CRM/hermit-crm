@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
+{% from "icons.html" import icon %}
 {# The header (name, the line under it, the action row, the status strip)
    stays on top. Below it the sections come in layout.toml's order (help:
    adjust-layout); their names, in the default order: details, tasks,
@@ -24,17 +25,19 @@
   <span class="badge">{{ company.stage }}</span>{% if contact.role and 'role' not in hide %} <span class="badge">{{ contact.role }}</span>{% endif %}
 </p>
 <div class="contact-actions">
-  {% if 'quick-add' in sections %}<a class="button" href="#quick-add" data-focus="#quick-add select[name=channel]">Log interaction</a>
-  <a class="button" href="?channel=note#quick-add" data-focus="#quick-add textarea[name=body]">Add note</a>
-  <a class="button" href="/companies/{{ company.slug }}/interactions/new?channel=note&amp;whole=1" title="A note about {{ company.name }} as a whole, not about {{ contact.name }}">Add company note</a>{% endif %}
-  {% if 'tasks' in sections %}<a class="button" href="#tasks" data-focus="#tasks input[name=text]">Add task</a>{% endif %}
-  {% if outreach_open %}{% set oi = outreach_open %}<a class="button" href="/outreach?tab={{ 'ready' if oi.state == 'ready' else ('replies' if oi.kind == 'reply-to-interest' else ('follow-ups' if oi.kind == 'follow-up' else 'drafts')) }}#item-{{ oi.id }}" title="A {{ oi.kind | replace('-', ' ') }} by {{ oi.channel }} is {{ oi.state }}">Open outreach draft</a> <span class="small quiet">{{ oi.state }}</span>
-  {% else %}<a class="button" href="/outreach?contact={{ company.slug }}/{{ contact.slug }}#generate" title="{% if outreach_problem %}{{ outreach_problem }}{% else %}Open Outreach with {{ contact.first_name or contact.name }} ready to generate: nothing runs until you press Generate{% endif %}">Generate outreach</a>{% endif %}
+  {% if 'quick-add' in sections or 'tasks' in sections %}<div class="btn-group">
+  {% if 'quick-add' in sections %}<a class="button" href="#quick-add" data-focus="#quick-add select[name=channel]">{{ icon('log') }}Log interaction</a>
+  <a class="button" href="?channel=note#quick-add" data-focus="#quick-add textarea[name=body]">{{ icon('note') }}Add note</a>
+  <a class="button" href="/companies/{{ company.slug }}/interactions/new?channel=note&amp;whole=1" title="A note about {{ company.name }} as a whole, not about {{ contact.name }}">{{ icon('note') }}Add company note</a>{% endif %}
+  {% if 'tasks' in sections %}<a class="button" href="#tasks" data-focus="#tasks input[name=text]">{{ icon('task') }}Add task</a>{% endif %}
+  </div>{% endif %}
+  {% if outreach_open %}{% set oi = outreach_open %}<a class="button ai" href="/outreach?tab={{ 'ready' if oi.state == 'ready' else ('replies' if oi.kind == 'reply-to-interest' else ('follow-ups' if oi.kind == 'follow-up' else 'drafts')) }}#item-{{ oi.id }}" title="A {{ oi.kind | replace('-', ' ') }} by {{ oi.channel }} is {{ oi.state }}">{{ icon('sparkles') }}Open outreach draft</a> <span class="small quiet">{{ oi.state }}</span>
+  {% else %}<a class="button ai" href="/outreach?contact={{ company.slug }}/{{ contact.slug }}#generate" title="{% if outreach_problem %}{{ outreach_problem }}{% else %}Open Outreach with {{ contact.first_name or contact.name }} ready to generate: nothing runs until you press Generate{% endif %}">{{ icon('sparkles') }}Generate outreach</a>{% endif %}
   <span class="quiet">
     {% if contact.linkedin and 'linkedin' not in hide %}<a href="{{ contact.linkedin | href }}" target="_blank" rel="noopener">linkedin</a>{% endif %}
     {% if enricher and enricher.available %}
     <form method="post" action="/companies/{{ company.slug }}/contacts/{{ contact.slug }}/enrich" class="inline enrich">
-      <button type="submit" title="Look up missing fields with web search via the {{ enricher.provider_name }} CLI (uses credits); you confirm before anything is saved">Enrich</button>
+      <button type="submit" class="ghost" title="Look up missing fields with web search via the {{ enricher.provider_name }} CLI (uses credits); you confirm before anything is saved">{{ icon('enrich') }}Enrich</button>
     </form>
     {% endif %}
   </span>
