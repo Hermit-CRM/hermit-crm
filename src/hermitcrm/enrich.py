@@ -317,6 +317,12 @@ class ClaudeProvider(Provider):
             # servers of the user's own config (mail, files, calendars) stay out of
             # a run that reads pages written by strangers.
             argv += ["--tools", "WebSearch,WebFetch", "--strict-mcp-config"]
+        elif self.tools:
+            # A custom tool list (Ask's read-only walk of the data folder) reads
+            # files and runs `hermitcrm`; it never needs the MCP connectors of the
+            # signed-in account, whose schemas (some 40k tokens) would ride along
+            # on every turn of the walk.
+            argv += ["--strict-mcp-config"]
         if self.tools == "":
             # --allowedTools only says what needs no approval: Claude still reads
             # files with its read-only tools. --tools "" takes every built-in tool

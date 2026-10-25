@@ -12,7 +12,7 @@
 {% if answer %}
 <section class="ask-answer">
   <p class="question"><strong>{{ answer.question }}</strong></p>
-  <p class="small ask-scope">{% if answer.scope == 'page' %}Answered from this page{% else %}Searched the whole CRM{% endif %} &middot; {{ answer.model_label }}</p>
+  <p class="small ask-scope">{% if answer.scope == 'index' %}Answered from the CRM index{% elif answer.scope == 'page' %}Answered from this page{% else %}Searched the whole CRM{% endif %} &middot; {{ answer.model_label }} &middot; {{ answer.seconds_label }}</p>
   <div class="helpdoc">{{ render_markdown(answer.text) | safe }}</div>
   {% if answer.sources %}<p class="small">Sources: {% for s in answer.sources %}<code>{{ s }}</code>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
   <div class="ask-retry">
@@ -21,19 +21,19 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <input type="hidden" name="page" value="{{ ask_page }}">
       <input type="hidden" name="question" value="{{ answer.question }}">
-      <input type="hidden" name="scope" value="{{ 'crm' if answer.scope == 'crm' else 'auto' }}">
+      <input type="hidden" name="scope" value="{{ 'deep' if answer.scope == 'crm' else 'auto' }}">
       <input type="hidden" name="tier" value="strong">
       <button type="submit" data-busy="Retrying&hellip;">Retry with {{ model_label(ai.strong) }}</button>
     </form>
     {% endif %}
-    {% if answer.scope == 'page' %}
+    {% if answer.scope != 'crm' %}
     <form method="post" action="/ask" class="inline">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <input type="hidden" name="page" value="{{ ask_page }}">
       <input type="hidden" name="question" value="{{ answer.question }}">
-      <input type="hidden" name="scope" value="crm">
+      <input type="hidden" name="scope" value="deep">
       <input type="hidden" name="tier" value="{{ answer.tier }}">
-      <button type="submit" data-busy="Searching&hellip;">Search the whole CRM instead</button>
+      <button type="submit" data-busy="Searching&hellip;">Search every file instead</button>
     </form>
     {% endif %}
   </div>
