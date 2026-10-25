@@ -158,7 +158,11 @@ def test_the_action_row_never_offers_to_send(client, store):
     page = client.get(JANE).text
     actions = page.split('<div class="contact-actions">', 1)[1].split("</div>", 1)[0]
     assert "Log interaction" in actions and "Add note" in actions and "Add task" in actions
-    assert 'data-copy-email="jane@acme.example"' in actions
+    # The email is copied from the Details row; Opted out lives in the More box.
+    assert "copy email" not in actions and "data-copy-email" not in page
+    assert "Opted out" not in actions
+    more = page.split('<details class="more-box">', 1)[1].split("</details>", 1)[0]
+    assert 'id="opt-out"' in more and ">Opted out</button>" in more
     assert "Send" not in actions
 
 
@@ -211,7 +215,7 @@ def test_merge_and_delete_live_in_the_closed_more_box(client, store):
     assert 'id="merge"' in more and 'id="delete"' in more and "slug jane-doe" in more
     (store.root / layout.FILENAME).write_text('[contact]\nhide_sections = ["delete"]\n')
     page = client.get(JANE).text
-    assert "Delete contact" not in page and "More: merge, slug and dates" in page
+    assert "Delete contact" not in page and "More: merge, opted out, slug and dates" in page
 
 
 def test_every_contact_section_still_has_its_anchor(client, store):
