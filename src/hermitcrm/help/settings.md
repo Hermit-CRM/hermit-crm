@@ -207,7 +207,9 @@ whatever the account type.
 tier (default; Claude: Opus) and the strong tier (Claude: Fable) for Enrich
 and [Ask the Hermit](/help/ask); `ai_tier` in `config.toml`. Answers and proposals
 made on the medium tier offer "Retry with" the strong model. The two model
-fields (`enrich_model`, `enrich_model_strong`) override the provider defaults. The section shows which
+fields (`enrich_model`, `enrich_model_strong`) override the provider defaults; a
+third, `enrich_model_light` (`config.toml` only), is the cheaper model the
+outreach bot's scrape research and critic use. The section shows which
 CLI is in use, or why none is. Under launchd or systemd the process starts
 with a bare PATH, so the CLI must be in `/usr/local/bin`, `/opt/homebrew/bin`
 or `~/.local/bin`, or the command must be a full path. See [Enrich](/help/enrich).

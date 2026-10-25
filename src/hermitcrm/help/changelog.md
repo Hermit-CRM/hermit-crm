@@ -8,6 +8,18 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Ask runs on Sonnet and shows it is working.** Ask the Hermit now answers on
+  Sonnet for Claude (the other providers' mid-size models already were the
+  default), unless you set `enrich_model` or `ai_tier = "strong"`. The Ask button,
+  and "Retry" and "Search the whole CRM instead", now show a spinner and the
+  seconds waited while the answer is on its way. No data migration.
+- **A cheaper outreach.** Generating an outreach is three AI calls (research, draft,
+  critic). The research and the critic only read and score, so they now run on a
+  light model (Claude: Haiku) instead of Opus; the draft stays on the medium
+  model. Set `enrich_model_light` in `config.toml` to choose another. Every AI
+  call that runs with no tools also keeps your claude.ai connectors (Gmail,
+  Calendar, Drive) out: on a cold start their tool definitions were some 40,000
+  tokens of the first call, which a lone outreach paid in full. No data migration.
 - **Shorter page intros.** The line under the title on Calendar, Tasks, Messages,
   Outreach, Learning, Extension and Reports is now one short sentence. What a
   first-time reader needs once (what a next step is, how an outcome is set, how

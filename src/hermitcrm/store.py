@@ -131,6 +131,9 @@ DEFAULT_CONFIG = {
     "enrich_command": "",
     "enrich_model": "",
     "enrich_model_strong": "",
+    # The outreach bot's scrape research and its critic read and score; they run on
+    # this model (Claude: Haiku) unless you named your own enrich_model.
+    "enrich_model_light": "",
     "enrich_timeout": 180,
     # Enrich and Ask the Hermit run on the "medium" model (Claude: Opus) unless this
     # says "strong" (Claude: Fable); "Retry with ..." always uses strong.
