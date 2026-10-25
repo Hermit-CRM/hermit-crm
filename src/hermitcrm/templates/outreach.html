@@ -3,7 +3,7 @@
    ever sent: you send it yourself, then log it (logging it marks the item sent). #}
 {% block title %}Outreach{% endblock %}
 {% block content %}
-{% from "macros.html" import fix_with_ai %}
+{% from "macros.html" import fix_with_ai, more as row_more %}
 <h1>Outreach</h1>
 {% if send_on %}
 <p class="small">Research and draft first touches with your AI CLI and review each one. Approved email goes out from here, now or spaced over the working day; LinkedIn is a session where you click Send yourself. Nothing is sent that you did not approve. <a href="/help/outreach">How it works</a> &middot; <a href="/help/sending">Sending</a></p>
@@ -278,7 +278,7 @@
     {% if ct %}<a href="/companies/{{ i.company }}/contacts/{{ i.contact }}">{{ ct.name }}</a>{% else %}{{ i.contact }}{% endif %}
     {% if ct and ct.title %}<span class="small">{{ ct.title }}</span>{% endif %}
     {% if ct and ct.linkedin %}<a href="{{ ct.linkedin | href }}" target="_blank" rel="noopener" class="small">LinkedIn &#8599;</a>{% endif %}
-    {% if ct and ct.email %}<a href="mailto:{{ ct.email }}" class="small outreach-email">{{ ct.email }}</a> <button type="button" class="copy-btn" data-copy-text="{{ ct.email }}" title="Copy {{ ct.email }}">copy</button>{% endif %}
+    {% if ct and ct.email %}<a href="mailto:{{ ct.email }}" class="small outreach-email">{{ ct.email }}</a>{% endif %}
     <span class="tag">{{ i.channel }}</span> <span class="tag">{{ i.state }}</span>
     {% if i.kind == 'reply-to-interest' %}<span class="tag">reply to interest</span>{% endif %}
   </p>
@@ -382,16 +382,28 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="secondary" title="Put it in the queue: it goes out over the working day">Schedule</button>
     </form>
-    {% endif %}
+    {% else %}
     <button type="button" data-copy-target="body-{{ i.id }}">Copy</button>
     {% if i.channel == 'email' and ct and ct.email %}<a class="button secondary" href="mailto:{{ ct.email }}?subject={{ i.subject | urlencode }}">Open in mail</a>{% endif %}
     {% if i.channel == 'linkedin' and ct and ct.linkedin %}<a class="button secondary" href="{{ ct.linkedin | href }}" target="_blank" rel="noopener">Open LinkedIn</a>{% endif %}
     <a class="button secondary" href="/companies/{{ i.company }}/contacts/{{ i.contact }}?channel={{ i.channel }}#quick-add">Log it</a>
+    {% endif %}
+    {% call row_more() %}
+    {% if send_on and i.channel == 'email' %}
+    <button type="button" class="secondary" data-copy-target="body-{{ i.id }}">Copy</button>
+    {% if ct and ct.email %}<a class="button secondary" href="mailto:{{ ct.email }}?subject={{ i.subject | urlencode }}">Open in mail</a>{% endif %}
+    <a class="button secondary" href="/companies/{{ i.company }}/contacts/{{ i.contact }}?channel={{ i.channel }}#quick-add">Log it</a>
+    {% endif %}
     <form method="post" action="/outreach/{{ i.id }}/sent" class="inline">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="secondary" title="The state only: nothing is logged">Mark sent</button>
+      <button type="submit" class="secondary" title="The state only: nothing is logged">Mark sent (no log)</button>
+    </form>
+    <form method="post" action="/outreach/{{ i.id }}/unready" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="secondary" title="Take the approval back: it returns to the draft tab to edit, regenerate or skip. Nothing is sent.">Back to draft</button>
     </form>
     <button type="button" class="secondary" data-skip-toggle="{{ i.id }}" aria-controls="skip-{{ i.id }}" aria-expanded="false">Skip</button>
+    {% endcall %}
   </div>
   {{ skip_panel(i) }}
   {{ history(card) }}
@@ -411,10 +423,6 @@
     </form>
     {% endif %}
     {% if i.state == 'queued' %}
-    <form method="post" action="/outreach/{{ i.id }}/front" class="inline">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="secondary" title="Make it the next to go out; the others move one slot later">Move to front</button>
-    </form>
     <form method="post" action="/outreach/{{ i.id }}/unschedule" class="inline">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="secondary" title="Back to the Ready tab">Unschedule</button>
@@ -425,11 +433,19 @@
       <button type="submit" class="secondary" title="Back to the Ready tab, to schedule or send again">Retry</button>
     </form>
     {% endif %}
+    {% call row_more() %}
+    {% if i.state == 'queued' %}
+    <form method="post" action="/outreach/{{ i.id }}/front" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="secondary" title="Make it the next to go out; the others move one slot later">Move to front</button>
+    </form>
+    {% endif %}
     <form method="post" action="/outreach/{{ i.id }}/sent" class="inline">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="secondary" title="You sent it yourself: the state only, nothing is logged">Mark sent</button>
+      <button type="submit" class="secondary" title="You sent it yourself: the state only, nothing is logged">Mark sent (no log)</button>
     </form>
     <button type="button" class="secondary" data-skip-toggle="{{ i.id }}" aria-controls="skip-{{ i.id }}" aria-expanded="false">Skip</button>
+    {% endcall %}
   </div>
   {{ skip_panel(i) }}
   {{ history(card) }}
