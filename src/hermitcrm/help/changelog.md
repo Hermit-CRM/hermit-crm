@@ -8,6 +8,16 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **The Follow up list on the Pipeline explains itself.** It is now two groups, **You owe
+  a reply** and **Waiting on them**, with a line saying the order (replies you owe
+  first, oldest first). Each row shows the channel, direction and date of the message
+  it is about, as a link to it, and quotes the first words, with **you:** in front of
+  your own, so they no longer read as theirs. A mail header pasted into a message
+  ("Name", "10:12 AM (1 minute ago)", "to Sam") is no longer taken for its first words.
+  If a message was logged the wrong way round, **I sent this** / **They sent this** on
+  the row flips its direction and keeps the text exactly as it was. A card on the board
+  whose company is on the list has a small badge; the board's order does not change.
+  See [Pipeline](/help/pipeline#follow-up-radar). No data migration.
 - **Filter on the Pipeline stays on the Pipeline.** Pressing **Filter** on the board
   (for example after picking a column) took you to the Home page, and **clear filters
   and sorting** went there too. Both now stay on the Pipeline. The other list pages

@@ -410,6 +410,105 @@ def test_board_shows_the_follow_up_radar(client, app):
     assert page.index('id="followups"') < page.index('class="board"')
 
 
+def radar_fixture(client):
+    """One reply owed (4 days) and one nudge (25 days), on fictional companies."""
+    post_company(client, name="Acme GmbH", stage="engaged")
+    post_contact(client, "acme", first_name="Jane", last_name="Roe")
+    post_interaction(client, "acme", channel="linkedin", direction="in",
+                     contact="jane-roe", date=str(TODAY - timedelta(days=4)) + "T09:00",
+                     body="Jane Roe\n10:12 AM (1 minute ago)\nto Sam\n\nHi Sam,\n\nCan you send pricing?")
+    post_company(client, name="Borduro BV", stage="engaged")
+    post_contact(client, "borduro", first_name="Piet", last_name="Jansen")
+    post_interaction(client, "borduro", channel="email", direction="out",
+                     contact="piet-jansen", date=str(TODAY - timedelta(days=25)) + "T17:10",
+                     body="Two slots for a call, Monday or Tuesday?")
+    post_company(client, name="Cobalt NV", stage="engaged")
+
+
+def radar_block(page: str) -> str:
+    return page.split('id="followups"')[1].split("</section>")[0]
+
+
+def test_radar_groups_by_what_you_owe_and_says_how_it_is_ordered(client):
+    radar_fixture(client)
+    block = radar_block(client.get("/pipeline").text)
+    assert "Follow up (2)" in block
+    assert "You owe a reply (1)" in block and "Waiting on them (1)" in block
+    assert block.index("You owe a reply") < block.index("Acme GmbH") \
+        < block.index("Waiting on them") < block.index("Borduro BV")
+    assert "Replies you owe first, then" in block and "oldest first" in block
+
+
+def test_radar_row_shows_channel_direction_date_and_whose_words_they_are(client):
+    radar_fixture(client)
+    block = radar_block(client.get("/pipeline").text)
+    owed, waiting = block.split("Waiting on them")
+    # Evidence: channel, direction and date, linking to that very interaction.
+    assert "linkedin in" in owed and fmt_date(TODAY - timedelta(days=4)) in owed
+    assert re.search(r'href="/companies/acme/interactions/[^"]+/edit"', owed)
+    assert "email out" in waiting and fmt_date(TODAY - timedelta(days=25)) in waiting
+    # The preview skips the pasted mail header and the greeting, and is a quote.
+    assert "&ldquo;Can you send pricing?&rdquo;" in owed or "“Can you send pricing?”" in owed
+    assert "Jane Roe 10:12" not in owed and "1 minute ago" not in owed
+    # Our own words are marked as ours.
+    assert "you:" in waiting and "Two slots for a call" in waiting
+    assert "you:" not in owed
+
+
+def test_flip_direction_fixes_a_wrong_row_and_keeps_the_body(client, repo):
+    radar_fixture(client)
+    folder = repo / "companies" / "acme" / "interactions"
+    (old,) = folder.glob("*-linkedin-in-*.md")
+    before = old.read_text(encoding="utf-8")
+    body = before.split("\n---\n", 1)[1]
+    page = client.get("/pipeline").text
+    action = re.search(r'action="(/companies/acme/interactions/[^"]+/flip-direction)"',
+                       radar_block(page))
+    assert action, "the reply-owed row offers a flip"
+
+    r = client.post(action.group(1), data={"back": "/pipeline"})
+
+    assert r.status_code == 303 and r.headers["location"].startswith("/pipeline")
+    (new,) = folder.glob("*-linkedin-out-*.md")
+    after = new.read_text(encoding="utf-8")
+    assert "direction: out" in after and "direction: in" not in after
+    assert after.split("\n---\n", 1)[1] == body      # byte for byte
+    assert not old.exists()
+    # It was our own message: the owed reply is gone from the list.
+    assert "You owe a reply" not in client.get("/pipeline").text
+    assert last_commit(repo).startswith("interaction: acme")
+
+
+def test_flip_direction_refuses_notes_and_unknown_interactions(client):
+    post_company(client, name="Acme GmbH")
+    post_interaction(client, "acme", channel="note", direction="", body="memo")
+    assert client.post("/companies/acme/interactions/nope/flip-direction").status_code == 404
+    note = client.get("/companies/acme").text
+    nid = re.search(r"/interactions/([^/\"]+)/edit", note).group(1)
+    r = client.post(f"/companies/acme/interactions/{nid}/flip-direction")
+    assert r.status_code == 303 and "no%20direction" in r.headers["location"].lower().replace("+", "%20")
+
+
+def test_flip_direction_back_cannot_leave_the_site(client):
+    radar_fixture(client)
+    page = client.get("/pipeline").text
+    path = re.search(r'action="(/companies/acme/interactions/[^"]+/flip-direction)"', page).group(1)
+    r = client.post(path, data={"back": "https://example.org/x"})
+    assert r.status_code == 303 and r.headers["location"].startswith("/pipeline")
+
+
+def test_board_card_on_the_radar_carries_a_badge(client):
+    radar_fixture(client)
+    page = client.get("/pipeline").text
+    board = page.split('class="board"')[1]
+    acme = board.split("Acme GmbH")[1].split("</article>")[0]
+    borduro = board.split("Borduro BV")[1].split("</article>")[0]
+    cobalt = board.split("Cobalt NV")[1].split("</article>")[0]
+    assert "reply owed 4d" in acme and 'href="#followups"' in acme
+    assert "no answer 25d" in borduro
+    assert "radar-badge" not in cobalt
+
+
 def test_board_radar_is_absent_when_nothing_is_waiting(client):
     post_company(client, name="Acme GmbH", stage="prospect")
     page = client.get("/pipeline").text
@@ -2732,3 +2831,10 @@ def test_the_merge_page_offers_the_notes_row_only_for_a_legacy_body(client, app)
     # The notes themselves move with the merge, as interactions.
     assert client.post("/companies/acme/merge", data={"drop": "bolt"}).status_code == 303
     assert len(only_notes(app, "acme")[0]) == 1
+
+
+def test_pipeline_help_explains_the_follow_up_radar(client):
+    page = client.get("/help/pipeline").text
+    assert 'id="follow-up-radar"' in page
+    assert "followup_reply_days" in page and "followup_nudge_days" in page
+    assert "You owe a reply" in page and "Waiting on them" in page
