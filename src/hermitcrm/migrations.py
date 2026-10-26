@@ -261,8 +261,56 @@ def _split_notes(body: str, fallback: datetime) -> list[tuple[datetime, str]]:
     return [(when, "\n".join(lines).strip("\n") + "\n") for when, lines in notes]
 
 
+# A company body, as people and imports wrote it. A line that opens a note starts
+# (after optional spaces) with a date: day first with `-`, `/` or `.` between 1-2
+# digit day and month and a 4-digit year, or ISO year first; then the end of the
+# line, a space, `:` or `-`. `Imported fields (2026-09-14):` opens one too.
+_DAY_FIRST = re.compile(r"^\s*(\d{1,2})([-/.])(\d{1,2})\2(\d{4})(?=$|[\s:\-])")
+_ISO_FIRST = re.compile(r"^\s*(\d{4})-(\d{2})-(\d{2})(?=$|[\s:\-])")
+_IMPORTED_FIELDS = re.compile(r"^\s*Imported fields \((\d{4})-(\d{2})-(\d{2})\):")
+
+
+def _opening_date(line: str) -> datetime | None:
+    """The date a line opens a company note with, or None for an ordinary line
+    (an impossible date such as 31-04-2026 is an ordinary line)."""
+    if m := _DAY_FIRST.match(line):
+        day, _, month, year = m.groups()
+    elif m := (_ISO_FIRST.match(line) or _IMPORTED_FIELDS.match(line)):
+        year, month, day = m.groups()
+    else:
+        return None
+    try:
+        return datetime(int(year), int(month), int(day))
+    except ValueError:
+        return None
+
+
+def _split_company_notes(body: str, fallback: datetime) -> list[tuple[datetime, str]]:
+    """A company's notes body as (date, text) notes. A line that opens with a date
+    (see _opening_date) starts a note on that day, and every line after it, up to
+    the next such line, belongs to the same note; text before the first dated line
+    is one note dated `fallback`. Text is kept verbatim, bar blank lines at both
+    ends of a note."""
+    segments: list[tuple[datetime, list[str]]] = [(fallback, [])]
+    for line in body.replace("\r\n", "\n").split("\n"):
+        when = _opening_date(line)
+        if when is not None:
+            segments.append((when, []))
+        segments[-1][1].append(line)
+    notes = []
+    for when, lines in segments:
+        while lines and not lines[0].strip():
+            lines.pop(0)
+        while lines and not lines[-1].strip():
+            lines.pop()
+        if lines:
+            notes.append((when, "\n".join(lines) + "\n"))
+    return notes
+
+
 def _body_to_notes(data_dir: Path, path: Path, meta: dict, company_dir: Path,
-                   contact: str, write: bool, claimed: set[Path]) -> list[str]:
+                   contact: str, write: bool, claimed: set[Path],
+                   split=_split_notes) -> list[str]:
     """Port the notes body of one contact or company file to note interactions
     in the company's `interactions/` folder and strip the body, keeping the
     front matter byte for byte. Returns the files it changes (empty when the
@@ -278,7 +326,7 @@ def _body_to_notes(data_dir: Path, path: Path, meta: dict, company_dir: Path,
                 or datetime.now().replace(second=0, microsecond=0))
     folder = company_dir / "interactions"
     changed: list[str] = []
-    for when, note in _split_notes(body, fallback):
+    for when, note in split(body, fallback):
         it = Interaction(id="", date=when, channel="note", contact=contact,
                          source="migration", body=note)
         base, n = it.base_id(), 1
@@ -320,7 +368,10 @@ def m7_contact_notes(data_dir: Path, meta_by_path: dict, write: bool) -> list[st
 def m19_company_notes(data_dir: Path, meta_by_path: dict, write: bool) -> list[str]:
     """Company notes become note interactions; company.md loses its body.
 
-    Same as m7, for the company: each dated line (or the undated rest) is a
+    Same as m7, for the company, but split by _split_company_notes: a line that
+    opens with a date (21-10-2026, 21/10/2026, 21.10.2026, 2026-10-21, or
+    `Imported fields (2026-09-14):`) starts a note on that day and keeps the lines
+    under it; the text before the first one is a note at `created`. Each is a
     company-level note (channel `note`, no contact, `source: migration`) in the
     company's `interactions/` folder. The front matter of company.md is kept
     byte for byte, `updated` included. Running it again finds no body and does
@@ -332,7 +383,8 @@ def m19_company_notes(data_dir: Path, meta_by_path: dict, write: bool) -> list[s
         path = data_dir / rel
         if path.name != "company.md" or path.parent.parent.name != "companies":
             continue
-        changed += _body_to_notes(data_dir, path, meta, path.parent, "", write, claimed)
+        changed += _body_to_notes(data_dir, path, meta, path.parent, "", write, claimed,
+                                  _split_company_notes)
     return changed
 
 

@@ -336,7 +336,7 @@ def test_m19_ports_company_notes_to_company_level_notes(tmp_path):
               for slug in ("acme", "bolt", "cygne")}
 
     dry = migrations.dry_run(root)
-    assert "19. company notes become note interactions: 8 file(s)" in dry
+    assert "19. company notes become note interactions: 6 file(s)" in dry
     assert not (root / "companies/acme/interactions").exists()  # a dry run writes nothing
     assert {s: (root / f"companies/{s}/company.md").read_text() for s in before} == before
 
@@ -349,12 +349,10 @@ def test_m19_ports_company_notes_to_company_level_notes(tmp_path):
     assert store.load() == []
     acme = store.get("acme")
     assert acme.notes == ""
-    # A dated line is a note of its own, on its day; the undated text around it
-    # is dated by the company's `created` (-2, -3 on a clash).
+    # A dated line opens a note on its day and keeps the lines under it; the text
+    # before the first one is dated by the company's `created`.
     assert sorted(i.id for i in acme.interactions) == [
         "2026-09-01T1000-note-company",
-        "2026-09-01T1000-note-company-2",
-        "2026-09-01T1000-note-company-3",
         "2026-09-03T0000-note-company",
         "2026-10-21T0000-note-company",
     ]
@@ -363,10 +361,10 @@ def test_m19_ports_company_notes_to_company_level_notes(tmp_path):
         assert (it.channel, it.direction, it.contact, it.source) == (
             "note", "", "", "migration")
     assert by_id["2026-09-01T1000-note-company"].body == "Founder-led, 12 people.\n"
-    assert by_id["2026-10-21T0000-note-company"].body == "21/10/2026: asked for a pricing sheet\n"
-    assert by_id["2026-09-01T1000-note-company-2"].body == "Second line of the same note.\n"
-    assert by_id["2026-09-03T0000-note-company"].body == "03/09/2026: met at a fair\n"
-    assert by_id["2026-09-01T1000-note-company-3"].body == "Left over at the end.\n"
+    assert by_id["2026-10-21T0000-note-company"].body == (
+        "21/10/2026: asked for a pricing sheet\nSecond line of the same note.\n")
+    assert by_id["2026-09-03T0000-note-company"].body == (
+        "03/09/2026: met at a fair\nLeft over at the end.\n")
     assert acme.last_touch is None  # notes are memos, not contact made
 
     bolt, = store.get("bolt").interactions
@@ -374,6 +372,95 @@ def test_m19_ports_company_notes_to_company_level_notes(tmp_path):
                                     "Only undated text.\nOn two lines.\n")
     assert store.get("cygne").interactions == []
     assert not (root / "companies/cygne/interactions").exists()  # empty body: untouched
+
+
+def split_company(body, fallback=datetime(2026, 9, 1, 10, 0)):
+    return [(f"{when:%Y-%m-%d %H:%M}", text)
+            for when, text in migrations._split_company_notes(body, fallback)]
+
+
+@pytest.mark.parametrize("body, expected", [
+    # `08/10/2026: text` -- slashes, a colon, text on the same line
+    ("08/10/2026: sent the deck\n", [("2026-10-08 00:00", "08/10/2026: sent the deck\n")]),
+    # `21-10-2026` alone on its line, the text on the lines below it
+    ("21-10-2026\nProposition: a pilot.\nMore text.\n",
+     [("2026-10-21 00:00", "21-10-2026\nProposition: a pilot.\nMore text.\n")]),
+    # ISO date, text on the same line
+    ("2026-10-05 call booked\n", [("2026-10-05 00:00", "2026-10-05 call booked\n")]),
+    ("21.10.2026 - dots and a dash\n", [("2026-10-21 00:00", "21.10.2026 - dots and a dash\n")]),
+    ("1-2-2026 short day and month\n", [("2026-02-01 00:00", "1-2-2026 short day and month\n")]),
+    ("  21-10-2026\n  indented\n", [("2026-10-21 00:00", "  21-10-2026\n  indented\n")]),
+    # two dates in one body: each keeps its own lines, in file order
+    ("21-10-2026\nFirst.\n\n05/11/2026: second\nStill second.\n",
+     [("2026-10-21 00:00", "21-10-2026\nFirst.\n"),
+      ("2026-11-05 00:00", "05/11/2026: second\nStill second.\n")]),
+    # an undated lead is a note at the fallback date; blank lines at the ends go
+    ("\n\nMet at a fair.\n\n21-10-2026\nFollow-up.\n\n",
+     [("2026-09-01 10:00", "Met at a fair.\n"), ("2026-10-21 00:00", "21-10-2026\nFollow-up.\n")]),
+    # the machine-imported block is its own note, apart from the hand-written text
+    ("Likes short mails.\n\nImported fields (2026-09-14):\n- hq_city: Utrecht\n- category: saas\n",
+     [("2026-09-01 10:00", "Likes short mails.\n"),
+      ("2026-09-14 00:00",
+       "Imported fields (2026-09-14):\n- hq_city: Utrecht\n- category: saas\n")]),
+    ("Imported fields (2026-09-14):\n- hq_city: Utrecht\n",
+     [("2026-09-14 00:00", "Imported fields (2026-09-14):\n- hq_city: Utrecht\n")]),
+    # an impossible date is an ordinary line; so is a date inside a line, or a mixed separator
+    ("31-04-2026 not a date\nmonth 13: 05/13/2026\n21-10/2026 mixed\nsee 2026-10-05\n",
+     [("2026-09-01 10:00",
+       "31-04-2026 not a date\nmonth 13: 05/13/2026\n21-10/2026 mixed\nsee 2026-10-05\n")]),
+    ("12345678 an id, not a date\n2026-10-051 no\n",
+     [("2026-09-01 10:00", "12345678 an id, not a date\n2026-10-051 no\n")]),
+    ("\n  \n\n", []),
+    ("", []),
+    ("Windows lines\r\n21-10-2026\r\nunder it\r\n",
+     [("2026-09-01 10:00", "Windows lines\n"), ("2026-10-21 00:00", "21-10-2026\nunder it\n")]),
+])
+def test_split_company_notes(body, expected):
+    assert split_company(body) == expected
+
+
+def test_m7_keeps_its_own_splitter():
+    """Contacts still split on `dd/mm/yyyy:` only, and lines under it stay separate."""
+    notes = migrations._split_notes("21-10-2026\ntext\n01/10/2026: a\nb\n", datetime(2026, 9, 1))
+    assert [(f"{w:%Y-%m-%d}", t) for w, t in notes] == [
+        ("2026-09-01", "21-10-2026\ntext\n"), ("2026-10-01", "01/10/2026: a\n"),
+        ("2026-09-01", "b\n")]
+
+
+def test_m19_keeps_the_lines_under_a_date_and_lists_them_in_a_dry_run(tmp_path):
+    root = company_folder(tmp_path, {
+        "acme": "Hand-written remark.\n\n21-10-2026\nProposition: a pilot.\nMore text.\n",
+        "bolt": "Imported fields (2026-09-14):\n- hq_city: Utrecht\n- category: saas\n",
+    })
+    before = {s: (root / f"companies/{s}/company.md").read_text() for s in ("acme", "bolt")}
+
+    dry = migrations.dry_run(root)
+    assert "19. company notes become note interactions: 5 file(s)" in dry
+    assert "     companies/acme/interactions/2026-10-21T0000-note-company.md" in dry
+    assert "     companies/bolt/interactions/2026-09-14T0000-note-company.md" in dry
+    assert not (root / "companies/acme/interactions").exists()
+
+    migrations.ensure_current(root)
+    for slug, text in before.items():
+        assert (root / f"companies/{slug}/company.md").read_text() == front_matter(text)
+    store = Store(root)
+    assert store.load() == []
+    by_id = {i.id: i for i in store.get("acme").interactions}
+    assert by_id["2026-10-21T0000-note-company"].body == (
+        "21-10-2026\nProposition: a pilot.\nMore text.\n")
+    assert by_id["2026-09-01T1000-note-company"].body == "Hand-written remark.\n"
+    bolt, = store.get("bolt").interactions
+    assert bolt.date == datetime(2026, 9, 14) and bolt.body.startswith("Imported fields (")
+
+
+def test_m19_two_notes_on_the_same_day_get_unique_ids(tmp_path):
+    root = company_folder(tmp_path, {"acme": "21-10-2026\none\n21/10/2026: two\n"})
+    migrations.ensure_current(root)
+    names = sorted(p.name for p in (root / "companies/acme/interactions").glob("*.md"))
+    assert names == ["2026-10-21T0000-note-company-2.md", "2026-10-21T0000-note-company.md"]
+    # in file order: the first note owns the plain id
+    assert (root / "companies/acme/interactions/2026-10-21T0000-note-company.md"
+            ).read_text().endswith("21-10-2026\none\n")
 
 
 def test_m19_dates_an_undated_body_by_updated_when_there_is_no_created(tmp_path):
