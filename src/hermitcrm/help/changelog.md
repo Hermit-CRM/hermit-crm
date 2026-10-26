@@ -247,6 +247,11 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 - Skip addresses that fail that rule when reading BCC mail, calendar attendees
   and contact-import email lists, so a bad address does not interrupt importing
   and committing valid contacts.
+- **Getting started leads to the outreach bot.** A new step, "Draft your first
+  message", sits after "Write down what comes next" and opens the Outreach page. It
+  says what the bot needs (an approach in your playbook, a contact, an AI CLI) and
+  ticks itself once a draft exists for one of your own companies. The walkthrough
+  now has thirteen steps. See [Outreach bot](/help/outreach).
 
 ## 0.8.0 (2026-10-16)
 
