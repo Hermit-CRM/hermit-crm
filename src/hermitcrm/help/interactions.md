@@ -11,6 +11,8 @@ on the company page and, under **Notes elsewhere**, on every contact's page, as
 do the notes on the company's other contacts (the newest five of each, with a
 link to the rest), so nothing a colleague knows is hidden from you.
 
+The company form has no notes box: company text is company notes, dated like any note, and outreach drafts cite them like any other note.
+
 An interaction is always with a person, so the **Log an interaction** form
 sits on every contact page (the "log" link in a company's contact list goes
 there), and on its own at `/companies/<slug>/interactions/new` where you pick

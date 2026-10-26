@@ -21,7 +21,7 @@ The mode is detected from the header (contacts when there is a person-name
 or email column plus a company column and no company-only column) and can be
 forced. Header aliases from HubSpot, Apollo, LinkedIn, Pipedrive and Attio
 exports are recognised; the full list is on the page. Unknown columns are kept
-as `column: value` lines in the notes.
+as `column: value` lines in one company note, under an `Imported fields (<date>):` line. For a company row, the notes text and that block become one company note, and a re-import adds only lines that no company note or old notes text has yet.
 
 ## Preview and apply
 

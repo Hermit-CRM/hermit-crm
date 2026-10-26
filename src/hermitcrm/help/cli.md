@@ -29,7 +29,7 @@ hermitcrm help [TOPIC]                     these pages; no topic prints the inde
 ## Read
 
 ```text
-hermitcrm show SLUG [--bodies N | --all]   one company: fields, notes, contacts, interactions, the last 3 bodies
+hermitcrm show SLUG [--bodies N | --all]   one company: fields, an old notes text while one is left, contacts, interactions, the last 3 bodies
 hermitcrm digest [--days 7]                recent interactions oldest first, 150 characters of body each
 hermitcrm followups [--reply-after N] [--nudge-after N]
                                         threads you owe a reply, then ones you are waiting on

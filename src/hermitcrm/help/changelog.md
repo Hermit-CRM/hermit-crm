@@ -8,6 +8,20 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Company notes replace the company's notes box.** A company has no notes field
+  any more. The Details form points to **Company notes** on the company page, and the
+  New company form's one box, now **first note**, saves a dated company note. Your
+  existing company text became company notes when you upgraded (data format 19,
+  migrated for you): a line that starts with a date, such as `21-10-2026`,
+  `21/10/2026`, `21.10.2026` or `2026-10-21`, opens a note on that day, with the lines
+  under it; text above the first dated line is one note dated at the company's
+  creation. The dates are kept, the time of day is not. An `Imported fields (...):`
+  block from an import is its own note, so imported column dumps stay separate.
+  Drafts may now cite company notes like any other note (the newest 20 notes and 4,000
+  characters, the longest dropped first), and the Notes line in the brief shows the
+  newest one. Imports write their company text as a company note once, and BCC no
+  longer writes its "Created by the BCC import" note. Back up your folder first, as
+  usual, then upgrade. `hermitcrm check` names any company body written by hand.
 - **Follow up on another channel, or after many unanswered messages.** Pressing
   Generate or **Draft follow-up** for one person used to refuse with "your
   unanswered message was on linkedin, not email" or "followed up already ... close

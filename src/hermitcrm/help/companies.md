@@ -14,7 +14,7 @@ carries the name of your parked stage. A company in a stage that Settings no
 longer lists shows in grey.
 
 New companies come from `/companies/new` (name is required; website, LinkedIn,
-country, source, stage, value, next step, tags, notes are optional), from
+country, source, stage, value, next step and tags are optional; a first note, if you write one, becomes a company note), from
 [Import](/help/import), or from the BCC and calendar imports on the Settings
 page.
 
@@ -54,13 +54,13 @@ you disqualify it instead.
   of your own the buttons carry their names.
 - The next step (the open task due first) with its status tag, **Done** /
   **Reopen**, the Google Calendar link and a link down to all tasks.
-- **Company**: every field in an edit form. Setting the stage to lost needs a
+- **Company**: every field in an edit form. There is no notes box: company text is dated company notes, listed under **Company notes** below. Setting the stage to lost needs a
   reason; leaving lost, disqualified or temp-disqualified clears it. Below the
   form: slug, created, updated, stage changed, and the stage history collapsed.
 - **Contacts** with title, role, email and LinkedIn, a **log** link to each
   person's Log an interaction form (an interaction is always with a person, so
   the company page has no form of its own), and a New contact link. Under the
-  list, **Company notes**: notes about the company as a whole, with an **Add
+  list, **Company notes**: dated notes about the company as a whole, with an **Add
   company note** link; each contact row shows how many notes that person has.
 - **Tasks**: one list for the company and its people, open ones by due date
   (the first is labelled **next step**), then the done ones with the day they
@@ -120,7 +120,7 @@ For **BE** the record decides between Dutch and French. Evidence, strongest
 first: previous mails and messages (their replies weigh most, then yours), a
 `/nl/` or `/fr/` website (or `nl.`/`fr.` subdomain), a postcode outside
 Brussels (Flanders: Dutch; Wallonia: French; Brussels 1000-1299 counts for
-neither), then the language of contact titles, notes and the product line.
+neither), then the language of contact titles, notes, company notes and the product line.
 One side needs at least twice the weight of the other; otherwise the drafts
 are English. To force a language, add a `/nl/` or `/fr/` website or a note
 with the address.
