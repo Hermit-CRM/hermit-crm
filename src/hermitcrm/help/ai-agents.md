@@ -158,7 +158,7 @@ The tools, reads first:
 | `followups` | Threads you owe a reply, then ones you are waiting on. |
 | `keep_in_touch` | People outside an open deal you have not spoken to in a while. |
 | `brief` | Each upcoming meeting with the record behind it. |
-| `add_company` | Create a company; returns the slug. |
+| `add_company` | Create a company; returns the slug. `notes` is saved as a company note, not a body. |
 | `add_contact` | Create a contact under a company. |
 | `add_interaction` | Log an email, message, call or meeting. |
 | `adjust_help` | A Make it yours recipe: `adjust` (the rules) or `adjust-<topic>`. |

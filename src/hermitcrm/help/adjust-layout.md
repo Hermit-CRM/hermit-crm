@@ -75,8 +75,10 @@ and a hidden value or one-liner the meeting brief on the Calendar. Reports,
 
 | Table | Built-in fields you can hide |
 |---|---|
-| `[company]` | `website`, `linkedin`, `country`, `source`, `lost_reason`, `requalify_on`, `value_eur_month`, `product_oneliner`, `next_step`, `next_step_due`, `next_step_status`, `next_step_type`, `tags`, `notes` |
+| `[company]` | `website`, `linkedin`, `country`, `source`, `lost_reason`, `requalify_on`, `value_eur_month`, `product_oneliner`, `next_step`, `next_step_due`, `next_step_status`, `next_step_type`, `tags` |
 | `[contact]` | `title`, `role`, `language` (draft language), `email`, `phone`, `linkedin` |
+
+`notes` is no longer a company field (company text is company notes), so a layout that still hides it is read and ignored.
 
 Your own fields from `fields.toml` work too: use their `key`, in the table for
 what they apply to (`company` or `contact`). The name and the stage of a

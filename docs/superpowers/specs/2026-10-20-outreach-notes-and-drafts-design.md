@@ -153,6 +153,7 @@ generating a message the user then has to rewrite by hand.
   "Company notes", with a link to edit it, and the draft prompt gets it as
   background (not citable by number). A note on a colleague at the same company
   is not shown on this person's card or fed to their draft. **Call.**
+  Superseded by the 2026-10-26 company-notes plan: the notes field is retired.
 
 ### Research writes notes
 
@@ -246,3 +247,4 @@ summary notes.
 9. The copy button sits beside the address; the address stays a `mailto:` link.
 10. The company's notes field shows on the card and goes to the draft as
     background; other contacts' notes at the same company do not.
+    Superseded by the 2026-10-26 company-notes plan: the notes field is retired.
