@@ -67,7 +67,7 @@ from . import setup as setup_steps
 from .filters import Column
 from .enrich import Enricher, EnrichError, model_label
 from . import ask as asking
-from . import ask_saved
+from . import ask_saved, ask_state
 from .scrape import ScrapeError
 from .importer import (
     CONTACT_COLUMNS,
@@ -1476,6 +1476,9 @@ def create_app(root: Path, config: dict | None = None,
     def render(request: Request, name: str, ctx: dict, status_code: int = 200):
         bcc_alert = bcc.run_alert(inbox.last_run(), store.now())
         inbox_alert = bcc_alert or calendar_alert()
+        ask_saved_all = ask_saved.load(root)
+        ask_asked = ask_state.load(root)
+        ask_saved_ranked = ask_state.ranked(ask_saved_all, ask_asked.uses)
         context = {
             "flash": request.query_params.get("flash", ""),
             "q": request.query_params.get("q", ""),
@@ -1496,10 +1499,12 @@ def create_app(root: Path, config: dict | None = None,
             "theme": str(config.get("theme") or "light"),
             "user_theme": usertheme.path(root) is not None,
             "ask_page": safe_page(adjust.page_path(request.url.path, request.url.query)),
-            # Saved questions: every page's Ask panel offers them, so this is read
-            # on every render (ask_saved caches on the file's modification time).
-            "ask_saved": [s.as_json() for s in ask_saved.load(root)],
+            # Saved questions and recent ones: every page's Ask panel offers them, so
+            # this is read on every render (both cache on the file's modification time).
+            "ask_saved": [s.as_json() for s in ask_saved_ranked],
             "ask_saved_error": ask_saved.read(root)[1],
+            "ask_recent": [r.as_json() for r in ask_state.unsaved(ask_asked, ask_saved_all)],
+            "ask_uses": ask_asked.uses,
             "model_label": model_label,
             "samples": sample.samples(store),
             "file_problems": [line for lines in file_problems.values() for line in lines],
@@ -3902,6 +3907,8 @@ def create_app(root: Path, config: dict | None = None,
         page = safe_page(page)
         enricher = app.state.enricher.with_tier(tier) if tier else app.state.enricher
         enricher = enricher.with_tier(ask_tier(enricher.tier))  # a copy: the timeout changes below
+        # Before the (slow, fallible) ask: a question that failed is still a recent.
+        ask_state.record(root, question, scope)
         html = await page_html(page)
         try:
             answer = await run_in_threadpool(
