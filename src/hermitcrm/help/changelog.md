@@ -8,6 +8,12 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Form fields line up.** In the Next step group of a company, in Log an interaction
+  and in the Add task forms, every field's name now sits above its box. Before, a date
+  field's name (such as **due** or **date**) sat to the left of the box, which put it
+  higher than its neighbours, and a drop-down was a pixel or two shorter than a text
+  box, so **outcome** sat lower than **subject**. Boxes and drop-downs in a row now
+  share one height, and out/in sits level with them. No data migration.
 - **One note box on the Generate panel.** The panel had an **Observation** field and
   an **Add note** box, and both saved a note on the person. Text typed in one was
   lost when you pressed the other's button. Now there is one note box: **Add note**
