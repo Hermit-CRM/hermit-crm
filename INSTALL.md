@@ -282,7 +282,7 @@ hermitcrm --data ~/crm serve
 ```
 
 Run it in the background and give them the link: http://127.0.0.1:8765. A new
-folder opens on **Getting started**, a twelve-step walkthrough with a tour that
+folder opens on **Getting started**, a thirteen-step walkthrough with a tour that
 points at each part of the screen. It ticks each step off by itself when the
 thing has actually happened, so do not create records to move it along (see
 **What not to do**). Let them look around before you continue. If they want to
