@@ -376,6 +376,106 @@ def test_the_brief_has_persona_culture_relationship_and_fit(folder):
     assert "Language: German" in text
 
 
+def _thread(store, n=6, body_size=0):
+    company, contact = company_and_contact(store)
+    for i in range(n):
+        store.create_interaction(
+            company.slug, "linkedin", "out" if i % 2 == 0 else "in", contact=contact.slug,
+            date=(NOW - timedelta(days=30 - i)).isoformat(timespec="minutes"),
+            body=f"Hi Mara,\nmessage number {i} " + "x" * body_size + "\n")
+    return company_and_contact(store)
+
+
+def _relationship(store, company, contact):
+    return outreach.make_brief(store, company, contact, None, outreach.Research()).relationship
+
+
+def test_brief_relationship_keeps_newest_interactions(folder):
+    root, store = folder
+    company, contact = _thread(store, n=9, body_size=590)
+    rel = _relationship(store, company, contact)
+    text = "\n".join(rel)
+    assert "message number 8" in text
+    assert "message number 0" not in text
+
+
+def test_brief_relationship_includes_bodies_oldest_to_newest(folder):
+    root, store = folder
+    company, contact = _thread(store, n=3)
+    rel = _relationship(store, company, contact)
+    assert len(rel) == 3
+    assert [f"message number {i}" in rel[i] for i in range(3)] == [True] * 3
+    assert "Hi Mara," not in "".join(rel)
+
+
+def test_brief_relationship_budget(folder):
+    root, store = folder
+    company, contact = _thread(store, n=12, body_size=590)
+    rel = _relationship(store, company, contact)
+    assert 0 < sum(len(line) for line in rel) <= 4300
+
+
+def test_brief_relationship_includes_notes(folder):
+    root, store = folder
+    company, contact = company_and_contact(store)
+    store.create_interaction(company.slug, "note", "", contact=contact.slug,
+                             date=(NOW - timedelta(days=1)).isoformat(timespec="minutes"),
+                             body="Prefers short mails.\n")
+    company, contact = company_and_contact(store)
+    rel = _relationship(store, company, contact)
+    assert any("note" in line and "Prefers short mails." in line for line in rel)
+
+
+def test_brief_relationship_other_contacts_one_liners(folder):
+    root, store = folder
+    company = store.get("saltmarsh-labs")
+    niamh, ciaran = company.contacts["niamh-walsh"], company.contacts["ciaran-doyle"]
+    def add(channel, direction, who, days, body):
+        store.create_interaction(company.slug, channel, direction, contact=who.slug,
+                                 date=(NOW - timedelta(days=days)).isoformat(timespec="minutes"),
+                                 body=body)
+    add("email", "out", ciaran, 9, "Older touch\n")
+    add("email", "out", ciaran, 8, "Middle touch\n")
+    add("call", "out", ciaran, 7, "Newest touch\n")
+    add("note", "", ciaran, 6, "Private memo\n")
+    company = store.get("saltmarsh-labs")
+    rel = _relationship(store, company, company.contacts["niamh-walsh"])
+    text = "\n".join(rel)
+    assert "Middle touch" in text and "Newest touch" in text
+    assert "Older touch" not in text and "Private memo" not in text
+
+
+def test_brief_relationship_without_interactions_is_empty(folder):
+    root, store = folder
+    company, contact = company_and_contact(store)
+    assert _relationship(store, company, contact) == []
+    assert "no earlier contact" in outreach.make_brief(
+        store, company, contact, None, outreach.Research()).text()
+
+
+def test_brief_relationship_greeting_only_or_empty_body_has_no_dangling_colon(folder):
+    root, store = folder
+    company, contact = company_and_contact(store)
+    for i, body in enumerate(["", "Hi Mara,\n"]):
+        store.create_interaction(company.slug, "email", "out", contact=contact.slug,
+                                 date=(NOW - timedelta(days=5 - i)).isoformat(timespec="minutes"),
+                                 body=body)
+    company, contact = company_and_contact(store)
+    rel = _relationship(store, company, contact)
+    assert len(rel) == 2 and all(not line.rstrip().endswith(":") for line in rel)
+
+
+def test_brief_relationship_single_long_interaction_is_truncated_not_dropped(folder):
+    root, store = folder
+    company, contact = company_and_contact(store)
+    store.create_interaction(company.slug, "email", "out", contact=contact.slug,
+                             date=(NOW - timedelta(days=2)).isoformat(timespec="minutes"),
+                             body="word " * 5000)
+    company, contact = company_and_contact(store)
+    rel = _relationship(store, company, contact)
+    assert len(rel) == 1 and 0 < len(rel[0]) <= outreach.BODY_LIMIT + 120
+
+
 def test_culture_defaults_for_every_language_and_a_country_override(folder):
     root, store = folder
     from hermitcrm import messaging

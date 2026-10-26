@@ -4430,7 +4430,8 @@ def create_app(root: Path, config: dict | None = None,
                 return flashed(back, f"Not built: {exc}")
         researcher = outreach.researcher_for(
             level, enricher, fetcher=getattr(app.state, "outreach_fetcher", None),
-            today=store.today(), timeout=float(config.get("fetch_timeout", 10)))
+            today=store.today(), timeout=float(config.get("fetch_timeout", 10)),
+            escalate=True)
         drafter = outreach.AIDrafter(store, enricher, config)
         critic = outreach.AICritic(store, enricher)
         batch_id = form["batch"] or f"{store.now():%Y-%m-%dT%H%M}-{form['channel']}"
