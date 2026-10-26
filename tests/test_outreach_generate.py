@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """Generate outreach for one contact: /outreach?contact=<company>/<contact> opens
-a panel (channel, kind, research, signal, observation, language, the notes the
+a panel (channel, kind, research, signal, language, a note box, the notes the
 draft will use); nothing runs until Generate is pressed
 (docs/superpowers/specs/2026-10-20-outreach-notes-and-drafts-design.md, part B).
 The AI is a fake; all names are made up."""
@@ -93,7 +93,8 @@ def test_the_panel_offers_a_follow_up_when_the_last_message_went_unanswered(clie
 def test_a_contact_with_an_open_draft_gets_a_link_to_it_not_a_form(client, root):
     item = drafted(client, root)
     panel = panel_html(client)
-    assert f"#item-{item.id}" in panel and 'name="observation"' not in panel
+    assert f"#item-{item.id}" in panel and 'action="/outreach/build"' not in panel
+    assert 'name="note" form="gen-form"' in panel
 
 
 def test_generate_is_disabled_when_the_ai_cannot_run(client):
@@ -106,7 +107,7 @@ def test_generate_is_disabled_when_the_ai_cannot_run(client):
 
 
 def test_the_panels_add_note_form_adds_a_note_and_returns_to_the_panel(client):
-    response = post(client, "/outreach/note", contact=MARA, text="Prefers a call",
+    response = post(client, "/outreach/note", contact=MARA, note="Prefers a call",
                     back=PANEL)
     assert response.status_code == 303
     assert response.headers["location"].startswith(f"/outreach?contact={MARA.replace('/', '%2F')}") \
@@ -118,19 +119,19 @@ def test_the_panels_add_note_form_adds_a_note_and_returns_to_the_panel(client):
 
 def test_the_panels_add_note_form_refuses_an_unknown_contact_and_an_empty_note(client, root):
     before = commits(root)
-    assert "unknown" in query(post(client, "/outreach/note", contact=f"{CO}/nobody", text="x",
+    assert "unknown" in query(post(client, "/outreach/note", contact=f"{CO}/nobody", note="x",
                                    back=PANEL))["flash"]
-    assert "write something" in query(post(client, "/outreach/note", contact=MARA, text="  ",
+    assert "write something" in query(post(client, "/outreach/note", contact=MARA, note="  ",
                                            back=PANEL))["flash"]
     assert commits(root) == before
 
 
-# ------------------------------------------------------- signal and observation
+# ------------------------------------------------------------ signal and note
 
 
-def test_a_build_with_an_observation_and_a_signal_saves_notes_first(client, root, fake):
+def test_a_build_with_a_note_and_a_signal_saves_notes_first(client, root, fake):
     response = post(client, "/outreach/build", contact=MARA, back=PANEL, signal="hiring",
-                    observation="  Loved the reporting demo  ")
+                    note="  Loved the reporting demo  ")
     assert response.status_code == 303
     bodies = [n.body.strip() for n in mara_notes(client)]
     assert "Loved the reporting demo" in bodies
@@ -140,8 +141,8 @@ def test_a_build_with_an_observation_and_a_signal_saves_notes_first(client, root
                      prompt, re.M)
 
 
-def test_an_unknown_signal_and_an_empty_observation_write_no_notes(client, root):
-    post(client, "/outreach/build", contact=MARA, back=PANEL, signal="bogus", observation="  ")
+def test_an_unknown_signal_and_an_empty_note_write_no_notes(client, root):
+    post(client, "/outreach/build", contact=MARA, back=PANEL, signal="bogus", note="  ")
     assert all(n.subject.startswith("Research") for n in mara_notes(client))
 
 
@@ -149,9 +150,29 @@ def test_a_refused_build_writes_no_notes(client, root):
     no_ai(client)
     before = commits(root)
     response = post(client, "/outreach/build", contact=MARA, back=PANEL, signal="hiring",
-                    observation="Loved the reporting demo")
+                    note="Loved the reporting demo")
     assert "Not built" in query(response)["flash"]
     assert mara_notes(client) == [] and commits(root) == before
+
+
+def test_the_note_box_is_part_of_the_generate_form_and_there_is_no_observation_field(client):
+    panel = panel_html(client)
+    assert "observation" not in panel.lower()
+    assert 'id="gen-form"' in panel and 'name="note" form="gen-form"' in panel
+    assert 'formaction="/outreach/note"' in panel
+
+
+def test_a_note_typed_in_the_panel_is_saved_once_by_generate_and_drafted_from(client, fake):
+    post(client, "/outreach/build", contact=MARA, back=PANEL, note="Loved the reporting demo")
+    bodies = [n.body.strip() for n in mara_notes(client)]
+    assert bodies.count("Loved the reporting demo") == 1
+    assert "Loved the reporting demo" in fake.of("draft")[0]["prompt"]
+
+
+def test_the_panel_calls_a_company_note_company_not_you(client):
+    store_of(client).create_interaction(CO, "note", "", body="Won an award in 2025")
+    row = re.search(r"<li>Won an award in 2025.*?</li>", panel_html(client), re.S).group(0)
+    assert "company" in row and "you" not in row
 
 
 # ------------------------------------------------------------------- language

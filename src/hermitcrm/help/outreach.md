@@ -55,11 +55,12 @@ and from the command line; both do the same steps and write the same files.
   you press **Generate**. The panel has the channel and the draft type (from the
   history: someone who replied with interest gets a reply to interest, someone
   whose message went unanswered a follow-up, everyone else a first touch), the
-  research level, the **signal** you read off LinkedIn insights, one
-  **observation** sentence from their site or team, and a **language** for this
-  card and its regenerates (the default is the contact's draft language, else
-  the company's country's). The signal and the observation are saved as notes
-  first. It says why when the person is left out. While an item is open, the
+  research level, the **signal** you read off LinkedIn insights, and a
+  **language** for this card and its regenerates (the default is the contact's
+  draft language, else the company's country's). Under the list of notes the draft
+  will use is one box to add a note, such as one thing from their site or team.
+  **Add note** (or Enter) saves it; pressing **Generate** saves what is in the box
+  too, so nothing you typed is lost. The signal is saved as a note first as well. It says why when the person is left out. While an item is open, the
   button on their page says **Open outreach draft** and goes to its card.
 
 ## Notes
