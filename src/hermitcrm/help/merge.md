@@ -7,7 +7,7 @@ Combine two companies, or two contacts of one company, into one record in a sing
 On the company page, pick the company to merge **into this one** and click
 Compare. The merge page shows every field side by side with a radio per side;
 the default is this company's value, or the other's when this one is empty.
-Tags and notes can be combined. Contacts and interactions of the dropped
+Tags can be combined. A notes row appears only while a company still has an old notes text (from before format 19); company notes are logged interactions and move over with the rest. Contacts and interactions of the dropped
 company move over (a contact slug that collides gets `-2`), its stage history
 is merged by date, its folder is deleted, and the commit is
 `company: <dropped> merged into <kept>`. The history stays in git.

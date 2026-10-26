@@ -278,7 +278,8 @@ def test_a_bounce_is_suppressed_noted_flagged_and_committed_once(folder):
     entry = suppress.lookup(root, "mara@lindenhof-data.example.com")
     assert (entry.reason, entry.item, entry.date) == ("bounced", "x1", "2026-10-19")
     assert outreach.get_item(root, "x1").send_note.startswith("bounced: 5.1.1 550 5.1.1")
-    notes = [i for i in store.get(MARA[0]).interactions if i.channel == "note"]
+    notes = [i for i in store.get(MARA[0]).interactions
+             if i.channel == "note" and i.contact == MARA[1]]
     assert len(notes) == 1 and "bounced (5.1.1" in notes[0].body and notes[0].contact == MARA[1]
     assert notes[0].is_touch is False and notes[0].source == "outreach"
     assert int(git(root, "rev-list", "--count", "HEAD")) == int(head) + 1
@@ -433,7 +434,8 @@ def test_opted_out_suppresses_skips_everything_open_and_notes_it(folder):
         assert item.state == "skipped" and item.skip_reason == "other"
         assert item.skip_note == "opted out" and item.send_at is None
     assert outreach.get_item(root, "c1").state == "ready"          # someone else is untouched
-    note = [i for i in store.get(MARA[0]).interactions if i.channel == "note"][-1]
+    note = [i for i in store.get(MARA[0]).interactions
+            if i.channel == "note" and i.contact == MARA[1]][-1]
     assert "opted out" in note.body and "2 open outreach items skipped" in note.body
     assert git(root, "log", "--format=%s", "-1").strip() == "outreach: Mara Keller opted out"
     assert git(root, "status", "--porcelain").strip() == "?? outreach/c1.md"    # only the test's own

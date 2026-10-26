@@ -73,10 +73,10 @@ their page, on their timeline and on the company's. A finding is a note.
   low confidence are not saved; the card says how many were left out.
 - The card's **Notes** panel lists the contact's notes, newest first, marks the
   ones the draft used, links each to its place on the timeline, and has a box to
-  add one. Edit or delete a note where it lives, on the timeline. The company's
-  own notes field shows there too, read-only.
-- The draft is written from the newest 20 notes (and at most 4,000 characters:
-  over that, the longest go first), with the company's notes as background. A
+  add one. Edit or delete a note where it lives, on the timeline. Company notes show there too,
+  marked `company`; you edit or delete them on the company page.
+- The draft is written from the newest 20 notes of the person and the company (and at most 4,000 characters:
+  over that, the longest go first). Company notes count like the person's: cited like any note, not background. A
   note you wrote counts as a known fact and never goes stale; a research note
   keeps its date, and one older than about 90 days never opens a message.
 - Notes added or changed after a draft are not in it: the card says "N notes

@@ -333,10 +333,9 @@
     <summary>Notes ({{ nc.rows | length }}{% if nc.rows %}, {{ nc.rows | selectattr('used') | list | length }} used{% endif %})</summary>
     <p class="small quiet">The draft is written from these notes, which also appear on their page and the company timeline.</p>
     {% if i.state == 'drafted' and nc.newer %}<p class="small warning">{{ nc.newer }} note{{ 's' if nc.newer != 1 }} added since this draft was written. Regenerate to use {{ 'it' if nc.newer == 1 else 'them' }}.</p>{% endif %}
-    {% if nc.company_notes %}<p class="small outreach-company-notes"><strong>Company notes</strong> (background; <a href="/companies/{{ i.company }}?edit=1#details">edit</a>): {{ nc.company_notes }}</p>{% endif %}
     <ol class="outreach-note-list">{% for r in nc.rows %}
       <li>{{ r.text }}
-        <span class="small">&middot; {{ fmt_date(r.note.date) }} &middot; {% if r.source_url %}<a href="{{ r.source_url }}" target="_blank" rel="noopener">{{ r.source_url | replace('https://', '') | truncate(40) }}</a>{% else %}you{% endif %}{% if r.used %} &middot; <strong>used</strong>{% endif %}
+        <span class="small">&middot; {{ fmt_date(r.note.date) }} &middot; {% if r.source_url %}<a href="{{ r.source_url }}" target="_blank" rel="noopener">{{ r.source_url | replace('https://', '') | truncate(40) }}</a>{% else %}{{ 'company' if r.origin == 'company' else 'you' }}{% endif %}{% if r.used %} &middot; <strong>used</strong>{% endif %}
         &middot; <a href="/companies/{{ i.company }}/contacts/{{ i.contact }}#i-{{ r.note.id }}">on the timeline</a></span>
       </li>{% endfor %}
     </ol>

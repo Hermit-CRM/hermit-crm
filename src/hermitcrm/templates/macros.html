@@ -168,7 +168,9 @@
    reason and requalify fields only show for a stage that keeps them, or when
    they already hold something; they are hidden, not removed, so they still
    submit. #}
-{% macro company_fields(values, errors) %}
+{#- `first_note`: the new-company form, where one box becomes the company's first note.
+    The edit form has none: company text lives in dated notes on the page (#company-notes). #}
+{% macro company_fields(values, errors, first_note=false) %}
   {%- set hide = layout_hidden('company', errors) %}
   {%- set custom = custom_fields_for('company') | rejectattr('key', 'in', hide) | list %}
   {%- set keeps = stage_keeps(values.stage) %}
@@ -235,12 +237,13 @@
     </div>
   </fieldset>
   {% endif %}
-  {% if 'tags' not in hide or 'notes' not in hide %}
+  {% if 'tags' not in hide or first_note %}
   <fieldset class="form-group">
-    <legend>Tags and notes</legend>
+    <legend>{{ 'Tags and first note' if first_note and 'tags' not in hide else ('First note' if first_note else 'Tags') }}</legend>
     <div class="form-grid">
       {% if 'tags' not in hide %}<label class="span-12">tags (comma separated) <input name="tags" value="{{ values.tags }}"></label>{% endif %}
-      {% if 'notes' not in hide %}<label class="span-12">notes <textarea name="notes" rows="8">{{ values.notes }}</textarea></label>{% endif %}
+      {% if first_note %}<label class="span-12">first note <span class="small">(optional; saved as a dated company note)</span> <textarea name="notes" rows="6">{{ values.notes }}</textarea></label>{% endif %}
+      {% if not first_note %}<p class="span-12 small">Free text about the company goes in <a href="#company-notes">Company notes</a>, as dated notes.</p>{% endif %}
     </div>
   </fieldset>
   {% endif %}

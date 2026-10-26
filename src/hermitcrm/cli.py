@@ -519,7 +519,7 @@ def cmd_show(store: Store, slug: str, bodies: int = 3, all_bodies: bool = False)
         lines.append(f"{key}: {text}" if text else f"{key}:")
 
     lines.append("")
-    if company.notes:
+    if company.notes.strip():   # a legacy body: empty after format 19, but a hand-edit shows
         lines.append(company.notes.rstrip("\n"))
     lines.append("")
 
@@ -575,12 +575,16 @@ def cmd_check(store: Store) -> tuple[str, int]:
     # routines.toml, theme.css, messages.toml and config.toml's keys): one
     # "<file>: <where>: <what>" line each.
     extension = adjust.all_problems(store.root)
-    # Since format 7 a contact has no notes body: what you know about a person
-    # is a note interaction. A body written by hand is shown, not lost.
+    # Since format 7 a contact has no notes body, and since format 19 neither has
+    # a company: what you know is a note interaction. A body written by hand is
+    # said, not lost.
     stray = [f"companies/{c.slug}/contacts/{cs}.md: has a notes body; the app no longer "
              f"shows it (log it as a note on the contact instead)"
              for c in store.companies.values() for cs, ct in c.contacts.items()
              if ct.notes.strip()]
+    stray += [f"companies/{c.slug}/company.md: has a notes body; the app no longer "
+              f"shows it (log it as a note on the company instead)"
+              for c in store.companies.values() if c.notes.strip()]
     # A company in a stage config.toml does not list loads fine; it is said, not failed.
     off_board = store.stage_warnings()
     stray += off_board

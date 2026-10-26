@@ -125,6 +125,26 @@ def test_belgian_language_signals():
     assert evidence["nl"] and not evidence["fr"]
 
 
+def test_a_company_note_is_language_evidence_like_the_old_notes_field():
+    from datetime import datetime
+    from hermitcrm.models import Interaction
+    note = lambda body, contact="": Interaction(  # noqa: E731
+        id="n1", date=datetime(2026, 9, 1, 10), channel="note", direction="", body=body,
+        contact=contact)
+    c = company(country="BE", website="https://acme.be")
+    assert messaging.belgian_language(c) == "en"
+    c.interactions.append(note("HQ: 4000 Liège"))
+    assert messaging.belgian_language(c) == "fr"
+    assert messaging.belgian_language_scores(c)["fr"]
+    # prose in a company note counts as the record's text, too
+    c = company(country="BE", website="https://acme.be")
+    c.interactions.append(note("Bedankt voor uw bericht, wij hebben graag een gesprek"))
+    assert messaging.belgian_language(c) == "nl"
+    # the legacy body still counts, next to the notes
+    c = company(country="BE", website="https://acme.be", notes="HQ: 9000 Gent")
+    assert messaging.belgian_language(c) == "nl"
+
+
 def test_belgian_drafts_use_the_inferred_language():
     c = company(country="BE", website="https://acme.be/fr/")
     assert messaging.draft_language(c) == "fr"

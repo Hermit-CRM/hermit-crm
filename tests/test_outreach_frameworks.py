@@ -23,7 +23,7 @@ import pytest
 from hermitcrm import cli, frameworks, notes, outreach, playbook, scrape
 from hermitcrm.datafolder import init_folder
 from hermitcrm.models import ValidationError
-from outreach_fakes import FakeAI, ai, demo, fake_page, git, proof_draft
+from outreach_fakes import FakeAI, ai, demo, drop_company_notes, fake_page, git, proof_draft
 from test_frameworks import BRANDS
 from test_outreach_draft import built, fake_cli  # noqa: F401  (fake_cli is a fixture)
 
@@ -115,7 +115,8 @@ def test_house_asks_for_no_id_so_a_guess_in_the_answer_is_no_mismatch():
 
 @pytest.fixture
 def folder(tmp_path):
-    return demo(tmp_path)
+    # no company notes: one is a finding you wrote, which meets a framework's needs
+    return drop_company_notes(demo(tmp_path))
 
 
 def first_touch_prompt(store, framework, channel="email"):

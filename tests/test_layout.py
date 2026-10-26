@@ -27,6 +27,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from hermitcrm import cli, layout
+from hermitcrm.notes import company_notes
 from hermitcrm.store import Store
 from hermitcrm.web import (LINKS, company_columns, company_values, contact_columns,
                            contact_values, create_app)
@@ -312,7 +313,8 @@ def test_hidden_fields_leave_the_page_the_form_and_the_lists(client, repo, acme)
     assert "segment smb" in company                 # a field not hidden still shows
     names = form_names(company)
     assert not {"website", "value_eur_month", "custom_fit_score", "country"} & names
-    assert {"name", "stage", "linkedin", "custom_segment", "notes"} <= names
+    assert {"name", "stage", "linkedin", "custom_segment"} <= names
+    assert "notes" not in names                     # company text is dated notes now
     new = client.get("/companies/new").text
     assert 'name="value_eur_month"' not in new and 'name="custom_fit_score"' not in new
 
@@ -329,8 +331,9 @@ def test_hidden_fields_leave_the_page_the_form_and_the_lists(client, repo, acme)
 
 def test_saving_a_form_without_its_hidden_fields_keeps_their_values(client, app, repo, acme):
     write_layout(repo, '[company]\nhide_fields = ["website", "value_eur_month", "fit_score", '
-                       '"tags", "notes"]\n[contact]\nhide_fields = ["email", "seniority"]\n')
-    app.state.store.update_company("acme", tags="vip", notes="Met at the fair.")
+                       '"tags"]\n[contact]\nhide_fields = ["email", "seniority"]\n')
+    app.state.store.update_company("acme", tags="vip")
+    app.state.store.update_company("acme", notes="Met at the fair.")   # a company note
 
     # Post exactly what the rendered form carries, with one visible change.
     page = client.get("/companies/acme").text
@@ -342,7 +345,10 @@ def test_saving_a_form_without_its_hidden_fields_keeps_their_values(client, app,
     company = app.state.store.get("acme", refresh=True)
     assert company.product_oneliner == "Robots for warehouses"
     assert company.website == "https://acme.example" and company.value_eur_month == 900
-    assert company.tags == ["vip"] and "Met at the fair." in company.notes
+    assert company.tags == ["vip"]
+    # The company note is still the one note it was: saving the form added none.
+    assert [n.body.strip() for n in company_notes(company)] == ["Met at the fair."]
+    assert company.notes == ""
     assert company.extra == {"fit_score": 80, "segment": "enterprise"}
 
     page = client.get("/companies/acme/contacts/jane-doe").text
@@ -441,6 +447,21 @@ def test_an_edit_shows_on_the_next_request_without_a_restart(client, repo, acme)
     assert order_of(client.get("/companies/acme").text, COMPANY_MARKERS)[0] == "contacts"
     (repo / layout.FILENAME).unlink()
     assert order_of(client.get("/companies/acme").text, COMPANY_MARKERS)[0] == "enrich"
+
+
+def test_a_layout_toml_still_listing_the_retired_notes_field_loads_and_hides_nothing():
+    lay, problems = layout.parse({"company": {"hide_fields": ["notes", "tags"]}})
+    assert problems == []
+    assert lay.hidden_fields["company"] == frozenset({"tags"})
+    assert not lay.field_hidden("company", "notes")
+    assert "notes" not in layout.FIELDS["company"]
+
+
+def test_hiding_notes_in_layout_toml_changes_nothing_on_the_company_form(client, repo, acme):
+    before = client.get("/companies/acme").text
+    write_layout(repo, '[company]\nhide_fields = ["notes"]\n')
+    after = client.get("/companies/acme").text
+    assert after == before and 'id="company-notes"' in after
 
 
 def test_a_layout_toml_naming_the_retired_drafts_section_still_loads_without_a_problem():

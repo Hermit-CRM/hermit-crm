@@ -1514,7 +1514,7 @@ def test_merge_companies_pages(client, app, repo):
     assert "Merge Acme Software into Acme" in form
     assert 'name="choice_linkedin" value="drop" checked' in form
     assert 'name="choice_website" value="keep" checked' in form
-    assert 'name="choice_notes" value="both"' in form
+    assert 'name="choice_notes"' not in form       # no legacy body on either side
     assert "1 contacts and 0 interactions" in form
     r = client.post("/companies/acme/merge",
                     data={"drop": "acme-software", "choice_my_score": "drop",
@@ -2574,3 +2574,72 @@ def test_notes_elsewhere_box_shows_the_newest_five_per_contact(client):
     assert "Open Joe Roe to see all" in box
     assert "the one company note" in box and box.count("Showing the newest") == 1
     assert "Open the company page</a>" in box
+
+
+# ------------------------------------------- company free text is notes only
+
+
+def only_notes(app, slug):
+    company = app.state.store.get(slug, refresh=True)
+    return [i for i in company.interactions if i.is_note and not i.contact], company
+
+
+def edit_form_data(client, slug):
+    """Exactly what the rendered Details form would post."""
+    page = client.get(f"/companies/{slug}").text
+    form = page.split('<form method="post" action="/companies/' + slug + '"')[1].split("</form>")[0]
+    names = set(re.findall(r'<(?:input|select|textarea)[^>]* name="([^"]+)"', form))
+    return page, names
+
+
+def test_the_edit_form_has_no_notes_box_but_points_to_company_notes(client):
+    post_company(client, name="Acme GmbH")
+    page, names = edit_form_data(client, "acme")
+    assert "notes" not in names and "name" in names
+    assert '<textarea name="notes"' not in page
+    assert 'href="#company-notes"' in page and 'id="company-notes"' in page
+
+
+def test_saving_the_edit_form_creates_no_note(client, app):
+    post_company(client, name="Acme GmbH", notes="first thoughts")   # one note, empty body
+    assert len(only_notes(app, "acme")[0]) == 1
+    for tag in ("a", "a, b"):                                         # save twice
+        values = {**company_values(app.state.store.get("acme", refresh=True)), "tags": tag}
+        assert client.post("/companies/acme", data=values).status_code == 303
+    notes, company = only_notes(app, "acme")
+    assert len(notes) == 1 and company.notes == "" and company.tags == ["a", "b"]
+
+
+def test_saving_the_edit_form_of_a_company_with_no_notes_adds_none(client, app):
+    post_company(client, name="Acme GmbH")
+    for _ in range(2):
+        values = company_values(app.state.store.get("acme", refresh=True))
+        assert client.post("/companies/acme", data=values).status_code == 303
+    assert only_notes(app, "acme")[0] == []
+
+
+def test_the_new_company_form_takes_one_first_note(client, app):
+    page = client.get("/companies/new").text
+    assert "first note" in page and '<textarea name="notes"' in page
+    assert post_company(client, name="Acme GmbH", notes="Met at the fair.").status_code == 303
+    notes, company = only_notes(app, "acme")
+    assert [n.body.strip() for n in notes] == ["Met at the fair."]
+    assert company.notes == ""                                       # the body stays empty
+    post_company(client, name="Bolt BV")                             # no text: no note
+    assert only_notes(app, "bolt")[0] == []
+
+
+def test_the_merge_page_offers_the_notes_row_only_for_a_legacy_body(client, app):
+    post_company(client, name="Acme GmbH", notes="a company note")
+    post_company(client, name="Bolt BV")
+    form = client.get("/companies/acme/merge?drop=bolt").text
+    assert 'name="choice_notes"' not in form and 'name="choice_tags"' in form
+    bolt = app.state.store.get("bolt")
+    bolt.notes = "text from before format 19"
+    app.state.store.write_company(bolt)
+    form = client.get("/companies/acme/merge?drop=bolt").text
+    assert 'name="choice_notes" value="both"' in form
+    assert 'name="choice_notes" value="drop" checked' in form
+    # The notes themselves move with the merge, as interactions.
+    assert client.post("/companies/acme/merge", data={"drop": "bolt"}).status_code == 303
+    assert len(only_notes(app, "acme")[0]) == 1

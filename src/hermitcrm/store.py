@@ -785,7 +785,6 @@ class Store:
             tags=parse_tags(tags),
             created=now,
             updated=now,
-            notes=normalise_body(notes),
             stages=self.stages,
         )
         company.extra = fields_mod.apply({}, custom or {})
@@ -796,9 +795,16 @@ class Store:
         if stage != self.stages.entry:
             # The entry stage is the implicit start; any other start is recorded.
             company.stage_history = [StageChange(now.date(), "", stage, lost_reason)]
-        self.write_company(company)
-        self.companies[slug] = company
-        self._notify(f"company: {slug} created")
+        message = f"company: {slug} created"
+        with self.batch(message):
+            self.write_company(company)
+            self.companies[slug] = company
+            self._notify(message)
+            # A company has no notes body any more (format 19): what you know
+            # about an account is a note on its timeline.
+            if normalise_body(notes):
+                self.create_interaction(slug, Channel.NOTE.value, "", body=notes, date=now)
+                company = self.companies[slug]  # reloaded by the write: holds the note
         return company
 
     @_locked
@@ -868,8 +874,8 @@ class Store:
             new.next_step_done_on = self.today()
         if "tags" in fields:
             new.tags = parse_tags(fields["tags"])
-        if "notes" in fields:
-            new.notes = normalise_body(fields["notes"])
+        # `notes` adds a company-level note; it never rewrites a legacy body.
+        note = normalise_body(fields.get("notes") or "")
 
         new.lost_reason, new.requalify_on = self._reason_rules(
             new.stage, new.lost_reason, new.requalify_on)
@@ -883,17 +889,21 @@ class Store:
             new.stage_history = list(company.stage_history) + [
                 StageChange(now.date(), old_stage, new.stage, new.lost_reason)]
 
-        self.write_company(new)
-        self.companies[slug] = new
-        if message:
+        if not message:
+            if stage_changed:
+                message = f"company: {slug} stage {old_stage} -> {new.stage}"
+            elif set(fields) == {"next_step_status"} and status_explicit:
+                word = "done" if new.next_step_done else "reopened"
+                message = f"company: {slug} next step {word}"
+            else:
+                message = f"company: {slug} updated"
+        with self.batch(message):
+            self.write_company(new)
+            self.companies[slug] = new
             self._notify(message)
-        elif stage_changed:
-            self._notify(f"company: {slug} stage {old_stage} -> {new.stage}")
-        elif set(fields) == {"next_step_status"} and status_explicit:
-            word = "done" if new.next_step_done else "reopened"
-            self._notify(f"company: {slug} next step {word}")
-        else:
-            self._notify(f"company: {slug} updated")
+            if note:
+                self.create_interaction(slug, Channel.NOTE.value, "", body=note)
+                new = self.companies[slug]  # reloaded by the write: holds the note
         return new
 
     @_locked
