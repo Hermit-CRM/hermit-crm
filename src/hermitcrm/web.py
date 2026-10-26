@@ -4414,10 +4414,10 @@ def create_app(root: Path, config: dict | None = None,
                              contact: str = Form(""), back: str = Form(""),
                              kind: str = Form(outreach.FIRST_TOUCH),
                              approach: str = Form(""), research: str = Form(""),
-                             signal: str = Form(""), observation: str = Form(""),
+                             signal: str = Form(""), note: str = Form(""),
                              language: str = Form("")):
         """Research and draft the next contact of the batch (one per request).
-        `contact` ("company/contact"): the Generate panel (with its signal, observation
+        `contact` ("company/contact"): the Generate panel (with its signal, note
         and language), or a reply on the Replies tab (`kind` reply-to-interest)."""
         check_csrf(csrf_token)
         if kind not in outreach.BUILT_KINDS or (kind == outreach.REPLY and not contact):
@@ -4461,7 +4461,7 @@ def create_app(root: Path, config: dict | None = None,
             who = selection.picked[0]
             said = ([f"Signal (LinkedIn insights, checked {store.today():%Y-%m-%d}): {signal}."]
                     if signal and signal in messaging.SIGNALS else [])
-            said += [observation.strip()] if observation.strip() else []
+            said += [note.strip()] if note.strip() else []
             try:
                 for text in said:
                     await run_in_threadpool(notes.add_note, store, who.company.slug,
@@ -4492,14 +4492,14 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.post("/outreach/note")
     async def outreach_contact_note(csrf_token: str = Form(""), contact: str = Form(""),
-                                    text: str = Form(""), back: str = Form("")):
+                                    note: str = Form(""), back: str = Form("")):
         """A note about a person from the Generate panel: the same note you would add
         on their page, used by the next draft."""
         check_csrf(csrf_token)
         slug, _, cslug = contact.partition("/")
         back = safe_back(back, "/outreach")
         try:
-            await run_in_threadpool(notes.add_note, store, slug, cslug, text)
+            await run_in_threadpool(notes.add_note, store, slug, cslug, note)
         except outreach.OutreachError as exc:
             return flashed(back, str(exc))
         return flashed(back, "Note saved. It is on their page and the next draft uses it.")

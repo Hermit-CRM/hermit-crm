@@ -8,6 +8,12 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **One note box on the Generate panel.** The panel had an **Observation** field and
+  an **Add note** box, and both saved a note on the person. Text typed in one was
+  lost when you pressed the other's button. Now there is one note box: **Add note**
+  or Enter saves it, and **Generate** saves what is in it first, then drafts. The
+  list of notes the draft will use also says **company** (not **you**) for a company
+  note. No data migration.
 - **Company notes replace the company's notes box.** A company has no notes field
   any more. The Details form points to **Company notes** on the company page, and the
   New company form's one box, now **first note**, saves a dated company note. Your

@@ -65,13 +65,13 @@ of them is the company's task due first, it is the company's next step.
 ## Generate outreach
 
 The **Generate outreach** button in the action row opens [Outreach](/help/outreach)
-with this person ready to draft: channel, draft type, signal, one observation
-sentence, a language, and the notes the draft will be written from. Nothing runs
+with this person ready to draft: channel, draft type, signal, a language, a box
+to add a note, and the notes the draft will be written from. Nothing runs
 until you press **Generate**. When the person already has an open draft, the
 button says **Open outreach draft** and goes to its card.
 
 The no-AI **Message drafts** box that used to sit here is gone; its signal,
-observation and language picker moved to that panel, and what you write there is
+language picker and note box moved to that panel, and what you write there is
 kept as notes. The contact's **draft language** (set on the contact, say for a
 German speaker at a Dutch company) is where the panel starts, else the language
 of the company's country. The wording of reply and follow-up templates lives in
