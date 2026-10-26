@@ -147,6 +147,40 @@ def test_first_line_keeps_a_body_that_is_only_a_greeting():
     assert followups.first_line("x" * 200).endswith("…")
 
 
+def test_first_line_skips_the_header_an_email_client_copies_in():
+    """Pasted from a mail client, a message opens with who sent it and when."""
+    pasted = ("Jane Roe\n10:12 AM (1 minute ago)\nto Sam\n\n"
+              "Hi Sam,\n\nThe pricing page is live now.\n")
+    assert followups.first_line(pasted) == "The pricing page is live now."
+    dated = "Jane Roe\nMon, Oct 22, 10:12 AM (4 days ago)\nto me, Sam\nSee you Friday."
+    assert followups.first_line(dated) == "See you Friday."
+    forwarded = "From: Jane Roe <jane@example.com>\nSent: 22 October 2026\nTo: Sam\nSubject: Hi\n\nCall me."
+    assert followups.first_line(forwarded) == "Call me."
+
+
+def test_first_line_leaves_an_ordinary_message_alone():
+    assert followups.first_line("to be honest, I am not sure.\nBye") == "to be honest, I am not sure."
+    assert followups.first_line("Jane Roe\nSounds good.") == "Jane Roe"
+    assert followups.first_line("Meet at 10:30 tomorrow?") == "Meet at 10:30 tomorrow?"
+
+
+def test_a_row_says_whose_words_the_preview_are(seeded):
+    seeded.create_interaction("acme", channel="linkedin", direction="in",
+                              contact="jane-roe", date=days_ago(3), body="Sounds good.")
+    seeded.create_interaction("borduro", channel="email", direction="out",
+                              contact="jane-roe", date=days_ago(9), body="Two slots, Monday or Tuesday.")
+    owed, waiting = followups.radar(seeded, TODAY)
+
+    assert (owed.kind, owed.speaker, owed.preview) == (REPLY, "Jane Roe", "Sounds good.")
+    assert (waiting.kind, waiting.speaker, waiting.preview) == (
+        NUDGE, "you", "Two slots, Monday or Tuesday.")
+    assert owed.interaction.label == "linkedin in"
+    # With no contact on the interaction, "they", not an empty name.
+    seeded.create_interaction("acme", channel="email", direction="in",
+                              date=days_ago(1), body="Hello?")
+    assert followups.radar(seeded, TODAY)[0].speaker == "they"
+
+
 # ---------------------------------------------------------------- keep in touch
 
 
