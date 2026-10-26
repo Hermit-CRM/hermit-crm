@@ -44,7 +44,8 @@ answer; the answer stays where it is.
 - **While you type**, the saved questions that contain every word you typed are
   listed under the box. Up and Down choose, Enter or Tab fills the box, Esc closes
   the list. In an empty box, Down lists them all.
-- **The newest four** are buttons in the panel; one click puts the question in the
+- **The four you ask most** are buttons in the panel (see *Recent and most used*
+  below); one click puts the question in the
   box. **All saved** opens the full list on the Ask page, where you can **Use**,
   **Edit** or **Delete** each one.
 - **Whole CRM.** A question saved with *Skip the page, search the whole CRM* ticked
@@ -60,6 +61,24 @@ machine you sync. You can edit the file by hand. If it has a mistake Hermit does
 touch it: the Ask page shows what is wrong and a save is refused until it is fixed.
 Saving the same question again (case and spacing ignored) changes nothing. At most
 100 are kept.
+
+## Recent and most used
+
+- **Most used first.** Every time you ask a saved question, Hermit counts it. The
+  panel's four buttons, the suggestions under the box and the list on the Ask page
+  put the most asked first (the Ask page says "asked 3×"); questions asked equally
+  often stay newest first.
+- **Recent.** Every question you ask is remembered, 20 at most, newest first, even
+  one that failed (a question that took minutes is not lost). While you type, the
+  ones that match and are not saved are listed under the saved ones in a **Recent**
+  group. Click one to put it in the box, or its **Save** to keep it as a saved
+  question without leaving the page. Recent questions are never buttons in the panel.
+- **Kept only on this computer.** The counts and the recent list live in
+  `.git/hermitcrm-ask.json` inside your data folder, like the scheduled-send state:
+  never committed, never in `git status`, and not on your other machines. Delete the
+  file and the counts and the recent list start again; nothing else is affected. The
+  saved questions themselves stay in `ask-questions.toml`, in the order they were
+  saved.
 
 ## Models
 

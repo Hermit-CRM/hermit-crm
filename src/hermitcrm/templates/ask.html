@@ -58,7 +58,7 @@
   <label class="grow">{% if answer %}Ask another question{% else %}Question{% endif %}
     <textarea id="ask-question-page" name="question" rows="3" required data-ask-box aria-controls="ask-suggest-page">{% if error or prefill %}{{ question }}{% endif %}</textarea>
   </label>
-  <ul id="ask-suggest-page" class="ask-suggest" role="listbox" aria-label="Saved questions" data-ask-suggest hidden></ul>
+  <ul id="ask-suggest-page" class="ask-suggest" role="listbox" aria-label="Saved and recent questions" data-ask-suggest hidden></ul>
   <label class="check"><input type="checkbox" name="scope" value="crm" data-ask-scope> Skip the page, search the whole CRM</label>
   <button type="submit" data-busy="Asking&hellip;">Ask</button>
   <button type="submit" formaction="/ask/saved" data-save-question title="Keep this question to ask again with one click">Save</button>
@@ -80,6 +80,7 @@
       <div class="saved-row">
         <span class="saved-text">{{ s.text }}</span>
         {% if s.scope == 'crm' %}<span class="tag">whole CRM</span>{% endif %}
+        {% if ask_uses.get(s.id) %}<span class="small saved-uses">asked {{ ask_uses[s.id] }}&times;</span>{% endif %}
         <button type="button" class="starter" data-ask-saved data-starter="{{ s.text }}" data-target="ask-question-page" data-scope="{{ s.scope }}">Use</button>
         <form method="post" action="/ask/saved/{{ s.id }}/delete" class="inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

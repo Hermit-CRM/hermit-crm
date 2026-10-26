@@ -1140,3 +1140,8 @@ button.linklike { background: none; border: 0; padding: 0; font: inherit; color:
 .saved-edit { margin-top: 4px; }
 .saved-edit summary { cursor: pointer; color: var(--muted); }
 .saved-edit textarea { width: 100%; max-width: 110ch; }
+.ask-suggest li.head { padding: 4px 8px 2px; font-size: 12px; color: var(--muted); cursor: default;
+  text-transform: uppercase; letter-spacing: .04em; }
+.ask-suggest li.head:hover { background: none; outline: 0; }
+.ask-suggest li .keep { float: right; margin-left: 10px; font-size: 12px; }
+.saved-row .saved-uses { color: var(--muted); white-space: nowrap; }
