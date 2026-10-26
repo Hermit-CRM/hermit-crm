@@ -15,6 +15,40 @@ value when set. The stage dropdown on a card saves on change; choosing
 Cards are ordered by next-step due date (earliest first, no date last), then
 by last touch (most recent first).
 
+## Follow-up radar
+
+The **Follow up** list above the filter bar is not part of the board. It is
+the companies where a conversation is waiting, in two groups:
+
+- **You owe a reply**: the latest message in the company's history is one they
+  sent, and it is at least `followup_reply_days` old (default 1).
+- **Waiting on them**: the latest is a message you sent, nothing has been
+  planned, and it is at least `followup_nudge_days` old (default 5).
+
+Replies you owe come first, then your unanswered messages; inside each group the
+oldest is on top. Both thresholds are in `config.toml` in your data folder.
+
+Each row shows the evidence: the channel, direction and date of that interaction
+(a link to it), and the first words of the message in quotes. What you wrote
+starts with **you:**, so your own words do not read as theirs. A pasted mail
+header ("Name", "10:12 AM (1 minute ago)", "to Sam") is skipped when picking the
+words.
+
+What counts, and what does not:
+
+- A **note** is a memo and never counts as contact, so adding one does not clear a row.
+- A **meeting** is not a message you sent, so it never makes a "waiting on them" row.
+- A task for later silences "waiting on them" for that company until it is due.
+  It does **not** silence "you owe a reply": a reply you owe is owed.
+- Closed and parked companies are not on the list.
+
+If a row is wrong because the message was logged the wrong way round, press
+**I sent this** (or **They sent this**) on the row. It flips the direction of
+that one interaction and nothing else; the text is kept exactly as it was, and
+**Undo** in the history brings it back. A card on the board whose company is on
+the radar carries a small badge (**reply owed 4d**, **no answer 25d**) that
+jumps back to the list. The board's own order is unchanged.
+
 ## Closed and parked
 
 Below the board, every other stage is a collapsed list: by default **won**,

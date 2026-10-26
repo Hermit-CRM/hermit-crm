@@ -8,6 +8,16 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **The Follow up list on the Pipeline explains itself.** It is now two groups, **You owe
+  a reply** and **Waiting on them**, with a line saying the order (replies you owe
+  first, oldest first). Each row shows the channel, direction and date of the message
+  it is about, as a link to it, and quotes the first words, with **you:** in front of
+  your own, so they no longer read as theirs. A mail header pasted into a message
+  ("Name", "10:12 AM (1 minute ago)", "to Sam") is no longer taken for its first words.
+  If a message was logged the wrong way round, **I sent this** / **They sent this** on
+  the row flips its direction and keeps the text exactly as it was. A card on the board
+  whose company is on the list has a small badge; the board's order does not change.
+  See [Pipeline](/help/pipeline#follow-up-radar). No data migration.
 - **Save the questions you ask often.** Next to **Ask** there is now a **Save**
   button, and under an answer **Save this question**. Saved questions are suggested
   as you type in the Ask box on every page (Up/Down, then Enter or Tab), the newest

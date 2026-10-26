@@ -1828,9 +1828,10 @@ def create_app(root: Path, config: dict | None = None,
             for stage in stages.closed_lists
         }
         hidden = layout.load(root).hidden_columns("companies")
+        radar = followups.radar(store, today, **followup_days)
         return render(request, "board.html", {
             "columns": columns, "closed": closed, "today": today,
-            "followups": followups.radar(store, today, **followup_days),
+            "followups": radar, "radar_rows_by_slug": {r.slug: r for r in radar},
             "filter_columns": [c for c in cols if c.key not in hidden], "active": active,
             "sort": sort_key, "dir": sort_dir,
             "no_companies": not store.companies,
@@ -2377,6 +2378,26 @@ def create_app(root: Path, config: dict | None = None,
             return flashed("/messages", "; ".join(exc.errors.values()))
         back = urlparse(request.headers.get("referer", "")).path or "/messages"
         return flashed(back, f"Message marked {outcome or 'unknown'}")
+
+    @app.post("/companies/{slug}/interactions/{id}/flip-direction")
+    def interaction_flip_direction(request: Request, slug: str, id: str,
+                                   back: str = Form("")):
+        """Swap in/out on one interaction: the way out of a radar row that
+        mistook who wrote. Only the direction changes; the body is not touched."""
+        company = need_company(slug)
+        it = next((i for i in company.interactions if i.id == id), None)
+        if it is None:
+            raise HTTPException(status_code=404, detail=f"unknown interaction {id!r}")
+        back = safe_back(back, "/pipeline")
+        if it.is_note or not it.direction:
+            return flashed(back, "A note has no direction to flip")
+        now = Direction.IN.value if it.direction == Direction.OUT.value else Direction.OUT.value
+        try:
+            store.update_interaction(slug, id, direction=now)
+        except ValidationError as exc:
+            return flashed(back, "; ".join(exc.errors.values()))
+        return flashed(back, "Logged as one you sent" if now == Direction.OUT.value
+                       else "Logged as one they sent")
 
     # --------------------------------------------------------------- extension
 
