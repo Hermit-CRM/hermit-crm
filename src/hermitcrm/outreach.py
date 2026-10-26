@@ -796,8 +796,7 @@ def make_brief(store: Store, company, contact, approach, research: Research,
         brief.situation.append("Tags: " + ", ".join(t for t in company.tags if t != "demo"))
     usable = [f for f in research.findings if f.usable and f.source != "crm"]
     brief.situation += [f"{f.text} (source: {f.source})" for f in usable[:6]]
-    if (company.notes or "").strip():
-        brief.situation.append("Company notes: " + " ".join(company.notes.split())[:600])
+    # Company notes reach the draft as findings (notes.snapshot), cited like any note.
     if notes_background:   # a thread has no findings to cite: the notes are background
         from . import notes
         for note in notes.notes_for(company, contact.slug)[:5]:

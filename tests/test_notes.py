@@ -165,7 +165,6 @@ def test_adopt_does_not_bring_back_a_note_deleted_after_the_draft(seeded):
 
 def test_card_marks_used_notes_counts_newer_ones_and_lists_legacy(seeded):
     notes.save_findings(seeded, "acme", "jane-doe", [finding("Hiring an AE")])
-    company = seeded.get("acme")
     item = outreach.Item(id="x", company="acme", contact="jane-doe", state="drafted",
                          drafted=FIXED_NOW, findings=[
                              finding("Hiring an AE", used=True),
@@ -178,8 +177,11 @@ def test_card_marks_used_notes_counts_newer_ones_and_lists_legacy(seeded):
     assert by_text["fresh"]["used"] is False and by_text["fresh"]["origin"] == "you"
     assert card["newer"] == 1
     assert [f.text for f in card["legacy"]] == ["Only on the card"]
-    company.notes = "Series A last year"
-    assert notes.card(company, "jane-doe", item, TODAY)["company_notes"] == "Series A last year"
+    # a company note is one of the rows, marked "company"; the card has no field of its own for it
+    seeded.create_interaction("acme", "note", "", body="Series A last year")
+    card = notes.card(seeded.get("acme"), "jane-doe", item, TODAY)
+    assert "company_notes" not in card
+    assert {r["text"]: r["origin"] for r in card["rows"]}["Series A last year"] == "company"
 
 
 def test_a_note_without_a_date_does_not_break_the_brief_of_a_thread(seeded):

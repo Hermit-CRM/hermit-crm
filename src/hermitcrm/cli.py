@@ -519,7 +519,7 @@ def cmd_show(store: Store, slug: str, bodies: int = 3, all_bodies: bool = False)
         lines.append(f"{key}: {text}" if text else f"{key}:")
 
     lines.append("")
-    if company.notes:
+    if company.notes.strip():   # a legacy body: empty after format 19, but a hand-edit shows
         lines.append(company.notes.rstrip("\n"))
     lines.append("")
 
