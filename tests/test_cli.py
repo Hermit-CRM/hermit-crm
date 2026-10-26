@@ -145,8 +145,10 @@ def test_show_format_default_three_bodies(tmp_path):
         "Acme GmbH", source="referral", stage="discovery",
         value_eur_month=1500, next_step="Send proposal",
         next_step_due="2026-09-20", tags=["priority", "eu"],
-        notes="Some notes about Acme.",
     )
+    acme = store.get("acme")  # a legacy company.md body: `show` still prints one
+    acme.notes = "Some notes about Acme.\n"
+    store.write_company(acme)
     store.create_contact("acme", "Jane", "Doe", title="CEO",
                          email="Jane@Acme.de", role="decision-maker")
     store.create_contact("acme", "Jonas", "Berg", title="CTO")
@@ -247,6 +249,23 @@ def test_check_clean_store_returns_zero(tmp_path):
     text, code = crm.cmd_check(store)
     assert code == 0
     assert text == "OK: 1 companies, 1 contacts, 1 interactions, no problems"
+
+
+def test_check_warns_about_a_leftover_company_notes_body(tmp_path):
+    store = fixed_store(tmp_path)
+    store.create_company("Acme GmbH", source="referral", notes="Logged as a note.")
+    store.create_company("Bolt Inc")
+    # A body written by hand into company.md after the migration.
+    path = tmp_path / "companies" / "bolt" / "company.md"
+    path.write_text(path.read_text() + "Typed in by hand.\n")
+
+    text, code = crm.cmd_check(store)
+    assert code == 0  # a warning, like the contact one: it never fails the check
+    lines = text.splitlines()
+    assert lines[0] == ("companies/bolt/company.md: has a notes body; the app no longer "
+                        "shows it (log it as a note on the company instead)")
+    assert "acme" not in lines[0] and len(lines) == 2  # the note on acme is not a body
+    assert lines[1].startswith("OK: 2 companies")
 
 
 def test_check_broken_enum_returns_one_and_names_file(tmp_path):
