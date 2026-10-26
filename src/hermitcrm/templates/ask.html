@@ -36,6 +36,18 @@
       <button type="submit" data-busy="Searching&hellip;">Search every file instead</button>
     </form>
     {% endif %}
+    {#- Posted by askbook.js without leaving the page: this answer took minutes and is not on a URL. -#}
+    {% if question_saved %}
+    <span class="small ask-saved-mark">Saved &#10003;</span>
+    {% else %}
+    <form method="post" action="/ask/saved" class="inline" data-save-form>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="page" value="{{ ask_page }}">
+      <input type="hidden" name="question" value="{{ answer.question }}">
+      <input type="hidden" name="scope" value="{{ 'crm' if answer.scope == 'crm' else 'auto' }}">
+      <button type="submit">Save this question</button>
+    </form>
+    {% endif %}
   </div>
 </section>
 {% endif %}
@@ -44,12 +56,50 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <input type="hidden" name="page" value="{{ ask_page }}">
   <label class="grow">{% if answer %}Ask another question{% else %}Question{% endif %}
-    <textarea name="question" rows="3" required>{% if error %}{{ question }}{% endif %}</textarea>
+    <textarea id="ask-question-page" name="question" rows="3" required data-ask-box aria-controls="ask-suggest-page">{% if error or prefill %}{{ question }}{% endif %}</textarea>
   </label>
-  <label class="check"><input type="checkbox" name="scope" value="crm"> Skip the page, search the whole CRM</label>
+  <ul id="ask-suggest-page" class="ask-suggest" role="listbox" aria-label="Saved questions" data-ask-suggest hidden></ul>
+  <label class="check"><input type="checkbox" name="scope" value="crm" data-ask-scope> Skip the page, search the whole CRM</label>
   <button type="submit" data-busy="Asking&hellip;">Ask</button>
+  <button type="submit" formaction="/ask/saved" data-save-question title="Keep this question to ask again with one click">Save</button>
+  <span class="small ask-save-status" role="status" data-save-status></span>
   {% if error and question and ai.strong %}
   <button type="submit" name="tier" value="strong">Ask with {{ model_label(ai.strong) }}</button>
   {% endif %}
 </form>
+
+<section id="saved" class="ask-saved-list">
+  <h2>Saved questions</h2>
+  {% if ask_saved_error %}<p class="errors">{{ ask_saved_error }} Hermit does not change the file until it can be read.</p>{% endif %}
+  {% if not ask_saved %}
+  <p class="small">None yet. Type a question above and press <strong>Save</strong>, or press <strong>Save this question</strong> under an answer. They are kept in <code>ask-questions.toml</code> and offered as you type, on every page.</p>
+  {% else %}
+  <ul>
+    {% for s in ask_saved %}
+    <li>
+      <div class="saved-row">
+        <span class="saved-text">{{ s.text }}</span>
+        {% if s.scope == 'crm' %}<span class="tag">whole CRM</span>{% endif %}
+        <button type="button" class="starter" data-ask-saved data-starter="{{ s.text }}" data-target="ask-question-page" data-scope="{{ s.scope }}">Use</button>
+        <form method="post" action="/ask/saved/{{ s.id }}/delete" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="page" value="{{ ask_page }}">
+          <button type="submit">Delete</button>
+        </form>
+      </div>
+      <details class="saved-edit">
+        <summary class="small">Edit</summary>
+        <form method="post" action="/ask/saved/{{ s.id }}/edit" class="record-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="page" value="{{ ask_page }}">
+          <textarea name="text" rows="2" required>{{ s.text }}</textarea>
+          <label class="check"><input type="checkbox" name="scope" value="crm"{% if s.scope == 'crm' %} checked{% endif %}> Skip the page, search the whole CRM</label>
+          <button type="submit">Save changes</button>
+        </form>
+      </details>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
 {% endblock %}

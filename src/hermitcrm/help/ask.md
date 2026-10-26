@@ -35,6 +35,32 @@ seconds it took and, for the data-folder step, the sources it used.
 - **Skip the page, search the whole CRM**: for a new question, leave the page
   out and answer from the CRM index alone.
 
+## Saved questions
+
+For the questions you ask again and again. Type one and press **Save** next to
+**Ask** (in the panel or on the Ask page), or press **Save this question** under an
+answer; the answer stays where it is.
+
+- **While you type**, the saved questions that contain every word you typed are
+  listed under the box. Up and Down choose, Enter or Tab fills the box, Esc closes
+  the list. In an empty box, Down lists them all.
+- **The newest four** are buttons in the panel; one click puts the question in the
+  box. **All saved** opens the full list on the Ask page, where you can **Use**,
+  **Edit** or **Delete** each one.
+- **Whole CRM.** A question saved with *Skip the page, search the whole CRM* ticked
+  keeps that: choosing it ticks the box again, and the panel says so ("Skips this
+  page...") with a link to go back to the page.
+- **[Placeholders].** A part in square brackets, such as `What did I promise
+  [company] in my last email?`, is selected when you choose the question, so typing
+  replaces it.
+
+They are kept in `ask-questions.toml` in your data folder, newest first, one commit
+per change (`ask: saved question "..."`), so they are in your backups and on every
+machine you sync. You can edit the file by hand. If it has a mistake Hermit does not
+touch it: the Ask page shows what is wrong and a save is refused until it is fixed.
+Saving the same question again (case and spacing ignored) changes nothing. At most
+100 are kept.
+
 ## Models
 
 Two tiers per provider. Medium is the default; switch it under Settings → AI.
