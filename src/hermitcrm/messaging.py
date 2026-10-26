@@ -207,11 +207,16 @@ def belgian_language_scores(company: Company) -> dict[str, list[str]]:
         lang = _site_language(url)
         if lang:
             add(lang, _W_SITE, f"{url}")
-    places = [str(company.extra.get(k) or "") for k in _LOCATION_KEYS] + [company.notes]
+    # Company-level notes (no contact) are the record's free text; the legacy body
+    # is empty after migration 19 but stays harmless.
+    company_notes = [f"{i.subject} {i.body}" for i in company.interactions
+                     if i.is_note and not i.contact]
+    places = ([str(company.extra.get(k) or "") for k in _LOCATION_KEYS]
+              + [company.notes] + company_notes)
     lang = belgian_postcode_language(" ".join(places))
     if lang:
         add(lang, _W_POSTCODE, "postcode")
-    free_text = " ".join([company.product_oneliner, company.notes]
+    free_text = " ".join([company.product_oneliner, company.notes] + company_notes
                          + [f"{c.title} {c.notes}" for c in company.contacts.values()])
     lang = text_language(free_text)
     if lang:

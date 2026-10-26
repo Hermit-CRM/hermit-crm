@@ -24,7 +24,7 @@ import pytest
 from hermitcrm import cli, outreach, scrape
 from hermitcrm.enrich import EnrichError
 from hermitcrm.store import Store, split_file
-from outreach_fakes import NOW, FakeAI, ai, default_draft, demo, fake_page, git
+from outreach_fakes import NOW, FakeAI, ai, default_draft, demo, drop_company_notes, fake_page, git
 
 GOOD = ("Hi Mara,\n\nThe second office this autumn caught my eye.\nWe help founders build "
         "a sales team that sells without them.\nWhere does it hurt most right now: "
@@ -292,7 +292,8 @@ def test_build_writes_checked_items_one_commit_per_step(folder):
     assert all(i.checks == [] for i in result.items)
     log = commits(root)[:len(commits(root)) - before]
     assert len(log) == 6
-    assert log[-1] == ("outreach: research lindenhof-data/mara-keller (scrape, 1 findings)")
+    # the scrape's finding, and the company's own note the draft is also written from
+    assert log[-1] == ("outreach: research lindenhof-data/mara-keller (scrape, 2 findings)")
     assert log[-2] == "outreach: draft lindenhof-data/mara-keller (email, first touch): checks passed"
     for sha in git(root, "log", f"-{6}", "--format=%h").split():
         files = git(root, "show", "--name-only", "--format=", sha).split()
@@ -304,7 +305,10 @@ def test_build_writes_checked_items_one_commit_per_step(folder):
     item = result.items[0]
     assert item.id == "2026-10-16T0900-email-lindenhof-data-mara-keller"
     assert item.approach == "Scaling the sales team" and item.language == "de"
-    assert [f.used for f in item.findings] == [True]  # the trigger; the CRM's line is no finding
+    # the trigger is cited; the company's own note is a finding too, left unused here
+    assert [(f.text, f.used) for f in item.findings] == [
+        ("Opened a second office this autumn", True),
+        ("Demo company. Data pipelines for mid-size insurers.", False)]
     assert item.body.rstrip("\n").endswith("Sam")  # no opt-out line unless the playbook has one
     assert item.ai_body == item.body and item.model and item.seconds is not None
     assert item.norms and item.norms[0].startswith("formality: informal: du")
@@ -347,7 +351,8 @@ def test_ready_rechecks_the_text_and_records_the_edit(folder):
     assert files == [item.path]   # the notes were written with the research, not now
     fresh = Store(root)
     fresh.load()
-    [note] = [i for i in fresh.get("lindenhof-data").interactions if i.is_note]
+    [note] = [i for i in fresh.get("lindenhof-data").interactions
+              if i.is_note and i.contact]   # the company's own note is not about her
     assert note.contact == "mara-keller"
     assert "Opened a second office this autumn\nSource: https://lindenhof-data.example.com" \
         in note.body
@@ -466,6 +471,7 @@ def test_nothing_usable_found_falls_back_with_gaps_allowed(folder):
         return data
 
     store.update_company("lindenhof-data", product_oneliner="")
+    drop_company_notes(folder, "lindenhof-data")   # a company note is a usable finding
     result, _ = built(folder, limit=1, research={"findings": []}, drafts=[gappy])
     item = result.items[0]
     assert item.checks == [] and "[One thing you noticed" in item.body
@@ -628,6 +634,7 @@ def test_2_any_gap_refuses_but_a_fallback_keeps_its_gaps_as_needs_hand_edits(fol
         return data
 
     store.update_company("lindenhof-data", product_oneliner="")
+    drop_company_notes(folder, "lindenhof-data")   # a company note is a usable finding
     result, _ = built(folder, limit=1, research={"findings": []}, drafts=[fallback])
     item = result.items[0]
     assert item.checks == [] and outreach.NEEDS_HAND_EDITS in item.flags

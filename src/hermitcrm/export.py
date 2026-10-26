@@ -175,6 +175,16 @@ def _own(defs, scope: str) -> list[str]:
     return [d.key for d in (defs or []) if d.applies_to == scope]
 
 
+def _company_notes_text(company) -> str:
+    """The `notes` column: the legacy body (when one is left), then the company's
+    own notes oldest first, each as written, joined with a blank line. The
+    importer reads this header back as company notes."""
+    mine = sorted((i for i in company.interactions if i.is_note and not i.contact),
+                  key=lambda i: (i.date or datetime.min, i.id))
+    parts = [company.notes.strip()] + [(i.body or i.subject or "").strip() for i in mine]
+    return "\n\n".join(p for p in parts if p)
+
+
 def company_rows(store, defs=None) -> tuple[list[str], list[dict]]:
     rows = []
     for c in _companies(store):
@@ -182,7 +192,7 @@ def company_rows(store, defs=None) -> tuple[list[str], list[dict]]:
         # Lists of their own: stage_history.csv and tasks.csv hold them.
         meta.pop("stage_history", None)
         meta.pop("tasks", None)
-        meta["notes"] = c.notes
+        meta["notes"] = _company_notes_text(c)
         rows.append(meta)
     columns = list(COMPANY_FIELDS) + _extra_columns(rows, COMPANY_FIELDS + (
         "stage_history", "tasks"), _own(defs, "company"))
@@ -330,7 +340,7 @@ def json_data(store, defs=None) -> dict:
     companies = []
     for c in _companies(store):
         meta = _jsonable(company_to_frontmatter(c))
-        meta["notes"] = c.notes
+        meta["notes"] = _company_notes_text(c)
         meta["contacts"] = []
         for slug in sorted(c.contacts):
             person = c.contacts[slug]
