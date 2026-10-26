@@ -135,6 +135,15 @@ def test_the_first_company_does_not_take_the_beginner_help_with_it(folder):
     assert 'action="/sample"' in page and 'href="/welcome"' in page
 
 
+def test_what_this_thing_does_names_every_part_of_the_menu_it_has_a_page_for(folder):
+    """Outreach, Learning and Reports are in the menu, so Home's cards name them."""
+    app, client = make_client(folder, setup_redirected=True)
+    app.state.store.create_company("Real Customer BV")
+    areas = client.get("/").text.split('id="areas"', 1)[1]
+    for href in ("/outreach", "/learning", "/reports"):
+        assert f'class="card start-card" href="{href}"' in areas, href
+
+
 def test_hide_the_tutorial_takes_the_beginner_help_off_home(folder):
     """One switch for the walkthrough and for home: /welcome/dismiss."""
     app, client = make_client(folder, setup_redirected=True)
