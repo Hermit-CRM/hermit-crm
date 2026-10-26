@@ -67,6 +67,7 @@ from . import setup as setup_steps
 from .filters import Column
 from .enrich import Enricher, EnrichError, model_label
 from . import ask as asking
+from . import ask_saved
 from .scrape import ScrapeError
 from .importer import (
     CONTACT_COLUMNS,
@@ -1495,6 +1496,10 @@ def create_app(root: Path, config: dict | None = None,
             "theme": str(config.get("theme") or "light"),
             "user_theme": usertheme.path(root) is not None,
             "ask_page": safe_page(adjust.page_path(request.url.path, request.url.query)),
+            # Saved questions: every page's Ask panel offers them, so this is read
+            # on every render (ask_saved caches on the file's modification time).
+            "ask_saved": [s.as_json() for s in ask_saved.load(root)],
+            "ask_saved_error": ask_saved.read(root)[1],
             "model_label": model_label,
             "samples": sample.samples(store),
             "file_problems": [line for lines in file_problems.values() for line in lines],
@@ -3880,6 +3885,9 @@ def create_app(root: Path, config: dict | None = None,
                       "strong": enricher.model_for("strong"),
                       "tier": ask_tier(enricher.tier)}}
         ctx.update(extra)
+        asked = ctx["answer"].question if ctx["answer"] else ctx["question"]
+        ctx["question_saved"] = bool(asked.strip()) and ask_saved.question_id(asked) in {
+            s.id for s in ask_saved.load(root)}
         return render(request, "ask.html", ctx, status_code=status_code)
 
     @app.get("/ask", response_class=HTMLResponse)
@@ -3905,6 +3913,55 @@ def create_app(root: Path, config: dict | None = None,
                                  tried=enricher.model,
                                  status_code=400 if not question.strip() else 502)
         return ask_page_view(request, page, question=question, answer=answer)
+
+    def wants_json(request: Request) -> bool:
+        return "application/json" in request.headers.get("accept", "")
+
+    def saved_back(page: str, message: str) -> RedirectResponse:
+        """Back to the Ask page's list, on the same page the question was asked from."""
+        return flashed(f"/ask?page={quote(safe_page(page), safe='')}", message, "saved")
+
+    @app.post("/ask/saved")
+    def ask_saved_add(request: Request, csrf_token: str = Form(""), question: str = Form(""),
+                      scope: str = Form("auto"), page: str = Form("/")):
+        """Keep a question. askbook.js asks for JSON and stays on the page (the
+        answer on screen took minutes); without it the Ask page comes back with
+        the question in the box."""
+        check_csrf(csrf_token)
+        page = safe_page(page)
+        try:
+            saved = ask_saved.save(store, question, scope)
+        except ask_saved.AskSavedError as exc:
+            if wants_json(request):
+                return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+            return ask_page_view(request, page, question=question, error=str(exc),
+                                 prefill=True, status_code=400)
+        if wants_json(request):
+            return JSONResponse({"ok": True, "saved": saved.as_json()})
+        return ask_page_view(request, page, question=saved.text, prefill=True, flash="Saved.")
+
+    @app.post("/ask/saved/{ident}/edit")
+    def ask_saved_edit(ident: str, csrf_token: str = Form(""), text: str = Form(""),
+                       scope: str = Form("auto"), page: str = Form("/")):
+        check_csrf(csrf_token)
+        if not ask_saved.ID_PATTERN.match(ident):
+            raise HTTPException(404)
+        try:
+            ask_saved.replace(store, ident, text, scope)
+        except ask_saved.AskSavedError as exc:
+            return saved_back(page, str(exc))
+        return saved_back(page, "Saved.")
+
+    @app.post("/ask/saved/{ident}/delete")
+    def ask_saved_delete(ident: str, csrf_token: str = Form(""), page: str = Form("/")):
+        check_csrf(csrf_token)
+        if not ask_saved.ID_PATTERN.match(ident):
+            raise HTTPException(404)
+        try:
+            ask_saved.remove(store, ident)
+        except ask_saved.AskSavedError as exc:
+            return saved_back(page, str(exc))
+        return saved_back(page, "Removed.")
 
     @app.post("/settings/outcomes")
     def settings_outcomes(request: Request, csrf_token: str = Form(""),
