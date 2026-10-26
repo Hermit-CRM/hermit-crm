@@ -253,7 +253,7 @@ def test_home_keep_in_touch_is_absent_when_nobody_is_on_it(client):
 
 def test_the_walkthrough_ticks_itself_from_the_data(client, app, repo):
     page = client.get("/welcome").text
-    assert "of 12</strong> done" in page
+    assert "of 13</strong> done" in page
     before = int(page.split("<strong>")[1].split(" of")[0])
 
     post_company(client, name="Acme")
