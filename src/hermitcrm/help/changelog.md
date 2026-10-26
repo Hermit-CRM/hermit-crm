@@ -16,6 +16,14 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   live in `ask-questions.toml` in your data folder, one commit per change, so they
   are in your backups. A new optional file, so no data migration. See
   [Ask the Hermit](/help/ask).
+- **The questions you ask most come first.** Ask the Hermit now counts how often you
+  ask each saved question: the four buttons in the panel, the suggestions as you type
+  and the Ask page's list put the most asked first. The questions you asked but did
+  not save are remembered too (the last 20, failed asks included) and offered under
+  the saved ones in a **Recent** group, each with a **Save** button. This is kept in
+  `.git/hermitcrm-ask.json`, which is never committed and is not shared between
+  machines, so there is no data migration and `ask-questions.toml` is unchanged. See
+  [Ask the Hermit](/help/ask).
 - **Form fields line up.** In the Next step group of a company, in Log an interaction
   and in the Add task forms, every field's name now sits above its box. Before, a date
   field's name (such as **due** or **date**) sat to the left of the box, which put it

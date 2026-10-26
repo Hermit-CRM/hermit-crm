@@ -79,9 +79,9 @@
         <label>Ask about this page (Hermit searches the whole CRM if the page is not enough)
           <textarea id="ask-question" name="question" rows="3" required data-ask-box aria-controls="ask-suggest" placeholder="Which of these companies should I follow up this week?"></textarea>
         </label>
-        {#- Saved questions (askbook.js): suggestions while you type, the newest as chips.
-            The list is data on the page, so nothing is fetched. -#}
-        <ul id="ask-suggest" class="ask-suggest" role="listbox" aria-label="Saved questions" data-ask-suggest hidden></ul>
+        {#- Saved and recent questions (askbook.js): suggestions while you type, the four
+            most used saved ones as chips. The lists are data on the page, so nothing is fetched. -#}
+        <ul id="ask-suggest" class="ask-suggest" role="listbox" aria-label="Saved and recent questions" data-ask-suggest hidden></ul>
         <input type="hidden" name="scope" value="auto" data-ask-scope>
         <p class="small ask-scope-note" data-ask-scope-note hidden>Skips this page and searches the whole CRM. <button type="button" class="linklike" data-ask-scope-reset>Use this page</button></p>
         {% if ask_saved %}
@@ -90,8 +90,8 @@
           {% endfor %}
           {% if ask_saved | length > 4 %}<a class="small" href="/ask?page={{ ask_page | urlencode }}#saved">All {{ ask_saved | length }} saved</a>{% endif %}
         </div>
-        <script type="application/json" id="ask-saved-data">{{ ask_saved | tojson }}</script>
         {% endif %}
+        {% if ask_saved or ask_recent %}<script type="application/json" id="ask-data">{{ {"saved": ask_saved, "recent": ask_recent} | tojson }}</script>{% endif %}
         <div class="ask-actions">
           <button type="submit" data-busy="Asking&hellip;">Ask</button>
           <button type="submit" formaction="/ask/saved" data-save-question title="Keep this question to ask again with one click">Save</button>
