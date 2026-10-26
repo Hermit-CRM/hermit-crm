@@ -4,20 +4,43 @@
 {% block content %}
 {%- set hide = layout_hidden('company') %}{# layout.toml: fields hidden everywhere #}
 <h1>Pipeline</h1>
-{% if followups %}
-<section class="radar" id="followups">
-  <h2>Follow up ({{ followups | length }})</h2>
+{% macro radar_rows(rows) %}
   <ul class="radar-list">
-    {% for r in followups %}
+    {% for r in rows %}
+    {% set it = r.interaction %}
     <li class="radar-row radar-{{ r.kind }}">
       <a class="radar-company" href="/companies/{{ r.slug }}">{{ r.name }}</a>
       <span class="radar-days">{{ r.days }}d</span>
       <span class="radar-reason">{{ r.reason }}</span>
-      <span class="radar-summary">{{ r.summary }}</span>
-      <a class="radar-act" href="/companies/{{ r.slug }}/interactions/new{% if r.contact %}?contact={{ r.contact.slug }}{% endif %}">Log a reply</a>
+      <span class="radar-summary">
+        <a class="radar-touch" href="/companies/{{ r.slug }}/interactions/{{ it.id }}/edit" title="Open this interaction">{{ it.label }} &middot; {{ fmt_date(it.date) }}</a>
+        {% if r.preview %}<span class="radar-quote">{{ r.speaker }}: &ldquo;{{ r.preview }}&rdquo;</span>{% endif %}
+      </span>
+      <span class="radar-actions">
+        <a class="radar-act" href="/companies/{{ r.slug }}/interactions/new{% if r.contact %}?contact={{ r.contact.slug }}{% endif %}">Log a reply</a>
+        <form method="post" action="/companies/{{ r.slug }}/interactions/{{ it.id }}/flip-direction" class="inline radar-flip">
+          <input type="hidden" name="back" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+          <button type="submit" title="{% if r.kind == 'reply' %}This is not their message: log it as one you sent{% else %}This is not your message: log it as one they sent{% endif %}">{% if r.kind == 'reply' %}I sent this{% else %}They sent this{% endif %}</button>
+        </form>
+      </span>
     </li>
     {% endfor %}
   </ul>
+{% endmacro %}
+{% if followups %}
+{%- set owed = followups | selectattr('kind', 'equalto', 'reply') | list %}
+{%- set waiting = followups | selectattr('kind', 'equalto', 'nudge') | list %}
+<section class="radar" id="followups">
+  <h2>Follow up ({{ followups | length }})</h2>
+  <p class="small radar-order">Replies you owe first, then messages of yours nobody answered; oldest first within each. <a href="/help/pipeline#follow-up-radar">How this list works</a></p>
+  {% if owed %}
+  <h3 class="radar-group">You owe a reply ({{ owed | length }})</h3>
+  {{ radar_rows(owed) }}
+  {% endif %}
+  {% if waiting %}
+  <h3 class="radar-group">Waiting on them ({{ waiting | length }})</h3>
+  {{ radar_rows(waiting) }}
+  {% endif %}
 </section>
 {% endif %}
 <details class="filters-fold"{% if active or sort %} open{% endif %}>
@@ -41,6 +64,8 @@
       <h3><a href="/companies/{{ c.slug }}">{{ c.name }}</a></h3>
       <div class="small">{{ c.days_in_stage(today) }}d in stage{% if c.country and 'country' not in hide %} &middot; {{ c.country }}{% endif %}</div>
       <div class="small">{{ c.touch_summary(fmt_date) }}</div>
+      {% set fu = radar_rows_by_slug.get(c.slug) %}
+      {% if fu %}<div class="small"><a class="radar-badge radar-badge-{{ fu.kind }}" href="#followups" title="On the follow-up list above: {{ fu.reason }}">{% if fu.kind == 'reply' %}reply owed {{ fu.days }}d{% else %}no answer {{ fu.days }}d{% endif %}</a></div>{% endif %}
       {% set nxt = c.next_todo() %}
       {% if nxt %}
       <div class="small{% if nxt.overdue(today) %} overdue{% endif %}{% if nxt.done %} done{% endif %}">
