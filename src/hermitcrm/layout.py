@@ -55,13 +55,18 @@ SECTIONS = {
 # problem reported (the Message drafts box is gone: Outreach replaced it).
 RETIRED_SECTIONS = ("drafts",)
 
+# Field names an older layout.toml may still list: read and ignored, with no
+# problem reported. A company's `notes` box is gone (company text is dated
+# notes now), so hiding it hides nothing.
+RETIRED_FIELDS = {"company": ("notes",)}
+
 # Built-in fields a record page may hide (its header line, its form and the
 # list columns). The page header keeps what it is made of: a company's name
 # and stage, a contact's name.
 FIELDS = {
     "company": ("website", "linkedin", "country", "source", "lost_reason",
                 "requalify_on", "value_eur_month", "product_oneliner", "next_step",
-                "next_step_due", "next_step_status", "next_step_type", "tags", "notes"),
+                "next_step_due", "next_step_status", "next_step_type", "tags"),
     "contact": ("title", "role", "language", "email", "phone", "linkedin"),
 }
 HEADER_FIELDS = {"company": ("name", "stage"), "contact": ("first_name", "last_name")}
@@ -195,6 +200,8 @@ def parse(data: dict, defs: list | None = None) -> tuple[Layout, list[str]]:
                 elif key == "hide_fields" and name in HEADER_FIELDS[table]:
                     problem(where, f"{name} is part of the page header and cannot be hidden")
                 elif what == "section" and name in RETIRED_SECTIONS:
+                    continue
+                elif what == "field" and name in RETIRED_FIELDS.get(table, ()):
                     continue
                 elif name in known:
                     kept.append(name)

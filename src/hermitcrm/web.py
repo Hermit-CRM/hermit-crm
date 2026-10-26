@@ -519,11 +519,13 @@ def sort_url_for(request: Request):
 
 
 def merge_rows(keep, drop, fields, labels: dict | None = None,
-               defs: list | None = None) -> list[dict]:
+               defs: list | None = None, legacy: tuple = ()) -> list[dict]:
     """Side-by-side rows for the merge page with the default choice filled in.
 
     Custom fields get a row like any other: a merge that silently kept one
-    side's user-defined values would lose work without saying so.
+    side's user-defined values would lose work without saying so. A `legacy`
+    field (a company's old notes body) gets a row only while either side still
+    has a value; notes now live as interactions, which move with the merge.
     """
     labels = dict(labels or {})
     fields = list(fields)
@@ -538,6 +540,8 @@ def merge_rows(keep, drop, fields, labels: dict | None = None,
             a, b = (keep.extra or {}).get(key), (drop.extra or {}).get(key)
         else:
             a, b = getattr(keep, key), getattr(drop, key)
+        if key in legacy and a in ("", None) and b in ("", None):
+            continue
         empty_a = a in ("", None, [])
         rows.append({
             "key": key,
@@ -659,7 +663,6 @@ def company_values(c: Company) -> dict:
         "next_step_status": c.next_step_status,
         "next_step_type": c.next_step_type,
         "tags": ", ".join(c.tags),
-        "notes": c.notes,
     }
 
 
@@ -2547,7 +2550,6 @@ def create_app(root: Path, config: dict | None = None,
         next_step_due: str = Form(""),
         next_step_status: str = Form("open"),
         tags: str = Form(""),
-        notes: str = Form(""),
         version: str = Form(""),
     ):
         company = need_company(slug)
@@ -2558,8 +2560,10 @@ def create_app(root: Path, config: dict | None = None,
             "value_eur_month": value_eur_month, "product_oneliner": product_oneliner,
             "next_step": next_step,
             "next_step_due": next_step_due, "next_step_status": next_step_status,
-            "tags": tags, "notes": notes,
+            "tags": tags,
         }
+        # No `notes`: company text is dated notes now, and update_company(notes=)
+        # would add one on every save.
         form = await request.form()
         if "next_step_type" in form:   # absent when no types are set up: keep the stored one
             values["next_step_type"] = str(form["next_step_type"])
@@ -2735,7 +2739,7 @@ def create_app(root: Path, config: dict | None = None,
             "keep_label": f"{keep.name} ({keep.slug}, kept)",
             "drop_label": f"{other.name} ({other.slug}, removed)",
             "rows": merge_rows(keep, other, COMPANY_MERGE_FIELDS,
-                               defs=custom_defs("company")),
+                               defs=custom_defs("company"), legacy=("notes",)),
             "drop": drop,
             "back": f"/companies/{slug}",
             "note": (f"{len(other.contacts)} contacts and {len(other.interactions)} "

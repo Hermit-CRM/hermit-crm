@@ -107,7 +107,7 @@
   </table></div>
   <p><a href="/companies/{{ company.slug }}/contacts/new">New contact</a> <span class="small">&middot; log an interaction on a person's page; a note can also be about the whole company.</span></p>
   <h3 id="company-notes">Company notes ({{ company_notes | length }})</h3>
-  <p class="small">About {{ company.name }} as a whole, not one person. Every contact's page shows them. <a class="button" href="/companies/{{ company.slug }}/interactions/new?channel=note&amp;whole=1">Add company note</a></p>
+  <p class="small">Dated notes about {{ company.name }} as a whole, not one person. Every contact's page shows them. <a class="button" href="/companies/{{ company.slug }}/interactions/new?channel=note&amp;whole=1">Add company note</a></p>
   {% if company_notes %}{{ m.timeline(company, company_notes) }}{% endif %}
 </section>
 {% elif section == 'tasks' %}
