@@ -47,6 +47,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlencode
 
+from . import dateformat
 from . import fields as custom
 from . import stages as stages_mod
 from . import task_types
@@ -532,9 +533,9 @@ def cell(value) -> str:
     if isinstance(value, (list, tuple, set)):
         return ", ".join(str(v) for v in value)
     if isinstance(value, datetime):
-        return f"{value:%Y-%m-%d %H:%M}"
+        return dateformat.fmt_dt(value)
     if isinstance(value, date):
-        return value.isoformat()
+        return dateformat.fmt(value)
     if isinstance(value, float) and value.is_integer():
         return str(int(value))
     text = " ".join(str(value).split())

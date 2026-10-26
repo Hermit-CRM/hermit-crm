@@ -29,7 +29,7 @@
     {%- elif col.key == 'tags' %}
     <td>{{ c.tags | join(', ') }}</td>
     {%- elif col.key == 'last_touch' %}
-    <td>{{ c.last_touch_summary }}</td>
+    <td>{{ c.touch_summary(fmt_date) }}</td>
     {%- elif col.key == 'next_step' %}
     <td{% if nxt and nxt.done %} class="done"{% endif %}>{{ nxt.text if nxt else '' }}{% if nxt and nxt.done %} (done){% endif %}</td>
     {%- elif col.key == 'next_type' %}

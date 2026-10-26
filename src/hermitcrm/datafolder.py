@@ -95,6 +95,7 @@ CONFIG_DOCS = {
     "ai_tier": "Which model tier Enrich and Ask the Hermit use by default: medium or strong.",
     "ask_timeout": "Seconds before one Ask the Hermit call is abandoned.",
     "theme": "Look of the web app: light, dark or system.",
+    "date_format": "How the web app shows and takes dates: iso (2026-12-31), dmy-dash (31-12-2026), dmy (31/12/2026) or mdy (12/31/2026). Files and exports stay YYYY-MM-DD.",
     "message_window_days": "A message without reply or outcome counts as the last outcome after this many days.",
     "fetch_timeout": "Seconds to wait when Fetch from URL reads a page.",
     "outcomes": "Outcome choices for an interaction; first = what a reply counts as, last = what silence counts as.",

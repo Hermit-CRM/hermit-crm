@@ -33,6 +33,8 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Callable
 
+from . import dateformat
+
 
 @dataclass
 class Column:
@@ -93,14 +95,24 @@ def _comparable(value, kind: str):
         try:
             return date.fromisoformat(str(value)[:10])
         except ValueError:
-            return None
+            # What was typed in the date format chosen in Settings.
+            return dateformat.parse(str(value))
     return _text(value).lower()
+
+
+def _shown(raw, kind: str) -> str:
+    """A date as the pages show it (Settings > date format), so a filter can be
+    typed the way the date reads; "" for anything else."""
+    if kind != "date" or not isinstance(raw, date):
+        return ""
+    return dateformat.fmt_dt(raw) if isinstance(raw, datetime) else dateformat.fmt(raw)
 
 
 def matches(col: Column, raw, spec) -> bool:
     if col.kind == "enum":
         return _text(raw) in set(spec)
     text = _text(raw)
+    shown = _shown(raw, col.kind)
     spec = str(spec)
     if spec == "-":
         return text == ""
@@ -113,10 +125,11 @@ def matches(col: Column, raw, spec) -> bool:
             return False
         return left > right if spec[0] == ">" else left < right
     if spec.startswith("!"):
-        return spec[1:].strip().lower() not in text.lower()
+        return spec[1:].strip().lower() not in (text + " " + shown).lower()
     if spec.startswith("="):
-        return spec[1:].strip().lower() == text.lower()
-    return spec.lower() in text.lower()
+        want = spec[1:].strip().lower()
+        return want == text.lower() or (shown != "" and want == shown.lower())
+    return spec.lower() in (text + " " + shown).lower()
 
 
 def apply(rows, columns: list[Column], active: dict[str, object]):
