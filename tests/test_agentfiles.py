@@ -118,7 +118,7 @@ def test_migration_8_brings_a_format_7_folder_level_with_a_new_one(tmp_path):
     root = at_format_7(tmp_path / "crm")
     before = git(root, "rev-parse", "HEAD")
     note = migrations.ensure_current(root)
-    assert note.startswith("migrate: data format 7 → 18 (agents learn to adjust Hermit "
+    assert note.startswith("migrate: data format 7 → 19 (agents learn to adjust Hermit "
                            "(/hermit skill); interactions get an optional angle; outreach drafts record "
                            "the lessons they used and your reason chips; outreach drafts record the "
                            "examples they were shown; outreach items get the keys for scheduling, "
@@ -126,7 +126,8 @@ def test_migration_8_brings_a_format_7_folder_level_with_a_new_one(tmp_path):
                            "(nothing to change in a file); agents never schedule or send mail unasked "
                            "(CLAUDE.md, AGENTS.md); outreach drafts record their framework; "
                            "interactions get an optional framework; outreach items lose the retired angle; "
-                           "interactions lose the retired angle): 4 file(s) changed")
+                           "interactions lose the retired angle; company notes become note interactions): "
+                           "4 file(s) changed")
     assert git(root, "rev-list", "--count", f"{before}..HEAD") == "1"
     committed = git(root, "show", "--name-only", "--format=", "HEAD").splitlines()
     assert set(committed) == {".hermitcrm-format", SKILL, "CLAUDE.md", "AGENTS.md",
@@ -158,7 +159,7 @@ def test_migration_8_dry_run_lists_exactly_what_it_would_change(tmp_path):
     root = at_format_7(tmp_path / "crm", agents_md=False)
     claude = (root / "CLAUDE.md").read_bytes()
     text = migrations.dry_run(root)
-    assert "Data format 7 → 18:" in text
+    assert "Data format 7 → 19:" in text
     assert "8. agents learn to adjust Hermit (/hermit skill): 3 file(s)" in text
     listed = [line.strip() for line in text.splitlines()[2:5]]
     assert listed == [SKILL, "CLAUDE.md", ".gitignore"]

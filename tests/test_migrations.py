@@ -29,6 +29,11 @@ from hermitcrm.updates import UPGRADE_HINT
 BODY = "Notes stay byte for byte.  \n\ngijs_score: 3 in a body is not front matter\n"
 
 
+def front_matter(text: str) -> str:
+    """A file's text up to and including the closing `---` line."""
+    return text[:text.index("---\n", 4) + 4]
+
+
 def git(args, cwd):
     return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True,
                           check=True).stdout
@@ -70,7 +75,7 @@ def test_format_detection(tmp_path, old_folder):
 def test_dry_run_lists_files_and_writes_nothing(old_folder):
     before = {p: p.read_bytes() for p in old_folder.rglob("company.md")}
     text = migrations.dry_run(old_folder)
-    assert "Data format 0 → 18" in text
+    assert "Data format 0 → 19" in text
     assert "1. rename gijs_score to my_score: 3 file(s)" in text  # bolt has an empty key
     assert "2. country UK→GB, USA→US: 2 file(s)" in text
     assert "3. interaction result folded into outcome: 0 file(s)" in text
@@ -78,7 +83,8 @@ def test_dry_run_lists_files_and_writes_nothing(old_folder):
     assert "fields.toml" in text
     assert not (old_folder / "fields.toml").exists()          # a dry run writes nothing
     assert "companies/acme/company.md" in text and "companies/cygne/company.md" not in \
-        text.split("2. country")[1]
+        text.split("2. country")[1].split("3. interaction")[0]
+    assert "19. company notes become note interactions: 6 file(s)" in text  # 3 notes + 3 files
     assert {p: p.read_bytes() for p in old_folder.rglob("company.md")} == before
     assert not (old_folder / ".hermitcrm-format").exists()
 
@@ -91,7 +97,7 @@ def test_migrate_before_after_in_one_commit(old_folder):
 
     summary = migrations.ensure_current(old_folder)
 
-    assert summary.startswith("migrate: data format 0 → 18 (rename gijs_score to my_score; "
+    assert summary.startswith("migrate: data format 0 → 19 (rename gijs_score to my_score; "
                               "country UK→GB, USA→US; interaction result folded into "
                               "outcome; stage reached-out renamed to engaged; scores and "
                               "team size become fields you define; agents may not rewrite "
@@ -106,19 +112,27 @@ def test_migrate_before_after_in_one_commit(old_folder):
                               "outreach drafts record their framework; "
                               "interactions get an optional framework; "
                               "outreach items lose the retired angle; "
-                              "interactions lose the retired angle)")
-    assert acme.read_text() == expected and acme.read_text().endswith(BODY)
+                              "interactions lose the retired angle; "
+                              "company notes become note interactions)")
+    # The body moved to a company-level note; the front matter is the same file.
+    assert acme.read_text() == expected[:expected.index("---\n", 4) + 4]
+    note = old_folder / "companies/acme/interactions/2026-09-01T1000-note-company.md"
+    assert note.read_text().endswith("---\n" + BODY)
     bolt = (old_folder / "companies/bolt/company.md").read_text()
     assert "country: US\n" in bolt and "my_score:\n" in bolt and "gijs_score" not in bolt.split("---")[1]
     assert (old_folder / ".hermitcrm-format").read_text() == f"{migrations.LATEST}\n"
     assert int(git(["rev-list", "--count", "HEAD"], old_folder)) == commits_before + 1
-    assert git(["log", "-1", "--format=%s|%an"], old_folder).startswith("migrate: data format 0 → 18")
+    assert git(["log", "-1", "--format=%s|%an"], old_folder).startswith("migrate: data format 0 → 19")
     assert "hermitcrm" in git(["log", "-1", "--format=%an"], old_folder)
     changed = git(["show", "--name-only", "--format=", "HEAD"], old_folder).split()
     assert sorted(changed) == [".claude/settings.json", ".claude/skills/hermit/SKILL.md",
                                ".gitignore", ".hermitcrm-format",
                                "companies/acme/company.md",
-                               "companies/bolt/company.md", "companies/cygne/company.md",
+                               "companies/acme/interactions/2026-09-01T1000-note-company.md",
+                               "companies/bolt/company.md",
+                               "companies/bolt/interactions/2026-09-01T1000-note-company.md",
+                               "companies/cygne/company.md",
+                               "companies/cygne/interactions/2026-09-01T1000-note-company.md",
                                "fields.toml"]
     assert git(["status", "--porcelain"], old_folder) == ""
     store = Store(old_folder)
@@ -154,7 +168,7 @@ def test_works_without_git(tmp_path):
     path.write_text(old_company_file("Acme", "acme", "UK", 1))
     # the company file, plus the fields.toml describing the score it carries
     # + .claude/settings.json, the /hermit skill and .gitignore
-    assert "5 file(s) changed" in migrations.ensure_current(tmp_path)
+    assert "6 file(s) changed" in migrations.ensure_current(tmp_path)  # + its note
     assert "country: GB" in path.read_text()
     assert 'key = "my_score"' in (tmp_path / "fields.toml").read_text()
 
@@ -173,9 +187,11 @@ def test_m5_describes_the_old_fields_without_touching_a_company_file(tmp_path):
 
     summary = migrations.ensure_current(tmp_path)
 
-    assert path.read_bytes() == before          # byte for byte
-    # fields.toml, .claude/settings.json, the /hermit skill, .gitignore
-    assert "4 file(s) changed" in summary
+    # Byte for byte, bar the body m19 moves to a company note.
+    assert path.read_bytes() == before[:before.index(b"---\n", 4) + 4]
+    # fields.toml, .claude/settings.json, the /hermit skill, .gitignore, + company.md
+    # (its body) and the note that body became
+    assert "6 file(s) changed" in summary
     defs = fields.load(tmp_path)
     assert [d.key for d in defs] == ["my_score"]     # only what the folder used
     assert defs[0].type == "number" and "companies" in defs[0].show_in
@@ -205,14 +221,15 @@ def test_m4_renames_reached_out_in_stage_and_history(tmp_path):
     path.write_text(text)
     migrations.write_format(tmp_path, 3)
     # + .claude/settings.json, the /hermit skill, .gitignore
-    assert "4 file(s) changed" in migrations.ensure_current(tmp_path)
+    assert "5 file(s) changed" in migrations.ensure_current(tmp_path)  # + the body's note
     store = Store(tmp_path)
     assert store.load() == []
     c = store.get("acme")
     assert c.stage == "engaged"
     assert [(e.from_stage, e.to_stage) for e in c.stage_history] == [
         ("prospect", "engaged"), ("engaged", "lost")]
-    assert path.read_text().endswith(BODY) and "reached-out" not in path.read_text()
+    assert path.read_text().endswith("---\n") and "reached-out" not in path.read_text()
+    assert c.interactions[0].body == BODY
     meta = {"stage": "offer"}
     assert migrations.m4_stage_engaged(meta) is meta
 
@@ -230,7 +247,8 @@ def contact_folder(tmp_path, bodies: dict) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(CONTACT_FM.replace("slug: jan", f"slug: {slug}") + body)
     (tmp_path / "companies/acme/company.md").write_text(
-        old_company_file("Acme", "acme", "GB", 1).replace("gijs_score", "my_score"))
+        old_company_file("Acme", "acme", "GB", 1).removesuffix(BODY)  # no company body:
+        .replace("gijs_score", "my_score"))                         # m19 has nothing to port
     migrations.write_format(tmp_path, 6)
     return tmp_path
 
@@ -290,6 +308,116 @@ def test_m7_does_not_overwrite_an_existing_interaction(tmp_path):
     migrations.ensure_current(root)
     assert (folder / "2026-10-01T0000-note-jan.md").read_text().endswith("mine\n")
     assert (folder / "2026-10-01T0000-note-jan-2.md").read_text().endswith("01/10/2026: one\n")
+
+
+# ------------------------------------- 19: company notes -> notes interactions
+
+
+def company_folder(tmp_path, bodies: dict) -> Path:
+    """Companies at format 18, each with the given company.md body."""
+    for slug, body in bodies.items():
+        path = tmp_path / f"companies/{slug}/company.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        text = old_company_file(slug.title(), slug, "GB", 1).removesuffix(BODY)
+        path.write_text(text.replace("gijs_score", "my_score") + body)
+    migrations.write_format(tmp_path, 18)
+    return tmp_path
+
+
+def test_m19_ports_company_notes_to_company_level_notes(tmp_path):
+    root = company_folder(tmp_path, {
+        "acme": "Founder-led, 12 people.\n\n21/10/2026: asked for a pricing sheet\n"
+                "Second line of the same note.\n03/09/2026: met at a fair\n"
+                "Left over at the end.\n",
+        "bolt": "Only undated text.\nOn two lines.\n",
+        "cygne": "",
+    })
+    before = {slug: (root / f"companies/{slug}/company.md").read_text()
+              for slug in ("acme", "bolt", "cygne")}
+
+    dry = migrations.dry_run(root)
+    assert "19. company notes become note interactions: 8 file(s)" in dry
+    assert not (root / "companies/acme/interactions").exists()  # a dry run writes nothing
+    assert {s: (root / f"companies/{s}/company.md").read_text() for s in before} == before
+
+    migrations.ensure_current(root)
+    # Front matter byte for byte, `updated` included; only the body goes.
+    for slug, text in before.items():
+        assert (root / f"companies/{slug}/company.md").read_text() == front_matter(text)
+
+    store = Store(root)
+    assert store.load() == []
+    acme = store.get("acme")
+    assert acme.notes == ""
+    # A dated line is a note of its own, on its day; the undated text around it
+    # is dated by the company's `created` (-2, -3 on a clash).
+    assert sorted(i.id for i in acme.interactions) == [
+        "2026-09-01T1000-note-company",
+        "2026-09-01T1000-note-company-2",
+        "2026-09-01T1000-note-company-3",
+        "2026-09-03T0000-note-company",
+        "2026-10-21T0000-note-company",
+    ]
+    by_id = {i.id: i for i in acme.interactions}
+    for it in acme.interactions:
+        assert (it.channel, it.direction, it.contact, it.source) == (
+            "note", "", "", "migration")
+    assert by_id["2026-09-01T1000-note-company"].body == "Founder-led, 12 people.\n"
+    assert by_id["2026-10-21T0000-note-company"].body == "21/10/2026: asked for a pricing sheet\n"
+    assert by_id["2026-09-01T1000-note-company-2"].body == "Second line of the same note.\n"
+    assert by_id["2026-09-03T0000-note-company"].body == "03/09/2026: met at a fair\n"
+    assert by_id["2026-09-01T1000-note-company-3"].body == "Left over at the end.\n"
+    assert acme.last_touch is None  # notes are memos, not contact made
+
+    bolt, = store.get("bolt").interactions
+    assert (bolt.id, bolt.body) == ("2026-09-01T1000-note-company",
+                                    "Only undated text.\nOn two lines.\n")
+    assert store.get("cygne").interactions == []
+    assert not (root / "companies/cygne/interactions").exists()  # empty body: untouched
+
+
+def test_m19_dates_an_undated_body_by_updated_when_there_is_no_created(tmp_path):
+    root = company_folder(tmp_path, {"acme": "Plain text.\n"})
+    path = root / "companies/acme/company.md"
+    path.write_text("".join(l for l in path.read_text().splitlines(keepends=True)
+                            if not l.startswith("created:")))
+    updated = re.search(r"^updated: (\d{4}-\d\d-\d\d)T(\d\d):(\d\d)", path.read_text(),
+                        re.M).groups()
+    migrations.ensure_current(root)
+    names = [p.name for p in (root / "companies/acme/interactions").glob("*.md")]
+    assert names == [f"{updated[0]}T{updated[1]}{updated[2]}-note-company.md"]
+
+
+def test_m19_second_run_changes_nothing(tmp_path):
+    root = company_folder(tmp_path, {"acme": "21/10/2026: one\nTwo.\n"})
+    migrations.ensure_current(root)
+    snapshot = {p: p.read_bytes() for p in root.rglob("*.md")}
+    assert migrations.m19_company_notes(
+        root, {"companies/acme/company.md": {}}, write=True) == []
+    migrations.write_format(root, 18)
+    assert migrations.ensure_current(root).endswith(": 0 file(s) changed")
+    assert {p: p.read_bytes() for p in root.rglob("*.md")} == snapshot
+
+
+def test_m19_does_not_overwrite_an_existing_interaction(tmp_path):
+    root = company_folder(tmp_path, {"acme": "21/10/2026: one\n"})
+    folder = root / "companies/acme/interactions"
+    folder.mkdir()
+    (folder / "2026-10-21T0000-note-company.md").write_text("---\nchannel: note\n---\nmine\n")
+    migrations.ensure_current(root)
+    assert (folder / "2026-10-21T0000-note-company.md").read_text().endswith("mine\n")
+    assert (folder / "2026-10-21T0000-note-company-2.md").read_text().endswith(
+        "21/10/2026: one\n")
+
+
+def test_m19_leaves_contact_files_alone(tmp_path):
+    root = company_folder(tmp_path, {"acme": ""})
+    contact = root / "companies/acme/contacts/jan.md"
+    contact.parent.mkdir()
+    contact.write_text(CONTACT_FM + "A contact body, ported by m7 not m19.\n")
+    assert migrations.m19_company_notes(
+        root, {"companies/acme/contacts/jan.md": {}}, write=True) == []
+    assert contact.read_text().endswith("not m19.\n")
 
 
 @pytest.mark.parametrize("meta, expected", [
@@ -360,7 +488,8 @@ def test_the_drop_angle_migration_returns_a_file_without_angle_as_it_is():
     by_version = {m.version: m for m in migrations.MIGRATIONS}
     assert by_version[17].glob == "outreach/*.md"
     assert by_version[18].glob == "companies/*/interactions/*.md"
-    assert migrations.LATEST == 18
+    assert by_version[19].glob == "companies/*/company.md"
+    assert migrations.LATEST == 19
 
 
 def test_a_folder_at_format_16_loses_angle_from_items_and_interactions(tmp_path):

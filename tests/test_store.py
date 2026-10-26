@@ -510,14 +510,21 @@ def test_update_interaction_body_and_contact(store):
 # ------------------------------------------------------------------ round trip
 
 
+def set_legacy_body(store, slug, text):
+    """A company.md body as folders from before format 19 have it (the app only reads it)."""
+    company = store.get(slug)
+    company.notes = text
+    store.write_company(company)
+
+
 def make_full_company(store):
     store.create_company(
         "Müller & Söhne GmbH", website="mueller.de",
         linkedin="https://linkedin.com/company/mueller", source="referral",
         value_eur_month="3000", next_step="Send proposal: outline",
         next_step_due="2026-09-20", tags="dora, bank de",
-        notes="Notes with: colon and #hash\n",
     )
+    set_legacy_body(store, "mueller-soehne", "Notes with: colon and #hash\n")
     store.create_contact("mueller-soehne", "Anna", "Müller", title="CEO",
                          email="Anna@Mueller.DE", role="decision-maker",
                          phone="+49 30 1234", linkedin="https://li/anna")
@@ -875,10 +882,11 @@ def test_disqualify_stages_keep_reason_and_park(store, messages):
 
 def _two_companies(store):
     store.create_company("Acme", website="https://acme.de", custom={"my_score": 7},
-                         tags=["a"], notes="Acme notes.\n", next_step="Call")
+                         tags=["a"], next_step="Call")
     store.create_company("Acme Software", linkedin="https://l/acme", country="DE",
-                         custom={"my_score": 3, "fit_score": 80}, tags=["b"],
-                         notes="Other notes.\n")
+                         custom={"my_score": 3, "fit_score": 80}, tags=["b"])
+    set_legacy_body(store, "acme", "Acme notes.\n")
+    set_legacy_body(store, "acme-software", "Other notes.\n")
     store.create_contact("acme", "Jane", "Doe", email="jane@acme.de")
     store.create_contact("acme-software", "Jane", "Doe", title="CEO")
     store.create_contact("acme-software", "Bob", "King")
@@ -1351,6 +1359,66 @@ def test_a_note_does_not_engage_a_prospect(store):
     assert (note.channel, note.contact, note.body) == ("note", "jane-doe", "Met at a fair.\n")
     assert acme.contacts["jane-doe"].notes == ""
     assert acme.last_touch is None
+
+
+def test_create_company_with_notes_logs_one_company_level_note(store, messages):
+    c = store.create_company("Acme", notes="Met at a fair.\r\n")
+    # One commit; the body stays empty; the text is a note on the company's timeline.
+    assert messages == ["company: acme created"]
+    assert c.notes == "" and "Met at a fair" not in read(store.root / "companies/acme/company.md")
+    note, = c.interactions
+    assert (note.channel, note.direction, note.contact, note.source, note.body) == (
+        "note", "", "", "manual", "Met at a fair.\n")
+    assert note.date == FIXED_NOW and note.id == f"{FIXED_NOW:%Y-%m-%dT%H%M}-note-company"
+    reloaded = fresh(store).get("acme")
+    assert reloaded.notes == "" and [i.body for i in reloaded.interactions] == [
+        "Met at a fair.\n"]
+    assert reloaded.stage == "prospect" and reloaded.last_touch is None
+
+
+def test_create_company_without_notes_logs_no_interaction(store, messages):
+    for notes in ("", "\n\r\n", None):
+        c = store.create_company("Acme" + str(len(messages)), notes=notes)
+        assert c.interactions == [] and c.notes == ""
+    assert not list((store.root / "companies").glob("*/interactions"))
+    assert messages == [f"company: acme{n} created" for n in range(3)]
+
+
+def test_update_company_notes_add_a_note_and_leave_the_body_alone(store, messages):
+    store.create_company("Acme")
+    set_legacy_body(store, "acme", "Old body.\n")
+    messages.clear()
+    c = store.update_company("acme", website="acme.example.com", notes="Called back.\n")
+    assert messages == ["company: acme updated"]  # one commit for update and note
+    assert c.website == "https://acme.example.com"
+    assert c.notes == "Old body.\n"
+    note, = c.interactions
+    assert (note.channel, note.direction, note.contact, note.body) == (
+        "note", "", "", "Called back.\n")
+    on_disk = fresh(store).get("acme")
+    assert on_disk.notes == "Old body.\n" and [i.body for i in on_disk.interactions] == [
+        "Called back.\n"]
+
+
+def test_update_company_notes_alone_never_rewrite_the_body(store):
+    store.create_company("Acme")
+    path = store.root / "companies/acme/company.md"
+    store.update_company("acme", notes="First.\n")
+    store.update_company("acme", notes="Second.\n")
+    assert read(path).rstrip().endswith("---")  # still no body
+    assert sorted(i.body for i in fresh(store).get("acme").interactions) == [
+        "First.\n", "Second.\n"]
+
+
+def test_update_company_without_notes_logs_no_note(store, messages):
+    store.create_company("Acme")
+    messages.clear()
+    for fields in ({"website": "acme.example.com"}, {"notes": ""}, {"notes": "\r\n\n"},
+                   {"notes": None}):
+        c = store.update_company("acme", **fields)
+        assert c.interactions == []
+    assert not (store.root / "companies/acme/interactions").exists()
+    assert messages == ["company: acme updated"] * 4
 
 
 def test_updating_a_contact_keeps_their_tasks(store):
