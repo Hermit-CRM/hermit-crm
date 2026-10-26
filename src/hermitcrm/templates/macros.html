@@ -1,3 +1,14 @@
+{#- A date field. It is text, not <input type="date">, so it reads in the date
+    format chosen in Settings (the native one follows the browser's language);
+    static/dates.js adds a calendar button. `value` is an ISO date, a date, or
+    whatever the person typed (kept as typed after an error). -#}
+{% macro date_input(name, value='', id='', label='', title='') -%}
+<input type="text" class="date-input" name="{{ name }}"{% if id %} id="{{ id }}"{% endif %} value="{{ ui_date(value) }}" placeholder="{{ date_hint() }}" inputmode="numeric" autocomplete="off" size="11"{% if label %} aria-label="{{ label }}"{% endif %}{% if title %} title="{{ title }}"{% endif %}>
+{%- endmacro %}
+{% macro datetime_input(name, value='') -%}
+<input type="text" class="date-input" data-time name="{{ name }}" value="{{ ui_datetime(value) }}" placeholder="{{ date_hint_datetime() }}" autocomplete="off" size="17">
+{%- endmacro %}
+
 {# Shared form fragments. #}
 
 {% macro err(errors, name) %}
@@ -19,7 +30,7 @@
     {% for o in col.options %}<option value="{{ o }}"{% if o in active.get(col.key, []) %} selected{% endif %}>{{ o }}</option>{% endfor %}
   </select>
   {%- else -%}
-  <input name="f_{{ col.key }}" form="{{ form_id }}" value="{{ active.get(col.key, '') }}" class="filter" placeholder="{{ '>2026-09-01, <…, -, *' if col.kind == 'date' else ('>5, <5, =5, -, *' if col.kind == 'number' else 'text, !text, =text, -, *') }}">
+  <input name="f_{{ col.key }}" form="{{ form_id }}" value="{{ active.get(col.key, '') }}" class="filter" placeholder="{{ ('>' ~ date_hint() ~ ', <…, -, *') if col.kind == 'date' else ('>5, <5, =5, -, *' if col.kind == 'number' else 'text, !text, =text, -, *') }}">
   {%- endif -%}
 {% endmacro %}
 
@@ -37,7 +48,7 @@
       <tr><td><code>text</code></td><td>contains</td></tr>
       <tr><td><code>!text</code></td><td>does not contain</td></tr>
       <tr><td><code>=text</code></td><td>equals</td></tr>
-      <tr><td><code>&gt;5</code> <code>&lt;5</code></td><td>larger / smaller (numbers, dates as <code>2026-09-01</code>, otherwise text order)</td></tr>
+      <tr><td><code>&gt;5</code> <code>&lt;5</code></td><td>larger / smaller (numbers, dates as <code>{{ date_hint() }}</code>, otherwise text order)</td></tr>
       <tr><td><code>-</code></td><td>empty</td></tr>
       <tr><td><code>*</code></td><td>not empty</td></tr>
     </table>
@@ -98,7 +109,7 @@
       {{ err(errors, 'contact') }}
     </label>
     {% endif %}
-    <label>date <input type="datetime-local" name="date" value="{{ values.date }}"></label>
+    <label>date {{ datetime_input('date', values.date) }}</label>
   </div>
   <div class="row">
     <label class="grow">subject <input name="subject" value="{{ values.subject }}"></label>
@@ -129,7 +140,7 @@
         {% for o in f.options %}<option value="{{ o }}"{% if values.get('custom_' ~ f.key)|string == o %} selected{% endif %}>{{ o }}</option>{% endfor %}
       </select>
       {%- elif f.type == 'date' %}
-      <input type="date" name="custom_{{ f.key }}" value="{{ values.get('custom_' ~ f.key, '') }}">
+      {{ date_input('custom_' ~ f.key, values.get('custom_' ~ f.key, '')) }}
       {%- elif f.type == 'number' %}
       <input name="custom_{{ f.key }}" value="{{ values.get('custom_' ~ f.key, '') }}" inputmode="decimal" size="6">
       {%- else %}
@@ -195,7 +206,7 @@
     <legend>Closing details</legend>
     <div class="form-grid">
       {% if 'lost_reason' not in hide %}<label class="span-6" id="lost_reason-label"{% if not reason_shown %} hidden{% endif %}>reason (lost / disqualified) <input name="lost_reason" id="lost_reason" value="{{ values.lost_reason }}"> {{ err(errors, 'lost_reason') }}</label>{% endif %}
-      {% if 'requalify_on' not in hide %}<label class="span-3" id="requalify_on-label"{% if not when_shown %} hidden{% endif %}>requalify on (temp disqualified) <input type="date" name="requalify_on" id="requalify_on" value="{{ values.requalify_on }}"> {{ err(errors, 'requalify_on') }}</label>{% endif %}
+      {% if 'requalify_on' not in hide %}<label class="span-3" id="requalify_on-label"{% if not when_shown %} hidden{% endif %}>requalify on (temp disqualified) {{ date_input('requalify_on', values.requalify_on, id='requalify_on') }} {{ err(errors, 'requalify_on') }}</label>{% endif %}
     </div>
   </fieldset>
   {% endif %}
@@ -214,7 +225,7 @@
     <legend>Next step</legend>
     <div class="form-grid">
       {% if 'next_step' not in hide %}<label class="span-12">next step <input name="next_step" value="{{ values.next_step }}"></label>{% endif %}
-      {% if 'next_step_due' not in hide %}<label class="span-4">due <input type="date" name="next_step_due" value="{{ values.next_step_due }}"> {{ err(errors, 'next_step_due') }}</label>{% endif %}
+      {% if 'next_step_due' not in hide %}<label class="span-4">due {{ date_input('next_step_due', values.next_step_due) }} {{ err(errors, 'next_step_due') }}</label>{% endif %}
       {% if 'next_step_status' not in hide %}<label class="span-4">status
         <select name="next_step_status">
           {% for t in task_statuses %}<option value="{{ t }}"{% if values.next_step_status == t %} selected{% endif %}>{{ t }}</option>{% endfor %}
@@ -291,7 +302,7 @@
   {% for i in interactions %}
   <li class="interaction{% if i.is_note %} note{% endif %}" id="i-{{ i.id }}">
     <div class="meta">
-      <span class="when">{{ fmt_datetime(i.date).replace('T', ' ') }}</span>
+      <span class="when">{{ fmt_datetime(i.date) }}</span>
       <span class="tag">{{ i.channel }}</span>
       {% if i.direction and contact_page %}<span class="tag" title="{{ i.direction }}"><span aria-hidden="true">{{ '→' if i.direction == 'out' else '←' }}</span><span class="visually-hidden">{{ i.direction }}</span></span>
       {% elif i.direction %}<span class="tag">{{ i.direction }}</span>{% endif %}
@@ -324,7 +335,7 @@
   <summary><strong>{{ label }}</strong> ({{ group.total }}) <span class="first-line">{{ preview(notes[0].body) }}</span> <span class="small">more</span></summary>
   <ul class="timeline">
     {% for n in notes %}
-    <li class="interaction note"><div class="meta"><span class="when">{{ fmt_datetime(n.date).replace('T', ' ') }}</span></div><pre>{{ n.body }}</pre></li>
+    <li class="interaction note"><div class="meta"><span class="when">{{ fmt_datetime(n.date) }}</span></div><pre>{{ n.body }}</pre></li>
     {% endfor %}
   </ul>
   {% if group.total > notes | length %}<p class="small">Showing the newest {{ notes | length }} of {{ group.total }}.</p>{% endif %}
@@ -400,7 +411,7 @@
     <input type="hidden" name="contact" value="{{ contact }}">
     <input type="hidden" name="text" value="{{ t.text }}">
     <input name="new_text" value="{{ t.text }}" aria-label="task" required>
-    <input type="date" name="due" value="{{ t.due.isoformat() if t.due else '' }}" aria-label="due">
+    {{ date_input('due', t.due, label='due') }}
     <button type="submit">Save</button>
   </form>
 </details>
@@ -442,7 +453,7 @@
         {% for c in company.contacts.values() %}<option value="{{ c.slug }}">{{ c.name }}</option>{% endfor %}
       </select>
     </label>
-    <label>due <input type="date" name="due"></label>
+    <label>due {{ date_input('due') }}</label>
     {% if type_names() %}<label>type {{ type_select() }}</label>{% endif %}
     <button type="submit">Add task</button>
   </form>
@@ -480,7 +491,7 @@
 <form method="post" action="/companies/{{ company.slug }}/tasks" class="inline-row">
   <input type="hidden" name="contact" value="{{ contact }}">
   <label class="grow">task <input name="text" placeholder="e.g. send the pricing page" required></label>
-  <label>due <input type="date" name="due"></label>
+  <label>due {{ date_input('due') }}</label>
   {% if type_names() %}<label>type {{ type_select() }}</label>{% endif %}
   <button type="submit">Add task</button>
 </form>

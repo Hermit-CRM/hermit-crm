@@ -458,7 +458,7 @@ def test_reload_picks_up_a_hand_edit(client, repo):
 def test_company_create_form_renders(client):
     page = client.get("/companies/new").text
     assert 'action="/companies"' in page
-    assert 'name="next_step_due"' in page and 'type="date"' in page
+    assert 'name="next_step_due"' in page and 'class="date-input"' in page   # a typed date, in the chosen format
 
 
 def test_company_create_validation_keeps_values(client):
@@ -543,7 +543,7 @@ def test_interaction_standalone_form_and_validation(client):
     page = client.get("/companies/acme/interactions/new",
                       params={"contact": "jane-doe"}).text
     assert '<option value="jane-doe" selected>' in page
-    assert 'type="datetime-local"' in page
+    assert 'name="date"' in page and 'data-time' in page and 'placeholder="YYYY-MM-DD HH:MM"' in page
 
     # Subject is optional; the timeline shows a placeholder instead.
     ok = post_interaction(client, "acme", channel="call", direction="in",
@@ -589,7 +589,7 @@ def test_interaction_edit_renames_file_on_date_change(client, repo):
     assert old_path.exists()
 
     form = client.get(f"/companies/acme/interactions/{old_id}/edit").text
-    assert 'value="2026-09-01T08:00"' in form
+    assert 'value="2026-09-01 08:00"' in form
 
     resp = client.post(f"/companies/acme/interactions/{old_id}/edit",
                        data={**INTERACTION_BLANK, "channel": "email",

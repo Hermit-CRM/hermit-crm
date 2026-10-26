@@ -131,6 +131,17 @@
     </fieldset>
     <button type="submit">Save</button>
   </form>
+  <form method="post" action="/settings/date-format" class="record-form date-format-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <fieldset class="switch across">
+      <legend>Date format</legend>
+      {% for key, spec in date_formats.items() %}
+      <label><input type="radio" name="date_format" value="{{ key }}"{% if key == date_format %} checked{% endif %}> {{ spec[2] }} <span class="small faint">({{ spec[0] }})</span></label>
+      {% endfor %}
+    </fieldset>
+    <p class="small">How dates read and are typed everywhere in the app: lists, forms, reports. Your files and exports always keep YYYY-MM-DD.</p>
+    <button type="submit">Save</button>
+  </form>
   <details class="edit"{% if theme_file.problems %} open{% endif %}>
     <summary>Your own look: {{ 'in use' if theme_file.active else 'not in use' }}</summary>
     {% if theme_file.active %}
@@ -179,9 +190,9 @@
   <div class="bcc-status">
     {% if last_run %}
       {% if last_run.ok %}
-        <p class="meta">Last import {{ last_run.at | replace('T', ' ') }}: {{ last_run.summary }}</p>
+        <p class="meta">Last import {{ ui_datetime(last_run.at) }}: {{ last_run.summary }}</p>
       {% else %}
-        <p class="error">Last import {{ last_run.at | replace('T', ' ') }} failed: {{ last_run.error }}</p>
+        <p class="error">Last import {{ ui_datetime(last_run.at) }} failed: {{ last_run.error }}</p>
       {% endif %}
     {% else %}
       <p class="meta">No import has run yet.</p>
@@ -312,9 +323,9 @@
   <div class="bcc-status">
     {% if calendar_last_run %}
       {% if calendar_last_run.ok %}
-        <p class="meta">Last meeting import {{ calendar_last_run.at | replace('T', ' ') }}: {{ calendar_last_run.summary }}</p>
+        <p class="meta">Last meeting import {{ ui_datetime(calendar_last_run.at) }}: {{ calendar_last_run.summary }}</p>
       {% else %}
-        <p class="error">Last meeting import {{ calendar_last_run.at | replace('T', ' ') }} failed: {{ calendar_last_run.error }}</p>
+        <p class="error">Last meeting import {{ ui_datetime(calendar_last_run.at) }} failed: {{ calendar_last_run.error }}</p>
       {% endif %}
     {% else %}
       <p class="meta">No meeting import has run yet. Meetings that match no company wait on <a href="/#to-file">Home, under To file</a>.</p>

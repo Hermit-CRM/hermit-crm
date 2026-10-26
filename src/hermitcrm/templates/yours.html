@@ -84,7 +84,7 @@
   <tbody>
   {% for c, when in changes %}
   <tr>
-    <td class="nowrap" title="{{ c.when.strftime('%Y-%m-%d %H:%M') }}">{{ when }}</td>
+    <td class="nowrap" title="{{ fmt_datetime(c.when) }}">{{ when }}</td>
     <td>{{ c.subject }} <code class="sha">{{ c.sha7 }}</code></td>
     <td>{{ c.touched }}</td>
     <td class="actions">
