@@ -49,7 +49,9 @@ def steps(store, config: dict, setup_state: dict, ai_available: bool,
     # The sample account is there to look at; the steps count your own records.
     companies = [c for c in store.companies.values() if not c.is_sample]
     contacts = [c for co in companies for c in co.contacts.values()]
-    interactions = [i for co in companies for i in co.interactions]
+    # A note (a company's free text, a memo about a person) is not something that
+    # happened: only a touch -- a call, a mail, a meeting -- ticks "Log what happened".
+    interactions = [i for co in companies for i in co.interactions if i.is_touch]
     # A move is a recorded change from one stage to another. Not the stage a
     # company was created in (no from_stage), and not the first stage -> the next
     # (prospect -> engaged by default), which logging the first interaction does

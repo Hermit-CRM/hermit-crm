@@ -179,6 +179,36 @@ def test_the_walkthrough_ignores_the_sample(folder):
     assert not done & {"company", "contact", "interaction", "move", "plan"}
 
 
+def walkthrough_done(folder) -> set[str]:
+    store = Store(folder)
+    store.load()
+    return {s.key for s in welcome.steps(store, {}, {}, False) if s.done}
+
+
+def test_a_company_note_does_not_tick_log_what_happened(folder):
+    store = Store(folder)
+    store.load()
+    co = store.create_company("Probe Co", notes="Met at a fair.")
+    pat = store.create_contact(co.slug, "Pat")
+    store.create_interaction(co.slug, "note", "", subject="Memo about Pat",
+                             contact=pat.slug)
+    done = walkthrough_done(folder)
+    assert "company" in done and "contact" in done
+    assert not done & {"interaction", "move"}   # a memo is not contact, nothing moved
+    assert store.companies[co.slug].stage == "prospect"
+
+
+@pytest.mark.parametrize("channel,direction", [
+    ("call", "out"), ("email", "in"), ("meeting", "out"), ("linkedin", "out"),
+])
+def test_a_real_touch_ticks_log_what_happened(folder, channel, direction):
+    store = Store(folder)
+    store.load()
+    co = store.create_company("Probe Co", notes="Met at a fair.")
+    store.create_interaction(co.slug, channel, direction, subject="Intro")
+    assert "interaction" in walkthrough_done(folder)
+
+
 # ------------------------------------------------------------------ web
 
 

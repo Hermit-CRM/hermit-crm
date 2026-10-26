@@ -265,6 +265,35 @@ def test_the_walkthrough_ticks_itself_from_the_data(client, app, repo):
     assert "&#10003;" in step
 
 
+def step_html(client, key):
+    return client.get("/welcome").text.split(f'id="{key}"')[1].split("</li>")[0]
+
+
+def test_a_note_typed_on_the_new_company_form_does_not_tick_log_what_happened(client):
+    post_company(client, name="Acme", notes="Met at a fair.")
+    assert "&#10003;" in step_html(client, "company")
+    assert "&#10003;" not in step_html(client, "interaction")
+    assert "&#10003;" not in step_html(client, "move")
+
+
+def test_logging_a_call_ticks_log_what_happened(client):
+    post_company(client, name="Acme", notes="Met at a fair.")
+    post_contact(client, "acme", first_name="Jane", last_name="Roe")
+    r = post_interaction(client, "acme", channel="call", direction="out",
+                         contact="jane-roe", subject="Intro")
+    assert r.status_code == 303
+    assert "&#10003;" in step_html(client, "interaction")
+
+
+def test_a_contact_note_does_not_tick_log_what_happened(client):
+    post_company(client, name="Acme")
+    post_contact(client, "acme", first_name="Jane", last_name="Roe")
+    r = post_interaction(client, "acme", channel="note", direction="",
+                         contact="jane-roe", subject="Prefers mornings")
+    assert r.status_code == 303
+    assert "&#10003;" not in step_html(client, "interaction")
+
+
 def test_the_two_steps_nobody_can_see_are_ticked_by_hand(client, app, repo):
     token = app.state.csrf_token
     r = client.post("/welcome/tick", data={"csrf_token": token, "key": "extension",
