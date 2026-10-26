@@ -60,7 +60,7 @@ from . import playbook, textsource
 from . import schedule, scrape, secrets, task_types, usertheme
 from . import stage_ops
 from . import stages as stages_mod
-from . import (exemplars, frameworks, learning, linkedin, notes, outreach, routines, send,
+from . import (exemplars, learning, linkedin, notes, outreach, routines, send,
                sendplan, sendqueue, suppress)
 from . import help as helpdocs
 from . import setup as setup_steps
@@ -1350,9 +1350,6 @@ def create_app(root: Path, config: dict | None = None,
         preview=followups.first_line,
         stage_exits=stage_exits,
         stage_keeps=lambda name: stage_keeps(store.stages, name),
-        # the log form's framework select; read per page, so a framework added in
-        # frameworks.toml shows without a restart
-        framework_ids=lambda: frameworks.load(root).ids,
         stages=list(store.stages.names),   # config_reloaded keeps it current in place
         sources=SOURCES,
         countries=COUNTRIES,
@@ -1563,7 +1560,6 @@ def create_app(root: Path, config: dict | None = None,
             "contact": contact or "",
             "date": fmt_datetime(store.now()),
             "subject": "",
-            "framework": "",
             "outcome": "",
             "body": body or "",
         }
@@ -3058,14 +3054,13 @@ def create_app(root: Path, config: dict | None = None,
         contact: str = Form(""),
         date: str = Form(""),
         subject: str = Form(""),
-        framework: str = Form(""),
         outcome: str = Form(""),
         body: str = Form(""),
     ):
         company = need_company(slug)
         values = {"channel": channel, "direction": direction, "contact": contact,
                   "date": date, "subject": subject,
-                  "framework": framework, "outcome": outcome, "body": body}
+                  "outcome": outcome, "body": body}
         extra, shown, custom_errors = await custom_submitted(request, "interaction")
         try:
             errors = dict(custom_errors)
@@ -3097,7 +3092,7 @@ def create_app(root: Path, config: dict | None = None,
         values = {
             "channel": it.channel, "direction": it.direction, "contact": it.contact,
             "date": fmt_datetime(it.date), "subject": it.subject,
-            "framework": it.framework, "outcome": it.outcome, "body": it.body,
+            "outcome": it.outcome, "body": it.body,
         }
         return render(request, "interaction_edit.html",
                       {"company": company, "id": id, "interaction": values})
@@ -3112,7 +3107,6 @@ def create_app(root: Path, config: dict | None = None,
         contact: str = Form(""),
         date: str = Form(""),
         subject: str = Form(""),
-        framework: str = Form(""),
         outcome: str = Form(""),
         body: str = Form(""),
     ):
@@ -3121,7 +3115,7 @@ def create_app(root: Path, config: dict | None = None,
             raise HTTPException(status_code=404, detail=f"unknown interaction {id!r}")
         values = {"channel": channel, "direction": direction, "contact": contact,
                   "date": date, "subject": subject,
-                  "framework": framework, "outcome": outcome, "body": body}
+                  "outcome": outcome, "body": body}
         extra, shown, custom_errors = await custom_submitted(request, "interaction")
         try:
             if custom_errors:
