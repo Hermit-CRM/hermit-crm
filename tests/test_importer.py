@@ -23,6 +23,7 @@ from hermitcrm.importer import (
 )
 from hermitcrm.fields import FieldDef
 from hermitcrm.models import ValidationError
+from hermitcrm.notes import company_notes
 import pytest
 
 # The spreadsheet this suite imports carries one seller's own scoring columns.
@@ -125,7 +126,10 @@ def test_plan_fills_only_empty_fields_of_existing_company(store):
     assert "my_score" not in inkwell.custom and "website" not in inkwell.fields
     assert "fit_score" in inkwell.reason
     assert inkwell.fields["tags"] == ["core", "priority"]
-    assert inkwell.fields["notes"].startswith("Old notes.\n\nImported fields")
+    # Only the new block is passed on, never the old text back (the store adds
+    # it as one more company note).
+    assert inkwell.fields["notes"].startswith("Imported fields (")
+    assert "Old notes." not in inkwell.fields["notes"]
     assert "- Interesting!" in inkwell.fields["notes"]
     assert inkwell.contact_action == "exists"
 
@@ -157,6 +161,51 @@ def test_apply_writes_everything_in_one_commit(store, messages):
     assert plan.count("skip") == 5
     assert apply_import(store, plan)["skipped"] == 5
     assert len(messages) == 1
+
+
+def test_importing_a_sheet_twice_adds_no_second_company_note(store):
+    apply_import(store, plan_import(store, SAMPLE, defs=DEFS))
+    before = {c.slug: [i.id for i in company_notes(c)] for c in store.all()}
+    plan = plan_import(store, SAMPLE, defs=DEFS)
+    assert plan.count("skip") == 5
+    apply_import(store, plan)
+    assert {c.slug: [i.id for i in company_notes(c)] for c in store.all()} == before
+    # the first run did write the free text as a company note, not a body
+    orvelo = store.get("orvelo")
+    [note] = company_notes(orvelo)
+    assert "already have VP sales" in note.body and orvelo.notes == ""
+
+
+def test_an_import_into_an_existing_company_adds_exactly_one_note(store):
+    store.create_company("Inkwell", website="https://inkwell.example", tags=["priority"],
+                         custom={"my_score": 7}, notes="Old notes.\n")
+    store.create_contact("inkwell", "Petra", "Nyberg")
+    [old] = company_notes(store.get("inkwell"))
+    before = (old.id, old.date, old.body)
+
+    apply_import(store, plan_import(store, SAMPLE, defs=DEFS))
+    notes = company_notes(store.get("inkwell"))
+    assert len(notes) == 2
+    [added] = [n for n in notes if n.id != old.id]
+    assert "Interesting!" in added.body and "Old notes." not in added.body
+    kept = next(n for n in notes if n.id == old.id)
+    assert (kept.id, kept.date, kept.body) == before
+    assert store.get("inkwell").notes == ""
+
+    # Nothing new in the sheet: the second run adds no note.
+    plan = plan_import(store, SAMPLE, defs=DEFS)
+    assert plan.rows[4].action == "skip"
+    apply_import(store, plan)
+    assert len(company_notes(store.get("inkwell"))) == 2
+
+
+def test_a_legacy_body_counts_as_already_imported(store):
+    store.create_company("Inkwell", website="https://inkwell.example")
+    company = store.get("inkwell")
+    company.notes = "Interesting!\n"       # a folder from before format 19
+    plan = plan_import(store, SAMPLE, defs=DEFS)
+    inkwell = plan.rows[4]
+    assert "Interesting!" not in inkwell.fields.get("notes", "")
 
 
 # ------------------------------------------------------------ contacts mode

@@ -384,8 +384,11 @@ def test_unknown_domain_creates_the_company_then_the_contact(store, messages):
     company = store.companies["parkworks"]
     assert (company.name, company.website, company.stage) == (
         "Parkworks", "https://parkworks.example", "engaged")
-    assert company.notes == ("Created by the BCC import from a mail to "
-                             "nina@parkworks.example (2026-09-14).\n")
+    # The logged interaction is the record: no "created by" note on the company
+    # (it would reach outreach drafts as if it were a finding).
+    assert company.notes == ""
+    assert not [i for i in company.interactions if i.is_note]
+    assert not (store.company_dir("parkworks") / "company.md").read_text().count("Created by")
     assert company.contacts["nina-park"].email == "nina@parkworks.example"
     [it] = company.interactions
     assert (it.contact, it.message_id, it.source) == (

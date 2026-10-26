@@ -55,6 +55,7 @@ from .models import (
     valid_email,
 )
 from .bcc import FREEMAIL, name_from_domain
+from .notes import company_notes
 
 # Header aliases (normalised: lower case, non-alphanumerics collapsed to "_").
 COMPANY_COLUMNS = {
@@ -649,10 +650,14 @@ def _plan_row(store, index: int, row: dict[str, str], today, mapping=None,
     new_tags = sorted(set(existing.tags) | set(tags))
     if new_tags != sorted(existing.tags):
         fill["tags"] = new_tags
+    # Company notes are note interactions: a line already in one of them, or in
+    # a legacy body, is not imported again. Only the new block is passed on,
+    # never the old text (the store adds it as one more company note).
+    known = "\n".join([existing.notes] + [i.body for i in company_notes(existing)])
     added_notes = [line for line in ([notes_text] if notes_text else []) + extras
-                   if line and line not in existing.notes]
+                   if line and line not in known]
     if added_notes:
-        fill["notes"] = _imported_block(existing.notes, added_notes, stamp)
+        fill["notes"] = _imported_block("", added_notes, stamp)
     contact_action = "none"
     if contact:
         contact_action = "exists" if contact["slug"] in existing.contacts else "create"

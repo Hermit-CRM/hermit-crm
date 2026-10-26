@@ -908,11 +908,7 @@ def create_company_entry(store: Store, entry: Entry, domain: str, name: str,
     if not apply:
         planned["@" + domain] = planned[entry.address] = f"{domain} (new company)"
         return f"new company from {domain} | new contact {first} {last}".rstrip() + ", log"
-    way = "to" if entry.direction == "out" else "from"
-    company = store.create_company(
-        name, website=f"https://{domain}",
-        notes=f"Created by the BCC import from a mail {way} {entry.address} "
-              f"({entry.date:%Y-%m-%d}).")
+    company = store.create_company(name, website=f"https://{domain}")
     contact = store.create_contact(company.slug, first, last, email=entry.address)
     log_entry(store, company.slug, contact.slug, entry)
     return f"{company.slug}/{contact.slug} | new company, new contact, log"
