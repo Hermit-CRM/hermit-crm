@@ -251,6 +251,7 @@ Uncomment what you want to change.
 | `enrich_model_strong` | `""` | Strong-tier model override; empty means the provider default. |
 | `ask_timeout` | `300` | Seconds before one Ask Hermit call is abandoned. |
 | `theme` | `"light"` | Look of the web app: `light`, `dark` or `system`. |
+| `date_format` | `"iso"` | How the web app shows and takes dates: `iso` (2026-12-31), `dmy-dash` (31-12-2026), `dmy` (31/12/2026) or `mdy` (12/31/2026). Files and exports stay YYYY-MM-DD. |
 | `update_check` | `true` | Check for a newer Hermit CRM at most once a day (no identifiers sent). |
 | `update_url` | `""` | Where that check asks; empty means PyPI. Any URL answering `{"version": "0.4.0"}` works. |
 | `feedback_email` | `""` | Address the Feedback form offers to mail a report to; empty means copy it yourself. |

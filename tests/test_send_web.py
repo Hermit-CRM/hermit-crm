@@ -172,10 +172,10 @@ def test_schedule_moves_an_item_to_the_scheduled_tab_with_its_time(env):
     assert client.post(f"/outreach/{item.id}/schedule", data={}).status_code == 403
     resp = post(client, f"/outreach/{item.id}/schedule")
     assert resp.status_code == 303 and "tab=scheduled" in resp.headers["location"]
-    assert re.match(r"Scheduled: it goes out \w{3} \d\d \w{3}, \d\d:\d\d\.", flash(resp))
+    assert re.match(r"Scheduled: it goes out \w{3} \d{4}-\d\d-\d\d, \d\d:\d\d\.", flash(resp))
     page = follow(client, resp)
     body = text_of(page)
-    assert "Scheduled (1)" in body and re.search(r"Goes out \w{3} \d\d \w{3}, \d\d:\d\d", body)
+    assert "Scheduled (1)" in body and re.search(r"Goes out \w{3} \d{4}-\d\d-\d\d, \d\d:\d\d", body)
     for label in ("Send now", "Move to front", "Unschedule", "Mark sent"):
         assert label in body
     # The rare actions sit in the closed More overflow, the state fix stays out.
@@ -251,7 +251,7 @@ def test_send_now_that_is_held_says_why_and_changes_nothing(env):
     imap.deliver("[Gmail]/All Mail", b"From: mara@lindenhof-data.example.com\r\nTo: sam@mail.example.com\r\n"
                  b"Subject: Hi\r\nMessage-ID: <q@example.org>\r\n\r\nhello\r\n", FRIDAY)
     resp = post(client, f"/outreach/{item.id}/send-now")
-    assert flash(resp).startswith("Not sent: they wrote to you since 16 Oct")
+    assert flash(resp).startswith("Not sent: they wrote to you since 2026-10-16")
     assert outreach.get_item(root, item.id).state == "ready" and not smtp.sent
 
 

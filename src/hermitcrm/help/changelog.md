@@ -8,6 +8,14 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **One date format, your choice.** The app showed dates two ways: `2026-12-01`
+  in lists and text, and whatever your browser's language says (often
+  `01/12/2026`) in date fields. Settings > Appearance now has a **Date format**
+  (`date_format` in `config.toml`): `YYYY-MM-DD` (the default), `DD-MM-YYYY`,
+  `DD/MM/YYYY` or `MM/DD/YYYY`. Every page, form, report and filter uses it, date
+  fields are text boxes in that format with a calendar button, and
+  `YYYY-MM-DD` is always accepted when you type. Your files and exports stay
+  `YYYY-MM-DD`. No data migration.
 - **The light model is now Haiku 5.5.** The outreach bot's scrape research and
   critic (the cheaper "light" tier) run on `claude-haiku-5-5` for Claude instead of
   `claude-haiku-4-5`. A model you named yourself still wins: `enrich_model` is

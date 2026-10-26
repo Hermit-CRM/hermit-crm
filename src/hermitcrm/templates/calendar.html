@@ -10,7 +10,7 @@
   <tr><th>when</th><th>meeting</th><th>company</th><th>with</th></tr>
   {% for e in upcoming %}
   <tr>
-    <td>{{ e.start.strftime('%a %d %b') }}{% if not e.all_day %} {{ e.start.strftime('%H:%M') }}&ndash;{{ e.end.strftime('%H:%M') }}{% endif %}</td>
+    <td>{{ e.start.strftime('%a') }} {{ fmt_date(e.start) }}{% if not e.all_day %} {{ e.start.strftime('%H:%M') }}&ndash;{{ e.end.strftime('%H:%M') }}{% endif %}</td>
     <td>{{ e.title or '(no title)' }}{% if e.location %} <span class="small">{{ e.location }}</span>{% endif %}</td>
     <td>{% for m in e.companies %}<a href="/companies/{{ m.company.slug }}">{{ m.company.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</td>
     <td>{{ e.attendees | join(', ') }}</td>
@@ -81,7 +81,7 @@
   <tr>
     <td><a href="/companies/{{ c.slug }}">{{ c.name }}</a></td>
     <td>{{ c.stage }}</td>
-    <td>{{ c.last_touch_summary }}</td>
+    <td>{{ c.touch_summary(fmt_date) }}</td>
     <td>{{ c.silent_days(today) }}d</td>
     <td><a href="/companies/{{ c.slug }}/interactions/new">log interaction</a></td>
   </tr>

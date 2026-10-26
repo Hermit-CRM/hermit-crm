@@ -456,7 +456,14 @@ a.toggle-parked { font-size: 12px; margin-left: 12px; }
 .record-meta form.inline { margin-left: 0; }
 .record-meta input[name="reason"] { display: inline-block; width: 200px; }
 .record-meta label.inline { display: inline; margin: 0 4px; }
-.record-meta input[type="date"] { display: inline-block; width: auto; }
+.record-meta input.date-input { display: inline-block; width: auto; }
+/* The calendar button sits inside the right edge of a date field; the native
+   field it drives is there for its picker only. */
+.date-wrap { position: relative; display: inline-block; max-width: 100%; }
+.date-wrap input.date-input { display: inline-block; width: auto; padding-right: 28px; }
+.date-pick { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; padding: 3px 5px; border: 0; background: none; color: var(--muted, inherit); cursor: pointer; }
+.date-pick:hover { color: var(--accent); }
+.date-native { position: absolute; right: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; border: 0; padding: 0; }
 /* One menu instead of two always-open panels: the forms stack inside it. */
 details.stage-menu .menu-panel {
   /* Right-anchored: the summary sits at the end of a wrapping row, so a

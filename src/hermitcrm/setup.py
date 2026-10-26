@@ -36,7 +36,7 @@ from typing import Callable
 from urllib.parse import urlparse
 
 from . import backup as local_backup
-from . import bcc, calendar_sync, secrets, stages
+from . import bcc, calendar_sync, dateformat, secrets, stages
 from .gitops import GitOps
 from .models import valid_email
 from .store import DEFAULT_CONFIG, Store, load_config
@@ -50,6 +50,7 @@ ENRICH_PROVIDERS = ("auto", "claude", "codex", "gemini", "grok", "custom")
 ENRICH_ACCOUNTS = ("subscription", "api")
 AI_TIERS = ("medium", "strong")
 THEMES = ("light", "dark", "system")
+DATE_FORMATS = dateformat.STYLES
 IMAP_HOSTS = {
     "gmail.com": "imap.gmail.com",
     "googlemail.com": "imap.gmail.com",
@@ -887,6 +888,20 @@ def save_theme(data_dir: Path, theme: str) -> StepResult:
     result.values = {"theme": theme}
     set_config_values(Path(data_dir) / "config.toml", result.values)
     result.messages.append(f"Appearance saved: {theme}.")
+    return result
+
+
+def save_date_format(data_dir: Path, style: str) -> StepResult:
+    """Write date_format (a key of dateformat.STYLES) to config.toml."""
+    style = (style or "").strip().lower()
+    result = StepResult()
+    if style not in DATE_FORMATS:
+        result.ok = False
+        result.errors["date_format"] = "Pick one of the date formats listed."
+        return result
+    result.values = {"date_format": style}
+    set_config_values(Path(data_dir) / "config.toml", result.values)
+    result.messages.append(f"Date format saved: {DATE_FORMATS[style][2]}.")
     return result
 
 

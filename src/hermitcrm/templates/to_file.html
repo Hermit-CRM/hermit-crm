@@ -11,7 +11,7 @@
 {% for it in items %}
 <section class="inbox-item" id="{{ it.id }}">
   <p>
-    <strong>{{ it.date | string | replace('T', ' ') }}</strong>
+    <strong>{{ ui_datetime(it.date) }}</strong>
     <span class="tag">{{ it.kind }}</span>
     {% if it.kind == 'meeting' %}meeting {{ it.direction }} with{% else %}email {{ it.direction }} {{ 'to' if it.direction == 'out' else 'from' }}{% endif %}
     {{ it.name }} &lt;{{ it.address }}&gt;{% if it.subject %}: {{ it.subject }}{% endif %}

@@ -1,7 +1,7 @@
 {% from "icons.html" import icon %}
 {% from "macros.html" import handoff as handoff_box, upgrade_form %}
 <!doctype html>
-<html lang="en" data-theme="{{ theme or 'light' }}" data-boot="{{ boot_id() }}" data-version="{{ hermitcrm_version }}">
+<html lang="en" data-theme="{{ theme or 'light' }}" data-date-style="{{ date_style() }}" data-boot="{{ boot_id() }}" data-version="{{ hermitcrm_version }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -17,6 +17,7 @@
   <script src="/static/busy.js?v={{ asset_version }}" defer></script>
   <script src="/static/copy.js?v={{ asset_version }}" defer></script>
   <script src="/static/hint.js?v={{ asset_version }}" defer></script>
+  <script src="/static/dates.js?v={{ asset_version }}" defer></script>
   <script src="/static/upgrade.js?v={{ asset_version }}" defer></script>
 </head>
 <body{% if request.url.path.startswith("/settings") or request.url.path.startswith("/help") %} class="classic"{% endif %}>
