@@ -130,11 +130,17 @@ the radar read the same setting, so they never disagree.
   fine, then I'll close the loop"). The wording template is
   `[outreach.follow_up.<lang>]` in `messages.toml`; `{offer_line}` is an
   optional line it leaves out by default.
-- **Who is left out**: someone whose unanswered message was on another channel
-  than the batch's (or on a call or in a meeting: write that one yourself);
-  someone you already followed up with once (two messages of yours since they
-  last wrote: close the loop); the usual do-not-contact, closed stage and open
-  item. The 30-day cooldown does not apply to a follow-up: it is due after 5.
+- **Who a batch leaves out**: someone whose unanswered message was on another
+  channel than the batch's (or on a call or in a meeting: write that one
+  yourself); someone you already followed up with once (two messages of yours
+  since they last wrote: close the loop); the usual do-not-contact, closed stage
+  and open item. The 30-day cooldown does not apply to a follow-up: it is due
+  after 5.
+- **When you pick the person** (the Generate panel, **Draft follow-up**, or
+  `--contact`), the first two are a warning on the draft instead of a refusal:
+  switch the channel when they ignore you on one, and draft another message
+  however many went unanswered. The warning is for you; the AI does not see it.
+  A call or a meeting is still left to you.
 - A cold follow-up email gets the playbook's opt-out line, as a first touch does.
   A LinkedIn follow-up is a message in the conversation, so it only works if they
   accepted your connection; the bot cannot know that.
