@@ -1599,6 +1599,55 @@ def test_board_filters_choose_columns_and_cards(client):
     assert 'name="f_name" form="board-filters"' in page
 
 
+def filter_form_of(page: str, form_id: str) -> tuple[str, dict]:
+    """The `action` and the hidden fields of the filter form `form_id`, as a browser
+    would read them from the rendered page."""
+    tag = re.search(rf'<form[^>]*id="{form_id}"[^>]*>', page)
+    assert tag, f"no form {form_id} on the page"
+    action = htmllib.unescape(re.search(r'action="([^"]*)"', tag.group(0)).group(1))
+    body = page[tag.end():page.index("</form>", tag.end())]
+    hidden = {m.group(1): htmllib.unescape(m.group(2)) for m in
+              re.finditer(r'<input type="hidden" name="([^"]+)" value="([^"]*)"', body)}
+    return action, hidden
+
+
+def page_title(page: str) -> str:
+    return re.search(r"<title>(.*?)</title>", page, re.S).group(1).strip()
+
+
+def test_board_filter_form_stays_on_the_pipeline(client):
+    post_company(client, name="Acme", stage="engaged")
+    page = client.get("/pipeline").text
+    assert filter_form_of(page, "board-filters")[0] == "/pipeline"
+    page = client.get("/pipeline?f_stage=engaged").text
+    assert 'href="/pipeline">clear filters and sorting' in page
+
+
+# One line per page that has a filter form: (path, form id, a column to sort by).
+FILTER_PAGES = [
+    ("/pipeline", "board-filters", "name"),
+    ("/contacts", "contact-filters", "name"),
+    ("/companies", "company-filters", "name"),
+    ("/tasks", "task-filters", "name"),
+    ("/messages", "message-filters", "date"),
+]
+
+
+@pytest.mark.parametrize("path,form_id,sort", FILTER_PAGES)
+def test_filter_form_submits_back_to_its_own_page(client, path, form_id, sort):
+    """Press Filter: read the form's action off the page, send it the form's
+    fields plus a filter, and expect the same page back, not another one."""
+    post_company(client, name="Acme", stage="engaged")
+    here = page_title(client.get(path).text)
+    page = client.get(path, params={"sort": sort, "dir": "asc"}).text
+    action, hidden = filter_form_of(page, form_id)
+    r = client.get(action, params={**hidden, "f_name": "Acme"})
+    assert r.status_code == 200
+    assert page_title(r.text) == here
+    clear = re.search(r'<a href="([^"]*)">clear filters and sorting', page)
+    assert clear and urlparse(htmllib.unescape(clear.group(1))).path == urlparse(action).path
+
+
 def test_merge_companies_pages(client, app, repo):
     define_fields(client, repo, MY_SCORE)
     post_company(client, name="Acme", website="https://acme.de")

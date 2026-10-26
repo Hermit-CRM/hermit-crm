@@ -45,7 +45,7 @@
 {% endif %}
 <details class="filters-fold"{% if active or sort %} open{% endif %}>
   <summary>Filters{% if active %} ({{ active | length }} on){% endif %}</summary>
-  {{ m.filter_form('board-filters', '/', active, none, sort, dir) }}
+  {{ m.filter_form('board-filters', '/pipeline', active, none, sort, dir) }}
   <div class="filter-bar">
     {% for col in filter_columns %}
     <label>{{ col.label }}{% if col.key != 'stage' %} {{ m.sort_links(col, sort, dir, sort_url) }}{% endif %} {{ m.filter_control(col, active, 'board-filters') }}</label>
