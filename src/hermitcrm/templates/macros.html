@@ -102,16 +102,6 @@
   </div>
   <div class="row">
     <label class="grow">subject <input name="subject" value="{{ values.subject }}"></label>
-    <label>framework
-      <select name="framework">
-        <option value=""{% if not values.framework %} selected{% endif %}>not known</option>
-        {% set fids = framework_ids() %}
-        {% for f in fids %}<option value="{{ f }}"{% if values.framework == f %} selected{% endif %}>{{ f }}</option>{% endfor %}
-        {# An id outside the library (removed later, or written by hand) stays selectable so saving does not lose it. #}
-        {% if values.framework and values.framework not in fids %}<option value="{{ values.framework }}" selected>{{ values.framework }}</option>{% endif %}
-      </select>
-      {{ err(errors, 'framework') }}
-    </label>
     <label class="outcome-field">outcome
       <select name="outcome">
         <option value=""{% if not values.outcome %} selected{% endif %}>not yet known</option>

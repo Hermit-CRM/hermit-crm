@@ -603,6 +603,27 @@ def test_interaction_edit_renames_file_on_date_change(client, repo):
     assert last_commit(repo) == f"interaction: acme {new_id} updated"
 
 
+def test_log_form_has_no_framework_field_and_editing_keeps_the_stored_one(app, client):
+    """The framework is set by outreach when a draft is sent, never picked by hand;
+    saving the edit form must not wipe it."""
+    post_company(client, name="Acme GmbH")
+    post_contact(client, "acme", first_name="Jane", last_name="Doe")
+    assert 'name="framework"' not in client.get("/companies/acme/interactions/new").text
+    app.state.store.create_interaction(
+        "acme", channel="email", direction="out", contact="jane-doe",
+        date="2026-09-01T08:00", subject="Intro", framework="house", body="hello")
+    old_id = "2026-09-01T0800-email-out-jane-doe"
+    assert 'name="framework"' not in client.get(
+        f"/companies/acme/interactions/{old_id}/edit").text
+    resp = client.post(f"/companies/acme/interactions/{old_id}/edit",
+                       data={**INTERACTION_BLANK, "date": "2026-09-01T08:00",
+                             "contact": "jane-doe", "subject": "Intro again",
+                             "body": "hello"})
+    assert resp.status_code == 303
+    saved = next(i for i in app.state.store.get("acme").interactions if i.id == old_id)
+    assert saved.subject == "Intro again" and saved.framework == "house"
+
+
 def test_log_form_preselects_latest_contact(client):
     post_company(client, name="Acme GmbH")
     post_contact(client, "acme", first_name="Jane", last_name="Doe")
