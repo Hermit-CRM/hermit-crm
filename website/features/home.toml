@@ -41,7 +41,7 @@ companies touched, new companies and companies in the folder. The Reports page h
 [[sections]]
 heading = "Getting started, until it is done"
 text = """
-A new folder opens on **Getting started** instead: twelve steps, each ticked when it has actually
+A new folder opens on **Getting started** instead: thirteen steps, each ticked when it has actually
 happened, and a tour that points at each part of the screen. Press *Don't open this at startup*,
 or tick every step, and the logo opens Home from then on.
 """

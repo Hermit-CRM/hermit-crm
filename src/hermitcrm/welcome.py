@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""The twelve-step walkthrough at /welcome.
+"""The thirteen-step walkthrough at /welcome.
 
 Each step knows whether it is done by asking the data, not by remembering that
 you clicked something: "your first company" is done when a company exists,
@@ -63,6 +63,7 @@ def steps(store, config: dict, setup_state: dict, ai_available: bool,
     planned = any(co.has_next_step or co.tasks for co in companies) or \
         any(c.tasks for c in contacts)
     ticked = set(config.get("welcome_done") or [])
+    drafted = _has_draft(store, {co.slug for co in companies})
 
     return [
         Step("you", "Say who you are",
@@ -102,6 +103,14 @@ def steps(store, config: dict, setup_state: dict, ai_available: bool,
              "deal stands -- and a list of other tasks beside it. Both show on the "
              "calendar on their due date.",
              "Open the calendar", "/calendar", planned),
+        Step("outreach", "Draft your first message",
+             "The outreach bot reads a contact's website, drafts a first message in "
+             "your voice and checks it; you review it, and nothing is sent that you "
+             "did not approve. It needs an approach filled in on your playbook (the "
+             "second step), at least one contact"
+             + ("" if ai_available else " and an AI CLI set up under Settings")
+             + ". Pick who, press Preview to see who would get a draft, then Build queue.",
+             "Open Outreach", "/outreach", drafted),
         Step("bcc", "Capture your mail without typing it",
              "Put a tracking address in BCC when you write to a prospect, or forward "
              "a thread to it. Hermit CRM reads that mailbox, matches each message to "
@@ -142,6 +151,15 @@ def _has_approach(store) -> bool:
 
     root = getattr(store, "root", None)
     return bool(root and any(o.offer_line for o in playbook.load(root).approaches))
+
+
+def _has_draft(store, own: set[str]) -> bool:
+    """An outreach item the bot has written a draft for (`drafted` is set when the
+    draft is made and kept through review and sending), on one of your own companies."""
+    from hermitcrm import outreach
+
+    root = getattr(store, "root", None)
+    return bool(root and any(i.drafted and i.company in own for i in outreach.items(root)))
 
 
 def progress(all_steps: list[Step]) -> tuple[int, int]:
