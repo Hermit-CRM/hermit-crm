@@ -326,10 +326,21 @@ def test_the_tour_is_anchored_to_every_part_it_names(client):
     """A stop with no anchor would be skipped; this makes sure none are."""
     page = client.get("/").text
     for key in ("home", "pipeline", "calendar", "companies", "contacts", "messages",
-                "capture", "search", "ask", "settings"):
+                "outreach", "learning", "capture", "reports", "search", "ask", "settings"):
         assert f'data-tour="{key}"' in page, key
     assert "/static/tour.js" in page
     assert client.get("/static/tour.js").status_code == 200
+
+
+def test_every_tour_stop_has_an_anchor_on_the_page(client):
+    """Read the keys out of tour.js, so a nav change cannot silently drop a stop."""
+    import re
+    js = client.get("/static/tour.js").text
+    keys = re.findall(r'^\s*\["(\w+)", "', js, re.M)
+    assert {"outreach", "learning", "reports"} <= set(keys), keys
+    page = client.get("/").text
+    for key in keys:
+        assert f'data-tour="{key}"' in page, key
 
 
 def test_bcc_settings_offer_the_common_providers(client):
