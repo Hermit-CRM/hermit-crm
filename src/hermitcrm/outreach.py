@@ -2371,6 +2371,7 @@ class Candidate:
     approach: str = ""
     fit: int | None = None
     flags: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)   # for you on the draft; not for the AI
     reason: str = ""   # "" = in the batch; otherwise why not this time
     persona: str = ""  # the playbook persona the title matches, "" for none
 
@@ -2565,7 +2566,8 @@ def select(store: Store, where: list[str] | None = None, channel: str = "email",
         cand = Candidate(company, contact, fit=fit_value(company, fit_field))
         cand.reason = _excluded(store, cand, approaches, approach, channel, kind, cooldown,
                                 today, open_by_contact, open_by_company, dupes,
-                                bad_fit, skipped_by_contact, interest, earlier, due, nudge)
+                                bad_fit, skipped_by_contact, interest, earlier, due, nudge,
+                                named=bool(contacts))
         if cand.fit is None and not cand.reason:
             cand.flags.append(f"no fit score ({fit_field} is empty)")
         (sel.excluded if cand.reason else ranked).append(cand)
@@ -2592,11 +2594,14 @@ def select(store: Store, where: list[str] | None = None, channel: str = "email",
 def _excluded(store, cand: Candidate, approaches, forced: str, channel, kind, cooldown,
               today, open_by_contact, open_by_company, dupes, bad_fit=None,
               skipped_by_contact=None, interest=None, earlier=None, due=None,
-              nudge=5) -> str:
+              nudge=5, named=False) -> str:
     """Why this contact gets no item this time, or "" (and its approach and flags).
     A reply to interest answers someone who asked: no cooldown, no fit test
     (the approach the conversation started with, else the best match). A
-    follow-up continues a thread the same way, and is due on the radar's rule."""
+    follow-up continues a thread the same way, and is due on the radar's rule.
+    `named`: you picked this person, so a follow-up on another channel than the
+    unanswered message, or after earlier follow-ups, is drafted with a warning
+    (a batch leaves them out: nobody is looking at each one)."""
     company, contact = cand.company, cand.contact
     reply = kind == REPLY
     follow = kind == FOLLOW_UP
@@ -2688,15 +2693,21 @@ def _excluded(store, cand: Candidate, approaches, forced: str, channel, kind, co
             return (f"your last message to them was on {thread_end.channel}, which the bot "
                     "does not write; follow it up yourself")
         if thread_end.channel != channel:
-            return (f"your unanswered message was on {thread_end.channel}, not {channel}: "
-                    f"follow it up there")
+            if not named:
+                return (f"your unanswered message was on {thread_end.channel}, not {channel}: "
+                        f"follow it up there")
+            cand.warnings.append(f"your unanswered message was on {thread_end.channel}; this "
+                              f"one goes by {channel}")
         touches = _touches(company, contact.slug)
         heard = max((i.date for i in touches if i.direction == "in"), default=None)
         since = [i for i in touches if i.direction == "out" and i.is_message
                  and (heard is None or i.date > heard)]
         if len(since) >= 2:
-            return (f"followed up already ({len(since)} messages from you and no answer); "
-                    "close the loop")
+            if not named:
+                return (f"followed up already ({len(since)} messages from you and no answer); "
+                        "close the loop")
+            cand.warnings.append(f"{len(since)} messages from you and no answer: you may prefer "
+                              "to close the loop")
         return ""
     outs = [i for i in _touches(company, contact.slug) if i.direction == "out"]
     recent = [i for i in outs if (today - i.date.date()).days < cooldown]
@@ -2860,7 +2871,7 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
                     follows=row.interaction.id if row else "",
                     approach=cand.approach,
                     research_level="" if threaded else getattr(researcher, "level", ""),
-                    flags=list(cand.flags), batch=batch, created=when,
+                    flags=[*cand.flags, *cand.warnings], batch=batch, created=when,
                     language_pick=language)
         chosen: Framework | None = None   # a first touch only
         if not threaded:

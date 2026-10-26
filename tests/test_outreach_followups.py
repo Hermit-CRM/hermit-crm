@@ -143,12 +143,27 @@ def test_nothing_is_due_says_why(folder):
     assert sel.picked == [] and "no follow-up is due" in sel.excluded[0].reason
 
 
-def test_a_second_follow_up_is_refused(folder):
+def batch_reasons(store, **kw) -> dict:
+    """Who a batch (no one named) leaves out, and why."""
+    sel = outreach.select(store, kind=FOLLOW, **kw)
+    return {c.record: c.reason for c in sel.excluded}
+
+
+def test_a_batch_leaves_out_someone_already_followed_up(folder):
     root, store = folder
     send(store, days=12)
     send(store, days=6, subject="Re: Your second office")
+    assert "followed up already" in batch_reasons(store)[MARA]
+
+
+def test_naming_someone_followed_up_already_drafts_with_a_warning(folder):
+    root, store = folder
+    send(store, days=12)
+    send(store, days=9, subject="Re: Your second office")
+    send(store, days=6, subject="Re: Re: Your second office")
     sel = pick(store)
-    assert sel.picked == [] and "followed up already" in sel.excluded[0].reason
+    assert [c.record for c in sel.picked] == [MARA] and sel.excluded == []
+    assert any("3 messages from you" in w and "no answer" in w for w in sel.picked[0].warnings)
 
 
 def test_a_reply_resets_the_count(folder):
@@ -160,13 +175,28 @@ def test_a_reply_resets_the_count(folder):
     assert [c.record for c in pick(store).picked] == [MARA]
 
 
+def linkedin_thread(store):
+    store.update_contact("lindenhof-data", "mara-keller",
+                         linkedin="https://www.linkedin.com/in/mara-keller-x")
+    send(store, days=6, channel="linkedin")
+
+
 def test_a_thread_on_another_channel_is_left_out_of_the_batch(folder):
     root, store = folder
-    store.update_contact("lindenhof-data", "mara-keller", linkedin="https://www.linkedin.com/in/mara-keller-x")
-    send(store, days=6, channel="linkedin")
+    linkedin_thread(store)
+    assert "linkedin" in batch_reasons(store, channel="email")[MARA]
+    assert MARA not in batch_reasons(store, channel="linkedin")
+
+
+def test_naming_someone_lets_you_switch_channel_with_a_warning(folder):
+    root, store = folder
+    linkedin_thread(store)
     sel = pick(store, channel="email")
-    assert sel.picked == [] and "linkedin" in sel.excluded[0].reason
-    assert [c.record for c in pick(store, channel="linkedin").picked] == [MARA]
+    assert [c.record for c in sel.picked] == [MARA] and sel.excluded == []
+    assert any("linkedin" in w and "email" in w for w in sel.picked[0].warnings)
+    on_thread = pick(store, channel="linkedin")
+    assert [c.record for c in on_thread.picked] == [MARA]
+    assert on_thread.picked[0].warnings == []
 
 
 def test_a_call_is_not_a_thread_the_bot_writes_in(folder):
@@ -189,6 +219,12 @@ def test_a_skipped_follow_up_comes_back_after_the_cooldown_only(folder):
 
 
 # ---------------------------------------------------------------- the draft
+
+
+def refused(response) -> str:
+    """The flash when a build was refused ("Not built: ..." or "Nothing to build: ..."), else ""."""
+    flash = query(response).get("flash", "")
+    return flash if "Not built" in flash or "Nothing to build" in flash else ""
 
 
 def build_followup(client, **extra):
@@ -357,6 +393,27 @@ def test_a_batch_of_follow_ups_builds_one_per_request(client, root):
     built = outreach.items(root)
     assert len(built) == 2 and {i.kind for i in built} == {FOLLOW}
     assert "left" not in query(second)
+
+
+def test_the_panel_follow_up_can_switch_channel_and_says_so_on_the_draft(client, root, fake):
+    linkedin_thread(client.app.state.store)
+    response = build_followup(client, channel="email")
+    assert response.status_code == 303 and refused(response) == ""
+    [item] = outreach.items(root)
+    assert item.channel == "email" and item.kind == FOLLOW
+    assert any("linkedin" in f and "email" in f for f in item.flags)
+
+
+def test_the_panel_follow_up_after_many_unanswered_messages_drafts_with_a_warning(client, root, fake):
+    store = client.app.state.store
+    for days in (20, 14, 9, 6):
+        send(store, days=days, subject=f"Try {days}")
+    response = build_followup(client)
+    assert response.status_code == 303 and refused(response) == ""
+    [item] = outreach.items(root)
+    assert item.kind == FOLLOW and any("4 messages from you" in f for f in item.flags)
+    prompt = fake.of("draft")[0]["prompt"]   # a note for you, not for the model
+    assert "4 messages" not in prompt and "close the loop" not in prompt.split("--- the person")[1].split("--- end ---")[0]
 
 
 def test_the_bar_has_a_draft_type(client):
