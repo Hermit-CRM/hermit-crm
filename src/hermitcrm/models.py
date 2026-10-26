@@ -29,6 +29,7 @@ from typing import Iterable
 
 import yaml
 
+from . import dateformat
 from .stages import DEFAULT_STAGES, StageSet
 
 # --------------------------------------------------------------------------- enums
@@ -200,7 +201,11 @@ def parse_date(s) -> date | None:
     try:
         return datetime.strptime(s[:10], "%Y-%m-%d").date()
     except ValueError:
-        raise ValidationError({"date": f"not a YYYY-MM-DD date: {s!r}"})
+        # What the person typed in the date format chosen in Settings.
+        typed = dateformat.parse(s)
+        if typed is not None:
+            return typed
+        raise ValidationError({"date": f"not a {dateformat.hint()} date: {s!r}"})
 
 
 def parse_datetime(s) -> datetime | None:
@@ -221,7 +226,10 @@ def parse_datetime(s) -> datetime | None:
             return datetime.strptime(txt, fmt).replace(second=0, microsecond=0)
         except ValueError:
             continue
-    raise ValidationError({"date": f"not a YYYY-MM-DDTHH:MM datetime: {s!r}"})
+    typed = dateformat.parse_dt(s)
+    if typed is not None:
+        return typed
+    raise ValidationError({"date": f"not a {dateformat.hint_datetime()} datetime: {s!r}"})
 
 
 # ------------------------------------------------------------------ normalisers
@@ -530,6 +538,12 @@ class Company:
 
     @property
     def last_touch_summary(self) -> str:
+        return self.touch_summary()
+
+    def touch_summary(self, show_date=None) -> str:
+        """The last touch as a line; `show_date` writes the date (the pages pass
+        the format chosen in Settings; files and AI text keep YYYY-MM-DD)."""
+        show_date = show_date or fmt_date
         if not self.interactions:
             return "none"
         it = max(
@@ -540,7 +554,7 @@ class Company:
         if it is None:
             return "none"
         return (
-            f"{it.label} {fmt_date(it.date)} ({it.contact_label})"
+            f"{it.label} {show_date(it.date)} ({it.contact_label})"
         )
 
     @property
@@ -1031,7 +1045,7 @@ def _date_or_none(value, field_name: str, errors: dict[str, str]) -> date | None
     try:
         return parse_date(value)
     except ValidationError:
-        errors[field_name] = f"{field_name} must be YYYY-MM-DD, got {value!r}"
+        errors[field_name] = f"{field_name} must be {dateformat.hint()}, got {value!r}"
         return None
 
 
@@ -1039,7 +1053,7 @@ def _datetime_or_none(value, field_name: str, errors: dict[str, str]) -> datetim
     try:
         return parse_datetime(value)
     except ValidationError:
-        errors[field_name] = f"{field_name} must be YYYY-MM-DDTHH:MM, got {value!r}"
+        errors[field_name] = f"{field_name} must be {dateformat.hint_datetime()}, got {value!r}"
         return None
 
 

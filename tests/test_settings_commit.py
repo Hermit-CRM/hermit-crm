@@ -93,6 +93,7 @@ CONFIG_ROUTES = [
     ("/settings/enrichment", {"provider": "custom", "command": "my-ai --fast",
                               "timeout": "60"}),
     ("/settings/appearance", {"theme": "dark"}),
+    ("/settings/date-format", {"date_format": "dmy"}),
     ("/settings/outcomes", {"outcomes": "Replied\nNo reply", "message_window_days": "7",
                             "silent_days": "21"}),
     ("/settings/task-types", {"name": ["prospecting", ""], "colour": ["blue", "grey"],

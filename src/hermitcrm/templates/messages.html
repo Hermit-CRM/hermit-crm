@@ -16,7 +16,7 @@
   <tr class="filters">{% for col in filter_columns %}<th>{{ m.filter_control(col, active, 'message-filters') }}</th>{% endfor %}<th></th></tr>
   {% for r in rows %}
   <tr>
-    <td class="nowrap">{{ fmt_datetime(r.date).replace('T', ' ') }}</td>
+    <td class="nowrap">{{ fmt_datetime(r.date) }}</td>
     <td><a href="/companies/{{ r.company_slug }}">{{ r.company_name }}</a></td>
     <td>{% if r.contact_slug %}<a href="/companies/{{ r.company_slug }}/contacts/{{ r.contact_slug }}">{{ r.contact }}</a>{% else %}{{ r.contact }}{% endif %}</td>
     <td>{{ r.channel }}</td>

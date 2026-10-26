@@ -1,7 +1,7 @@
 {# Today's brief from a brief routine (hermitcrm/routines.py), at the top of Home. #}
 {% for b in routine_briefs %}
 <section class="card routine-brief" id="brief-{{ b.name }}">
-  <h2>{{ b.title }} <span class="small">as of {{ b.at | replace('T', ' ') }}</span></h2>
+  <h2>{{ b.title }} <span class="small">as of {{ ui_datetime(b.at) }}</span></h2>
   {% set ns = namespace(any=false) %}
   {% for section in b.sections if section['items'] %}{% set ns.any = true %}
   <h3>{{ section.title }} ({{ section.count }})</h3>

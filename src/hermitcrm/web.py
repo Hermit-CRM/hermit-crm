@@ -57,7 +57,7 @@ from . import (adjust, bcc, brief, calendar_sync, capture, dashboards, disclaime
                pipeline, reports, sample, welcome)
 from . import layout
 from . import playbook, textsource
-from . import schedule, scrape, secrets, task_types, usertheme
+from . import dateformat, schedule, scrape, secrets, task_types, usertheme
 from . import stage_ops
 from . import stages as stages_mod
 from . import (exemplars, learning, linkedin, notes, outreach, routines, send,
@@ -872,6 +872,7 @@ def create_app(root: Path, config: dict | None = None,
                clock: Callable[[], datetime] | None = None) -> FastAPI:
     root = Path(root)
     config = dict(config) if config is not None else load_config(root)
+    dateformat.set_style(config.get("date_format"))
 
     gitops = GitOps(
         root,
@@ -1085,6 +1086,7 @@ def create_app(root: Path, config: dict | None = None,
             return
         config.clear()
         config.update(fresh, **keep)
+        dateformat.set_style(config.get("date_format"))
         app.state.bcc_settings = derived["bcc"]
         app.state.calendar_settings = derived["calendar"]
         gitops.push_enabled = derived["push_enabled"]
@@ -1339,14 +1341,43 @@ def create_app(root: Path, config: dict | None = None,
                     "why_not": plan.why_not, "command": notice.hint}
         return {"kind": ""}
 
+    def ui_date(value) -> str:
+        """A date field's value: an ISO date (or `date`) shown in the chosen
+        format; text the person typed, even a bad date, comes back as typed."""
+        if isinstance(value, (date, datetime)):
+            return dateformat.fmt(value)
+        text = str(value or "").strip()
+        try:
+            return dateformat.fmt(datetime.strptime(text, "%Y-%m-%d").date())
+        except ValueError:
+            return text
+
+    def ui_datetime(value) -> str:
+        if isinstance(value, datetime):
+            return dateformat.fmt_dt(value)
+        text = str(value or "").strip()
+        for pattern in ("%Y-%m-%dT%H:%M", "%Y-%m-%dT%H:%M:%S"):
+            try:
+                return dateformat.fmt_dt(datetime.strptime(text, pattern))
+            except ValueError:
+                continue
+        return ui_date(text) if len(text) == 10 else text
+
     templates = Jinja2Templates(directory=str(HERE / "templates"))
     app.state.templates = templates  # modules that add page globals (yours_pins) reach it here
     templates.env.globals.update(
         upgrade_banner=upgrade_banner,
         boot_id=lambda: app.state.upgrader.boot,
         upgrade_csrf=lambda: app.state.csrf_token,
-        fmt_date=fmt_date,
-        fmt_datetime=fmt_datetime,
+        # What the pages show and the fields take: the date format chosen in
+        # Settings. Files, exports and URLs keep ISO (models.fmt_date).
+        fmt_date=dateformat.fmt,
+        fmt_datetime=dateformat.fmt_dt,
+        ui_date=ui_date,
+        ui_datetime=ui_datetime,
+        date_style=dateformat.style,
+        date_hint=dateformat.hint,
+        date_hint_datetime=dateformat.hint_datetime,
         preview=followups.first_line,
         stage_exits=stage_exits,
         stage_keeps=lambda name: stage_keeps(store.stages, name),
@@ -3241,6 +3272,8 @@ def create_app(root: Path, config: dict | None = None,
                             "timeout": str(config.get("enrich_timeout") or 180)},
             "tier_models": {t: enricher.model_for(t) for t in setup_steps.AI_TIERS},
             "themes": setup_steps.THEMES,
+            "date_formats": setup_steps.DATE_FORMATS,
+            "date_format": dateformat.style(),
             "theme_file": usertheme.status(root),
             "theme_example": usertheme.EXAMPLE,
             "fields_form": {"toml": (root / custom.FILENAME).read_text(encoding="utf-8")
@@ -3789,6 +3822,15 @@ def create_app(root: Path, config: dict | None = None,
                             theme: str = Form("")):
         check_csrf(csrf_token)
         result = setup_steps.save_theme(root, theme)
+        if not result.ok:
+            return setup_invalid(request, result, "appearance")
+        return setup_done(result, "appearance")
+
+    @app.post("/settings/date-format")
+    def settings_date_format(request: Request, csrf_token: str = Form(""),
+                             date_format: str = Form("")):
+        check_csrf(csrf_token)
+        result = setup_steps.save_date_format(root, date_format)
         if not result.ok:
             return setup_invalid(request, result, "appearance")
         return setup_done(result, "appearance")
@@ -4732,7 +4774,7 @@ def create_app(root: Path, config: dict | None = None,
                 result = await run_in_threadpool(sendqueue.schedule, store, [item.id])
                 item = outreach.get_item(root, item.id) or item
                 at = result.times.get(item.id)
-                text = (f"Scheduled: it goes out {at:%a %d %b, %H:%M}." if result.scheduled and at
+                text = (f"Scheduled: it goes out {at:%a} {dateformat.fmt(at)}, {at:%H:%M}." if result.scheduled and at
                         else "Scheduled, but there is no free slot in the next "
                              f"{sendplan.HORIZON_DAYS} days." if result.scheduled
                         else f"Not scheduled: {result.refused.get(item.id, 'unknown reason')}.")
@@ -4741,7 +4783,7 @@ def create_app(root: Path, config: dict | None = None,
                 text = "Unscheduled: back on the Ready tab."
             elif what == "front":
                 item = await run_in_threadpool(sendqueue.move_to_front, store, item.id)
-                text = f"Moved to the front: it goes out {item.send_at:%a %d %b, %H:%M}."
+                text = f"Moved to the front: it goes out {item.send_at:%a} {dateformat.fmt(item.send_at)}, {item.send_at:%H:%M}."
             elif what == "retry":
                 item = await run_in_threadpool(sendqueue.retry, store, item.id)
                 text = "Back on the Ready tab: schedule it or send it now."

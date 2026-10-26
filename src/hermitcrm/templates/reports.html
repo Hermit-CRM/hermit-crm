@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Reports{% endblock %}
+{% import "macros.html" as m %}
 {% import "report_sections.html" as rs with context %}
 {% block content %}
 {% set p = report.period %}
@@ -9,8 +10,8 @@
 </p>
 <form class="row" method="get" action="/reports">
   <input type="hidden" name="period" value="custom">
-  <label>from <input type="date" name="from" value="{{ from_value }}"></label>
-  <label>to <input type="date" name="to" value="{{ to_value }}"></label>
+  <label>from {{ m.date_input('from', from_value) }}</label>
+  <label>to {{ m.date_input('to', to_value) }}</label>
   <button type="submit">Custom period</button>
 </form>
 {% if error %}<p class="error">{{ error }}</p>{% endif %}

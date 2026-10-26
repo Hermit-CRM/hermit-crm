@@ -53,7 +53,7 @@ from email.message import EmailMessage
 from email.utils import format_datetime, formataddr, make_msgid
 from pathlib import Path
 
-from . import messaging, outreach, playbook, secrets, sendplan, suppress
+from . import dateformat, messaging, outreach, playbook, secrets, sendplan, suppress
 from .models import do_not_contact, normalise_email, valid_email
 from .store import Store, load_config
 
@@ -821,7 +821,7 @@ def local_hold(store: Store, item, settings: SendSettings, *, scheduled: bool,
                  and i.date > item.ready]
         if wrote:
             latest = max(i.date for i in wrote)
-            return f"they wrote to you on {latest:%d %b}"
+            return f"they wrote to you on {dateformat.fmt(latest)}"
     now_problems = [p for p in outreach.check_item(store, item, config)
                     if p not in item.checks]
     if now_problems:
@@ -837,7 +837,7 @@ def mailbox_hold(item, address: str, box: Mailbox) -> str:
     """The reply guard against the sending mailbox itself: mail from the contact
     since the day the item was approved."""
     if item.ready is not None and box.replied_since(address, item.ready.date()):
-        return (f"they wrote to you since {item.ready:%d %b} (found in the sending "
+        return (f"they wrote to you since {dateformat.fmt(item.ready)} (found in the sending "
                 "mailbox)")
     return ""
 
