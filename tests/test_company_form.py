@@ -69,7 +69,7 @@ def test_the_fields_come_in_labelled_groups_on_a_grid(folder, tmp_path):
     app, client = make_client(folder, tmp_path)
     app.state.store.create_company("Acme", stage="engaged")
     form = form_of(client.get("/companies/acme").text)
-    assert legends(form) == ["Closing details", "Profile", "Next step", "Tags and notes"]
+    assert legends(form) == ["Closing details", "Profile", "Next step", "Tags"]
     assert "form-grid" in form and 'class="span-6"' in form
     # No long rows of the old layout are left in this form.
     assert 'class="row"' not in form
@@ -155,9 +155,10 @@ def test_hidden_fields_leave_their_group_and_an_empty_group_leaves_with_them(fol
     app, client = make_client(folder, tmp_path)
     app.state.store.create_company("Acme", stage="disqualified")
     form = form_of(client.get("/companies/acme").text)
-    # Closing details, Profile (nothing left) and Next step are gone; notes stay.
-    assert legends(form) == ["Tags and notes"]
-    assert 'id="closing-fields"' not in form and 'name="notes"' in form
+    # Closing details, Profile (nothing left), Next step and Tags are gone, and
+    # with them the whole form's groups: there is no notes box to keep one.
+    assert legends(form) == []
+    assert 'id="closing-fields"' not in form and 'name="notes"' not in form
     assert 'name="lost_reason"' not in form and 'name="next_step"' not in form
 
 

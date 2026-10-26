@@ -284,9 +284,11 @@ def test_merge_pickers_offer_candidates_and_accept_names(client, seeded):
 
 def test_merge_rows_default_to_the_filled_side(seeded):
     acme, bolt = seeded.get("acme"), seeded.get("bolt")
-    seeded.update_company("bolt", linkedin="https://l/bolt", tags="a", notes="n")
+    seeded.update_company("bolt", linkedin="https://l/bolt", tags="a")
     bolt = seeded.get("bolt")
-    rows = {r["key"]: r for r in merge_rows(acme, bolt, COMPANY_MERGE_FIELDS)}
+    bolt.notes = "old body"          # a legacy company.md body (format 18 and older)
+    rows = {r["key"]: r for r in merge_rows(acme, bolt, COMPANY_MERGE_FIELDS,
+                                            legacy=("notes",))}
     assert rows["website"]["default"] == "keep"     # ours filled
     assert rows["linkedin"]["default"] == "drop"    # ours empty, theirs filled
     assert rows["tags"]["default"] == "drop" and rows["tags"]["both"]
@@ -295,6 +297,10 @@ def test_merge_rows_default_to_the_filled_side(seeded):
     assert rows["source"]["default"] == "keep"     # both the same: ours
     assert rows["name"]["label"] == "name" and rows["value_eur_month"]["label"] == "value eur month"
     assert not rows["website"]["both"]
+    # Without a legacy body on either side the notes row is not offered at all.
+    bolt.notes = ""
+    bare = {r["key"] for r in merge_rows(acme, bolt, COMPANY_MERGE_FIELDS, legacy=("notes",))}
+    assert "notes" not in bare and "tags" in bare
     jane = acme.contacts["jane-doe"]
     crow = {r["key"]: r for r in merge_rows(jane, jane, CONTACT_MERGE_FIELDS)}
     assert set(crow) == set(CONTACT_MERGE_FIELDS) and crow["email"]["default"] == "keep"
