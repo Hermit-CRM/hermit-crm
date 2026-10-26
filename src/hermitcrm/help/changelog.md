@@ -26,6 +26,14 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   default), unless you set `enrich_model` or `ai_tier = "strong"`. The Ask button,
   and "Retry" and "Search the whole CRM instead", now show a spinner and the
   seconds waited while the answer is on its way. No data migration.
+- **Generate outreach uses your logged interactions and researches when the scrape
+  finds nothing.** The draft's brief now carries this contact's newest logged
+  interactions with what was said (up to about 4,000 characters, oldest dropped
+  first), not one short line each. When the free scrape finds nothing usable (a
+  company with no website, LinkedIn refusing), Generate, batch builds and
+  `hermitcrm outreach build` automatically run one ai-web research pass on the
+  light model; the item shows the research level that actually ran. No data
+  migration.
 - **A cheaper outreach.** Generating an outreach is three AI calls (research, draft,
   critic). The research and the critic only read and score, so they now run on a
   light model (Claude: Haiku) instead of Opus; the draft stays on the medium

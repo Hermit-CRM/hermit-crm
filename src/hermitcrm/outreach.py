@@ -473,13 +473,14 @@ class AiWebResearcher:
                                        timeout=timeout)
         self.enricher, self.fetcher, self.today = enricher, self.scrape.fetcher, self.scrape.today
 
-    def research(self, company, contact) -> Research:
+    def research(self, company, contact, base: Research | None = None) -> Research:
+        """`base` is a scrape result already in hand: it is extended, not redone."""
         from . import scrape
 
         problem = self.enricher.web_only_problem()
         if problem:
             raise OutreachError(problem)
-        out = self.scrape.research(company, contact)
+        out = base if base is not None else self.scrape.research(company, contact)
         out.level = self.level
         prompt = ai_web_prompt(company, contact, out, self.today)
         try:
@@ -509,6 +510,33 @@ class AiWebResearcher:
         out.findings += [f for f in found if all(f.text != g.text for g in out.findings)]
         out.sources += [u for u in trusted if u not in out.sources]
         return out
+
+
+class EscalatingResearcher:
+    """The `scrape` level with a safety net: when the free scrape finds nothing
+    usable (a company with no website, LinkedIn refusing), one `ai-web` pass runs
+    on the light model, building on what the scrape read. If ai-web is not
+    possible with this AI CLI, the scrape result stands and a note says why."""
+
+    level = "scrape"
+
+    def __init__(self, enricher, fetcher=None, today: date | None = None,
+                 timeout: float = 10):
+        self.scrape = ScrapeResearcher(enricher, fetcher=fetcher, today=today,
+                                       timeout=timeout)
+        self.web = AiWebResearcher(light(enricher), fetcher=self.scrape.fetcher,
+                                   today=self.scrape.today)
+
+    def research(self, company, contact) -> Research:
+        out = self.scrape.research(company, contact)
+        if any(f.usable and f.source != "crm" for f in out.findings):
+            return out
+        problem = self.web.enricher.web_only_problem()
+        if problem:
+            out.notes.append(f"no usable findings and ai-web is not available: {problem}")
+            return out
+        out.notes.append("scrape found nothing usable: ai-web research ran")
+        return self.web.research(company, contact, base=out)
 
 
 # ------------------------------------------------------------- culture, rules
@@ -711,6 +739,39 @@ def _interaction_line(company, it) -> str:
     return f"{it.date:%Y-%m-%d} {it.label} ({who})" + (f": {what}" if what else "")
 
 
+INTERACTION_BUDGET = 4000   # characters of this contact's thread the brief may carry
+BODY_LIMIT = 600            # one interaction's body, cut here
+
+
+def _interaction_detail(company, it) -> str:
+    """One interaction with what was said: date, label, who, subject, then the
+    body (greeting line skipped, whitespace collapsed, cut at BODY_LIMIT)."""
+    who = company.contacts[it.contact].name if it.contact in company.contacts else "company"
+    lines = [line.strip() for line in (it.body or "").splitlines() if line.strip()]
+    if len(lines) > 1 and followups._is_greeting(lines[0]):
+        lines = lines[1:]
+    elif len(lines) == 1 and followups._is_greeting(lines[0]):
+        lines = []
+    body = " ".join(" ".join(lines).split())
+    if len(body) > BODY_LIMIT:
+        body = body[:BODY_LIMIT - 1].rstrip() + "…"
+    text = " | ".join(part for part in (it.subject, body) if part)
+    return f"{it.date:%Y-%m-%d} {it.label} ({who})" + (f": {text}" if text else "")
+
+
+def _thread(company, interactions) -> list[str]:
+    """Newest interactions that fit INTERACTION_BUDGET, rendered oldest first.
+    The newest is always kept; older ones are dropped first."""
+    kept, used = [], 0
+    for it in sorted(interactions, key=lambda i: (i.date, i.id), reverse=True):
+        line = _interaction_detail(company, it)
+        if kept and used + len(line) > INTERACTION_BUDGET:
+            break
+        kept.append(line)
+        used += len(line)
+    return kept[::-1]
+
+
 def make_brief(store: Store, company, contact, approach, research: Research,
                fit: int | None = None, messages: dict | None = None,
                flags: list[str] | None = None, notes_background: bool = False,
@@ -747,7 +808,8 @@ def make_brief(store: Store, company, contact, approach, research: Research,
     mine = [i for i in company.interactions if i.date and i.contact == contact.slug]
     others = [i for i in company.interactions if i.date and i.contact != contact.slug
               and i.is_touch]
-    brief.relationship = ([_interaction_line(company, i) for i in mine[:3]]
+    others.sort(key=lambda i: (i.date, i.id), reverse=True)   # the store's order is not a contract
+    brief.relationship = (_thread(company, mine)
                           + [_interaction_line(company, i) for i in others[:2]])
     brief.fit = f"fit score {fit}" if fit is not None else "no fit score"
     if approach is not None:
@@ -2685,10 +2747,14 @@ def research_level(config: dict | None, override: str = "") -> str:
 
 
 def researcher_for(level: str, enricher, fetcher=None, today: date | None = None,
-                   timeout: float = 10):
+                   timeout: float = 10, escalate: bool = False):
     """The researcher for a level (`research_level` has checked it): the CLI and
-    the Outreach page both build theirs here."""
-    cls = AiWebResearcher if level == "ai-web" else ScrapeResearcher
+    the Outreach page both build theirs here. `escalate` lets a scrape-level
+    build fall back to one ai-web pass when the scrape finds nothing."""
+    if level == "ai-web":
+        cls = AiWebResearcher
+    else:
+        cls = EscalatingResearcher if escalate else ScrapeResearcher
     return cls(enricher, fetcher=fetcher, today=today, timeout=timeout)
 
 
@@ -2811,6 +2877,7 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
             except (EnrichError, OutreachError) as exc:
                 research = Research(level=item.research_level,
                                     notes=[f"research failed: {exc}"])
+            item.research_level = research.level   # what actually ran (scrape may escalate)
         item.proposals = research.proposals
         item.flags += [n for n in research.notes if n not in item.flags]
         item.researched = store.now() if now is None else now

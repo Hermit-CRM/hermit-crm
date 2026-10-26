@@ -105,3 +105,15 @@ def test_ai_web_reads_the_scrape_on_the_light_model_and_searches_on_the_medium_o
         ("research", "claude-haiku-5-5"), ("web", "claude-opus-5")]
     web = cli.calls[1]["argv"]
     assert web[web.index("--tools") + 1] == "WebSearch,WebFetch"
+
+
+def test_escalated_research_runs_on_the_light_model(cli, tmp_path):
+    root, store = demo(tmp_path)
+    store.update_company("lindenhof-data", website="")
+    company = store.get("lindenhof-data")
+    contact = company.contacts["mara-keller"]
+    enricher = Enricher(provider="claude", which=ALL)
+    out = outreach.researcher_for("scrape", enricher, fetcher=fake_page, today=NOW.date(),
+                                  escalate=True).research(company, contact)
+    assert out.level == "ai-web"
+    assert [(c["kind"], c["model"]) for c in cli.calls] == [("web", "claude-haiku-5-5")]
