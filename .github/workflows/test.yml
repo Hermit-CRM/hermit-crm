@@ -13,13 +13,20 @@ on:
 jobs:
   # The pinned versions in uv.lock, so CI and contributors test the same thing.
   # --locked fails the job if pyproject.toml changed without `uv lock`.
+  # Two ends of the supported range, not the full cross-product: the oldest
+  # Python (the floor in requires-python) on Linux, the newest on macOS (where
+  # Hermit CRM is installed). 3.12 sits between two versions that pass, and
+  # pytest-latest-deps below already covers Linux on 3.13.
   pytest:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        python-version: ["3.11", "3.12", "3.13"]
+        include:
+          - os: ubuntu-latest
+            python-version: "3.11"
+          - os: macos-latest
+            python-version: "3.13"
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
