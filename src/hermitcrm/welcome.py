@@ -67,7 +67,9 @@ def steps(store, config: dict, setup_state: dict, ai_available: bool,
     return [
         Step("you", "Say who you are",
              "Your name signs the drafts, and your addresses are how Hermit CRM "
-             "tells mail you sent from mail you received.",
+             "tells mail you sent from mail you received. Settings > Appearance "
+             "has the date format (YYYY-MM-DD, DD-MM-YYYY, DD/MM/YYYY or "
+             "MM/DD/YYYY); pick it before you type your first date.",
              "Open Settings", "/settings#you", bool(setup_state.get("you"))),
         Step("approach", "Say what you sell",
              "One sentence on what you sell, who buys it and one result a customer "
@@ -75,7 +77,9 @@ def steps(store, config: dict, setup_state: dict, ai_available: bool,
              "MESSAGING.md; the rest of the playbook can wait.",
              "Open the playbook", "/settings/playbook", _has_approach(store)),
         Step("company", "Add your first company",
-             "A company is a folder with a file in it. Everything else hangs off one.",
+             "A company is a folder with a file in it. Everything else hangs off "
+             "one. Its free text is dated notes: the form has one first note box, "
+             "and later notes go under Company notes on the company page.",
              "Add a company", "/companies/new", bool(companies)),
         Step("contact", "Add a person at it",
              "Contacts live inside their company. Drafts address them by first name "
@@ -83,7 +87,9 @@ def steps(store, config: dict, setup_state: dict, ai_available: bool,
              "Add a contact", "/contacts/new", bool(contacts)),
         Step("interaction", "Log what happened",
              "A call, a mail, a meeting. The first one moves a prospect to engaged "
-             "on its own, and every one of them is what the reports count.",
+             "on its own, and every one of them is what the reports count. Drafts "
+             "read them, with what was said, and your notes on the person and the "
+             "company too.",
              "Open a company", "/companies", bool(interactions)),
         Step("move", "Move a deal along",
              "Your first logged interaction already moved that company to engaged. "
