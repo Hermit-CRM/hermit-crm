@@ -50,7 +50,9 @@ def test_build_saves_research_findings_as_notes_in_the_research_commit(client, r
     [note] = mara_notes(client)
     assert note.subject.startswith("Research: ")
     assert "Opened a second office this autumn" in note.body and "\nSource: " in note.body
-    assert [f.text for f in item.findings] == ["Opened a second office this autumn"]
+    # the research finding, then the company's own note: a draft is written from both
+    assert [f.text for f in item.findings] == ["Opened a second office this autumn",
+                                               "Demo company. Data pipelines for mid-size insurers."]
     assert all(f.source != "crm" for f in item.findings) and item.notes_linked is True
     research = next(line for line in git(root, "log", "--format=%H %s").splitlines()
                     if " outreach: research " in line)
@@ -95,12 +97,13 @@ def test_a_note_on_the_contact_reaches_the_prompt_numbered_and_citable(client, r
     assert any(f.used for f in item.findings)
 
 
-def test_the_company_notes_field_goes_to_the_prompt_as_background_only(client, root, fake):
+def test_a_company_note_goes_to_the_prompt_as_a_citable_finding(client, root, fake):
     store_of(client).update_company(CO, notes="Series A closed in June")
     item = drafted(client, root)
-    assert "Company notes: Series A closed in June" in prompt_of(fake)
-    assert not re.search(r"^\d+\. .*Series A closed", prompt_of(fake), re.M)
-    assert all("Series A" not in f.text for f in item.findings)
+    assert re.search(r"^\d+\. \[person, high, usable; source you\] Series A closed in June$",
+                     prompt_of(fake), re.M)
+    assert "Company notes:" not in prompt_of(fake)   # no second, uncited copy as background
+    assert any(f.text == "Series A closed in June" for f in item.findings)
 
 
 def test_a_follow_up_gets_notes_as_background_not_as_findings(client, root, fake):
@@ -115,6 +118,17 @@ def test_a_follow_up_gets_notes_as_background_not_as_findings(client, root, fake
     assert item.findings == []
     assert "She dislikes cold calls." in prompt_of(fake)
     assert not re.search(r"^\d+\. \[", prompt_of(fake), re.M)
+
+
+def test_a_follow_up_gets_company_notes_as_background_too(client, root, fake):
+    store = store_of(client)
+    store.create_interaction(CO, "email", "out", subject="Your second office", contact=PERSON,
+                             date=NOW - timedelta(days=6), body="A first message.\n")
+    store.create_interaction(CO, "note", "", body="Series A closed in June.")
+    post(client, "/outreach/build", contact=MARA, kind="follow-up", back="/outreach")
+    [item] = outreach.items(root)
+    assert item.findings == []
+    assert re.search(r"^- Note \(\d{4}-\d\d-\d\d\): Series A closed in June\.$", prompt_of(fake), re.M)
 
 
 # --------------------------------------------------- regenerate and mark ready
@@ -135,7 +149,9 @@ def test_a_note_deleted_after_the_draft_stays_deleted_on_regenerate(client, root
     store_of(client).delete_interaction(CO, note.id)
     post(client, f"/outreach/{item.id}/regenerate")
     assert mara_notes(client) == []
-    assert outreach.get_item(root, item.id).findings == []
+    # only the company's own note is left to write from
+    assert [f.text for f in outreach.get_item(root, item.id).findings] == [
+        "Demo company. Data pipelines for mid-size insurers."]
 
 
 def test_mark_ready_writes_no_summary_note(client, root):
@@ -261,11 +277,17 @@ def test_a_note_written_on_the_contact_page_shows_on_the_card_with_a_regenerate_
     assert "1 note added since this draft was written. Regenerate to use it." in card
 
 
-def test_the_card_shows_company_notes_read_only(client, root):
+def test_the_card_lists_a_company_note_among_the_notes_marked_company(client, root):
     store_of(client).update_company(CO, notes="Series A closed in June")
-    card = card_html(client, drafted(client, root))
-    assert "Company notes" in card and "Series A closed in June" in card
-    assert 'name="company_notes"' not in card
+    item = drafted(client, root)
+    card = card_html(client, item)
+    assert "Series A closed in June" in card
+    assert "outreach-company-notes" not in card and "Company notes" not in card
+    assert re.search(r"Series A closed in June\s*<span class=\"small\">[^<]*?&middot; company",
+                     card)
+    shown = notes.card(store_of(client).get(CO), PERSON, item, NOW.date())
+    assert "company_notes" not in shown
+    assert {r["text"]: r["origin"] for r in shown["rows"]}["Series A closed in June"] == "company"
 
 
 def test_an_old_card_lists_its_unsaved_findings_read_only(client, root):
@@ -274,3 +296,4 @@ def test_an_old_card_lists_its_unsaved_findings_read_only(client, root):
     card = card_html(client, item)
     assert "Likes sailing" in card and "saved as notes when you regenerate or mark ready" in card
     assert "Does reporting" not in card      # the CRM's own line is not a finding
+

@@ -154,6 +154,20 @@ def test_add_company_writes_and_reports_the_slug(tools, store, messages):
     assert (store.root / "companies" / "borduro" / "company.md").exists()
 
 
+def test_add_company_with_notes_logs_a_company_level_note(tools, store):
+    schema = tools["add_company"].schema["properties"]["notes"]
+    assert schema["description"] == "Logged as a note on the company."
+    text, failed = call(tools, "add_company", name="Borduro", notes="Met at the fair.")
+    assert not failed and "as borduro" in text
+    company = store.get("borduro")
+    [note] = company.interactions
+    assert (note.channel, note.contact, note.body) == ("note", "", "Met at the fair.\n")
+    assert company.notes == ""
+    # no notes given, no note made
+    call(tools, "add_company", name="Plainware")
+    assert store.get("plainware").interactions == []
+
+
 def test_add_interaction_reports_the_stage_move(tools):
     call(tools, "add_company", name="Borduro", country="NL")
     text, failed = call(tools, "add_interaction", company="borduro", channel="email",

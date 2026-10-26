@@ -261,6 +261,91 @@ def _split_notes(body: str, fallback: datetime) -> list[tuple[datetime, str]]:
     return [(when, "\n".join(lines).strip("\n") + "\n") for when, lines in notes]
 
 
+# A company body, as people and imports wrote it. A line that opens a note starts
+# (after optional spaces) with a date: day first with `-`, `/` or `.` between 1-2
+# digit day and month and a 4-digit year, or ISO year first; then the end of the
+# line, a space, `:` or `-`. `Imported fields (2026-09-14):` opens one too.
+_DAY_FIRST = re.compile(r"^\s*(\d{1,2})([-/.])(\d{1,2})\2(\d{4})(?=$|[\s:\-])")
+_ISO_FIRST = re.compile(r"^\s*(\d{4})-(\d{2})-(\d{2})(?=$|[\s:\-])")
+_IMPORTED_FIELDS = re.compile(r"^\s*Imported fields \((\d{4})-(\d{2})-(\d{2})\):")
+
+
+def _opening_date(line: str) -> datetime | None:
+    """The date a line opens a company note with, or None for an ordinary line
+    (an impossible date such as 31-04-2026 is an ordinary line)."""
+    if m := _DAY_FIRST.match(line):
+        day, _, month, year = m.groups()
+    elif m := (_ISO_FIRST.match(line) or _IMPORTED_FIELDS.match(line)):
+        year, month, day = m.groups()
+    else:
+        return None
+    try:
+        return datetime(int(year), int(month), int(day))
+    except ValueError:
+        return None
+
+
+def _split_company_notes(body: str, fallback: datetime) -> list[tuple[datetime, str]]:
+    """A company's notes body as (date, text) notes. A line that opens with a date
+    (see _opening_date) starts a note on that day, and every line after it, up to
+    the next such line, belongs to the same note; text before the first dated line
+    is one note dated `fallback`. Text is kept verbatim, bar blank lines at both
+    ends of a note."""
+    segments: list[tuple[datetime, list[str]]] = [(fallback, [])]
+    for line in body.replace("\r\n", "\n").split("\n"):
+        when = _opening_date(line)
+        if when is not None:
+            segments.append((when, []))
+        segments[-1][1].append(line)
+    notes = []
+    for when, lines in segments:
+        while lines and not lines[0].strip():
+            lines.pop(0)
+        while lines and not lines[-1].strip():
+            lines.pop()
+        if lines:
+            notes.append((when, "\n".join(lines) + "\n"))
+    return notes
+
+
+def _body_to_notes(data_dir: Path, path: Path, meta: dict, company_dir: Path,
+                   contact: str, write: bool, claimed: set[Path],
+                   split=_split_notes) -> list[str]:
+    """Port the notes body of one contact or company file to note interactions
+    in the company's `interactions/` folder and strip the body, keeping the
+    front matter byte for byte. Returns the files it changes (empty when the
+    file has no body). `claimed` holds the names taken in this run (a dry run
+    writes none)."""
+    from .models import Interaction, interaction_to_frontmatter
+
+    text = path.read_text(encoding="utf-8")
+    _, body = split_file(text)
+    if not body.strip():
+        return []
+    fallback = (_note_date(meta, "created") or _note_date(meta, "updated")
+                or datetime.now().replace(second=0, microsecond=0))
+    folder = company_dir / "interactions"
+    changed: list[str] = []
+    for when, note in split(body, fallback):
+        it = Interaction(id="", date=when, channel="note", contact=contact,
+                         source="migration", body=note)
+        base, n = it.base_id(), 1
+        target = folder / f"{base}.md"
+        while target.exists() or target in claimed:
+            n += 1
+            target = folder / f"{base}-{n}.md"
+        claimed.add(target)
+        if write:
+            folder.mkdir(exist_ok=True)
+            target.write_text(build_file(interaction_to_frontmatter(it), note),
+                              encoding="utf-8")
+        changed.append(target.relative_to(data_dir).as_posix())
+    if write:
+        path.write_text(text[:len(text) - len(body)], encoding="utf-8")
+    changed.append(path.relative_to(data_dir).as_posix())
+    return changed
+
+
 def m7_contact_notes(data_dir: Path, meta_by_path: dict, write: bool) -> list[str]:
     """Contact notes become note interactions; the contact file loses its body.
 
@@ -269,39 +354,37 @@ def m7_contact_notes(data_dir: Path, meta_by_path: dict, write: bool) -> list[st
     is kept byte for byte; only the text after it goes. Running it again finds
     no body and does nothing.
     """
-    from .models import Interaction, interaction_to_frontmatter
-
     changed: list[str] = []
-    claimed: set[Path] = set()  # names taken in this run (a dry run writes none)
+    claimed: set[Path] = set()
     for rel, meta in sorted(meta_by_path.items()):
         if "/contacts/" not in rel:
             continue
         path = data_dir / rel
-        text = path.read_text(encoding="utf-8")
-        _, body = split_file(text)
-        if not body.strip():
+        changed += _body_to_notes(data_dir, path, meta, path.parent.parent, path.stem,
+                                  write, claimed)
+    return changed
+
+
+def m19_company_notes(data_dir: Path, meta_by_path: dict, write: bool) -> list[str]:
+    """Company notes become note interactions; company.md loses its body.
+
+    Same as m7, for the company, but split by _split_company_notes: a line that
+    opens with a date (21-10-2026, 21/10/2026, 21.10.2026, 2026-10-21, or
+    `Imported fields (2026-09-14):`) starts a note on that day and keeps the lines
+    under it; the text before the first one is a note at `created`. Each is a
+    company-level note (channel `note`, no contact, `source: migration`) in the
+    company's `interactions/` folder. The front matter of company.md is kept
+    byte for byte, `updated` included. Running it again finds no body and does
+    nothing.
+    """
+    changed: list[str] = []
+    claimed: set[Path] = set()
+    for rel, meta in sorted(meta_by_path.items()):
+        path = data_dir / rel
+        if path.name != "company.md" or path.parent.parent.name != "companies":
             continue
-        company_dir, cslug = path.parent.parent, path.stem
-        fallback = (_note_date(meta, "created") or _note_date(meta, "updated")
-                    or datetime.now().replace(second=0, microsecond=0))
-        folder = company_dir / "interactions"
-        for when, note in _split_notes(body, fallback):
-            it = Interaction(id="", date=when, channel="note", contact=cslug,
-                             source="migration", body=note)
-            base, n = it.base_id(), 1
-            target = folder / f"{base}.md"
-            while target.exists() or target in claimed:
-                n += 1
-                target = folder / f"{base}-{n}.md"
-            claimed.add(target)
-            if write:
-                folder.mkdir(exist_ok=True)
-                target.write_text(build_file(interaction_to_frontmatter(it), note),
-                                  encoding="utf-8")
-            changed.append(target.relative_to(data_dir).as_posix())
-        if write:
-            path.write_text(text[:len(text) - len(body)], encoding="utf-8")
-        changed.append(rel)
+        changed += _body_to_notes(data_dir, path, meta, path.parent, "", write, claimed,
+                                  _split_company_notes)
     return changed
 
 
@@ -513,6 +596,8 @@ MIGRATIONS = [
     Migration(17, "outreach items lose the retired angle", "outreach/*.md", m17_drop_angle),
     Migration(18, "interactions lose the retired angle", "companies/*/interactions/*.md",
               m17_drop_angle),
+    Migration(19, "company notes become note interactions", "companies/*/company.md",
+              folder=m19_company_notes),
 ]
 LATEST = MIGRATIONS[-1].version
 

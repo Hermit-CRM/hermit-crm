@@ -11,7 +11,7 @@
 {% endif %}
 {{ m.errors_box(errors) }}
 <form method="post" action="/companies" class="record-form">
-  {{ m.company_fields(values, errors) }}
+  {{ m.company_fields(values, errors, first_note=true) }}
   <button type="submit">Create company</button>
 </form>
 {% endblock %}

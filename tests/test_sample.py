@@ -27,6 +27,7 @@ from fastapi.testclient import TestClient
 from hermitcrm import adjust, cli, dashboards, routines, sample, welcome
 from hermitcrm.datafolder import init_folder
 from hermitcrm.models import ValidationError
+from hermitcrm.notes import company_notes
 from hermitcrm.store import Store, load_config
 from hermitcrm.web import create_app
 
@@ -86,7 +87,10 @@ def test_the_sample_has_one_of_everything(folder):
     person_tasks = [t for c in company.contacts.values() for t in c.tasks]
     assert any(not t.done and t.due for t in person_tasks)
     assert any(t.done for t in company.tasks + person_tasks)
-    assert "made up" in company.notes and "Remove" in company.notes
+    # The explainer is a dated note on the company, not a body.
+    assert company.notes == ""
+    [explainer] = company_notes(company)
+    assert "made up" in explainer.body and "Remove" in explainer.body
     text = (folder / "companies" / company.slug / "company.md").read_text()
     assert "\nsample: true\n" in text
 
