@@ -249,7 +249,7 @@ def version_in(page: str) -> str:
 
 FORM = {"name": "Race BV", "website": "", "linkedin": "", "source": "other",
         "stage": "prospect", "lost_reason": "", "value_eur_month": "", "next_step": "",
-        "next_step_due": "", "next_step_status": "open", "tags": "", "notes": "mine"}
+        "next_step_due": "", "next_step_status": "open", "tags": "", "notes": "mine"}   # `notes` is no longer read: the form has no such box
 
 
 def test_a_company_form_opened_before_a_sync_run_is_not_saved(client, repo):
@@ -268,7 +268,11 @@ def test_a_company_form_opened_before_a_sync_run_is_not_saved(client, repo):
     resp = client.post("/companies/race", data={**FORM, "stage": "engaged",
                                                 "version": version_in(resp.text)})
     assert resp.status_code == 303
-    assert "mine" in company_file(repo, "race").read_text(encoding="utf-8")
+    text = company_file(repo, "race").read_text(encoding="utf-8")
+    assert "mine" not in text                      # a stray `notes` field is ignored,
+    after = Store(repo)
+    after.load()
+    assert not [i for i in after.get("race").interactions if i.is_note]   # no note made
 
 
 def test_a_company_form_with_a_current_version_saves(client, repo):
