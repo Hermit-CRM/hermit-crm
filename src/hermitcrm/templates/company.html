@@ -13,7 +13,7 @@
   {% if company.website and 'website' not in hide %}<a href="{{ company.website | href }}" target="_blank" rel="noopener">{{ company.website | replace('https://', '') | replace('http://', '') }}</a>{% endif %}
   {% if company.linkedin and 'linkedin' not in hide %}<a href="{{ company.linkedin | href }}" target="_blank" rel="noopener">linkedin</a>{% endif %}
   <span>{{ company.stage }}{% if company.lost_reason and 'lost_reason' not in hide %} ({{ company.lost_reason }}){% endif %}{% if company.requalify_on and 'requalify_on' not in hide %}, requalifies on {{ fmt_date(company.requalify_on) }}{% endif %} &middot; {{ company.days_in_stage(today) }}d in stage</span>
-  <span>last touch: {{ company.last_touch_summary }}</span>
+  <span>last touch: {{ company.touch_summary(fmt_date) }}</span>
   {% for f in custom_fields_for('company') if f.shows_in('detail') and f.key not in hide and company.extra.get(f.key) not in (none, '') %}
   <span>{{ f.label }} {{ f.display(company.extra.get(f.key)) }}</span>
   {% endfor %}
@@ -30,7 +30,7 @@
       <form method="post" action="/companies/{{ company.slug }}/disqualify" class="inline-form">
         <input type="hidden" name="stage" value="{{ x.name }}">
         <input name="reason" placeholder="reason" value="{{ company.lost_reason }}">
-        {% if x.parked %}<label class="inline">until <input type="date" name="requalify_on" value="{{ fmt_date(company.requalify_on) }}" title="the company goes back to {{ company.stages.entry }} on this date"></label>{% endif %}
+        {% if x.parked %}<label class="inline">until {{ m.date_input('requalify_on', company.requalify_on, title='the company goes back to ' ~ company.stages.entry ~ ' on this date') }}</label>{% endif %}
         <button type="submit">{{ x.label }}</button>
       </form>
       {% endfor %}

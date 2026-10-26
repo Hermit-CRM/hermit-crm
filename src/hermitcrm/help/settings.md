@@ -90,6 +90,13 @@ this machine; the local backup is the one nothing can rewrite. See
 Night mode: off (`theme = "light"`), on (`"dark"`) or follow the operating
 system (`"system"`).
 
+Date format: one format for every date the pages show and every date field
+takes (lists, forms, reports, the calendar). Pick `YYYY-MM-DD` (`date_format =
+"iso"`, the default), `DD-MM-YYYY` (`"dmy-dash"`), `DD/MM/YYYY` (`"dmy"`) or
+`MM/DD/YYYY` (`"mdy"`). Date fields are text boxes in that format, with a
+calendar button; `YYYY-MM-DD` is always accepted as well. Your files, exports
+and what your AI tool reads stay `YYYY-MM-DD` whatever you pick.
+
 ### Your own look: theme.css
 
 To change colours or fonts, put a file called `theme.css` in your data folder.

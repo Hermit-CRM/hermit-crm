@@ -9,7 +9,7 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <input type="hidden" name="back" value="/">
   <p class="draft-head"><a href="{{ d.url }}">{{ row.contact_name or row.company_name }}</a>{% if row.contact_name %} <span class="small">{{ row.company_name }}</span>{% endif %} <span class="tag">{{ d.channel }}</span></p>
-  <p class="small">{{ d.reason }} &middot; <a href="/yours/routines/{{ d.routine }}">{{ row.routine_title }}</a>, {{ fmt_datetime(d.made) | replace('T', ' ') }}</p>
+  <p class="small">{{ d.reason }} &middot; <a href="/yours/routines/{{ d.routine }}">{{ row.routine_title }}</a>, {{ fmt_datetime(d.made) }}</p>
   {% if d.channel == 'email' %}<label>subject <input name="subject" value="{{ d.subject }}"></label>{% endif %}
   <textarea name="body" rows="8" spellcheck="true" aria-label="Draft for {{ row.contact_name or row.company_name }}">{{ d.body }}</textarea>
   <div class="draft-actions">

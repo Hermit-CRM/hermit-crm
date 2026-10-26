@@ -360,7 +360,7 @@ def test_a_scheduled_item_that_is_held_goes_back_to_ready_with_the_reason(folder
     out, smtp, imap = deliver(store, settings, item.id, scheduled=True)
     after = outreach.get_item(root, item.id)
     assert out.kind == "held" and after.state == "ready"
-    assert "they wrote to you on 16 Oct" in after.send_note
+    assert "they wrote to you on 2026-10-16" in after.send_note
     assert after.queued is None and after.send_at is None and after.send_hash == ""
     assert not smtp.sent and not imap.logins                  # no mailbox login for a local hold
     assert "outreach: hold" in git(root, "log", "--format=%s", "-1")

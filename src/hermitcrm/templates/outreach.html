@@ -233,7 +233,7 @@
   <p class="small">Spaced over the sending window with a little jitter, under today's cap, one company a day. Nothing is scheduled until you confirm.</p>
   {% if schedule_preview.rows %}<table class="outreach-times">
     <thead><tr><th>Goes out</th><th>To</th><th>Subject</th></tr></thead>
-    <tbody>{% for row in schedule_preview.rows %}<tr><td>{% if row.at %}{{ row.at.strftime('%a %d %b, %H:%M') }}{% else %}no free slot{% endif %}</td><td>{{ row.who }}</td><td>{{ row.item.subject }}</td></tr>{% endfor %}</tbody>
+    <tbody>{% for row in schedule_preview.rows %}<tr><td>{% if row.at %}{{ row.at.strftime('%a') }} {{ fmt_date(row.at) }}, {{ row.at.strftime('%H:%M') }}{% else %}no free slot{% endif %}</td><td>{{ row.who }}</td><td>{{ row.item.subject }}</td></tr>{% endfor %}</tbody>
   </table>{% endif %}
   {% if schedule_preview.refused %}<details class="small"><summary>{{ schedule_preview.refused | length }} cannot be scheduled</summary><ul>{% for id, why in schedule_preview.refused %}<li>{{ id }}: {{ why }}</li>{% endfor %}</ul></details>{% endif %}
   <div class="draft-actions">
@@ -265,7 +265,7 @@
     <pre class="outreach-text outreach-original">{{ i.ai_body }}</pre>
     {% if i.ai_pitch %}<p class="small">after they accept</p><pre class="outreach-text outreach-original">{{ i.ai_pitch }}</pre>{% endif %}
     <ol class="outreach-edits">{% for step in card.steps %}{% set e = step.edit %}
-      <li><span class="small"><strong>Edit {{ loop.index }}</strong> &middot; {{ e.at | replace('T', ' ') }} &middot; {{ e.words }} word{{ 's' if e.words != 1 }}</span>
+      <li><span class="small"><strong>Edit {{ loop.index }}</strong> &middot; {{ ui_datetime(e.at) }} &middot; {{ e.words }} word{{ 's' if e.words != 1 }}</span>
         {% if e.note %}<p class="outreach-edit-note">{{ e.note }}</p>{% else %}<p class="small quiet">No explainer.</p>{% endif %}
         {% if step.subject %}<p class="small">Subject: {{ diff(step.subject) }}</p>{% endif %}
         <pre class="outreach-text outreach-diff">{{ diff(step.body) }}</pre>
@@ -273,7 +273,7 @@
       </li>{% endfor %}
     </ol>
     {% for old in i.earlier %}
-    <p class="small"><strong>Regenerated away</strong> ({{ old.replaced | replace('T', ' ') }}){% if old.why %}: {{ old.why }}{% endif %}
+    <p class="small"><strong>Regenerated away</strong> ({{ ui_datetime(old.replaced) }}){% if old.why %}: {{ old.why }}{% endif %}
       &middot; {{ old.edits | length }} tracked edit{{ 's' if old.edits | length != 1 }}</p>
     <pre class="outreach-text outreach-original">{{ old.ai_body }}</pre>
     {% endfor %}
@@ -433,7 +433,7 @@
   {% elif i.state in ('queued', 'failed') %}
   {% if i.channel == 'email' %}<p><strong>{{ i.subject }}</strong></p>{% endif %}
   {% if i.state == 'queued' %}
-  <p class="send-when"><strong>{% if i.send_at %}Goes out {{ i.send_at.strftime('%a %d %b, %H:%M') }}{% else %}No free slot in the next 60 days{% endif %}</strong>{% if i.send_error %} <span class="small warning">last try: {{ i.send_error }}</span>{% endif %}</p>
+  <p class="send-when"><strong>{% if i.send_at %}Goes out {{ i.send_at.strftime('%a') }} {{ fmt_date(i.send_at) }}, {{ i.send_at.strftime('%H:%M') }}{% else %}No free slot in the next 60 days{% endif %}</strong>{% if i.send_error %} <span class="small warning">last try: {{ i.send_error }}</span>{% endif %}</p>
   {% else %}
   <p class="warning-box">Not sent: {{ i.send_error }}</p>
   {% endif %}
@@ -475,8 +475,8 @@
   {% else %}
   {% if i.channel == 'email' and i.subject %}<p><strong>{{ i.subject }}</strong></p>{% endif %}
   {% if i.body %}<details><summary>The message</summary><pre class="outreach-text">{{ i.body }}</pre></details>{% endif %}
-  <p class="small">{% if i.state == 'skipped' %}Skipped: {{ i.skip_reason }}{% if i.skip_note %} ({{ i.skip_note }}){% endif %}{% if i.skipped %}, {{ fmt_datetime(i.skipped) | replace('T', ' ') }}{% endif %}
-    {% elif i.sent %}Sent {{ fmt_datetime(i.sent) | replace('T', ' ') }}{% if i.sent_with %}, logged{% else %}, marked by hand{% endif %}{% endif %}
+  <p class="small">{% if i.state == 'skipped' %}Skipped: {{ i.skip_reason }}{% if i.skip_note %} ({{ i.skip_note }}){% endif %}{% if i.skipped %}, {{ fmt_datetime(i.skipped) }}{% endif %}
+    {% elif i.sent %}Sent {{ fmt_datetime(i.sent) }}{% if i.sent_with %}, logged{% else %}, marked by hand{% endif %}{% endif %}
     {% if i.edit_distance is not none %} &middot; {{ i.edit_distance }} word{{ 's' if i.edit_distance != 1 }} edited{% endif %}</p>
   {% endif %}
   {% if i.state not in ('drafted', 'ready', 'queued', 'failed') %}{{ history(card) }}{% endif %}

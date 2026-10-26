@@ -40,7 +40,7 @@
     <article class="card">
       <h3><a href="/companies/{{ c.slug }}">{{ c.name }}</a></h3>
       <div class="small">{{ c.days_in_stage(today) }}d in stage{% if c.country and 'country' not in hide %} &middot; {{ c.country }}{% endif %}</div>
-      <div class="small">{{ c.last_touch_summary }}</div>
+      <div class="small">{{ c.touch_summary(fmt_date) }}</div>
       {% set nxt = c.next_todo() %}
       {% if nxt %}
       <div class="small{% if nxt.overdue(today) %} overdue{% endif %}{% if nxt.done %} done{% endif %}">

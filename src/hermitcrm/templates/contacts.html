@@ -26,7 +26,7 @@
     {%- elif col.key == 'linkedin' %}
     <td>{% if r.linkedin %}<a href="{{ r.linkedin | href }}" target="_blank" rel="noopener">{{ r.linkedin | replace('https://www.linkedin.com/in/', '') | replace('https://', '') }}</a>{% endif %}</td>
     {%- elif col.key == 'last_touch' %}
-    <td>{{ fmt_datetime(r.last_touch).replace('T', ' ') if r.last_touch else 'none' }}</td>
+    <td>{{ fmt_datetime(r.last_touch) if r.last_touch else 'none' }}</td>
     {%- elif col.key == 'interaction_count' %}
     <td>{{ r.interaction_count }}</td>
     {%- else %}

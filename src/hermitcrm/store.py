@@ -38,6 +38,7 @@ try:  # not on Windows: there the in-process lock is all there is
 except ImportError:  # pragma: no cover
     fcntl = None
 
+from . import dateformat
 from . import fields as fields_mod
 from .frameworks import ID as FRAMEWORK_ID
 from .paths import contained
@@ -141,6 +142,10 @@ DEFAULT_CONFIG = {
     "ask_timeout": 300,
     # Look of the web app: light, dark or system (follow the OS setting).
     "theme": "light",
+    # How dates read and are typed in the web app (Settings > Appearance): iso
+    # (2026-12-31), dmy-dash (31-12-2026), dmy (31/12/2026) or mdy (12/31/2026).
+    # Files and exports stay ISO whatever this says.
+    "date_format": "iso",
     # A message with no reply and no explicit outcome counts as the last
     # outcome after this many days (Messages tab).
     "message_window_days": 14,
@@ -633,7 +638,7 @@ class Store:
             return parse_date(value)
         except ValidationError:
             raise ValidationError(
-                {field_name: f"{field_name} must be YYYY-MM-DD, got {value!r}"}
+                {field_name: f"{field_name} must be {dateformat.hint()}, got {value!r}"}
             )
 
     @staticmethod
@@ -642,7 +647,7 @@ class Store:
             return parse_datetime(value)
         except ValidationError:
             raise ValidationError(
-                {field_name: f"{field_name} must be YYYY-MM-DDTHH:MM, got {value!r}"}
+                {field_name: f"{field_name} must be {dateformat.hint_datetime()}, got {value!r}"}
             )
 
     @staticmethod
