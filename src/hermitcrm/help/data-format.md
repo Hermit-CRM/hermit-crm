@@ -214,7 +214,7 @@ keys scheduling, sending and the LinkedIn session write to every outreach item
 unasked, see [Sending](/help/sending); formats 15 and 16 trim a hand-written
 `framework` and put it in lower case, and drop an empty one, on outreach items and
 then on interactions); format 17 drops the `angle` key from outreach items and
-format 18 drops it from interactions. format 19 moves each company's notes body into note interactions (channel `note`, no contact, `source: migration`): a line starting with a date (`21-10-2026`, `21/10/2026`, `21.10.2026` or `2026-10-21`, followed by the end of the line, a space, `:` or `-`) opens a note on that day with the lines under it, text before the first dated line is a note dated at the company's creation (else last update), and `Imported fields (yyyy-mm-dd):` opens one too. The time of day is not kept. `company.md` keeps its front matter byte for byte, `updated` included. The latest format is 19;
+format 18 drops it from interactions. Format 19 moves each company's notes body into note interactions (channel `note`, no contact, `source: migration`): a line starting with a date (`21-10-2026`, `21/10/2026`, `21.10.2026` or `2026-10-21`, followed by the end of the line, a space, `:` or `-`) opens a note on that day with the lines under it, text before the first dated line is a note dated at the company's creation (else last update), and `Imported fields (yyyy-mm-dd):` opens one too. The time of day is not kept. `company.md` keeps its front matter byte for byte, `updated` included. The latest format is 19;
 `hermitcrm migrate --dry-run` lists the files first and `git revert` undoes it. A
 folder written by a newer Hermit CRM is refused until you upgrade.
 
