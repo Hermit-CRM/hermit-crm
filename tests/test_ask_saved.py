@@ -1,3 +1,16 @@
+# Copyright 2026 Gijs Bos
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+
 """Saved questions for Ask the Hermit: the file, the routes and the pages that offer them."""
 
 from __future__ import annotations
@@ -237,10 +250,10 @@ def test_save_route_refusal_is_a_400_with_the_reason(app_client):
 
 def test_every_page_offers_the_saved_questions(app_client):
     app, client, folder = app_client
-    assert "ask-saved-data" not in client.get("/companies").text   # nothing saved, nothing sent
+    assert "ask-data" not in client.get("/companies").text   # nothing saved or asked, nothing sent
     post(app, client, "/ask/saved", question="Which deals are stuck?", scope="crm")
     page = client.get("/companies").text
-    assert 'id="ask-saved-data"' in page and "Which deals are stuck?" in page
+    assert 'id="ask-data"' in page and "Which deals are stuck?" in page
     assert 'data-ask-saved' in page and 'data-target="ask-question"' in page
     assert 'formaction="/ask/saved"' in page and "/static/askbook.js" in page
 
@@ -252,7 +265,7 @@ def test_a_hostile_question_cannot_break_out_of_the_page(app_client):
     for path in ("/companies", "/ask"):
         page = client.get(path).text
         assert evil not in page and "<img src=x" not in page
-        data = re.search(r'id="ask-saved-data">(.*?)</script>', page, re.S).group(1)
+        data = re.search(r'id="ask-data">(.*?)</script>', page, re.S).group(1)
         assert "</script" not in data and "<" not in data
 
 
