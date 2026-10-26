@@ -1112,3 +1112,31 @@ details.row-more { display: inline-block; margin: 0; }
 details.row-more > summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 3px 6px; }
 details.row-more[open] { display: block; flex-basis: 100%; }
 details.row-more > .draft-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
+
+/* Saved questions for Ask the Hermit (static/askbook.js): suggestions under the box,
+   the newest as chips, and the list on the Ask page. */
+.ask-suggest { list-style: none; margin: 4px 0 0; padding: 2px; border: 1px solid var(--line);
+  border-radius: 6px; background: var(--surface); }
+.ask-suggest[hidden] { display: none; }
+.ask-suggest li { padding: 5px 8px; border-radius: 4px; font-size: 13px; line-height: 1.4;
+  cursor: pointer; white-space: pre-line; }
+.ask-suggest li.on, .ask-suggest li:hover { background: var(--surface-2); outline: 1px solid var(--accent); }
+.ask-suggest .tag, .ask-saved-list .tag { margin-left: 6px; padding: 0 5px; border-radius: 3px;
+  background: var(--subtle); font-size: 12px; white-space: nowrap; color: var(--muted); }
+.ask-saved { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin: 8px 0 0; }
+.ask-saved .ask-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ask-scope-note { margin: 6px 0 0; }
+.ask-scope-note[hidden] { display: none; }
+button.linklike { background: none; border: 0; padding: 0; font: inherit; color: var(--accent);
+  text-decoration: underline; cursor: pointer; }
+.ask-save-status { min-height: 1em; }
+.ask-saved-mark { color: var(--accent); align-self: center; }
+.ask-saved-list { max-width: 110ch; margin-top: 24px; }
+.ask-saved-list ul { list-style: none; margin: 0; padding: 0; }
+.ask-saved-list li { padding: 8px 0; border-top: 1px solid var(--line); }
+.saved-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.saved-row .saved-text { flex: 1 1 24ch; white-space: pre-line; }
+.saved-row form { margin: 0; }
+.saved-edit { margin-top: 4px; }
+.saved-edit summary { cursor: pointer; color: var(--muted); }
+.saved-edit textarea { width: 100%; max-width: 110ch; }

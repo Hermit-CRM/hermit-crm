@@ -8,6 +8,14 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Save the questions you ask often.** Next to **Ask** there is now a **Save**
+  button, and under an answer **Save this question**. Saved questions are suggested
+  as you type in the Ask box on every page (Up/Down, then Enter or Tab), the newest
+  four are buttons in the panel, and the Ask page lists them all with Use, Edit and
+  Delete. A question saved with "search the whole CRM" ticked remembers that. They
+  live in `ask-questions.toml` in your data folder, one commit per change, so they
+  are in your backups. A new optional file, so no data migration. See
+  [Ask the Hermit](/help/ask).
 - **Form fields line up.** In the Next step group of a company, in Log an interaction
   and in the Add task forms, every field's name now sits above its box. Before, a date
   field's name (such as **due** or **date**) sat to the left of the box, which put it
