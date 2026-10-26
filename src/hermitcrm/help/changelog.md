@@ -8,6 +8,10 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **The tour and Home cover Outreach, Learning and Reports.** **Show me around** now
+  stops at Outreach, Learning and Reports, in the order of the menu, and **What this
+  thing does** on Home has a card each for Outreach and Learning. No data migration.
+
 - **Save the questions you ask often.** Next to **Ask** there is now a **Save**
   button, and under an answer **Save this question**. Saved questions are suggested
   as you type in the Ask box on every page (Up/Down, then Enter or Tab), the newest
