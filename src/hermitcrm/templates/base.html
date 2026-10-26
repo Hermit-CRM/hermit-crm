@@ -14,6 +14,7 @@
   {% if user_theme %}<link rel="stylesheet" href="/theme.css">{% endif %}
   <script src="/static/tour.js?v={{ asset_version }}" defer></script>
   <script src="/static/adjust.js?v={{ asset_version }}" defer></script>
+  <script src="/static/askbook.js?v={{ asset_version }}" defer></script>
   <script src="/static/busy.js?v={{ asset_version }}" defer></script>
   <script src="/static/copy.js?v={{ asset_version }}" defer></script>
   <script src="/static/hint.js?v={{ asset_version }}" defer></script>
@@ -76,11 +77,26 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="hidden" name="page" value="{{ ask_page }}">
         <label>Ask about this page (Hermit searches the whole CRM if the page is not enough)
-          <textarea name="question" rows="3" required placeholder="Which of these companies should I follow up this week?"></textarea>
+          <textarea id="ask-question" name="question" rows="3" required data-ask-box aria-controls="ask-suggest" placeholder="Which of these companies should I follow up this week?"></textarea>
         </label>
+        {#- Saved questions (askbook.js): suggestions while you type, the newest as chips.
+            The list is data on the page, so nothing is fetched. -#}
+        <ul id="ask-suggest" class="ask-suggest" role="listbox" aria-label="Saved questions" data-ask-suggest hidden></ul>
+        <input type="hidden" name="scope" value="auto" data-ask-scope>
+        <p class="small ask-scope-note" data-ask-scope-note hidden>Skips this page and searches the whole CRM. <button type="button" class="linklike" data-ask-scope-reset>Use this page</button></p>
+        {% if ask_saved %}
+        <div class="ask-saved">
+          {% for s in ask_saved[:4] %}<button type="button" class="starter ask-chip" data-ask-saved data-starter="{{ s.text }}" data-target="ask-question" data-scope="{{ s.scope }}" title="{{ s.text }}">{{ s.text }}{% if s.scope == 'crm' %} <span class="tag">whole CRM</span>{% endif %}</button>
+          {% endfor %}
+          {% if ask_saved | length > 4 %}<a class="small" href="/ask?page={{ ask_page | urlencode }}#saved">All {{ ask_saved | length }} saved</a>{% endif %}
+        </div>
+        <script type="application/json" id="ask-saved-data">{{ ask_saved | tojson }}</script>
+        {% endif %}
         <div class="ask-actions">
           <button type="submit" data-busy="Asking&hellip;">Ask</button>
+          <button type="submit" formaction="/ask/saved" data-save-question title="Keep this question to ask again with one click">Save</button>
           <span class="small ask-hint">Takes up to a few minutes; the page waits for the answer.</span>
+          <span class="small ask-save-status" role="status" data-save-status></span>
         </div>
       </form>
       <div id="adjust-form" class="adjust-tab" role="tabpanel" aria-labelledby="ask-tab-adjust" hidden>
