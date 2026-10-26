@@ -30,6 +30,7 @@ the pipeline; this list is about the network around it.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import date
 
@@ -77,6 +78,17 @@ class Followup:
         return subject or self.interaction.label
 
     @property
+    def preview(self) -> str:
+        """The first words of the message itself, with no subject: what was said."""
+        return first_line(self.interaction.body) or self.interaction.subject
+
+    @property
+    def speaker(self) -> str:
+        """Whose words `preview` are: "you" for a message you sent, otherwise the
+        person's name ("they" when the interaction names nobody)."""
+        return "you" if self.kind == NUDGE else (self.who or "they")
+
+    @property
     def reason(self) -> str:
         """Why this is on the list. The day count is a column of its own, so it
         is deliberately not repeated here."""
@@ -94,9 +106,43 @@ def _is_greeting(line: str) -> bool:
     return len(line) < 30 and line.endswith(",")
 
 
+# What a mail client puts above a message when you copy it out: the sender, a time
+# ("10:12 AM (1 minute ago)", "Mon, Oct 22, 10:12 AM"), then "to Sam".
+_MAIL_TIME = re.compile(
+    r"^(?:\d{1,2}:\d{2}\b"                                           # 10:12 AM (1 minute ago)
+    r"|(?:[A-Za-z]{3,9}\.?,?\s+){1,2}\d{1,2}(?:,?\s+\d{4})?,?\s+\d{1,2}:\d{2}\b"  # Mon, Oct 22, 10:12 AM
+    r"|\d{1,2}\s+[A-Za-z]{3,9}\.?\s+\d{4},?\s+\d{1,2}:\d{2}\b)")      # 22 Oct 2026 10:12
+_MAIL_FIELD = re.compile(r"(?:from|to|cc|bcc|sent|date|subject)\s*:", re.IGNORECASE)
+
+
+def _strip_mail_header(lines: list[str]) -> list[str]:
+    """`lines` without a copied-in mail header at the top.
+
+    Two shapes: header fields ("From: ...", "Subject: ..."), and the short
+    sender / time / "to ..." block of a webmail client. Only the very start of
+    the body is looked at, so a message that merely contains a time is untouched.
+    """
+    fields = 0
+    while fields < len(lines) and _MAIL_FIELD.match(lines[fields]):
+        fields += 1
+    if fields:
+        return lines[fields:]
+    for at in range(min(3, len(lines))):
+        if len(lines[at]) < 80 and _MAIL_TIME.match(lines[at]):
+            rest = lines[at + 1:]
+            if rest and re.match(r"to\s", rest[0], re.IGNORECASE) and len(rest[0]) < 60:
+                rest = rest[1:]
+            return rest
+    return lines
+
+
 def first_line(body: str, limit: int = 90) -> str:
-    """The first line of a body worth previewing, greeting skipped."""
+    """The first line of a body worth previewing: a pasted mail header and a
+    greeting are skipped."""
     lines = [line.strip() for line in (body or "").splitlines() if line.strip()]
+    stripped = _strip_mail_header(lines)
+    if stripped:
+        lines = stripped
     if len(lines) > 1 and _is_greeting(lines[0]):
         lines = lines[1:]
     if not lines:
