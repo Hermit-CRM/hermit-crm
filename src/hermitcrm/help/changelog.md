@@ -8,6 +8,12 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Follow up on another channel, or after many unanswered messages.** Pressing
+  Generate or **Draft follow-up** for one person used to refuse with "your
+  unanswered message was on linkedin, not email" or "followed up already ... close
+  the loop". Now it drafts anyway and puts a warning on the draft (the channel
+  changed; how many messages went unanswered). Batches still leave those people
+  out, and the AI never sees the warning. No data migration.
 - **One date format, your choice.** The app showed dates two ways: `2026-12-01`
   in lists and text, and whatever your browser's language says (often
   `01/12/2026`) in date fields. Settings > Appearance now has a **Date format**

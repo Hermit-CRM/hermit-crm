@@ -199,7 +199,7 @@
 {% if tab == 'follow-ups' %}
 <section class="outreach-followups">
   <p class="small">Messages of yours with no answer after {{ nudge_days }} days.
-    {%- call hint('followups-help', 'How follow-ups work') %} From the follow-up radar (Settings: <code>followup_nudge_days</code>). A follow-up is short, has no calendar invite and gives an easy way out; the bot does no research for it. There is one per silence: after it, the bot lets it go.{% endcall %}</p>
+    {%- call hint('followups-help', 'How follow-ups work') %} From the follow-up radar (Settings: <code>followup_nudge_days</code>). A follow-up is short, has no calendar invite and gives an easy way out; the bot does no research for it. A batch makes one per silence and then lets that person go; draft from their row or the Generate panel to write another, on any channel.{% endcall %}</p>
   {% if due_rows %}
   <ul class="outreach-reply-list">
   {% for f in due_rows %}{% set it = f.interaction %}
