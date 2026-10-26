@@ -18,6 +18,10 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   the row flips its direction and keeps the text exactly as it was. A card on the board
   whose company is on the list has a small badge; the board's order does not change.
   See [Pipeline](/help/pipeline#follow-up-radar). No data migration.
+- **Filter on the Pipeline stays on the Pipeline.** Pressing **Filter** on the board
+  (for example after picking a column) took you to the Home page, and **clear filters
+  and sorting** went there too. Both now stay on the Pipeline. The other list pages
+  were fine. No data migration.
 - **Save the questions you ask often.** Next to **Ask** there is now a **Save**
   button, and under an answer **Save this question**. Saved questions are suggested
   as you type in the Ask box on every page (Up/Down, then Enter or Tab), the newest
