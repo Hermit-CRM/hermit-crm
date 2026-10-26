@@ -236,6 +236,19 @@ def test_show_company_with_no_interactions_or_contacts(tmp_path):
     assert not text.rstrip("\n").endswith("---")
 
 
+def test_show_prints_a_legacy_body_only_when_there_is_one(tmp_path):
+    store = fixed_store(tmp_path)
+    store.create_company("Acme GmbH", source="referral", notes="Logged as a note.")
+    text = crm.cmd_show(store, "acme")
+    # the company note is on the timeline, not repeated above the contacts
+    assert text.count("Logged as a note.") == 1
+    acme = store.get("acme")
+    acme.notes = "Typed in by hand.\n"
+    store.write_company(acme)
+    text = crm.cmd_show(store, "acme")
+    assert "Typed in by hand." in text and text.count("Logged as a note.") == 1
+
+
 # --------------------------------------------------------------------- check
 
 

@@ -108,6 +108,33 @@ def test_a_company_with_no_history_says_so(seeded):
     assert "No interactions logged yet." in text
 
 
+def brief_text(store):
+    inbox = put_upcoming(store, event())
+    return brief.render(brief.briefs(store, inbox, FIXED_NOW), TODAY)
+
+
+def notes_line(store) -> str:
+    """The brief's "Notes:" line (the last interactions above it list notes too)."""
+    return next((l for l in brief_text(store).splitlines() if l.startswith("Notes:")), "")
+
+
+def test_the_notes_line_shows_the_newest_company_note_and_how_many_more(seeded):
+    assert notes_line(seeded) == ""
+    seeded.create_interaction("acme", channel="note", direction="", date=FIXED_NOW - timedelta(days=9),
+                              body="2026-08-01 Met at the fair.\nSecond line.")
+    assert notes_line(seeded) == "Notes: 2026-08-01 Met at the fair."
+    seeded.create_interaction("acme", channel="note", direction="", date=FIXED_NOW - timedelta(days=2),
+                              body="Series A closed in June.\nMore detail.")
+    seeded.create_interaction("acme", channel="note", direction="", contact="jane-roe",
+                              date=FIXED_NOW - timedelta(days=1), body="About Jane only.")
+    assert notes_line(seeded) == "Notes: Series A closed in June. (+1 more)"
+
+
+def test_the_notes_line_ignores_a_legacy_body(seeded):
+    seeded.companies["acme"].notes = "2026-01-02\nOld body text."
+    assert notes_line(seeded) == ""
+
+
 def test_meetings_come_back_soonest_first(seeded):
     seeded.create_company(name="Borduro", country="NL")
     inbox = put_upcoming(

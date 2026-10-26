@@ -206,13 +206,12 @@ def rows(company, contact_slug: str, today: date, used=frozenset()) -> list[dict
 def card(company, contact_slug: str, item, today: date) -> dict:
     """What the card's Notes panel shows: one row per note (newest first, with
     where it came from and whether the draft used it), how many notes are newer
-    than the draft, findings of an older card that are not notes yet, and the
-    company's own notes field."""
+    than the draft, and findings of an older card that are not notes yet. The
+    company's own notes are among the rows, with origin "company"."""
     listed = notes_for(company, contact_slug)
     shown = rows(company, contact_slug, today, {_norm(f.text) for f in item.findings if f.used})
     texts = {_norm(r["text"]) for r in shown}
     newer = sum(1 for n in listed if item.drafted and n.date and n.date > item.drafted)
     legacy = [] if item.notes_linked else [
         f for f in item.findings if f.source != "crm" and _norm(f.text) not in texts]
-    return {"rows": shown, "newer": newer, "legacy": legacy,
-            "company_notes": (company.notes or "").strip()}
+    return {"rows": shown, "newer": newer, "legacy": legacy}

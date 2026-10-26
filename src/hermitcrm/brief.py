@@ -130,8 +130,12 @@ def render_one(brief: Brief, today=None) -> str:
                              f"({it.contact_label}){': ' + preview if preview else ''}")
         else:
             lines.append("No interactions logged yet.")
-        if company.notes.strip():
-            lines.append("Notes: " + first_line(company.notes, 200))
+        mine = sorted((i for i in company.interactions if i.is_note and not i.contact),
+                      key=lambda i: (i.date or datetime.min, i.id), reverse=True)
+        if mine:
+            text = first_line(mine[0].body, 200) or first_line(mine[0].subject, 200)
+            more = f" (+{len(mine) - 1} more)" if len(mine) > 1 else ""
+            lines.append("Notes: " + text + more)
     return "\n".join(lines)
 
 

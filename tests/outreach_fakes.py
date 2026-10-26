@@ -162,3 +162,17 @@ def demo(tmp_path, name="crm"):
     store.load()
     store.on_write = _writer(store, root, {**load_config(root), "push_enabled": False})
     return root, store
+
+
+def drop_company_notes(folder, slug=None):
+    """The same folder with the company-level notes taken away (all companies, or
+    `slug`'s). Each demo company carries one, and a company note is a finding a
+    draft can cite and one that meets a framework's needs; tests that want a
+    company with nothing noted drop it."""
+    _, store = folder
+    for company in list(store.companies.values()):
+        if slug and company.slug != slug:
+            continue
+        for note in [i for i in company.interactions if i.is_note and not i.contact]:
+            store.delete_interaction(company.slug, note.id)
+    return folder
