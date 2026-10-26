@@ -260,11 +260,56 @@ def test_json_nests_everything_and_is_deterministic(demo):
     got = data["companies"][0]
     assert [p["slug"] for p in got["contacts"]] == sorted(first.contacts)
     assert len(got["interactions"]) == len(first.interactions)
-    assert got["notes"] == first.notes
+    assert got["notes"] == f"Demo company. {first.product_oneliner}."   # the one company note
     assert {f["key"] for f in data["fields"]} == {d.key for d in fields.load(demo)}
 
 
 # ------------------------------------------------------------------- the CLI
+
+
+def test_the_notes_column_holds_the_company_notes_oldest_first(tmp_path):
+    store = open_store(init_folder(tmp_path / "crm"))
+    store.create_company(name="Example Robotics", notes="Second look: pricing came up.")
+    store.create_interaction("example-robotics", channel="note", direction="", contact="",
+                             date=datetime(2020, 1, 5, 9, 0), body="2020-01-05 First call, warm.\n")
+    store.create_interaction("example-robotics", channel="note", direction="", contact="",
+                             date=datetime(2099, 1, 1, 9, 0), body="Newest note.\n\nWith a blank line.")
+    store.create_company(name="Example Quiet")
+    person = store.create_contact("example-robotics", "Ada", "Example").slug
+    store.create_interaction("example-robotics", channel="note", direction="", contact=person,
+                             date=datetime(2020, 2, 1, 9, 0), body="About Ada, not the company.")
+
+    expected = ("2020-01-05 First call, warm.\n\nSecond look: pricing came up."
+                "\n\nNewest note.\n\nWith a blank line.")
+    _, rows = export.company_rows(store)
+    by_name = {r["name"]: r for r in rows}
+    assert by_name["Example Robotics"]["notes"] == expected   # dated lines as written
+    assert by_name["Example Quiet"]["notes"] == ""
+    nested = {c["name"]: c for c in json.loads(export.json_text(store, []))["companies"]}
+    assert nested["Example Robotics"]["notes"] == expected
+
+    # a legacy body, when a hand edit left one, comes first
+    store.get("example-robotics").notes = "Hand-typed body."
+    _, rows = export.company_rows(store)
+    assert {r["name"]: r for r in rows}["Example Robotics"]["notes"] == "Hand-typed body.\n\n" + expected
+
+
+def test_the_company_notes_survive_an_export_and_import_as_one_note(tmp_path):
+    source = open_store(init_folder(tmp_path / "source"))
+    source.create_company(name="Example Robotics")
+    for day, body in ((5, "2020-01-05 First call."), (9, "Pricing came up.")):
+        source.create_interaction("example-robotics", channel="note", direction="",
+                                  date=datetime(2020, 1, day, 9, 0), body=body)
+    files = unzip(export.zip_bytes(open_store(tmp_path / "source"), fields.load(tmp_path / "source")))
+    assert table(files["companies.csv"])[1][0]["notes"] == "2020-01-05 First call.\n\nPricing came up."
+
+    target = init_folder(tmp_path / "target")
+    store = open_store(target)
+    import_file(store, files["companies.csv"], "companies", fields.load(target))
+    company = open_store(target).get("example-robotics")
+    [note] = [i for i in company.interactions if i.is_note and not i.contact]
+    assert note.body.strip() == "2020-01-05 First call.\n\nPricing came up."
+    assert company.notes.strip() == ""
 
 
 def test_cli_writes_the_zip_and_leaves_the_folder_alone(demo, tmp_path, capsys):

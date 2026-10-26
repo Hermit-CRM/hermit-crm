@@ -4185,7 +4185,7 @@ def create_app(root: Path, config: dict | None = None,
                      if outreach.proposal_open(company, contact, k)]
         shown = (notes.card(company, item.contact, item, store.today())
                  if company is not None and contact is not None else
-                 {"rows": [], "newer": 0, "legacy": [], "company_notes": ""})
+                 {"rows": [], "newer": 0, "legacy": []})
         return {"item": item, "company": company, "contact": contact,
                 "proposals": proposals, "notes": shown,
                 "fit": outreach.fit_value(company, fit_field) if company else None,
