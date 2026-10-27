@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""The twelve-step walkthrough at /welcome.
+"""The thirteen-step walkthrough at /welcome.
 
 Each step knows whether it is done by asking the data, not by remembering that
 you clicked something: "your first company" is done when a company exists,
@@ -49,7 +49,9 @@ def steps(store, config: dict, setup_state: dict, ai_available: bool,
     # The sample account is there to look at; the steps count your own records.
     companies = [c for c in store.companies.values() if not c.is_sample]
     contacts = [c for co in companies for c in co.contacts.values()]
-    interactions = [i for co in companies for i in co.interactions]
+    # A note (a company's free text, a memo about a person) is not something that
+    # happened: only a touch -- a call, a mail, a meeting -- ticks "Log what happened".
+    interactions = [i for co in companies for i in co.interactions if i.is_touch]
     # A move is a recorded change from one stage to another. Not the stage a
     # company was created in (no from_stage), and not the first stage -> the next
     # (prospect -> engaged by default), which logging the first interaction does
@@ -61,11 +63,14 @@ def steps(store, config: dict, setup_state: dict, ai_available: bool,
     planned = any(co.has_next_step or co.tasks for co in companies) or \
         any(c.tasks for c in contacts)
     ticked = set(config.get("welcome_done") or [])
+    drafted = _has_draft(store, {co.slug for co in companies})
 
     return [
         Step("you", "Say who you are",
              "Your name signs the drafts, and your addresses are how Hermit CRM "
-             "tells mail you sent from mail you received.",
+             "tells mail you sent from mail you received. Settings > Appearance "
+             "has the date format (YYYY-MM-DD, DD-MM-YYYY, DD/MM/YYYY or "
+             "MM/DD/YYYY); pick it before you type your first date.",
              "Open Settings", "/settings#you", bool(setup_state.get("you"))),
         Step("approach", "Say what you sell",
              "One sentence on what you sell, who buys it and one result a customer "
@@ -73,7 +78,9 @@ def steps(store, config: dict, setup_state: dict, ai_available: bool,
              "MESSAGING.md; the rest of the playbook can wait.",
              "Open the playbook", "/settings/playbook", _has_approach(store)),
         Step("company", "Add your first company",
-             "A company is a folder with a file in it. Everything else hangs off one.",
+             "A company is a folder with a file in it. Everything else hangs off "
+             "one. Its free text is dated notes: the form has one first note box, "
+             "and later notes go under Company notes on the company page.",
              "Add a company", "/companies/new", bool(companies)),
         Step("contact", "Add a person at it",
              "Contacts live inside their company. Drafts address them by first name "
@@ -81,7 +88,9 @@ def steps(store, config: dict, setup_state: dict, ai_available: bool,
              "Add a contact", "/contacts/new", bool(contacts)),
         Step("interaction", "Log what happened",
              "A call, a mail, a meeting. The first one moves a prospect to engaged "
-             "on its own, and every one of them is what the reports count.",
+             "on its own, and every one of them is what the reports count. Drafts "
+             "read them, with what was said, and your notes on the person and the "
+             "company too.",
              "Open a company", "/companies", bool(interactions)),
         Step("move", "Move a deal along",
              "Your first logged interaction already moved that company to engaged. "
@@ -94,6 +103,14 @@ def steps(store, config: dict, setup_state: dict, ai_available: bool,
              "deal stands -- and a list of other tasks beside it. Both show on the "
              "calendar on their due date.",
              "Open the calendar", "/calendar", planned),
+        Step("outreach", "Draft your first message",
+             "The outreach bot reads a contact's website, drafts a first message in "
+             "your voice and checks it; you review it, and nothing is sent that you "
+             "did not approve. It needs an approach filled in on your playbook (the "
+             "second step), at least one contact"
+             + ("" if ai_available else " and an AI CLI set up under Settings")
+             + ". Pick who, press Preview to see who would get a draft, then Build queue.",
+             "Open Outreach", "/outreach", drafted),
         Step("bcc", "Capture your mail without typing it",
              "Put a tracking address in BCC when you write to a prospect, or forward "
              "a thread to it. Hermit CRM reads that mailbox, matches each message to "
@@ -134,6 +151,15 @@ def _has_approach(store) -> bool:
 
     root = getattr(store, "root", None)
     return bool(root and any(o.offer_line for o in playbook.load(root).approaches))
+
+
+def _has_draft(store, own: set[str]) -> bool:
+    """An outreach item the bot has written a draft for (`drafted` is set when the
+    draft is made and kept through review and sending), on one of your own companies."""
+    from hermitcrm import outreach
+
+    root = getattr(store, "root", None)
+    return bool(root and any(i.drafted and i.company in own for i in outreach.items(root)))
 
 
 def progress(all_steps: list[Step]) -> tuple[int, int]:

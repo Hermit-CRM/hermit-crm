@@ -22,6 +22,9 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   (for example after picking a column) took you to the Home page, and **clear filters
   and sorting** went there too. Both now stay on the Pipeline. The other list pages
   were fine. No data migration.
+- **The tour and Home cover Outreach, Learning and Reports.** **Show me around** now
+  stops at Outreach, Learning and Reports, in the order of the menu, and **What this
+  thing does** on Home has a card each for Outreach and Learning. No data migration.
 - **Save the questions you ask often.** Next to **Ask** there is now a **Save**
   button, and under an answer **Save this question**. Saved questions are suggested
   as you type in the Ask box on every page (Up/Down, then Enter or Tab), the newest
@@ -257,6 +260,11 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 - Skip addresses that fail that rule when reading BCC mail, calendar attendees
   and contact-import email lists, so a bad address does not interrupt importing
   and committing valid contacts.
+- **Getting started leads to the outreach bot.** A new step, "Draft your first
+  message", sits after "Write down what comes next" and opens the Outreach page. It
+  says what the bot needs (an approach in your playbook, a contact, an AI CLI) and
+  ticks itself once a draft exists for one of your own companies. The walkthrough
+  now has thirteen steps. See [Outreach bot](/help/outreach).
 
 ## 0.8.0 (2026-10-16)
 

@@ -253,7 +253,7 @@ def test_home_keep_in_touch_is_absent_when_nobody_is_on_it(client):
 
 def test_the_walkthrough_ticks_itself_from_the_data(client, app, repo):
     page = client.get("/welcome").text
-    assert "of 12</strong> done" in page
+    assert "of 13</strong> done" in page
     before = int(page.split("<strong>")[1].split(" of")[0])
 
     post_company(client, name="Acme")
@@ -263,6 +263,35 @@ def test_the_walkthrough_ticks_itself_from_the_data(client, app, repo):
     assert after == before + 2                        # company and contact, from the files
     step = page.split('id="company"')[1].split("</li>")[0]
     assert "&#10003;" in step
+
+
+def step_html(client, key):
+    return client.get("/welcome").text.split(f'id="{key}"')[1].split("</li>")[0]
+
+
+def test_a_note_typed_on_the_new_company_form_does_not_tick_log_what_happened(client):
+    post_company(client, name="Acme", notes="Met at a fair.")
+    assert "&#10003;" in step_html(client, "company")
+    assert "&#10003;" not in step_html(client, "interaction")
+    assert "&#10003;" not in step_html(client, "move")
+
+
+def test_logging_a_call_ticks_log_what_happened(client):
+    post_company(client, name="Acme", notes="Met at a fair.")
+    post_contact(client, "acme", first_name="Jane", last_name="Roe")
+    r = post_interaction(client, "acme", channel="call", direction="out",
+                         contact="jane-roe", subject="Intro")
+    assert r.status_code == 303
+    assert "&#10003;" in step_html(client, "interaction")
+
+
+def test_a_contact_note_does_not_tick_log_what_happened(client):
+    post_company(client, name="Acme")
+    post_contact(client, "acme", first_name="Jane", last_name="Roe")
+    r = post_interaction(client, "acme", channel="note", direction="",
+                         contact="jane-roe", subject="Prefers mornings")
+    assert r.status_code == 303
+    assert "&#10003;" not in step_html(client, "interaction")
 
 
 def test_the_two_steps_nobody_can_see_are_ticked_by_hand(client, app, repo):
@@ -297,10 +326,21 @@ def test_the_tour_is_anchored_to_every_part_it_names(client):
     """A stop with no anchor would be skipped; this makes sure none are."""
     page = client.get("/").text
     for key in ("home", "pipeline", "calendar", "companies", "contacts", "messages",
-                "capture", "search", "ask", "settings"):
+                "outreach", "learning", "capture", "reports", "search", "ask", "settings"):
         assert f'data-tour="{key}"' in page, key
     assert "/static/tour.js" in page
     assert client.get("/static/tour.js").status_code == 200
+
+
+def test_every_tour_stop_has_an_anchor_on_the_page(client):
+    """Read the keys out of tour.js, so a nav change cannot silently drop a stop."""
+    import re
+    js = client.get("/static/tour.js").text
+    keys = re.findall(r'^\s*\["(\w+)", "', js, re.M)
+    assert {"outreach", "learning", "reports"} <= set(keys), keys
+    page = client.get("/").text
+    for key in keys:
+        assert f'data-tour="{key}"' in page, key
 
 
 def test_bcc_settings_offer_the_common_providers(client):

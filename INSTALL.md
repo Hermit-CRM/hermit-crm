@@ -255,12 +255,19 @@ the conversation instead:
 
 - their name (its first word signs outreach drafts);
 - the email addresses they send from, comma-separated. Mail from these counts
-  as outbound, and their work domains stop colleagues being logged as contacts.
+  as outbound, and their work domains stop colleagues being logged as contacts;
+- how they like dates written: `2026-12-31`, `31-12-2026`, `31/12/2026` or
+  `12/31/2026`. This only changes what the pages show and take; their files stay
+  `YYYY-MM-DD`.
 
 Then edit `~/crm/config.toml`: uncomment `owner_name`, `owner_email` and
-`my_addresses` and set them. Every key in that file is already there, commented
-out, with a line explaining it. Keep the comments. Run `hermitcrm --data ~/crm
-check` afterwards.
+`my_addresses` and set them. For a date style other than `2026-12-31` (the
+default, `iso`), uncomment `date_format` and set it to the matching key:
+`"dmy-dash"` (31-12-2026), `"dmy"` (31/12/2026) or `"mdy"` (12/31/2026). Use
+those keys, not the `DD-MM-YYYY` form: `check` does not flag a value it does not
+know, the app just falls back to `iso`. Every key in that file is already there,
+commented out, with a line explaining it. Keep the comments. Run `hermitcrm
+--data ~/crm check` afterwards.
 
 If the line below has an address on it, set `feedback_email` to it in the same
 file. It is where the Feedback form offers to send a report, and it is the only
@@ -274,10 +281,14 @@ way whoever packaged this hears whether it worked.
 hermitcrm --data ~/crm serve
 ```
 
-Run it in the background and give them the link: http://127.0.0.1:8765. Let
-them look around before you continue. If they want to see a filled-in account
-first, the page offers **Load a sample account**; it is made up, marked as
-such, and removed in one click.
+Run it in the background and give them the link: http://127.0.0.1:8765. A new
+folder opens on **Getting started**, a thirteen-step walkthrough with a tour that
+points at each part of the screen. It ticks each step off by itself when the
+thing has actually happened, so do not create records to move it along (see
+**What not to do**). Let them look around before you continue. If they want to
+see a filled-in account first, the page offers **Load a sample account**; it is
+made up, marked as such, and removed in one click. The walkthrough does not
+count it.
 
 If they are not sitting at this machine (you reached it over SSH), that link
 will not open on their own computer. They can forward the port from their
@@ -360,6 +371,24 @@ them if they ask.
 Show them, briefly and in their words: add a company, log an interaction, what
 the follow-up radar on the home page is for. `hermitcrm help` lists the topics,
 and every page in the app has a Help link. Do not dump the whole manual.
+
+Two things the walkthrough leans on, and that are theirs to do:
+
+- **The playbook** (Settings > Playbook, stored as `MESSAGING.md` in their
+  folder): what they sell, to whom, and how they write. The walkthrough step
+  "Say what you sell" stays open until it has a first approach (one sentence on
+  the offer is a start; the rest can wait), and the outreach drafts and any AI
+  agent read it. Offer to open the page with them. If they give a website
+  address, **Draft it** on that page proposes the parts from the site, and
+  nothing is saved until they click Save. Do not write the playbook for them or
+  make up claims and proof; it is their business, in their words. If you do
+  help, they approve every line.
+- **Outreach** (in the menu, next to Messages) drafts first messages for them to
+  review, send and log. Nothing is sent that they did not approve. It needs a
+  ready playbook approach (offer line, ideal customer, one persona with titles,
+  one proof line) and an AI CLI that is installed and signed in, which Settings >
+  AI shows; **Draft it** on the playbook page uses the same CLI. Mention it, and leave
+  it until they want it.
 
 Point out **Help -> Feedback**. Hermit CRM is early, and the small annoyances --
 a label read twice, a button looked for and not found -- are the ones that never
