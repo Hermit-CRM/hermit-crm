@@ -33,6 +33,48 @@ fits a product whose promise is "local, no cloud, no telemetry".
   `build.py --share` already uses Playwright, so it is a dev-only tool already.
 - Hosted tour tools: pricing pages read on 2026-10-27.
 
+## Gijs's idea: use the existing onboarding flow
+
+Added the same day, after Gijs asked whether the onboarding could carry the demo.
+"Onboarding" is two different things in the app, and they behave differently:
+
+- **"Show me around"** (`/?tour=1`, `static/tour.js`, 129 lines). A bubble that points
+  at each part of the real screen, 15 stops: Home, Pipeline, Calendar, Tasks,
+  Companies, Contacts, Messages, Outreach, Learning, Extension, Reports, Search,
+  Ask, Make it yours, Settings. It runs in the visitor's browser only, has no
+  dependencies and needs no server. It anchors to `data-tour` marks on the page and
+  skips a stop whose anchor is gone, so it keeps up with the app by itself.
+  **This is a ready-made guided overlay. It fits option C almost exactly.**
+- **"Getting started"** (`/welcome`, 13 steps). A checklist of jobs: say who you are,
+  add a company, log what happened, move a deal, draft a message. Each step ticks
+  itself by looking at your own data. It is not a demonstration: it needs a live
+  app and a real folder to do anything, so it cannot be frozen into a tour.
+  (A "Load a sample account" button already exists: one made-up company, Northwind
+  Robotics, with people, messages, a deal, tasks, a dashboard and a routine.)
+
+What this changes:
+
+1. **Screenshots from the tour are a good source.** Its 15 stops are the app's own
+   list of what matters, kept current by the app. The step list for the website
+   tour (Stage 1) should come from it, not from my list above. Taking one
+   screenshot per stop of a demo folder is simple.
+2. **C gets cheaper.** In a read-only trial I ran (nothing changed in the repo), the
+   app's own test client opened 80 pages of a fresh demo folder in-process, all
+   without errors (only `/` redirects, to the welcome page on a new folder). The
+   pages carry the 18 tour marks. So the crawl works, and `tour.js`
+   can be saved with the pages and start with `?tour=1`: the real app, clickable,
+   with the app's own guide on top and no server. I have not built it; links,
+   forms and the header rules still need the work described under Stage 2.
+3. **The 13-step checklist stays out of the demo.** It is about your own data, so in
+   a frozen copy it would only show ticks that cannot happen.
+4. **Limits of the overlay as it is:** the stops are one short sentence each and only
+   point at the sidebar. A demo for HN wants a bit more story per stop (what a
+   freelancer does here), so Stage 2 adds text; it does not replace the overlay.
+
+Net effect on the scores: C improves (build effort 3 to 4, time to first version 3 to
+4, total 32 to 34). B2 stays ahead by one point because it needs nothing from the
+app and can ship on day 1 from screenshots that already exist.
+
 ## The options
 
 - **A1. One shared live demo.** The real app on Fly with demo data. Everyone sees
@@ -72,15 +114,15 @@ fast; 1 means hard, risky, expensive or slow.
 
 | | A1 Shared live demo | A2 Copy per visitor | B1 Hosted tool | B2 Own tour | C Static export |
 | --- | --- | --- | --- | --- | --- |
-| **1. Effort to build** | **2**. Read-only mode must be built across 100+ routes, plus reset, plus a second Fly app: ~4 sessions | **1**. A1 plus sandboxing and cleanup per visitor: ~6+ sessions | **5**. A few hours of recording by Gijs | **4**. ~2 sessions; the first page can reuse the 14 existing screenshots in one | **3**. ~3 sessions: crawl the 46 page types, fix links, switch buttons off |
+| **1. Effort to build** | **2**. Read-only mode must be built across 100+ routes, plus reset, plus a second Fly app: ~4 sessions | **1**. A1 plus sandboxing and cleanup per visitor: ~6+ sessions | **5**. A few hours of recording by Gijs | **4**. ~2 sessions; the first page can reuse the 14 existing screenshots in one | **4**. ~3 sessions, and the guide overlay (`tour.js`) already exists: crawl the page types, fix links, switch buttons off |
 | **2. Effort to maintain** (regenerates from code?) | **3**. Always the current code, but every new risky feature needs a new switch | **3**. Same as A1, more to watch | **2**. Re-record by hand after UI changes; ~190 commits in 8 days will date it fast | **4**. One command retakes every screenshot; the step text still needs a human when a screen changes | **5**. Whole demo is rebuilt from code on every build; a broken link fails the build |
 | **3. Potential to grow** | **4**. Real clicking; canned "Ask" answers must be faked | **5**. Anything the app does | **3**. Guided steps and branching are built in; try-your-own-CSV and canned answers are not possible | **4**. Segments (freelancer, consultant) are just other step lists; own-CSV not possible | **4**. Segments = different demo folders; canned "Ask" answers are easy to put in; own-CSV not possible (a later, browser-side idea at best) |
 | **4. Security and abuse risk** | **1**. Public server that can mail, read mail, run AI programs, hold keys, commit to git (list below) | **1**. Same list, times many visitors; people will try it | **5**. Nothing of ours is exposed | **5**. Images and links only | **4**. No server; the one risk is putting real data in the demo folder, and the app's own scripts run on our domain, so the demo section needs its own header rules |
 | **5. Running cost on Fly** | **4**. Small machine that sleeps when idle: a few dollars a month (Fly prices not rechecked today) | **2**. A machine or a volume per visitor; one spike from HN costs real money | **5**. $0 on a free plan, $38-50/month if the watermark must go | **5**. Static files in the image we already pay for | **5**. Same |
 | **6. Fit with the product promise** | **2**. A cloud copy of a product that says "no cloud"; first party, but a server | **1**. Same, and visitor-entered data sits on our server | **1**. Third-party script or frame, the vendor's cookies and analytics, and the site's header would have to be loosened. Directly breaks "no widget scripts" | **5**. The site stays what it says it is | **4**. First-party, no server, but real app code runs on the site |
 | **7. Measurability** (`?ref=demo`, no app telemetry) | **4**. Arrival and pages are in the existing log; a click inside the app is not counted unless we log it, which we should not | **3**. Same, more noise | **2**. Their dashboard has the numbers, not ours; our log sees only the arrival | **4**. Each step is its own page, so our log shows how far people got (below) | **4**. Same, each page is a log line |
-| **8. Time to first usable version** | **1**. Weeks of careful work | **1**. Weeks | **5**. 1 day, but only a free-plan demo | **4**. A first version in 1 day, a good one in ~3 | **3**. ~4-5 days |
-| **Total (of 40)** | **21** | **17** | **27** | **35** | **32** |
+| **8. Time to first usable version** | **1**. Weeks of careful work | **1**. Weeks | **5**. 1 day, but only a free-plan demo | **4**. A first version in 1 day, a good one in ~3 | **4**. ~3-4 days |
+| **Total (of 40)** | **21** | **17** | **27** | **35** | **34** |
 
 Why B1 scores 27 and not lower: it is the fastest and the safest. It loses on the
 promise, on staying up to date, and on measurement, and those are the three that
@@ -148,7 +190,9 @@ screenshot, two or three sentences, "Back" and "Next" links, and a step list. Ea
 step is its own page (`/tour/pipeline/`, `/tour/company/`, ...). The last page says
 "Install it" with the download and the agent install line.
 
-**Steps for a first version** (about 8, the daily job of a solopreneur):
+**Steps for a first version.** Start from the 15 stops of the app's own "Show me
+around" tour (see "Gijs's idea" above) and keep the ones a solopreneur needs first.
+My own shortlist, about 8, the daily job of a solopreneur:
 Home and today's tasks, the pipeline, a company page with its history, a contact
 with a drafted message, Outreach (review, approve), the calendar, reports and
 dashboards, then "It is your files" (a file in an editor and `git log`).
@@ -195,7 +239,7 @@ Install Hermit CRM to do this" and the install line.
   for the install note. 46 page types, a company and contact page per demo record.
 - The same step writes the "Ask the Hermit" answers: a handful of canned
   questions with saved answers, clearly labelled as examples.
-- A guide strip (plain HTML, links only) on top: "Step 3 of 6: open a company".
+- The app's own "Show me around" overlay (`tour.js`, started with `?tour=1`) as the guide. Extra story text per stop for the segments goes beside it.
   Segments by use case are different demo folders and different step lists
   (freelancer, consultant, small agency).
 - A small nginx block for `/demo/` with its own header rules. The app's pages use
