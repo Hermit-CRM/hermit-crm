@@ -128,12 +128,55 @@ Why B1 scores 27 and not lower: it is the fastest and the safest. It loses on th
 promise, on staying up to date, and on measurement, and those are the three that
 matter most for this product.
 
+## Gijs's goal, stated later: show the breadth, not a demo
+
+Added the same day. Gijs said: no video, no need to teach CRM basics. The goal is to
+show on hermitcrm.io that the tool is **feature rich**, as a **high-level overview of
+what it contains**. That is a smaller job than "a demo", and it changes the plan.
+
+**What the site already has.** `/features/` is an overview of 11 pages (Home, Pipeline,
+Calendar, Tasks, Companies, Contacts, Messages, Extension, Reports, Make it yours,
+Settings), each with real screenshots from a demo folder, and the home page has a
+"What you get" list. So a visitor can already see the basics.
+
+**What is missing, and it is the part that makes the tool look rich.** As far as I can
+see from `website/features/` and `content.toml`, these have no screenshot or page of
+their own: the **Outreach bot** (researched, checked first messages for you to
+approve), **Learning** (lessons from your edits and replies), **Ask the Hermit**
+(questions in plain words), **Adjust** (change the tool by describing it), the
+**Inbox** and mail capture, the **CLI and MCP server** (your AI agent works in the
+same data), and **plain files in git** with backups and one-click upgrade. These are
+what separates Hermit from "a CRM in a spreadsheet", and today they are mentioned in
+text only.
+
+**What a visitor needs for this goal:** one page they can scan in a minute. A grid of
+labelled screenshots grouped by area, one plain line each, each linking to the longer
+page. Nothing to click through, nothing to wait for.
+
+**Consequence for the recommendation.** A guided tour with steps (B2 as I wrote it) is
+more than this needs, and the static copy of the real app (C) is much more than this
+needs. Neither is wrong, but neither is the cheapest way to the goal. See the updated
+Recommendation, which replaces the staging described further down. The scored
+matrix is still correct as a comparison of the options. For this smaller goal, the
+overview page is the B2 idea cut down to one page with no steps.
+
 ## Recommendation
 
-**Build the tour yourself, in two stages. Stage 1 is the plain-HTML tour (B2),
-shipped before Show HN. Stage 2 is the static copy of the real app (C), built on
-the same script and reached from the same page. Do not build a hosted live demo
-(A) and do not use a hosted tool (B1) for launch.**
+**Updated after Gijs's goal above. Build one overview page, `hermitcrm.io/tour/`
+(name to be chosen), made of real screenshots grouped by area, covering everything the
+tool contains, including the parts that have no page today. Ship it before Show HN.
+Do not build a hosted live demo (A) or use a hosted tool (B1). The guided steps (the
+original Stage 1) and the frozen real app (C, Stage 2) become optional later work,
+only if people ask for more.**
+
+Concretely: about 1 session to build the page from the screenshots that exist, plus
+about 1 session for the 5-7 new screenshots of what is missing (Outreach, Learning,
+Ask, Adjust, Inbox, the CLI and an agent working in the folder, the files and git
+log). The new screenshots come from a demo folder of the released version, as the
+site's rule says. Some, like Learning and Outreach, may need demo data the demo folder
+does not have yet; if so that is a small change to the demo folder, not to the site.
+
+The reasons below were written for the tour, and they still hold for this page.
 
 Why:
 
@@ -183,7 +226,7 @@ closed, with a read-only switch that does not exist today:
   host name and that a change did not come from another website. Public use is
   outside what it was built for.
 
-## Stage 1: the tour (B2), shippable in days
+## Stage 1 (original plan, now optional): the guided tour (B2)
 
 **What the visitor sees.** `hermitcrm.io/tour/` is a plain page: one real
 screenshot, two or three sentences, "Back" and "Next" links, and a step list. Each
@@ -225,7 +268,7 @@ dashboards, then "It is your files" (a file in an editor and `git log`).
   steps on their own line. That is a script change, not an app change, and is part
   of the stats job.
 
-## Stage 2: the real app, frozen (C), a week or two later
+## Stage 2 (original plan, now optional): the real app, frozen (C)
 
 **What the visitor sees.** The real interface at `hermitcrm.io/demo/`, filled with
 the demo data. They can click from the pipeline to a company to a contact, open a
@@ -278,18 +321,18 @@ browser. Neither fits the promise cheaply. Leave it out; the install is the answ
 
 ## What is left to the maintainer
 
-- Say yes to the staged path (B2 now, C after launch).
-- Read the step list and the text once (about 15 minutes); he is the judge of what a
-  solopreneur wants to see first.
+- Say yes to the one-page overview (the guided tour and the frozen app are optional later).
+- Read the overview page's grouping and text once (about 15 minutes); he is the judge of
+  what should come first.
+- Say whether the new screenshots may show the made-up demo data as it is.
 - Run the deploy himself (`flyctl deploy` for the site, as today); I do not deploy.
-- Decide the segment names for Stage 2 (freelancer, consultant, other).
 - Put `?ref=demo` on the links in the posts.
 
 ## Accounts and money
 
-- **Stage 1: no new accounts, no new money.** It uses the existing Fly site and
+- **The overview page, and the optional Stage 1: no new accounts, no new money.** It uses the existing Fly site and
   the existing deploy. Playwright is already used by `--share` and needs no sign-up.
-- **Stage 2: no new accounts, no new money.** Same site, static files.
+- **Optional Stage 2: no new accounts, no new money.** Same site, static files.
 - **Not needed now:** a second Fly app (only for option A, a few dollars a month),
   and any hosted tour tool (free plan, or from about $38-50 a month if the
   watermark must go).
@@ -298,7 +341,7 @@ browser. Neither fits the promise cheaply. Leave it out; the install is the answ
 
 None that change the recommendation. Assumptions I made, which he can correct:
 
-1. The tour should use the released version's look, not main's.
+1. The overview should show the released version's look, not main's, and use `?ref=demo` links for measuring (arrivals and downloads, as in Stage 1 below).
 2. The Show HN / Product Hunt date is about 3 Nov (from the brief), not the
    dates in `TODO.md`.
 3. One thing I could not read: Arcade's interactive-demo plan page. It does not
