@@ -26,13 +26,21 @@ disagree about who is overdue.
 It also holds the radar's slower cousin, `keep_in_touch()`: the people outside
 any open deal you have not spoken to in months. The radar is about threads in
 the pipeline; this list is about the network around it.
+
+A nudge can be marked **done** (you followed up somewhere else, or let it go).
+That is kept in `outreach/followups.json`, keyed by the unanswered message, so
+it holds for that silence only: a newer message is a different key and the
+normal rule applies again. `radar()` leaves done nudges out, which is why the
+CLI, the home page, the MCP server and the Outreach tab all agree.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 
 from .models import Contact, Direction, Interaction, do_not_contact
 from .store import Store
@@ -40,6 +48,7 @@ from .store import Store
 REPLY = "reply"    # they wrote last; you owe an answer
 NUDGE = "nudge"    # you wrote last; nothing came back
 KEEP_IN_TOUCH_DAYS = 180  # config.toml `keep_in_touch_days` when unset
+DONE_FILE = "outreach/followups.json"
 
 
 @dataclass
@@ -59,6 +68,12 @@ class Followup:
     @property
     def name(self) -> str:
         return self.company.name
+
+    @property
+    def key(self) -> str:
+        """"company/interaction-id": the unanswered message this row is about,
+        which is what "done" is remembered against."""
+        return f"{self.company.slug}/{self.interaction.id}"
 
     @property
     def who(self) -> str:
@@ -203,20 +218,22 @@ def for_contact(company, cslug: str, today: date, reply_after: int = 1,
 
 
 def radar(store: Store, today: date | None = None, reply_after: int = 1,
-          nudge_after: int = 5) -> list[Followup]:
+          nudge_after: int = 5, include_done: bool = False) -> list[Followup]:
     """The follow-up rows, most overdue first, replies owed before nudges.
 
     Only active companies: a closed or parked deal is not waiting on anybody.
     A nudge needs an outbound *message* -- a meeting you attended is not a thing
-    that failed to get a reply.
+    that failed to get a reply. A nudge you marked done is left out unless
+    `include_done`; a reply you owe never is.
     """
     today = today or store.today()
+    done = set() if include_done else set(load_done(store.root))
     rows: list[Followup] = []
     for company in store.companies.values():
         if not company.is_active:
             continue
         row = _row(company, latest(company), today, reply_after, nudge_after)
-        if row is not None:
+        if row is not None and not (row.kind == NUDGE and row.key in done):
             rows.append(row)
     rows.sort(key=lambda r: (r.kind != REPLY, -r.days, r.company.name.lower()))
     return rows
@@ -238,6 +255,60 @@ def render(rows: list[Followup]) -> str:
         out.append(f"## Waiting on them ({len(waiting)})")
         out += [f"- {r.slug} | {r.who or 'company'} | {r.days}d | {r.summary}" for r in waiting]
     return "\n".join(out)
+
+
+# ------------------------------------------------------------------ marked done
+
+
+def done_path(root: Path | str) -> Path:
+    return Path(root) / DONE_FILE
+
+
+def load_done(root: Path | str) -> dict[str, dict]:
+    """"company/interaction-id" -> {"done": timestamp}. A file that cannot be
+    read counts as nothing done: the rows come back, nothing is lost."""
+    try:
+        data = json.loads(done_path(root).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {str(k): v for k, v in data.items() if isinstance(v, dict)}
+
+
+def _write_done(root: Path | str, done: dict[str, dict]) -> str:
+    """Sorted keys, two-space indent: the same marks give the same bytes."""
+    path = done_path(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(done, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+                    encoding="utf-8")
+    return DONE_FILE
+
+
+def _subject(row: Followup, what: str) -> str:
+    who = row.contact.slug if row.contact else ""
+    return f"outreach: follow-up {row.slug}{'/' + who if who else ''} {what}"
+
+
+def mark_done(store: Store, row: Followup) -> None:
+    """Remember that this unanswered message needs no follow-up. One commit."""
+    with store.lock:
+        done = load_done(store.root)
+        done[row.key] = {"done": f"{store.now():%Y-%m-%dT%H:%M}"}
+        path = _write_done(store.root, done)
+        store.notify(_subject(row, "done"), [path])
+
+
+def reopen(store: Store, key: str, row: Followup | None = None) -> None:
+    """Take a done mark away. One commit. `row` only names the commit."""
+    with store.lock:
+        done = load_done(store.root)
+        if done.pop(key, None) is None:
+            return
+        path = _write_done(store.root, done)
+        subject = (_subject(row, "reopened") if row is not None
+                   else f"outreach: follow-up {key.split('/')[0]} reopened")
+        store.notify(subject, [path])
 
 
 # ---------------------------------------------------------------- keep in touch
