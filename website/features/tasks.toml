@@ -17,9 +17,7 @@ text = """
 Above the table: **All dates**, **Overdue**, **Today**, **Next 7 days**, **Later** and **No date**, each with a count. Click several to combine them
 (Overdue plus Today is your top priority), and click one again to turn it off. **Next steps only** shows one task per company.
 """
-image   = "feature-tasks.png"
-alt     = "The Hermit CRM Tasks page: date buttons with counts, a filter row, and eight tasks with their company, stage and status, each with Edit and Done buttons."
-address = "127.0.0.1:8765/tasks"
+shot    = "tasks"
 
 [[sections]]
 heading = "The next step, without picking one"

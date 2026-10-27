@@ -84,72 +84,20 @@ copied_label = "Copied"
 copy_failed_label = "Press ⌘C"
 
 
-# ── What you get ─────────────────────────────────────────────────────
+# ── What it does: a tile for every page of the app ────────────────────
+# Directly under the first screen. The tiles are the pages in features/*.toml
+# (their screenshot, name and one-line summary), in the app's menu order, so the
+# home page and /features/ show the same pictures and the same words.
 [features]
-label = "What you get"
-# Link under the list, to the overview of every page (features/).
-all_label = "Every page, with a screenshot of each"
-# One row for each link in the app's left navigation, in its order. A row with a
-# `slug` links to features/<slug>/ (words in features/<slug>.toml).
-
-[[features.items]]
-name = "Home"
-slug = "home"
-text = "What is due this week, the replies you owe and last month's numbers, on one page."
-
-[[features.items]]
-name = "Pipeline"
-slug = "pipeline"
-text = "A board from prospect to won, plus a follow-up radar for unanswered threads."
-
-[[features.items]]
-name = "Calendar"
-slug = "calendar"
-text = "Overdue and due-today next steps, a month view, and a brief before each meeting."
-
-[[features.items]]
-name = "Tasks"
-slug = "tasks"
-text = "Every task for every company in one list, with date buttons, filters and your own task types."
-
-[[features.items]]
-name = "Companies"
-slug = "companies"
-text = "Sortable tables of companies, and one timeline per company of every email, call and meeting."
-
-[[features.items]]
-name = "Contacts"
-slug = "contacts"
-text = "Every person across your companies, with a page of their own: roles, history and tasks."
-
-[[features.items]]
-name = "Messages"
-slug = "messages"
-text = "Outreach drafts in English, German, Dutch or French, in your wording, and the outcome of every message."
-
-[[features.items]]
-name = "Outreach"
-text = "Researches a company's website, drafts a first message or a follow-up in your wording, and waits for your approval."
-
-[[features.items]]
-name = "Extension"
-slug = "extension"
-text = "Turn the page you are looking at into a company or a contact, from one bookmark."
-
-[[features.items]]
-name = "Reports"
-slug = "reports"
-text = "Weekly activity, funnel and conversion, time in stage, and which messages get answers."
-
-[[features.items]]
-name = "Make it yours"
-slug = "make-it-yours"
-text = "Pages of your own with lists, counts and bar charts. Describe one in a sentence, your AI builds it, and you pin it to the sidebar."
-
-[[features.items]]
-name = "Settings"
-slug = "settings"
-text = "Your name, mail and calendar capture, backups, fields, deal stages and outcomes, set in the browser."
+label   = "What it does"
+heading = "Every page of the app, at a glance."
+intro = """
+Each tile is a page of Hermit CRM, shown as it looks on made-up demo data. Open
+one to see what it does, with screenshots of the real app.
+"""
+# Link under the tiles, to the overview of every page (features/).
+all_label = "All the pages, with a screenshot of each"
+principles_label = "Principles"
 
 
 # ── The three principles (bold word, then the sentence) ──────────────
@@ -199,30 +147,26 @@ safety = """
 Routines only write drafts: they start paused, and Hermit never sends a
 message.
 """
+more      = "Make it yours, with all three examples in full"
+more_link = "features/make-it-yours/"
 
 [[yours.examples]]
 name    = "A dashboard from one sentence"
 prompt  = "Make a dashboard called Monday review with my open deals, what is due this week and the deals by stage with their value. Pin it to the sidebar."
 change  = "One new file, `dashboards/monday-review.toml`. The page is pinned in the sidebar, and every number opens the records behind it."
-image   = "make-it-yours-dashboard.png"
-alt     = "The Monday review dashboard in Hermit CRM, pinned in the sidebar: 3 open deals, 5 tasks due this week, the deals by stage and the open deals with their next step."
-address = "127.0.0.1:8765/d/monday-review"
+shot    = "make-it-yours-dashboard"
 
 [[yours.examples]]
 name    = "A new field"
 prompt  = "Add a date field contract renewal to companies, shown on the company page and in the companies list."
 change  = "Seven lines in `fields.toml`. The field shows on every company page, and as a column you can sort and filter in the companies list."
-image   = "make-it-yours-field.png"
-alt     = "A company page in Hermit CRM with the new contract renewal field: its date in the header, and its input with a line of help in the form."
-address = "127.0.0.1:8765/companies/northwind-robotics"
+shot    = "make-it-yours-field"
 
 [[yours.examples]]
 name    = "A routine that drafts follow-ups"
 prompt  = "Every morning, for people I messaged 7 days ago without a reply, draft a short follow-up. Never send anything."
 change  = "A routine in `routines.toml`. It starts paused, so you see first who it would pick. Once you turn it on, its drafts wait on Home for you to edit and send yourself."
-image   = "make-it-yours-routine.png"
-alt     = "Home in Hermit CRM with a draft from the Nudge quiet threads routine: a short follow-up to a contact who has not replied in 20 days, with I sent it and Discard buttons."
-address = "127.0.0.1:8765"
+shot    = "make-it-yours-routine"
 
 
 # ── Outreach ─────────────────────────────────────────────────────────
@@ -245,19 +189,20 @@ safety = """
 **You stay in charge.** Nothing is sent that you did not approve, and sending
 is off until you turn it on. Every step is saved as a version you can undo.
 """
+more      = "The Outreach page, with its cards and checks"
+more_link = "features/outreach/"
 
 
 # ── One company, one file ────────────────────────────────────────────
 [file]
 label   = "The idea"
 heading = "One company, one file."
-# Screenshot of the app. Put the image in site/img/ and write its file
-# name here, e.g. "pipeline.png" (any size, read from the PNG; crop it to the part that matters,
-# it is shown about 620 px wide, and selecting it opens it full size). While empty,
-# the page shows a drawn placeholder of the pipeline board.
-screenshot     = "pipeline.png"
-screenshot_alt = "The Hermit CRM pipeline board in the browser, filled with made-up demo companies, Northwind Robotics among them."
-address_bar    = "127.0.0.1:8765"
+# Screenshot of the app: a key of shots.toml, which holds the file, the alt text
+# and the address shown in its frame (shown about 620 px wide; selecting it opens
+# it full size). Without one, the page shows a drawn placeholder of the board.
+shot = "pipeline-board"
+more      = "The Pipeline page: every column, card and filter"
+more_link = "features/pipeline/"
 file_caption   = "The file behind the Northwind Robotics card:"
 file_path      = "~/crm/companies/northwind-robotics/company.md"
 # Shown exactly as written, line by line.

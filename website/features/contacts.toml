@@ -6,7 +6,7 @@ description = "Contacts in Hermit CRM: every person across your companies, a pag
 summary = "Every person across your companies, with a page of their own: roles, history and tasks."
 intro = """
 Contacts lists every person across all your companies. Each person has a page with what you last did,
-who is waiting on whom, and the messages you could send next.
+who is waiting on whom, and a button that starts an outreach draft for them.
 """
 docs    = "contacts"
 related = ["companies", "messages", "extension"]
@@ -17,9 +17,7 @@ text = """
 Name, company, title, email, LinkedIn, last touch and the number of interactions, with a filter and sort arrows on every column. The search at the top of the page
 matches name, email, title and company.
 """
-image   = "feature-contacts.png"
-alt     = "The Hermit CRM Contacts table: nine demo people with their company, title, email, last touch and number of interactions, with a filter above each column."
-address = "127.0.0.1:8765/contacts"
+shot    = "contacts"
 
 [[sections]]
 heading = "A page per person"
@@ -28,9 +26,14 @@ At the top, four boxes: **last touch**, **waiting on** (red when you owe a reply
 Below: the details, with a role (champion, decision-maker, influencer or gatekeeper), the tasks you owe this person and a form to log an interaction.
 There is no notes field: what you know about a person is a note on their timeline.
 """
-image   = "feature-contact-page.png"
-alt     = "A contact page in Hermit CRM for Jonas Brandt: last touch two days ago, a reply owed since 2026-10-15, his next task, his title, role and email, and a list of tasks."
-address = "127.0.0.1:8765/companies/northwind-robotics/contacts/jonas-brandt"
+shot    = "contact-page"
+
+[[sections]]
+heading = "From a person to a draft"
+text = """
+**Generate outreach** in the row of buttons opens the Outreach page with this person ready to draft, and while a draft is open the button says **Open outreach draft** instead. The notes you keep on a person
+are the notes the draft is written from. Email addresses have a **copy** button, so one click puts one on the clipboard.
+"""
 
 [[sections]]
 heading = "Log every touch"

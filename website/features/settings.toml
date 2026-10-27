@@ -1,4 +1,4 @@
-order   = 11
+order   = 13
 name    = "Settings"
 nav     = "Settings"
 title   = "Settings: mail capture, backups, fields and stages in Hermit CRM"
@@ -22,11 +22,10 @@ Night mode (off, on, or follow the system), and the link to **Make it yours**.
 heading = "Email and calendar"
 text = """
 **BCC capture:** BCC or forward your mail to a tracking address and Hermit reads it over IMAP with an app password. Mail from a known contact is logged on that person. A new person at a company you have is added to it,
-and a new domain becomes a new company, but only for mail you sent yourself. **Test connection** runs a dry run first. **Calendar:** logs meetings with people at your companies, and fills the Calendar page.
+and a new domain becomes a new company, but only for mail you sent yourself. **Test connection** runs a dry run first. **Sending**, off until you switch it on, sends the email you approved on the Outreach page from a mailbox of its own.
+**Calendar:** logs meetings with people at your companies, and fills the Calendar page.
 """
-image   = "feature-settings-email.png"
-alt     = "The Email and calendar tab of Hermit CRM settings: BCC capture with its mailbox form, and the calendar section."
-address = "127.0.0.1:8765/settings#tab-mail"
+shot    = "settings-email"
 
 [[sections]]
 heading = "Your CRM"
@@ -34,16 +33,24 @@ text = """
 The parts of Hermit that are yours to shape: your **Playbook** (what you sell and to whom, for your drafts), **Fields** of your own, the **Drafts** that fill the sentences about team size, **Task types**,
 **Deal stages** and **Outcomes** with the number of days after which no reply counts as unsuccessful.
 """
-image   = "feature-settings-crm.png"
-alt     = "The Your CRM tab of Hermit CRM settings: the Playbook section, a table of three fields of your own with their types and where they show, and the Drafts section."
-address = "127.0.0.1:8765/settings#tab-crm"
+shot    = "settings-crm"
 
 [[sections]]
-heading = "Backup, and Advanced"
+heading = "Data, and Advanced"
 text = """
-**Backup** makes a copy of your data folder every few minutes, outside the folder, that nothing can rewrite, and puts any version back. **Advanced** has the daily schedule, access from your phone or an AI app
-(`hermitcrm mcp` for a client with no shell), and a check of the installation.
+**Data** makes a copy of your data folder every few minutes, outside the folder, that nothing can rewrite, and puts any version back. **Export everything** gives a zip of CSV files for companies, contacts, interactions and tasks,
+with column names for Hermit CRM, HubSpot or Pipedrive. **Advanced** has the daily schedule, access from your phone or an AI app
+(`hermitcrm mcp` for a client with no shell), a check of the installation and the version of Hermit CRM you run.
 """
+
+[[sections]]
+heading = "Upgrade in one click"
+text = """
+When a newer version is published, the notice in the sidebar and the About line in Settings show an **Upgrade** button. One click installs it with the tool that installed Hermit CRM (uv, pipx or pip), checks that the new files start,
+restarts the app and asks you to reload. Your data is not touched, and a data format change is migrated in one commit. It is offered only when the app listens on your own computer and takes its updates from PyPI.
+Otherwise the notice names the command to run. The check asks once a day and sends no identifiers, and you can switch it off.
+"""
+shot = "settings-upgrade"
 
 [[sections]]
 heading = "Where your secrets go"

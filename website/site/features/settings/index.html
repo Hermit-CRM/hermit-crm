@@ -110,7 +110,7 @@
 
 <header class="site-header wide">
   <a class="brand" href="../../" aria-label="Hermit CRM home"><svg viewBox="4.5 10.5 55 43" aria-hidden="true" focusable="false"><rect x="7" y="13" width="50" height="38" rx="7" fill="none" stroke="currentColor" stroke-width="5"/><circle cx="24" cy="27" r="5.5" fill="#1E8A60"/><path d="M16 43 a8 8 0 0 1 16 0 z" fill="#1E8A60"/><rect x="38" y="25" width="12" height="4" rx="2" fill="currentColor"/><rect x="38" y="34" width="8" height="4" rx="2" fill="currentColor"/></svg><span>Hermit CRM</span></a>
-  <nav class="site-nav" aria-label="Site"><a href="../../features/" aria-current="page">Features</a><a href="../../docs/">Docs</a><a href="../../compare/" class="nav-more">Compare</a><a href="../../about/" class="nav-more">About</a><a href="https://github.com/Hermit-CRM/hermit-crm">GitHub</a></nav>
+  <nav class="site-nav" aria-label="Site"><a href="../../features/" class="nav-features" aria-current="page">Features</a><a href="../../docs/">Docs</a><a href="../../compare/" class="nav-more">Compare</a><a href="../../about/" class="nav-more">About</a><a href="https://github.com/Hermit-CRM/hermit-crm">GitHub</a></nav>
 </header>
 
 <main id="main">
@@ -131,12 +131,12 @@
     <section class="part feature" aria-labelledby="s2">
       <div class="col">
         <h2 id="s2">Email and calendar</h2>
-        <p><strong>BCC capture:</strong> BCC or forward your mail to a tracking address and Hermit reads it over IMAP with an app password. Mail from a known contact is logged on that person. A new person at a company you have is added to it, and a new domain becomes a new company, but only for mail you sent yourself. <strong>Test connection</strong> runs a dry run first. <strong>Calendar:</strong> logs meetings with people at your companies, and fills the Calendar page.</p>
+        <p><strong>BCC capture:</strong> BCC or forward your mail to a tracking address and Hermit reads it over IMAP with an app password. Mail from a known contact is logged on that person. A new person at a company you have is added to it, and a new domain becomes a new company, but only for mail you sent yourself. <strong>Test connection</strong> runs a dry run first. <strong>Sending</strong>, off until you switch it on, sends the email you approved on the Outreach page from a mailbox of its own. <strong>Calendar:</strong> logs meetings with people at your companies, and fills the Calendar page.</p>
       </div>
       <div class="wide shot">
         <figure class="window">
           <div class="window-bar"><i></i><i></i><i></i><span>127.0.0.1:8765/settings#tab-mail</span></div>
-          <a class="zoom" href="../../img/feature-settings-email.png"><img src="../../img/feature-settings-email.png" alt="The Email and calendar tab of Hermit CRM settings: BCC capture with its mailbox form, and the calendar section." width="2400" height="1600" loading="lazy"></a>
+          <a class="zoom" href="../../img/feature-settings-email.png"><img src="../../img/feature-settings-email.png" alt="The Email and calendar tab of Hermit CRM settings: BCC capture with its mailbox form, and the sending section below it." width="2400" height="1600" loading="lazy"></a>
         </figure>
       </div>
     </section>
@@ -148,19 +148,31 @@
       <div class="wide shot">
         <figure class="window">
           <div class="window-bar"><i></i><i></i><i></i><span>127.0.0.1:8765/settings#tab-crm</span></div>
-          <a class="zoom" href="../../img/feature-settings-crm.png"><img src="../../img/feature-settings-crm.png" alt="The Your CRM tab of Hermit CRM settings: the Playbook section, a table of three fields of your own with their types and where they show, and the Drafts section." width="2400" height="1600" loading="lazy"></a>
+          <a class="zoom" href="../../img/feature-settings-crm.png"><img src="../../img/feature-settings-crm.png" alt="The Your CRM tab of Hermit CRM settings: the Playbook section, a table of fields of your own with their types and where they show, and the Drafts section." width="2400" height="1600" loading="lazy"></a>
         </figure>
       </div>
     </section>
     <section class="part feature" aria-labelledby="s4">
       <div class="col">
-        <h2 id="s4">Backup, and Advanced</h2>
-        <p><strong>Backup</strong> makes a copy of your data folder every few minutes, outside the folder, that nothing can rewrite, and puts any version back. <strong>Advanced</strong> has the daily schedule, access from your phone or an AI app (<code>hermitcrm mcp</code> for a client with no shell), and a check of the installation.</p>
+        <h2 id="s4">Data, and Advanced</h2>
+        <p><strong>Data</strong> makes a copy of your data folder every few minutes, outside the folder, that nothing can rewrite, and puts any version back. <strong>Export everything</strong> gives a zip of CSV files for companies, contacts, interactions and tasks, with column names for Hermit CRM, HubSpot or Pipedrive. <strong>Advanced</strong> has the daily schedule, access from your phone or an AI app (<code>hermitcrm mcp</code> for a client with no shell), a check of the installation and the version of Hermit CRM you run.</p>
       </div>
     </section>
     <section class="part feature" aria-labelledby="s5">
       <div class="col">
-        <h2 id="s5">Where your secrets go</h2>
+        <h2 id="s5">Upgrade in one click</h2>
+        <p>When a newer version is published, the notice in the sidebar and the About line in Settings show an <strong>Upgrade</strong> button. One click installs it with the tool that installed Hermit CRM (uv, pipx or pip), checks that the new files start, restarts the app and asks you to reload. Your data is not touched, and a data format change is migrated in one commit. It is offered only when the app listens on your own computer and takes its updates from PyPI. Otherwise the notice names the command to run. The check asks once a day and sends no identifiers, and you can switch it off.</p>
+      </div>
+      <div class="wide shot">
+        <figure class="window">
+          <div class="window-bar"><i></i><i></i><i></i><span>127.0.0.1:8765/settings#about</span></div>
+          <a class="zoom" href="../../img/settings-upgrade.png"><img src="../../img/settings-upgrade.png" alt="The About section of Hermit CRM settings with an Upgrade button, shown when a newer version is published (here a made-up newer version)." width="1980" height="460" loading="lazy"></a>
+        </figure>
+      </div>
+    </section>
+    <section class="part feature" aria-labelledby="s6">
+      <div class="col">
+        <h2 id="s6">Where your secrets go</h2>
         <p>Every section writes <code>config.toml</code> in your data folder and keeps its comments. Passwords and calendar links never go there: they go to your Mac’s Keychain or the Linux secret store when there is one, and otherwise to a file only your user can read, <code>.secrets.toml</code>, which is never committed to git.</p>
       </div>
     </section>
@@ -171,7 +183,7 @@
       <ul class="points">
         <li><a href="../../features/make-it-yours/">Make it yours</a>: Pages of your own with lists, counts and bar charts. Describe one in a sentence, your AI builds it, and you pin it to the sidebar.</li>
         <li><a href="../../features/calendar/">Calendar</a>: Overdue and due-today next steps, a month view, and a brief before each meeting.</li>
-        <li><a href="../../features/messages/">Messages</a>: Outreach drafts in English, German, Dutch or French, in your wording, and the outcome of every message.</li>
+        <li><a href="../../features/messages/">Messages</a>: Every message you sent, with what came of it, so you can see which wording gets answers.</li>
       </ul>
     <nav class="pager" aria-label="Features"><a class="prev" href="../../features/make-it-yours/" rel="prev"><small>Previous:</small> Make it yours</a></nav>
     <p><a href="../">All features</a></p>
