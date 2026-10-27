@@ -410,6 +410,7 @@ how = [
   "**Arrivals** are visits that began somewhere else: a link, a bookmark, the address bar. A click from one page of this site to another is not a new arrival.",
   "**Downloads** are installs by pip or uv from PyPI (not CI, mirrors or browsers), release files from GitHub, and complete downloads from this site (not bots, and not cut off halfway).",
   "**AI fetches** are pages read by a named AI crawler or assistant, such as ClaudeBot or GPTBot.",
+  "**Unique cloners** are the different people or machines that copied the code from GitHub (git clone or fetch) on a given day, as GitHub counts them. Someone who clones on two days counts on both. Bots, mirrors, CI and our own checkouts are included, because GitHub does not tell them apart, so read it as activity, not as a number of users. **Unique visitors** are counted the same way for views of the repository page.",
   "Anything seen fewer than 3 times in a list (a site that sent visitors, a page, a country) is counted under **Other**, because one visit can point at one person.",
   "What we set aside (bots, scripts, CI, our own tests) is listed at the end, as totals.",
 ]
