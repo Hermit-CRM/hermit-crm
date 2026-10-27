@@ -6,7 +6,7 @@ To upgrade, press **Upgrade** in the notice (the sidebar, or Settings > About): 
 
 Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups and undo](/help/backups)
 
-## Unreleased
+## 1.0.0 (2026-10-27)
 
 - **The Follow up list on the Pipeline explains itself.** It is now two groups, **You owe
   a reply** and **Waiting on them**, with a line saying the order (replies you owe
