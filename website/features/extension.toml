@@ -1,4 +1,4 @@
-order   = 8
+order   = 10
 name    = "Extension"
 nav     = "Extension"
 title   = "Extension: save any web page to your CRM with one click"
@@ -17,9 +17,7 @@ text = """
 The page gives you a link to drag to your bookmarks bar, called **Add to Hermit CRM**. The link points at the address your Hermit is running on, so nothing leaves your computer except to your own CRM.
 Prefer no bookmark? Paste a company website, a LinkedIn company page or a profile into the box on the same page and press **Read the page**.
 """
-image   = "feature-extension-page.png"
-alt     = "The Extension page in Hermit CRM: an explanation, and a button called Add to Hermit CRM to drag to the bookmarks bar."
-address = "127.0.0.1:8765/extension"
+shot    = "extension-page"
 
 [[sections]]
 heading = "A form that is already filled in"
@@ -27,9 +25,7 @@ text = """
 On a company website it reads the page's own metadata and proposes the company name, the website, the LinkedIn company page the site links to, the country, a headcount hint and a one-line description.
 Your computer fetches the page directly: no AI, and nothing is sent to anyone else. The guesses are guesses, so the form says to check the fields, and **nothing is written until you press Create company**.
 """
-image   = "feature-extension-form.png"
-alt     = "The new company form in Hermit CRM opened by the extension: a banner saying it read the page, the company name Harbor Robotics, its website and a one-line product description filled in."
-address = "127.0.0.1:8765/extension/new"
+shot    = "extension-form"
 
 [[sections]]
 heading = "A LinkedIn profile makes a contact"
@@ -37,6 +33,13 @@ text = """
 On a profile you are logged in to, the bookmark reads the page you are already looking at: the name, the current role, the company and its LinkedIn page, and the location.
 An email is read only if you have opened *Contact info* first. It fetches nothing from LinkedIn and copies no cookies. When LinkedIn changes its layout, a field it cannot place stays empty rather than wrong.
 Three people from one company land on one company record, not three.
+"""
+
+[[sections]]
+heading = "Add what you see to a draft"
+text = """
+On the profile of someone already in your CRM whose outreach draft is waiting, the bookmark opens **Add to research** instead, with the top of the profile, their About text and their own recent posts and comments.
+Trim what you like and press the button: what the AI finds is saved as notes on the contact, with the profile as the source, and the page text itself is not stored.
 """
 
 [[sections]]

@@ -1,0 +1,49 @@
+order   = 9
+name    = "Learning"
+nav     = "Learning"
+title   = "Learning: lessons from your edits and replies in Hermit CRM"
+description = "Hermit CRM keeps a signal every time you edit a draft or a message gets an answer, and proposes short lessons that you accept or reject one by one."
+summary = "What the outreach bot learns from your edits and from the replies, as lessons you accept one by one."
+intro = """
+Learning is how the outreach bot improves without anything changing behind your back. Your edits to its drafts and the replies to your
+messages are kept as signals, and a run turns them into proposals. A proposal changes your lessons only when you accept it.
+"""
+docs    = "learning"
+related = ["outreach", "messages", "settings"]
+
+[[sections]]
+heading = "Are your edits getting smaller?"
+text = """
+The page opens with the efficiency of the approach you pick: for each batch, how many drafts, the median edit in words and how many you approved unchanged.
+If learning works, the edits shrink and more drafts go out as they are. A banner says what phase you are in, such as
+*12 reviewed drafts, 2 replies, 1 positive*, because the more replies you have, the more weight outcomes get over edits.
+"""
+shot = "learning"
+
+[[sections]]
+heading = "Proposals, and nothing learned silently"
+text = """
+**Run now** asks your AI tool once to look at your recent edits and the answers to your messages, with names replaced before anything leaves your machine. What comes back is a list of proposals.
+You accept one, optionally in your own words, or reject it, and a rejected proposal is never proposed again. If you would rather use your own agent, a hand-off writes an evidence pack for it to read.
+"""
+
+[[sections]]
+heading = "Lessons that worked, and lessons that did not"
+text = """
+Accepted lessons go into the approach's draft prompt, and the page shows each one with how often it was used, how many messages got a reply and the median edit. Move a lesson between
+*worked*, *did not work* and *still testing*, or retire it. They live in your playbook, `MESSAGING.md`, under each approach, so you can read and edit them like any other file.
+"""
+
+[[sections]]
+heading = "Examples instead of rules"
+text = """
+A lesson is advice. An example shows the drafter what you mean: the closest earlier case, with names replaced. It is either a paragraph the AI wrote and the way you changed it, or a first message that
+got a positive reply. You can pin an example or exclude one that worked for a one-off reason. It is off until you choose it under Settings, Playbook.
+"""
+
+[[sections]]
+heading = "From the command line"
+text = """
+`hermitcrm learn report` prints the same numbers, including outcomes by persona, channel, language and framework, with cells marked *too few* until there are ten messages behind them.
+`learn run`, `accept`, `reject`, `retire` and `move` do the rest.
+"""

@@ -18,9 +18,7 @@ The month grid starts on Monday. Each open task sits on its due date: past dates
 and its other tasks are lighter. Arrows move a month, and *this month* comes back. A line at the top counts the tasks due today or earlier
 and links to them on the Tasks page.
 """
-image   = "feature-calendar.png"
-alt     = "The Hermit CRM calendar for October 2026: meetings this week, a month grid with tasks on their due dates, and a list of two accounts silent for 14 days or more."
-address = "127.0.0.1:8765/calendar"
+shot    = "calendar"
 
 [[sections]]
 heading = "Meetings this week"

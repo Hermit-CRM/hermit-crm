@@ -1,0 +1,215 @@
+# Every screenshot on the site, in one place. Taken by `screenshots.py`; used
+# by `build.py` through the key (`shot = "pipeline-board"` in content.toml and
+# features/*.toml). Capture fields: path or prep (where to point the browser),
+# width (window, default 1200), top/height or from/until (the crop, in CSS px
+# at 1x), thumb (the overview's picture for that page), newer (a made-up newer
+# release, for the Upgrade button). Site fields: file, alt, address.
+
+
+[home-dashboard]
+file = "feature-home.png"
+alt = "The Hermit CRM home page: five tasks due this week with their companies, two replies owed to Jonas Brandt and Joris Veldkamp, and last month's numbers in four tiles."
+address = "127.0.0.1:8765"
+path = "/"
+height = 680
+thumb = "home"
+
+[pipeline-board]
+file = "feature-pipeline.png"
+alt = "The Hermit CRM pipeline board: a follow-up list with one reply you owe and one message waiting on them, a filter bar, and columns for prospect, engaged, discovery and offer, with a card for each company."
+address = "127.0.0.1:8765/pipeline"
+path = "/pipeline"
+height = 800
+thumb = "pipeline"
+
+[calendar]
+file = "feature-calendar.png"
+alt = "The Hermit CRM calendar for October 2026: meetings this week, a month grid with tasks on their due dates, and a list of accounts silent for 14 days or more."
+address = "127.0.0.1:8765/calendar"
+path = "/calendar"
+height = 1060
+thumb = "calendar"
+
+[tasks]
+file = "feature-tasks.png"
+alt = "The Hermit CRM Tasks page: date buttons with counts, a filter row, and eight tasks with their company, stage and status, each with Edit and Done buttons."
+address = "127.0.0.1:8765/tasks"
+path = "/tasks"
+height = 645
+thumb = "tasks"
+
+[companies]
+file = "feature-companies.png"
+alt = "The Hermit CRM Companies table: twelve demo companies with country, stage, source, scores, tags, last touch, next step and due date, with a filter above each column."
+address = "127.0.0.1:8765/companies"
+path = "/companies"
+height = 800
+thumb = "companies"
+
+[company-page]
+file = "feature-company-page.png"
+alt = "A company page in Hermit CRM for Northwind Robotics: its one-line description, stage and last touch, the next step with Done and Add to Google Calendar, and the company fields."
+address = "127.0.0.1:8765/companies/northwind-robotics"
+path = "/companies/northwind-robotics"
+height = 465
+
+[contacts]
+file = "feature-contacts.png"
+alt = "The Hermit CRM Contacts table: fifteen demo people with their company, title, email, last touch and number of interactions, with a filter above each column."
+address = "127.0.0.1:8765/contacts"
+path = "/contacts"
+height = 700
+thumb = "contacts"
+
+[contact-page]
+file = "feature-contact-page.png"
+alt = "A contact page in Hermit CRM for Jonas Brandt: last touch two days ago, a reply owed since 2026-10-25, his next task, buttons to log an interaction and to generate outreach, and his notes and details with a copy button beside his email."
+address = "127.0.0.1:8765/companies/northwind-robotics/contacts/jonas-brandt"
+path = "/companies/northwind-robotics/contacts/jonas-brandt"
+height = 650
+
+[messages]
+file = "feature-messages.png"
+alt = "The Hermit CRM Messages table: seven sent messages in English, French and German with company, contact, channel, framework, outcome and the message text, each with outcome buttons."
+address = "127.0.0.1:8765/messages"
+path = "/messages"
+width = 1500
+height = 760
+thumb = "messages"
+
+[extension-page]
+file = "feature-extension-page.png"
+alt = "The Extension page in Hermit CRM: an explanation, and a button called Add to Hermit CRM to drag to the bookmarks bar."
+address = "127.0.0.1:8765/extension"
+path = "/extension"
+height = 270
+thumb = "extension"
+
+[reports]
+file = "feature-reports.png"
+alt = "The Hermit CRM Reports page for the last 30 days: an activity table with interactions and companies touched against the previous period, a weekly breakdown by channel and a funnel."
+address = "127.0.0.1:8765/reports"
+path = "/reports"
+height = 800
+thumb = "reports"
+
+[settings-email]
+file = "feature-settings-email.png"
+alt = "The Email and calendar tab of Hermit CRM settings: BCC capture with its mailbox form, and the sending section below it."
+address = "127.0.0.1:8765/settings#tab-mail"
+path = "/settings#tab-mail"
+height = 800
+thumb = "settings"
+
+[settings-crm]
+file = "feature-settings-crm.png"
+alt = "The Your CRM tab of Hermit CRM settings: the Playbook section, a table of fields of your own with their types and where they show, and the Drafts section."
+address = "127.0.0.1:8765/settings#tab-crm"
+path = "/settings#tab-crm"
+height = 800
+
+[outreach-batch]
+file = "outreach-batch.png"
+alt = "The Build a batch form on the Outreach page and its preview: four prospects would get a draft, ranked by fit, with the ones left out listed under Not this time."
+address = "127.0.0.1:8765/outreach"
+prep = "batch-preview"
+height = 660
+
+[outreach-generate]
+file = "outreach-generate.png"
+alt = "The Generate panel for one contact on the Outreach page: draft type, channel, research level, signal and language, the notes the draft will use, and a box to add a note."
+address = "127.0.0.1:8765/outreach?contact=lindenhof-data/mara-keller"
+prep = "generate-panel"
+until = "#generate"
+
+[outreach-card]
+file = "outreach-card.png"
+alt = "A drafted outreach card for a contact at a made-up company: the notes the draft used, the norms applied for German, the subject and message, the critic's score and the buttons Mark ready, Re-check, Skip and Regenerate."
+address = "127.0.0.1:8765/outreach"
+prep = "card"
+height = 900
+thumb = "outreach"
+
+[outreach-ready]
+file = "outreach-ready.png"
+alt = "An approved outreach card on the Ready tab, with its message and the buttons Copy, Open in mail and Log it."
+address = "127.0.0.1:8765/outreach?tab=ready"
+prep = "ready"
+height = 800
+
+[outreach-followups]
+file = "outreach-followups.png"
+alt = "The Follow-ups tab of the Outreach page: a contact whose message went unanswered for 20 days, with a channel choice and a Draft follow-up button."
+address = "127.0.0.1:8765/outreach?tab=follow-ups"
+path = "/outreach?tab=follow-ups"
+height = 460
+
+[learning]
+file = "learning.png"
+alt = "The Learning page: an approach picker, the efficiency of your edits, proposals waiting, and the lessons that worked or did not."
+address = "127.0.0.1:8765/learning"
+path = "/learning"
+height = 800
+thumb = "learning"
+
+[extension-form]
+file = "feature-extension-form.png"
+alt = "The new company form in Hermit CRM opened by the extension: a banner saying it read the page, the company name Harbor Robotics, its website and a one-line product description filled in."
+address = "127.0.0.1:8765/extension/new"
+path = "/extension/new?url=https%3A%2F%2Fharbor-robotics.example.com"
+height = 470
+
+[ask-panel]
+file = "ask-panel.png"
+alt = "The Ask the Hermit panel open on the Pipeline page: a box for a question, a saved question offered as a button, and Ask and Save buttons."
+address = "127.0.0.1:8765/pipeline"
+prep = "ask"
+height = 640
+
+[settings-sending]
+file = "settings-sending.png"
+alt = "The Sending section of Hermit CRM settings, switched off: the sending mailbox and its app password, the SMTP and IMAP servers, and the working hours and daily limits below."
+address = "127.0.0.1:8765/settings#send"
+path = "/settings#tab-mail"
+from = "#send"
+height = 560
+
+[settings-upgrade]
+file = "settings-upgrade.png"
+alt = "The About section of Hermit CRM settings with an Upgrade button, shown when a newer version is published (here a made-up newer version)."
+address = "127.0.0.1:8765/settings#about"
+path = "/settings#about"
+scene = "upgrade"
+left = 210
+from = "#about"
+height = 230
+
+[make-it-yours-dashboard]
+file = "make-it-yours-dashboard.png"
+alt = "The Monday review dashboard in Hermit CRM, pinned in the sidebar: 3 open deals, 5 tasks due this week, the deals by stage and the open deals with their next step."
+address = "127.0.0.1:8765/d/monday-review"
+path = "/d/monday-review"
+width = 900
+height = 700
+thumb = "make-it-yours"
+
+[make-it-yours-field]
+file = "make-it-yours-field.png"
+alt = "A company page in Hermit CRM with the new contract renewal field: its date in the header, and its input with a line of help in the form."
+address = "127.0.0.1:8765/companies/northwind-robotics"
+path = "/companies/northwind-robotics"
+scene = "field"
+width = 900
+left = 210
+height = 650
+
+[make-it-yours-routine]
+file = "make-it-yours-routine.png"
+alt = "Home in Hermit CRM with a draft from the Nudge quiet threads routine: a short follow-up to a contact who has not replied in 20 days, with I sent it and Discard buttons."
+address = "127.0.0.1:8765"
+path = "/"
+from = "#routine-drafts"
+scene = "routine"
+width = 900
+left = 210
+height = 385

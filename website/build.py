@@ -56,6 +56,7 @@ TOKENS = ROOT.parent / "src" / "hermitcrm" / "static" / "tokens.css"
 APP_TOKENS = SITE / "app-tokens.css"
 COMPARE = ROOT / "compare"
 FEATURES = ROOT / "features"
+SHOTS = ROOT / "shots.toml"
 ABOUT = ROOT / "about.toml"
 LLMS = SITE / "llms.txt"
 LLMS_FULL = SITE / "llms-full.txt"
@@ -212,6 +213,44 @@ def attr(text: str) -> str:
     return html.escape(flat(text), quote=True)
 
 
+# ── Screenshots: one list for the whole site ─────────────────────────
+# shots.toml names every screenshot once, with its file, alt text and the address
+# shown in its window frame. A page asks for one with `shot = "key"` (content.toml
+# and features/*.toml), so the home page and the feature pages show the very same
+# file with the very same words. The same file tells screenshots.py how to take it.
+SHOT_LIMIT = 200_000  # bytes: the most a screenshot should weigh
+
+
+def load_shots() -> dict:
+    shots = tomllib.loads(SHOTS.read_text(encoding="utf-8"))
+    for key, shot in shots.items():
+        for need in ("file", "alt", "address"):
+            if not shot.get(need):
+                raise BuildError(f"shots.toml: [{key}] has no {need}")
+    return shots
+
+
+def with_shot(item: dict, shots: dict, where: str, keys: tuple[str, str, str]) -> dict:
+    """`item` with the screenshot it names (`shot = "key"`) filled in. `keys` are
+    the names this kind of item gives the file, its alt text and its address;
+    anything the item says itself wins over the list."""
+    key = item.get("shot")
+    if not key:
+        return item
+    if key not in shots:
+        raise BuildError(f"{where}: shot '{key}' is not in shots.toml")
+    for mine, theirs in zip(keys, ("file", "alt", "address")):
+        item.setdefault(mine, shots[key][theirs])
+    return item
+
+
+def use_shots(c: dict, shots: dict) -> None:
+    """Fill in the screenshots content.toml names."""
+    with_shot(c["file"], shots, "file", ("screenshot", "screenshot_alt", "address_bar"))
+    for n, e in enumerate(c["yours"]["examples"], 1):
+        with_shot(e, shots, f"yours.examples[{n}]", ("image", "alt", "address"))
+
+
 # ── Page parts ───────────────────────────────────────────────────────
 def meta_line(c: dict) -> str:
     r = c["release"]
@@ -245,6 +284,13 @@ def mock() -> str:
             f'<div class="mock-main"><div class="mock-top"><div class="mock-title">Pipeline</div>'
             f'<div class="mock-tag">Placeholder · real screenshot [TBC]</div></div>'
             f'<div class="mock-cols">{board}</div></div></div></div>')
+
+
+def more_link(section: dict, root: str = "", cls: str = "") -> str:
+    """The link at the end of a section of the home page to its page in /features/."""
+    if not section.get("more_link"):
+        return ""
+    return f'<p class="more-link{cls}"><a href="{root}{attr(section["more_link"])}">{md(section["more"])}</a></p>\n'
 
 
 def png_size(path: Path) -> tuple[int, int]:
@@ -286,7 +332,7 @@ def yours_section(c: dict) -> str:
 {examples}
     </ol>
     <p class="safety narrow">{md(y["safety"])}</p>
-  </section>
+    {more_link(y, cls=" narrow")}  </section>
 """
 
 
@@ -297,15 +343,15 @@ def site_nav(c: dict, root: str, here: str = "") -> str:
     has them."""
     h = c["header"]
 
-    def link(section: str, label: str, more: bool = False) -> str:
+    def link(section: str, label: str, more: bool = False, cta: bool = False) -> str:
         cur = ' aria-current="page"' if here == section else ""
-        cls = ' class="nav-more"' if more else ""
+        cls = ' class="nav-more"' if more else ' class="nav-features"' if cta else ""
         return f'<a href="{root}{section}/"{cls}{cur}>{md(label)}</a>'
 
     github = (f'<a href="{attr(c["links"]["github"])}">{md(h["github_label"])}</a>'
               if c["links"]["github"] else "")
     return ('<nav class="site-nav" aria-label="Site">'
-            + link("features", h["features_label"]) + link("docs", h["docs_label"])
+            + link("features", h["features_label"], cta=True) + link("docs", h["docs_label"])
             + link("compare", h["compare_label"], True) + link("about", h["about_label"], True)
             + github + "</nav>")
 
@@ -335,7 +381,7 @@ def outreach_section(c: dict) -> str:
 {steps}
     </ol>
     <p class="safety">{md(o["safety"])}</p>
-  </section>
+    {more_link(o)}  </section>
 """
 
 
@@ -359,6 +405,7 @@ def footer_columns(hub: dict, pages: list[dict], *, features: str, docs: str, ch
 
 
 def render(c: dict, ld: str = "") -> str:
+    use_shots(c, load_shots())  # idempotent: build() has done it, a caller that loaded content.toml itself has not
     p, h, i, f = c["page"], c["hero"], c["install"], c["file"]
     description = flat(p["description"] or h["subline"])
     site_url = p["site_url"].rstrip("/")
@@ -374,23 +421,16 @@ def render(c: dict, ld: str = "") -> str:
     nav = site_nav(c, "")
 
     steps = "\n".join(f"      <li><span>{md(s)}</span></li>" for s in i["steps"])
-    # A row whose page exists links to it: features/<slug>/ (built from features/*.toml).
-    def feature_name(x: dict) -> str:
-        if not x.get("slug"):
-            return md(x["name"])
-        return f'<a href="features/{attr(x["slug"])}/">{md(x["name"])}</a>'
-
-    features = "\n".join(f"      <dt>{feature_name(x)}</dt><dd>{md(x['text'])}</dd>"
-                         for x in c["features"]["items"])
-    all_features = (f'    <p class="all-features"><a href="features/">{md(c["features"]["all_label"])}</a></p>\n'
-                    if c["features"].get("all_label") else "")
+    fe = c["features"]
+    _, feature_pages = load_features()
+    tiles = feature_tiles(feature_pages, "", "features/", " compact")
     principles = "\n".join(f"      <p><strong>{md(x['name'])}</strong> {md(x['text'])}</p>"
                            for x in c["principles"])
     faqs = "\n".join(
         f'      <details{" open" if q.get("open") else ""}><summary>{md(q["q"])}</summary>'
         f'<p>{md(q["a"])}</p></details>' for q in c["questions"]["items"])
 
-    if f["screenshot"]:
+    if f.get("screenshot"):
         idea_figure = figure("", f["screenshot"], f["screenshot_alt"], f["address_bar"])
     else:
         idea_figure = (f'<figure class="window">\n'
@@ -458,6 +498,18 @@ def render(c: dict, ld: str = "") -> str:
 
   <hr class="rule">
 
+  <section class="showcase wide" aria-labelledby="showcase">
+    <div class="narrow">
+      <p class="label">{md(fe["label"])}</p>
+      <h2 class="big" id="showcase">{md(fe["heading"])}</h2>
+      <p class="lead">{md(fe["intro"])}</p>
+    </div>
+{tiles}
+    <p class="all-features narrow"><a href="features/">{md(fe["all_label"])}</a></p>
+  </section>
+
+  <hr class="rule blank">
+
   <section class="idea wide" aria-labelledby="idea">
     <div class="narrow">
       <p class="label">{md(f["label"])}</p>
@@ -471,7 +523,7 @@ def render(c: dict, ld: str = "") -> str:
 {file_body}</pre>
       </div>
     </div>
-  </section>
+    {more_link(f, cls=" narrow")}  </section>
 
   <hr class="rule blank">
 
@@ -481,12 +533,8 @@ def render(c: dict, ld: str = "") -> str:
 {outreach_section(c)}
   <hr class="rule blank">
 
-  <section class="features col" aria-labelledby="features">
-    <h2 class="label" id="features">{md(c["features"]["label"])}</h2>
-    <dl>
-{features}
-    </dl>
-{all_features}    <div class="principles">
+  <section class="principles-section col" aria-label="{attr(fe["principles_label"])}">
+    <div class="principles">
 {principles}
     </div>
   </section>
@@ -912,6 +960,7 @@ def render_about(c: dict, hub: dict, a: dict) -> str:
 def load_features() -> tuple[dict, list[dict]]:
     """features/index.toml and one dict per page, in their `order`."""
     fhub = tomllib.loads((FEATURES / "index.toml").read_text(encoding="utf-8"))
+    shots = load_shots()
     pages = []
     for f in sorted(FEATURES.glob("*.toml")):
         if f.name == "index.toml":
@@ -922,6 +971,7 @@ def load_features() -> tuple[dict, list[dict]]:
             if need not in p:
                 raise BuildError(f"features/{f.name} has no {need}")
         for n, s in enumerate(p["sections"], 1):
+            with_shot(s, shots, f"features/{f.name}: section {n}", ("image", "alt", "address"))
             if "heading" not in s or not (s.get("text") or s.get("points")):
                 raise BuildError(f"features/{f.name}: section {n} needs a heading and text or points")
             if "image" in s and not all(k in s for k in ("alt", "address")):
@@ -1009,19 +1059,26 @@ def render_feature(c: dict, hub: dict, fhub: dict, p: dict, pages: list[dict]) -
                 changelog_link="../../changelog/"))
 
 
-def render_features_hub(c: dict, hub: dict, fhub: dict, pages: list[dict]) -> str:
-    site, lab, fl, pg = c["page"]["site_url"].rstrip("/"), hub["labels"], fhub["labels"], fhub["page"]
-    path, root = "/features/", "../"
-    url = site + path
+def feature_tiles(pages: list[dict], root: str, base: str, cls: str = "") -> str:
+    """The grid of pages: a screenshot, a name and one line each. The home page and
+    /features/ show the same files and the same words. `root` leads to the site's
+    top (for the images) and `base` to the folder of the pages."""
     tiles = []
     for p in pages:
         thumb = feature_thumb(p)
         w, h = png_size(SITE / "img" / thumb) if thumb else (0, 0)
         img = (f'<img src="{root}img/{attr(thumb)}" alt="" width="{w}" height="{h}" loading="lazy">'
                if thumb else "")
-        tiles.append(f'      <li><a class="tile" href="{p["slug"]}/">{img}'
+        tiles.append(f'      <li><a class="tile" href="{base}{p["slug"]}/">{img}'
                      f'<span class="tile-name">{md(p["name"])}</span>'
                      f'<span class="tile-text">{md(p["summary"])}</span></a></li>')
+    return f'    <ul class="tiles{cls}">\n' + "\n".join(tiles) + "\n    </ul>"
+
+
+def render_features_hub(c: dict, hub: dict, fhub: dict, pages: list[dict]) -> str:
+    site, lab, fl, pg = c["page"]["site_url"].rstrip("/"), hub["labels"], fhub["labels"], fhub["page"]
+    path, root = "/features/", "../"
+    url = site + path
     hp = fhub["help"]
     ld = jsonld(
         {"@type": "CollectionPage", "@id": url, "url": url, "name": flat(pg["title"]),
@@ -1043,9 +1100,7 @@ def render_features_hub(c: dict, hub: dict, fhub: dict, pages: list[dict]) -> st
   </div>
 
   <section class="part wide" aria-label="{attr(pg["table_caption"])}">
-    <ul class="tiles">
-{chr(10).join(tiles)}
-    </ul>
+{feature_tiles(pages, root, "")}
   </section>
 
   <section class="part col">
@@ -1483,6 +1538,7 @@ def check(c: dict, pages: list[dict] | None = None, hub: dict | None = None,
           about: dict | None = None, docs: Docs | None = None, fhub: dict | None = None,
           features: list[dict] | None = None) -> tuple[list[str], list[str]]:
     problems, tbc = [], []
+    use_shots(c, load_shots())
     texts = list(walk(c))
     if hub:
         texts += walk(hub, "compare/index")
@@ -1537,7 +1593,7 @@ def check(c: dict, pages: list[dict] | None = None, hub: dict | None = None,
         if link not in ("", "#") and "://" not in link and not (SITE / link).is_file():
             problems.append(f"links.{key}: site/{link} does not exist")
             print(f"  warning  {problems[-1]}")
-    if c["file"]["screenshot"] and not (SITE / "img" / c["file"]["screenshot"]).exists():
+    if c["file"].get("screenshot") and not (SITE / "img" / c["file"]["screenshot"]).exists():
         problems.append(f"site/img/{c['file']['screenshot']} does not exist")
         print(f"  warning  {problems[-1]}")
     for e in c["yours"]["examples"]:
@@ -1563,9 +1619,11 @@ def check(c: dict, pages: list[dict] | None = None, hub: dict | None = None,
             problems.append(f"{where}: docs topic '{p['docs']}' is not in the docs")
         if feature_thumb(p) and png_size(SITE / "img" / feature_thumb(p)) == (0, 0):
             problems.append(f"{where}: thumbnail site/img/{feature_thumb(p)} is missing or not a PNG")
-    for x in c["features"]["items"]:
-        if x.get("slug") and features is not None and x["slug"] not in slugs:
-            problems.append(f"features.items: '{x['name']}' links to features/{x['slug']}/, which does not exist")
+    for shot in load_shots().values():
+        path = SITE / "img" / shot["file"]
+        if path.is_file() and path.stat().st_size > SHOT_LIMIT:
+            problems.append(f"site/img/{shot['file']} is {path.stat().st_size // 1000} KB, "
+                            f"keep screenshots under {SHOT_LIMIT // 1000} KB (screenshots.py does)")
     for p in problems[first:]:
         print(f"  warning  {p}")
     # /docs/ must describe the version people download, so on a release it has
@@ -1589,6 +1647,7 @@ def build() -> tuple[dict, list[str], list[str]]:
     if broken:
         raise BuildError("the site no longer matches the app's tokens:\n  " + "\n  ".join(broken))
     c = tomllib.loads(CONTENT.read_text(encoding="utf-8"))
+    use_shots(c, load_shots())
     site_url = c["page"]["site_url"].rstrip("/")
     APP_TOKENS.write_text(app_css, encoding="utf-8")
     # The comparison pages and the About page need the site's address for their
