@@ -264,3 +264,62 @@ def test_keep_in_touch_sorts_longest_quiet_first(seeded):
 def test_render_keep_in_touch_says_so_when_there_is_nobody():
     assert "Nobody to catch up with" in followups.render_keep_in_touch([], 90)
     assert "last 90 days" in followups.render_keep_in_touch([], 90)
+
+
+# ------------------------------------------------------------------ marked done
+
+
+def nudge(seeded, days=6, slug="acme"):
+    return seeded.create_interaction(slug, channel="linkedin", direction="out",
+                                     contact="jane-roe", date=days_ago(days),
+                                     body="Hi Jane,\n\nSaw you are hiring.")
+
+
+def test_a_nudge_marked_done_leaves_the_radar_and_can_be_reopened(seeded):
+    sent = nudge(seeded)
+    [row] = followups.radar(seeded, TODAY)
+    assert row.key == f"acme/{sent.id}"
+
+    followups.mark_done(seeded, row)
+    assert followups.radar(seeded, TODAY) == []
+    assert [r.slug for r in followups.radar(seeded, TODAY, include_done=True)] == ["acme"]
+
+    followups.reopen(seeded, row.key)
+    assert [r.slug for r in followups.radar(seeded, TODAY)] == ["acme"]
+
+
+def test_done_belongs_to_that_silence_only(seeded):
+    nudge(seeded, days=12)
+    [row] = followups.radar(seeded, TODAY)
+    followups.mark_done(seeded, row)
+    assert followups.radar(seeded, TODAY) == []
+    nudge(seeded, days=6)   # you wrote again, and they went quiet again
+    [again] = followups.radar(seeded, TODAY)
+    assert again.key != row.key and again.days == 6
+
+
+def test_done_never_hides_a_reply_you_owe(seeded):
+    seeded.create_interaction("acme", channel="email", direction="in",
+                              contact="jane-roe", date=days_ago(3), body="Interested.")
+    [row] = followups.radar(seeded, TODAY)
+    assert row.kind == REPLY
+    followups.mark_done(seeded, row)   # a stray mark on a reply row changes nothing
+    assert [r.kind for r in followups.radar(seeded, TODAY)] == [REPLY]
+
+
+def test_marking_done_is_one_commit_of_one_file(seeded, messages):
+    nudge(seeded)
+    [row] = followups.radar(seeded, TODAY)
+    messages.clear()
+    followups.mark_done(seeded, row)
+    assert messages == ["outreach: follow-up acme/jane-roe done"]
+    assert (seeded.root / "outreach" / "followups.json").read_text(encoding="utf-8") \
+        .startswith("{\n  \"acme/")
+
+
+def test_a_file_that_cannot_be_read_counts_as_nothing_done(seeded):
+    nudge(seeded)
+    path = seeded.root / "outreach" / "followups.json"
+    path.parent.mkdir(exist_ok=True)
+    path.write_text("not json", encoding="utf-8")
+    assert [r.slug for r in followups.radar(seeded, TODAY)] == ["acme"]

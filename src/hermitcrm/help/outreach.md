@@ -145,6 +145,14 @@ the radar read the same setting, so they never disagree.
 - A cold follow-up email gets the playbook's opt-out line, as a first touch does.
   A LinkedIn follow-up is a message in the conversation, so it only works if they
   accepted your connection; the bot cannot know that.
+- **Mark done** on a row is for a follow-up you made somewhere else (a LinkedIn
+  message, a call) or decided to drop. The row leaves the tab, the batch, the home
+  page and `hermitcrm followups`; nothing is logged and the message is not
+  changed. It holds for that silence only: if you write to them again and they
+  go quiet again, they are due again. The **Done** box under the list shows what
+  you marked, each with **Reopen**. From the command line:
+  `hermitcrm outreach followup-done COMPANY/CONTACT [--undo]`. The marks are in
+  `outreach/followups.json`, one commit each, so they are in your backups.
 
 ## Add what you see on their LinkedIn profile
 

@@ -438,3 +438,108 @@ def test_the_command_line_previews_follow_ups(root, capsys):
     from hermitcrm import cli
     assert cli.main(["outreach", "preview", "--kind", "follow-up"], root=root) == 0
     assert "follow-up by email" in capsys.readouterr().out
+
+
+# ------------------------------------------------------------------ marked done
+
+
+def test_a_follow_up_marked_done_leaves_the_list_and_the_batch(folder):
+    root, store = folder
+    sent = send(store, days=6)
+    row = outreach.mark_followup_done(store, MARA)
+    assert row.key == f"lindenhof-data/{sent.id}"
+    assert mara_due(store) == []
+    assert [f.key for f in mara_due(store, include_done=True)] == [row.key]
+    assert [f.key for f in outreach.done_followups(store) if f.slug == "lindenhof-data"] \
+        == [row.key]
+    assert MARA not in [c.record for c in outreach.select(store, kind=FOLLOW).picked]
+
+
+def test_naming_someone_marked_done_says_so_and_reopening_restores_them(folder):
+    root, store = folder
+    send(store, days=6)
+    outreach.mark_followup_done(store, MARA)
+    [why] = [c.reason for c in pick(store).excluded]
+    assert "marked done" in why and "Follow-ups" in why
+    outreach.reopen_followup(store, MARA)
+    assert [c.record for c in pick(store).picked] == [MARA]
+
+
+def test_marking_done_takes_the_row_key_or_the_contact_and_refuses_the_rest(folder):
+    root, store = folder
+    sent = send(store, days=6)
+    assert outreach.mark_followup_done(store, f"lindenhof-data/{sent.id}").contact.slug \
+        == "mara-keller"
+    with pytest.raises(outreach.OutreachError, match="no follow-up is due"):
+        outreach.mark_followup_done(store, "lindenhof-data/not-a-thing")
+    with pytest.raises(outreach.OutreachError, match="not marked done"):
+        outreach.reopen_followup(store, "lindenhof-data/not-a-thing")
+
+
+def test_a_new_message_after_done_makes_them_due_again(folder):
+    root, store = folder
+    send(store, days=12)
+    outreach.mark_followup_done(store, MARA)
+    send(store, days=6, subject="Second note")
+    assert [f.interaction.subject for f in mara_due(store)] == ["Second note"]
+
+
+def test_the_tab_marks_a_row_done_and_reopens_it(client, root):
+    store = client.app.state.store
+    sent = send(store, days=6)
+    page = client.get("/outreach?tab=follow-ups").text
+    assert "Mark done" in page and f'value="lindenhof-data/{sent.id}"' in page
+    n = len(outreach.due_followups(store))
+
+    response = post(client, "/outreach/followups/done", followup=f"lindenhof-data/{sent.id}")
+    assert response.status_code == 303 and query(response)["tab"] == "follow-ups"
+    assert "Mara Keller" in query(response)["flash"]
+    assert commits(root)[0] == "outreach: follow-up lindenhof-data/mara-keller done"
+    page = client.get("/outreach?tab=follow-ups").text
+    assert f"Follow-ups ({n - 1})" in page and "Done (1)" in page and "Reopen" in page
+
+    post(client, "/outreach/followups/reopen", followup=f"lindenhof-data/{sent.id}")
+    assert commits(root)[0] == "outreach: follow-up lindenhof-data/mara-keller reopened"
+    page = client.get("/outreach?tab=follow-ups").text
+    assert f"Follow-ups ({n})" in page and "Done (" not in page
+
+
+def test_marking_done_needs_the_csrf_token_and_a_current_row(client, root):
+    store = client.app.state.store
+    sent = send(store, days=6)
+    before = commits(root)
+    bad = client.post("/outreach/followups/done", data={"followup": f"lindenhof-data/{sent.id}"})
+    assert bad.status_code in (400, 403) and commits(root) == before
+    gone = post(client, "/outreach/followups/done", followup="lindenhof-data/old-message")
+    assert gone.status_code == 303 and "no follow-up is due" in query(gone)["flash"]
+    assert commits(root) == before
+
+
+def test_the_command_line_marks_done_and_reopens(root, capsys):
+    from hermitcrm import cli
+    store = Store(root)
+    store.load()
+    send(store, days=6)
+    assert cli.main(["outreach", "followup-done", MARA], root=root) == 0
+    assert "marked done" in capsys.readouterr().out
+    assert cli.main(["outreach", "followup-done", MARA, "--undo"], root=root) == 0
+    assert "reopened" in capsys.readouterr().out
+
+
+def test_done_also_clears_the_radar_on_the_home_page_and_the_command_line(root, capsys):
+    from hermitcrm import cli
+    app = create_app(root, {**load_config(root), "push_enabled": False,
+                            "welcome_dismissed": True})
+    app.state.setup_redirected = True
+    app.state.store.clock = lambda: NOW
+    home = TestClient(app, follow_redirects=False)
+    sent = send(app.state.store, days=6)
+    line = "lindenhof-data | Mara Keller"
+    assert cli.main(["followups"], root=root) == 0
+    assert line in capsys.readouterr().out
+    assert "A first message." in home.get("/").text   # the radar row's last message
+
+    post(home, "/outreach/followups/done", followup=f"lindenhof-data/{sent.id}")
+    assert cli.main(["followups"], root=root) == 0
+    assert line not in capsys.readouterr().out
+    assert "A first message." not in home.get("/").text
