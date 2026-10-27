@@ -66,6 +66,9 @@ hermitcrm outreach ready ID [--tag T ...]  approve a draft (the checks run again
                                         one is a warning); never sent; --tag says why you changed it
                                         (too-long, wrong-tone, wrong-pain, bad-finding, wrong-fact, cliche, other)
 hermitcrm outreach sent ID                 you sent it (logging the message does this too); logs nothing
+hermitcrm outreach followup-done COMPANY/CONTACT [--undo]
+                                        a follow-up you did elsewhere or dropped: off the Follow-ups tab,
+                                        the batch and `followups` until a newer message goes unanswered
 hermitcrm outreach skip ID --reason R [--note TEXT]
                                         drop an item: bad-fit, wrong-person, bad-timing, bad-draft,
                                         already-in-contact or other

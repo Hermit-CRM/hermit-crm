@@ -2173,24 +2173,72 @@ def nudge_days(config: dict | None) -> int:
 
 
 def due_followups(store: Store, today: date | None = None,
-                  config: dict | None = None) -> list:
+                  config: dict | None = None, include_done: bool = False) -> list:
     """The follow-ups due: per contact, the radar's rule (your latest message
     to them has gone `followup_nudge_days` without an answer and nothing is
-    planned). Sample and inactive companies are left out. Oldest first. A pure
-    read; no AI. Each row is a `followups.Followup`."""
+    planned). Sample and inactive companies are left out, and so are the ones
+    you marked done (`include_done` keeps them). Oldest first. A pure read; no
+    AI. Each row is a `followups.Followup`."""
     today = today or store.today()
     config = config if config is not None else load_config(store.root)
     nudge = nudge_days(config)
+    done = set() if include_done else set(followups.load_done(store.root))
     out = []
     for company in store.companies.values():
         if company.is_sample:
             continue
         for cslug in company.contacts:
             row = followups.for_contact(company, cslug, today, nudge_after=nudge)
-            if row is not None and row.kind == followups.NUDGE and row.contact is not None:
+            if (row is not None and row.kind == followups.NUDGE and row.contact is not None
+                    and row.key not in done):
                 out.append(row)
     out.sort(key=lambda r: (-r.days, r.company.name.lower(), r.contact.name.lower()))
     return out
+
+
+def done_followups(store: Store, today: date | None = None,
+                   config: dict | None = None) -> list:
+    """The follow-ups you marked done that would still be due: the Done box on
+    the Follow-ups tab. A mark whose message was answered or followed by a newer
+    one matches nothing, so it is not listed."""
+    done = followups.load_done(store.root)
+    return [f for f in due_followups(store, today, config, include_done=True)
+            if f.key in done]
+
+
+def _followup_ref(row) -> tuple[str, str]:
+    """The two ways to name a row: its key, and "company/contact"."""
+    return row.key, f"{row.company.slug}/{row.contact.slug}"
+
+
+def mark_followup_done(store: Store, ref: str, today: date | None = None,
+                       config: dict | None = None):
+    """You followed this one up elsewhere, or let it go: it leaves the Follow-ups
+    tab, the batch and the radar until a newer message of yours goes unanswered.
+    `ref` is the row's key ("company/interaction-id", what the page sends, so a
+    click on a row that has moved on does nothing) or "company/contact". Kept in
+    outreach/followups.json, one commit; no interaction is logged."""
+    row = next((f for f in due_followups(store, today, config, include_done=True)
+                if ref in _followup_ref(f)), None)
+    if row is None:
+        raise OutreachError(f"no follow-up is due {ref!r}: answered already, or a newer "
+                            "message has moved it on")
+    if row.key not in followups.load_done(store.root):
+        followups.mark_done(store, row)
+    return row
+
+
+def reopen_followup(store: Store, ref: str, today: date | None = None,
+                    config: dict | None = None):
+    """Take a done mark away (same `ref` as `mark_followup_done`). Returns the
+    row when it is still due, else None (the mark of a message that has moved on)."""
+    row = next((f for f in done_followups(store, today, config)
+                if ref in _followup_ref(f)), None)
+    key = row.key if row is not None else ref
+    if key not in followups.load_done(store.root):
+        raise OutreachError(f"{ref!r} is not marked done")
+    followups.reopen(store, key, row)
+    return row
 
 
 def kind_for(store: Store, company, contact, today: date | None = None,
@@ -2555,6 +2603,8 @@ def select(store: Store, where: list[str] | None = None, channel: str = "email",
     nudge = nudge_days(config)
     due = ({f"{f.company.slug}/{f.contact.slug}": f for f in due_followups(store, today, config)}
            if kind == FOLLOW_UP else None)
+    done = ({f"{f.company.slug}/{f.contact.slug}": f for f in done_followups(store, today, config)}
+            if kind == FOLLOW_UP else None)
     earlier = {}   # reply-to-interest: the approach the conversation started with
     for i in reversed(every):
         if i.approach:
@@ -2566,7 +2616,7 @@ def select(store: Store, where: list[str] | None = None, channel: str = "email",
         cand.reason = _excluded(store, cand, approaches, approach, channel, kind, cooldown,
                                 today, open_by_contact, open_by_company, dupes,
                                 bad_fit, skipped_by_contact, interest, earlier, due, nudge,
-                                named=bool(contacts))
+                                named=bool(contacts), done=done)
         if cand.fit is None and not cand.reason:
             cand.flags.append(f"no fit score ({fit_field} is empty)")
         (sel.excluded if cand.reason else ranked).append(cand)
@@ -2593,7 +2643,7 @@ def select(store: Store, where: list[str] | None = None, channel: str = "email",
 def _excluded(store, cand: Candidate, approaches, forced: str, channel, kind, cooldown,
               today, open_by_contact, open_by_company, dupes, bad_fit=None,
               skipped_by_contact=None, interest=None, earlier=None, due=None,
-              nudge=5, named=False) -> str:
+              nudge=5, named=False, done=None) -> str:
     """Why this contact gets no item this time, or "" (and its approach and flags).
     A reply to interest answers someone who asked: no cooldown, no fit test
     (the approach the conversation started with, else the best match). A
@@ -2614,6 +2664,9 @@ def _excluded(store, cand: Candidate, approaches, forced: str, channel, kind, co
     if reply and cand.record not in (interest or {}):
         return ("no reply showing interest to answer (log their reply with the outcome "
                 "interested, or confirm it under Replies to interest)")
+    if follow and cand.record in (done or {}):
+        return ("this follow-up is marked done (reopen it under Done on the "
+                "Follow-ups tab to draft it)")
     if follow and cand.record not in (due or {}):
         return (f"no follow-up is due: it needs a message of yours without an answer "
                 f"for {nudge} days and nothing planned")

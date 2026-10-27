@@ -4478,6 +4478,8 @@ def create_app(root: Path, config: dict | None = None,
             "reply_rows": [r for r in reply_rows if r["item"] is None] if tab == "replies"
             else [],
             "due_rows": due_rows if tab == "follow-ups" else [],
+            "done_rows": outreach.done_followups(store, config=config)
+            if tab == "follow-ups" else [],
             "nudge_days": outreach.nudge_days(config),
             "replies_waiting": len(waiting),
             "replies_unchecked": sum(1 for r in reply_rows if r["reply"].unchecked),
@@ -4611,6 +4613,35 @@ def create_app(root: Path, config: dict | None = None,
             text += (f" {len(result.failed)} could not be checked "
                      f"({result.failed[0][1]}); try again later.")
         return flashed("/outreach?tab=replies", text)
+
+    @app.post("/outreach/followups/done")
+    async def outreach_followup_done(request: Request, csrf_token: str = Form(""),
+                                     followup: str = Form("")):
+        """You followed this one up elsewhere, or let it go: it leaves the tab."""
+        check_csrf(csrf_token)
+        try:
+            row = await run_in_threadpool(outreach.mark_followup_done, store, followup,
+                                          None, config)
+        except outreach.OutreachError as exc:
+            return flashed("/outreach?tab=follow-ups", str(exc))
+        return flashed("/outreach?tab=follow-ups",
+                       f"{row.contact.name}: marked done. It comes back only after a newer "
+                       "message of yours goes unanswered; undo it under Done.")
+
+    @app.post("/outreach/followups/reopen")
+    async def outreach_followup_reopen(request: Request, csrf_token: str = Form(""),
+                                       followup: str = Form("")):
+        """Take a done mark away: the row is back on the tab."""
+        check_csrf(csrf_token)
+        try:
+            row = await run_in_threadpool(outreach.reopen_followup, store, followup,
+                                          None, config)
+        except outreach.OutreachError as exc:
+            return flashed("/outreach?tab=follow-ups", str(exc))
+        if row is None:   # it had moved on already: only the old mark is gone
+            return flashed("/outreach?tab=follow-ups", "Reopened.")
+        return flashed("/outreach?tab=follow-ups", f"{row.contact.name}: back on the list.",
+                       anchor=f"due-{row.interaction.id}")
 
     @app.post("/outreach/replies/confirm")
     async def outreach_confirm_reply(request: Request, csrf_token: str = Form(""),

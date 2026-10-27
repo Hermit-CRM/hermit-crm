@@ -6,6 +6,18 @@ To upgrade, press **Upgrade** in the notice (the sidebar, or Settings > About): 
 
 Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups and undo](/help/backups)
 
+## Unreleased
+
+- **Mark a follow-up done.** Each row on the Outreach **Follow-ups** tab has a **Mark
+  done** button, for a follow-up you made somewhere else (a LinkedIn message, a call)
+  or decided to let go. The row leaves the tab, the batch, the home page and
+  `hermitcrm followups`. It holds for that silence only: if you write to them again
+  and they go quiet again, they are due again. A **Done** box under the list shows
+  what you marked, each with **Reopen**, and `hermitcrm outreach followup-done
+  COMPANY/CONTACT [--undo]` does the same from the command line. Nothing is logged
+  as an interaction. The marks live in `outreach/followups.json`, one commit each, a
+  new optional file, so no data migration. See [Outreach](/help/outreach).
+
 ## 1.0.0 (2026-10-27)
 
 - **The Follow up list on the Pipeline explains itself.** It is now two groups, **You owe
