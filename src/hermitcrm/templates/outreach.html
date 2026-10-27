@@ -200,7 +200,7 @@
 {% if tab == 'follow-ups' %}
 <section class="outreach-followups">
   <p class="small">Messages of yours with no answer after {{ nudge_days }} days.
-    {%- call hint('followups-help', 'How follow-ups work') %} From the follow-up radar (Settings: <code>followup_nudge_days</code>). A follow-up is short, has no calendar invite and gives an easy way out; the bot does no research for it. A batch makes one per silence and then lets that person go; draft from their row or the Generate panel to write another, on any channel.{% endcall %}</p>
+    {%- call hint('followups-help', 'How follow-ups work') %} From the follow-up radar (Settings: <code>followup_nudge_days</code>). A follow-up is short, has no calendar invite and gives an easy way out; the bot does no research for it. A batch makes one per silence and then lets that person go; draft from their row or the Generate panel to write another, on any channel. Followed up somewhere else, or letting it go? Mark it done: the row leaves this tab, the batch and the home page until a newer message of yours goes unanswered. Done keeps a list so you can reopen one.{% endcall %}</p>
   {% if due_rows %}
   <ul class="outreach-reply-list">
   {% for f in due_rows %}{% set it = f.interaction %}
@@ -216,12 +216,34 @@
           <select name="channel" aria-label="Follow-up channel">{% for c in channels %}<option value="{{ c }}"{% if c == it.channel %} selected{% endif %}>{{ c }}</option>{% endfor %}</select>
           <button type="submit" class="secondary" data-busy="Drafting&hellip;"{% if gate or ai_problem %} disabled{% endif %}>Draft follow-up</button>
         </form>
+        <form method="post" action="/outreach/followups/done" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="followup" value="{{ f.key }}">
+          <button type="submit" class="secondary" title="Followed up somewhere else, or let it go. It returns only if a newer message of yours goes unanswered.">Mark done</button>
+        </form>
       </div>
     </li>
   {% endfor %}
   </ul>
   {% elif not cards %}
   <p class="empty">No follow-ups are due. A message you send that gets no answer shows up here after {{ nudge_days }} days.</p>
+  {% endif %}
+  {% if done_rows %}
+  <details class="small outreach-followups-done" id="followups-done">
+    <summary>Done ({{ done_rows | length }})</summary>
+    <ul class="outreach-reply-list">
+    {% for f in done_rows %}{% set it = f.interaction %}
+      <li id="done-{{ it.id }}" class="outreach-reply">
+        <p><a href="/companies/{{ f.company.slug }}/contacts/{{ f.contact.slug }}">{{ f.contact.name }}</a> <span class="small">{{ f.company.name }} &middot; {{ it.label }} &middot; {{ fmt_date(it.date) }}, {{ f.days }} day{{ "s" if f.days != 1 }} ago</span></p>
+        <form method="post" action="/outreach/followups/reopen" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="followup" value="{{ f.key }}">
+          <button type="submit" class="secondary">Reopen</button>
+        </form>
+      </li>
+    {% endfor %}
+    </ul>
+  </details>
   {% endif %}
 </section>
 {% endif %}

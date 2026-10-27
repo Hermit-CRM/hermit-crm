@@ -1658,6 +1658,12 @@ def _build_parser() -> argparse.ArgumentParser:
                      "nothing is sent").add_argument("id")
     o_sub.add_parser("sent", help="you sent it yourself (logging it does this too); "
                      "logs nothing").add_argument("id")
+    o_fdone = o_sub.add_parser("followup-done", help="mark a follow-up done (you did it "
+                               "elsewhere, or let it go): it leaves the Follow-ups tab, the "
+                               "batch and the radar until a newer message of yours goes "
+                               "unanswered; logs nothing")
+    o_fdone.add_argument("contact", help="company/contact, as in `hermitcrm followups`")
+    o_fdone.add_argument("--undo", action="store_true", help="take the mark away again")
     o_skip = o_sub.add_parser("skip", help="do not send this one, and say why")
     o_skip.add_argument("id")
     o_skip.add_argument("--reason", required=True,
@@ -1810,6 +1816,15 @@ def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
             item = outreach.unready(store, args.id)
             return (f"{item.id} is back to a draft: edit it on the Outreach page, then mark "
                     "it ready again. Not sent.", 0)
+        if action == "followup-done":
+            if args.undo:
+                outreach.reopen_followup(store, args.contact, config=config)
+                return (f"{args.contact}: reopened. It is on the Follow-ups tab again "
+                        "if it is still due.", 0)
+            row = outreach.mark_followup_done(store, args.contact, config=config)
+            return (f"{row.company.slug}/{row.contact.slug}: marked done. It comes back "
+                    "only after a newer message of yours goes unanswered. Nothing was "
+                    "logged.", 0)
         if action == "sent":
             item = outreach.mark_sent(store, args.id)
             return (f"{item.id} is sent. Nothing was logged: log the message as usual.", 0)
@@ -2342,7 +2357,8 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
     if args.command == "outreach":
         config = load_config(root)
         if args.action in ("build", "ready", "unready", "sent", "skip", "schedule",
-                           "unschedule", "send-now", "retry", "front", "opt-out"):
+                           "unschedule", "send-now", "retry", "front", "opt-out",
+                           "followup-done"):
             store.on_write = _writer(store, root, config)
         if args.action in ("schedule", "unschedule", "send-now", "retry", "front", "opt-out"):
             text, code = cmd_outreach_send(store, root, config, args)
