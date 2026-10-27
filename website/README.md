@@ -97,8 +97,10 @@ see one "Docs" link in the header and the footer.
 | --- | --- |
 | Download, SHA-256, GitHub and install-by-hand links | `[links]` in `content.toml` |
 | Version, file name, size | `[release]` in `content.toml` |
-| App screenshot instead of the drawn placeholder | put the image in `site/img/`, set `[file].screenshot` |
-| The "Make it yours" examples (what you type, what changes, the screenshot) | `[yours]` in `content.toml`; images `site/img/make-it-yours-*.png` |
+| Any screenshot: its file, alt text and window address | `shots.toml`, one table per shot; pages name it with `shot = "key"` (below) |
+| Retake the screenshots | `python3 screenshots.py` (below) |
+| The "Make it yours" examples (what you type, what changes, the screenshot) | `[yours]` in `content.toml`; the pictures are shots in `shots.toml` |
+| The tiles under the first screen of the home page | the pages in `features/*.toml` (name, `summary`, screenshot): the same tiles as `/features/` |
 | Colours, sizes, spacing | `site/style.css` (tokens at the top, light and dark) |
 | Brand green, font stacks, the drawn app's colours | `src/hermitcrm/static/tokens.css` (shared with the app; see `DESIGN.md`) |
 | Page structure | `render()` in `build.py` |
@@ -119,28 +121,55 @@ see one "Docs" link in the header and the footer.
   `image` with its `alt` text and the `address` shown in the window frame.
 - A row of "What you get" in `content.toml` links to its page by `slug`.
 
-The screenshots are real: a demo folder (`hermitcrm init --demo`) of the
-**released** version, served on its own port, at 2x with a 1200 px wide window
-(1500 px for Messages), cropped to the part that shows the page and kept under
-about 200 KB (quantised to 256 colours). Take them from the release's own
-tarball, not from main, so the site never shows what people cannot download yet.
-`site/img/thumbs/<slug>.png` are the overview's pictures: the top of each
-page's first screenshot at 3:2, 720 px wide. The build checks that every image,
-related page and docs topic exists. Selecting a screenshot opens it full size,
-which is how a phone shows the small print.
+A page's screenshots come from `shots.toml`, the one list of every picture on
+the site. Each table is a **shot**: `file` (in `site/img/`), `alt` and `address`
+(shown in its window frame) are what the build reads, and the rest says how to take
+it (see "Retaking the screenshots"). A section of a feature page, `[file]` and each
+`[[yours.examples]]` in `content.toml` ask for one with `shot = "pipeline-board"`.
+A section can still write its own `alt` or `address`, which wins. Because the home
+page and `/features/` name the same keys, they always show the same files with the
+same words, and a picture is changed in one place. `site/img/thumbs/<slug>.png` are
+the pictures on the tiles, on `/features/` and on the home page: the top of each
+page's first screenshot at 3:2, 720 px wide, made by the same script (`thumb =
+"<slug>"` on that shot). The build checks that every image, related page and docs
+topic exists, and refuses a screenshot over 200 KB. Selecting a screenshot opens it
+full size, which is how a phone shows the small print.
 
-## The Make it yours screenshots
+The home page shows every feature page as a tile directly under the first screen,
+and each section that has a page ends with a link to it (`more` and `more_link` in
+`[file]`, `[yours]` and `[outreach]`). The header has **Features** as the one button.
 
-`site/img/make-it-yours-*.png` are real screenshots of the app, taken with
-Playwright at 2x on a demo folder (`hermitcrm init --demo`, which comes with
-the sample's Monday review dashboard and paused routine) served on its own
-port: the dashboard at a 900 px wide window; a company page after adding the
-`contract_renewal` field exactly as `hermitcrm help adjust-fields` shows, and
-filling it with `hermitcrm set`; and Home after turning the routine on and
-running it once (with the draft's wording typed in place of an AI CLI's
-answer; who it picked, the draft and the page are the app's own). Crop each to
-the part that shows the change and keep it under about 400 KB. The build reads
-their sizes and warns when one is missing.
+## Retaking the screenshots
+
+```sh
+python3 screenshots.py                    # all of them, from the release in [links].download
+python3 screenshots.py --only outreach-card ask-panel
+python3 screenshots.py --source ~/Code/HermitCRM     # a checkout: what main looks like
+python3 screenshots.py --list
+```
+
+It is a maintainer tool, outside the package (`website/` is export-ignored), and needs
+Playwright and Pillow for this Python, the same Playwright `build.py --share` uses.
+Each run starts from nothing: it unpacks the version (the release tarball by default,
+or a checkout's `src/`, whichever version you give it), makes a new demo folder with
+`hermitcrm init --demo` in a temp folder, serves it on a spare port and takes each shot at
+2x, cropped, quantised to 256 colours, so a shot weighs about 100 KB. It never touches
+`~/crm` or a server you have running. It clicks through the real pages as a person
+would; what the AI and the web would say is scripted in `screenshots_app.py` (made-up
+companies and words, the app's own cards, checks and critic). Without that the
+screenshots would call a real AI CLI.
+
+The default is the released version, because the site shows what people can download.
+Retake after every release (`[release].version` and the tarball in `site/download/` first),
+and look at the pages before you deploy. To see unreleased work, pass `--source` with a
+checkout; do not deploy those images until it is released.
+
+Some shots need the demo in a state of its own and get a fresh copy of it (`scene` in
+`shots.toml`): the Make it yours field (the `contract_renewal` field from `hermitcrm help
+adjust-fields`, filled in with `hermitcrm set`), the routine (turned on and run once)
+and the Upgrade button (a made-up newer version, 1.0.1, so the button shows). The
+Outreach cards are made through the Generate panel with the scripted AI, and the data
+folder shows as `~/crm`. Windows are 1200 px wide (900 for Make it yours, 1500 for Messages).
 
 ## Publish
 

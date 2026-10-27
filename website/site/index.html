@@ -69,7 +69,7 @@
 
 <header class="site-header wide">
   <a class="brand" href="./" aria-label="Hermit CRM home"><svg viewBox="4.5 10.5 55 43" aria-hidden="true" focusable="false"><rect x="7" y="13" width="50" height="38" rx="7" fill="none" stroke="currentColor" stroke-width="5"/><circle cx="24" cy="27" r="5.5" fill="#1E8A60"/><path d="M16 43 a8 8 0 0 1 16 0 z" fill="#1E8A60"/><rect x="38" y="25" width="12" height="4" rx="2" fill="currentColor"/><rect x="38" y="34" width="8" height="4" rx="2" fill="currentColor"/></svg><span>Hermit CRM</span></a>
-  <nav class="site-nav" aria-label="Site"><a href="features/">Features</a><a href="docs/">Docs</a><a href="compare/" class="nav-more">Compare</a><a href="about/" class="nav-more">About</a><a href="https://github.com/Hermit-CRM/hermit-crm">GitHub</a></nav>
+  <nav class="site-nav" aria-label="Site"><a href="features/" class="nav-features">Features</a><a href="docs/">Docs</a><a href="compare/" class="nav-more">Compare</a><a href="about/" class="nav-more">About</a><a href="https://github.com/Hermit-CRM/hermit-crm">GitHub</a></nav>
 </header>
 
 <main id="main">
@@ -98,6 +98,32 @@
 
   <hr class="rule">
 
+  <section class="showcase wide" aria-labelledby="showcase">
+    <div class="narrow">
+      <p class="label">What it does</p>
+      <h2 class="big" id="showcase">Every page of the app, at a glance.</h2>
+      <p class="lead">Each tile is a page of Hermit CRM, shown as it looks on made-up demo data. Open one to see what it does, with screenshots of the real app.</p>
+    </div>
+    <ul class="tiles compact">
+      <li><a class="tile" href="features/home/"><img src="img/thumbs/home.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Home</span><span class="tile-text">What is due this week, the replies you owe and last month’s numbers, on one page.</span></a></li>
+      <li><a class="tile" href="features/pipeline/"><img src="img/thumbs/pipeline.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Pipeline</span><span class="tile-text">A board from prospect to won, plus a follow-up radar for unanswered threads.</span></a></li>
+      <li><a class="tile" href="features/calendar/"><img src="img/thumbs/calendar.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Calendar</span><span class="tile-text">Overdue and due-today next steps, a month view, and a brief before each meeting.</span></a></li>
+      <li><a class="tile" href="features/tasks/"><img src="img/thumbs/tasks.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Tasks</span><span class="tile-text">Every task for every company in one list, with date buttons, filters and your own task types.</span></a></li>
+      <li><a class="tile" href="features/companies/"><img src="img/thumbs/companies.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Companies</span><span class="tile-text">Sortable tables of companies, and one timeline per company of every email, call and meeting.</span></a></li>
+      <li><a class="tile" href="features/contacts/"><img src="img/thumbs/contacts.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Contacts</span><span class="tile-text">Every person across your companies, with a page of their own: roles, history and tasks.</span></a></li>
+      <li><a class="tile" href="features/messages/"><img src="img/thumbs/messages.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Messages</span><span class="tile-text">Every message you sent, with what came of it, so you can see which wording gets answers.</span></a></li>
+      <li><a class="tile" href="features/outreach/"><img src="img/thumbs/outreach.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Outreach</span><span class="tile-text">Researches a company’s website, drafts a first message or a follow-up in your wording, and waits for your approval.</span></a></li>
+      <li><a class="tile" href="features/learning/"><img src="img/thumbs/learning.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Learning</span><span class="tile-text">What the outreach bot learns from your edits and from the replies, as lessons you accept one by one.</span></a></li>
+      <li><a class="tile" href="features/extension/"><img src="img/thumbs/extension.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Extension</span><span class="tile-text">Turn the page you are looking at into a company or a contact, from one bookmark.</span></a></li>
+      <li><a class="tile" href="features/reports/"><img src="img/thumbs/reports.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Reports</span><span class="tile-text">Weekly activity, funnel and conversion, time in stage, and which messages get answers.</span></a></li>
+      <li><a class="tile" href="features/make-it-yours/"><img src="img/thumbs/make-it-yours.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Make it yours</span><span class="tile-text">Pages of your own with lists, counts and bar charts. Describe one in a sentence, your AI builds it, and you pin it to the sidebar.</span></a></li>
+      <li><a class="tile" href="features/settings/"><img src="img/thumbs/settings.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Settings</span><span class="tile-text">Your name, mail and calendar capture, backups, fields, deal stages and outcomes, set in the browser.</span></a></li>
+    </ul>
+    <p class="all-features narrow"><a href="features/">All the pages, with a screenshot of each</a></p>
+  </section>
+
+  <hr class="rule blank">
+
   <section class="idea wide" aria-labelledby="idea">
     <div class="narrow">
       <p class="label">The idea</p>
@@ -105,8 +131,8 @@
     </div>
     <div class="idea-grid">
       <figure class="window">
-          <div class="window-bar"><i></i><i></i><i></i><span>127.0.0.1:8765</span></div>
-          <a class="zoom" href="img/pipeline.png"><img src="img/pipeline.png" alt="The Hermit CRM pipeline board in the browser, filled with made-up demo companies, Northwind Robotics among them." width="1664" height="1380" loading="lazy"></a>
+          <div class="window-bar"><i></i><i></i><i></i><span>127.0.0.1:8765/pipeline</span></div>
+          <a class="zoom" href="img/feature-pipeline.png"><img src="img/feature-pipeline.png" alt="The Hermit CRM pipeline board: a follow-up list with one reply you owe and one message waiting on them, a filter bar, and columns for prospect, engaged, discovery and offer, with a card for each company." width="2400" height="1600" loading="lazy"></a>
         </figure>
       <div class="file">
         <p>The file behind the Northwind Robotics card:</p>
@@ -124,6 +150,7 @@ next_step_due: 2026-09-24
 ...</pre>
       </div>
     </div>
+    <p class="more-link narrow"><a href="features/pipeline/">The Pipeline page: every column, card and filter</a></p>
   </section>
 
   <hr class="rule blank">
@@ -158,7 +185,7 @@ next_step_due: 2026-09-24
         </div>
         <figure class="window">
           <div class="window-bar"><i></i><i></i><i></i><span>127.0.0.1:8765/companies/northwind-robotics</span></div>
-          <a class="zoom" href="img/make-it-yours-field.png"><img src="img/make-it-yours-field.png" alt="A company page in Hermit CRM with the new contract renewal field: its date in the header, and its input with a line of help in the form." width="1380" height="1180" loading="lazy"></a>
+          <a class="zoom" href="img/make-it-yours-field.png"><img src="img/make-it-yours-field.png" alt="A company page in Hermit CRM with the new contract renewal field: its date in the header, and its input with a line of help in the form." width="1380" height="1300" loading="lazy"></a>
         </figure>
       </li>
       <li class="example">
@@ -176,6 +203,7 @@ next_step_due: 2026-09-24
       </li>
     </ol>
     <p class="safety narrow"><strong>Safe to try.</strong> Every change is a git commit you can undo in one click. Routines only write drafts: they start paused, and Hermit never sends a message.</p>
+    <p class="more-link narrow"><a href="features/make-it-yours/">Make it yours, with all three examples in full</a></p>
   </section>
 
   <hr class="rule blank">
@@ -191,27 +219,12 @@ next_step_due: 2026-09-24
         <li><span><strong>You approve.</strong> Edit it, approve it, then send it yourself or switch on sending from your own mailbox. Replies that show interest and threads nobody answered get drafts too.</span></li>
     </ol>
     <p class="safety"><strong>You stay in charge.</strong> Nothing is sent that you did not approve, and sending is off until you turn it on. Every step is saved as a version you can undo.</p>
+    <p class="more-link"><a href="features/outreach/">The Outreach page, with its cards and checks</a></p>
   </section>
 
   <hr class="rule blank">
 
-  <section class="features col" aria-labelledby="features">
-    <h2 class="label" id="features">What you get</h2>
-    <dl>
-      <dt><a href="features/home/">Home</a></dt><dd>What is due this week, the replies you owe and last month’s numbers, on one page.</dd>
-      <dt><a href="features/pipeline/">Pipeline</a></dt><dd>A board from prospect to won, plus a follow-up radar for unanswered threads.</dd>
-      <dt><a href="features/calendar/">Calendar</a></dt><dd>Overdue and due-today next steps, a month view, and a brief before each meeting.</dd>
-      <dt><a href="features/tasks/">Tasks</a></dt><dd>Every task for every company in one list, with date buttons, filters and your own task types.</dd>
-      <dt><a href="features/companies/">Companies</a></dt><dd>Sortable tables of companies, and one timeline per company of every email, call and meeting.</dd>
-      <dt><a href="features/contacts/">Contacts</a></dt><dd>Every person across your companies, with a page of their own: roles, history and tasks.</dd>
-      <dt><a href="features/messages/">Messages</a></dt><dd>Outreach drafts in English, German, Dutch or French, in your wording, and the outcome of every message.</dd>
-      <dt>Outreach</dt><dd>Researches a company’s website, drafts a first message or a follow-up in your wording, and waits for your approval.</dd>
-      <dt><a href="features/extension/">Extension</a></dt><dd>Turn the page you are looking at into a company or a contact, from one bookmark.</dd>
-      <dt><a href="features/reports/">Reports</a></dt><dd>Weekly activity, funnel and conversion, time in stage, and which messages get answers.</dd>
-      <dt><a href="features/make-it-yours/">Make it yours</a></dt><dd>Pages of your own with lists, counts and bar charts. Describe one in a sentence, your AI builds it, and you pin it to the sidebar.</dd>
-      <dt><a href="features/settings/">Settings</a></dt><dd>Your name, mail and calendar capture, backups, fields, deal stages and outcomes, set in the browser.</dd>
-    </dl>
-    <p class="all-features"><a href="features/">Every page, with a screenshot of each</a></p>
+  <section class="principles-section col" aria-label="Principles">
     <div class="principles">
       <p><strong>Your data stays with you.</strong> Hermit runs on your computer, not in the cloud. Your companies, contacts and notes are ordinary text files in a folder you own, so you can open, copy or back them up like any document. Technically: Markdown files in a git repository.</p>
       <p><strong>Your AI does the admin.</strong> Use the assistant you already have. Ask what is in your pipeline this week, or to log a call with a contact, and it reads and updates your records for you. Ask Hermit answers questions on every page. For developers: plain files, a small command line tool and an MCP server.</p>

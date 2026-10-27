@@ -111,6 +111,11 @@ hr.rule.blank { border-top-color: transparent; }
 .site-nav { display: flex; align-items: center; gap: 24px; }
 .site-nav a { font-size: 18px; padding: 12px 8px; margin: -12px -8px; }  /* 44px tap area, same layout */
 .site-nav a[aria-current="page"] { color: var(--text); text-decoration: none; }
+/* Features is the one call to action in the bar: the other links stay plain. */
+.site-nav a.nav-features { padding: 10px 16px; margin: -10px -8px; border: 1px solid var(--green-ink); border-radius: 999px; font-weight: 500; text-decoration: none; }
+.site-nav a.nav-features:hover, .site-nav a.nav-features[aria-current="page"] { background: var(--green-ink); color: var(--paper); }
+@media (max-width: 640px) { .site-nav a.nav-features { padding-inline: 11px; margin-inline: -3px; } }
+@media (max-width: 439px) { .site-nav a.nav-features { padding-inline: 9px; margin-inline: -2px; } }
 
 /* ── Hero ───────────────────────────────────────────────────────── */
 .hero { padding-top: 72px; }
@@ -164,13 +169,12 @@ h1 { margin: 0; font-size: 72px; font-weight: 400; line-height: 1.05; letter-spa
 .features dt { font-weight: 500; font-variant-caps: all-small-caps; letter-spacing: .09em; }
 .features dt a { color: inherit; text-decoration-color: var(--rule); }
 .features dt a:hover { color: var(--green-deep); text-decoration-color: currentColor; }
-.all-features { margin: 20px 0 0; font-size: 17px; }
 .features dd { margin: 0; }
-.principles { margin-top: 72px; display: flex; flex-direction: column; gap: 28px; }
+.principles { display: flex; flex-direction: column; gap: 28px; }
 .principles p { margin: 0; }
 
 /* ── One company, one file ──────────────────────────────────────── */
-.idea h2.big, .yours h2.big { margin: 12px 0 0; font-size: 48px; font-weight: 400; line-height: 1.1; letter-spacing: -.01em; }
+.showcase h2.big, .idea h2.big, .yours h2.big { margin: 12px 0 0; font-size: 48px; font-weight: 400; line-height: 1.1; letter-spacing: -.01em; }
 .idea-grid { margin-top: 56px; display: grid; grid-template-columns: 620px minmax(0, 1fr); gap: 40px; align-items: start; }
 .window {
   margin: 0; border-radius: 12px; overflow: hidden;
@@ -358,6 +362,20 @@ details p { margin: 0 0 24px; }
 .tile-name { display: block; font-size: 26px; font-weight: 500; line-height: 1.25; color: var(--green-ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
 .tile:hover .tile-name { color: var(--green-deep); }
 .tile-text { display: block; margin-top: 6px; font-size: 17px; line-height: 1.5; }
+/* On the home page, under the first screen: all of them at once, smaller. */
+.showcase .lead { margin: 16px 0 0; }
+.tiles.compact { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px 20px; margin-top: 44px; }
+.tiles.compact .tile img { margin-bottom: 10px; border-radius: 8px; }
+.tiles.compact .tile-name { font-size: 20px; }
+.tiles.compact .tile-text { margin-top: 4px; font-size: 15px; line-height: 1.45; }
+.all-features { margin: 28px auto 0; font-size: 19px; }
+.more-link { margin: 28px auto 0; font-size: 19px; }
+@media (max-width: 900px) { .tiles.compact { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 640px) {
+  .tiles.compact { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 14px; margin-top: 32px; }
+  .tiles.compact .tile-name { font-size: 18px; }
+  .tiles.compact .tile-text { font-size: 14px; }
+}
 
 /* ── End ────────────────────────────────────────────────────────── */
 .site-footer { margin-top: 120px; padding: 28px 0 64px; border-top: 1px solid var(--rule); font-size: 15px; color: var(--muted); }
@@ -418,7 +436,7 @@ details p { margin: 0 0 24px; }
   .features dl { grid-template-columns: minmax(0, 1fr); }
   .features dt { padding: 16px 0 2px; }
   .features dd { padding: 0 0 18px; border-top: 0; }
-  .idea h2.big, .yours h2.big { font-size: 34px; line-height: 1.12; }
+  .showcase h2.big, .idea h2.big, .yours h2.big { font-size: 34px; line-height: 1.12; }
   .lead { font-size: 19px; }
   .examples { margin-top: 36px; gap: 56px; }
   .example h3 { font-size: 22px; margin-bottom: 14px; }

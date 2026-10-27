@@ -18,9 +18,7 @@ The open stages are columns. The defaults are **prospect**, **engaged**, **disco
 their order and which ones count as closed are yours to change under Settings, Deal stages. A column with nothing
 in it is drawn narrow, so the whole board stays on one screen.
 """
-image   = "feature-pipeline.png"
-alt     = "The Hermit CRM pipeline board: a follow-up strip with two companies, a filter bar, and four columns, prospect, engaged, discovery and offer, with one company card each."
-address = "127.0.0.1:8765/pipeline"
+shot    = "pipeline-board"
 
 [[sections]]
 heading = "Cards that tell you what is next"
@@ -34,11 +32,12 @@ points = [
 ]
 
 [[sections]]
-heading = "The follow-up radar"
+heading = "The follow-up list"
 text = """
-The strip above the board lists threads that went quiet: a message they sent that you have not
-answered, and a message you sent that nobody has answered. **Log a reply** records one in a click.
-The thresholds are set in your configuration (a day for replies you owe and five days for nudges, by default).
+The list above the board has two groups: **You owe a reply**, a message they sent that you have not answered, and **Waiting on them**, a message you sent that nobody answered.
+Replies you owe come first, oldest first. Each row shows the channel, the direction and the date of the message it is about, as a link to it, and quotes its first words, with *you:* in front of your own.
+**Log a reply** records one in a click, and if a message was logged the wrong way round, **I sent this** or **They sent this** flips it and keeps the text as it was.
+A card on the board whose company is on the list carries a small badge. The thresholds are yours to change (a day for replies you owe and five days for nudges, by default).
 """
 
 [[sections]]

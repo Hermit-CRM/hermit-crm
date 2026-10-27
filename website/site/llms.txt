@@ -75,7 +75,9 @@ One page for each link in the app's left navigation.
 - [Tasks](https://hermitcrm.io/features/tasks/): Every task for every company in one list, with date buttons, filters and your own task types.
 - [Companies](https://hermitcrm.io/features/companies/): Sortable tables of companies, and one timeline per company of every email, call and meeting.
 - [Contacts](https://hermitcrm.io/features/contacts/): Every person across your companies, with a page of their own: roles, history and tasks.
-- [Messages](https://hermitcrm.io/features/messages/): Outreach drafts in English, German, Dutch or French, in your wording, and the outcome of every message.
+- [Messages](https://hermitcrm.io/features/messages/): Every message you sent, with what came of it, so you can see which wording gets answers.
+- [Outreach](https://hermitcrm.io/features/outreach/): Researches a company's website, drafts a first message or a follow-up in your wording, and waits for your approval.
+- [Learning](https://hermitcrm.io/features/learning/): What the outreach bot learns from your edits and from the replies, as lessons you accept one by one.
 - [Extension](https://hermitcrm.io/features/extension/): Turn the page you are looking at into a company or a contact, from one bookmark.
 - [Reports](https://hermitcrm.io/features/reports/): Weekly activity, funnel and conversion, time in stage, and which messages get answers.
 - [Make it yours](https://hermitcrm.io/features/make-it-yours/): Pages of your own with lists, counts and bar charts. Describe one in a sentence, your AI builds it, and you pin it to the sidebar.

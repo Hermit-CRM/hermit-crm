@@ -18,20 +18,16 @@ Name, country, stage, source, any field of your own that you asked to show here,
 Every column has a filter and sort arrows, and the search box at the top of every page matches company names, tags, contact names and contact emails.
 Parked companies are hidden until you ask for them.
 """
-image   = "feature-companies.png"
-alt     = "The Hermit CRM Companies table: seven demo companies with country, stage, source, a score, tags, last touch, next step and due date, with a filter above each column."
-address = "127.0.0.1:8765/companies"
+shot    = "companies"
 
 [[sections]]
 heading = "The company page"
 text = """
-Everything about one account on one page: its fields, the next step with a due date, its contacts, its tasks, message drafts
-for each person, a merge box and the timeline of every email, call, LinkedIn message and meeting, newest first.
+Everything about one account on one page: its fields, the next step with a due date, its contacts, its tasks, company notes,
+a merge box and the timeline of every email, call, LinkedIn message and meeting, newest first. A note on the company shows on its contacts' pages as well, and a draft can use it.
 A collapsed **Stage history** shows when it moved between stages.
 """
-image   = "feature-company-page.png"
-alt     = "A company page in Hermit CRM for Northwind Robotics: its one-line description, stage and last touch, the next step with Done and Add to Google Calendar, and the company fields."
-address = "127.0.0.1:8765/companies/northwind-robotics"
+shot    = "company-page"
 
 [[sections]]
 heading = "Fields of your own"
