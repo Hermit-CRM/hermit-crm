@@ -13,11 +13,11 @@
 
 [page]
 title       = "Hermit CRM features, page by page"
-description = "Every page in Hermit CRM's left navigation explained with screenshots: Pipeline, Calendar, Tasks, Companies, Contacts, Messages, Reports and more."
+description = "Every page of Hermit CRM explained with screenshots of the real app: Pipeline, Contacts, Outreach, Learning, Reports, Make it yours and more."
 h1    = "What Hermit CRM does, page by page"
 intro = """
-Hermit CRM has one page for each link in its left navigation. Each page below says what it
-shows, what you can do on it and where its data lives, with screenshots of the
+Hermit CRM has one page for each link in its left navigation, from Home to Outreach and Learning.
+Each page below says what it shows, what you can do on it and where its data lives, with screenshots of the
 released version on made-up demo data.
 """
 table_caption = "Every page of Hermit CRM, in the order of the left navigation"

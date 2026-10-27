@@ -1,4 +1,4 @@
-order   = 9
+order   = 11
 name    = "Reports"
 nav     = "Reports"
 title   = "Reports: activity, funnel and outcomes in Hermit CRM"
@@ -17,9 +17,7 @@ text = """
 Choose 7 days, 30 days (the default), 90 days, the quarter, the year so far, or your own dates. Each figure shows its change against the previous period of the same length.
 The command line prints the same report: `hermitcrm report --days 30`, or `--md` for Markdown tables.
 """
-image   = "feature-reports.png"
-alt     = "The Hermit CRM Reports page for the last 30 days: an activity table with interactions and companies touched against the previous period, and a weekly breakdown by channel."
-address = "127.0.0.1:8765/reports"
+shot    = "reports"
 
 [[sections]]
 heading = "Six sections"

@@ -1,4 +1,4 @@
-order   = 10
+order   = 12
 name    = "Make it yours"
 nav     = "Make it yours"
 title   = "Make it yours: change Hermit CRM by describing the change"
@@ -24,18 +24,14 @@ text = """
 Lists, counts, bars and report sections as a page of your own at `/d/<name>`, pinned in the sidebar if you like. A dashboard only reads: it never changes a record, so it is safe to try.
 Every number opens the records behind it.
 """
-image   = "make-it-yours-dashboard.png"
-alt     = "The Monday review dashboard in Hermit CRM, pinned in the sidebar: 3 open deals, 5 tasks due this week, the deals by stage and the open deals with their next step."
-address = "127.0.0.1:8765/d/monday-review"
+shot    = "make-it-yours-dashboard"
 
 [[sections]]
 heading = "A new field"
 text = """
 A score, a renewal date, a segment. One new entry in `fields.toml`, and the field shows on every company page, as a column you can sort and filter, and as a slot in your message drafts.
 """
-image   = "make-it-yours-field.png"
-alt     = "A company page in Hermit CRM with the new contract renewal field: its date in the header, and its input with a line of help in the form."
-address = "127.0.0.1:8765/companies/northwind-robotics"
+shot    = "make-it-yours-field"
 
 [[sections]]
 heading = "A routine that drafts follow-ups"
@@ -43,9 +39,7 @@ text = """
 Small jobs that run every morning: a brief of meetings, tasks and replies you owe, or one AI draft per quiet thread. A routine starts paused so you see first who it would pick,
 its drafts wait on Home for you to edit and send yourself, and Hermit never sends a message.
 """
-image   = "make-it-yours-routine.png"
-alt     = "Home in Hermit CRM with a draft from the Nudge quiet threads routine: a short follow-up to a contact who has not replied in 20 days, with I sent it and Discard buttons."
-address = "127.0.0.1:8765"
+shot    = "make-it-yours-routine"
 
 [[sections]]
 heading = "What you can change"

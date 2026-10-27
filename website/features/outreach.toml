@@ -1,0 +1,104 @@
+order   = 8
+name    = "Outreach"
+nav     = "Outreach"
+title   = "Outreach: researched first messages you approve in Hermit CRM"
+description = "Hermit CRM's outreach bot picks who to contact, reads their website, drafts a checked message in your voice and waits for your approval. You send it."
+summary = "Researches a company's website, drafts a first message or a follow-up in your wording, and waits for your approval."
+intro = """
+Outreach is where Hermit CRM writes the first message and you decide what goes out. It reads what a
+company's website says, drafts a short message in your own voice and in the contact's language, checks it
+against rules and puts it in front of you. Nothing is sent that you did not approve.
+"""
+docs    = "outreach"
+related = ["messages", "learning", "contacts"]
+
+[[sections]]
+heading = "Start from one person"
+text = """
+**Generate outreach** on a contact's page opens the Generate panel for that person. It picks the draft type from your history: a first
+touch, a reply to someone who showed interest, or a follow-up to a message nobody answered. You choose the channel,
+how much research it does, a signal you read off their LinkedIn profile and the language of this message.
+Nothing runs until you press **Generate**.
+"""
+shot = "outreach-generate"
+
+[[sections]]
+heading = "Or a whole batch, with a preview first"
+text = """
+**Build a batch** takes the same filter as the Companies page, such as `stage=prospect; country=DE`, how many drafts you
+want and which approach from your playbook. **Preview** shows who would get a draft, highest fit first, and why the others are left out
+(a closed deal, a do-not-contact tag, someone you wrote to this month). No AI runs and nothing is written. **Build queue** then researches and drafts one
+person at a time, and each card appears as it is done.
+"""
+shot = "outreach-batch"
+
+[[sections]]
+heading = "A card you can check at a glance"
+text = """
+Each card shows the person and company, what the research found with the source of every point, the draft and how it did on its checks.
+"""
+points = [
+  "**The checks are rules, not AI:** exactly one question, no opening with \"I\", no calendar link or proposed time, the length of the channel, and no proof that does not exist.",
+  "**A critic scores the draft** from 1 to 5 on relevance, how personal it is, tone and honesty. It is a guide: a low score never blocks you.",
+  "**About you, about them:** a count of the words that speak of you against the words that speak of them, with a warning when the message is mostly about you.",
+  "**Your edits are kept.** The AI's draft stays under *AI original*, and each change you make is a tracked edit with the reason you gave.",
+]
+shot = "outreach-card"
+
+[[sections]]
+heading = "Notes: what the draft is written from"
+text = """
+Research saves what it finds as notes on the contact, one per finding, each with its source and a confidence. They are
+the same notes you add yourself on their page, and the card lists the ones the draft used. Add a note and **Regenerate**, and the new draft reads it. A note you wrote counts as a known fact and never goes stale.
+The web-research AI never sees your notes.
+"""
+
+[[sections]]
+heading = "Frameworks: a recipe for a first message"
+text = """
+A framework gives a first message its parts, its length and what it asks. Eight come built in: the house style and seven well-known
+structures, such as trigger, tension, trust and problem, solution, question. Give each approach in your playbook its own, or write a batch with one
+(`hermitcrm outreach build --framework ID`). Add your own in `frameworks.toml`. When a framework needs something the research did not find, such as a premise
+or a personal connection, the draft falls back to the approach's default and the card says so. Every message records its framework, and the Messages page shows it.
+"""
+
+[[sections]]
+heading = "Replies to interest, and follow-ups"
+text = """
+**Replies to interest** comes first, because that is where deals leak: someone answered and wants to know more. Hermit lists every reply you owe, can
+check whether a reply shows interest, and drafts an answer from their words, with one proof line and one question. **Follow-ups** lists messages nobody answered after five days (the same rule as the
+follow-up list on the Pipeline) and drafts a short one with an easy way out.
+"""
+shot = "outreach-followups"
+
+[[sections]]
+heading = "Approve, copy, log"
+text = """
+**Mark ready** approves the text exactly as it is in the box. A ready card has **Copy**, **Open in mail** and **Log it**, and logging the message marks it sent. An email address copies with one click as well.
+Hermit never sends a message you did not approve.
+"""
+shot = "outreach-ready"
+
+[[sections]]
+heading = "Sending from the app, if you want it"
+text = """
+Sending is off until you turn it on under Settings, Email and calendar, Sending. Use a mailbox of its own with an app password, because cold email can hurt the domain it is sent from.
+Then an approved email has **Send now** and **Schedule**. Scheduled mail goes out one at a time in your working hours, with a daily limit that starts at 10 and steps up, and a day between two mails to one company.
+Before every send Hermit checks again that the text is still what you approved and that nobody has written to you. **Pause** stops everything at once, and bounces and opt-outs go on a suppression list.
+"""
+shot = "settings-sending"
+
+[[sections]]
+heading = "LinkedIn, without automation"
+text = """
+LinkedIn forbids automating messages, so Hermit does not. A paced session puts one approved note in front of you at a time with a countdown, under daily and weekly limits. You send each one on linkedin.com yourself,
+and Hermit copies the text, opens the profile and logs what you sent.
+"""
+
+[[sections]]
+heading = "Every step is a file and a commit"
+text = """
+Each draft is one Markdown file in `outreach/`, with the message below its front matter, and each step is one commit that `hermitcrm undo` takes back. The command line does the same steps:
+`hermitcrm outreach preview`, `build`, `list`, `show`, `ready` and `skip`. It needs an approach filled in your playbook and an AI tool you already use (Claude Code, Codex, Gemini CLI or Grok):
+the research and the critic run on a light model, the draft on a medium one.
+"""

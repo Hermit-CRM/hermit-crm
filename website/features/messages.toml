@@ -3,7 +3,7 @@ name    = "Messages"
 nav     = "Messages"
 title   = "Messages: every message you sent, and what came of it"
 description = "The Hermit CRM Messages page lists every message you sent with its outcome, set by hand or worked out from replies, so you learn which wording works."
-summary = "Outreach drafts in English, German, Dutch or French, in your wording, and the outcome of every message."
+summary = "Every message you sent, with what came of it, so you can see which wording gets answers."
 intro = """
 Messages is the log of everything you sent, newest first, with what came of each message.
 It is how you find out which wording gets answers.
@@ -14,12 +14,10 @@ related = ["contacts", "reports", "settings"]
 [[sections]]
 heading = "Every message, with its outcome"
 text = """
-Sent, company, contact, channel, country, stage, outcome, how often that exact text was used, and the message itself. Every column has a filter and sort arrows, and the search box matches the message
+Sent, company, contact, channel, the framework a first touch was written with, country, stage, outcome, how often that exact text was used, and the message itself. Every column has a filter and sort arrows, and the search box matches the message
 text, the company and the contact. A line at the top counts each outcome.
 """
-image   = "feature-messages.png"
-alt     = "The Hermit CRM Messages table: seven sent messages in English, French and German with company, contact, channel, outcome and the message text, each with Successful and Unsuccessful buttons."
-address = "127.0.0.1:8765/messages"
+shot    = "messages"
 
 [[sections]]
 heading = "What counts as a message"

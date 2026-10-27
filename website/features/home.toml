@@ -19,9 +19,7 @@ Your open tasks for the next seven days, soonest first, with the company or pers
 An overdue date is red. **Done** ticks a task off from here, and a link under the table opens all tasks with their filters or the calendar.
 The task due first for a company is marked **next step**.
 """
-image   = "feature-home.png"
-alt     = "The Hermit CRM home page: five tasks due this week with their companies, two replies owed to Jonas Brandt and Joris Veldkamp, and last month's numbers in four tiles."
-address = "127.0.0.1:8765"
+shot    = "home-dashboard"
 
 [[sections]]
 heading = "Replies you owe"
@@ -39,9 +37,24 @@ companies touched, new companies and companies in the folder. The Reports page h
 """
 
 [[sections]]
+heading = "People you have not spoken to"
+text = """
+**Keep in touch** lists the people outside an open deal you have not spoken to in 180 days or more, longest first, so an old contact does not slip away. Do-not-contact tags and people you never wrote to are left out.
+"""
+
+[[sections]]
+heading = "Ask the Hermit, on every page"
+text = """
+The **Ask · Adjust** button in the top right of every page opens a panel where you ask a question in plain words, such as who you have not written to yet. Hermit gives your AI tool a compact index of your CRM and the page you are on,
+and answers in a few seconds with links that open the person or company. If the index is not enough, a second run reads the files in your data folder, read-only: nothing is ever written.
+**Save** keeps a question you ask often. It is suggested as you type, the four you ask most are buttons in the panel, and they are kept in `ask-questions.toml` in your data folder, so they are in your backups.
+"""
+shot = "ask-panel"
+
+[[sections]]
 heading = "Getting started, until it is done"
 text = """
 A new folder opens on **Getting started** instead: thirteen steps, each ticked when it has actually
-happened, and a tour that points at each part of the screen. Press *Don't open this at startup*,
+happened (the last ones lead to your first outreach draft, mail capture and your own changes), and a tour that points at each part of the screen. Press *Don't open this at startup*,
 or tick every step, and the logo opens Home from then on.
 """

@@ -110,7 +110,7 @@
 
 <header class="site-header wide">
   <a class="brand" href="../../" aria-label="Hermit CRM home"><svg viewBox="4.5 10.5 55 43" aria-hidden="true" focusable="false"><rect x="7" y="13" width="50" height="38" rx="7" fill="none" stroke="currentColor" stroke-width="5"/><circle cx="24" cy="27" r="5.5" fill="#1E8A60"/><path d="M16 43 a8 8 0 0 1 16 0 z" fill="#1E8A60"/><rect x="38" y="25" width="12" height="4" rx="2" fill="currentColor"/><rect x="38" y="34" width="8" height="4" rx="2" fill="currentColor"/></svg><span>Hermit CRM</span></a>
-  <nav class="site-nav" aria-label="Site"><a href="../../features/" aria-current="page">Features</a><a href="../../docs/">Docs</a><a href="../../compare/" class="nav-more">Compare</a><a href="../../about/" class="nav-more">About</a><a href="https://github.com/Hermit-CRM/hermit-crm">GitHub</a></nav>
+  <nav class="site-nav" aria-label="Site"><a href="../../features/" class="nav-features" aria-current="page">Features</a><a href="../../docs/">Docs</a><a href="../../compare/" class="nav-more">Compare</a><a href="../../about/" class="nav-more">About</a><a href="https://github.com/Hermit-CRM/hermit-crm">GitHub</a></nav>
 </header>
 
 <main id="main">
@@ -148,8 +148,26 @@
     </section>
     <section class="part feature" aria-labelledby="s4">
       <div class="col">
-        <h2 id="s4">Getting started, until it is done</h2>
-        <p>A new folder opens on <strong>Getting started</strong> instead: thirteen steps, each ticked when it has actually happened, and a tour that points at each part of the screen. Press *Don’t open this at startup*, or tick every step, and the logo opens Home from then on.</p>
+        <h2 id="s4">People you have not spoken to</h2>
+        <p><strong>Keep in touch</strong> lists the people outside an open deal you have not spoken to in 180 days or more, longest first, so an old contact does not slip away. Do-not-contact tags and people you never wrote to are left out.</p>
+      </div>
+    </section>
+    <section class="part feature" aria-labelledby="s5">
+      <div class="col">
+        <h2 id="s5">Ask the Hermit, on every page</h2>
+        <p>The <strong>Ask · Adjust</strong> button in the top right of every page opens a panel where you ask a question in plain words, such as who you have not written to yet. Hermit gives your AI tool a compact index of your CRM and the page you are on, and answers in a few seconds with links that open the person or company. If the index is not enough, a second run reads the files in your data folder, read-only: nothing is ever written. <strong>Save</strong> keeps a question you ask often. It is suggested as you type, the four you ask most are buttons in the panel, and they are kept in <code>ask-questions.toml</code> in your data folder, so they are in your backups.</p>
+      </div>
+      <div class="wide shot">
+        <figure class="window">
+          <div class="window-bar"><i></i><i></i><i></i><span>127.0.0.1:8765/pipeline</span></div>
+          <a class="zoom" href="../../img/ask-panel.png"><img src="../../img/ask-panel.png" alt="The Ask the Hermit panel open on the Pipeline page: a box for a question, a saved question offered as a button, and Ask and Save buttons." width="2400" height="1280" loading="lazy"></a>
+        </figure>
+      </div>
+    </section>
+    <section class="part feature" aria-labelledby="s6">
+      <div class="col">
+        <h2 id="s6">Getting started, until it is done</h2>
+        <p>A new folder opens on <strong>Getting started</strong> instead: thirteen steps, each ticked when it has actually happened (the last ones lead to your first outreach draft, mail capture and your own changes), and a tour that points at each part of the screen. Press *Don’t open this at startup*, or tick every step, and the logo opens Home from then on.</p>
       </div>
     </section>
 

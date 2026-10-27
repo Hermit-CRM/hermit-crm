@@ -110,14 +110,14 @@
 
 <header class="site-header wide">
   <a class="brand" href="../../" aria-label="Hermit CRM home"><svg viewBox="4.5 10.5 55 43" aria-hidden="true" focusable="false"><rect x="7" y="13" width="50" height="38" rx="7" fill="none" stroke="currentColor" stroke-width="5"/><circle cx="24" cy="27" r="5.5" fill="#1E8A60"/><path d="M16 43 a8 8 0 0 1 16 0 z" fill="#1E8A60"/><rect x="38" y="25" width="12" height="4" rx="2" fill="currentColor"/><rect x="38" y="34" width="8" height="4" rx="2" fill="currentColor"/></svg><span>Hermit CRM</span></a>
-  <nav class="site-nav" aria-label="Site"><a href="../../features/" aria-current="page">Features</a><a href="../../docs/">Docs</a><a href="../../compare/" class="nav-more">Compare</a><a href="../../about/" class="nav-more">About</a><a href="https://github.com/Hermit-CRM/hermit-crm">GitHub</a></nav>
+  <nav class="site-nav" aria-label="Site"><a href="../../features/" class="nav-features" aria-current="page">Features</a><a href="../../docs/">Docs</a><a href="../../compare/" class="nav-more">Compare</a><a href="../../about/" class="nav-more">About</a><a href="https://github.com/Hermit-CRM/hermit-crm">GitHub</a></nav>
 </header>
 
 <main id="main">
   <div class="page-top col">
     <nav class="crumbs" aria-label="Breadcrumb"><ol><li><a href="../../">Hermit CRM</a></li><li><a href="../">Features</a></li><li aria-current="page">Contacts</li></ol></nav>
     <h1 class="page-h1">Contacts</h1>
-    <p class="lead">Contacts lists every person across all your companies. Each person has a page with what you last did, who is waiting on whom, and the messages you could send next.</p>
+    <p class="lead">Contacts lists every person across all your companies. Each person has a page with what you last did, who is waiting on whom, and a button that starts an outreach draft for them.</p>
     <p class="checked">In the left navigation: <strong>Contacts</strong></p>
     <p class="checked">Screenshot of the released version on made-up demo data. Select it to open it full size.</p>
   </div>
@@ -130,7 +130,7 @@
       <div class="wide shot">
         <figure class="window">
           <div class="window-bar"><i></i><i></i><i></i><span>127.0.0.1:8765/contacts</span></div>
-          <a class="zoom" href="../../img/feature-contacts.png"><img src="../../img/feature-contacts.png" alt="The Hermit CRM Contacts table: nine demo people with their company, title, email, last touch and number of interactions, with a filter above each column." width="2400" height="1400" loading="lazy"></a>
+          <a class="zoom" href="../../img/feature-contacts.png"><img src="../../img/feature-contacts.png" alt="The Hermit CRM Contacts table: fifteen demo people with their company, title, email, last touch and number of interactions, with a filter above each column." width="2400" height="1400" loading="lazy"></a>
         </figure>
       </div>
     </section>
@@ -142,19 +142,25 @@
       <div class="wide shot">
         <figure class="window">
           <div class="window-bar"><i></i><i></i><i></i><span>127.0.0.1:8765/companies/northwind-robotics/contacts/jonas-brandt</span></div>
-          <a class="zoom" href="../../img/feature-contact-page.png"><img src="../../img/feature-contact-page.png" alt="A contact page in Hermit CRM for Jonas Brandt: last touch two days ago, a reply owed since 2026-10-15, his next task, his title, role and email, and a list of tasks." width="2400" height="1300" loading="lazy"></a>
+          <a class="zoom" href="../../img/feature-contact-page.png"><img src="../../img/feature-contact-page.png" alt="A contact page in Hermit CRM for Jonas Brandt: last touch two days ago, a reply owed since 2026-10-25, his next task, buttons to log an interaction and to generate outreach, and his notes and details with a copy button beside his email." width="2400" height="1300" loading="lazy"></a>
         </figure>
       </div>
     </section>
     <section class="part feature" aria-labelledby="s3">
       <div class="col">
-        <h2 id="s3">Log every touch</h2>
-        <p>An email, a LinkedIn message, a call, a WhatsApp message or a meeting, in or out, with the text kept exactly as you pasted it. A note is a memo that shows on the timeline but never counts as contact made. Logging a first touch on a prospect moves the company to <strong>engaged</strong> in the same commit.</p>
+        <h2 id="s3">From a person to a draft</h2>
+        <p><strong>Generate outreach</strong> in the row of buttons opens the Outreach page with this person ready to draft, and while a draft is open the button says <strong>Open outreach draft</strong> instead. The notes you keep on a person are the notes the draft is written from. Email addresses have a <strong>copy</strong> button, so one click puts one on the clipboard.</p>
       </div>
     </section>
     <section class="part feature" aria-labelledby="s4">
       <div class="col">
-        <h2 id="s4">Where people come from</h2>
+        <h2 id="s4">Log every touch</h2>
+        <p>An email, a LinkedIn message, a call, a WhatsApp message or a meeting, in or out, with the text kept exactly as you pasted it. A note is a memo that shows on the timeline but never counts as contact made. Logging a first touch on a prospect moves the company to <strong>engaged</strong> in the same commit.</p>
+      </div>
+    </section>
+    <section class="part feature" aria-labelledby="s5">
+      <div class="col">
+        <h2 id="s5">Where people come from</h2>
         <p>Add a person from a company page, import a list, capture a LinkedIn profile with the Extension, or let BCC and calendar capture add a new person at a company whose domain is known. Delete a contact and their interactions stay on the company, so the record survives. Two entries for the same person can be merged.</p>
       </div>
     </section>
@@ -164,7 +170,7 @@
       <h2 class="label">Related pages</h2>
       <ul class="points">
         <li><a href="../../features/companies/">Companies</a>: Sortable tables of companies, and one timeline per company of every email, call and meeting.</li>
-        <li><a href="../../features/messages/">Messages</a>: Outreach drafts in English, German, Dutch or French, in your wording, and the outcome of every message.</li>
+        <li><a href="../../features/messages/">Messages</a>: Every message you sent, with what came of it, so you can see which wording gets answers.</li>
         <li><a href="../../features/extension/">Extension</a>: Turn the page you are looking at into a company or a contact, from one bookmark.</li>
       </ul>
     <nav class="pager" aria-label="Features"><a class="prev" href="../../features/companies/" rel="prev"><small>Previous:</small> Companies</a><a class="next" href="../../features/messages/" rel="next"><small>Next:</small> Messages</a></nav>
