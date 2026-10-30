@@ -69,11 +69,11 @@ sha256_label    = "SHA-256"
 # Under the download button; the closing button repeats the short one.
 needs_tool = "Use your AI coding tool to install it: Claude Code, Codex, Cursor, Gemini CLI, Grok Build or another."
 needs_tool_short = "Use your AI coding tool to install it."
-# Shown on phones only (a touch screen narrower than 641px): the download is for a computer.
-phone_text = "On a phone?"
-phone_link = "Email yourself the link"
-phone_rest = "and open it on your Mac or Linux computer."
-phone_subject = "Hermit CRM"
+# Shown on handhelds only (a touch screen narrower than 641px): the download is for a computer.
+handheld_text = "On a phone?"
+handheld_link = "Email yourself the link"
+handheld_rest = "and open it on your Mac or Linux computer."
+handheld_subject = "Hermit CRM"
 
 
 # ── Install: three steps, the first holds the download button ────────
