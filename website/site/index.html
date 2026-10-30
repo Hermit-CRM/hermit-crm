@@ -75,25 +75,24 @@
 <main id="main">
   <section class="hero col">
     <h1>A CRM for one.</h1>
-    <p class="subline">A free, open-source CRM for founders, freelancers and anyone doing their own sales. It keeps your companies, contacts and conversations as plain text files on your laptop, and your own AI agent can reshape it to fit how you work. With a pipeline, a calendar, dashboards and enrichment from a company’s website.</p>
-    <div class="download">
+    <p class="subline">A free, open-source CRM for founders, freelancers and anyone doing their own sales. Your companies, contacts, pipeline, tasks, outreach and dashboards are plain text files on your laptop. Write your own outreach or let your AI draft it, and ask it to reshape Hermit CRM to fit how you work.</p>
+
+    <ol class="steps install" aria-label="Install in three steps">
+      <li><div class="step"><span><strong>Download it.</strong></span>
+<div class="download">
   <a class="btn" href="download/hermitcrm-1.0.0.tar.gz">Download for Mac and Linux</a>
   <p class="meta">Version 1.0.0 · Apache 2.0</p>
-</div>
-
-    <div class="install">
-      <h2 class="label">Install with your AI</h2>
-      <ol class="steps">
-      <li><span><strong>Unpack and open the folder in your AI coding tool:</strong> Claude Code, Codex, Cursor, Gemini CLI, Grok Build or another.</span></li>
-      <li><span><strong>Send it this message:</strong></span></li>
-      </ol>
-      <div class="card indent">
-        <p class="message" id="install-message">Read INSTALL.md and set up Hermit CRM for me.</p>
-        <button class="copy" type="button" hidden data-copy="Read INSTALL.md and set up Hermit CRM for me." data-done="Copied"
-                data-failed="Press ⌘C"
-                aria-label="Copy the install message"><span aria-live="polite">Copy</span></button>
-      </div>
-    </div>
+  <p class="needs">Use your AI coding tool to install it: Claude Code, Codex, Cursor, Gemini CLI, Grok Build or another. No AI coding tool yet? <a href="https://github.com/Hermit-CRM/hermit-crm#install">Install it by hand</a>.</p>
+  <p class="phone">On a phone? <a href="mailto:?subject=Hermit%20CRM&amp;body=https%3A//hermitcrm.io/">Email yourself the link</a> and open it on your Mac or Linux computer.</p>
+</div></div></li>
+      <li><span><strong>Unpack it and open the folder in your AI coding tool.</strong></span></li>
+      <li><div class="step"><span><strong>Send your AI this message:</strong></span>
+        <div class="card">
+          <p class="message" id="install-message">Read INSTALL.md and set up Hermit CRM for me.</p>
+          <button class="copy" type="button" hidden data-copy="Read INSTALL.md and set up Hermit CRM for me." data-done="Copied" data-failed="Press ⌘C"
+                  aria-label="Copy the install message"><span aria-live="polite">Copy</span></button>
+        </div></div></li>
+    </ol>
   </section>
 
   <hr class="rule">
@@ -101,7 +100,7 @@
   <section class="showcase wide" aria-labelledby="showcase">
     <div class="narrow">
       <p class="label">What it does</p>
-      <h2 class="big" id="showcase">Every page of the app, at a glance.</h2>
+      <h2 class="big" id="showcase">Feature overview.</h2>
       <p class="lead">Each tile is a page of Hermit CRM, shown as it looks on made-up demo data. Open one to see what it does, with screenshots of the real app.</p>
     </div>
     <ul class="tiles compact">
@@ -109,7 +108,7 @@
       <li><a class="tile" href="features/pipeline/"><img src="img/thumbs/pipeline.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Pipeline</span><span class="tile-text">A board from prospect to won, plus a follow-up radar for unanswered threads.</span></a></li>
       <li><a class="tile" href="features/calendar/"><img src="img/thumbs/calendar.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Calendar</span><span class="tile-text">Overdue and due-today next steps, a month view, and a brief before each meeting.</span></a></li>
       <li><a class="tile" href="features/tasks/"><img src="img/thumbs/tasks.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Tasks</span><span class="tile-text">Every task for every company in one list, with date buttons, filters and your own task types.</span></a></li>
-      <li><a class="tile" href="features/companies/"><img src="img/thumbs/companies.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Companies</span><span class="tile-text">Sortable tables of companies, and one timeline per company of every email, call and meeting.</span></a></li>
+      <li><a class="tile" href="features/companies/"><img src="img/thumbs/companies.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Companies</span><span class="tile-text">Sort and filter companies, with one timeline per company of every email, call, note and meeting.</span></a></li>
       <li><a class="tile" href="features/contacts/"><img src="img/thumbs/contacts.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Contacts</span><span class="tile-text">Every person across your companies, with a page of their own: roles, history and tasks.</span></a></li>
       <li><a class="tile" href="features/messages/"><img src="img/thumbs/messages.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Messages</span><span class="tile-text">Every message you sent, with what came of it, so you can see which wording gets answers.</span></a></li>
       <li><a class="tile" href="features/outreach/"><img src="img/thumbs/outreach.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Outreach</span><span class="tile-text">Researches a company’s website, drafts a first message or a follow-up in your wording, and waits for your approval.</span></a></li>
@@ -119,7 +118,6 @@
       <li><a class="tile" href="features/make-it-yours/"><img src="img/thumbs/make-it-yours.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Make it yours</span><span class="tile-text">Pages of your own with lists, counts and bar charts. Describe one in a sentence, your AI builds it, and you pin it to the sidebar.</span></a></li>
       <li><a class="tile" href="features/settings/"><img src="img/thumbs/settings.png" alt="" width="720" height="480" loading="lazy"><span class="tile-name">Settings</span><span class="tile-text">Your name, mail and calendar capture, backups, fields, deal stages and outcomes, set in the browser.</span></a></li>
     </ul>
-    <p class="all-features narrow"><a href="features/">All the pages, with a screenshot of each</a></p>
   </section>
 
   <hr class="rule blank">
@@ -166,7 +164,7 @@ next_step_due: 2026-09-24
         <div class="example-text">
           <h3>A dashboard from one sentence</h3>
           <p class="small-label">You type</p>
-          <p class="said">Make a dashboard called Monday review with my open deals, what is due this week and the deals by stage with their value. Pin it to the sidebar.</p>
+          <p class="said">Make a dashboard called “Monday review” with my open deals, what is due this week and the deals by stage with their value. Pin it to the sidebar.</p>
           <p class="small-label">What changes</p>
           <p class="change">One new file, <code>dashboards/monday-review.toml</code>. The page is pinned in the sidebar, and every number opens the records behind it.</p>
         </div>
@@ -179,7 +177,7 @@ next_step_due: 2026-09-24
         <div class="example-text">
           <h3>A new field</h3>
           <p class="small-label">You type</p>
-          <p class="said">Add a date field contract renewal to companies, shown on the company page and in the companies list.</p>
+          <p class="said">Add a “date” field for “contract renewal” to companies, shown on the company page and in the companies list.</p>
           <p class="small-label">What changes</p>
           <p class="change">Seven lines in <code>fields.toml</code>. The field shows on every company page, and as a column you can sort and filter in the companies list.</p>
         </div>
@@ -210,12 +208,12 @@ next_step_due: 2026-09-24
 
   <section class="outreach col" id="outreach" aria-labelledby="outreach-h">
     <p class="label">Outreach</p>
-    <h2 class="big" id="outreach-h">Hermit writes the first message. You decide what goes out.</h2>
+    <h2 class="big" id="outreach-h">Write it yourself, or let Hermit draft it. You decide what goes out.</h2>
     <p class="lead">Choose who to contact. Hermit reads what their website says, drafts a short message in your own voice and in their language, and checks it against your rules. You read it, change it and approve it.</p>
     <ol class="steps">
         <li><span><strong>Choose who.</strong> A filter such as <code>stage=prospect; country=DE</code>, and how many drafts you want.</span></li>
         <li><span><strong>Hermit researches.</strong> It reads the company’s website and shows what it found, with the source of each point.</span></li>
-        <li><span><strong>It drafts.</strong> In English, German, Dutch or French, following your playbook. Every draft shows the checks it passed.</span></li>
+        <li><span><strong>It drafts.</strong> In English, German, Dutch or French. Hermit follows your playbook, and every draft shows the checks it passed.</span></li>
         <li><span><strong>You approve.</strong> Edit it, approve it, then send it yourself or switch on sending from your own mailbox. Replies that show interest and threads nobody answered get drafts too.</span></li>
     </ol>
     <p class="safety"><strong>You stay in charge.</strong> Nothing is sent that you did not approve, and sending is off until you turn it on. Every step is saved as a version you can undo.</p>
@@ -227,7 +225,7 @@ next_step_due: 2026-09-24
   <section class="principles-section col" aria-label="Principles">
     <div class="principles">
       <p><strong>Your data stays with you.</strong> Hermit runs on your computer, not in the cloud. Your companies, contacts and notes are ordinary text files in a folder you own, so you can open, copy or back them up like any document. Technically: Markdown files in a git repository.</p>
-      <p><strong>Your AI does the admin.</strong> Use the assistant you already have. Ask what is in your pipeline this week, or to log a call with a contact, and it reads and updates your records for you. Ask Hermit answers questions on every page. For developers: plain files, a small command line tool and an MCP server.</p>
+      <p><strong>Your AI does the admin.</strong> Use the AI subscription you already have, such as Claude, ChatGPT or Gemini. There are no credits to buy from a CRM vendor, and Hermit CRM adds no AI bill. Ask what is in your pipeline this week, or to log a call with a contact, and it reads and updates your records for you. Ask Hermit answers questions on every page through the same AI tool. For developers: plain files, a small command line tool and an MCP server.</p>
       <p><strong>Yours to change.</strong> Press Adjust on any page and describe what you want: a dashboard, a field, a page layout, a routine. Your AI assistant builds it, every change can be undone, and the code is open source.</p>
     </div>
   </section>
@@ -240,7 +238,7 @@ next_step_due: 2026-09-24
       <details open><summary>Where does my data live?</summary><p>In one folder on your computer, <code>~/crm</code> unless you choose another. Every company, contact and conversation is its own plain text file, and Hermit saves a version each time something changes, so any mistake can be undone. Technically: Markdown files in a git repository, and <code>git revert</code> goes back.</p></details>
       <details><summary>What are Markdown and git?</summary><p>Markdown is a simple text format that any editor can open, so your records are never locked inside Hermit. Git is a free tool that remembers every version of your files. Hermit uses both so that you can read your data without Hermit and undo any change. You never have to type a git command yourself.</p></details>
       <details open><summary>Does anything leave my Mac?</summary><p>Only what you send. A private git backup, if you add one. The AI tool you ask, when you use Ask Hermit or enrichment. A once-a-day version check with no identifiers, which you can turn off.</p></details>
-      <details><summary>Do I need to be a developer?</summary><p>No. Your AI tool runs the commands and tells you in plain words what it is doing. On a fresh Mac you click Install once in an Apple dialog.</p></details>
+      <details><summary>Do I need to be a developer?</summary><p>No, but you do need an AI coding tool such as Claude Code, Codex or Cursor to install it, or you can <a href="https://github.com/Hermit-CRM/hermit-crm#install">install it by hand</a> with Python and git. Your AI tool runs the commands and tells you in plain words what it is doing. On a fresh Mac you click Install once in an Apple dialog.</p></details>
       <details><summary>Does it run on Linux?</summary><p>Yes, but it is less tested than on a Mac. The install is the same: your AI tool checks for git and Python and installs what is missing, which on Linux may ask for your password. There is no keychain on Linux, so the mail password is kept in a file only your user account can read.</p></details>
       <details><summary>Which AI tools work?</summary><p>For the install, any AI coding tool that can read a file and run commands: Claude Code, Codex, Cursor, Gemini CLI, Grok Build and others. Afterwards, Claude Desktop, ChatGPT, Cursor or any other MCP client can read your pipeline and log interactions. An AI tool that wants the whole manual can read <a href="docs/">the docs</a>, or the same text as one file in <a href="llms-full.txt">llms-full.txt</a>.</p></details>
       <details><summary>Does it work with my email and calendar?</summary><p>Yes, without OAuth. BCC or forward mail to an address such as you+crm@gmail.com and it is logged on the right contact. Past meetings come in from your calendar’s secret ICS link (Google, Outlook or iCloud). You type the app password and the link into the Settings page yourself, so they never pass through an AI chat.</p></details>
@@ -256,6 +254,7 @@ next_step_due: 2026-09-24
     <div class="download">
   <a class="btn" href="download/hermitcrm-1.0.0.tar.gz">Download for Mac and Linux</a>
   <p class="meta">Version 1.0.0 · Apache 2.0</p>
+  <p class="needs">Use your AI coding tool to install it.</p>
 </div>
   </section>
 </main>
