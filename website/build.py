@@ -265,14 +265,14 @@ def download_block(c: dict, notes: str = "") -> str:
             f'  {meta_line(c)}\n{notes}</div>')
 
 
-def phone_note(c: dict) -> str:
+def handheld_note(c: dict) -> str:
     """Phones only (CSS shows it): the download is for a computer, so offer to mail the link."""
     h, site = c["hero"], c["page"]["site_url"].rstrip("/")
-    if not (h.get("phone_link") and site):
+    if not (h.get("handheld_link") and site):
         return ""
-    href = f"mailto:?subject={quote(h['phone_subject'])}&body={quote(site + '/')}"
-    return (f'  <p class="phone">{md(h["phone_text"])} <a href="{attr(href)}">{md(h["phone_link"])}</a> '
-            f'{md(h["phone_rest"])}</p>\n')
+    href = f"mailto:?subject={quote(h['handheld_subject'])}&body={quote(site + '/')}"
+    return (f'  <p class="handheld">{md(h["handheld_text"])} <a href="{attr(href)}">{md(h["handheld_link"])}</a> '
+            f'{md(h["handheld_rest"])}</p>\n')
 
 
 def mock() -> str:
@@ -434,7 +434,7 @@ def render(c: dict, ld: str = "") -> str:
 
     manual = (f' {md(i["manual_text"])} <a href="{attr(i["manual_url"])}">{md(i["manual_link"])}</a>.'
               if i.get("manual_url") else "")
-    needs = f'  <p class="needs">{md(h["needs_tool"])}{manual}</p>\n{phone_note(c)}'
+    needs = f'  <p class="needs">{md(h["needs_tool"])}{manual}</p>\n{handheld_note(c)}'
     copy_card = (f'<div class="card">\n'
                  f'          <p class="message" id="install-message">{md(i["message"])}</p>\n'
                  f'          <button class="copy" type="button" hidden data-copy="{attr(i["message"])}" '
