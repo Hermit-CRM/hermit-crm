@@ -82,7 +82,9 @@ def test_the_home_page_has_a_tile_for_every_feature_page_under_the_hero():
         assert f'<a class="tile" href="features/{p["slug"]}/">' in tiles, p["slug"]
         assert f'<span class="tile-name">{p["name"]}</span>' in tiles
     assert page.index('class="hero') < page.index('class="showcase') < page.index('class="idea')
-    assert 'href="features/"' in tiles
+    # The tiles are the overview, so there is no "all the pages" link under them; the header's Features link leads there.
+    assert 'href="features/"' not in tiles
+    assert 'href="features/"' in page
 
 
 def test_the_home_page_and_the_feature_pages_show_the_same_screenshot_files():
