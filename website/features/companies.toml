@@ -3,7 +3,7 @@ name    = "Companies"
 nav     = "Companies"
 title   = "Companies: one page and one file per account in Hermit CRM"
 description = "Companies in Hermit CRM: a sortable table of every account, and a page per company with its fields, contacts, tasks, message drafts and a timeline."
-summary = "Sortable tables of companies, and one timeline per company of every email, call and meeting."
+summary = "Sort and filter companies, with one timeline per company of every email, call, note and meeting."
 intro = """
 Every company is one folder with one Markdown file. The Companies page lists them all, and each
 company has a page that holds everything you know about the account.
