@@ -786,7 +786,11 @@ def local_hold(store: Store, item, settings: SendSettings, *, scheduled: bool,
     plain words (it becomes the item's `send_note`)."""
     if item.channel != "email":
         return "only email is sent from the app (LinkedIn is a session)"
-    if scheduled and item.send_hash and item.send_hash != text_hash(item.subject, item.body):
+    if scheduled and not item.send_hash:
+        # The app always stamps the hash when it schedules; an empty one means a hand- or
+        # AI-edited file that nobody approved in the app.
+        return "it was never scheduled in the app (no approval fingerprint)"
+    if scheduled and item.send_hash != text_hash(item.subject, item.body):
         return "the text changed after it was scheduled"
     company = store.get(item.company)
     contact = company.contacts.get(item.contact) if company is not None else None
