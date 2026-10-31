@@ -78,6 +78,7 @@ from pathlib import Path
 from typing import Protocol
 from urllib.parse import urlparse
 
+from . import attachments as attachments_mod
 from . import followups, frameworks, messaging, playbook
 from .enrich import WEB_ONLY, EnrichError
 from .frameworks import HOUSE, Framework
@@ -121,8 +122,8 @@ DUPLICATE_SUFFIXES = ("ai", "hq", "app", "io", "group", "gmbh", "inc", "ltd", "l
 ITEM_KEYS = (
     "state", "kind", "channel", "company", "contact", "reply_to", "follows", "approach",
     "framework", "language",
-    "subject", "pitch", "research_level", "model", "attempts", "seconds", "checks",
-    "critic", "critic_reason", "critic_model", "flags", "norms", "findings", "proof_used",
+    "subject", "pitch", "attachments", "research_level", "model", "attempts", "seconds",
+    "checks", "critic", "critic_reason", "critic_model", "flags", "norms", "findings", "proof_used",
     "lessons_used", "exemplars_used", "proposals", "edit_distance",
     "language_pick", "notes_linked",
     "skip_reason", "skip_note", "batch", "created", "researched", "drafted", "ready",
@@ -1798,6 +1799,7 @@ class Item:
     skip_reason: str = ""
     skip_note: str = ""
     batch: str = ""
+    attachments: list = field(default_factory=list)  # attachments.Attachment sent with the email
     created: datetime | None = None
     researched: datetime | None = None
     drafted: datetime | None = None
@@ -1847,6 +1849,10 @@ class Item:
                 value = [f.to_dict() for f in value]
             elif key in ("edits", "earlier"):
                 value = [x.to_dict() for x in value]
+            elif key == "attachments":
+                if not value:
+                    continue    # absent until a file is attached (keeps older files' bytes)
+                value = attachments_mod.to_meta(value)
             elif key in ("framework", "lessons_used", "exemplars_used", "language_pick",
                          "notes_linked") and not value:
                 continue    # absent until they apply (keeps older files' bytes)
@@ -1942,6 +1948,7 @@ def item_from_text(item_id: str, text: str) -> Item:
         language_pick=s("language_pick").strip(),
         notes_linked=meta.get("notes_linked") is True,
         skip_reason=s("skip_reason"), skip_note=s("skip_note"), batch=s("batch"),
+        attachments=attachments_mod.from_meta(meta.get("attachments")),
         created=when("created"), researched=when("researched"), drafted=when("drafted"),
         ready=when("ready"), sent=when("sent"), sent_with=s("sent_with"),
         skipped=when("skipped"),
@@ -3172,6 +3179,107 @@ def skip(store: Store, item_id: str, reason: str, note: str = "") -> Item:
     return item
 
 
+# ------------------------------------------------------------------ attachments
+#
+# Files that go out with an approved email (docs/superpowers/plans/2026-10-31-
+# attachments.md). They are kept like the files of a note, in the company's
+# attachments folder; the item lists them and the send path attaches them. They
+# can change while the item is a draft or ready, never while it is queued or sent.
+
+SEND_ATTACHMENT_MB = 10   # config `send_attachment_max_mb`: all files of one mail, raw size
+
+_MENTIONS_A_FILE = re.compile(
+    r"\b(attached|attachments?|enclosed|anbei|angeh(?:ä|ae)ngt|beigef(?:ü|ue)gt|"
+    r"bijgevoegd|bijgesloten|ci-jointe?s?)\b|im anhang|in bijlage|"
+    r"pi(?:è|e)ces? jointes?", re.IGNORECASE)
+
+
+def attachment_limit_bytes(root: Path | str) -> int:
+    """All the files of one mail, in bytes: `send_attachment_max_mb` (1 to 25, default 10)."""
+    try:
+        mb = int(load_config(root).get("send_attachment_max_mb", SEND_ATTACHMENT_MB))
+    except (TypeError, ValueError, OSError):
+        mb = SEND_ATTACHMENT_MB
+    return max(1, min(25, mb)) * 1024 * 1024
+
+
+def attachment_flags(item: Item) -> list[str]:
+    """Soft warnings about the files of an email, worked out from the item (never
+    stored, never a hard check; the person decides): the text mentions an attachment
+    and there is none, or a cold first email carries one (it is more likely to be
+    filtered as spam)."""
+    if item.channel != "email" or item.state in ("sent", "skipped"):
+        return []
+    flags = []
+    if not item.attachments and _MENTIONS_A_FILE.search(item.body or ""):
+        flags.append("the text mentions an attachment, but no file is attached")
+    if item.attachments and item.kind == FIRST_TOUCH:
+        flags.append("a first email with a file attached is more likely to be filtered as "
+                     "spam; consider a link, or send the file after they reply")
+    return flags
+
+
+def set_attachments(store: Store, item_id: str, add=(), remove=(), reuse=()) -> Item:
+    """Change the files that go out with a draft or a ready email, in one commit.
+
+    `add` are new files (attachments.Incoming), `remove` stored names to take off,
+    `reuse` stored names of files already on this company's notes or items ("attach
+    again"). Email only; refused for a queued item (unschedule it first) or a sent
+    one. All the files together may not pass `send_attachment_max_mb`; a refusal
+    writes nothing. A file no note or item uses any more is deleted from the folder
+    (the repository keeps the old copy)."""
+    with store.lock:
+        item = _refresh(store, item_id)
+        if item.channel != "email":
+            raise OutreachError("only an email can carry files; a LinkedIn message cannot")
+        if item.state not in ("drafted", "ready"):
+            hint = " (unschedule it first)" if item.state == "queued" else ""
+            raise OutreachError(f"{item.id} is {item.state}; files can be changed on a "
+                                f"drafted or ready item{hint}")
+        company = store.get(item.company, refresh=True)
+        if company is None:
+            raise OutreachError(f"{item.record} is not in the CRM any more")
+        held = {a.file for a in item.attachments}
+        gone = [f for f in remove if f]
+        for file in gone:
+            if file not in held:
+                raise OutreachError(f"{file!r} is not attached to {item.id}")
+        known = {a.file: a for a, _ in attachments_mod.files_of(company.interactions)}
+        known.update({a.file: a for other in items(store.root) if other.company == item.company
+                      for a in other.attachments})
+        reused = []
+        for file in reuse:
+            if file not in known:
+                raise OutreachError(f"{file!r} is not one of {company.name}'s files")
+            reused.append(known[file])
+        kept = [a for a in item.attachments if a.file not in gone]
+        have = {a.file for a in kept}
+        total = (sum(a.size for a in kept) + sum(len(f.data) for f in add)
+                 + sum(a.size for a in reused if a.file not in have))
+        limit = attachment_limit_bytes(store.root)
+        if total > limit:
+            raise OutreachError(
+                f"the files would add up to {attachments_mod.human_size(total)}; one email "
+                f"may carry {limit >> 20} MB (send_attachment_max_mb in config.toml)")
+        try:
+            stored = store.add_files(item.company, list(add))
+        except ValidationError as exc:
+            raise OutreachError("; ".join(exc.errors.values())) from exc
+        new = list(kept)
+        for att in stored + reused:
+            if att.file not in {a.file for a in new}:
+                new.append(att)
+        if [a.file for a in new] == [a.file for a in item.attachments]:
+            return item
+        item.attachments = new
+        write_item(store.root, item)
+        store._drop_unreferenced(item.company, gone)
+        added = bool(stored or reused)
+        what = "changed" if gone and added else "removed" if gone else "added"
+        store.notify(f"outreach: attachments {item.record} {what}", [item.path])
+    return item
+
+
 def mark_sent(store: Store, item_id: str) -> Item:
     """You sent it (`hermitcrm outreach sent`): the state only; nothing is
     logged. Logging the message does the same by itself (sent_by_interaction)."""
@@ -3574,6 +3682,10 @@ def render_item(store: Store, item: Item) -> str:
     if item.flags:
         lines.append("Flags:")
         lines += [f"- {f}" for f in item.flags]
+    if item.attachments:
+        lines.append("Files: " + ", ".join(
+            f"{a.name} ({attachments_mod.human_size(a.size)})" for a in item.attachments))
+    lines += [f"Note: {f}" for f in attachment_flags(item)]
     lines.append("Findings:" if item.findings else "Findings: none")
     for n, f in enumerate(item.findings, 1):
         marks = [f.kind, f.confidence] + (["stale"] if f.stale else []) + \
