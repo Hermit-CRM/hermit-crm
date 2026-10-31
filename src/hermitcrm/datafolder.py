@@ -98,6 +98,7 @@ CONFIG_DOCS = {
     "date_format": "How the web app shows and takes dates: iso (2026-12-31), dmy-dash (31-12-2026), dmy (31/12/2026) or mdy (12/31/2026). Files and exports stay YYYY-MM-DD.",
     "message_window_days": "A message without reply or outcome counts as the last outcome after this many days.",
     "fetch_timeout": "Seconds to wait when Fetch from URL reads a page.",
+    "attachment_max_mb": "Largest file you can attach, in MB (1 to 90). History is never rewritten, so a big file stays in the folder.",
     "outcomes": "Outcome choices for an interaction; first = what a reply counts as, last = what silence counts as.",
     "bcc_address": "Address you BCC or forward mail to, e.g. you+crm@gmail.com; empty disables BCC import.",
     "bcc_imap_host": "IMAP server of that mailbox.",
