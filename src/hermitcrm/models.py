@@ -29,6 +29,7 @@ from typing import Iterable
 
 import yaml
 
+from . import attachments as attachments_mod
 from . import dateformat
 from .stages import DEFAULT_STAGES, StageSet
 
@@ -405,6 +406,7 @@ class Interaction:
     outcome: str = ""  # one of config outcomes, or "" (not yet known)
     source: str = "manual"
     message_id: str = ""  # dedup key of a BCC (Message-ID) or calendar (ical:…) import
+    attachments: list = field(default_factory=list)  # files kept with it (attachments.py)
     body: str = ""
     extra: dict = field(default_factory=dict)  # unknown front-matter keys, round-tripped
 
@@ -982,6 +984,8 @@ def interaction_to_frontmatter(i: Interaction) -> dict:
     meta["source"] = i.source
     if i.message_id:  # only BCC imports carry one
         meta["message_id"] = i.message_id
+    if i.attachments:
+        meta["attachments"] = attachments_mod.to_meta(i.attachments)
     return _with_extra(meta, i.extra, INTERACTION_KEYS)
 
 
@@ -1000,7 +1004,7 @@ CONTACT_KEYS = frozenset({
 })
 INTERACTION_KEYS = frozenset({
     "date", "channel", "direction", "contact", "subject", "framework", "approach",
-    "outcome", "source", "message_id",
+    "outcome", "source", "message_id", "attachments",
 })
 
 
@@ -1190,6 +1194,7 @@ def interaction_from_dict(meta: dict, body: str, id: str) -> Interaction:
         source=_enum(_str(meta, "source"), InteractionSource, "source", True, errors,
                      "manual"),
         message_id=_str(meta, "message_id").strip(),
+        attachments=attachments_mod.from_meta(meta.get("attachments")),
         body=body,
         extra=_extra(meta, INTERACTION_KEYS),
     )
