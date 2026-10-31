@@ -217,6 +217,10 @@ Writing rules:
 - After editing files by hand, run `hermitcrm check`, then `hermitcrm rebuild`.
 - Commit messages for AI-made changes start with "ai:".
 - Never rewrite interaction bodies; they are the record.
+- Files kept with notes live in `companies/<slug>/attachments/` and are listed under
+  `attachments:` in the interaction that owns them. Never edit, rename or delete one
+  by hand; add one with `hermitcrm attach <company> <file>` and list them with
+  `hermitcrm attachments`.
 - Never put secrets in config.toml and never commit .secrets.toml.
 - A company with `sample: true` is the made-up sample account: never draft
   outreach for it and leave it out of reviews and counts.

@@ -594,6 +594,11 @@ class Store:
                 except ValidationError as exc:
                     self._problem(path, exc.args[0])
                     continue
+                raw_files = imeta.get("attachments")
+                if raw_files not in (None, "", []) and len(interaction.attachments) != (
+                        len(raw_files) if isinstance(raw_files, list) else -1):
+                    self._problem(path, "attachments: an entry is not readable (each needs "
+                                        "a file, name, size and type)")
                 if interaction.contact and interaction.contact not in company.contacts:
                     self._problem(
                         path,

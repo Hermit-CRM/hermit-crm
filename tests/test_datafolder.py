@@ -212,3 +212,8 @@ def test_demo_every_web_page_returns_200(tmp_path):
         r = client.get(url)
         assert r.status_code == 303
         assert client.get(r.headers["location"]).status_code == 200
+
+
+def test_agent_rules_say_where_attachments_live():
+    from hermitcrm.datafolder import AGENT_RULES
+    assert "attachments/" in AGENT_RULES and "hermitcrm attach" in AGENT_RULES
