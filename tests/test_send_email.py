@@ -367,7 +367,7 @@ def test_a_scheduled_item_that_is_held_goes_back_to_ready_with_the_reason(folder
 
 
 @pytest.mark.parametrize("case", ["suppressed", "closed", "dnc", "sample", "country",
-                                  "disqualified", "failing-check", "edited", "no-opt-out"])
+                                  "disqualified", "failing-check", "edited", "no-opt-out", "unapproved"])
 def test_every_guard_holds_the_item(folder, case):
     root, store, settings = folder
     item = ready_item(root, store)
@@ -406,15 +406,30 @@ def test_every_guard_holds_the_item(folder, case):
         it.body = it.body.replace(OPT_OUT, "")
         it.send_hash = send.text_hash(it.subject, it.body)
         outreach.write_item(root, it)
+    elif case == "unapproved":
+        scheduled = True
+        it = outreach.get_item(root, item.id)
+        it.state, it.queued, it.send_at = "queued", NOW, NOW      # a hand-edited file: no send_hash
+        it.send_hash = ""
+        outreach.write_item(root, it)
     out, smtp, _ = deliver(store, settings, item.id, scheduled=scheduled)
     why = {"suppressed": "suppression list (opted-out, 2026-10-01)", "closed": "company is won",
            "dnc": "tagged do-not-contact", "sample": "made-up sample account",
            "country": "email to DE is switched off", "disqualified": "disqualified",
            "failing-check": "a check fails now", "edited": "text changed after it was scheduled",
-           "no-opt-out": "opt-out line from the playbook is missing"}[case]
+           "no-opt-out": "opt-out line from the playbook is missing",
+           "unapproved": "never scheduled in the app"}[case]
     assert out.kind == "held" and why in out.detail, out.detail
     assert not smtp.sent
     assert outreach.get_item(root, item.id).message_id == ""
+
+
+def test_send_now_still_sends_an_item_with_no_hash(folder):
+    root, store, settings = folder
+    item = ready_item(root, store)
+    assert outreach.get_item(root, item.id).send_hash == ""
+    out, smtp, _ = deliver(store, settings, item.id, scheduled=False)
+    assert out.kind == "sent" and len(smtp.sent) == 1
 
 
 def test_the_country_guard_is_off_by_default(folder):
