@@ -46,6 +46,7 @@ import time
 import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parent
 CONTENT = ROOT / "content.toml"
@@ -257,10 +258,21 @@ def meta_line(c: dict) -> str:
     return f'<p class="meta">Version {md(r["version"])} · {md(r["license"])}</p>'
 
 
-def download_block(c: dict) -> str:
+def download_block(c: dict, notes: str = "") -> str:
+    """The button and the version line; `notes` are the lines the caller puts under them."""
     return (f'<div class="download">\n'
             f'  <a class="btn" href="{attr(c["links"]["download"])}">{md(c["hero"]["download_button"])}</a>\n'
-            f'  {meta_line(c)}\n</div>')
+            f'  {meta_line(c)}\n{notes}</div>')
+
+
+def handheld_note(c: dict) -> str:
+    """Phones only (CSS shows it): the download is for a computer, so offer to mail the link."""
+    h, site = c["hero"], c["page"]["site_url"].rstrip("/")
+    if not (h.get("handheld_link") and site):
+        return ""
+    href = f"mailto:?subject={quote(h['handheld_subject'])}&body={quote(site + '/')}"
+    return (f'  <p class="handheld">{md(h["handheld_text"])} <a href="{attr(href)}">{md(h["handheld_link"])}</a> '
+            f'{md(h["handheld_rest"])}</p>\n')
 
 
 def mock() -> str:
@@ -420,7 +432,23 @@ def render(c: dict, ld: str = "") -> str:
               if c["links"]["github"] else "")
     nav = site_nav(c, "")
 
-    steps = "\n".join(f"      <li><span>{md(s)}</span></li>" for s in i["steps"])
+    manual = (f' {md(i["manual_text"])} <a href="{attr(i["manual_url"])}">{md(i["manual_link"])}</a>.'
+              if i.get("manual_url") else "")
+    needs = f'  <p class="needs">{md(h["needs_tool"])}{manual}</p>\n{handheld_note(c)}'
+    copy_card = (f'<div class="card">\n'
+                 f'          <p class="message" id="install-message">{md(i["message"])}</p>\n'
+                 f'          <button class="copy" type="button" hidden data-copy="{attr(i["message"])}" '
+                 f'data-done="{attr(i["copied_label"])}" data-failed="{attr(i["copy_failed_label"])}"\n'
+                 f'                  aria-label="Copy the install message"><span aria-live="polite">{md(i["copy_button"])}</span></button>\n'
+                 f'        </div>')
+    closing_needs = f'  <p class="needs">{md(h["needs_tool_short"])}</p>\n'
+    # Step 1 holds the button, step 3 the message to copy; the others are one line.
+    first, second, third = i["steps"]
+    steps = "\n".join([
+        f'      <li><div class="step"><span>{md(first)}</span>\n{download_block(c, needs)}</div></li>',
+        f'      <li><span>{md(second)}</span></li>',
+        f'      <li><div class="step"><span>{md(third)}</span>\n        {copy_card}</div></li>',
+    ])
     fe = c["features"]
     _, feature_pages = load_features()
     tiles = feature_tiles(feature_pages, "", "features/", " compact")
@@ -480,20 +508,10 @@ def render(c: dict, ld: str = "") -> str:
   <section class="hero col">
     <h1>{md(h["h1"])}</h1>
     <p class="subline">{md(h["subline"])}</p>
-    {download_block(c)}
 
-    <div class="install">
-      <h2 class="label">{md(i["label"])}</h2>
-      <ol class="steps">
+    <ol class="steps install" aria-label="{attr(i["label"])}">
 {steps}
-      </ol>
-      <div class="card indent">
-        <p class="message" id="install-message">{md(i["message"])}</p>
-        <button class="copy" type="button" hidden data-copy="{attr(i["message"])}" data-done="{attr(i["copied_label"])}"
-                data-failed="{attr(i["copy_failed_label"])}"
-                aria-label="Copy the install message"><span aria-live="polite">{md(i["copy_button"])}</span></button>
-      </div>
-    </div>
+    </ol>
   </section>
 
   <hr class="rule">
@@ -505,7 +523,6 @@ def render(c: dict, ld: str = "") -> str:
       <p class="lead">{md(fe["intro"])}</p>
     </div>
 {tiles}
-    <p class="all-features narrow"><a href="features/">{md(fe["all_label"])}</a></p>
   </section>
 
   <hr class="rule blank">
@@ -550,7 +567,7 @@ def render(c: dict, ld: str = "") -> str:
 
   <section class="closing col" aria-label="{attr(c["closing"]["label"])}">
     <p class="lead">{md(c["closing"]["text"])}</p>
-    {download_block(c)}
+    {download_block(c, closing_needs)}
   </section>
 </main>
 
