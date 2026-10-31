@@ -187,7 +187,7 @@ def run_checks(root: Path, *, online: bool = False, env: dict | None = None,
 
     try:
         kept = [p for p in root.glob("companies/*/attachments/*")
-                if p.is_file() and not p.name.endswith(".tmp")]
+                if p.is_file() and not p.name.startswith(".")]
         total = sum(p.stat().st_size for p in kept)
         size = human_size(total)
         if not kept:

@@ -466,7 +466,7 @@ class Store:
             path = self.attachment_path(company_slug, att.file)
             if not attachments_mod.intact(path):
                 path.parent.mkdir(parents=True, exist_ok=True)
-                tmp = path.with_name(path.name + ".tmp")
+                tmp = path.with_name("." + path.name + ".part")  # a stored name never starts with "."
                 tmp.write_bytes(f.data)
                 os.replace(tmp, path)
             self._touch(path)
@@ -1745,10 +1745,7 @@ class Store:
         for file in gone:
             if file not in held:
                 raise ValidationError({"files": f"{file!r} is not attached to this interaction"})
-        if gone or add_files:
-            added = self.add_files(company_slug, add_files)
-            new.attachments = [a for a in new.attachments if a.file not in gone] + [
-                a for a in added if a not in new.attachments]
+        new.attachments = [a for a in new.attachments if a.file not in gone]
         if "custom" in fields:
             new.extra = fields_mod.apply(new.extra, fields.pop("custom") or {})
         if "date" in fields:
@@ -1783,6 +1780,10 @@ class Store:
         if "body" in fields:
             new.body = normalise_body(fields["body"])
 
+        # Last, after every field has been checked: a refused edit leaves no file behind.
+        if add_files:
+            new.attachments += [a for a in self.add_files(company_slug, add_files)
+                                if a not in new.attachments]
         old_path = self.interaction_file(company_slug, old.id)
         desired = new.base_id()
         suffix = old.id[len(desired) + 1:]

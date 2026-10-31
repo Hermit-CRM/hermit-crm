@@ -190,7 +190,7 @@ def audit(store) -> tuple[list[str], list[str]]:
             continue
         used = store.referenced_files(slug)
         for path in sorted(folder.iterdir()):
-            if not path.is_file() or path.name.endswith(".tmp"):
+            if not path.is_file() or path.name.startswith("."):   # ".<name>.part" is scratch
                 continue
             where = f"companies/{slug}/attachments/{path.name}"
             if path.name not in used:
