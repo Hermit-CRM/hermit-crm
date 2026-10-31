@@ -118,11 +118,11 @@ def query(url: str) -> list[tuple[str, str]]:
 
 def company_slugs(page: str) -> list[str]:
     """The companies a Companies page lists, in its order."""
-    return re.findall(r'<tr>\s*<td><a href="/companies/([a-z0-9-]+)">', main_of(page))
+    return re.findall(r'<tr>\s*<td(?: class="name")?><a href="/companies/([a-z0-9-]+)">', main_of(page))
 
 
 def contact_keys(page: str) -> list[str]:
-    return re.findall(r'<tr>\s*<td><a href="/companies/([a-z0-9-]+/contacts/[a-z0-9-]+)">',
+    return re.findall(r'<tr>\s*<td(?: class="name")?><a href="/companies/([a-z0-9-]+/contacts/[a-z0-9-]+)">',
                       main_of(page))
 
 

@@ -119,7 +119,7 @@ def form_names(page: str) -> set[str]:
 def header_names(page: str) -> list[str]:
     head = page.split('<tr class="filters">')[0].split('<table class="filterable">')[1]
     return [re.sub(r"\s+", " ", h).strip()
-            for h in re.findall(r"<th>([^<]*)", head)]
+            for h in re.findall(r"<th(?: [^>]*)?>([^<]*)", head)]
 
 
 # ------------------------------------------------------------ reading the file
@@ -395,7 +395,7 @@ def test_columns_choose_and_order_the_list(client, app, repo, acme):
                        '[contacts]\ncolumns = ["seniority", "name", "company_name"]\n')
     page = client.get("/companies").text
     assert header_names(page) == ["segment", "name", "fit", "links"]
-    row = page.split("<td><a href=\"/companies/acme\">")[0].rsplit("<tr>", 1)[1]
+    row = page.split("<td class=\"name\"><a href=\"/companies/acme\">")[0].rsplit("<tr>", 1)[1]
     assert "<td>smb</td>" in row
     assert page.count('<td class="links">') == 2
 
@@ -413,7 +413,7 @@ def test_filters_and_sorting_work_on_every_shown_column(client, app, repo, acme)
 
     def names(url):
         page = client.get(url).text
-        return re.findall(r'<td><a href="/companies/[a-z-]+">([^<]+)</a></td>', page)
+        return re.findall(r'<td class="name"><a href="/companies/[a-z-]+">([^<]+)</a></td>', page)
 
     assert names("/companies?sort=fit_score&dir=desc") == ["Acme GmbH", "Gamma AG", "Beta BV"]
     assert names("/companies?sort=segment&dir=asc")[0] == "Beta BV"
