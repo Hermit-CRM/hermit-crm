@@ -8,6 +8,17 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Attachments of BCC'd mail are kept.** A PDF or document that comes with a mail you
+  BCC or forward is saved with the interaction it logs, so the proposal you sent
+  sits on the note next to the message. Logos in a signature, calendar invites and
+  signatures are left out. A mail that has to wait under **To file** keeps its files
+  in `inbox/attachments/` and they move to the company when you log it (or are
+  deleted when you discard it). `bcc_attachments` in `config.toml` sets what is kept:
+  `documents` (the default), `all` (also pictures shown inside the mail, 20 KB or
+  larger) or `off`. A file over `attachment_max_mb` is skipped, the mail is still
+  logged, and the import summary says how many were skipped. No data migration.
+  See [Settings](/help/settings).
+
 - **Attach files to notes and interactions.** A note, an email, a call or any
   other interaction can carry files: pick them under the body, drop them on the
   form, paste a screenshot, or drop a file on an entry in the timeline to add it
