@@ -1,3 +1,4 @@
+{% from "icons.html" import icon %}
 {#- A date field. It is text, not <input type="date">, so it reads in the date
     format chosen in Settings (the native one follows the browser's language);
     static/dates.js adds a calendar button. `value` is an ISO date, a date, or
@@ -81,7 +82,7 @@
    the person is fixed; elsewhere you pick one. A note has no direction and may
    be about the whole company instead (contact left empty). #}
 {% macro interaction_form(action, company, values, errors=None, submit='Log interaction', contact=None) %}
-<form method="post" action="{{ action }}" class="interaction-form{% if values.channel == 'note' %} is-note{% endif %}">
+<form method="post" action="{{ action }}" enctype="multipart/form-data" data-attach class="interaction-form{% if values.channel == 'note' %} is-note{% endif %}">
   {{ errors_box(errors) }}
   <div class="row">
     <label>channel
@@ -125,8 +126,37 @@
   {{ custom_fields(custom_fields_for('interaction'), values, errors) }}
   {# The body is the record. Custom fields sit beside it and never touch it. #}
   <label>body <textarea name="body" rows="6">{{ values.body }}</textarea></label>
+  {{ attach_box(errors) }}
   <button type="submit">{{ submit }}</button>
 </form>
+{% endmacro %}
+
+{# Files for a note or interaction. Works with the plain picker; static/attach.js
+   adds drop, paste and the list of what is chosen. #}
+{% macro attach_box(errors=None) %}
+<div class="attach-box" data-max-mb="{{ attach_max_mb() }}">
+  <label class="attach-pick">{{ icon('paperclip') }} files <input type="file" name="files" multiple></label>
+  <span class="small faint">Pick, drop or paste files here (up to {{ attach_max_mb() }} MB each). They are kept in this folder and in git.</span>
+  {{ err(errors, 'files') }}
+  <ul class="attach-list" aria-live="polite"></ul>
+  <p class="small attach-note" role="status"></p>
+</div>
+{% endmacro %}
+
+{# The files of an interaction as chips: a thumbnail for pictures, the name and size. #}
+{% macro attachment_chips(company, atts) %}
+{% if atts %}
+<ul class="files">
+  {% for a in atts %}
+  {% set href = '/companies/' ~ company.slug ~ '/attachments/' ~ (a.file | urlencode) %}
+  <li class="file">
+    {% if a.type in ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] %}<a href="{{ href }}" target="_blank" rel="noopener"><img src="{{ href }}" alt="" loading="lazy" class="thumb"></a>{% endif %}
+    <a href="{{ href }}"{% if a.type in ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'] %} target="_blank" rel="noopener"{% endif %}>{{ icon('paperclip') }} {{ a.name }}</a>
+    <span class="small faint">{{ a.size | filesize }}</span>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
 {% endmacro %}
 
 {# The labels of the user's own fields. `grid`: they sit in a .form-grid (the
@@ -303,7 +333,7 @@
 {% macro timeline(company, interactions, contact_page=false) %}
 <ul class="timeline">
   {% for i in interactions %}
-  <li class="interaction{% if i.is_note %} note{% endif %}" id="i-{{ i.id }}">
+  <li class="interaction{% if i.is_note %} note{% endif %}" id="i-{{ i.id }}" data-drop-url="/companies/{{ company.slug }}/interactions/{{ i.id }}/attachments">
     <div class="meta">
       <span class="when">{{ fmt_datetime(i.date) }}</span>
       <span class="tag">{{ i.channel }}</span>
@@ -320,6 +350,7 @@
     {% if i.body and i.is_note %}<pre>{{ i.body }}</pre>
     {% elif i.body and contact_page %}<details class="body-preview"><summary><span class="first-line">{{ preview(i.body) }}</span> <span class="small">more</span></summary><pre>{{ i.body }}</pre></details>
     {% elif i.body %}<details><summary>body</summary><pre>{{ i.body }}</pre></details>{% endif %}
+    {{ attachment_chips(company, i.attachments) }}
   </li>
   {% else %}
   <li class="empty">No interactions yet.</li>

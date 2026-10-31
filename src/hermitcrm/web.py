@@ -300,6 +300,34 @@ TASK_WHEN = [
 ]
 
 
+async def read_uploads(request: Request, limit: int) -> list[attachments_mod.Incoming]:
+    """The files of a submitted form (field `files`), read in 1 MB chunks so one
+    over `limit` is refused as soon as it is too big. The browser sends an empty
+    part when no file was chosen, and an empty file is not worth keeping: both
+    are skipped, so is a field that is plain text."""
+    out = []
+    for upload in (await request.form()).getlist("files"):
+        name = getattr(upload, "filename", "") or ""
+        if not name or not hasattr(upload, "read"):
+            continue
+        chunks, size = [], 0
+        while chunk := await upload.read(1 << 20):
+            size += len(chunk)
+            if size > limit:
+                raise ValidationError({"files": (
+                    f"{attachments_mod.safe_name(name)} is larger than {limit >> 20} MB "
+                    "(attachment_max_mb in config.toml)")})
+            chunks.append(chunk)
+        if size:
+            out.append(attachments_mod.Incoming(name, b"".join(chunks)))
+    return out
+
+
+def attachment_json(company_slug: str, att) -> dict:
+    return {"file": att.file, "name": att.name, "size": att.size, "type": att.type,
+            "url": f"/companies/{company_slug}/attachments/{quote(att.file)}"}
+
+
 def safe_back(back: str, default: str) -> str:
     """A same-site path (with its query) to return to; anything else is `default`.
     A flash left over from the last redirect is dropped."""
@@ -776,6 +804,8 @@ def safe_page(page: str) -> str:
 # `allowed_hosts`. Tests add their client's "testserver" here.
 EXTRA_HOST_NAMES: set[str] = set()
 UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+# The routes that take uploaded files (see upload_size_limit).
+ATTACH_FORMS = re.compile(r"^/companies/[^/]+/(interactions|attachments)(/|$)")
 
 
 def host_name(value: str) -> str:
@@ -1286,6 +1316,20 @@ def create_app(root: Path, config: dict | None = None,
                 "from Hermit CRM itself.", status_code=403)
         return await call_next(request)
 
+    @app.middleware("http")
+    async def upload_size_limit(request: Request, call_next):
+        # A form that attaches files can carry a few big ones; this refuses a request
+        # that says it is far bigger before a byte of it is parsed. Each file is
+        # checked against attachment_max_mb again as it is read.
+        if request.method == "POST" and ATTACH_FORMS.match(request.url.path):
+            size = request.headers.get("content-length", "")
+            if size.isdigit() and int(size) > store.attachment_limit() * 4 + (1 << 20):
+                return PlainTextResponse(
+                    "Too much at once: attach fewer or smaller files "
+                    "(attachment_max_mb in config.toml sets the limit for each).",
+                    status_code=413)
+        return await call_next(request)
+
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 
     @app.get("/theme.css", include_in_schema=False)
@@ -1420,6 +1464,8 @@ def create_app(root: Path, config: dict | None = None,
     )
 
     templates.env.filters["slug"] = slugify  # CSS class names from outcome values
+    templates.env.filters["filesize"] = attachments_mod.human_size
+    templates.env.globals["attach_max_mb"] = lambda: store.attachment_limit() >> 20
     templates.env.filters["href"] = safe_href  # stored URLs: http(s) or nothing
     templates.env.filters["day_span"] = sendplan.compact_days  # "Mon, Tue, Wed" as "Mon–Wed"
     templates.env.filters["placeholders"] = placeholders  # a starter's [placeholders]
@@ -3166,7 +3212,9 @@ def create_app(root: Path, config: dict | None = None,
                                      "whole company")
             if errors:
                 raise ValidationError(errors)
-            created = store.create_interaction(slug, custom=extra, **values)
+            incoming = await read_uploads(request, store.attachment_limit())
+            created = store.create_interaction(slug, custom=extra, attachments=incoming,
+                                               **values)
         except ValidationError as exc:
             values.update(shown)
             return render(request, "interaction_new.html", {
@@ -3176,8 +3224,9 @@ def create_app(root: Path, config: dict | None = None,
             }, status_code=400)
         back = (f"/companies/{slug}/contacts/{created.contact}" if created.contact
                 else f"/companies/{slug}")   # a note for the whole company
-        return flashed(back,
-                       "Note added" if created.is_note else "Interaction logged",
+        done = "Note added" if created.is_note else "Interaction logged"
+        n = len(created.attachments)
+        return flashed(back, done + (f" with {n} file{'s' if n != 1 else ''}" if n else ""),
                        anchor=f"i-{created.id}")
 
     @app.get("/companies/{slug}/interactions/{id}/edit", response_class=HTMLResponse)
@@ -3192,7 +3241,8 @@ def create_app(root: Path, config: dict | None = None,
             "outcome": it.outcome, "body": it.body,
         }
         return render(request, "interaction_edit.html",
-                      {"company": company, "id": id, "interaction": values})
+                      {"company": company, "id": id, "interaction": values,
+                       "attachments": it.attachments})
 
     @app.post("/companies/{slug}/interactions/{id}/edit")
     async def interaction_save(
@@ -3208,7 +3258,8 @@ def create_app(root: Path, config: dict | None = None,
         body: str = Form(""),
     ):
         company = need_company(slug)
-        if not any(i.id == id for i in company.interactions):
+        current = next((i for i in company.interactions if i.id == id), None)
+        if current is None:
             raise HTTPException(status_code=404, detail=f"unknown interaction {id!r}")
         values = {"channel": channel, "direction": direction, "contact": contact,
                   "date": date, "subject": subject,
@@ -3217,14 +3268,59 @@ def create_app(root: Path, config: dict | None = None,
         try:
             if custom_errors:
                 raise ValidationError(custom_errors)
-            saved = store.update_interaction(slug, id, custom=extra, **values)
+            incoming = await read_uploads(request, store.attachment_limit())
+            saved = store.update_interaction(slug, id, custom=extra, add_files=incoming,
+                                             **values)
         except ValidationError as exc:
             return render(request, "interaction_edit.html", {
                 "company": company, "id": id, "interaction": values,
-                "errors": exc.errors,
+                "attachments": current.attachments, "errors": exc.errors,
             }, status_code=400)
         return flashed(f"/companies/{slug}", "Interaction updated",
                        anchor=f"i-{saved.id}")
+
+    def interaction_home(company: Company, it) -> str:
+        return (f"/companies/{company.slug}/contacts/{it.contact}" if it.contact
+                else f"/companies/{company.slug}")
+
+    @app.post("/companies/{slug}/interactions/{id}/attachments")
+    async def interaction_attach(request: Request, slug: str, id: str,
+                                 back: str = Form("")):
+        """Add files to a note or interaction that exists: the picker on its edit
+        page, or a file dropped on it in the timeline (`Accept: application/json`)."""
+        company = need_company(slug, refresh=True)
+        it = next((i for i in company.interactions if i.id == id), None)
+        if it is None:
+            raise HTTPException(status_code=404, detail=f"unknown interaction {id!r}")
+        wants_json = "application/json" in request.headers.get("accept", "")
+        try:
+            incoming = await read_uploads(request, store.attachment_limit())
+            if not incoming:
+                raise ValidationError({"files": "choose a file to attach"})
+            saved = store.update_interaction(slug, id, add_files=incoming)
+        except ValidationError as exc:
+            message = "; ".join(exc.errors.values())
+            if wants_json:
+                return JSONResponse({"ok": False, "error": message}, status_code=400)
+            return flashed(safe_back(back, interaction_home(company, it)), message)
+        if wants_json:
+            return JSONResponse({"ok": True, "attachments": [
+                attachment_json(slug, a) for a in saved.attachments]})
+        return flashed(safe_back(back, interaction_home(company, it)), "File attached",
+                       anchor=f"i-{saved.id}")
+
+    @app.post("/companies/{slug}/interactions/{id}/attachments/{file}/delete")
+    def interaction_detach(slug: str, id: str, file: str, back: str = Form("")):
+        company = need_company(slug, refresh=True)
+        it = next((i for i in company.interactions if i.id == id), None)
+        if it is None:
+            raise HTTPException(status_code=404, detail=f"unknown interaction {id!r}")
+        try:
+            store.update_interaction(slug, id, remove_files=[file])
+        except ValidationError:
+            raise HTTPException(status_code=404, detail="no such file") from None
+        return flashed(safe_back(back, f"/companies/{slug}/interactions/{id}/edit"),
+                       "File removed")
 
     @app.post("/companies/{slug}/interactions/{id}/delete")
     def interaction_delete(request: Request, slug: str, id: str):

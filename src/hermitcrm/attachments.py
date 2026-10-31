@@ -156,3 +156,15 @@ def from_meta(raw) -> list[Attachment]:
         out.append(Attachment(file, name, size if isinstance(size, int) and size >= 0 else 0,
                               media_type(name)))
     return out
+
+
+def human_size(n) -> str:
+    """"17 B", "1.2 KB", "3.4 MB": for chips and lists."""
+    n = max(0, int(n or 0))
+    if n < 1024:
+        return f"{n} B"
+    for unit in ("KB", "MB", "GB"):
+        n /= 1024
+        if n < 1024 or unit == "GB":
+            return f"{n:.1f} {unit}"
+    return f"{n:.1f} GB"

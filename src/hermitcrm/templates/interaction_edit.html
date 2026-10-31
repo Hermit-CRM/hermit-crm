@@ -5,6 +5,15 @@
 <h1>Edit interaction</h1>
 <p class="small"><a href="/companies/{{ company.slug }}">{{ company.name }}</a> &middot; {{ id }}</p>
 {{ m.interaction_form('/companies/' ~ company.slug ~ '/interactions/' ~ id ~ '/edit', company, interaction, errors, 'Save interaction') }}
+{% if attachments %}
+<h2>Files ({{ attachments | length }})</h2>
+{{ m.attachment_chips(company, attachments) }}
+{% for a in attachments %}
+<form method="post" action="/companies/{{ company.slug }}/interactions/{{ id }}/attachments/{{ a.file | urlencode }}/delete" class="inline">
+  <button type="submit" onclick="return confirm('Remove {{ a.name | e }} from this interaction? It is deleted from the folder when nothing else uses it; git keeps its history.')">Remove {{ a.name }}</button>
+</form>
+{% endfor %}
+{% endif %}
 <form method="post" action="/companies/{{ company.slug }}/interactions/{{ id }}/delete" class="danger">
   <button type="submit" onclick="return confirm('Delete this interaction? The file is removed; git keeps its history.')">Delete interaction</button>
 </form>
