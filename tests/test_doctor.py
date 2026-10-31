@@ -62,14 +62,14 @@ def test_fresh_folder_warns_but_does_not_fail(folder, tmp_path):
     assert [c for c in res] == ["python", "git", "data folder", "data format", "config",
                                 "owner_email", "keyring", "bcc password", "imap login",
                                 "calendar url",
-                                "schedule", "backup", "agent guard", "agent skill",
-                                "git remote", "enrich cli", "update"]
+                                "schedule", "backup", "attachments", "agent guard",
+                                "agent skill", "git remote", "enrich cli", "update"]
     assert res["owner_email"].status == "warn"
     assert res["schedule"].status == "warn" and res["git remote"].status == "warn"
     assert res["imap login"].detail == "not checked; add --online"
     assert res["enrich cli"].detail == "claude"
     text, code = doctor.report(list(res.values()))
-    assert code == 0 and len(text.splitlines()) == 17
+    assert code == 0 and len(text.splitlines()) == 18
     assert res["backup"].status == "warn"
     assert text.splitlines()[0].startswith("ok    python: ")
 
@@ -256,3 +256,15 @@ def test_doctor_keyring_line_is_informational_and_linux_only(folder, tmp_path):
     for platform in ("darwin", "win32"):
         assert "keyring" not in checks(folder, tmp_path, platform=platform,
                                        runner=silent)
+
+
+def test_doctor_counts_attachments_and_warns_when_they_pile_up(folder, tmp_path, monkeypatch):
+    assert checks(folder, tmp_path)["attachments"].detail == "no attachments"
+    files = folder / "companies" / "acme" / "attachments"
+    files.mkdir(parents=True)
+    (files / "0123456789ab-a.pdf").write_bytes(b"x" * 2048)
+    res = checks(folder, tmp_path)["attachments"]
+    assert res.status == "ok" and res.detail == "1 file, 2.0 KB"
+    monkeypatch.setattr(doctor, "ATTACHMENT_WARN_BYTES", 1024)
+    res = checks(folder, tmp_path)["attachments"]
+    assert res.status == "warn" and "history" in res.detail

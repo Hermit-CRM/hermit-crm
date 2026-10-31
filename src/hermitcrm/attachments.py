@@ -171,6 +171,38 @@ def files_of(interactions) -> list[tuple[Attachment, object]]:
     return out
 
 
+def audit(store) -> tuple[list[str], list[str]]:
+    """(errors, warnings) for `hermitcrm check`, one "<path>: <what>" line each.
+    A note that names a file that is gone is an error; a file nobody uses, one
+    whose content no longer matches its name, or one over the size limit is a
+    warning (the folder still works)."""
+    errors, warnings = [], []
+    cap = store.attachment_limit()
+    for company in store.companies.values():
+        slug = company.slug
+        folder = store.company_dir(slug) / "attachments"
+        for it in company.interactions:
+            for att in it.attachments:
+                if not (folder / att.file).is_file():
+                    errors.append(f"companies/{slug}/interactions/{it.id}.md: attachment "
+                                  f"{att.name} is missing (companies/{slug}/attachments/{att.file})")
+        if not folder.is_dir():
+            continue
+        used = store.referenced_files(slug)
+        for path in sorted(folder.iterdir()):
+            if not path.is_file() or path.name.endswith(".tmp"):
+                continue
+            where = f"companies/{slug}/attachments/{path.name}"
+            if path.name not in used:
+                warnings.append(f"{where}: no note uses this file")
+                continue
+            if not intact(path):
+                warnings.append(f"{where}: content does not match its hash")
+            if path.stat().st_size > cap:
+                warnings.append(f"{where}: larger than attachment_max_mb ({cap >> 20} MB)")
+    return errors, warnings
+
+
 def human_size(n) -> str:
     """"17 B", "1.2 KB", "3.4 MB": for chips and lists."""
     n = max(0, int(n or 0))

@@ -32,11 +32,16 @@ from pathlib import Path
 from . import (__version__, backup, bcc, guard, migrations, schedule, secrets, send, sendqueue,
                updates, usertheme)
 from . import setup as setup_steps
+from .attachments import human_size
 from .datafolder import SKILL, is_data_folder
 from .enrich import Enricher
 from .store import DEFAULT_CONFIG
 
 OK, WARN, FAIL = "ok", "warn", "fail"
+
+# Past this much in attachments/ the folder (and every clone and backup of it) is
+# heavy for good: git keeps every version and history is never rewritten here.
+ATTACHMENT_WARN_BYTES = 500 * 1024 * 1024
 
 
 @dataclass
@@ -179,6 +184,22 @@ def run_checks(root: Path, *, online: bool = False, env: dict | None = None,
 
     sending_checks(add, root, config, state, online=online, env=env, runner=runner,
                    platform=platform, send_smtp=send_smtp, send_imap=send_imap, now=now)
+
+    try:
+        kept = [p for p in root.glob("companies/*/attachments/*")
+                if p.is_file() and not p.name.endswith(".tmp")]
+        total = sum(p.stat().st_size for p in kept)
+        size = human_size(total)
+        if not kept:
+            add("attachments", OK, "no attachments")
+        elif total > ATTACHMENT_WARN_BYTES:
+            add("attachments", WARN, f"{len(kept)} file{'s' if len(kept) != 1 else ''}, {size}: "
+                "git keeps every version and history is never rewritten here, so this only "
+                "grows; keep large files elsewhere and link to them in a note")
+        else:
+            add("attachments", OK, f"{len(kept)} file{'s' if len(kept) != 1 else ''}, {size}")
+    except OSError as exc:
+        add("attachments", WARN, f"could not check: {exc}")
 
     try:
         gone = guard.missing(root)

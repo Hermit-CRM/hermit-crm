@@ -232,3 +232,134 @@ def test_migration_20_is_a_noop_and_idempotent(tmp_path):
     assert migration.apply(dict(meta)) == meta
     assert migration.apply(migration.apply(dict(meta))) == meta
     assert migrations.LATEST == 20
+
+
+# ------------------------------------------------- hermitcrm check and the CLI
+
+from hermitcrm import cli as crm
+
+
+def raw_interaction(store, text: str):
+    """Rewrite the front matter of the only interaction, as a hand edit would."""
+    path = store.interaction_file("acme", store.get("acme").interactions[0].id)
+    path.write_text(text(path.read_text()), encoding="utf-8")
+
+
+def test_check_reports_a_missing_attachment_as_an_error(seeded):
+    it = seeded.create_interaction("acme", "note", "", body="x",
+                                   attachments=[Incoming("a.pdf", PDF)])
+    seeded.attachment_path("acme", it.attachments[0].file).unlink()
+    text, code = crm.cmd_check(seeded)
+    assert code == 1
+    assert f"companies/acme/interactions/{it.id}.md" in text and "a.pdf" in text
+    assert "missing" in text
+
+
+def test_check_warns_about_an_orphan_and_a_changed_file(seeded):
+    it = seeded.create_interaction("acme", "note", "", body="x",
+                                   attachments=[Incoming("a.pdf", PDF)])
+    seeded.attachment_path("acme", it.attachments[0].file).write_bytes(PDF + b"tampered")
+    orphan = seeded.attachment_path("acme", "0123456789ab-orphan.pdf")
+    orphan.write_bytes(b"nobody uses me")
+    text, code = crm.cmd_check(seeded)
+    assert code == 0                       # warnings never change the exit code
+    assert f"companies/acme/attachments/{it.attachments[0].file}: content does not match" in text
+    assert "companies/acme/attachments/0123456789ab-orphan.pdf: no note uses this file" in text
+    assert text.splitlines()[-1].startswith("OK: ")
+
+
+def test_check_warns_about_a_file_over_the_cap(seeded):
+    seeded.create_interaction("acme", "note", "", body="x",
+                              attachments=[Incoming("big.bin", b"0" * (1024 * 1024 + 1))])
+    (seeded.root / "config.toml").write_text("attachment_max_mb = 1\n")
+    text, code = crm.cmd_check(seeded)
+    assert code == 0 and "larger than attachment_max_mb (1 MB)" in text
+
+
+def test_check_reports_an_attachment_entry_it_cannot_read(seeded):
+    seeded.create_interaction("acme", "note", "", body="x")
+    raw_interaction(seeded, lambda t: t.replace("source: manual\n",
+                                                "source: manual\nattachments:\n  - {file: nope}\n"))
+    text, code = crm.cmd_check(seeded)
+    assert code == 1 and "attachments" in text and "not readable" in text
+
+
+def test_check_is_quiet_when_all_is_well(seeded):
+    seeded.create_interaction("acme", "note", "", body="x", attachments=[Incoming("a.pdf", PDF)])
+    text, code = crm.cmd_check(seeded)
+    assert code == 0 and text.startswith("OK: 1 companies")
+
+
+@pytest.fixture
+def outside(tmp_path_factory):
+    folder = tmp_path_factory.mktemp("downloads")
+    (folder / "Proposal v2.pdf").write_bytes(PDF)
+    (folder / "notes.txt").write_bytes(b"hello")
+    return folder
+
+
+def test_attach_creates_a_note_with_the_files(seeded, outside, messages):
+    del messages[:]
+    text, code = crm.cmd_attach(seeded, "acme", [str(outside / "Proposal v2.pdf"),
+                                                 str(outside / "notes.txt")],
+                                contact="jane-doe")
+    assert code == 0 and "2 files" in text
+    (note,) = seeded.get("acme").interactions
+    assert note.contact == "jane-doe" and note.subject == "Files: Proposal v2.pdf, notes.txt"
+    assert all(a.file in text for a in note.attachments)
+    assert len(messages) == 1
+
+
+def test_attach_uses_the_note_text_when_given(seeded, outside):
+    crm.cmd_attach(seeded, "acme", [str(outside / "notes.txt")], note="Call notes.")
+    (note,) = seeded.get("acme").interactions
+    assert note.body == "Call notes.\n" and note.subject == ""
+
+
+def test_attach_to_an_existing_interaction(seeded, outside):
+    it = seeded.create_interaction("acme", "note", "", body="x")
+    text, code = crm.cmd_attach(seeded, "acme", [str(outside / "notes.txt")], to=it.id)
+    assert code == 0
+    assert [a.name for a in seeded.get("acme").interactions[0].attachments] == ["notes.txt"]
+
+
+def test_attach_refuses_what_it_cannot_keep(seeded, outside, tmp_path):
+    (seeded.root / "config.toml").write_text("attachment_max_mb = 1\n")
+    big = outside / "big.bin"
+    big.write_bytes(b"0" * (1024 * 1024 + 1))
+    for args, kw, word in [
+        ([str(outside)], {}, "not a file"),
+        ([str(outside / "missing.pdf")], {}, "not a file"),
+        ([str(big)], {}, "larger than 1 MB"),
+        ([str(outside / "notes.txt")], {"contact": "nobody"}, "unknown contact"),
+        ([str(outside / "notes.txt")], {"to": "no-such-id"}, "unknown interaction"),
+        ([], {}, "no files"),
+    ]:
+        text, code = crm.cmd_attach(seeded, "acme", args, **kw)
+        assert code == 1 and word in text, (args, text)
+    text, code = crm.cmd_attach(seeded, "nope", [str(outside / "notes.txt")])
+    assert code == 1 and "unknown company" in text
+    assert seeded.get("acme").interactions == []
+
+
+def test_attachments_command_lists_files_by_company(seeded, outside):
+    assert crm.cmd_attachments(seeded, "") == ("No attachments yet. Add one with: "
+                                               "hermitcrm attach <company> <file>", 0)
+    it = seeded.create_interaction("acme", "note", "", body="x",
+                                   attachments=[Incoming("a.pdf", PDF)])
+    text, code = crm.cmd_attachments(seeded, "")
+    assert code == 0
+    assert text == f"acme | {it.attachments[0].file} | {len(PDF)} B | {it.id}"
+    assert crm.cmd_attachments(seeded, "acme") == (text, 0)
+    assert crm.cmd_attachments(seeded, "nope")[1] == 1
+
+
+def test_attach_commands_are_wired_to_the_parser(seeded, outside, tmp_path):
+    import subprocess
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=seeded.root, check=True)
+    code = crm.main(["attach", "acme", str(outside / "notes.txt")], root=seeded.root)
+    assert code == 0
+    assert crm.main(["attachments"], root=seeded.root) == 0
+    log = subprocess.run(["git", "log", "--format=%s"], cwd=seeded.root, capture_output=True,
+                         text=True).stdout
+    assert "interaction: acme" in log and "1 file" in log
