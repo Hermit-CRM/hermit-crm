@@ -18,7 +18,6 @@ are in-memory doubles and the clock is passed in; no test touches the network.""
 
 from __future__ import annotations
 
-import imaplib
 import re
 import smtplib
 import socket
@@ -26,7 +25,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from hermitcrm import cli, doctor, outreach, send, sendqueue
+from hermitcrm import cli, doctor, mailtls, outreach, send, sendqueue
 from hermitcrm.store import load_config
 from outreach_fakes import NOW, git
 from send_fakes import (GOOD_PASSWORD, MARA, FakeImap, FakeSmtp, auth_error, data_error,
@@ -537,7 +536,7 @@ def test_the_cli_sends_now_through_the_default_connections(folder, capsys, monke
     ids = many_ready(root, store, 1)
     smtp, imap = FakeSmtp(), FakeImap()
     monkeypatch.setattr(smtplib, "SMTP", smtp.factory)
-    monkeypatch.setattr(imaplib, "IMAP4_SSL", imap.factory)
+    monkeypatch.setattr(mailtls, "imap_ssl", imap.factory)
     assert run_cli(root, "outreach", "send-now", ids[0]) == 0
     assert capsys.readouterr().out.startswith(f"sent: {ids[0]}")
     assert len(smtp.sent) == 1 and outreach.get_item(root, ids[0]).state == "sent"
@@ -553,7 +552,7 @@ def test_the_cli_pause_resume_and_test(folder, capsys, monkeypatch):
     assert "Resumed: the Pause button." in capsys.readouterr().out
     smtp, imap = FakeSmtp(), FakeImap()
     monkeypatch.setattr(smtplib, "SMTP", smtp.factory)
-    monkeypatch.setattr(imaplib, "IMAP4_SSL", imap.factory)
+    monkeypatch.setattr(mailtls, "imap_ssl", imap.factory)
     assert run_cli(root, "send", "test") == 0
     assert "Test mail sent to sam@example.com" in capsys.readouterr().out
     bad = FakeSmtp(login_error=auth_error())

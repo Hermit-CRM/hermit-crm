@@ -53,7 +53,7 @@ from email.message import EmailMessage
 from email.utils import format_datetime, formataddr, make_msgid
 from pathlib import Path
 
-from . import dateformat, messaging, outreach, playbook, secrets, sendplan, suppress
+from . import dateformat, mailtls, messaging, outreach, playbook, secrets, sendplan, suppress
 from .models import do_not_contact, normalise_email, valid_email
 from .store import Store, load_config
 
@@ -364,7 +364,7 @@ def build_message(item, to: str, settings: SendSettings, *, message_id: str,
 def connect(settings: SendSettings, password: str, factory=None, timeout: float = TIMEOUT):
     """An authenticated SMTP connection: STARTTLS on 587, SSL on 465."""
     ssl_port = settings.smtp_port == 465
-    factory = factory or (smtplib.SMTP_SSL if ssl_port else smtplib.SMTP)
+    factory = factory or (mailtls.smtp_ssl if ssl_port else smtplib.SMTP)
     conn = None
     try:
         conn = factory(settings.smtp_host, settings.smtp_port, timeout=timeout)
@@ -493,7 +493,7 @@ class Mailbox:
     def __init__(self, settings: SendSettings, password: str, factory=None,
                  timeout: float = TIMEOUT):
         self.settings, self.password = settings, password
-        self.factory = factory or imaplib.IMAP4_SSL
+        self.factory = factory or mailtls.imap_ssl
         self.timeout = timeout
         self.conn = None
         self.folders: dict[str, str] = {}
