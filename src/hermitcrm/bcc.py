@@ -52,7 +52,7 @@ from pathlib import Path
 from typing import Callable, Iterable
 from urllib.parse import urlparse
 
-from . import secrets
+from . import mailtls, secrets
 from .models import (
     ValidationError, fmt_datetime, normalise_email, normalise_website, slugify,
     split_name, unique_slug, valid_email,
@@ -1028,7 +1028,7 @@ class GmailMailbox:
                  timeout: float = 30.0):
         self.settings = settings
         self.password = password
-        self.imap_factory = imap_factory or imaplib.IMAP4_SSL
+        self.imap_factory = imap_factory or mailtls.imap_ssl
         self.timeout = timeout
         self.conn = None
         self.folder = ""
