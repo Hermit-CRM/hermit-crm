@@ -8,6 +8,24 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Attach files to notes and interactions.** A note, an email, a call or any
+  other interaction can carry files: pick them under the body, drop them on the
+  form, paste a screenshot, or drop a file on an entry in the timeline to add it
+  there. Drop a file anywhere on a company or contact page and it becomes a new
+  note. Each company and contact page has a **Files** section listing every file
+  once, and the company search also finds a file by name. Files are kept in
+  `companies/<slug>/attachments/`, named by their content, and listed under
+  `attachments:` in the interaction that owns them, so they are committed with it
+  and a rename or re-date never loses them. A file can be at most 25 MB
+  (`attachment_max_mb`). Pictures and PDFs open in the browser; every other type
+  downloads, so a file cannot run anything in the app. Removing a file deletes it
+  from the folder when no note uses it, but git keeps the old copy, because history
+  is never rewritten. `hermitcrm attach COMPANY FILE...` and `hermitcrm
+  attachments` do the same from the command line, `hermitcrm check` reports a
+  missing, unused or changed file, and `hermitcrm doctor` adds the folder's total
+  size. Your data folder is migrated to format 20 (nothing in a file changes).
+  See [Interactions](/help/interactions).
+
 - **Mark a follow-up done.** Each row on the Outreach **Follow-ups** tab has a **Mark
   done** button, for a follow-up you made somewhere else (a LinkedIn message, a call)
   or decided to let go. The row leaves the tab, the batch, the home page and
