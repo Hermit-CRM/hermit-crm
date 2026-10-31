@@ -8,6 +8,20 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Mail connections check the server's certificate.** Sending over port 465 and every
+  IMAP connection (the reply check, the Sent check, the bounce scan and the BCC import)
+  now refuse a server whose certificate is not valid for its host name; port 587 already
+  did. A self-signed or mismatched certificate pauses sending with a banner that says
+  what is wrong, instead of retrying; **Send a test to myself** in Settings > Sending
+  and `hermitcrm doctor --online` show the same message, and a passing test lifts the
+  pause. Gmail, iCloud and Fastmail are unaffected. See [Sending](/help/sending). No
+  data migration.
+- **A queued email that was never scheduled in the app is held.** A file set to `queued`
+  by hand or by an agent, without pressing **Schedule**, goes back to Ready with "it was
+  never scheduled in the app" instead of going out. **Send now** still sends it. No data
+  migration.
+- **Delete approach works for any name.** The confirm dialog no longer breaks on an
+  approach name with an apostrophe or quotes. No data migration.
 - **Mark a follow-up done.** Each row on the Outreach **Follow-ups** tab has a **Mark
   done** button, for a follow-up you made somewhere else (a LinkedIn message, a call)
   or decided to let go. The row leaves the tab, the batch, the home page and
