@@ -3073,7 +3073,6 @@ def _refresh(store: Store, item_id: str) -> Item:
 def check_item(store: Store, item: Item, config: dict | None = None) -> list[str]:
     """The hard checks again, on the text as it is now (the person may have
     edited it). The findings and proof it cites stay as the AI declared them."""
-    company = store.get(item.company)
     messages = messaging.load_messages(store.root)
     framework, _ = item_framework(frameworks.load(store.root), item)
     rules = framework_rules(channel_rules(item.channel, messages), framework, item.channel,

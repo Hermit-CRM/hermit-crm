@@ -854,10 +854,6 @@ def validate_messages(root: Path) -> list[str]:
         return [f"{messaging.MESSAGES_FILE}: languages: {exc}"]
     except Exception as exc:  # deep_merge on a value of the wrong shape
         return [f"{messaging.MESSAGES_FILE}: file: {exc}"]
-    try:
-        defs = custom.load(root)
-    except Exception:
-        defs = []
     languages = messages.get("languages")
     if not isinstance(languages, dict):
         return [f"{messaging.MESSAGES_FILE}: languages: must be a table of languages"]
