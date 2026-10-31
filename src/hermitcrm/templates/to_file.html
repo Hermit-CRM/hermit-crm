@@ -17,6 +17,7 @@
     {{ it.name }} &lt;{{ it.address }}&gt;{% if it.subject %}: {{ it.subject }}{% endif %}
   </p>
   <p class="small">{{ it.reason }}</p>
+  {% if it.attachments %}<p class="small">Files: {{ it.attachments | map(attribute='name') | join(', ') }} (kept with the interaction when you log it)</p>{% endif %}
   <details><summary>{{ 'notes' if it.kind == 'meeting' else 'message' }}</summary><pre class="body">{{ it.body }}</pre></details>
   <form method="post" action="/inbox/{{ it.id }}/assign" class="inbox-assign">
     <label>company <input name="company" list="company-slugs" placeholder="company name or slug; a new name creates it" required></label>
