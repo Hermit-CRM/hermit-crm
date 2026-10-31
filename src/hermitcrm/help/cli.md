@@ -133,6 +133,11 @@ hermitcrm add interaction SLUG --channel email|linkedin|call|whatsapp|meeting|no
                                         [--contact CSLUG] [--subject S] [--date D] [--body TEXT|-]
                                         log an interaction; --body - reads it from stdin, and a prospect becomes engaged
                                         (the first open stage moves to the next)
+hermitcrm attach COMPANY FILE... [--contact CSLUG] [--to INTERACTION_ID] [--note TEXT]
+                                        keep files on a new note (subject: the file names, or --note as its text)
+                                        or, with --to, on that interaction; writes and commits at once; at most
+                                        attachment_max_mb each
+hermitcrm attachments [COMPANY]            every stored file: company | stored name | size | the note it came with
 hermitcrm set companies|contacts|interactions --where KEY=VALUE ... [--all]
         [--set FIELD=VALUE ...] [--unset FIELD ...] [--add-tag T ...] [--remove-tag T ...]
         [--stage S] [--apply] [--message TEXT]
