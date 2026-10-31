@@ -2188,7 +2188,7 @@ def create_app(root: Path, config: dict | None = None,
     @app.get("/companies", response_class=HTMLResponse)
     def companies_list(request: Request, q: str = ""):
         found = listing("companies", request.query_params, q)
-        cols, active, companies = found.columns, found.active, found.rows
+        active, companies = found.active, found.rows
         sort_key, sort_dir, shown = found.sort, found.dir, found.extra["shown"]
         show_parked, hidden = found.extra["show_parked"], found.extra["hidden_parked"]
         toggle = [(k, v) for k, v in request.query_params.multi_items()
@@ -4793,8 +4793,8 @@ def create_app(root: Path, config: dict | None = None,
         return flashed("/outreach/linkedin", text)
 
     @app.post("/outreach/{item_id}/page")
-    async def outreach_page(item_id: str, csrf_token: str = Form(""), url: str = Form(""),
-                            top: str = Form(""), about: str = Form(""), act: str = Form("")):
+    async def outreach_item_page(item_id: str, csrf_token: str = Form(""), url: str = Form(""),
+                                 top: str = Form(""), about: str = Form(""), act: str = Form("")):
         """Add to research: what the bookmarklet read on the contact's own LinkedIn
         profile, as trimmed on the Add page, becomes findings on the card. One AI
         call (no tools); the page text itself is not kept."""
