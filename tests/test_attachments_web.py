@@ -127,3 +127,136 @@ def test_a_referenced_file_missing_on_disk_is_404(store, client):
 
 def test_unknown_company_is_404(client):
     assert client.get("/companies/nope/attachments/0123456789ab-a.pdf").status_code == 404
+
+
+# --------------------------------------------------------- attaching in forms
+
+import re
+import subprocess
+
+NOTE = {"channel": "note", "direction": "out", "contact": "", "date": "", "subject": "",
+        "outcome": "", "body": "Sent the proposal."}
+
+
+def git(repo, *args) -> str:
+    return subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True,
+                          check=True).stdout.strip()
+
+
+def commits(repo) -> int:
+    return int(git(repo, "rev-list", "--count", "HEAD"))
+
+
+def post_note(client, files, data=None, headers=None):
+    return client.post("/companies/acme/interactions", data=data or NOTE, files=files,
+                       headers=headers or {})
+
+
+def pdf_part(name="Proposal.pdf", data=PDF):
+    return [("files", (name, data, "application/pdf"))]
+
+
+def test_note_with_a_file_is_one_commit(store, client, repo):
+    before = commits(repo)
+    r = post_note(client, pdf_part())
+    assert r.status_code == 303
+    (note,) = store.get("acme").interactions
+    (att,) = note.attachments
+    assert att.name == "Proposal.pdf" and note.body == "Sent the proposal.\n"
+    assert commits(repo) == before + 1
+    changed = git(repo, "show", "--name-only", "--format=", "HEAD").splitlines()
+    assert f"companies/acme/attachments/{att.file}" in changed
+    assert f"companies/acme/interactions/{note.id}.md" in changed
+
+
+@pytest.mark.parametrize("files", [None, [("files", ("", b"", "application/octet-stream"))]])
+def test_note_form_still_works_without_files(store, client, files):
+    r = post_note(client, files) if files else client.post("/companies/acme/interactions",
+                                                           data=NOTE)
+    assert r.status_code == 303
+    (note,) = store.get("acme").interactions
+    assert note.attachments == []
+    assert "attachments" not in store.interaction_file("acme", note.id).read_text()
+
+
+def test_several_files_and_a_nameless_zero_byte_part(store, client):
+    r = post_note(client, pdf_part() + [("files", ("notes.txt", b"hello", "text/plain")),
+                                        ("files", ("empty.txt", b"", "text/plain"))])
+    assert r.status_code == 303
+    names = [a.name for a in store.get("acme").interactions[0].attachments]
+    assert names == ["Proposal.pdf", "notes.txt"]  # an empty file is not worth keeping
+
+
+def test_over_cap_upload_writes_nothing(store, client, repo):
+    (repo / "config.toml").write_text("attachment_max_mb = 1\n")
+    before = commits(repo)
+    r = post_note(client, pdf_part("big.bin", b"0" * (1024 * 1024 + 1)))
+    assert r.status_code == 400
+    assert "larger than 1 MB" in r.text and "Sent the proposal." in r.text  # typed text kept
+    assert store.get("acme").interactions == []
+    assert not (repo / "companies" / "acme" / "attachments").exists()
+    assert commits(repo) == before
+
+
+def test_a_huge_request_is_refused_before_it_is_parsed(store, client, repo):
+    (repo / "config.toml").write_text("attachment_max_mb = 1\n")
+    r = post_note(client, pdf_part("big.bin", b"0" * (6 * 1024 * 1024)))
+    assert r.status_code == 413
+    assert store.get("acme").interactions == []
+
+
+def test_a_cross_site_upload_is_refused(store, client):
+    r = post_note(client, pdf_part(), headers={"Origin": "https://evil.example",
+                                               "Sec-Fetch-Site": "cross-site"})
+    assert r.status_code == 403 and store.get("acme").interactions == []
+
+
+def test_edit_save_can_add_a_file(store, client):
+    note = store.create_interaction("acme", "note", "", body="x")
+    r = client.post(f"/companies/acme/interactions/{note.id}/edit",
+                    data={**NOTE, "body": "x", "date": "2026-09-14T10:30"}, files=pdf_part())
+    assert r.status_code == 303
+    assert [a.name for a in store.get("acme").interactions[0].attachments] == ["Proposal.pdf"]
+
+
+def test_add_and_remove_on_an_existing_note(store, client):
+    note = store.create_interaction("acme", "note", "", body="x")
+    r = client.post(f"/companies/acme/interactions/{note.id}/attachments", files=pdf_part(),
+                    headers={"Accept": "application/json"})
+    assert r.status_code == 200 and r.json()["ok"] is True
+    (att,) = store.get("acme").interactions[0].attachments
+    assert r.json()["attachments"][0]["file"] == att.file
+    r = client.post(f"/companies/acme/interactions/{note.id}/attachments/{att.file}/delete")
+    assert r.status_code == 303
+    assert store.get("acme").interactions[0].attachments == []
+    assert not store.attachment_path("acme", att.file).exists()
+
+
+def test_add_to_an_unknown_note_is_404(store, client):
+    r = client.post("/companies/acme/interactions/nope/attachments", files=pdf_part())
+    assert r.status_code == 404
+
+
+def test_edit_page_lists_files_with_remove(store, client):
+    att = attach(store, "Proposal.pdf", PDF)
+    note = store.get("acme").interactions[0]
+    page = client.get(f"/companies/acme/interactions/{note.id}/edit").text
+    assert "Proposal.pdf" in page and url(att) in page
+    assert f"/interactions/{note.id}/attachments/{att.file}/delete" in page
+    assert 'enctype="multipart/form-data"' in page and 'name="files"' in page
+
+
+def test_timeline_shows_chip_and_thumbnail_for_png(store, client):
+    png, pdf = attach(store, "pic.png", PNG), attach(store, "Proposal.pdf", PDF)
+    page = client.get("/companies/acme").text
+    assert f'href="{url(pdf)}"' in page and "Proposal.pdf" in page
+    assert re.search(rf'<img[^>]+src="{re.escape(url(png))}"', page)
+    assert not re.search(rf'<img[^>]+src="{re.escape(url(pdf))}"', page)
+    assert "17 B" in page or "17&nbsp;B" in page   # the size, humanised
+
+
+def test_note_form_offers_the_picker_and_the_script(store, client):
+    page = client.get("/companies/acme/interactions/new?channel=note&whole=1").text
+    assert 'enctype="multipart/form-data"' in page and 'type="file"' in page
+    assert "/static/attach.js" in page
+    assert client.get("/static/attach.js").status_code == 200
