@@ -112,6 +112,8 @@
 </section>
 {% elif section == 'tasks' %}
 {{ m.task_section(company, today) }}
+{% elif section == 'files' %}
+{{ m.files_section(company, files) }}
 {% elif section == 'merge' %}
 <section id="merge">
   <h2>Merge</h2>

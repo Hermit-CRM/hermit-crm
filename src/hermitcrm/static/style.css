@@ -1172,3 +1172,8 @@ ul.files .file { display: inline-flex; align-items: center; gap: 6px; background
 ul.files .file a { display: inline-flex; align-items: center; gap: 4px; }
 ul.files .file .icon { width: 14px; height: 14px; }
 ul.files .thumb { display: block; width: 44px; height: 44px; object-fit: cover; border-radius: 3px; border: 1px solid var(--line); }
+#files ul.file-rows { list-style: none; margin: 0 0 8px; padding: 0; }
+#files ul.file-rows li { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+#files ul.file-rows .thumb { width: 32px; height: 32px; }
+.drop-hint { position: fixed; inset: auto 16px 16px auto; z-index: 50; background: var(--accent); color: var(--surface); padding: 10px 14px; border-radius: 6px; font-size: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.25); pointer-events: none; }
+.drop-hint[hidden] { display: none; }

@@ -158,6 +158,19 @@ def from_meta(raw) -> list[Attachment]:
     return out
 
 
+def files_of(interactions) -> list[tuple[Attachment, object]]:
+    """(attachment, the interaction it came with) for every file once, newest
+    first: `interactions` is newest first, so a file used twice shows with the
+    newest note."""
+    seen, out = set(), []
+    for it in interactions:
+        for att in getattr(it, "attachments", None) or []:
+            if att.file not in seen:
+                seen.add(att.file)
+                out.append((att, it))
+    return out
+
+
 def human_size(n) -> str:
     """"17 B", "1.2 KB", "3.4 MB": for chips and lists."""
     n = max(0, int(n or 0))

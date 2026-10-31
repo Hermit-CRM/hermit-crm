@@ -152,6 +152,48 @@
     });
   }
 
+  // A file dropped anywhere on a page that has a Files section (and not on a form
+  // or a timeline entry, which take it themselves) becomes a new note.
+  function pageDrop(zone) {
+    var url = zone.getAttribute("data-page-drop");
+    var contact = zone.getAttribute("data-page-contact") || "";
+    var hint = document.createElement("div");
+    hint.className = "drop-hint";
+    hint.textContent = "Drop to keep the files in a new note";
+    hint.hidden = true;
+    document.body.appendChild(hint);
+
+    document.addEventListener("dragover", function (event) {
+      if (!hasFiles(event)) return;
+      event.preventDefault();   // dropping elsewhere must not open the file in this tab
+      hint.hidden = !!event.defaultPrevented && !!event.target.closest &&
+        !!event.target.closest("form[data-attach], li[data-drop-url]");
+    });
+    document.addEventListener("dragleave", function (event) {
+      if (!event.relatedTarget) hint.hidden = true;
+    });
+    document.addEventListener("drop", function (event) {
+      hint.hidden = true;
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      if (event.target.closest && event.target.closest("form[data-attach], li[data-drop-url]")) return;
+      var data = new FormData();
+      Array.prototype.forEach.call(event.dataTransfer.files, function (file) {
+        data.append("files", file, file.name);
+      });
+      if (contact) data.append("contact", contact);
+      fetch(url, { method: "POST", body: data, headers: { Accept: "application/json" } })
+        .then(function (response) { return response.json(); })
+        .then(function (answer) {
+          if (answer.ok) { location.reload(); return; }
+          window.alert(answer.error || "The files could not be kept.");
+        })
+        .catch(function () { window.alert("The files could not be kept."); });
+    });
+  }
+
   Array.prototype.forEach.call(document.querySelectorAll("form[data-attach]"), setup);
   Array.prototype.forEach.call(document.querySelectorAll("li[data-drop-url]"), dropTarget);
+  var zone = document.querySelector("[data-page-drop]");
+  if (zone) pageDrop(zone);
 })();

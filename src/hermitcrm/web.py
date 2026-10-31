@@ -2596,6 +2596,7 @@ def create_app(root: Path, config: dict | None = None,
     def company_notes_context(company: Company) -> dict:
         """What company.html shows about notes, for every way the page is rendered."""
         return {"company_notes": notes.company_notes(company),
+                "files": attachments_mod.files_of(company.interactions),
                 "note_counts": {cs: len(notes.contact_notes(company, cs))
                                 for cs in company.contacts}}
 
@@ -3050,6 +3051,7 @@ def create_app(root: Path, config: dict | None = None,
             "contact": contact,
             "values": values or with_custom(contact_values(contact), contact, "contact"),
             "interactions": interactions,
+            "files": attachments_mod.files_of(interactions),
             "interaction": interaction_values(company, contact=contact.slug, channel=channel),
             "summary": contact_summary(company, contact, interactions, store.today()),
             "elsewhere": notes.elsewhere(company, contact.slug),
@@ -3282,6 +3284,40 @@ def create_app(root: Path, config: dict | None = None,
     def interaction_home(company: Company, it) -> str:
         return (f"/companies/{company.slug}/contacts/{it.contact}" if it.contact
                 else f"/companies/{company.slug}")
+
+    @app.post("/companies/{slug}/attachments")
+    async def company_attach(request: Request, slug: str, contact: str = Form(""),
+                             back: str = Form("")):
+        """Files dropped on a company or contact page (or chosen in its Files
+        box) are kept in a new note: subject the file names, no body, about the
+        person when the page is theirs."""
+        company = need_company(slug, refresh=True)
+        contact = contact.strip()
+        wants_json = "application/json" in request.headers.get("accept", "")
+        home = f"/companies/{slug}/contacts/{contact}" if contact in company.contacts \
+            and contact else f"/companies/{slug}"
+        try:
+            if contact and contact not in company.contacts:
+                raise ValidationError({"contact": f"unknown contact {contact!r}"})
+            incoming = await read_uploads(request, store.attachment_limit())
+            if not incoming:
+                raise ValidationError({"files": "choose a file to attach"})
+            names = ", ".join(attachments_mod.safe_name(f.name) for f in incoming)
+            subject = "Files: " + names
+            note = store.create_interaction(
+                slug, "note", "", contact=contact, attachments=incoming,
+                subject=subject if len(subject) <= 120 else subject[:119] + "…")
+        except ValidationError as exc:
+            message = "; ".join(exc.errors.values())
+            if wants_json:
+                return JSONResponse({"ok": False, "error": message}, status_code=400)
+            return flashed(safe_back(back, home), message)
+        if wants_json:
+            return JSONResponse({"ok": True, "id": note.id, "attachments": [
+                attachment_json(slug, a) for a in note.attachments]})
+        n = len(note.attachments)
+        return flashed(safe_back(back, home), f"{n} file{'s' if n != 1 else ''} kept in a new note",
+                       anchor=f"i-{note.id}")
 
     @app.post("/companies/{slug}/interactions/{id}/attachments")
     async def interaction_attach(request: Request, slug: str, id: str,
