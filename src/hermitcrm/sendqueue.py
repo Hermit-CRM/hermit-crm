@@ -234,7 +234,7 @@ def schedule(store: Store, item_ids, settings: send.SendSettings | None = None,
                 result.refused[old.id] = "it changed while it was being scheduled"
                 continue
             item.state, item.queued, item.send_at = "queued", now, None
-            item.send_hash = send.text_hash(item.subject, item.body)
+            item.send_hash = send.text_hash(item.subject, item.body, item.attachments)
             item.send_note = item.send_error = ""
             outreach.write_item(store.root, item)
             queued_now.append(item)
