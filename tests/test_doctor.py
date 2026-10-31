@@ -268,3 +268,10 @@ def test_doctor_counts_attachments_and_warns_when_they_pile_up(folder, tmp_path,
     monkeypatch.setattr(doctor, "ATTACHMENT_WARN_BYTES", 1024)
     res = checks(folder, tmp_path)["attachments"]
     assert res.status == "warn" and "history" in res.detail
+
+
+def test_doctor_counts_a_file_named_tmp(folder, tmp_path):
+    files = folder / "companies" / "acme" / "attachments"
+    files.mkdir(parents=True)
+    (files / "0123456789ab-export.tmp").write_bytes(b"x")
+    assert checks(folder, tmp_path)["attachments"].detail == "1 file, 1 B"

@@ -341,3 +341,16 @@ def test_search_finds_a_company_by_attachment_name(store, client):
                              attachments=[Incoming("Master Service Agreement.pdf", PDF)])
     page = client.get("/companies?q=service+agreement").text
     assert "Acme GmbH" in page and "Other Ltd" not in page
+
+
+def test_a_hostile_file_name_cannot_break_out_of_the_remove_button(store, client):
+    # A name arrives from an upload or a mail attachment: it can hold quotes.
+    evil = "x');alert(document.domain);.pdf"
+    attach(store, evil, PDF)
+    note = store.get("acme").interactions[0]
+    page = client.get(f"/companies/acme/interactions/{note.id}/edit").text
+    assert "');alert(" not in page
+    onclick = re.search(r'onclick="return confirm\((.*?)\)"', page, re.S).group(1)
+    assert "&#34;" in onclick or "&quot;" in onclick   # a JSON string, HTML-escaped
+    timeline = client.get("/companies/acme").text
+    assert "');alert(" not in timeline

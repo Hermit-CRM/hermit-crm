@@ -10,7 +10,7 @@
 {{ m.attachment_chips(company, attachments) }}
 {% for a in attachments %}
 <form method="post" action="/companies/{{ company.slug }}/interactions/{{ id }}/attachments/{{ a.file | urlencode }}/delete" class="inline">
-  <button type="submit" onclick="return confirm('Remove {{ a.name | e }} from this interaction? It is deleted from the folder when nothing else uses it; git keeps its history.')">Remove {{ a.name }}</button>
+  <button type="submit" onclick="return confirm({{ ('Remove ' ~ a.name ~ ' from this interaction? It is deleted from the folder when nothing else uses it; git keeps its history.') | tojson | forceescape }})">Remove {{ a.name }}</button>
 </form>
 {% endfor %}
 {% endif %}

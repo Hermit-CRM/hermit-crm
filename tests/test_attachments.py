@@ -363,3 +363,27 @@ def test_attach_commands_are_wired_to_the_parser(seeded, outside, tmp_path):
     log = subprocess.run(["git", "log", "--format=%s"], cwd=seeded.root, capture_output=True,
                          text=True).stdout
     assert "interaction: acme" in log and "1 file" in log
+
+
+# ------------------------------------------------ found in the branch self-review
+
+
+def test_update_with_a_bad_field_writes_no_file(seeded):
+    it = seeded.create_interaction("acme", "note", "", body="x")
+    seeded.take_touched()
+    with pytest.raises(ValidationError):
+        seeded.update_interaction("acme", it.id, add_files=[Incoming("a.pdf", PDF)],
+                                  date="not a date")
+    assert not folder(seeded).exists()
+    assert seeded.take_touched() == []
+
+
+def test_a_file_named_tmp_is_an_ordinary_attachment(seeded):
+    it = seeded.create_interaction("acme", "note", "", body="x",
+                                   attachments=[Incoming("export.tmp", b"data")])
+    stored = folder(seeded) / it.attachments[0].file
+    assert [p.name for p in folder(seeded).iterdir()] == [stored.name]
+    assert crm.cmd_check(seeded) == ("OK: 1 companies, 1 contacts, 1 interactions, no problems", 0)
+    stored.write_bytes(b"changed")      # check must look at it like any other file
+    text, code = crm.cmd_check(seeded)
+    assert f"{stored.name}: content does not match its hash" in text
