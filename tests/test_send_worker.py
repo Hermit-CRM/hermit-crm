@@ -21,6 +21,7 @@ from __future__ import annotations
 import re
 import smtplib
 import socket
+import ssl
 from datetime import datetime, timedelta
 
 import pytest
@@ -438,6 +439,47 @@ def test_a_bad_password_in_a_tick_pauses_everything_with_the_servers_text(folder
     assert again[0].startswith("paused (auth): 535 5.7.8")
     assert smtp.connections == 1                          # nothing retried, no login loop
     assert all(outreach.get_item(root, i).state == "queued" for i in ids)
+
+
+CERT = ("[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate")
+
+
+def test_a_certificate_failure_in_a_tick_pauses_everything_and_burns_no_retries(folder):
+    root, store, settings = folder
+    ids = many_ready(root, store, 2)
+    sendqueue.schedule(store, ids, settings, MON)
+    smtp, imap = FakeSmtp(connect_error=ssl.SSLCertVerificationError(1, CERT)), FakeImap()
+    calls = []
+
+    def counting(host, port, timeout=None):
+        calls.append(host)
+        return smtp.factory(host, port, timeout=timeout)
+
+    when = outreach.get_item(root, ids[0]).send_at
+    out = sendqueue.due(root, now=when, store=store, smtp_factory=counting,
+                        imap_factory=imap.factory)
+    assert out[0].startswith("paused:") and "certificate could not be verified" in out[0]
+    assert "CERTIFICATE_VERIFY_FAILED" in out[0]
+    again = sendqueue.due(root, now=when + timedelta(minutes=3), store=store,
+                          smtp_factory=counting, imap_factory=imap.factory)
+    assert again[0].startswith("paused (refused): the mail server's certificate")
+    assert len(calls) == 1                                # nothing retried
+    for i in ids:
+        item = outreach.get_item(root, i)
+        assert item.state == "queued" and item.send_tries <= 1 and not item.send_error
+
+
+def test_a_certificate_failure_in_the_bounce_scan_pauses_with_the_readable_text(folder):
+    root, store, settings = folder
+    imap = FakeImap(connect_error=ssl.SSLCertVerificationError(1, CERT))
+    ids = many_ready(root, store, 1)
+    sendqueue.schedule(store, ids, settings, MON)
+    when = outreach.get_item(root, ids[0]).send_at
+    out = tick(root, store, when, FakeSmtp(), imap, scan=True)
+    assert out[0].startswith("paused: the mail server's certificate could not be verified")
+    assert "CERTIFICATE_VERIFY_FAILED" in out[0] and "trying again" not in out[0]
+    state = send.SendState.load(root)
+    assert state.paused and state.kind == send.REFUSED
 
 
 def test_the_quota_pause_ends_by_itself_and_the_items_are_planned_again(folder):

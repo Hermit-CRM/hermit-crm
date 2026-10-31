@@ -276,10 +276,20 @@ _RECIPIENT = re.compile(r"5\.1\.\d|user unknown|does not exist|no such user|unkn
                         r"recipient (address )?rejected", re.I)
 
 
+def _cert_error(exc: BaseException) -> SendError:
+    """A certificate that does not verify is a settings problem, not a bad moment:
+    retrying cannot fix it, so it pauses sending (REFUSED, lifted by a passing Send a
+    test to myself) and says in plain words what is wrong, with the raw error after."""
+    return SendError(REFUSED, "the mail server's certificate could not be verified "
+                     f"(self-signed, expired or the wrong host name): {_text(exc)}")
+
+
 def classify_smtp(exc: BaseException) -> SendError:
     """Turn what smtplib raised into a SendError, keeping the server's text."""
     if isinstance(exc, SendError):
         return exc
+    if isinstance(exc, ssl.SSLCertVerificationError):
+        return _cert_error(exc)
     if isinstance(exc, smtplib.SMTPAuthenticationError):
         return SendError(AUTH, f"{exc.smtp_code} {_text(exc.smtp_error)}", exc.smtp_code)
     if isinstance(exc, smtplib.SMTPRecipientsRefused):
@@ -502,6 +512,8 @@ class Mailbox:
         host, user = self.settings.imap_host, self.settings.smtp_user
         try:
             self.conn = self.factory(host, 993, timeout=self.timeout)
+        except ssl.SSLCertVerificationError as exc:
+            raise _cert_error(exc) from exc
         except (OSError, imaplib.IMAP4.error) as exc:
             raise SendError(TEMPORARY, f"could not reach {host}: {_text(exc)}") from exc
         try:
