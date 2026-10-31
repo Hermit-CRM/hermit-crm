@@ -39,6 +39,7 @@ import hashlib
 import imaplib
 import json
 import logging
+import mimetypes
 import os
 import re
 import subprocess
@@ -52,6 +53,7 @@ from pathlib import Path
 from typing import Callable, Iterable
 from urllib.parse import urlparse
 
+from . import attachments as attachments_mod
 from . import secrets
 from .models import (
     ValidationError, fmt_datetime, normalise_email, normalise_website, slugify,
@@ -141,8 +143,13 @@ class Settings:
     ignore_domains: tuple[str, ...] = ()
     lookback_days: int = 30
     create_companies: bool = True
+    # Which attachments a mail keeps: "documents" (real attachments; not a logo in a
+    # signature), "all" (also pictures shown inside the mail) or "off".
+    attachments: str = "documents"
 
     def __post_init__(self) -> None:
+        if self.attachments not in ATTACHMENT_MODES:
+            self.attachments = "documents"
         self.address = normalise_email(self.address)
         if not self.imap_user and self.address:
             local, _, domain = self.address.partition("@")
@@ -171,10 +178,23 @@ def settings_from_config(config: dict) -> Settings:
         ignore_domains=tuple(config.get("bcc_ignore_domains", ())),
         lookback_days=int(config.get("bcc_lookback_days", 30)),
         create_companies=bool(config.get("bcc_create_companies", True)),
+        attachments=str(config.get("bcc_attachments", "documents")).strip().lower(),
     )
 
 
 # ------------------------------------------------------------------- parsing
+
+
+ATTACHMENT_MODES = ("off", "documents", "all")
+INLINE_MIN_BYTES = 20_000   # mode "all": a picture shown inside the mail smaller than this is a logo
+# Parts that are not files a person sent: calendar invites, signatures, bounces.
+_NOT_FILES = frozenset({
+    "text/calendar", "message/rfc822", "message/delivery-status",
+    "message/disposition-notification", "application/pkcs7-signature",
+    "application/x-pkcs7-signature", "application/pgp-signature", "application/pgp-keys",
+})
+_IMAGE_EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif",
+              "image/webp": ".webp"}
 
 
 @dataclass
@@ -186,6 +206,8 @@ class Mail:
     cc: list[tuple[str, str]]
     subject: str
     text: str
+    attachments: list = field(default_factory=list)   # files kept (attachments.Incoming)
+    skipped_attachments: int = 0                      # over the size limit
 
 
 def _local(dt: datetime) -> datetime:
@@ -253,7 +275,62 @@ def _mail_text(msg) -> str:
     return content.replace("\r\n", "\n").replace("\r", "\n")
 
 
-def parse_mail(raw: bytes, now: datetime) -> Mail:
+def _default_name(content_type: str) -> str:
+    if content_type in _IMAGE_EXT:
+        return "image" + _IMAGE_EXT[content_type]
+    if content_type.startswith("image/"):
+        return "image" + (mimetypes.guess_extension(content_type) or ".img")
+    return "attachment" + (mimetypes.guess_extension(content_type) or ".bin")
+
+
+def mail_attachments(msg, mode: str = "documents",
+                     limit: int | None = None) -> tuple[list, int]:
+    """(files, how many were over `limit` bytes) of a parsed mail.
+
+    A file is a part with a name or a disposition of attachment. Left out: the
+    body, calendar invites, signatures and bounces, empty parts, and (unless mode
+    is "all") a picture shown inside the mail, which is nearly always a logo."""
+    if mode == "off":
+        return [], 0
+    files, skipped, seen = [], 0, set()
+    for part in msg.walk():
+        if part.is_multipart():
+            continue
+        kind = part.get_content_type()
+        if kind in _NOT_FILES:
+            continue
+        try:
+            filename = part.get_filename()
+            disposition = part.get_content_disposition()
+        except (ValueError, LookupError):
+            filename, disposition = None, None
+        maintype = part.get_content_maintype()
+        if maintype == "text" and not filename and disposition != "attachment":
+            continue                     # the message itself
+        inline_picture = (maintype == "image" and disposition != "attachment"
+                          and (disposition == "inline" or bool(part["Content-ID"])))
+        if mode == "all":
+            wanted = disposition == "attachment" or bool(filename) or inline_picture
+        else:
+            wanted = not inline_picture and (disposition == "attachment" or bool(filename))
+        data = part.get_payload(decode=True)
+        if not wanted or not isinstance(data, bytes) or not data:
+            continue
+        if inline_picture and len(data) < INLINE_MIN_BYTES:
+            continue
+        if limit is not None and len(data) > limit:
+            skipped += 1
+            continue
+        name = filename or _default_name(kind)
+        key = (attachments_mod.safe_name(name), hashlib.sha1(data).hexdigest())
+        if key not in seen:
+            seen.add(key)
+            files.append(attachments_mod.Incoming(name, data))
+    return files, skipped
+
+
+def parse_mail(raw: bytes, now: datetime, limit: int | None = None,
+               mode: str = "documents") -> Mail:
     msg = message_from_bytes(raw, policy=policy.default)
     message_id = str(msg.get("Message-ID") or "").strip()
     if not message_id:
@@ -265,6 +342,7 @@ def parse_mail(raw: bytes, now: datetime) -> Mail:
         except (TypeError, ValueError, IndexError):
             pass
     senders = _addresses([msg.get("From", "")])
+    files, skipped = mail_attachments(msg, mode, limit)
     return Mail(
         message_id=message_id,
         date=when,
@@ -273,6 +351,8 @@ def parse_mail(raw: bytes, now: datetime) -> Mail:
         cc=_addresses(msg.get_all("Cc") or []),
         subject=" ".join(str(msg.get("Subject") or "").split()),
         text=_mail_text(msg),
+        attachments=files,
+        skipped_attachments=skipped,
     )
 
 
@@ -422,6 +502,7 @@ class Entry:
     body: str
     channel: str = "email"
     source: str = "bcc-import"
+    attachments: list = field(default_factory=list)   # attachments.Incoming
 
     @property
     def kind(self) -> str:
@@ -457,7 +538,7 @@ def entries_for_mail(mail: Mail, settings: Settings) -> list[Entry]:
             continue
         seen.add(address)
         entries.append(Entry(mail.message_id, when, direction, address, name,
-                             subject, body))
+                             subject, body, attachments=mail.attachments))
     return entries
 
 
@@ -605,6 +686,7 @@ def log_entry(store: Store, company_slug: str, contact_slug: str, entry: Entry):
         company_slug, channel=entry.channel, direction=entry.direction,
         subject=entry.subject, contact=contact_slug, date=entry.date,
         body=entry.body, source=entry.source, message_id=entry.message_id,
+        attachments=entry.attachments,
     )
 
 
@@ -623,6 +705,7 @@ class InboxItem:
     reason: str
     body: str
     kind: str = "mail"  # mail (BCC import) | meeting (calendar import)
+    attachments: list = field(default_factory=list)  # attachments.Attachment, files in inbox/attachments/
 
     @property
     def first_name(self) -> str:
@@ -645,6 +728,7 @@ class Inbox:
 
     def __init__(self, root: Path):
         self.dir = Path(root) / "inbox"
+        self.files_dir = self.dir / "attachments"   # files of mails waiting here
 
     def _path(self, item_id: str) -> Path | None:
         if not re.fullmatch(r"[0-9A-Za-z-]+", item_id or ""):
@@ -666,6 +750,7 @@ class Inbox:
             name=str(meta.get("name") or ""), subject=str(meta.get("subject") or ""),
             reason=str(meta.get("reason") or ""), body=body,
             kind="meeting" if meta.get("kind") == "meeting" else "mail",
+            attachments=attachments_mod.from_meta(meta.get("attachments")),
         )
 
     def items(self) -> list[InboxItem]:
@@ -690,17 +775,55 @@ class Inbox:
         item = InboxItem(item_id, entry.message_id, entry.date, entry.direction,
                          entry.address, entry.name, entry.subject, reason, entry.body,
                          entry.kind)
+        for incoming in entry.attachments:
+            att = attachments_mod.make(incoming.data, incoming.name)
+            path = contained(self.files_dir, att.file)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if not attachments_mod.intact(path):
+                tmp = path.with_name("." + path.name + ".part")
+                tmp.write_bytes(incoming.data)
+                os.replace(tmp, path)
+            if att not in item.attachments:
+                item.attachments.append(att)
         meta = {"kind": item.kind, "message_id": item.message_id, "date": item.date,
                 "direction": item.direction, "address": item.address,
                 "name": item.name, "subject": item.subject, "reason": reason}
+        if item.attachments:
+            meta["attachments"] = attachments_mod.to_meta(item.attachments)
         (self.dir / f"{item_id}.md").write_text(build_file(meta, item.body),
                                                 encoding="utf-8")
         return item
 
+    def entry_of(self, item: InboxItem) -> Entry:
+        """The item as an entry to log, with the bytes of its files (one that has gone
+        missing from the folder is left out rather than stopping the filing)."""
+        entry = item.entry()
+        for att in item.attachments:
+            try:
+                data = contained(self.files_dir, att.file).read_bytes()
+            except (OSError, ValidationError):
+                continue
+            entry.attachments.append(attachments_mod.Incoming(att.name, data))
+        return entry
+
     def remove(self, item_id: str) -> None:
         path = self._path(item_id)
         if path is not None:
+            item = self.get(item_id) if path.exists() else None
             path.unlink(missing_ok=True)
+            if item is not None:
+                self._drop_files(item.attachments)
+
+    def _drop_files(self, gone) -> None:
+        """Delete files no waiting item uses any more (one mail can wait for several people)."""
+        used = {a.file for i in self.items() for a in i.attachments}
+        for att in gone:
+            if att.file not in used:
+                contained(self.files_dir, att.file).unlink(missing_ok=True)
+        try:
+            self.files_dir.rmdir()
+        except OSError:
+            pass   # others are still waiting, or it is already gone
 
     def discarded(self) -> set[tuple[str, str]]:
         path = self.dir / DISCARDED_FILE
@@ -763,19 +886,31 @@ class RunResult:
     review: int = 0
     duplicates: int = 0
     skipped: int = 0
+    attachments: int = 0            # files kept, once per interaction or inbox item
+    attachments_skipped: int = 0    # over attachment_max_mb
     lines: list[str] = field(default_factory=list)
 
     def summary(self) -> str:
-        return (f"{self.mails} mails read: {self.logged} interactions logged, "
+        text = (f"{self.mails} mails read: {self.logged} interactions logged, "
                 f"{self.companies} companies created, "
                 f"{self.contacts} contacts created, {self.review} to review, "
                 f"{self.duplicates} already imported, {self.skipped} skipped")
+        if self.attachments:
+            text += f", {_files(self.attachments)} kept"
+        if self.attachments_skipped:
+            text += f", {_files(self.attachments_skipped)} skipped (too large)"
+        return text
 
     def commit_message(self) -> str:
         mails = "1 mail" if self.mails == 1 else f"{self.mails} mails"
-        return (f"bcc: imported {mails} ({self.logged} interactions, "
+        text = (f"bcc: imported {mails} ({self.logged} interactions, "
                 f"{self.companies} companies, {self.contacts} contacts, "
                 f"{self.review} to review)")
+        return text + (f"; {_files(self.attachments)}" if self.attachments else "")
+
+
+def _files(n: int) -> str:
+    return f"{n} attachment{'s' if n != 1 else ''}"
 
 
 def import_mails(store: Store, inbox: Inbox, raws: Iterable[bytes],
@@ -784,10 +919,11 @@ def import_mails(store: Store, inbox: Inbox, raws: Iterable[bytes],
     result = RunResult()
     seen = inbox.seen()
     planned: dict[str, str] = {}  # dry run: address -> company of a new contact
+    limit = store.attachment_limit()
     with store.batch("bcc: import") as batch:
         for raw in raws:
             result.mails += 1
-            mail = parse_mail(raw, store.now())
+            mail = parse_mail(raw, store.now(), limit=limit, mode=settings.attachments)
             entries = entries_for_mail(mail, settings)
             if not entries:
                 result.skipped += 1
@@ -797,11 +933,19 @@ def import_mails(store: Store, inbox: Inbox, raws: Iterable[bytes],
             # Anyone who learns the tracking address can mail it; only your own
             # mail (sent, or a reply you forwarded) may create a company.
             refuse = "" if settings.is_me(mail.sender[1]) else "mail not sent by you"
+            handled = result.logged + result.review
             for entry in entries:
+                before = result.logged + result.review
                 outcome = handle_entry(store, inbox, entry, seen, planned, result, apply,
                                        create=settings.create_companies, refuse=refuse)
+                if entry.attachments and result.logged + result.review > before:
+                    result.attachments += len(entry.attachments)   # kept, not already imported
+                    outcome += f" (+{len(entry.attachments)} file" \
+                               f"{'s' if len(entry.attachments) != 1 else ''})"
                 result.lines.append(f"{entry.date:%Y-%m-%d %H:%M} | email {entry.direction} "
                                     f"| {entry.address} | {outcome}")
+            if result.logged + result.review > handled:   # a mail already imported says nothing again
+                result.attachments_skipped += mail.skipped_attachments
         batch["message"] = result.commit_message()
     return result
 
@@ -947,7 +1091,7 @@ def assign(store: Store, inbox: Inbox, item_id: str, company: str,
             contact = store.create_contact(slug, first_name, last_name, email=item.address)
         elif not contact.email:
             store.update_contact(slug, contact.slug, email=item.address)
-        interaction = log_entry(store, slug, contact.slug, item.entry())
+        interaction = log_entry(store, slug, contact.slug, inbox.entry_of(item))
         inbox.remove(item.id)
         # The inbox is outside companies/ and the Inbox writes its own files, so
         # name the path here: a commit only covers what the store was told about,

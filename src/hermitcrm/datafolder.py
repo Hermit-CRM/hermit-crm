@@ -104,6 +104,7 @@ CONFIG_DOCS = {
     "bcc_imap_host": "IMAP server of that mailbox.",
     "bcc_keychain_service": "Keychain (macOS) or Secret Service (Linux) service holding the app password (account = IMAP user).",
     "bcc_lookback_days": "How far back the BCC import searches.",
+    "bcc_attachments": "Which attachments of mail you BCC are kept with the logged interaction: documents (real attachments, not a logo in a signature), all (also pictures shown inside the mail) or off.",
     "bcc_create_companies": "Create the company when mail you send or forward reaches a domain no company has (named after the domain); false sends it to To file on Home instead.",
     "my_addresses": "Mail from these addresses is yours (outbound).",
     "bcc_ignore_domains": "Recipients at these domains (colleagues) are never logged.",
