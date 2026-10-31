@@ -1,3 +1,4 @@
+{% from "icons.html" import icon %}
 {#- A date field. It is text, not <input type="date">, so it reads in the date
     format chosen in Settings (the native one follows the browser's language);
     static/dates.js adds a calendar button. `value` is an ISO date, a date, or
@@ -36,8 +37,28 @@
 
 {% macro sort_links(col, sort, dir, sort_url) %}
   <span class="sort">
-    <a href="{{ sort_url(col.key, 'asc') }}" class="{% if sort == col.key and dir == 'asc' %}on{% endif %}" title="sort A to Z (small to large, old to new)">&#9650;</a><a href="{{ sort_url(col.key, 'desc') }}" class="{% if sort == col.key and dir == 'desc' %}on{% endif %}" title="sort Z to A (large to small, new to old)">&#9660;</a>
+    <a href="{{ sort_url(col.key, 'asc') }}" class="{% if sort == col.key and dir == 'asc' %}on{% endif %}" title="sort A to Z (small to large, old to new)" aria-label="sort {{ col.label }} ascending">{{ icon('sort-up') }}</a><a href="{{ sort_url(col.key, 'desc') }}" class="{% if sort == col.key and dir == 'desc' %}on{% endif %}" title="sort Z to A (large to small, new to old)" aria-label="sort {{ col.label }} descending">{{ icon('sort-down') }}</a>
   </span>
+{%- endmacro %}
+
+{#- Numbers and dates line up on their right edge, in tabular figures. The last
+    touch is a sentence ("call 3 Mar (Ana)"), so it stays left. `cls` adds more
+    classes. -#}
+{% macro cell_attrs(col, cls='') -%}
+{%- set c = (cls ~ (' num' if col.kind in ('number', 'date') and col.key != 'last_touch' else '')) | trim -%}
+{%- if c %} class="{{ c }}"{% endif %}
+{%- endmacro %}
+
+{% macro head_attrs(col) -%}
+{%- if col.kind in ('number', 'date') and col.key != 'last_touch' %} class="num"{% endif %}
+{%- endmacro %}
+
+{#- A company's stage as a pill. The colour follows the stage's role, so a
+    renamed or added stage still gets the right one. -#}
+{% macro stage_pill(company) -%}
+{%- set role = company.stages.role_of(company.stage) -%}
+{%- set colour = {'won': 'green', 'lost': 'red', 'parked': 'amber', 'closed': 'grey'}.get(role, 'blue') -%}
+<span class="type-chip stage-pill type-{{ colour if role else 'grey' }}{% if not role %} unknown{% endif %}"{% if not role %} title="not in Settings"{% endif %}>{{ company.stage }}</span>
 {%- endmacro %}
 
 {% macro filter_help() %}
