@@ -41,14 +41,15 @@ from typing import Callable
 from urllib.parse import parse_qsl as _parse_qsl, quote, urlencode, urlparse
 
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import (HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse,
-                               Response, StreamingResponse)
+from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse, PlainTextResponse,
+                               RedirectResponse, Response, StreamingResponse)
 from fastapi.staticfiles import StaticFiles
 from markupsafe import Markup, escape
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import QueryParams
 
 from . import __version__, updates
+from . import attachments as attachments_mod
 from . import upgrade as upgrading
 from fastapi.templating import Jinja2Templates
 
@@ -3114,6 +3115,32 @@ def create_app(root: Path, config: dict | None = None,
             "interaction": interaction_values(company, contact=who,
                                               channel=channel, body=body),
         })
+
+    @app.get("/companies/{slug}/attachments/{file}")
+    def attachment_get(slug: str, file: str, download: int = 0):
+        """A stored attachment, if something still refers to it. Only the harmless
+        types open in the browser (attachments.INLINE_TYPES); everything else
+        downloads, and none can run script on this origin."""
+        company = need_company(slug, refresh=True)
+        try:
+            path = store.attachment_path(slug, file)
+        except ValidationError:
+            raise HTTPException(status_code=404, detail="no such file") from None
+        if file not in store.referenced_files(slug) or not path.is_file():
+            raise HTTPException(status_code=404, detail="no such file")
+        name = next((a.name for i in company.interactions for a in i.attachments
+                     if a.file == file), file[attachments_mod.HASH_LEN + 1:])
+        kind = attachments_mod.media_type(name)
+        inline = kind in attachments_mod.INLINE_TYPES and not download
+        # A PDF viewer does not start inside a sandboxed document; the PDF is not
+        # a page and has nothing to script on this origin.
+        policy = "default-src 'none'" if kind == "application/pdf" \
+            else "sandbox; default-src 'none'"
+        return FileResponse(
+            path, media_type=kind + ("; charset=utf-8" if kind == "text/plain" else ""),
+            filename=name, content_disposition_type="inline" if inline else "attachment",
+            headers={"X-Content-Type-Options": "nosniff", "Content-Security-Policy": policy,
+                     "Cache-Control": "private, max-age=3600"})
 
     @app.post("/companies/{slug}/interactions")
     async def interaction_create(
