@@ -658,6 +658,7 @@ class Store:
             for contact in c.contacts.values():
                 haystack.append(contact.name)
                 haystack.append(contact.email)
+            haystack += [a.name for i in c.interactions for a in i.attachments]
             if any(q in (h or "").lower() for h in haystack):
                 hits.append(c)
         return sorted(hits, key=lambda c: c.name.lower())

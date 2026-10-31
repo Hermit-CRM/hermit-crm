@@ -260,3 +260,84 @@ def test_note_form_offers_the_picker_and_the_script(store, client):
     assert 'enctype="multipart/form-data"' in page and 'type="file"' in page
     assert "/static/attach.js" in page
     assert client.get("/static/attach.js").status_code == 200
+
+
+# ----------------------------------------------- Files section, drop anywhere
+
+
+def files_block(page: str) -> str:
+    return page.split('id="files"', 1)[1].split("</section>", 1)[0]
+
+
+def test_files_section_lists_each_file_once(store, client):
+    store.create_interaction("acme", "note", "", body="a", attachments=[Incoming("a.pdf", PDF)])
+    store.create_interaction("acme", "note", "", body="b", attachments=[Incoming("a.pdf", PDF),
+                                                                          Incoming("b.txt", b"b")])
+    block = files_block(client.get("/companies/acme").text)
+    assert "Files (2)" in block
+    assert block.count(" a.pdf</a>") == 1 and block.count(" b.txt</a>") == 1
+    assert 'data-page-drop="/companies/acme/attachments"' in block
+    assert "#i-" in block  # each file points back at the note it came with
+
+
+def test_files_section_has_a_plain_form_and_an_empty_state(store, client):
+    block = files_block(client.get("/companies/acme").text)
+    assert "Files (0)" in block and "No files yet" in block
+    assert 'action="/companies/acme/attachments"' in block and 'name="files"' in block
+
+
+def test_contact_page_lists_only_that_persons_files(store, client):
+    store.create_contact("acme", "Max", "Roe")
+    store.create_interaction("acme", "note", "", contact="jane-doe", body="j",
+                             attachments=[Incoming("jane.pdf", PDF)])
+    store.create_interaction("acme", "note", "", contact="max-roe", body="m",
+                             attachments=[Incoming("max.pdf", PDF + b"2")])
+    block = files_block(client.get("/companies/acme/contacts/jane-doe").text)
+    assert "jane.pdf" in block and "max.pdf" not in block
+    assert 'data-page-contact="jane-doe"' in block
+
+
+def test_page_drop_creates_a_note_with_the_files(store, client, repo):
+    before = commits(repo)
+    r = client.post("/companies/acme/attachments", data={"contact": "jane-doe"},
+                    files=pdf_part() + [("files", ("b.txt", b"b", "text/plain"))],
+                    headers={"Accept": "application/json"})
+    assert r.status_code == 200 and r.json()["ok"] is True
+    (note,) = store.get("acme").interactions
+    assert note.channel == "note" and note.contact == "jane-doe" and note.body == ""
+    assert note.subject == "Files: Proposal.pdf, b.txt"
+    assert [a.name for a in note.attachments] == ["Proposal.pdf", "b.txt"]
+    assert commits(repo) == before + 1
+
+
+def test_page_drop_without_a_contact_is_a_company_note(store, client):
+    client.post("/companies/acme/attachments", files=pdf_part())
+    (note,) = store.get("acme").interactions
+    assert note.contact == "" and note.channel == "note"
+
+
+def test_page_drop_refuses_an_unknown_contact_and_no_files(store, client, repo):
+    before = commits(repo)
+    r = client.post("/companies/acme/attachments", data={"contact": "nobody"}, files=pdf_part(),
+                    headers={"Accept": "application/json"})
+    assert r.status_code == 400 and r.json()["ok"] is False
+    r = client.post("/companies/acme/attachments", data={"back": "/companies/acme"})
+    assert r.status_code == 303 and "choose" in r.headers["location"].lower()
+    assert store.get("acme").interactions == [] and commits(repo) == before
+
+
+def test_page_drop_over_the_cap_writes_nothing(store, client, repo):
+    (repo / "config.toml").write_text("attachment_max_mb = 1\n")
+    r = client.post("/companies/acme/attachments",
+                    files=pdf_part("big.bin", b"0" * (1024 * 1024 + 1)),
+                    headers={"Accept": "application/json"})
+    assert r.status_code == 400 and "larger than 1 MB" in r.json()["error"]
+    assert store.get("acme").interactions == []
+
+
+def test_search_finds_a_company_by_attachment_name(store, client):
+    store.create_company("Other Ltd")
+    store.create_interaction("acme", "note", "", body="x",
+                             attachments=[Incoming("Master Service Agreement.pdf", PDF)])
+    page = client.get("/companies?q=service+agreement").text
+    assert "Acme GmbH" in page and "Other Ltd" not in page
