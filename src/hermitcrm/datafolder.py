@@ -98,11 +98,13 @@ CONFIG_DOCS = {
     "date_format": "How the web app shows and takes dates: iso (2026-12-31), dmy-dash (31-12-2026), dmy (31/12/2026) or mdy (12/31/2026). Files and exports stay YYYY-MM-DD.",
     "message_window_days": "A message without reply or outcome counts as the last outcome after this many days.",
     "fetch_timeout": "Seconds to wait when Fetch from URL reads a page.",
+    "attachment_max_mb": "Largest file you can attach, in MB (1 to 90). History is never rewritten, so a big file stays in the folder.",
     "outcomes": "Outcome choices for an interaction; first = what a reply counts as, last = what silence counts as.",
     "bcc_address": "Address you BCC or forward mail to, e.g. you+crm@gmail.com; empty disables BCC import.",
     "bcc_imap_host": "IMAP server of that mailbox.",
     "bcc_keychain_service": "Keychain (macOS) or Secret Service (Linux) service holding the app password (account = IMAP user).",
     "bcc_lookback_days": "How far back the BCC import searches.",
+    "bcc_attachments": "Which attachments of mail you BCC are kept with the logged interaction: documents (real attachments, not a logo in a signature), all (also pictures shown inside the mail) or off.",
     "bcc_create_companies": "Create the company when mail you send or forward reaches a domain no company has (named after the domain); false sends it to To file on Home instead.",
     "my_addresses": "Mail from these addresses is yours (outbound).",
     "bcc_ignore_domains": "Recipients at these domains (colleagues) are never logged.",
@@ -216,6 +218,10 @@ Writing rules:
 - After editing files by hand, run `hermitcrm check`, then `hermitcrm rebuild`.
 - Commit messages for AI-made changes start with "ai:".
 - Never rewrite interaction bodies; they are the record.
+- Files kept with notes live in `companies/<slug>/attachments/` and are listed under
+  `attachments:` in the interaction that owns them. Never edit, rename or delete one
+  by hand; add one with `hermitcrm attach <company> <file>` and list them with
+  `hermitcrm attachments`.
 - Never put secrets in config.toml and never commit .secrets.toml.
 - A company with `sample: true` is the made-up sample account: never draft
   outreach for it and leave it out of reviews and counts.

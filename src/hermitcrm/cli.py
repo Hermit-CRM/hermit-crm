@@ -31,11 +31,11 @@ import tomllib
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from hermitcrm import __version__, layout, migrations, stages, task_types
+from hermitcrm import __version__, attachments as attachments_mod, layout, migrations, stages, task_types
 from hermitcrm.datafolder import InitError, NotDataFolder, init_folder, resolve_data_dir
 from hermitcrm.enrich import EnrichError, Enricher
 from hermitcrm.gitops import GitOps
-from hermitcrm.models import Channel, Direction
+from hermitcrm.models import Channel, Direction, ValidationError
 from hermitcrm.store import Store, load_config
 
 COMPANY_FIELD_ORDER = [
@@ -603,6 +603,11 @@ def cmd_check(store: Store) -> tuple[str, int]:
     # left out of every list, so it is said here.
     from hermitcrm import outreach
     extension += outreach.problems(store.root)
+    # Files kept with notes: a reference to a file that is gone is an error, the
+    # rest (an unused file, a changed one, one over the limit) is said.
+    file_errors, file_warnings = attachments_mod.audit(store)
+    extension += file_errors
+    stray += file_warnings
     if not store.problems and not extension:
         n_companies = len(store.companies)
         n_contacts = sum(len(c.contacts) for c in store.companies.values())
@@ -614,8 +619,65 @@ def cmd_check(store: Store) -> tuple[str, int]:
             0,
         )
     lines = [f"{p.path}: {p.message}" for p in store.problems] + extension + off_board \
-        + pb_hints + fw_hints
+        + pb_hints + fw_hints + file_warnings
     return ("\n".join(lines), 1)
+
+
+# ------------------------------------------------------------------ attachments
+
+
+def cmd_attach(store: Store, slug: str, files: list[str], contact: str = "", to: str = "",
+               note: str = "") -> tuple[str, int]:
+    """Keep files from disk on an existing interaction (`to`) or on a new note.
+    The person types the paths, which is why this command may read them."""
+    company = store.get(slug, refresh=True)
+    if company is None:
+        return f"unknown company: {slug}", 1
+    if not files:
+        return "no files given (hermitcrm attach <company> <file>...)", 1
+    limit = store.attachment_limit()
+    incoming = []
+    for raw in files:
+        path = Path(raw).expanduser()
+        if not path.is_file():
+            return f"{raw} is not a file", 1
+        if path.stat().st_size > limit:
+            return (f"{path.name} is larger than {limit >> 20} MB "
+                    "(attachment_max_mb in config.toml)"), 1
+        incoming.append(attachments_mod.Incoming(path.name, path.read_bytes()))
+    try:
+        if to:
+            if not any(i.id == to for i in company.interactions):
+                return f"unknown interaction {to!r} for {slug}", 1
+            saved = store.update_interaction(slug, to, add_files=incoming)
+        else:
+            names = ", ".join(attachments_mod.safe_name(f.name) for f in incoming)
+            saved = store.create_interaction(
+                slug, "note", "", contact=contact, body=note,
+                subject="" if note.strip() else ("Files: " + names)[:120],
+                attachments=incoming)
+    except ValidationError as exc:
+        return "; ".join(exc.errors.values()), 1
+    kept = {attachments_mod.stored_name(f.data, f.name) for f in incoming}
+    lines = [f"Kept {len(kept)} file{'s' if len(kept) != 1 else ''} on {slug} ({saved.id}):"]
+    lines += [f"  {a.file}  {attachments_mod.human_size(a.size)}"
+              for a in saved.attachments if a.file in kept]
+    return "\n".join(lines), 0
+
+
+def cmd_attachments(store: Store, slug: str = "") -> tuple[str, int]:
+    """Every stored file, one line: company | stored name | size | the note it came with."""
+    if slug and store.get(slug) is None:
+        return f"unknown company: {slug}", 1
+    lines = []
+    for company in sorted(store.companies.values(), key=lambda c: c.slug):
+        if slug and company.slug != slug:
+            continue
+        for att, it in attachments_mod.files_of(company.interactions):
+            lines.append(f"{company.slug} | {att.file} | "
+                         f"{attachments_mod.human_size(att.size)} | {it.id}")
+    return ("\n".join(lines) or
+            "No attachments yet. Add one with: hermitcrm attach <company> <file>"), 0
 
 
 # --------------------------------------------------------------------- undo
@@ -1415,6 +1477,15 @@ def _build_parser() -> argparse.ArgumentParser:
     p_show.add_argument("slug")
     p_show.add_argument("--bodies", type=int, default=3)
     p_show.add_argument("--all", action="store_true", dest="all_bodies")
+
+    p_attach = sub.add_parser("attach", help="keep files on a new note or on an interaction")
+    p_attach.add_argument("company")
+    p_attach.add_argument("files", nargs="+", help="paths of the files to keep")
+    p_attach.add_argument("--contact", default="", help="the person the note is about")
+    p_attach.add_argument("--to", default="", help="add to this interaction id instead")
+    p_attach.add_argument("--note", default="", help="the text of the new note")
+    p_files = sub.add_parser("attachments", help="every stored file, one line each")
+    p_files.add_argument("company", nargs="?", default="")
 
     sub.add_parser("rebuild", help="rebuild the index and PIPELINE.md")
     sub.add_parser("check", help="validate every file")
@@ -2257,6 +2328,18 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
         text = cmd_digest(store, args.days)
         print(text)
         return 0
+
+    if args.command == "attach":
+        store.on_write = _writer(store, root, load_config(root))
+        text, code = cmd_attach(store, args.company, args.files, contact=args.contact,
+                                to=args.to, note=args.note)
+        print(text, file=sys.stderr if code else sys.stdout)
+        return code
+
+    if args.command == "attachments":
+        text, code = cmd_attachments(store, args.company)
+        print(text)
+        return code
 
     if args.command == "show":
         text = cmd_show(store, args.slug, bodies=args.bodies, all_bodies=args.all_bodies)

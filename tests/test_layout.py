@@ -47,7 +47,7 @@ FIELDS = ('[[field]]\nkey = "fit_score"\nlabel = "fit"\ntype = "number"\n'
 COMPANY_MARKERS = {
     "enrich": 'class="small record-actions"', "next-step": 'class="small next-step-line',
     "details": 'id="details"', "contacts": 'id="contacts"', "tasks": 'id="tasks"',
-    "merge": 'id="merge"', "timeline": 'id="timeline"',
+    "files": 'id="files"', "merge": 'id="merge"', "timeline": 'id="timeline"',
 }
 CONTACT_MARKERS = {name: f'id="{name}"' for name in layout.SECTIONS["contact"]}
 HOME_MARKERS = {name: f'id="{name}"' for name in layout.SECTIONS["home"]}
@@ -119,7 +119,7 @@ def form_names(page: str) -> set[str]:
 def header_names(page: str) -> list[str]:
     head = page.split('<tr class="filters">')[0].split('<table class="filterable">')[1]
     return [re.sub(r"\s+", " ", h).strip()
-            for h in re.findall(r"<th>([^<]*)", head)]
+            for h in re.findall(r"<th(?: [^>]*)?>([^<]*)", head)]
 
 
 # ------------------------------------------------------------ reading the file
@@ -140,8 +140,18 @@ def test_listed_sections_come_first_and_the_rest_keep_their_order():
                                               "hide_sections": ["merge"]}})
     assert problems == []
     assert lay.sections("company") == ["timeline", "contacts", "enrich", "next-step",
-                                       "details", "tasks"]
+                                       "details", "tasks", "files"]
     assert lay.sections("contact") == list(layout.SECTIONS["contact"])
+
+
+def test_old_layout_toml_still_renders_and_files_is_appended():
+    # A layout.toml written before the Files section lists the sections it knew.
+    old = ["enrich", "next-step", "details", "contacts", "tasks", "merge", "timeline"]
+    lay, problems = layout.parse({"company": {"sections": old}, "contact": {
+        "sections": ["details", "tasks", "quick-add", "timeline", "merge", "delete"]}})
+    assert problems == []
+    assert lay.sections("company") == old + ["files"]
+    assert lay.sections("contact")[-1] == "files"
 
 
 def test_problems_name_the_place_and_suggest_a_name():
@@ -280,11 +290,11 @@ def test_sections_reorder_and_hide(client, repo, acme):
                        '[home]\nsections = ["going"]\nhide_sections = ["owed"]\n')
     company = client.get("/companies/acme").text
     assert order_of(company, COMPANY_MARKERS) == ["timeline", "tasks", "enrich", "next-step",
-                                                  "details", "contacts"]
+                                                  "details", "contacts", "files"]
     assert "/merge" not in company and "Can you send the pricing?" in company
     contact = client.get("/companies/acme/contacts/jane-doe").text
     assert order_of(contact, CONTACT_MARKERS) == ["tasks", "details", "quick-add",
-                                                  "timeline", "merge"]
+                                                  "timeline", "files", "merge"]
     assert "Delete contact" not in contact
     home = client.get("/").text
     assert order_of(home, HOME_MARKERS) == ["going", "doing"]
@@ -395,7 +405,7 @@ def test_columns_choose_and_order_the_list(client, app, repo, acme):
                        '[contacts]\ncolumns = ["seniority", "name", "company_name"]\n')
     page = client.get("/companies").text
     assert header_names(page) == ["segment", "name", "fit", "links"]
-    row = page.split("<td><a href=\"/companies/acme\">")[0].rsplit("<tr>", 1)[1]
+    row = page.split("<td class=\"name\"><a href=\"/companies/acme\">")[0].rsplit("<tr>", 1)[1]
     assert "<td>smb</td>" in row
     assert page.count('<td class="links">') == 2
 
@@ -413,7 +423,7 @@ def test_filters_and_sorting_work_on_every_shown_column(client, app, repo, acme)
 
     def names(url):
         page = client.get(url).text
-        return re.findall(r'<td><a href="/companies/[a-z-]+">([^<]+)</a></td>', page)
+        return re.findall(r'<td class="name"><a href="/companies/[a-z-]+">([^<]+)</a></td>', page)
 
     assert names("/companies?sort=fit_score&dir=desc") == ["Acme GmbH", "Gamma AG", "Beta BV"]
     assert names("/companies?sort=segment&dir=asc")[0] == "Beta BV"

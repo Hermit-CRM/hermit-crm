@@ -34,6 +34,41 @@ entry. Each entry has an edit link (`/companies/<slug>/interactions/<id>/edit`)
 where every field including the date can change; a date change renames the
 file.
 
+## Files
+
+An interaction can carry files: a proposal you sent, a screenshot of their
+pricing page, the PDF they attached.
+
+- **On the form**: under the body, **files** opens the file picker. Drop files
+  on the form, or paste a screenshot into it (a pasted picture is named
+  `pasted-<date>.png`), and they are listed with a remove button before you save.
+  Saving keeps the note and its files in one commit.
+- **On an existing entry**: drop a file on it in the timeline, or use the picker
+  on its edit page, which also lists the files with **Remove**.
+- **On a page**: drop files anywhere on a company or contact page, or use the
+  **Files** box at the bottom, and they become a new note (the subject is the file
+  names; on a contact page the note is about that person). The **Files**
+  section lists every file once, newest first, each linking back to its note.
+
+A file is stored in `companies/<slug>/attachments/` under a name that starts with
+twelve characters of its content hash, so the same file attached twice is kept
+once and renaming or re-dating a note never loses it. The limit is
+`attachment_max_mb` in `config.toml` (default 25, at most 90): git hosts refuse
+larger files.
+
+Pictures, PDFs and plain text open in the browser; every other type
+(including `.svg` and `.html`) downloads. **Removing** a file, or deleting the
+note that was the last to use it, deletes it from the folder, but git keeps the
+old copy: Hermit CRM never rewrites history, so a large file you attached by
+mistake stays in the repository's history. Keep very large files elsewhere and
+link to them in a note.
+
+From the command line, `hermitcrm attach COMPANY FILE... [--contact SLUG] [--to
+INTERACTION_ID] [--note TEXT]` keeps files on a new note (or on an existing
+interaction) and `hermitcrm attachments [COMPANY]` lists them. `hermitcrm check`
+reports a note whose file is missing as an error, and a file no note uses, a
+file whose content changed or one over the limit as a warning.
+
 ## Outcome
 
 `outcome` is one line: what came of it. The choices are configured on the
