@@ -27,6 +27,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import tomllib
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -1072,8 +1073,28 @@ def cmd_fetch(store: Store, slug: str, url: str = "", apply: bool = False,
     return ("\n".join(lines), 0)
 
 
+# The daily sync runs at a fixed time, and a Mac that was asleep then runs it the moment
+# it wakes, before Wi-Fi and DNS are back ("nodename nor servname provided"; a read
+# timeout is the other kind). Seconds to wait before each further try; a network that
+# is still down after the last wait is reported like any other failure.
+# Only the daily job waits: Import now and `hermitcrm bcc` answer at once.
+SYNC_RETRY_WAITS = (10, 30, 60, 120)
+
+
+def _retry_network(attempt, errors: tuple, waits: tuple, sleep):
+    """attempt() -> its result; an error of the `errors` kinds waits for the next of
+    `waits` and tries again, and is raised once the waits run out."""
+    for wait in waits:
+        try:
+            return attempt()
+        except errors:
+            sleep(wait)
+    return attempt()
+
+
 def cmd_bcc(store: Store, root: Path, config: dict, apply: bool = False,
-            eml: list[Path] | tuple = (), open_mailbox=None) -> tuple[str, int]:
+            eml: list[Path] | tuple = (), open_mailbox=None,
+            retry_waits: tuple = (), sleep=time.sleep) -> tuple[str, int]:
     """Import mails BCC'd or forwarded to the tracking address (no AI)."""
     from hermitcrm import bcc
 
@@ -1084,8 +1105,10 @@ def cmd_bcc(store: Store, root: Path, config: dict, apply: bool = False,
             result = bcc.import_mails(store, inbox, [Path(p).read_bytes() for p in eml],
                                       settings, apply=apply)
         else:
-            result = bcc.run_bcc(store, inbox, settings, apply,
-                                 open_mailbox or (lambda: bcc.open_gmail(settings, root)))
+            result = _retry_network(
+                lambda: bcc.run_bcc(store, inbox, settings, apply,
+                                    open_mailbox or (lambda: bcc.open_gmail(settings, root))),
+                (bcc.NetworkTrouble,), retry_waits, sleep)
     except bcc.BccError as exc:
         return (f"BCC import failed: {exc}", 1)
     lines = result.lines + [result.summary()]
@@ -1222,7 +1245,8 @@ def cmd_report(store: Store, days: int | None = None, start: date | None = None,
 
 def cmd_calendar(store: Store, root: Path, config: dict, apply: bool = False,
                  ics: list[Path] | tuple = (), fetch=None, resolve=None,
-                 quiet_if_unconfigured: bool = False) -> tuple[str, int]:
+                 quiet_if_unconfigured: bool = False, retry_waits: tuple = (),
+                 sleep=time.sleep) -> tuple[str, int]:
     """Import past meetings from the secret ICS feed, or from .ics files (no AI)."""
     from hermitcrm import bcc, calendar_sync
 
@@ -1244,7 +1268,9 @@ def cmd_calendar(store: Store, root: Path, config: dict, apply: bool = False,
                         return ("Calendar import skipped: no calendar URL configured", 0)
                     return (f"Calendar import failed: {calendar_sync.setup_hint(settings)}", 1)
                 fetch = lambda: calendar_sync.fetch_ics(url)  # noqa: E731
-            result = calendar_sync.run_calendar(store, inbox, settings, apply, fetch)
+            result = _retry_network(
+                lambda: calendar_sync.run_calendar(store, inbox, settings, apply, fetch),
+                (calendar_sync.CalendarNetworkError,), retry_waits, sleep)
     except (calendar_sync.CalendarError, OSError) as exc:
         return (f"Calendar import failed: {exc}", 1)
     lines = result.lines + [result.summary()]
@@ -1254,12 +1280,16 @@ def cmd_calendar(store: Store, root: Path, config: dict, apply: bool = False,
 
 
 def cmd_sync(store: Store, root: Path, config: dict, apply: bool = False,
-             open_mailbox=None, fetch=None, resolve=None, enricher=None) -> tuple[str, int]:
+             open_mailbox=None, fetch=None, resolve=None, enricher=None,
+             retry_waits: tuple = SYNC_RETRY_WAITS, sleep=time.sleep) -> tuple[str, int]:
     """BCC import, then calendar import (skipped quietly when not set up), then
-    every routine that is on. A routine that fails is one line, never the exit code."""
-    bcc_text, bcc_code = cmd_bcc(store, root, config, apply=apply, open_mailbox=open_mailbox)
+    every routine that is on. A routine that fails is one line, never the exit code.
+    Each import waits out a network that is not back yet (see SYNC_RETRY_WAITS)."""
+    bcc_text, bcc_code = cmd_bcc(store, root, config, apply=apply, open_mailbox=open_mailbox,
+                                 retry_waits=retry_waits, sleep=sleep)
     cal_text, cal_code = cmd_calendar(store, root, config, apply=apply, fetch=fetch,
-                                      resolve=resolve, quiet_if_unconfigured=True)
+                                      resolve=resolve, quiet_if_unconfigured=True,
+                                      retry_waits=retry_waits, sleep=sleep)
     text = f"== BCC ==\n{bcc_text}\n\n== Calendar ==\n{cal_text}"
     routine_lines = _sync_routines(store, config, apply, enricher)
     if routine_lines:

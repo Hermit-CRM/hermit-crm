@@ -88,6 +88,12 @@ class BccError(Exception):
     """A readable reason the import could not run (login, network, Keychain)."""
 
 
+class NetworkTrouble(BccError):
+    """The mail server could not be reached or stopped answering (no DNS yet after
+    a wake, a dropped connection, a timeout). Unlike a refused login, trying again
+    in a minute can fix it, which is what the daily sync does."""
+
+
 # ------------------------------------------------------------------ settings
 
 
@@ -1181,7 +1187,9 @@ class GmailMailbox:
         host, user = self.settings.imap_host, self.settings.imap_user
         try:
             self.conn = self.imap_factory(host, 993, timeout=self.timeout)
-        except (OSError, imaplib.IMAP4.error) as exc:
+        except OSError as exc:
+            raise NetworkTrouble(f"could not reach {host}: {exc}") from exc
+        except imaplib.IMAP4.error as exc:
             raise BccError(f"could not reach {host}: {exc}") from exc
         try:
             self.conn.login(user, self.password)
@@ -1196,9 +1204,9 @@ class GmailMailbox:
                            ".secrets.toml, or the Keychain / system keyring, service "
                            f"{self.settings.keychain_service!r}) and save it again with "
                            "hermitcrm setup or Settings > BCC capture.") from exc
-        except OSError as exc:
+        except (OSError, imaplib.IMAP4.abort) as exc:
             self.close()
-            raise BccError(f"connection to {host} failed: {exc}") from exc
+            raise NetworkTrouble(f"connection to {host} failed: {exc}") from exc
         if typ != "OK":
             self.close()
             raise BccError(f"could not open {self.folder}: {data!r}")
@@ -1233,7 +1241,9 @@ class GmailMailbox:
                 if typ == "OK" and raw:
                     out.append((uid, raw))
             return out
-        except (imaplib.IMAP4.error, OSError) as exc:
+        except (OSError, imaplib.IMAP4.abort) as exc:
+            raise NetworkTrouble(f"reading mail failed: {_imap_text(exc)}") from exc
+        except imaplib.IMAP4.error as exc:
             raise BccError(f"reading mail failed: {_imap_text(exc)}") from exc
 
     def mark_read(self, uids: list[bytes]) -> None:
@@ -1241,7 +1251,9 @@ class GmailMailbox:
             return
         try:
             self.conn.uid("STORE", b",".join(uids), "+FLAGS", "(\\Seen)")
-        except (imaplib.IMAP4.error, OSError) as exc:
+        except (OSError, imaplib.IMAP4.abort) as exc:
+            raise NetworkTrouble(f"marking mail read failed: {_imap_text(exc)}") from exc
+        except imaplib.IMAP4.error as exc:
             raise BccError(f"marking mail read failed: {_imap_text(exc)}") from exc
 
 
