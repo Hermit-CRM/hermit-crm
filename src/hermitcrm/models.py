@@ -160,6 +160,7 @@ class InteractionSource(str, Enum):
     CALENDAR_IMPORT = "calendar-import"
     MIGRATION = "migration"  # contact notes ported to note interactions (format 7)
     OUTREACH = "outreach"  # sent or logged by the outreach bot itself (format 13)
+    LINKEDIN_IMPORT = "linkedin-import"  # read off a LinkedIn conversation (format 21)
 
 
 class ValidationError(Exception):
