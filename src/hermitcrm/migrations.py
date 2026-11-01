@@ -598,6 +598,8 @@ MIGRATIONS = [
               m17_drop_angle),
     Migration(19, "company notes become note interactions", "companies/*/company.md",
               folder=m19_company_notes),
+    Migration(20, "interactions may have attachments (nothing to change in a file)",
+              "companies/*/interactions/*.md", _noop),
 ]
 LATEST = MIGRATIONS[-1].version
 

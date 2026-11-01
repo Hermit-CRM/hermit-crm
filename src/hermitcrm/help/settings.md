@@ -47,6 +47,14 @@ companies) goes to the review queue, which is **To file** on Home. Dedup is by
 Message-ID. Below the form: the last import (time and summary, or the error)
 and **Import now**, which runs the import on the spot.
 
+Attachments come with the mail: a PDF or document is saved with the interaction
+it logs (see [Interactions](/help/interactions)), and a mail waiting under **To
+file** keeps its files until you log it. Set `bcc_attachments` in `config.toml` to
+`documents` (the default: real attachments, not a logo in a signature, a calendar
+invite or a signature file), `all` (also pictures shown inside the mail, 20 KB or
+larger) or `off`. A file over `attachment_max_mb` is skipped and the import summary
+counts it; the mail itself is still logged.
+
 ## Sending
 
 Send approved outreach email from the Outreach page, from a mailbox of its own.
