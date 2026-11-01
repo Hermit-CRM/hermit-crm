@@ -336,13 +336,21 @@ def run(root: Path, config: dict | None = None, home: Path | None = None,
             and _out(["remote", "get-url", remote], root):
         behind = _out(["rev-list", "--count", f"{remote}/{branch}..HEAD"], root)
         if behind is None or behind != "0":
-            proc = _git(["push", "--quiet", remote, branch], root, timeout=60)
-            if proc.returncode == 0:
+            # A hung network is a warning like any other failed push; letting the
+            # timeout escape would end the run before its state is saved.
+            error = None
+            try:
+                proc = _git(["push", "--quiet", remote, branch], root, timeout=60)
+                if proc.returncode != 0:
+                    error = proc.stderr.strip()[:300]
+            except subprocess.TimeoutExpired:
+                error = "timed out after 60 seconds"
+            if error is None:
                 out.lines.append(f"pushed {branch} to {remote}")
                 out.changed = True
             else:
                 out.warnings.append(f"push to {remote} failed (the local backup is fine): "
-                                    f"{proc.stderr.strip()[:300]}")
+                                    f"{error}")
 
     state.update({
         "dest": str(dest),
