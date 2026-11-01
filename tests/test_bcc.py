@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import imaplib
+import socket
 import subprocess
 from dataclasses import replace
 from datetime import datetime
@@ -632,6 +633,40 @@ def test_gmail_mailbox_login_failure_is_readable():
     with pytest.raises(bcc.BccError, match="Invalid credentials.*app password.*keyring, service 'crm-bcc'"):
         with bcc.GmailMailbox(SETTINGS, "pw", imap_factory=factory):
             pass
+
+
+def test_gmail_mailbox_tells_network_trouble_from_a_refusal():
+    """DNS, connect and timeout errors are NetworkTrouble (worth a retry); a refusal is not."""
+    def no_dns(host, port, timeout=None):
+        raise socket.gaierror(8, "nodename nor servname provided, or not known")
+
+    with pytest.raises(bcc.NetworkTrouble, match="could not reach imap.gmail.com"):
+        with bcc.GmailMailbox(SETTINGS, "pw", imap_factory=no_dns):
+            pass
+
+    class SlowIMAP(FakeIMAP):
+        def uid(self, command, *args):
+            raise TimeoutError("The read operation timed out")
+
+    slow = lambda host, port, timeout=None: SlowIMAP(host, port)
+    with bcc.GmailMailbox(SETTINGS, "pw", imap_factory=slow) as box:
+        with pytest.raises(bcc.NetworkTrouble, match="timed out"):
+            box.fetch()
+
+    class DroppedIMAP(FakeIMAP):
+        def uid(self, command, *args):
+            raise imaplib.IMAP4.abort("socket error: EOF")
+
+    dropped = lambda host, port, timeout=None: DroppedIMAP(host, port)
+    with bcc.GmailMailbox(SETTINGS, "pw", imap_factory=dropped) as box:
+        with pytest.raises(bcc.NetworkTrouble):
+            box.mark_read([b"1"])
+
+    refused = lambda host, port, timeout=None: FakeIMAP(host, port, login_error=b"nope")
+    with pytest.raises(bcc.BccError) as err:
+        with bcc.GmailMailbox(SETTINGS, "pw", imap_factory=refused):
+            pass
+    assert not isinstance(err.value, bcc.NetworkTrouble)
 
 
 class FakeBox:

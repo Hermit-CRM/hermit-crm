@@ -74,6 +74,11 @@ class CalendarError(Exception):
     """A readable reason the import could not run (no URL, network, bad feed)."""
 
 
+class CalendarNetworkError(CalendarError):
+    """The feed's host could not be reached (no DNS yet after a wake, a timeout):
+    the daily sync tries again in a minute, a bad URL or feed it does not."""
+
+
 # ------------------------------------------------------------------ settings
 
 
@@ -162,9 +167,12 @@ def fetch_ics(url: str, timeout: float = FETCH_TIMEOUT, max_bytes: int = MAX_BYT
             data = resp.read(max_bytes + 1)
     except urllib.error.HTTPError as exc:
         raise CalendarError(f"{host} answered HTTP {exc.code}") from exc
-    except (urllib.error.URLError, OSError, ValueError) as exc:
+    except (urllib.error.URLError, OSError) as exc:
         reason = getattr(exc, "reason", exc)
-        raise CalendarError(f"could not fetch the calendar from {host}: {reason}") from exc
+        raise CalendarNetworkError(
+            f"could not fetch the calendar from {host}: {reason}") from exc
+    except ValueError as exc:
+        raise CalendarError(f"could not fetch the calendar from {host}: {exc}") from exc
     if len(data) > max_bytes:
         raise CalendarError(f"the calendar from {host} is larger than "
                             f"{max_bytes // (1024 * 1024)} MB")
