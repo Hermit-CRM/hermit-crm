@@ -46,13 +46,6 @@ RESERVED_SLOTS = frozenset({
     "first", "company", "growth", "size", "hurdle", "team", "observation",
     "fte", "ae", "site", "owner_first_name",
 })
-# The two roles the shipped playbook understands, named by the keys a folder
-# migrated from an older Hermit CRM already has. A folder without those fields
-# simply has neither, and the size and team lines use their "unknown" wording.
-DEFAULT_SIZE_FIELD = "fte_estimate"
-DEFAULT_TEAM_FIELD = "ae_count"
-# Signals with their own `growth` sentence; the others use the "" one.
-GROWTH_SIGNALS = ("growing", "stalled", "declining")
 HURDLES = [10, 20, 50, 100, 250, 500]
 MESSAGES_FILE = "messages.toml"
 
@@ -123,10 +116,6 @@ def language_names(messages: dict | None = None) -> dict[str, str]:
 def signal_labels(messages: dict | None = None) -> dict[str, str]:
     messages = messages if messages is not None else default_messages()
     return {s: str(messages.get("signals", {}).get(s, s)) for s in SIGNALS}
-
-
-LANGUAGE_NAMES = language_names()
-SIGNAL_LABELS = signal_labels()
 
 
 def owner_first_name(owner_name: str) -> str:

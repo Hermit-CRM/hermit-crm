@@ -41,15 +41,13 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 import subprocess
 import sys
-import tomllib
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable, Iterable
 from urllib.parse import urlparse
@@ -65,7 +63,6 @@ logger = logging.getLogger("crm.calendar")
 LAST_RUN_FILE = ".last-calendar-run.json"
 UPCOMING_FILE = "upcoming.json"
 SECRETS_FILE = ".secrets.toml"
-URL_ENV = "CRM_CALENDAR_URL"
 MAX_BYTES = 10 * 1024 * 1024
 FETCH_TIMEOUT = 30.0
 DESCRIPTION_CHARS = 500

@@ -29,7 +29,6 @@ import logging
 import re
 import subprocess
 import tomllib
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -38,7 +37,6 @@ from urllib.parse import urlparse
 from . import backup as local_backup
 from . import bcc, calendar_sync, dateformat, secrets, stages
 from .gitops import GitOps
-from .models import valid_email
 from .store import DEFAULT_CONFIG, Store, load_config
 
 logger = logging.getLogger("hermitcrm.setup")
