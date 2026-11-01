@@ -11,43 +11,48 @@
 {% if parked_label %}<a class="toggle-parked" href="{{ toggle_url }}">{% if show_parked %}Hide {{ parked_label }}{% else %}Show {{ parked_label }} ({{ hidden_parked }}){% endif %}</a>{% endif %}
 {% if show_parked %}<input type="hidden" name="parked" value="1" form="company-filters">{% endif %}
 <div class="table-scroll"><table class="filterable">
-  <tr>{% for col in filter_columns %}{% if col.key == 'links' %}<th>links</th>{% else %}<th>{{ col.label }} {{ m.sort_links(col, sort, dir, sort_url) }}</th>{% endif %}{% endfor %}</tr>
+  <thead>
+  <tr>{% for col in filter_columns %}{% if col.key == 'links' %}<th>links</th>{% else %}<th{{ m.head_attrs(col) }}>{{ col.label }} {{ m.sort_links(col, sort, dir, sort_url) }}</th>{% endif %}{% endfor %}</tr>
   <tr class="filters">{% for col in filter_columns %}<th>{% if col.key != 'links' %}{{ m.filter_control(col, active, 'company-filters') }}{% endif %}</th>{% endfor %}</tr>
+  </thead>
   {%- set custom = custom_fields_for('company') %}
+  <tbody>
   {% for c in companies %}
   <tr>
     {%- set nxt = c.next_todo() %}
     {%- for col in filter_columns %}
     {%- if col.key == 'name' %}
-    <td><a href="/companies/{{ c.slug }}">{{ c.name }}</a></td>
+    <td{{ m.cell_attrs(col, 'name') }}><a href="/companies/{{ c.slug }}">{{ c.name }}</a></td>
     {%- elif col.key == 'country' %}
-    <td>{{ c.country }}</td>
+    <td{{ m.cell_attrs(col) }}>{{ c.country }}</td>
     {%- elif col.key == 'stage' %}
-    <td{% if not c.stages.is_known(c.stage) %} class="off-board" title="not in Settings"{% endif %}>{{ c.stage }}{% if c.requalify_on %} <span class="small">until {{ fmt_date(c.requalify_on) }}</span>{% endif %}</td>
+    <td{{ m.cell_attrs(col, 'off-board' if not c.stages.is_known(c.stage)) }}>{{ m.stage_pill(c) }}{% if c.requalify_on %} <span class="small">until {{ fmt_date(c.requalify_on) }}</span>{% endif %}</td>
     {%- elif col.key == 'source' %}
-    <td>{{ c.source }}</td>
+    <td{{ m.cell_attrs(col) }}>{{ c.source }}</td>
     {%- elif col.key == 'tags' %}
-    <td>{{ c.tags | join(', ') }}</td>
+    <td{{ m.cell_attrs(col) }}>{{ c.tags | join(', ') }}</td>
     {%- elif col.key == 'last_touch' %}
-    <td>{{ c.touch_summary(fmt_date) }}</td>
+    {%- set touch = c.touch_summary(fmt_date) %}
+    <td{{ m.cell_attrs(col, 'muted' if touch == 'none') }}>{{ touch }}</td>
     {%- elif col.key == 'next_step' %}
-    <td{% if nxt and nxt.done %} class="done"{% endif %}>{{ nxt.text if nxt else '' }}{% if nxt and nxt.done %} (done){% endif %}</td>
+    <td{{ m.cell_attrs(col, 'done' if nxt and nxt.done) }}>{{ nxt.text if nxt else '' }}{% if nxt and nxt.done %} (done){% endif %}</td>
     {%- elif col.key == 'next_type' %}
-    <td>{{ m.type_chip(nxt.type if nxt and not nxt.done else '') }}</td>
+    <td{{ m.cell_attrs(col) }}>{{ m.type_chip(nxt.type if nxt and not nxt.done else '') }}</td>
     {%- elif col.key == 'next_step_due' %}
-    <td class="{% if c.next_overdue(today) %}overdue{% endif %}">{{ fmt_date(c.next_due) }}</td>
+    <td{{ m.cell_attrs(col, 'overdue' if c.next_overdue(today)) }}>{{ fmt_date(c.next_due) }}</td>
     {%- elif col.key == 'links' %}
     <td class="links">
       {% if c.website %}<a href="{{ c.website | href }}" target="_blank" rel="noopener">web</a>{% endif %}
       {% if c.linkedin %}<a href="{{ c.linkedin | href }}" target="_blank" rel="noopener">li</a>{% endif %}
     </td>
     {%- else %}
-    <td>{% for f in custom if f.key == col.key %}{{ f.display(c.extra.get(f.key)) }}{% endfor %}</td>
+    <td{{ m.cell_attrs(col) }}>{% for f in custom if f.key == col.key %}{{ f.display(c.extra.get(f.key)) }}{% endfor %}</td>
     {%- endif %}
     {%- endfor %}
   </tr>
   {% else %}
   <tr><td colspan="12" class="empty">No companies.</td></tr>
   {% endfor %}
+  </tbody>
 </table></div>
 {% endblock %}
