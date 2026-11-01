@@ -8,6 +8,14 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **The daily import waits for the network after a wake.** A Mac that was asleep at the
+  scheduled time runs the daily sync the moment it wakes, before Wi-Fi and DNS are
+  back, and the BCC import used to fail with "could not reach imap.gmail.com" until the
+  next day. The daily sync now tries again after 10, 30, 60 and 120 seconds, for the
+  mail and for the calendar, and only then reports the failure. A wrong password or URL
+  is still reported at once, and **Import now** and `hermitcrm bcc` do not wait. No data
+  migration.
+
 - **Mail connections check the server's certificate.** Sending over port 465 and every
   IMAP connection (the reply check, the Sent check, the bounce scan and the BCC import)
   now refuse a server whose certificate is not valid for its host name; port 587 already

@@ -395,6 +395,85 @@ def test_cmd_calendar_with_ics_file_and_unconfigured(store, messages, tmp_path):
     assert code == 0 and "1 interactions logged" in text
 
 
+class FlakyBox(FakeBox):
+    """Cannot be reached for the first `down` tries, like a Mac that just woke."""
+
+    def __init__(self, raws=(), down=0, error="could not reach imap.gmail.com: no dns"):
+        super().__init__(raws)
+        self.down, self.tries, self.message = down, 0, error
+
+    def __enter__(self):
+        self.tries += 1
+        if self.tries <= self.down:
+            raise bcc.NetworkTrouble(self.message)
+        return self
+
+
+SYNC_CONFIG = {"my_addresses": [ME], "bcc_address": "me+bcc@gmail.com"}
+
+
+def test_sync_waits_for_the_network_after_a_wake(store, messages):
+    seed(store)
+    box, slept = FlakyBox([raw_mail()], down=2), []
+    text, code = crm.cmd_sync(store, store.root, SYNC_CONFIG, apply=True,
+                              open_mailbox=lambda: box, resolve=lambda: "",
+                              retry_waits=(5, 10, 20), sleep=slept.append)
+    assert code == 0 and box.tries == 3 and slept == [5, 10]
+    assert "BCC import failed" not in text and "1 interactions logged" in text
+    assert bcc.Inbox(store.root).last_run()["ok"] is True
+
+
+def test_sync_gives_up_after_the_last_wait_and_says_why(store, messages):
+    seed(store)
+    box, slept = FlakyBox([raw_mail()], down=99), []
+    text, code = crm.cmd_sync(store, store.root, SYNC_CONFIG, apply=True,
+                              open_mailbox=lambda: box, resolve=lambda: "",
+                              retry_waits=(5, 10), sleep=slept.append)
+    assert code == 1 and box.tries == 3 and slept == [5, 10]
+    assert "BCC import failed: could not reach imap.gmail.com: no dns" in text
+    run = bcc.Inbox(store.root).last_run()
+    assert run["ok"] is False and "could not reach" in run["error"]
+
+
+def test_sync_does_not_retry_what_waiting_cannot_fix(store, messages):
+    seed(store)
+    slept = []
+    text, code = crm.cmd_sync(store, store.root, SYNC_CONFIG, apply=True,
+                              open_mailbox=lambda: FakeBox(error="no Gmail app password found."),
+                              resolve=lambda: "", retry_waits=(5, 10), sleep=slept.append)
+    assert code == 1 and slept == [] and "no Gmail app password found" in text
+
+
+def test_sync_retries_the_calendar_fetch_too(store, messages):
+    seed(store)
+    tries, slept = [], []
+
+    def fetch():
+        tries.append(1)
+        if len(tries) < 3:
+            raise cal.CalendarNetworkError("could not fetch the calendar from example.com: down")
+        return ics(vevent())
+
+    text, code = crm.cmd_sync(store, store.root, SYNC_CONFIG, apply=True,
+                              open_mailbox=lambda: FakeBox([]), fetch=fetch,
+                              retry_waits=(5, 10), sleep=slept.append)
+    assert code == 0 and len(tries) == 3 and slept == [5, 10]
+    assert "Calendar import failed" not in text
+
+
+def test_a_by_hand_import_does_not_wait(store, messages):
+    """Import now and `hermitcrm bcc` answer at once; only the daily job waits."""
+    seed(store)
+    text, code = crm.cmd_bcc(store, store.root, SYNC_CONFIG, apply=True,
+                             open_mailbox=lambda: FlakyBox([], down=1))
+    assert code == 1 and "could not reach" in text
+
+
+def test_the_daily_job_waits_a_few_minutes_in_all():
+    assert crm.SYNC_RETRY_WAITS == tuple(sorted(crm.SYNC_RETRY_WAITS))
+    assert 120 <= sum(crm.SYNC_RETRY_WAITS) <= 600
+
+
 def test_parser_has_calendar_and_sync():
     parser = crm._build_parser()
     args = parser.parse_args(["calendar", "--apply", "--ics", "a.ics", "b.ics"])

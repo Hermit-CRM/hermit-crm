@@ -287,6 +287,11 @@ installed by `hermitcrm schedule install [--at HH:MM] [--serve]` through launchd
 (macOS) or systemd user units (Linux); on Windows the `schtasks` commands are
 printed for you to run. The install command to copy is on the page.
 
+A Mac that is asleep at the scheduled time runs the job when it wakes, which can be
+before the network is back. The job then retries a failed connection after 10, 30, 60
+and 120 seconds (mail and calendar each) before it gives up and reports it; a wrong
+password or calendar URL is reported at once.
+
 ## Access
 
 Read-only: the two other ways into the same folder, both started from a
