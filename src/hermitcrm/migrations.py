@@ -600,6 +600,8 @@ MIGRATIONS = [
               folder=m19_company_notes),
     Migration(20, "interactions may have attachments (nothing to change in a file)",
               "companies/*/interactions/*.md", _noop),
+    Migration(21, "interactions may have the source linkedin-import (nothing to change in a file)",
+              "companies/*/interactions/*.md", _noop),
 ]
 LATEST = MIGRATIONS[-1].version
 
