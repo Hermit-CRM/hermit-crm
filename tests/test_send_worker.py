@@ -18,15 +18,15 @@ are in-memory doubles and the clock is passed in; no test touches the network.""
 
 from __future__ import annotations
 
-import imaplib
 import re
 import smtplib
 import socket
+import ssl
 from datetime import datetime, timedelta
 
 import pytest
 
-from hermitcrm import cli, doctor, outreach, send, sendqueue
+from hermitcrm import cli, doctor, mailtls, outreach, send, sendqueue
 from hermitcrm.store import load_config
 from outreach_fakes import NOW, git
 from send_fakes import (GOOD_PASSWORD, MARA, FakeImap, FakeSmtp, auth_error, data_error,
@@ -441,6 +441,47 @@ def test_a_bad_password_in_a_tick_pauses_everything_with_the_servers_text(folder
     assert all(outreach.get_item(root, i).state == "queued" for i in ids)
 
 
+CERT = ("[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate")
+
+
+def test_a_certificate_failure_in_a_tick_pauses_everything_and_burns_no_retries(folder):
+    root, store, settings = folder
+    ids = many_ready(root, store, 2)
+    sendqueue.schedule(store, ids, settings, MON)
+    smtp, imap = FakeSmtp(connect_error=ssl.SSLCertVerificationError(1, CERT)), FakeImap()
+    calls = []
+
+    def counting(host, port, timeout=None):
+        calls.append(host)
+        return smtp.factory(host, port, timeout=timeout)
+
+    when = outreach.get_item(root, ids[0]).send_at
+    out = sendqueue.due(root, now=when, store=store, smtp_factory=counting,
+                        imap_factory=imap.factory)
+    assert out[0].startswith("paused:") and "certificate could not be verified" in out[0]
+    assert "CERTIFICATE_VERIFY_FAILED" in out[0]
+    again = sendqueue.due(root, now=when + timedelta(minutes=3), store=store,
+                          smtp_factory=counting, imap_factory=imap.factory)
+    assert again[0].startswith("paused (refused): the mail server's certificate")
+    assert len(calls) == 1                                # nothing retried
+    for i in ids:
+        item = outreach.get_item(root, i)
+        assert item.state == "queued" and item.send_tries <= 1 and not item.send_error
+
+
+def test_a_certificate_failure_in_the_bounce_scan_pauses_with_the_readable_text(folder):
+    root, store, settings = folder
+    imap = FakeImap(connect_error=ssl.SSLCertVerificationError(1, CERT))
+    ids = many_ready(root, store, 1)
+    sendqueue.schedule(store, ids, settings, MON)
+    when = outreach.get_item(root, ids[0]).send_at
+    out = tick(root, store, when, FakeSmtp(), imap, scan=True)
+    assert out[0].startswith("paused: the mail server's certificate could not be verified")
+    assert "CERTIFICATE_VERIFY_FAILED" in out[0] and "trying again" not in out[0]
+    state = send.SendState.load(root)
+    assert state.paused and state.kind == send.REFUSED
+
+
 def test_the_quota_pause_ends_by_itself_and_the_items_are_planned_again(folder):
     root, store, settings = folder
     ids = many_ready(root, store, 1)
@@ -537,7 +578,7 @@ def test_the_cli_sends_now_through_the_default_connections(folder, capsys, monke
     ids = many_ready(root, store, 1)
     smtp, imap = FakeSmtp(), FakeImap()
     monkeypatch.setattr(smtplib, "SMTP", smtp.factory)
-    monkeypatch.setattr(imaplib, "IMAP4_SSL", imap.factory)
+    monkeypatch.setattr(mailtls, "imap_ssl", imap.factory)
     assert run_cli(root, "outreach", "send-now", ids[0]) == 0
     assert capsys.readouterr().out.startswith(f"sent: {ids[0]}")
     assert len(smtp.sent) == 1 and outreach.get_item(root, ids[0]).state == "sent"
@@ -553,7 +594,7 @@ def test_the_cli_pause_resume_and_test(folder, capsys, monkeypatch):
     assert "Resumed: the Pause button." in capsys.readouterr().out
     smtp, imap = FakeSmtp(), FakeImap()
     monkeypatch.setattr(smtplib, "SMTP", smtp.factory)
-    monkeypatch.setattr(imaplib, "IMAP4_SSL", imap.factory)
+    monkeypatch.setattr(mailtls, "imap_ssl", imap.factory)
     assert run_cli(root, "send", "test") == 0
     assert "Test mail sent to sam@example.com" in capsys.readouterr().out
     bad = FakeSmtp(login_error=auth_error())
