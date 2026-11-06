@@ -2464,10 +2464,15 @@ def create_app(root: Path, config: dict | None = None,
         """
         return capture.bookmarklet(str(request.base_url).rstrip("/"))
 
+    def conversation_bookmarklet_for(request: Request) -> str:
+        """"Hermit: conversation", pointed at the address this app answers on."""
+        return capture.conversation_bookmarklet(str(request.base_url).rstrip("/"))
+
     @app.get("/extension", response_class=HTMLResponse)
     def extension_page(request: Request):
         return render(request, "extension.html", {
             "bookmarklet": bookmarklet_for(request),
+            "conversation_bookmarklet": conversation_bookmarklet_for(request),
             "base": str(request.base_url).rstrip("/"),
         })
 

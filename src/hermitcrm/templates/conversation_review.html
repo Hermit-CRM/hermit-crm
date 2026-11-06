@@ -47,8 +47,9 @@
   <div class="cv-questions warning-box">
     <p><strong>Hermit could not read {{ 'this date' if questions | length == 1 else 'these dates' }}.</strong> Say which {{ 'day it was' if questions | length == 1 else 'days they were' }}; those messages cannot be imported until you do.</p>
     {% for q in questions %}
-    <label>{{ q.heading }}
-      <input type="{{ 'datetime-local' if q.moment else 'date' }}" data-heading="{{ q.index }}" value="{{ q.value }}">
+    <label>{{ 'On what day and time was' if q.moment else 'Which day was' }} &ldquo;{{ q.heading }}&rdquo;?
+      <input type="{{ 'datetime-local' if q.moment else 'date' }}" data-heading="{{ q.index }}" value="{{ q.value }}"
+             aria-label="{{ 'Which day and time was' if q.moment else 'Which day was' }} &quot;{{ q.heading }}&quot;?">
     </label>
     {% endfor %}
   </div>

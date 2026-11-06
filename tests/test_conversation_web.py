@@ -323,6 +323,8 @@ def test_an_unreadable_day_asks_for_a_date_and_cannot_be_ticked_until_answered(c
                    item("Again", day="Today", time="8:05 AM", urn="u2"))
     html = preview(client, data).text
     assert 'type="date"' in html and "Fri the 13th" in html
+    assert 'aria-label="Which day was &#34;Fri the 13th&#34;?"' in html or \
+        'aria-label="Which day was &quot;Fri the 13th&quot;?"' in html
     first = rows(html)[0]
     assert "disabled" in first and "checked" not in first
     answered = preview(client, data, dates={"0": "2026-09-04"}).text
@@ -620,3 +622,32 @@ def test_without_an_opener_the_receiver_says_what_to_try_at_once():
 def test_nothing_arriving_in_a_few_seconds_says_so_and_what_to_try():
     out = run_receiver({"timeout": True})
     assert "did not receive" in out["status"].lower() and "bookmark" in out["status"].lower()
+
+
+# ------------------------------------------------------------ the Extension page
+
+
+def test_the_extension_page_offers_both_bookmarks_and_keeps_the_old_one(client):
+    html = client.get("/extension").text
+    links = re.findall(r'<a class="bookmarklet" href="(javascript:[^"]*)">([^<]*)</a>', html)
+    names = [name for _, name in links]
+    assert "Add to Hermit CRM" in names and "Hermit: conversation" in names
+    conversation_link = next(href for href, name in links if name == "Hermit: conversation")
+    link = conversation_link.replace("&#39;", "'")
+    assert "var B = 'http://testserver'" in link and "'/extension/conversation'" in link
+    assert 'action="/extension/new"' in html                       # the URL box still works
+
+
+def test_the_extension_page_explains_the_conversation_bookmark_in_plain_words(client):
+    text = re.sub(r"<[^>]+>", " ", client.get("/extension").text)
+    text = " ".join(text.split())
+    assert "nothing is fetched and nothing goes to LinkedIn" in text
+    assert "User Agreement" in text and "8.2" in text
+    assert "not something LinkedIn has approved" in text
+    for step in ("open the conversation", "click the bookmark", "review"):
+        assert step in text.lower()
+
+
+def test_the_extension_help_page_mentions_the_conversation_bookmark(client):
+    text = client.get("/help/extension").text
+    assert "Hermit: conversation" in text and "User Agreement" in text
