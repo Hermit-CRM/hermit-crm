@@ -19,6 +19,9 @@ upgrade button, "Draft it from my website or a document" and "Learn my voice"
 
 from __future__ import annotations
 
+import html
+import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -284,3 +287,23 @@ def test_an_approach_named_with_a_hash_can_be_saved_and_deleted(client, folder):
                                                        "approach": "Training C#"})
     assert r.status_code == 303
     assert [a.name for a in playbook.load(folder).approaches] == ["My approach"]
+
+
+@pytest.mark.parametrize("name", ["Owner's pitch", "x');alert(1);//", 'Say "hi"',
+                                  "a\\b", "R&D <team>"])
+def test_the_delete_confirm_is_valid_javascript_for_any_name(client, name):
+    made = client.post("/settings/playbook/new",
+                       data={"csrf_token": token(client), "name": name})
+    assert made.status_code == 303, made.text
+    # The page picks an approach by position; the redirect points at the new one.
+    page = client.get(made.headers["location"])
+    assert page.status_code == 200
+    found = re.search(r'<form[^>]*action="/settings/playbook/delete"[^>]*'
+                      r'onsubmit="([^"]*)"', page.text)
+    assert found, "no Delete form for this approach"
+    # The browser decodes the attribute's HTML entities before it runs the JS.
+    handler = html.unescape(found.group(1))
+    assert handler.startswith("return confirm(") and handler.endswith(")")
+    inner = handler[len("return confirm("):-1]
+    assert json.loads(inner) == (
+        f"Delete the approach {name} and everything in it? It stays in the git history.")

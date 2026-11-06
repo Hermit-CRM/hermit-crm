@@ -45,9 +45,9 @@ FILENAME = "layout.toml"
 # anchor on the page too, except `enrich` (the Enrich and Fetch from URL
 # buttons) and `next-step` (the next step line under them).
 SECTIONS = {
-    "company": ("enrich", "next-step", "details", "contacts", "tasks", "merge",
+    "company": ("enrich", "next-step", "details", "contacts", "tasks", "files", "merge",
                 "timeline"),
-    "contact": ("details", "tasks", "quick-add", "timeline", "merge", "delete"),
+    "contact": ("details", "tasks", "quick-add", "timeline", "files", "merge", "delete"),
     "home": ("doing", "to-file", "owed", "keep-in-touch", "going"),
 }
 

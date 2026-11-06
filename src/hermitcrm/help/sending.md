@@ -53,7 +53,9 @@ Before each send it checks again:
 - sending is on, not paused, inside the window, under today's cap, and the last
   send was at least the minimum gap ago;
 - the text is still exactly what you approved (an edit on the page, or by hand
-  in the file, puts it back to Ready);
+  in the file, puts it back to Ready). A file set to `queued` by hand or by an
+  agent, without pressing **Schedule**, is held the same way and goes back to
+  Ready ("it was never scheduled in the app"); **Send now** still sends it;
 - the contact has an email address that is not on the suppression list, and the
   company is still open and not do-not-contact;
 - **nobody there has written to you** since you approved it: in the CRM, and in
@@ -106,6 +108,7 @@ refused while sending is paused. It is meant for replies and one-offs.
 | What happened | What it does |
 |---|---|
 | The login is refused (a revoked app password) | Pauses everything; a red banner on every page shows the server's own words; nothing retries until a new **Send a test** passes |
+| The mail server's certificate cannot be verified (self-signed, expired or for another host name) | Pauses everything with the same banner, which says what is wrong; fix the host name or the server, then a passing **Send a test** lifts it |
 | The daily quota is exceeded | Pauses until the next window, then plans again |
 | A temporary error (421, 450, a timeout, no network) | Tries again in 15 minutes, up to 3 times, then the item is failed |
 | The address does not exist | The item is failed and the address goes on the suppression list |

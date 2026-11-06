@@ -8,6 +8,12 @@
 {% block content %}
 {%- set hide = layout_hidden('company') %}
 <h1>{{ company.name }}</h1>
+{% if move_anyway %}
+<form method="post" action="/companies/{{ company.slug }}/stage" class="inline-form move-anyway">
+  <input type="hidden" name="stage" value="{{ move_anyway }}"><input type="hidden" name="force" value="1">
+  <button type="submit" title="Move {{ company.name }} to {{ move_anyway }} although the stage rules do not list it; the commit says so">Move anyway to {{ move_anyway }}</button>
+</form>
+{% endif %}
 {% if company.product_oneliner and 'product_oneliner' not in hide %}<p class="oneliner">{{ company.product_oneliner }}</p>{% endif %}
 <div class="small record-meta">
   {% if company.website and 'website' not in hide %}<a href="{{ company.website | href }}" target="_blank" rel="noopener">{{ company.website | replace('https://', '') | replace('http://', '') }}</a>{% endif %}
@@ -73,6 +79,7 @@
     <input type="hidden" name="version" value="{{ record_version(company.slug) }}">
     {{ m.company_fields(values, errors) }}
     <button type="submit">Save company</button>
+    {% if errors and errors.stage and 'is not allowed (' in errors.stage %}<button type="submit" name="force" value="1" title="Save anyway, moving to {{ values.stage }} although the stage rules do not list it; the commit says so">Move anyway</button>{% endif %}
   </form>
   <p class="small">slug {{ company.slug }} &middot; created {{ fmt_datetime(company.created) }} &middot; updated {{ fmt_datetime(company.updated) }} &middot; stage changed {{ fmt_date(company.stage_changed) }}</p>
   {% if company.stage_history %}
@@ -112,6 +119,8 @@
 </section>
 {% elif section == 'tasks' %}
 {{ m.task_section(company, today) }}
+{% elif section == 'files' %}
+{{ m.files_section(company, files) }}
 {% elif section == 'merge' %}
 <section id="merge">
   <h2>Merge</h2>

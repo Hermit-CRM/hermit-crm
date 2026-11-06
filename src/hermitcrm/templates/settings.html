@@ -517,12 +517,24 @@
     </div>
     {% endif %}
     <div class="table-scroll"><table class="stages-table">
-      <tr><th>stage</th><th title="What the stage means to Hermit: open, won, lost, closed or parked">role</th><th title="Show the monthly value in the PIPELINE.md heading">valued</th><th>companies</th><th></th></tr>
+      <tr><th>stage</th><th title="What the stage means to Hermit: open, won, lost, closed or parked">role</th><th title="Show the monthly value in the PIPELINE.md heading">valued</th><th title="Limit where a company in this stage can be moved next; used when stage rules are warn or enforce">can move to</th><th>companies</th><th></th></tr>
       {% for r in stages_form.rows %}
       <tr>
         <td><input name="name" value="{{ r.name }}" maxlength="30" aria-label="stage name" title="Renaming a stage renames it on every company and in its history"><input type="hidden" name="old" value="{{ r.old }}"></td>
         <td><select name="role" aria-label="role">{% for x in stages_form.roles %}<option value="{{ x }}"{% if x == r.role %} selected{% endif %}>{{ x }}</option>{% endfor %}</select></td>
         <td><input type="checkbox" name="valued" value="{{ loop.index0 }}"{% if r.valued %} checked{% endif %} aria-label="show value"></td>
+        <td class="stage-to">
+          {%- if r.old %}
+          <details>
+            <summary class="small">{% if r.to is none %}any stage{% elif r.to %}{{ r.to | join(', ') }}{% else %}nowhere{% endif %}</summary>
+            <label class="inline"><input type="checkbox" name="restrict" value="{{ loop.index0 }}"{% if r.to is not none %} checked{% endif %}> only these:</label>
+            {% set row_index = loop.index0 %}
+            {% for target in stages_form.rows if target.old and target.old != r.old %}
+            <label class="inline"><input type="checkbox" name="to" value="{{ row_index }}:{{ target.old }}"{% if r.to and target.old in r.to %} checked{% endif %}> {{ target.old }}</label>
+            {% endfor %}
+          </details>
+          {%- endif -%}
+        </td>
         <td class="num">{{ r.count }}</td>
         <td class="actions">
           {% if not loop.first %}<button type="submit" name="move" value="{{ loop.index0 }}-up" title="Move up">Up</button>{% endif %}
@@ -535,9 +547,12 @@
         <td><input name="name" value="" maxlength="30" placeholder="new stage" aria-label="new stage name"><input type="hidden" name="old" value=""></td>
         <td><select name="role" aria-label="role">{% for x in stages_form.roles %}<option value="{{ x }}">{{ x }}</option>{% endfor %}</select></td>
         <td><input type="checkbox" name="valued" value="{{ stages_form.rows | length }}" aria-label="show value"></td>
-        <td></td><td></td>
+        <td></td><td></td><td></td>
       </tr>
     </table></div>
+    <p class="summary"><label>Stage rules
+      <select name="stage_rules" aria-label="stage rules">{% for x in stages_form.rule_modes %}<option value="{{ x }}"{% if x == stages_form.rule_mode %} selected{% endif %}>{{ x }}</option>{% endfor %}</select></label>
+      {%- call m.hint('stage-rules-help', 'What stage rules do') %} <b>off</b>: any move between stages is fine. <b>warn</b>: a move a stage's "can move to" list does not allow still happens, and you are told. <b>enforce</b>: it is refused, in the web app, the command line, your agent and imports alike; "Move anyway" (or --force) overrides one move and is noted in the commit. A parked company can always return to the first stage.{% endcall %}</p>
     <button type="submit">Save stages</button>
   </form>
 </section>

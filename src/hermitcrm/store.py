@@ -21,6 +21,7 @@ uses to commit with the message this module produces.
 from __future__ import annotations
 
 import functools
+import os
 import shutil
 import threading
 import tomllib
@@ -38,11 +39,13 @@ try:  # not on Windows: there the in-process lock is all there is
 except ImportError:  # pragma: no cover
     fcntl = None
 
+from . import attachments as attachments_mod
 from . import dateformat
 from . import fields as fields_mod
 from .frameworks import ID as FRAMEWORK_ID
+from .attachments import Attachment, Incoming
 from .paths import contained
-from .stages import DEFAULT_STAGES, StageSet
+from .stages import DEFAULT_STAGES, RULE_MODES, StageSet
 from .models import (
     Channel,
     Company,
@@ -155,12 +158,18 @@ DEFAULT_CONFIG = {
     "outcomes": list(DEFAULT_OUTCOMES),
     # Seconds to wait when the free "Fetch from URL" enrichment reads a page.
     "fetch_timeout": 10,
+    # Largest file you can attach, in MB (1 to 90). A git host refuses a file over
+    # 100 MB and history is never rewritten, so a mistake would stay in the folder.
+    "attachment_max_mb": 25,
     # BCC import (hermitcrm/bcc.py): mails BCC'd or forwarded to bcc_address.
     "bcc_address": "",
     "bcc_imap_host": "imap.gmail.com",
     "bcc_keychain_service": "crm-bcc",
     "bcc_lookback_days": 30,
     "bcc_create_companies": True,
+    # Which attachments of BCC'd mail are kept: "documents", "all" (also pictures shown
+    # inside the mail) or "off".
+    "bcc_attachments": "documents",
     # Mail from these addresses is yours (outbound); recipients at these
     # domains (colleagues) are never logged.
     "my_addresses": [],
@@ -293,7 +302,7 @@ CONTACT_MERGE_FIELDS = tuple(
     f for f in CONTACT_COPY_FIELDS if f not in ("slug", "created", "updated", "tasks"))
 INTERACTION_COPY_FIELDS = (
     "id", "date", "channel", "direction", "contact", "subject", "framework",
-    "approach", "outcome", "source", "message_id", "body",
+    "approach", "outcome", "source", "message_id", "attachments", "body",
 )
 
 
@@ -361,6 +370,7 @@ class Store:
         outcomes: list[str] | None = None,
         task_types: list[str] | None = None,
         stages: StageSet | None = None,
+        stage_rules: str = "off",
     ):
         self.root = Path(root)
         self.companies_dir = self.root / "companies"
@@ -373,6 +383,11 @@ class Store:
         self.task_types = [str(t) for t in (task_types or [])]
         # The configured deal stages (config `stages`); the defaults without.
         self.stages = stages or DEFAULT_STAGES
+        # Whether the stages' `to` lists are looked at: "off", "warn", "enforce"
+        # (config `stage_rules`). Off, a move is checked only for a known stage.
+        self.stage_rules = stage_rules if stage_rules in RULE_MODES else "off"
+        # What "warn" said about the moves it let through, for the caller to show.
+        self.notices: list[str] = []
         self.on_write = on_write
         self._touched: list[str] = []
         self._batch: list[str] | None = None
@@ -420,6 +435,82 @@ class Store:
     def interaction_file(self, company_slug: str, id: str) -> Path:
         folder = contained(self.company_dir(company_slug), "interactions")
         return contained(folder, f"{id}.md")
+
+    def attachment_path(self, company_slug: str, file: str) -> Path:
+        """Where a stored attachment lives; ValidationError for anything that is not
+        a stored name (so never a path out of the folder)."""
+        if not attachments_mod.is_stored_name(file):
+            raise ValidationError({"file": f"{file!r} is not an attachment name"})
+        folder = contained(self.company_dir(company_slug), "attachments")
+        return contained(folder, file)
+
+    def attachment_limit(self) -> int:
+        """The largest file in bytes: `attachment_max_mb`, 1 to 90."""
+        try:
+            mb = int(load_config(self.root).get("attachment_max_mb", 25))
+        except (TypeError, ValueError, OSError, tomllib.TOMLDecodeError):
+            mb = 25
+        return max(1, min(90, mb)) * 1024 * 1024
+
+    @_locked
+    def add_files(self, company_slug: str, incoming: Sequence[Incoming]) -> list[Attachment]:
+        """Write files into the company's attachments folder and return their
+        references. Every size is checked before anything is written, so a refusal
+        leaves nothing behind. The caller's commit picks the files up (`_touch`)."""
+        # Not `_current`: that re-reads the company into the index, and the caller
+        # (create_interaction, update_interaction) is holding the object it got.
+        if not self.company_dir(company_slug).is_dir():
+            raise ValidationError({"company": f"unknown company {company_slug!r}"})
+        limit = self.attachment_limit()
+        for f in incoming:
+            if len(f.data) > limit:
+                raise ValidationError({"files": (
+                    f"{attachments_mod.safe_name(f.name)} is larger than "
+                    f"{limit // (1024 * 1024)} MB (attachment_max_mb in config.toml)")})
+        out: list[Attachment] = []
+        for f in incoming:
+            att = attachments_mod.make(f.data, f.name)
+            if att in out:
+                continue
+            path = self.attachment_path(company_slug, att.file)
+            if not attachments_mod.intact(path):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                tmp = path.with_name("." + path.name + ".part")  # a stored name never starts with "."
+                tmp.write_bytes(f.data)
+                os.replace(tmp, path)
+            self._touch(path)
+            out.append(att)
+        return out
+
+    def referenced_files(self, company_slug: str) -> dict[str, int]:
+        """How many owners (interactions, outreach items) of this company use each
+        stored file. A file with no owner left is deleted with the last one."""
+        from . import outreach
+        counts: dict[str, int] = {}
+        company = self.companies.get(company_slug)
+        owners = list(company.interactions) if company else []
+        owners += [i for i in outreach.items(self.root) if i.company == company_slug]
+        for owner in owners:
+            for att in getattr(owner, "attachments", None) or []:
+                counts[att.file] = counts.get(att.file, 0) + 1
+        return counts
+
+    def _drop_unreferenced(self, company_slug: str, files: Sequence[str]) -> None:
+        """Delete stored files nothing refers to any more; git history keeps them."""
+        if not files:
+            return
+        counts = self.referenced_files(company_slug)
+        for file in dict.fromkeys(files):
+            if counts.get(file):
+                continue
+            path = self.attachment_path(company_slug, file)
+            if path.exists():
+                self._touch(path)
+                path.unlink()
+        try:
+            self.attachment_path(company_slug, files[0]).parent.rmdir()
+        except OSError:
+            pass  # not empty, or already gone
 
     def _notify(self, message: str) -> None:
         if self._batch is not None:
@@ -512,6 +603,11 @@ class Store:
                 except ValidationError as exc:
                     self._problem(path, exc.args[0])
                     continue
+                raw_files = imeta.get("attachments")
+                if raw_files not in (None, "", []) and len(interaction.attachments) != (
+                        len(raw_files) if isinstance(raw_files, list) else -1):
+                    self._problem(path, "attachments: an entry is not readable (each needs "
+                                        "a file, name, size and type)")
                 if interaction.contact and interaction.contact not in company.contacts:
                     self._problem(
                         path,
@@ -576,6 +672,7 @@ class Store:
             for contact in c.contacts.values():
                 haystack.append(contact.name)
                 haystack.append(contact.email)
+            haystack += [a.name for i in c.interactions for a in i.attachments]
             if any(q in (h or "").lower() for h in haystack):
                 hits.append(c)
         return sorted(hits, key=lambda c: c.name.lower())
@@ -691,6 +788,51 @@ class Store:
                 {"stage": f"unknown stage {value!r} "
                           f"(allowed: {', '.join(self.stages.names)})"})
         return value
+
+    def move_allowed(self, old: str, new: str) -> bool:
+        """Whether the rules would let a company move `old` -> `new` without a
+        fuss: always, unless the rules are enforced and forbid it. For the moves
+        Hermit makes by itself (the first touch advances the entry stage), which
+        are skipped rather than refused."""
+        return (self.stage_rules != "enforce"
+                or self.stages.move_problem(old, new) is None)
+
+    def _check_move(self, old: str, new: str, force: bool = False) -> bool:
+        """Apply the stage rules to one move. Returns True when a rule was
+        overridden with `force` (the commit message says so); "warn" records a
+        notice and lets the move through; "enforce" raises a ValidationError
+        that names the legal moves. Off, or no rule in the way, does nothing."""
+        if self.stage_rules == "off":
+            return False
+        problem = self.stages.move_problem(old, new)
+        if problem is None:
+            return False
+        if force:
+            return True
+        if self.stage_rules == "warn":
+            self.notices.append(problem)
+            return False
+        raise ValidationError({"stage": problem})
+
+    def take_notices(self) -> list[str]:
+        """The warnings "warn" mode raised since the last call; the caller shows them."""
+        notices, self.notices = self.notices, []
+        return notices
+
+    def stage_rule_warnings(self) -> list[str]:
+        """`check` warnings: a recorded move that today's rules forbid. History
+        is never rewritten; this only says so. Nothing when the rules are off."""
+        if self.stage_rules == "off":
+            return []
+        out = []
+        for slug in sorted(self.companies):
+            for e in self.companies[slug].stage_history:
+                problem = self.stages.move_problem(e.from_stage, e.to_stage)
+                if problem:
+                    when = f"{e.date:%Y-%m-%d}" if e.date else "undated"
+                    out.append(f"companies/{slug}: stage_history {when}: {problem} "
+                               "under the current stage rules")
+        return out
 
     def _reason_rules(self, stage: str, reason: str, requalify_on):
         """What a stage does to `lost_reason` and `requalify_on`, by its role: a
@@ -808,8 +950,12 @@ class Store:
         return company
 
     @_locked
-    def update_company(self, slug: str, message: str | None = None, **fields) -> Company:
-        """Update fields; `message` overrides the default commit message."""
+    def update_company(self, slug: str, message: str | None = None,
+                       force: bool | str = False, **fields) -> Company:
+        """Update fields; `message` overrides the default commit message.
+        `force=True` moves the company even where the stage rules forbid it; the
+        override is named in the commit message and nowhere else. (Hermit's own
+        sweeps pass a word instead: they skip the rules without saying so.)"""
         company = self._current(slug)
         if company is None:
             raise ValidationError({"slug": f"unknown company {slug!r}"})
@@ -837,8 +983,11 @@ class Store:
         if "source" in fields:
             new.source = self._coerce_enum(fields["source"], Source, "source", True,
                                            "other")
+        overridden = False
         if "stage" in fields:
             new.stage = self._coerce_stage(fields["stage"], company.stage)
+            overridden = (self._check_move(company.stage, new.stage, bool(force))
+                          and force is True)
         if "lost_reason" in fields:
             new.lost_reason = (fields["lost_reason"] or "").strip()
         if "requalify_on" in fields:
@@ -897,6 +1046,8 @@ class Store:
                 message = f"company: {slug} next step {word}"
             else:
                 message = f"company: {slug} updated"
+        if overridden:
+            message += "; stage rule overridden"
         with self.batch(message):
             self.write_company(new)
             self.companies[slug] = new
@@ -1074,7 +1225,8 @@ class Store:
                 self.update_company(
                     company.slug, stage=move_to,
                     lost_reason=company.lost_reason or reason,
-                    message=f'company: {company.slug} stage {name} -> {move_to}')
+                    message=f'company: {company.slug} stage {name} -> {move_to}',
+                    force="sweep")   # the stage is going away: not a move the rules judge
         return n
 
     # --- merging
@@ -1291,6 +1443,18 @@ class Store:
                         out.append((company, person, index, task))
         return out
 
+    def _move_attachments(self, drop: str, keep: str) -> None:
+        """The dropped company's stored files join the kept company's. Content-
+        addressed names cannot clash with different content, so a name that is
+        already there is the same file."""
+        source = self.company_dir(drop) / "attachments"
+        for path in sorted(source.glob("*")) if source.is_dir() else []:
+            target = self.attachment_path(keep, path.name)
+            if not target.exists():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(path), str(target))
+                self._touch(target)
+
     @_locked
     def merge_companies(self, keep: str, drop: str,
                         choices: dict[str, str] | None = None) -> Company:
@@ -1353,6 +1517,7 @@ class Store:
             moved.id = self._interaction_id(keep, moved)
             self.write_interaction(keep, moved)
         self.write_company(merged)
+        self._move_attachments(drop, keep)
         self._touch(self.company_dir(drop))
         shutil.rmtree(self.company_dir(drop))
         self.companies.pop(drop, None)
@@ -1556,7 +1721,8 @@ class Store:
     def create_interaction(self, company_slug: str, channel, direction, subject="",
                            contact="", date=None, outcome="", body="",
                            source="manual", message_id="", custom=None,
-                           approach="", framework="") -> Interaction:
+                           approach="", framework="",
+                           attachments: Sequence[Incoming | Attachment] = ()) -> Interaction:
         company = self._current(company_slug)
         if company is None:
             raise ValidationError({"company": f"unknown company {company_slug!r}"})
@@ -1586,12 +1752,17 @@ class Store:
         )
         it.extra = fields_mod.apply({}, custom or {})
         it.id = self._interaction_id(company_slug, it)
+        for att in attachments:  # a reference to a file already stored must resolve
+            if isinstance(att, Attachment) and not self.attachment_path(
+                    company_slug, att.file).exists():
+                raise ValidationError({"files": f"{att.name} is not in this company's files"})
         message = (f"interaction: {company_slug} {it.label} "
                    f"{it.contact_label} {when:%Y-%m-%dT%H:%M}")
         # A logged interaction means contact was made: a prospect becomes
         # engaged, in the same commit as the interaction. A note is not contact.
         entry, target = self.stages.entry, self.stages.advance_target
-        advance = target is not None and company.stage == entry and it.is_touch
+        advance = (target is not None and company.stage == entry and it.is_touch
+                   and self.move_allowed(entry, target))
         if advance:
             message += f"; stage {entry} -> {target}"
         # An outreach item marked ready is sent once you log the message, by
@@ -1603,6 +1774,12 @@ class Store:
             it.framework = it.framework or item.framework
             it.approach = it.approach or item.approach
             message += f"; outreach {item.id} sent"
+        stored = self.add_files(company_slug, [a for a in attachments if isinstance(a, Incoming)])
+        it.attachments = [a for a in attachments if isinstance(a, Attachment)] + [
+            a for a in stored if a not in attachments]
+        if it.attachments:
+            n = len(it.attachments)
+            message += f"; {n} file{'s' if n != 1 else ''}"
         with self.batch(message):
             for item in sent:
                 self._touch(self.root / outreach.write_item(self.root, item))
@@ -1616,7 +1793,9 @@ class Store:
         return it
 
     @_locked
-    def update_interaction(self, company_slug: str, id: str, **fields) -> Interaction:
+    def update_interaction(self, company_slug: str, id: str,
+                           add_files: Sequence[Incoming] = (),
+                           remove_files: Sequence[str] = (), **fields) -> Interaction:
         company = self._current(company_slug)
         if company is None:
             raise ValidationError({"company": f"unknown company {company_slug!r}"})
@@ -1625,6 +1804,13 @@ class Store:
             raise ValidationError({"id": f"unknown interaction {id!r}"})
         new = Interaction(**{k: getattr(old, k) for k in INTERACTION_COPY_FIELDS})
         new.extra = dict(old.extra)
+        new.attachments = list(old.attachments)
+        gone = [f for f in remove_files if f]
+        held = {a.file for a in old.attachments}
+        for file in gone:
+            if file not in held:
+                raise ValidationError({"files": f"{file!r} is not attached to this interaction"})
+        new.attachments = [a for a in new.attachments if a.file not in gone]
         if "custom" in fields:
             new.extra = fields_mod.apply(new.extra, fields.pop("custom") or {})
         if "date" in fields:
@@ -1659,6 +1845,10 @@ class Store:
         if "body" in fields:
             new.body = normalise_body(fields["body"])
 
+        # Last, after every field has been checked: a refused edit leaves no file behind.
+        if add_files:
+            new.attachments += [a for a in self.add_files(company_slug, add_files)
+                                if a not in new.attachments]
         old_path = self.interaction_file(company_slug, old.id)
         desired = new.base_id()
         suffix = old.id[len(desired) + 1:]
@@ -1675,9 +1865,13 @@ class Store:
         company.interactions.append(new)
         company.interactions.sort(key=lambda i: (i.date or datetime.min, i.id),
                                   reverse=True)
+        self._drop_unreferenced(company_slug, gone)
         if set(fields) == {"outcome"}:
             self._notify(f"interaction: {company_slug} {new.id} outcome "
                          f"{new.outcome or 'unknown'}")
+        elif not fields and (gone or add_files):
+            what = "changed" if gone and add_files else "removed" if gone else "added"
+            self._notify(f"interaction: {company_slug} {new.id} files {what}")
         else:
             self._notify(f"interaction: {company_slug} {new.id} updated")
         return new
@@ -1697,5 +1891,6 @@ class Store:
         self._touch(gone)
         gone.unlink(missing_ok=True)
         company.interactions = [i for i in company.interactions if i.id != id]
+        self._drop_unreferenced(company_slug, [a.file for a in it.attachments])
         self._notify(f"interaction: {company_slug} deleted {id}")
         return it

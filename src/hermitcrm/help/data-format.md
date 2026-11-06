@@ -22,6 +22,7 @@ Every record is a Markdown file with YAML front matter in a fixed key order; the
   companies/<slug>/company.md
   companies/<slug>/contacts/<contact-slug>.md
   companies/<slug>/interactions/<id>.md
+  companies/<slug>/attachments/<hash>-<name>   files kept with notes, referenced from the interaction
 ```
 
 Writes are deterministic: known keys in the order below, unknown keys after
@@ -161,7 +162,12 @@ omitted when empty: the playbook approach the message was for),
 `outcome` (one line; see the configured outcomes), `result` (legacy: success,
 unsuccessful or empty), `source` (manual, bcc-import, calendar-import, migration, outreach),
 `message_id` (imports, and email Hermit CRM sent itself: the mail's Message-ID, or
-`ical:<UID>:<RECURRENCE-ID>:<attendee>` for a meeting). Body: the message or
+`ical:<UID>:<RECURRENCE-ID>:<attendee>` for a meeting), `attachments` (optional,
+omitted when empty, after `message_id`: a list with one flow map per file,
+`{file: <hash>-<name>, name: <name>, size: <bytes>, type: <media type>}`; `file` is the
+name under `companies/<slug>/attachments/` (twelve hex characters of the SHA-256
+of the content, a hyphen, the cleaned name), and `type` is worked out from the name
+when read). Body: the message or
 notes verbatim. Id: `YYYY-MM-DDTHHMM-<channel>-<direction>-<contact or company>`
 (a note: `YYYY-MM-DDTHHMM-note-<contact>`), `-2`, `-3` on collision. A note is a
 memo, not a touch: it never moves last touch, outcomes, follow-ups or reports.

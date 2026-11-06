@@ -22,6 +22,7 @@ import email
 import imaplib
 import smtplib
 import socket
+import ssl
 from datetime import datetime, timedelta
 from email import policy
 
@@ -144,6 +145,18 @@ def test_the_cap_warning_is_silent_to_50_and_loud_past_150():
 def test_smtp_errors_are_classified(exc, kind):
     err = send.classify_smtp(exc)
     assert err.kind == kind and err.text
+
+
+def test_a_certificate_failure_is_a_pausing_error_with_a_plain_hint():
+    raw = "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate"
+    err = send.classify_smtp(ssl.SSLCertVerificationError(1, raw))
+    assert err.kind == send.REFUSED
+    assert "certificate could not be verified" in err.text and "CERTIFICATE_VERIFY_FAILED" in err.text
+
+
+def test_other_ssl_errors_stay_temporary():
+    err = send.classify_smtp(ssl.SSLError(1, "[SSL: HANDSHAKE_FAILURE] handshake failure"))
+    assert err.kind == send.TEMPORARY and "handshake failure" in err.text
 
 
 def test_the_server_text_is_kept_as_it_is():
@@ -367,7 +380,7 @@ def test_a_scheduled_item_that_is_held_goes_back_to_ready_with_the_reason(folder
 
 
 @pytest.mark.parametrize("case", ["suppressed", "closed", "dnc", "sample", "country",
-                                  "disqualified", "failing-check", "edited", "no-opt-out"])
+                                  "disqualified", "failing-check", "edited", "no-opt-out", "unapproved"])
 def test_every_guard_holds_the_item(folder, case):
     root, store, settings = folder
     item = ready_item(root, store)
@@ -406,15 +419,30 @@ def test_every_guard_holds_the_item(folder, case):
         it.body = it.body.replace(OPT_OUT, "")
         it.send_hash = send.text_hash(it.subject, it.body)
         outreach.write_item(root, it)
+    elif case == "unapproved":
+        scheduled = True
+        it = outreach.get_item(root, item.id)
+        it.state, it.queued, it.send_at = "queued", NOW, NOW      # a hand-edited file: no send_hash
+        it.send_hash = ""
+        outreach.write_item(root, it)
     out, smtp, _ = deliver(store, settings, item.id, scheduled=scheduled)
     why = {"suppressed": "suppression list (opted-out, 2026-10-01)", "closed": "company is won",
            "dnc": "tagged do-not-contact", "sample": "made-up sample account",
            "country": "email to DE is switched off", "disqualified": "disqualified",
            "failing-check": "a check fails now", "edited": "text changed after it was scheduled",
-           "no-opt-out": "opt-out line from the playbook is missing"}[case]
+           "no-opt-out": "opt-out line from the playbook is missing",
+           "unapproved": "never scheduled in the app"}[case]
     assert out.kind == "held" and why in out.detail, out.detail
     assert not smtp.sent
     assert outreach.get_item(root, item.id).message_id == ""
+
+
+def test_send_now_still_sends_an_item_with_no_hash(folder):
+    root, store, settings = folder
+    item = ready_item(root, store)
+    assert outreach.get_item(root, item.id).send_hash == ""
+    out, smtp, _ = deliver(store, settings, item.id, scheduled=False)
+    assert out.kind == "sent" and len(smtp.sent) == 1
 
 
 def test_the_country_guard_is_off_by_default(folder):
@@ -752,6 +780,43 @@ def test_an_unreachable_imap_server_is_a_temporary_error(folder):
         with send.Mailbox(settings, "pw", bad.factory):
             pass
     assert caught.value.kind == send.AUTH and "Invalid credentials" in caught.value.text
+
+
+def test_an_imap_certificate_failure_pauses_instead_of_retrying(folder):
+    root, store, settings = folder
+    bad = FakeImap(connect_error=ssl.SSLCertVerificationError(
+        1, "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate"))
+    with pytest.raises(send.SendError) as caught:
+        with send.Mailbox(settings, "pw", bad.factory):
+            pass
+    assert caught.value.kind == send.REFUSED
+    assert "certificate could not be verified" in caught.value.text
+    assert "CERTIFICATE_VERIFY_FAILED" in caught.value.text
+    other = FakeImap(connect_error=ssl.SSLError(1, "[SSL: HANDSHAKE_FAILURE] handshake failure"))
+    with pytest.raises(send.SendError) as caught:
+        with send.Mailbox(settings, "pw", other.factory):
+            pass
+    assert caught.value.kind == send.TEMPORARY
+
+
+def test_a_certificate_failure_on_connect_pauses_and_does_not_burn_a_try(folder):
+    root, store, settings = folder
+    item = ready_item(root, store)
+    smtp = FakeSmtp(connect_error=ssl.SSLCertVerificationError(
+        1, "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate"))
+    out, smtp, _ = deliver(store, settings, item.id, smtp=smtp)
+    assert out.kind == "paused" and "certificate could not be verified" in out.detail
+    state = send.SendState.load(root)
+    assert state.paused and state.kind == send.REFUSED
+    assert "CERTIFICATE_VERIFY_FAILED" in state.message
+    after = outreach.get_item(root, item.id)
+    # not queued for a retry, not failed, no error written on the item; the one try is the
+    # one counted before the SMTP call (as for a bad password), never 3
+    assert after.state == "ready" and after.send_error == "" and after.send_tries == 1
+    # a passing test lifts it
+    result = send.send_test(root, load_config(root), smtp_factory=FakeSmtp().factory,
+                            imap_factory=FakeImap().factory, now=NOW)
+    assert result.ok and not send.SendState.load(root).paused
 
 
 # ------------------------------------------------------------ the test mail
