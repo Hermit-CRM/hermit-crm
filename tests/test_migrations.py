@@ -75,7 +75,7 @@ def test_format_detection(tmp_path, old_folder):
 def test_dry_run_lists_files_and_writes_nothing(old_folder):
     before = {p: p.read_bytes() for p in old_folder.rglob("company.md")}
     text = migrations.dry_run(old_folder)
-    assert "Data format 0 → 20" in text
+    assert "Data format 0 → 21" in text
     assert "1. rename gijs_score to my_score: 3 file(s)" in text  # bolt has an empty key
     assert "2. country UK→GB, USA→US: 2 file(s)" in text
     assert "3. interaction result folded into outcome: 0 file(s)" in text
@@ -97,7 +97,7 @@ def test_migrate_before_after_in_one_commit(old_folder):
 
     summary = migrations.ensure_current(old_folder)
 
-    assert summary.startswith("migrate: data format 0 → 20 (rename gijs_score to my_score; "
+    assert summary.startswith("migrate: data format 0 → 21 (rename gijs_score to my_score; "
                               "country UK→GB, USA→US; interaction result folded into "
                               "outcome; stage reached-out renamed to engaged; scores and "
                               "team size become fields you define; agents may not rewrite "
@@ -123,7 +123,7 @@ def test_migrate_before_after_in_one_commit(old_folder):
     assert "country: US\n" in bolt and "my_score:\n" in bolt and "gijs_score" not in bolt.split("---")[1]
     assert (old_folder / ".hermitcrm-format").read_text() == f"{migrations.LATEST}\n"
     assert int(git(["rev-list", "--count", "HEAD"], old_folder)) == commits_before + 1
-    assert git(["log", "-1", "--format=%s|%an"], old_folder).startswith("migrate: data format 0 → 20")
+    assert git(["log", "-1", "--format=%s|%an"], old_folder).startswith("migrate: data format 0 → 21")
     assert "hermitcrm" in git(["log", "-1", "--format=%an"], old_folder)
     changed = git(["show", "--name-only", "--format=", "HEAD"], old_folder).split()
     assert sorted(changed) == [".claude/settings.json", ".claude/skills/hermit/SKILL.md",
@@ -577,7 +577,7 @@ def test_the_drop_angle_migration_returns_a_file_without_angle_as_it_is():
     assert by_version[17].glob == "outreach/*.md"
     assert by_version[18].glob == "companies/*/interactions/*.md"
     assert by_version[19].glob == "companies/*/company.md"
-    assert migrations.LATEST == 20
+    assert migrations.LATEST == 21
 
 
 def test_a_folder_at_format_16_loses_angle_from_items_and_interactions(tmp_path):

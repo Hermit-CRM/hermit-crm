@@ -231,7 +231,7 @@ def test_migration_20_is_a_noop_and_idempotent(tmp_path):
     meta = {"date": "2026-09-14T10:30", "channel": "note"}
     assert migration.apply(dict(meta)) == meta
     assert migration.apply(migration.apply(dict(meta))) == meta
-    assert migrations.LATEST == 20
+    assert migrations.LATEST >= 20
 
 
 # ------------------------------------------------- hermitcrm check and the CLI
