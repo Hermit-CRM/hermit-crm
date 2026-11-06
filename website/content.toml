@@ -324,7 +324,7 @@ a = "Not yet. Hermit CRM runs on macOS and Linux."
 
 [[questions.items]]
 q = "What does it cost?"
-a = "Nothing. It is free and open source under the Apache License 2.0. It is alpha software with no warranty and no support; see DISCLAIMER.md in the download."
+a = "Nothing. It is free and open source under the Apache License 2.0. It comes with no warranty and no support; see DISCLAIMER.md in the download."
 
 
 # ── Docs page (/docs/) and llms-full.txt ─────────────────────────────
@@ -388,7 +388,7 @@ text  = "Free and open source. Your data stays in a folder on your computer."
 [footer]
 # {github} is replaced by a link to [links].github labelled with
 # [header].github_label, {sha256} by a link to [links].sha256.
-text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · {github} · {sha256} · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
+text = "Hermit CRM · Apache License 2.0 · no warranty · {github} · {sha256} · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
 
 
 # ── Share image (og.png, 1200 x 630) ─────────────────────────────────
