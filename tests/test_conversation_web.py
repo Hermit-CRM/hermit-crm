@@ -39,6 +39,13 @@ from hermitcrm.web import create_app
 from conftest import FIXED_NOW
 from test_layout import CONFIG, repo  # noqa: F401  (the same git-backed folder)
 
+LINKEDIN_ORIGIN = "https://www.linkedin.com"
+
+
+def origins_in(text: str) -> set[str]:
+    """Every scheme://host the text names, so a test compares whole origins, never a substring."""
+    return set(re.findall(r"https?://[A-Za-z0-9.-]+", text))
+
 OWNER = "Sam Sample"
 PREVIEW, IMPORT, SHELL = "/extension/conversation/preview", "/extension/conversation", "/extension/conversation"
 CONTACT = "voorbeeld/alex-voorbeeld"
@@ -127,7 +134,7 @@ def test_the_receiver_page_is_a_shell_that_reads_and_writes_nothing(client, stor
     assert response.status_code == 200
     assert 'id="conversation"' in response.text
     assert "/static/conversation.js" in response.text
-    assert "https://www.linkedin.com" in response.text     # the one origin it listens to
+    assert LINKEDIN_ORIGIN in origins_in(response.text)     # the one origin it listens to
     assert 'class="cv-row' not in response.text             # no conversation text in it
     assert snapshot(repo) == before
 
@@ -529,7 +536,7 @@ def test_the_receiver_script_never_puts_text_into_the_page_as_markup():
     for banned in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write",
                    "eval(", "new Function"):
         assert banned not in code, banned
-    assert "https://www.linkedin.com" in code
+    assert LINKEDIN_ORIGIN in origins_in(code)
 
 
 HARNESS = r"""
