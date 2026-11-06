@@ -41,6 +41,7 @@ order, so the same item gives the same bytes. Every step is one commit:
                                 queued ──> failed      │
                                   └──────────────────>─┘
     researching, drafted, ready, queued, failed ──> skipped (skip_reason)
+    a company leaving an open stage skips its open items (skip_reason company-closed)
     ready ──> drafted (unready: the person takes the approval back)
 
 `researching`: research is stored, the draft is not written yet (a run that
@@ -58,10 +59,22 @@ contact after the item was marked ready (by hand, BCC import, the extension,
 or send.py: people send from their own mail), or with `hermitcrm outreach
 sent`; nothing is logged for them. `skipped`: not to be sent, `skip_reason` is
 one of SKIP_REASONS (the person, or the bot with `bad-draft` when the AI gave
-no usable draft twice). `logged` is reserved for a later auto-log. An item in
+no usable draft twice; or the store with `company-closed`, see below). `logged` is reserved for a later auto-log. An item in
 researching, drafted, ready, queued or failed is open: the contact and the
 company (and its likely duplicates) get no second one. A skipped contact comes
 back after the cooldown, except `bad-fit`, which keeps the company out.
+
+A company whose stage is not open (closed, parked, won, lost) gets no new first
+touch or follow-up. When a company leaves an open stage its open items are
+skipped with `company-closed` in the same commit (Store.update_company, unless
+`keep_drafts`): that skip is the system's, not a verdict on the draft, so it sets
+no cooldown, is not `bad-fit` and is no learning signal; a company that is open
+again is eligible at once. One named contact at such a company is drafted on
+purpose with a warning (and `stage_override`, so send.py does not refuse it on
+the stage); a batch leaves them out and lists them (`Selection.stage_left_out`)
+unless told to include them (`include_closed`). A reply to interest is always
+allowed. `do-not-contact`, the suppression list and the playbook's tag
+disqualifiers are never lifted.
 """
 
 from __future__ import annotations
@@ -78,7 +91,7 @@ from pathlib import Path
 from typing import Protocol
 from urllib.parse import urlparse
 
-from . import followups, frameworks, messaging, playbook
+from . import followups, frameworks, messaging, playbook, suppress
 from .enrich import WEB_ONLY, EnrichError
 from .frameworks import HOUSE, Framework
 from .models import (
@@ -98,8 +111,13 @@ KINDS = (FIRST_TOUCH, REPLY, FOLLOW_UP)
 BUILT_KINDS = KINDS
 THREAD_KINDS = (REPLY, FOLLOW_UP)   # answer a thread: no research
 KIND_LABELS = {FIRST_TOUCH: "first touch", REPLY: "reply to interest", FOLLOW_UP: "follow-up"}
-SKIP_REASONS = ("bad-fit", "wrong-person", "bad-timing", "bad-draft", "already-in-contact",
-                "other")  # what this version drafts; the others are later phases
+# What the person can choose when skipping, and the reason only the system writes
+# (a company that left an open stage): `skip()` accepts both, the skip form shows
+# only the first.
+MANUAL_SKIP_REASONS = ("bad-fit", "wrong-person", "bad-timing", "bad-draft",
+                       "already-in-contact", "other")
+COMPANY_CLOSED = "company-closed"
+SKIP_REASONS = (*MANUAL_SKIP_REASONS, COMPANY_CLOSED)
 CHANNELS = ("email", "linkedin")
 LEVELS = ("scrape", "ai-web")
 BUILT_LEVELS = LEVELS
@@ -122,7 +140,7 @@ ITEM_KEYS = (
     "state", "kind", "channel", "company", "contact", "reply_to", "follows", "approach",
     "framework", "language",
     "subject", "pitch", "research_level", "model", "attempts", "seconds", "checks",
-    "critic", "critic_reason", "critic_model", "flags", "norms", "findings", "proof_used",
+    "critic", "critic_reason", "critic_model", "flags", "stage_override", "norms", "findings", "proof_used",
     "lessons_used", "exemplars_used", "proposals", "edit_distance",
     "language_pick", "notes_linked",
     "skip_reason", "skip_note", "batch", "created", "researched", "drafted", "ready",
@@ -1786,6 +1804,7 @@ class Item:
     critic_reason: str = ""
     critic_model: str = ""
     flags: list[str] = field(default_factory=list)
+    stage_override: str = ""    # the stage the company was in when this was drafted on purpose
     norms: list[str] = field(default_factory=list)
     findings: list[Finding] = field(default_factory=list)
     proof_used: list[str] = field(default_factory=list)
@@ -1848,7 +1867,7 @@ class Item:
             elif key in ("edits", "earlier"):
                 value = [x.to_dict() for x in value]
             elif key in ("framework", "lessons_used", "exemplars_used", "language_pick",
-                         "notes_linked") and not value:
+                         "notes_linked", "stage_override") and not value:
                 continue    # absent until they apply (keeps older files' bytes)
             meta[key] = value
         return meta
@@ -1932,7 +1951,8 @@ def item_from_text(item_id: str, text: str) -> Item:
         attempts=_int_or_none(meta.get("attempts")) or 0,
         seconds=_int_or_none(meta.get("seconds")), checks=strings("checks"),
         critic=scores, critic_reason=s("critic_reason"), critic_model=s("critic_model"),
-        flags=strings("flags"), norms=strings("norms"), findings=findings,
+        flags=strings("flags"), stage_override=s("stage_override").strip(),
+        norms=strings("norms"), findings=findings,
         proof_used=strings("proof_used"),
         lessons_used=clean_lesson_ids(meta.get("lessons_used")),
         exemplars_used=clean_exemplar_ids(meta.get("exemplars_used")),
@@ -2132,8 +2152,11 @@ def _write_checks(root: Path | str, checks: dict[str, dict]) -> str:
 def replies(store: Store, today: date | None = None,
             checks: dict[str, dict] | None = None) -> list[Reply]:
     """Every reply owed to a contact: the latest touch with that person is one
-    from them. Oldest first (the longest wait on top). Sample and closed
-    companies are left out, as on the follow-up radar."""
+    from them. Oldest first (the longest wait on top). The sample account is left
+    out. A company whose stage is not open (closed, parked, won, lost) is on the
+    list only for a reply that shows interest (logged so, confirmed, or waiting
+    for your confirmation): they wrote to you, so it may be answered, but an old
+    "no thanks" there is not owed an answer and is not sent to the AI check."""
     today = today or store.today()
     checks = checks if checks is not None else load_checks(store.root)
     out = []
@@ -2141,7 +2164,7 @@ def replies(store: Store, today: date | None = None,
         if company.is_sample:
             continue
         for cslug, contact in company.contacts.items():
-            row = followups.for_contact(company, cslug, today, reply_after=0)
+            row = followups.for_contact(company, cslug, today, reply_after=0, any_stage=True)
             if row is None or row.kind != followups.REPLY:
                 continue
             reply = Reply(company, contact, row.interaction, row.days)
@@ -2149,6 +2172,8 @@ def replies(store: Store, today: date | None = None,
             reply.verdict = str(found.get("verdict") or "")
             reply.why = str(found.get("why") or "")
             reply.by = str(found.get("by") or "")
+            if not company.is_active and not (reply.interested or reply.to_confirm):
+                continue
             out.append(reply)
     out.sort(key=lambda r: (-r.days, r.company.name.lower(), r.contact.name.lower()))
     return out
@@ -2421,6 +2446,10 @@ class Candidate:
     warnings: list[str] = field(default_factory=list)   # for you on the draft; not for the AI
     reason: str = ""   # "" = in the batch; otherwise why not this time
     persona: str = ""  # the playbook persona the title matches, "" for none
+    # The company's stage when only that kept this contact out ("" otherwise); and
+    # when the stage check was lifted on purpose (one named contact, or included).
+    stage_blocked: str = ""
+    stage_override: str = ""
 
     @property
     def who(self) -> str:
@@ -2439,6 +2468,7 @@ class Selection:
     where: list[str] = field(default_factory=list)
     picked: list[Candidate] = field(default_factory=list)
     excluded: list[Candidate] = field(default_factory=list)
+    stage_left_out: list[Candidate] = field(default_factory=list)   # only the stage kept them out
     over_limit: list[Candidate] = field(default_factory=list)
     duplicates: list[tuple[str, str, str]] = field(default_factory=list)
     high_fit: int = 0
@@ -2448,6 +2478,15 @@ class Selection:
     gate: str = ""                     # why the build would refuse; "" = ready
     approaches: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)   # about the filter, not an error
+
+    def render_left_out(self) -> list[str]:
+        """The contacts only their company's stage kept out, with the way back in."""
+        if not self.stage_left_out:
+            return []
+        return ["Left out because their company is not open (nothing else is wrong; "
+                "include one on purpose with --include-closed company/contact):",
+                *[f"- {c.who} | {c.stage_blocked} | --include-closed {c.record}"
+                  for c in self.stage_left_out]]
 
     def render(self) -> str:
         lines = [f"Outreach preview: {self.kind} by {self.channel}, up to {self.limit}"
@@ -2464,13 +2503,15 @@ class Selection:
             fit = f"fit {c.fit}" if c.fit is not None else "no fit score"
             lines.append(f"{n}. {c.who} | {fit} | approach: {c.approach or '-'}"
                          + (f" | persona: {c.persona}" if c.persona else "")
-                         + (f" | flags: {'; '.join(c.flags)}" if c.flags else ""))
+                         + (f" | flags: {'; '.join(c.flags)}" if c.flags else "")
+                         + (f" | warning: {'; '.join(c.warnings)}" if c.warnings else ""))
         if self.over_limit:
             lines.append(f"Over this batch's limit of {self.limit}: "
                          + ", ".join(c.who for c in self.over_limit))
         if self.excluded:
             lines.append("Not this time:")
             lines += [f"- {c.who} | {c.reason}" for c in self.excluded]
+        lines += self.render_left_out()
         if self.duplicates:
             lines.append("Likely duplicates (merge one into the other on its page, "
                          "Merge):")
@@ -2536,10 +2577,15 @@ def _touches(company, contact_slug: str):
 def select(store: Store, where: list[str] | None = None, channel: str = "email",
            kind: str = "first-touch", limit: int | None = None, approach: str = "",
            contacts: list[str] | None = None, config: dict | None = None,
-           today: date | None = None) -> Selection:
+           today: date | None = None,
+           include_closed: set[str] | list[str] | None = None) -> Selection:
     """Who a batch would go to, in order, and why the rest would not. No AI, no
     writes. `contacts` ("company/contact") replaces the filter: the per-contact
-    Generate outreach button."""
+    Generate outreach button. A company whose stage is not open keeps its
+    contacts out of a batch (they are listed in `stage_left_out`), unless the
+    contact is the one named contact or is in `include_closed` ("company/contact"
+    records the person confirmed): then it is drafted, with a warning. That is
+    the stage check only; nothing else is lifted."""
     if channel not in CHANNELS:
         raise OutreachError(f"channel {channel!r}: use email or linkedin")
     if kind not in KINDS:
@@ -2592,7 +2638,9 @@ def select(store: Store, where: list[str] | None = None, channel: str = "email",
     for i in open_items:
         open_by_company.setdefault(i.company, i.id)
     # Skipped: back after the cooldown, except bad-fit, which keeps the company out.
-    skips = [i for i in every if i.state == "skipped"]
+    # A company-closed skip is the system's (its company left an open stage): no
+    # cooldown, no bad-fit; the company's stage alone decides.
+    skips = [i for i in every if i.state == "skipped" and i.skip_reason != COMPANY_CLOSED]
     bad_fit = {i.company: i for i in reversed(skips) if i.skip_reason == "bad-fit"}
     skipped_by_contact = {}
     for i in reversed(skips):  # oldest first, so the newest wins
@@ -2610,16 +2658,22 @@ def select(store: Store, where: list[str] | None = None, channel: str = "email",
         if i.approach:
             earlier[i.record] = i.approach
 
+    one_named = bool(contacts) and len(contacts) == 1   # the per-contact Generate button
+    confirmed = {str(r) for r in include_closed or ()}
     ranked: list[Candidate] = []
     for company, contact in pairs:
         cand = Candidate(company, contact, fit=fit_value(company, fit_field))
         cand.reason = _excluded(store, cand, approaches, approach, channel, kind, cooldown,
                                 today, open_by_contact, open_by_company, dupes,
                                 bad_fit, skipped_by_contact, interest, earlier, due, nudge,
-                                named=bool(contacts), done=done)
+                                named=bool(contacts), done=done,
+                                stage_ok=one_named or cand.record in confirmed)
         if cand.fit is None and not cand.reason:
             cand.flags.append(f"no fit score ({fit_field} is empty)")
-        (sel.excluded if cand.reason else ranked).append(cand)
+        if cand.stage_blocked:   # nothing but the stage is in the way: offer it back
+            sel.stage_left_out.append(cand)
+        else:
+            (sel.excluded if cand.reason else ranked).append(cand)
     # Highest fit first; within a company, someone the playbook has a persona for.
     ranked.sort(key=lambda c: (c.fit is None, -(c.fit or 0), c.company.name.lower(),
                                not c.persona, c.contact.name.lower()))
@@ -2643,8 +2697,13 @@ def select(store: Store, where: list[str] | None = None, channel: str = "email",
 def _excluded(store, cand: Candidate, approaches, forced: str, channel, kind, cooldown,
               today, open_by_contact, open_by_company, dupes, bad_fit=None,
               skipped_by_contact=None, interest=None, earlier=None, due=None,
-              nudge=5, named=False, done=None) -> str:
+              nudge=5, named=False, done=None, stage_ok=False) -> str:
     """Why this contact gets no item this time, or "" (and its approach and flags).
+    A company whose stage is not open keeps a first touch or follow-up out, but
+    not a reply (they wrote to you): with `stage_ok` it is lifted on purpose (a
+    warning and `stage_override` on the candidate); without it, and when nothing
+    else is wrong, `cand.stage_blocked` names the stage so the person can include
+    the contact. Every other rule applies either way.
     A reply to interest answers someone who asked: no cooldown, no fit test
     (the approach the conversation started with, else the best match). A
     follow-up continues a thread the same way, and is due on the radar's rule.
@@ -2657,10 +2716,43 @@ def _excluded(store, cand: Candidate, approaches, forced: str, channel, kind, co
     thread = in_thread(kind)
     if company.is_sample:
         return "the sample account is made up"
-    if not store.stages.is_open(company.stage):
-        return f"its company is {company.stage} (a closed or parked stage)"
+    stage_text = ""
+    if not store.stages.is_open(company.stage) and not reply:
+        stage_text = f"its company is {company.stage} (a closed or parked stage)"
+        if stage_ok:
+            role = store.stages.role_of(company.stage) or "not open"
+            cand.warnings.append(f"its company is {company.stage} ({role}): drafted on "
+                                 "purpose, so check it should go out")
+            cand.stage_override = company.stage
+            stage_text = ""
+    reason = _excluded_rest(store, cand, approaches, forced, channel, kind, cooldown, today,
+                            open_by_contact, open_by_company, dupes, bad_fit,
+                            skipped_by_contact, interest, earlier, due, nudge, named, done)
+    if reason:
+        return reason
+    if stage_text:   # all else is fine: only the stage keeps them out
+        cand.stage_blocked = company.stage
+        return stage_text
+    return ""
+
+
+def _excluded_rest(store, cand: Candidate, approaches, forced: str, channel, kind, cooldown,
+                   today, open_by_contact, open_by_company, dupes, bad_fit, skipped_by_contact,
+                   interest, earlier, due, nudge, named, done) -> str:
+    """The rules of `_excluded` after the stage check."""
+    company, contact = cand.company, cand.contact
+    reply = kind == REPLY
+    follow = kind == FOLLOW_UP
+    thread = in_thread(kind)
     if do_not_contact(company, contact):
         return f"tagged {DO_NOT_CONTACT}"
+    if contact.email:   # never drafted, whatever else was asked: send.py would refuse it
+        try:
+            listed = suppress.lookup(store.root, contact.email)
+        except suppress.SuppressError as exc:
+            return str(exc)
+        if listed is not None:
+            return f"{contact.email} is on the suppression list ({listed.reason})"
     if reply and cand.record not in (interest or {}):
         return ("no reply showing interest to answer (log their reply with the outcome "
                 "interested, or confirm it under Replies to interest)")
@@ -2924,7 +3016,7 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
                     approach=cand.approach,
                     research_level="" if threaded else getattr(researcher, "level", ""),
                     flags=[*cand.flags, *cand.warnings], batch=batch, created=when,
-                    language_pick=language)
+                    language_pick=language, stage_override=cand.stage_override)
         chosen: Framework | None = None   # a first touch only
         if not threaded:
             chosen, note = frameworks.resolve(
@@ -3155,7 +3247,8 @@ def unready(store: Store, item_id: str) -> Item:
 
 def skip(store: Store, item_id: str, reason: str, note: str = "") -> Item:
     """Not to be sent. `reason` is one of SKIP_REASONS (the quality report counts
-    them), `note` optional free text. One commit."""
+    them), `note` optional free text. One commit. `company-closed` is the system's
+    (skip_open_for_company), not a choice offered to the person."""
     item = _refresh(store, item_id)
     if not item.is_open:
         raise OutreachError(f"{item.id} is {item.state}; only an open item can be skipped")
@@ -3169,6 +3262,55 @@ def skip(store: Store, item_id: str, reason: str, note: str = "") -> Item:
         write_item(store.root, item)
         store.notify(f"outreach: skip {item.record}: {reason}", [item.path])
     return item
+
+
+def disqualify_stage(store: Store, company_slug: str) -> str:
+    """The stage "Also disqualify" would move this company to: the first stage whose
+    role is `closed`, preferring one named `disqualified`. "" when the company is
+    not in an open stage already (nothing to offer) or the folder has no closed
+    stage (the offer is hidden)."""
+    company = store.get(company_slug)
+    if company is None or not store.stages.is_open(company.stage):
+        return ""
+    closed = store.stages.with_role("closed")
+    return "disqualified" if "disqualified" in closed else (closed[0] if closed else "")
+
+
+def skip_and_disqualify(store: Store, item_id: str, note: str = "") -> tuple[Item, str]:
+    """Skip an item as `bad-fit` and move its company to the disqualify stage (see
+    `disqualify_stage`), with the note as the reason. The skip is one commit, the
+    move another, and the move skips the company's other open items. Returns the
+    item and the stage ("" when the company was not moved). A stage the folder's
+    rules refuse raises ValidationError after the item was skipped."""
+    item = skip(store, item_id, "bad-fit", note)
+    stage = disqualify_stage(store, item.company)
+    if stage:
+        store.update_company(item.company, stage=stage,
+                             lost_reason=" ".join((note or "").split()) or "bad fit")
+    return item, stage
+
+
+def skip_open_for_company(store: Store, slug: str, reason: str = COMPANY_CLOSED,
+                          note: str = "") -> list[str]:
+    """Skip every open item of a company in one pass; the ids skipped (none when
+    nothing is open). One commit, or part of the caller's batch (the stage move,
+    see Store.update_company); `queued` and `send_at` are cleared so nothing stays
+    scheduled. Same as `skip()` for each item."""
+    if reason not in SKIP_REASONS:
+        raise OutreachError(f"unknown skip reason {reason!r}")
+    when = store.now()
+    done: list[str] = []
+    with store.batch(f"outreach: skip the open items of {slug}: {reason}"):
+        for item in items(store.root):   # read under the lock
+            if item.company != slug or not item.is_open:
+                continue
+            item.state, item.skip_reason, item.skipped = "skipped", reason, when
+            item.skip_note = " ".join((note or "").split())
+            item.queued = item.send_at = None
+            write_item(store.root, item)
+            store.notify(f"outreach: skip {item.record}: {reason}", [item.path])
+            done.append(item.id)
+    return done
 
 
 def mark_sent(store: Store, item_id: str) -> Item:

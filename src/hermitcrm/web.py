@@ -1432,6 +1432,10 @@ def create_app(root: Path, config: dict | None = None,
         date_hint_datetime=dateformat.hint_datetime,
         preview=followups.first_line,
         stage_exits=stage_exits,
+        open_drafts=lambda slug: sum(1 for i in outreach.items(root)
+                                     if i.company == slug and i.is_open),
+        disqualify_stage=lambda slug: outreach.disqualify_stage(store, slug),
+        company_name=lambda slug: (store.get(slug).name if store.get(slug) else slug),
         stage_keeps=lambda name: stage_keeps(store.stages, name),
         stages=list(store.stages.names),   # config_reloaded keeps it current in place
         sources=SOURCES,
@@ -2793,9 +2797,12 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.post("/companies/{slug}/disqualify")
     def company_disqualify(request: Request, slug: str, stage: str = Form(""),
-                           reason: str = Form(""), requalify_on: str = Form("")):
+                           reason: str = Form(""), requalify_on: str = Form(""),
+                           skip_drafts: str = Form(""), asked_drafts: str = Form("")):
         """Move a company into a closed or parked stage (disqualify, temp
-        disqualify until a date, ...), or requalify it into the entry stage."""
+        disqualify until a date, ...), or requalify it into the entry stage. Its
+        open outreach drafts are skipped with it, unless the form asked about them
+        (`asked_drafts`) and `skip_drafts` was left unticked."""
         need_company(slug)
         stages = store.stages
         if not (stages.role_of(stage) in ("closed", "parked") or stage == stages.entry):
@@ -2803,7 +2810,8 @@ def create_app(root: Path, config: dict | None = None,
         store.take_notices()
         try:
             store.update_company(slug, stage=stage, lost_reason=reason,
-                                 requalify_on=requalify_on)
+                                 requalify_on=requalify_on,
+                                 keep_drafts=bool(asked_drafts) and not skip_drafts)
         except ValidationError as exc:
             return flashed(f"/companies/{slug}", "; ".join(exc.errors.values()))
         word = "Requalified" if stage == stages.entry else stage.replace("-", " ").capitalize()
@@ -4575,7 +4583,11 @@ def create_app(root: Path, config: dict | None = None,
         channel = params.get("channel", "email")
         kind = params.get("kind", "")
         level = params.get("research", "")
-        return {"where": params.get("where", ""),
+        raw = params.getlist("include_closed") if hasattr(params, "getlist") \
+            else params.get("include_closed") or []
+        include = sorted({r.strip() for r in ([raw] if isinstance(raw, str) else raw)
+                          if isinstance(r, str) and r.count("/") == 1 and r.strip()})
+        return {"where": params.get("where", ""), "include": include,
                 "research": level if level in outreach.LEVELS else outreach_level(),
                 "kind": kind if kind in outreach.BUILT_KINDS and kind != outreach.REPLY
                 else outreach.FIRST_TOUCH,
@@ -4593,8 +4605,10 @@ def create_app(root: Path, config: dict | None = None,
                   "kind": form["kind"] if form["kind"] != outreach.FIRST_TOUCH else "",
                   "research": form["research"] if form["research"] != outreach_level()
                   else "",
+                  "include_closed": form["include"],
                   **extra}
-        return urlencode({k: v for k, v in values.items() if v not in ("", None, 0)})
+        return urlencode({k: v for k, v in values.items() if v not in ("", None, 0, [])},
+                         doseq=True)
 
     def outreach_generate(value: str, every: list):
         """The Generate panel of /outreach?contact=<company>/<contact>: None unless
@@ -4611,6 +4625,11 @@ def create_app(root: Path, config: dict | None = None,
                 "language": messaging.draft_language(company, contact,
                                                      messages=app.state.messages),
                 "notes": notes.rows(company, cslug, store.today()),
+                "stage_note": ("" if store.stages.is_open(company.stage) else
+                               f"{company.name} is {company.stage}, so a first touch or "
+                               "follow-up here is drafted on purpose: the card carries a "
+                               "warning, and you decide if it goes out. A reply to someone "
+                               "who wrote to you needs no warning."),
                 "open_item": open_item,
                 "open_tab": outreach_tab(open_item) if open_item else ""}
 
@@ -4655,7 +4674,7 @@ def create_app(root: Path, config: dict | None = None,
                 preview = outreach.select(store, where=outreach_where(form["where"]),
                                           channel=form["channel"], kind=form["kind"],
                                           limit=form["limit"], approach=form["approach"],
-                                          config=config)
+                                          config=config, include_closed=form["include"])
             except outreach.OutreachError as exc:
                 preview_error = str(exc)
         fix_request = adjust.filter_help_request("Outreach", form["where"],
@@ -4686,7 +4705,7 @@ def create_app(root: Path, config: dict | None = None,
             "form": form, "preview": preview, "preview_error": preview_error,
             "fix_request": fix_request, "note_requests": note_requests,
             "gate": gate, "ai_problem": outreach_ai_problem(),
-            "skip_reasons": outreach.SKIP_REASONS,
+            "skip_reasons": outreach.MANUAL_SKIP_REASONS,
             "channels": outreach.CHANNELS, "levels": outreach.LEVELS,
             "built_levels": outreach.BUILT_LEVELS,
             "ai_web_problem": app.state.enricher.web_only_problem(),
@@ -4706,7 +4725,8 @@ def create_app(root: Path, config: dict | None = None,
                              kind: str = Form(outreach.FIRST_TOUCH),
                              approach: str = Form(""), research: str = Form(""),
                              signal: str = Form(""), note: str = Form(""),
-                             language: str = Form("")):
+                             language: str = Form(""),
+                             include_closed: list[str] = Form([])):
         """Research and draft the next contact of the batch (one per request).
         `contact` ("company/contact"): the Generate panel (with its signal, note
         and language), or a reply on the Replies tab (`kind` reply-to-interest)."""
@@ -4715,7 +4735,8 @@ def create_app(root: Path, config: dict | None = None,
             kind = outreach.FIRST_TOUCH
         form = outreach_form({"where": where, "channel": channel, "limit": limit,
                               "strong": strong, "left": left, "batch": batch,
-                              "approach": approach, "kind": kind, "research": research})
+                              "approach": approach, "kind": kind, "research": research,
+                              "include_closed": include_closed})
         if not left.strip():   # the first click: the whole batch is still to build
             form["left"] = form["limit"]
         back = safe_back(back, "/outreach") if contact else "/outreach"
@@ -4726,7 +4747,8 @@ def create_app(root: Path, config: dict | None = None,
                 outreach.select, store, where=outreach_where(form["where"]),
                 channel=form["channel"], kind=kind, limit=1,
                 approach="" if contact else form["approach"],
-                contacts=[contact] if contact else None, config=config)
+                contacts=[contact] if contact else None, config=config,
+                include_closed=form["include"])
         except outreach.OutreachError as exc:
             return flashed(back if contact else f"/outreach?{outreach_query(stop)}",
                            f"Not built: {exc}")
@@ -4735,6 +4757,10 @@ def create_app(root: Path, config: dict | None = None,
         if not selection.picked:
             why = (f": {selection.excluded[0].reason}" if contact and selection.excluded
                    else "")
+            if selection.stage_left_out and not contact:   # nothing else to draft: say why
+                n = len(selection.stage_left_out)
+                why += (f" ({n} left out because their company is not open; Preview "
+                        "lists them and lets you include them on purpose)")
             done = "Nothing to build" if not form["batch"] else "Batch done: nobody else to draft"
             return flashed(back if contact else f"/outreach?{outreach_query(stop)}",
                            f"{done}{why}.")
@@ -5033,7 +5059,8 @@ def create_app(root: Path, config: dict | None = None,
                               body: str | None = Form(None), pitch: str | None = Form(None),
                               reason: str = Form(""), note: str = Form(""),
                               strong: str = Form(""), add: str = Form(""),
-                              key: str = Form(""), tags: list[str] = Form([])):
+                              key: str = Form(""), tags: list[str] = Form([]),
+                              disqualify: str = Form("")):
         check_csrf(csrf_token)
         if what not in OUTREACH_ACTIONS:
             raise HTTPException(status_code=404, detail=f"unknown action {what!r}")
@@ -5086,8 +5113,16 @@ def create_app(root: Path, config: dict | None = None,
                 text = ("Regenerated." if item.state == "drafted" else
                         f"The AI gave no usable draft; skipped ({item.skip_note}).")
             elif what == "skip":
-                item = await run_in_threadpool(outreach.skip, store, item.id, reason, note)
-                text = f"Skipped: {item.skip_reason}."
+                moved = ""
+                store.take_notices()
+                if disqualify and (reason or "").strip().lower() == "bad-fit":
+                    item, moved = await run_in_threadpool(
+                        outreach.skip_and_disqualify, store, item.id, note)
+                else:
+                    item = await run_in_threadpool(outreach.skip, store, item.id, reason, note)
+                text = (f"Skipped: {item.skip_reason}."
+                        + (f" {store.get(item.company).name} is now {moved}." if moved else "")
+                        + "".join(f" {n}." for n in store.take_notices()))
             elif what == "sent":
                 item = await run_in_threadpool(outreach.mark_sent, store, item.id)
                 text = "Marked sent (nothing was logged)."
