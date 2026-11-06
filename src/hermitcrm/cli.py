@@ -27,15 +27,16 @@ import os
 import re
 import subprocess
 import sys
+import time
 import tomllib
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from hermitcrm import __version__, layout, migrations, stages, task_types
+from hermitcrm import __version__, attachments as attachments_mod, layout, migrations, stages, task_types
 from hermitcrm.datafolder import InitError, NotDataFolder, init_folder, resolve_data_dir
 from hermitcrm.enrich import EnrichError, Enricher
 from hermitcrm.gitops import GitOps
-from hermitcrm.models import Channel, Direction
+from hermitcrm.models import Channel, Direction, ValidationError
 from hermitcrm.store import Store, load_config
 
 COMPANY_FIELD_ORDER = [
@@ -607,6 +608,11 @@ def cmd_check(store: Store) -> tuple[str, int]:
     # left out of every list, so it is said here.
     from hermitcrm import outreach
     extension += outreach.problems(store.root)
+    # Files kept with notes: a reference to a file that is gone is an error, the
+    # rest (an unused file, a changed one, one over the limit) is said.
+    file_errors, file_warnings = attachments_mod.audit(store)
+    extension += file_errors
+    stray += file_warnings
     if not store.problems and not extension:
         n_companies = len(store.companies)
         n_contacts = sum(len(c.contacts) for c in store.companies.values())
@@ -618,8 +624,65 @@ def cmd_check(store: Store) -> tuple[str, int]:
             0,
         )
     lines = [f"{p.path}: {p.message}" for p in store.problems] + extension + off_board \
-        + rule_warns + pb_hints + fw_hints
+        + rule_warns + pb_hints + fw_hints + file_warnings
     return ("\n".join(lines), 1)
+
+
+# ------------------------------------------------------------------ attachments
+
+
+def cmd_attach(store: Store, slug: str, files: list[str], contact: str = "", to: str = "",
+               note: str = "") -> tuple[str, int]:
+    """Keep files from disk on an existing interaction (`to`) or on a new note.
+    The person types the paths, which is why this command may read them."""
+    company = store.get(slug, refresh=True)
+    if company is None:
+        return f"unknown company: {slug}", 1
+    if not files:
+        return "no files given (hermitcrm attach <company> <file>...)", 1
+    limit = store.attachment_limit()
+    incoming = []
+    for raw in files:
+        path = Path(raw).expanduser()
+        if not path.is_file():
+            return f"{raw} is not a file", 1
+        if path.stat().st_size > limit:
+            return (f"{path.name} is larger than {limit >> 20} MB "
+                    "(attachment_max_mb in config.toml)"), 1
+        incoming.append(attachments_mod.Incoming(path.name, path.read_bytes()))
+    try:
+        if to:
+            if not any(i.id == to for i in company.interactions):
+                return f"unknown interaction {to!r} for {slug}", 1
+            saved = store.update_interaction(slug, to, add_files=incoming)
+        else:
+            names = ", ".join(attachments_mod.safe_name(f.name) for f in incoming)
+            saved = store.create_interaction(
+                slug, "note", "", contact=contact, body=note,
+                subject="" if note.strip() else ("Files: " + names)[:120],
+                attachments=incoming)
+    except ValidationError as exc:
+        return "; ".join(exc.errors.values()), 1
+    kept = {attachments_mod.stored_name(f.data, f.name) for f in incoming}
+    lines = [f"Kept {len(kept)} file{'s' if len(kept) != 1 else ''} on {slug} ({saved.id}):"]
+    lines += [f"  {a.file}  {attachments_mod.human_size(a.size)}"
+              for a in saved.attachments if a.file in kept]
+    return "\n".join(lines), 0
+
+
+def cmd_attachments(store: Store, slug: str = "") -> tuple[str, int]:
+    """Every stored file, one line: company | stored name | size | the note it came with."""
+    if slug and store.get(slug) is None:
+        return f"unknown company: {slug}", 1
+    lines = []
+    for company in sorted(store.companies.values(), key=lambda c: c.slug):
+        if slug and company.slug != slug:
+            continue
+        for att, it in attachments_mod.files_of(company.interactions):
+            lines.append(f"{company.slug} | {att.file} | "
+                         f"{attachments_mod.human_size(att.size)} | {it.id}")
+    return ("\n".join(lines) or
+            "No attachments yet. Add one with: hermitcrm attach <company> <file>"), 0
 
 
 # --------------------------------------------------------------------- undo
@@ -1039,8 +1102,28 @@ def cmd_fetch(store: Store, slug: str, url: str = "", apply: bool = False,
     return ("\n".join(lines), 0)
 
 
+# The daily sync runs at a fixed time, and a Mac that was asleep then runs it the moment
+# it wakes, before Wi-Fi and DNS are back ("nodename nor servname provided"; a read
+# timeout is the other kind). Seconds to wait before each further try; a network that
+# is still down after the last wait is reported like any other failure.
+# Only the daily job waits: Import now and `hermitcrm bcc` answer at once.
+SYNC_RETRY_WAITS = (10, 30, 60, 120)
+
+
+def _retry_network(attempt, errors: tuple, waits: tuple, sleep):
+    """attempt() -> its result; an error of the `errors` kinds waits for the next of
+    `waits` and tries again, and is raised once the waits run out."""
+    for wait in waits:
+        try:
+            return attempt()
+        except errors:
+            sleep(wait)
+    return attempt()
+
+
 def cmd_bcc(store: Store, root: Path, config: dict, apply: bool = False,
-            eml: list[Path] | tuple = (), open_mailbox=None) -> tuple[str, int]:
+            eml: list[Path] | tuple = (), open_mailbox=None,
+            retry_waits: tuple = (), sleep=time.sleep) -> tuple[str, int]:
     """Import mails BCC'd or forwarded to the tracking address (no AI)."""
     from hermitcrm import bcc
 
@@ -1051,8 +1134,10 @@ def cmd_bcc(store: Store, root: Path, config: dict, apply: bool = False,
             result = bcc.import_mails(store, inbox, [Path(p).read_bytes() for p in eml],
                                       settings, apply=apply)
         else:
-            result = bcc.run_bcc(store, inbox, settings, apply,
-                                 open_mailbox or (lambda: bcc.open_gmail(settings, root)))
+            result = _retry_network(
+                lambda: bcc.run_bcc(store, inbox, settings, apply,
+                                    open_mailbox or (lambda: bcc.open_gmail(settings, root))),
+                (bcc.NetworkTrouble,), retry_waits, sleep)
     except bcc.BccError as exc:
         return (f"BCC import failed: {exc}", 1)
     lines = result.lines + [result.summary()]
@@ -1189,7 +1274,8 @@ def cmd_report(store: Store, days: int | None = None, start: date | None = None,
 
 def cmd_calendar(store: Store, root: Path, config: dict, apply: bool = False,
                  ics: list[Path] | tuple = (), fetch=None, resolve=None,
-                 quiet_if_unconfigured: bool = False) -> tuple[str, int]:
+                 quiet_if_unconfigured: bool = False, retry_waits: tuple = (),
+                 sleep=time.sleep) -> tuple[str, int]:
     """Import past meetings from the secret ICS feed, or from .ics files (no AI)."""
     from hermitcrm import bcc, calendar_sync
 
@@ -1211,7 +1297,9 @@ def cmd_calendar(store: Store, root: Path, config: dict, apply: bool = False,
                         return ("Calendar import skipped: no calendar URL configured", 0)
                     return (f"Calendar import failed: {calendar_sync.setup_hint(settings)}", 1)
                 fetch = lambda: calendar_sync.fetch_ics(url)  # noqa: E731
-            result = calendar_sync.run_calendar(store, inbox, settings, apply, fetch)
+            result = _retry_network(
+                lambda: calendar_sync.run_calendar(store, inbox, settings, apply, fetch),
+                (calendar_sync.CalendarNetworkError,), retry_waits, sleep)
     except (calendar_sync.CalendarError, OSError) as exc:
         return (f"Calendar import failed: {exc}", 1)
     lines = result.lines + [result.summary()]
@@ -1221,12 +1309,16 @@ def cmd_calendar(store: Store, root: Path, config: dict, apply: bool = False,
 
 
 def cmd_sync(store: Store, root: Path, config: dict, apply: bool = False,
-             open_mailbox=None, fetch=None, resolve=None, enricher=None) -> tuple[str, int]:
+             open_mailbox=None, fetch=None, resolve=None, enricher=None,
+             retry_waits: tuple = SYNC_RETRY_WAITS, sleep=time.sleep) -> tuple[str, int]:
     """BCC import, then calendar import (skipped quietly when not set up), then
-    every routine that is on. A routine that fails is one line, never the exit code."""
-    bcc_text, bcc_code = cmd_bcc(store, root, config, apply=apply, open_mailbox=open_mailbox)
+    every routine that is on. A routine that fails is one line, never the exit code.
+    Each import waits out a network that is not back yet (see SYNC_RETRY_WAITS)."""
+    bcc_text, bcc_code = cmd_bcc(store, root, config, apply=apply, open_mailbox=open_mailbox,
+                                 retry_waits=retry_waits, sleep=sleep)
     cal_text, cal_code = cmd_calendar(store, root, config, apply=apply, fetch=fetch,
-                                      resolve=resolve, quiet_if_unconfigured=True)
+                                      resolve=resolve, quiet_if_unconfigured=True,
+                                      retry_waits=retry_waits, sleep=sleep)
     text = f"== BCC ==\n{bcc_text}\n\n== Calendar ==\n{cal_text}"
     routine_lines = _sync_routines(store, config, apply, enricher)
     if routine_lines:
@@ -1444,6 +1536,15 @@ def _build_parser() -> argparse.ArgumentParser:
     p_show.add_argument("slug")
     p_show.add_argument("--bodies", type=int, default=3)
     p_show.add_argument("--all", action="store_true", dest="all_bodies")
+
+    p_attach = sub.add_parser("attach", help="keep files on a new note or on an interaction")
+    p_attach.add_argument("company")
+    p_attach.add_argument("files", nargs="+", help="paths of the files to keep")
+    p_attach.add_argument("--contact", default="", help="the person the note is about")
+    p_attach.add_argument("--to", default="", help="add to this interaction id instead")
+    p_attach.add_argument("--note", default="", help="the text of the new note")
+    p_files = sub.add_parser("attachments", help="every stored file, one line each")
+    p_files.add_argument("company", nargs="?", default="")
 
     sub.add_parser("rebuild", help="rebuild the index and PIPELINE.md")
     sub.add_parser("check", help="validate every file")
@@ -2298,6 +2399,18 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
         text = cmd_digest(store, args.days)
         print(text)
         return 0
+
+    if args.command == "attach":
+        store.on_write = _writer(store, root, load_config(root))
+        text, code = cmd_attach(store, args.company, args.files, contact=args.contact,
+                                to=args.to, note=args.note)
+        print(text, file=sys.stderr if code else sys.stdout)
+        return code
+
+    if args.command == "attachments":
+        text, code = cmd_attachments(store, args.company)
+        print(text)
+        return code
 
     if args.command == "show":
         text = cmd_show(store, args.slug, bodies=args.bodies, all_bodies=args.all_bodies)

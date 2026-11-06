@@ -72,7 +72,7 @@
       <button type="submit" title="A new approach with everything of this one, to change what differs">Duplicate this approach</button>
     </form>
     {% if approaches | length > 1 %}
-    <form method="post" action="/settings/playbook/delete" class="inline" onsubmit="return confirm('Delete the approach {{ approach.name | e }} and everything in it? It stays in the git history.')">
+    <form method="post" action="/settings/playbook/delete" class="inline" onsubmit="return confirm({{ ('Delete the approach ' ~ approach.name ~ ' and everything in it? It stays in the git history.') | tojson | forceescape }})">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="approach" value="{{ approach.name }}">
       <button type="submit" class="danger">Delete this approach</button>
     </form>

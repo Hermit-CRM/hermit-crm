@@ -455,7 +455,7 @@ def pick(store: Store, query: Query, config: dict | None = None,
     top = {kind: max((e.score for e in pool if e.kind == kind), default=0.0) or 1.0
            for kind in KINDS}
     vectors = _vectors([_terms(" ".join(query.findings))] + [_terms(e.doc) for e in pool])
-    ask, shared = vectors[0], []
+    ask = vectors[0]
     scored: list[Choice] = []
     for e, vec in zip(pool, vectors[1:]):
         cosine = sum(w * vec.get(t, 0.0) for t, w in ask.items())
