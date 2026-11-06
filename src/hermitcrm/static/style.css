@@ -745,6 +745,35 @@ pre.bookmarklet-code { background: var(--surface-2); border: 1px solid var(--lin
                        font-size: 12px; white-space: pre-wrap; word-break: break-all; }
 .capture-note { margin-bottom: 12px; }
 
+/* the LinkedIn conversation review (/extension/conversation): one row per message,
+   a tick, a direction arrow that flips, the time, the text */
+.cv-contact { margin: 10px 0; }
+.cv-contact select { max-width: 100%; }
+.cv-questions label { display: block; margin: 6px 0; }
+.cv-effect { background: var(--info-bg); border: 1px solid var(--info-line);
+             padding: 6px 10px; border-radius: 4px; margin: 8px 0; }
+.cv-rows { list-style: none; margin: 10px 0; padding: 0; border: 1px solid var(--line);
+           border-radius: 4px; }
+.cv-row { display: grid; grid-template-columns: 24px auto 9.5em 1fr; gap: 8px;
+          align-items: start; padding: 6px 10px; border-top: 1px solid var(--line); }
+.cv-row:first-child { border-top: 0; }
+.cv-row.cv-logged, .cv-row.cv-undated { color: var(--muted); }
+.cv-row.cv-maybe, .cv-row.cv-ask { background: var(--warn-bg); }
+.cv-dir { white-space: nowrap; }
+.cv-flip { padding: 0 8px; min-width: 2em; font-size: 13px; }
+.cv-when { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cv-text, .cv-body pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.cv-body pre { margin: 4px 0 0; }
+.cv-body details.body-preview > summary { cursor: pointer; list-style: none; }
+.cv-body details.body-preview > summary::-webkit-details-marker { display: none; }
+.cv-body details.body-preview[open] .first-line { display: none; }
+.cv-status, .cv-warn { display: block; margin-top: 2px; }
+.cv-warn { color: var(--warn); font-weight: 600; }
+@media (max-width: 640px) {
+  .cv-row { grid-template-columns: 24px auto 1fr; }
+  .cv-body { grid-column: 1 / -1; }
+}
+
 /* On a phone the filter block and four board columns fill the screen before any
    company does. Fold the filters away and stack the stages; on a wide screen
    neither rule applies and the board is unchanged. */

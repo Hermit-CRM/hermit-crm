@@ -1,0 +1,95 @@
+{# The review of a LinkedIn conversation, as a fragment (no page around it): the
+   answer to POST /extension/conversation/preview. Every value comes from a payload
+   that anyone could have shaped, so nothing here is |safe. Nothing is written by
+   showing it. #}
+{% if error %}
+<div class="warning-box" role="alert">
+  <strong>Hermit cannot import this conversation.</strong> {{ error }}
+  <div class="small">Nothing was imported.</div>
+</div>
+{% else %}
+<div class="cv-review">
+  <h2>Conversation with {{ thread.name or 'someone' }}</h2>
+  {% if not thread.messages %}
+  <p>There is nothing to import: Hermit found no messages in what the page showed. Open a conversation that has messages and click the bookmark again.</p>
+  {% else %}
+  <p class="small">{{ thread.messages | length }} message{{ '' if thread.messages | length == 1 else 's' }}{% if first %}, from {{ fmt_datetime(first) }} to {{ fmt_datetime(last) }}{% endif %}.
+  Only what the page had loaded is here; scroll up in LinkedIn first if you want older messages.</p>
+  {% endif %}
+  {% if thread.dropped %}
+  <p class="warning-box">{{ thread.dropped }} older message{{ '' if thread.dropped == 1 else 's' }} {{ 'was' if thread.dropped == 1 else 'were' }} not read: the page showed more than Hermit accepts.</p>
+  {% endif %}
+
+  <div class="cv-contact">
+    <label>Who is this with?
+      <select id="cv-contact">
+        {% if not chosen %}<option value="" selected>Choose a contact&hellip;</option>{% endif %}
+        {% if candidates %}<optgroup label="Could be">
+          {% for value, label in candidates %}<option value="{{ value }}"{% if value == chosen %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        </optgroup><optgroup label="Everyone">{% endif %}
+        {% for value, label in contacts %}<option value="{{ value }}"{% if value == chosen and not candidates %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        {% if candidates %}</optgroup>{% endif %}
+      </select>
+    </label>
+    {% if how == 'profile' %}<span class="small">Matched by the profile link.</span>
+    {% elif how == 'name' %}<span class="small">Matched by name.</span>
+    {% elif how == 'chosen' %}<span class="small">Your choice.</span>{% endif %}
+    {% if candidates %}<p class="warning-box">More than one contact could be {{ thread.name }}. Choose the right one; Hermit does not guess between people with one name.</p>{% endif %}
+    {% if not chosen and not candidates %}<p class="small">Not in Hermit yet?
+      <a href="{{ create_url }}" target="_blank" rel="noopener">Create contact</a> (opens in a new tab),
+      then <button type="button" class="linklike" data-action="again">look again</button>.</p>{% endif %}
+  </div>
+
+  {% if problem %}<p class="warning-box" role="alert">{{ problem }}</p>{% endif %}
+
+  {% if plan %}
+  {% if questions %}
+  <div class="cv-questions warning-box">
+    <p><strong>Hermit could not read {{ 'this date' if questions | length == 1 else 'these dates' }}.</strong> Say which {{ 'day it was' if questions | length == 1 else 'days they were' }}; those messages cannot be imported until you do.</p>
+    {% for q in questions %}
+    <label>{{ 'On what day and time was' if q.moment else 'Which day was' }} &ldquo;{{ q.heading }}&rdquo;?
+      <input type="{{ 'datetime-local' if q.moment else 'date' }}" data-heading="{{ q.index }}" value="{{ q.value }}"
+             aria-label="{{ 'Which day and time was' if q.moment else 'Which day was' }} &quot;{{ q.heading }}&quot;?">
+    </label>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if stage_change %}<p class="cv-effect">Importing moves {{ company_name }} from {{ stage_change }}.</p>{% endif %}
+  {% if outreach_sent %}<p class="cv-effect">Importing marks {{ 'this outreach message' if outreach_sent | length == 1 else 'these outreach messages' }} as sent: {{ outreach_sent | join(', ') }}.</p>{% endif %}
+
+  <ul class="cv-rows">
+    {% for r in review_rows %}
+    <li class="cv-row cv-{{ r.row.status }}" data-direction="{{ r.row.message.direction }}">
+      <input type="checkbox" class="cv-tick" data-index="{{ r.row.index }}" aria-label="Import message {{ r.row.index + 1 }}"{% if r.checked %} checked{% endif %}{% if not r.tickable %} disabled{% endif %}>
+      <span class="cv-dir">
+        {% if r.row.message.direction in ('in', 'out') %}
+        <button type="button" class="cv-flip" data-index="{{ r.row.index }}" data-set="{{ 'in' if r.row.message.direction == 'out' else 'out' }}" title="{{ 'You sent this. Click if they did.' if r.row.message.direction == 'out' else 'They sent this. Click if you did.' }}"><span aria-hidden="true">{{ '→' if r.row.message.direction == 'out' else '←' }}</span><span class="visually-hidden">{{ 'you sent it, flip' if r.row.message.direction == 'out' else 'they sent it, flip' }}</span></button>
+        {% else %}
+        <button type="button" class="cv-flip" data-index="{{ r.row.index }}" data-set="in">They sent it</button>
+        <button type="button" class="cv-flip" data-index="{{ r.row.index }}" data-set="out">I sent it</button>
+        {% endif %}
+      </span>
+      <span class="cv-when">{% if r.row.message.when %}{{ '~' if r.row.message.inherited }}{{ fmt_datetime(r.row.message.when) }}{% else %}no date{% endif %}</span>
+      <span class="cv-body">
+        {% if r.long %}<details class="body-preview"><summary><span class="first-line">{{ preview(r.row.message.text) }}</span> <span class="small">more</span></summary><pre>{{ r.row.message.text }}</pre></details>
+        {% else %}<span class="cv-text">{{ r.row.message.text | trim }}</span>{% endif %}
+        {% if r.label %}<span class="cv-status small">{{ r.label }}</span>{% endif %}
+        {% if r.warning %}<span class="cv-warn small"><span aria-hidden="true">&#9888;</span> {{ r.warning }}</span>{% endif %}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+
+  {% if review_rows %}
+  <div class="draft-actions">
+    <button type="button" data-action="import">Import {{ selected }} message{{ '' if selected == 1 else 's' }}</button>
+    <a class="button secondary" href="/">Cancel</a>
+  </div>
+  <p class="small">One commit for the lot. Messages already logged are never written twice.</p>
+  {% endif %}
+  {% elif thread.messages and not problem %}
+  <p class="small">Choose who this conversation is with to see the messages.</p>
+  {% endif %}
+</div>
+{% endif %}

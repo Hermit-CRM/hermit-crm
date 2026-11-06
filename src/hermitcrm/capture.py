@@ -296,17 +296,29 @@ def page_text(pieces: dict) -> str:
 
 
 BOOKMARKLET_JS = Path(__file__).parent / "static" / "bookmarklet.js"
+CONVERSATION_BOOKMARKLET_JS = Path(__file__).parent / "static" / "conversation-bookmarklet.js"
+
+
+def _one_line(source: Path, base: str) -> str:
+    """A bookmarklet's source as the one-line `javascript:` address, `base` in.
+
+    The sources are written to survive this: their comments are whole lines, and
+    every statement ends in ";", so lines join with a space.
+    """
+    lines = (line.strip() for line in source.read_text(encoding="utf-8").splitlines())
+    code = " ".join(line for line in lines if line and not line.startswith("//"))
+    return "javascript:" + code.replace("__BASE__", base)
 
 
 def bookmarklet(base: str) -> str:
-    """The bookmarklet for an app answering at `base`, as one line.
+    """The bookmarklet for an app answering at `base`, as one line."""
+    return _one_line(BOOKMARKLET_JS, base)
 
-    static/bookmarklet.js is written to survive this: its comments are whole
-    lines, and every statement ends in ";", so lines join with a space.
-    """
-    lines = (line.strip() for line in BOOKMARKLET_JS.read_text(encoding="utf-8").splitlines())
-    code = " ".join(line for line in lines if line and not line.startswith("//"))
-    return "javascript:" + code.replace("__BASE__", base)
+
+def conversation_bookmarklet(base: str) -> str:
+    """"Hermit: conversation": reads the LinkedIn conversation in front of you and
+    hands it to the app at `base` (static/conversation-bookmarklet.js)."""
+    return _one_line(CONVERSATION_BOOKMARKLET_JS, base)
 
 
 def suggested_slug(name: str) -> str:

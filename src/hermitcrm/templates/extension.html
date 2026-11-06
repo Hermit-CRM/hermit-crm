@@ -10,6 +10,28 @@ filled-in new-company or new-contact form.</p>
 <p><a class="bookmarklet" href="{{ bookmarklet }}">Add to Hermit CRM</a>
 <span class="small">&larr; drag me</span></p>
 
+<h2 id="conversation">Save a LinkedIn conversation</h2>
+
+<p><a class="bookmarklet" href="{{ conversation_bookmarklet }}">Hermit: conversation</a>
+<span class="small">&larr; drag me too</span></p>
+
+<p>Open the conversation in LinkedIn, either on the Messaging page or in the chat bubble
+that opens from a profile&rsquo;s <em>Message</em> button, and click the bookmark. Hermit CRM opens
+with the conversation read, matched to a contact and checked against what you have already
+logged. Review it, then press <em>Import</em>: each new message becomes a LinkedIn
+interaction, in one step. Nothing is fetched and nothing goes to LinkedIn: the bookmark reads
+the conversation in your own tab and hands it to this Hermit CRM, and nothing is written
+until you press <em>Import</em>. It reads only the messages the page has already loaded, so
+scroll up in LinkedIn first if you want older ones.</p>
+
+<p class="small"><b>A word on LinkedIn&rsquo;s rules.</b> LinkedIn&rsquo;s User Agreement (8.2)
+forbids automated access to LinkedIn and software that scrapes or copies its pages, and it
+names browser plug-ins and add-ons in that list. This bookmark is the mildest form of it: it
+runs only when you click it, only on the conversation you have open, it reads only what that
+page already shows (it never scrolls, clicks, opens other conversations or asks LinkedIn for
+anything), and the messages are your own. It is still not something LinkedIn has approved, so
+use it knowing that.</p>
+
 <h2>Or paste a URL</h2>
 <form method="get" action="/extension/new" class="record-form">
   <label>Company website, LinkedIn company page or profile
@@ -22,7 +44,10 @@ filled-in new-company or new-contact form.</p>
   <summary>The bookmark will not drag? Copy the code instead</summary>
   <p class="small">Dragging always works. If your browser strips the bookmark, copy
   the code below into a new bookmark by hand.</p>
+  <p class="small">Add to Hermit CRM:</p>
   <pre class="bookmarklet-code"><code>{{ bookmarklet }}</code></pre>
+  <p class="small">Hermit: conversation:</p>
+  <pre class="bookmarklet-code"><code>{{ conversation_bookmarklet }}</code></pre>
 </details>
 
 <h2>What it reads</h2>
@@ -36,7 +61,7 @@ filled-in new-company or new-contact form.</p>
 </ul>
 <p class="small">Nothing is saved until you press <em>Create</em> on the form, and
 nothing is sent anywhere but this Hermit CRM. <a href="/help/extension">More in Help</a></p>
-<p class="small">The bookmark points at <code>{{ base }}</code>. Take it again if you
-took it before (the old one read profiles logged out) or if you later run
+<p class="small">The bookmarks point at <code>{{ base }}</code>. Take them again if you
+took them before (the old one read profiles logged out) or if you later run
 <code>serve</code> on another host or port.</p>
 {% endblock %}
