@@ -551,7 +551,7 @@ def plan(store: Store, company_slug: str, contact_slug: str, thread: Thread, now
     result = Plan(company_slug, contact_slug, thread, rows)
     fresh = result.default_selection
     entry, target = store.stages.entry, store.stages.advance_target
-    if fresh and target and company.stage == entry:
+    if fresh and target and company.stage == entry and store.move_allowed(entry, target):
         result.stage_change = f"{entry} -> {target}"
     outgoing = [r.message.when for r in rows if r.status == "new" and r.message.direction == "out"]
     if outgoing:

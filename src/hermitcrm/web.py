@@ -53,7 +53,8 @@ from . import attachments as attachments_mod
 from . import upgrade as upgrading
 from fastapi.templating import Jinja2Templates
 
-from . import (adjust, bcc, brief, calendar_sync, capture, dashboards, disclaimer, feedback,
+from . import (adjust, bcc, brief, calendar_sync, capture, conversation, dashboards, disclaimer,
+               feedback,
                fields as custom, filters, followups, history, messaging, migrations,
                pipeline, reports, sample, welcome)
 from . import layout
@@ -2463,10 +2464,15 @@ def create_app(root: Path, config: dict | None = None,
         """
         return capture.bookmarklet(str(request.base_url).rstrip("/"))
 
+    def conversation_bookmarklet_for(request: Request) -> str:
+        """"Hermit: conversation", pointed at the address this app answers on."""
+        return capture.conversation_bookmarklet(str(request.base_url).rstrip("/"))
+
     @app.get("/extension", response_class=HTMLResponse)
     def extension_page(request: Request):
         return render(request, "extension.html", {
             "bookmarklet": bookmarklet_for(request),
+            "conversation_bookmarklet": conversation_bookmarklet_for(request),
             "base": str(request.base_url).rstrip("/"),
         })
 
@@ -2538,6 +2544,223 @@ def create_app(root: Path, config: dict | None = None,
         return render(request, "company_new.html",
                       {"values": with_custom(found.values, None, "company"),
                        "capture": found})
+
+    # ------------------------------------------- a LinkedIn conversation (bookmarklet)
+    # The bookmark reads the conversation in the person's own LinkedIn tab and
+    # hands it to the receiver page (static/conversation.js) by postMessage. The
+    # server keeps nothing between the preview and the import: both are sent the
+    # conversation again and read it afresh, so what is written is always what the
+    # server planned from the payload, never what a rendered row said.
+
+    # The content cap is conversation.MAX_TOTAL_BYTES; the rest is JSON around it.
+    conversation_request_limit = conversation.MAX_TOTAL_BYTES + (256 << 10)
+
+    async def conversation_body(request: Request) -> dict:
+        """The JSON object the request carried.
+
+        Read in pieces and refused (413) once it passes the cap, whatever
+        Content-Length says or leaves out; a body that is not a JSON object is a 400.
+        """
+        declared = request.headers.get("content-length", "")
+        if declared.isdigit() and int(declared) > conversation_request_limit:
+            raise HTTPException(status_code=413, detail="this conversation is too big to import")
+        chunks, total = [], 0
+        async for chunk in request.stream():
+            total += len(chunk)
+            if total > conversation_request_limit:
+                raise HTTPException(status_code=413,
+                                    detail="this conversation is too big to import")
+            chunks.append(chunk)
+        try:
+            data = json.loads(b"".join(chunks))
+        except (ValueError, RecursionError):
+            raise HTTPException(status_code=400, detail="this is not a conversation Hermit can read")
+        if not isinstance(data, dict):
+            raise HTTPException(status_code=400, detail="this is not a conversation Hermit can read")
+        return data
+
+    def conversation_contact(value) -> tuple[str, str] | None:
+        """`company/contact` as the picker sends it, or None when it is not that."""
+        if not isinstance(value, str):
+            return None
+        company_slug, _, contact_slug = value.partition("/")
+        if not company_slug or not contact_slug or "/" in contact_slug:
+            return None
+        return company_slug, contact_slug
+
+    def conversation_problem(exc: Exception) -> str:
+        """Why a plan or an import was refused, in words for the person. A slug that
+        is not a name inside the data folder is a contact that does not exist."""
+        if isinstance(exc, ValidationError):
+            return "unknown contact: " + "; ".join(exc.errors.values())
+        return str(exc)
+
+    def conversation_answers(thread, raw) -> dict:
+        """The dates the person gave for the headings Hermit could not read.
+
+        Keyed by the heading's place in `thread.needs_date`; an answer that does not
+        read as a date, or names a place there is not, leaves the question open.
+        """
+        found: dict = {}
+        for key, value in (raw.items() if isinstance(raw, dict) else ()):
+            if not (isinstance(key, str) and key.isdigit() and isinstance(value, str)):
+                continue
+            if int(key) >= len(thread.needs_date):
+                continue
+            text = value.strip()
+            try:
+                answer = (datetime.fromisoformat(text).replace(tzinfo=None)
+                          if ("T" in text or " " in text) else date.fromisoformat(text))
+            except ValueError:
+                continue
+            found[thread.needs_date[int(key)]] = answer
+        return found
+
+    def conversation_directions(raw) -> dict:
+        return {int(k): v for k, v in (raw.items() if isinstance(raw, dict) else ())
+                if isinstance(k, str) and k.isdigit() and v in ("in", "out")}
+
+    def conversation_everyone() -> list[tuple[str, str]]:
+        people = [(f"{company.slug}/{contact.slug}", f"{contact.name} ({company.name})")
+                  for company in store.companies.values() for contact in company.contacts.values()]
+        return sorted(people, key=lambda p: (p[1].casefold(), p[0]))
+
+    def conversation_view(data: dict) -> dict:
+        """Everything the review fragment shows for this request. Writes nothing."""
+        view: dict = {"error": "", "thread": None, "chosen": "", "how": "", "candidates": [],
+                      "contacts": [], "plan": None, "problem": "", "questions": [],
+                      "review_rows": [], "selected": 0, "first": None, "last": None,
+                      "stage_change": "", "outreach_sent": [], "company_name": "",
+                      "create_url": ""}
+        now = store.now()
+        try:
+            thread = conversation.parse(data.get("payload"), now)
+        except conversation.ConversationError as exc:
+            view["error"] = str(exc)
+            return view
+        view["thread"] = thread
+        everyone = conversation_everyone()
+        view["contacts"] = everyone
+        who = {value: label for value, label in everyone}
+        # The new-contact form opens with what the thread knows. The header links the
+        # member id (/in/ACoAAA...), which is no address to keep; a vanity one is.
+        vanity = next((u for u in thread.profile_urls
+                       if not u[len(conversation.PROFILE_PREFIX):].startswith("ACo")), "")
+        values = capture.Capture(url=vanity, kind="person", name=thread.name,
+                                 person=scrape.PersonFacts(name=thread.name)).contact_values
+        view["create_url"] = "/contacts/new?" + urlencode(
+            {k: v for k, v in values.items() if k in ("name", "linkedin") and v})
+        picked = conversation_contact(data.get("contact"))
+        if picked is not None:
+            view["how"] = "chosen"
+            chosen = picked
+        else:
+            found = conversation.match(store, thread)
+            if found.candidates:
+                view["candidates"] = [(f"{c}/{k}", who[f"{c}/{k}"]) for c, k in found.candidates
+                                      if f"{c}/{k}" in who]
+                return view
+            if found.kind == "none":
+                return view
+            view["how"], chosen = found.kind, (found.company, found.contact)
+        view["chosen"] = f"{chosen[0]}/{chosen[1]}"
+        try:
+            made = conversation.plan(
+                store, chosen[0], chosen[1], thread, now,
+                dates=conversation_answers(thread, data.get("dates")),
+                directions=conversation_directions(data.get("directions")),
+                owner_name=str(config.get("owner_name") or ""))
+        except (conversation.ConversationError, ValidationError) as exc:
+            view["problem"], view["chosen"], view["how"] = conversation_problem(exc), "", ""
+            return view
+        view["plan"] = made
+        view["company_name"] = store.get(made.company).name
+        view["stage_change"] = made.stage_change.replace(" -> ", " to ")
+        view["outreach_sent"] = made.outreach_sent
+        ticks = data.get("ticks") if isinstance(data.get("ticks"), dict) else {}
+        by_index = {r.index: r for r in made.rows}
+        selected = set(made.default_selection)
+        for key, on in ticks.items():
+            row = by_index.get(int(key)) if isinstance(key, str) and key.isdigit() else None
+            if row is not None and row.status in ("new", "maybe") and isinstance(on, bool):
+                (selected.add if on else selected.discard)(row.index)
+        for question_index, heading in enumerate(thread.needs_date):
+            first = next(m for m in thread.messages if m.when is None and m.heading == heading)
+            answer = conversation_answers(thread, data.get("dates")).get(heading)
+            if isinstance(answer, datetime):
+                shown = f"{answer:%Y-%m-%dT%H:%M}"
+            else:
+                shown = answer.isoformat() if answer else ""
+            view["questions"].append({"index": question_index, "heading": heading,
+                                      "moment": first.clock is None, "value": shown})
+        labels = {"logged": "already logged",
+                  "maybe": "may already be logged (same words, same direction, within a day)",
+                  "ask": "who sent this? Pick a direction", "undated": "needs a date"}
+        today_limit = now + conversation.FUTURE_GRACE
+        for row in made.rows:
+            message = row.message
+            warning = ""
+            if row.suspect:
+                if message.date_conflict:
+                    warning = "check the date: the page's own time says another day"
+                elif message.when and message.when > today_limit:
+                    warning = "check the date: this is in the future"
+                else:
+                    warning = "check the date: this looks far too old"
+            text = message.text.strip()
+            view["review_rows"].append({
+                "row": row, "label": labels.get(row.status, ""), "warning": warning,
+                "tickable": row.status in ("new", "maybe"),
+                "checked": row.index in selected,
+                "long": "\n" in text or len(text) > 90})
+        view["selected"] = sum(1 for r in view["review_rows"] if r["checked"])
+        dated = [r.message.when for r in made.rows if r.message.when]
+        if dated:
+            view["first"], view["last"] = min(dated), max(dated)
+        return view
+
+    @app.get("/extension/conversation", response_class=HTMLResponse)
+    def extension_conversation(request: Request):
+        """The page the conversation bookmark opens: a shell. It reads and writes
+        nothing and carries no conversation text; the script in it asks the
+        LinkedIn tab that opened it for the conversation."""
+        return render(request, "conversation_import.html", {})
+
+    @app.post("/extension/conversation/preview", response_class=HTMLResponse)
+    async def extension_conversation_preview(request: Request):
+        """What importing this conversation would do, as a fragment. Writes nothing."""
+        view = conversation_view(await conversation_body(request))
+        return HTMLResponse(templates.get_template("conversation_review.html").render(
+            {**view, "fmt_datetime": dateformat.fmt_dt, "preview": followups.first_line}))
+
+    @app.post("/extension/conversation")
+    async def extension_conversation_import(request: Request):
+        """Log the ticked messages, one commit, and go to the contact."""
+        data = await conversation_body(request)
+        check_csrf(str(data.get("csrf_token") or ""))
+        picked = conversation_contact(data.get("contact"))
+        if picked is None:
+            raise HTTPException(status_code=400, detail="choose who this conversation is with")
+        ticked = data.get("ticked")
+        if not isinstance(ticked, list) or any(
+                type(n) is not int or n < 0 for n in ticked):
+            raise HTTPException(status_code=400, detail="the ticked messages are not a list of numbers")
+        try:
+            thread = conversation.parse(data.get("payload"), store.now())
+            made = conversation.plan(
+                store, picked[0], picked[1], thread, store.now(),
+                dates=conversation_answers(thread, data.get("dates")),
+                directions=conversation_directions(data.get("directions")),
+                owner_name=str(config.get("owner_name") or ""))
+            result = conversation.apply(store, made, ticked)
+        except (conversation.ConversationError, ValidationError) as exc:
+            raise HTTPException(status_code=400, detail=conversation_problem(exc))
+        logged = sum(1 for r in made.rows if r.status == "logged")
+        noun = "message" if len(result.ids) == 1 else "messages"
+        message = f"{len(result.ids)} {noun} imported"
+        if logged:
+            message += f", {logged} already logged"
+        return flashed(f"/companies/{picked[0]}/contacts/{picked[1]}", message)
 
     @app.get("/companies/new", response_class=HTMLResponse)
     def company_new(request: Request):
@@ -2931,7 +3154,10 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.get("/contacts/new", response_class=HTMLResponse)
     def global_contact_new(request: Request):
-        return _global_contact_page(request, dict(GLOBAL_CONTACT_BLANK))
+        # A link may open the form with some of it filled in (the conversation
+        # review's "Create contact"). It only fills the form; nothing is written.
+        values = {key: request.query_params.get(key, "")[:300] for key in GLOBAL_CONTACT_BLANK}
+        return _global_contact_page(request, values)
 
     @app.post("/contacts")
     def global_contact_create(
