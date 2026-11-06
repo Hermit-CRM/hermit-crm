@@ -115,6 +115,8 @@
   <h2>Interactions ({{ interactions | length }})</h2>
   {{ m.timeline(company, interactions, contact_page=true) }}
 </section>
+{% elif section == 'files' %}
+{{ m.files_section(company, files, contact.slug) }}
 {% endif %}{% endfor %}
 <details class="more-box">
   <summary>More: {% for x in more %}{{ x }}, {% endfor %}{% if contact.email %}opted out, {% endif %}slug and dates</summary>

@@ -8,6 +8,56 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **The daily import waits for the network after a wake.** A Mac that was asleep at the
+  scheduled time runs the daily sync the moment it wakes, before Wi-Fi and DNS are
+  back, and the BCC import used to fail with "could not reach imap.gmail.com" until the
+  next day. The daily sync now tries again after 10, 30, 60 and 120 seconds, for the
+  mail and for the calendar, and only then reports the failure. A wrong password or URL
+  is still reported at once, and **Import now** and `hermitcrm bcc` do not wait. No data
+  migration.
+
+- **Mail connections check the server's certificate.** Sending over port 465 and every
+  IMAP connection (the reply check, the Sent check, the bounce scan and the BCC import)
+  now refuse a server whose certificate is not valid for its host name; port 587 already
+  did. A self-signed or mismatched certificate pauses sending with a banner that says
+  what is wrong, instead of retrying; **Send a test to myself** in Settings > Sending
+  and `hermitcrm doctor --online` show the same message, and a passing test lifts the
+  pause. Gmail, iCloud and Fastmail are unaffected. See [Sending](/help/sending). No
+  data migration.
+- **A queued email that was never scheduled in the app is held.** A file set to `queued`
+  by hand or by an agent, without pressing **Schedule**, goes back to Ready with "it was
+  never scheduled in the app" instead of going out. **Send now** still sends it. No data
+  migration.
+- **Delete approach works for any name.** The confirm dialog no longer breaks on an
+  approach name with an apostrophe or quotes. No data migration.
+- **Attachments of BCC'd mail are kept.** A PDF or document that comes with a mail you
+  BCC or forward is saved with the interaction it logs, so the proposal you sent
+  sits on the note next to the message. Logos in a signature, calendar invites and
+  signatures are left out. A mail that has to wait under **To file** keeps its files
+  in `inbox/attachments/` and they move to the company when you log it (or are
+  deleted when you discard it). `bcc_attachments` in `config.toml` sets what is kept:
+  `documents` (the default), `all` (also pictures shown inside the mail, 20 KB or
+  larger) or `off`. A file over `attachment_max_mb` is skipped, the mail is still
+  logged, and the import summary says how many were skipped. No data migration.
+  See [Settings](/help/settings).
+
+- **Attach files to notes and interactions.** A note, an email, a call or any
+  other interaction can carry files: pick them under the body, drop them on the
+  form, paste a screenshot, or drop a file on an entry in the timeline to add it
+  there. Drop a file anywhere on a company or contact page and it becomes a new
+  note. Each company and contact page has a **Files** section listing every file
+  once, and the company search also finds a file by name. Files are kept in
+  `companies/<slug>/attachments/`, named by their content, and listed under
+  `attachments:` in the interaction that owns them, so they are committed with it
+  and a rename or re-date never loses them. A file can be at most 25 MB
+  (`attachment_max_mb`). Pictures and PDFs open in the browser; every other type
+  downloads, so a file cannot run anything in the app. Removing a file deletes it
+  from the folder when no note uses it, but git keeps the old copy, because history
+  is never rewritten. `hermitcrm attach COMPANY FILE...` and `hermitcrm
+  attachments` do the same from the command line, `hermitcrm check` reports a
+  missing, unused or changed file, and `hermitcrm doctor` adds the folder's total
+  size. Your data folder is migrated to format 20 (nothing in a file changes).
+  See [Interactions](/help/interactions).
 - **Stage rules (optional).** Say where a company in a stage may go next
   (Settings > Deal stages > can move to, or `hermitcrm stages set offer --to
   discovery,won,lost`) and what happens to a move that list does not allow: nothing

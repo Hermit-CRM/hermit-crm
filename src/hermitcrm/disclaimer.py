@@ -39,7 +39,7 @@ KEY = "disclaimer_accepted"
 # person will actually read beat a wall they will click past.
 POINTS = [
     ("No warranty",
-     "Hermit CRM is free, alpha software. It may lose or corrupt your data, "
+     "Hermit CRM is free software. It may lose or corrupt your data, "
      "and nobody is liable if it does."),
     ("Your backups are yours",
      "The commit per change and the copy every few minutes are a convenience, "

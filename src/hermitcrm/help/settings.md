@@ -47,6 +47,14 @@ companies) goes to the review queue, which is **To file** on Home. Dedup is by
 Message-ID. Below the form: the last import (time and summary, or the error)
 and **Import now**, which runs the import on the spot.
 
+Attachments come with the mail: a PDF or document is saved with the interaction
+it logs (see [Interactions](/help/interactions)), and a mail waiting under **To
+file** keeps its files until you log it. Set `bcc_attachments` in `config.toml` to
+`documents` (the default: real attachments, not a logo in a signature, a calendar
+invite or a signature file), `all` (also pictures shown inside the mail, 20 KB or
+larger) or `off`. A file over `attachment_max_mb` is skipped and the import summary
+counts it; the mail itself is still logged.
+
 ## Sending
 
 Send approved outreach email from the Outreach page, from a mailbox of its own.
@@ -294,6 +302,11 @@ Read-only status of the daily job (`hermitcrm sync --apply`: BCC, then calendar)
 installed by `hermitcrm schedule install [--at HH:MM] [--serve]` through launchd
 (macOS) or systemd user units (Linux); on Windows the `schtasks` commands are
 printed for you to run. The install command to copy is on the page.
+
+A Mac that is asleep at the scheduled time runs the job when it wakes, which can be
+before the network is back. The job then retries a failed connection after 10, 30, 60
+and 120 seconds (mail and calendar each) before it gives up and reports it; a wrong
+password or calendar URL is reported at once.
 
 ## Access
 
