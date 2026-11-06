@@ -100,3 +100,36 @@ def test_copy_button_confirms_with_an_opacity_wash():
                  "transition: opacity 200ms var(--ease-out)"):
         assert part in wash
     assert "opacity: .12" in block(c, '.copy[data-state="done"]::before')
+
+
+def test_faq_height_and_fade_run_inside_a_support_check():
+    s = block(css(), "@supports (interpolate-size: allow-keywords)")
+    for part in ("interpolate-size: allow-keywords", "block-size 220ms var(--ease-out)",
+                 "opacity 160ms var(--ease-out)", "content-visibility 220ms allow-discrete",
+                 "block-size: 0", "overflow: clip"):
+        assert part in s
+    assert "block-size: auto" in block(s, "details[open]::details-content")
+
+
+def test_faq_marker_rotates_instead_of_swapping_glyphs():
+    c = css()
+    assert "\\2212" not in c
+    assert "transition: transform 200ms var(--ease-out)" in block(c, "summary::after")
+    assert "rotate(45deg)" in block(c, "details[open] summary::after")
+
+
+def test_answer_spacing_is_padding_so_the_clip_box_keeps_it():
+    p = block(css(), "details p")
+    assert "margin: 0;" in p and "padding-bottom: 24px" in p
+
+
+def test_print_shows_every_answer_without_the_script():
+    p = block(block(css(), "@media print"), "details::details-content")
+    assert "block-size: auto" in p and "opacity: 1" in p
+    assert "transition: none" in p      # switching to print must not start a transition from the screen values
+
+
+def test_reduced_motion_drops_height_and_rotation():
+    reduce = block(css(), "@media (prefers-reduced-motion: reduce)")
+    assert "transition: opacity 160ms var(--ease-out)" in block(reduce, "details::details-content")
+    assert "transition: none" in block(reduce, "summary::after")
