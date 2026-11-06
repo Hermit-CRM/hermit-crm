@@ -162,6 +162,7 @@ h1 { margin: 0; font-size: 72px; font-weight: 400; line-height: 1.05; letter-spa
   border: 1px solid var(--copy-border); border-radius: 8px;
   padding: 10px 16px; min-height: 44px; min-width: 88px;
   cursor: pointer;
+  position: relative; isolation: isolate;  /* holds the confirmation wash (see Motion) */
 }
 .copy:hover { border-color: var(--green-ink); }
 .copy:active { border-color: var(--green-deep); }
@@ -530,6 +531,10 @@ details p { margin: 0 0 24px; }
    pointers that hover, so a tap never leaves a faded hover colour behind. */
 .btn, .copy { transition: transform 160ms var(--ease-out); }
 .btn:active, .copy:active { transform: scale(0.97); }
+/* Copy: while the label says Copied (data-state set by the script in build.py), a
+   green wash fades in behind it. Opacity only, so reduced motion needs no override. */
+.copy::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--green-ink); opacity: 0; transition: opacity 200ms var(--ease-out); }
+.copy[data-state="done"]::before { opacity: .12; }
 @media (hover: hover) and (pointer: fine) {
   .btn, .copy { transition: transform 160ms var(--ease-out), background-color 150ms var(--ease-out), border-color 150ms var(--ease-out), color 150ms var(--ease-out); }
   .site-nav a.nav-features { transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out); }
