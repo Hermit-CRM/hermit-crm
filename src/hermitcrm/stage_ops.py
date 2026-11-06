@@ -22,7 +22,7 @@ the setting and the records back together.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from . import setup as setup_steps
@@ -195,11 +195,31 @@ def _find(rows: list[list], name: str) -> int:
     raise StageOpError(f"no stage called {name!r} (stages: {', '.join(r[0] for r in rows)})")
 
 
+def _with_rule(change: Change, name: str, to: list[str] | None) -> None:
+    """Give stage `name` the move rule `to` (None: any stage) in `change.after`."""
+    targets = []
+    for raw in to or []:
+        target = stages_mod.clean(raw)
+        if target not in change.after:
+            raise StageOpError(f"--to: no stage called {target!r} "
+                               f"(stages: {', '.join(change.after.names)})")
+        if target == name:
+            raise StageOpError(f"--to: {name} cannot list itself; staying put is always allowed")
+        if target not in targets:
+            targets.append(target)
+    rule = None if to is None else tuple(n for n in change.after.names if n in targets)
+    change.after = StageSet([replace(st, to=rule) if st.name == name else st
+                             for st in change.after])
+
+
 def plan(store: Store, action: str, name: str = "", new_name: str = "", role: str = "",
          valued: bool | None = None, after: str = "", first: bool = False,
-         move_to: str = "", reason: str = "") -> Change:
+         move_to: str = "", reason: str = "", to: list[str] | None = None,
+         any_stage: bool = False) -> Change:
     """The change `hermitcrm stages <action>` would make; StageOpError if it is
-    asked for wrongly. Nothing is written."""
+    asked for wrongly. Nothing is written. For `set`, `to` limits where a company
+    in the stage can move next (an empty list: nowhere) and `any_stage` lifts
+    the limit again."""
     rows = _rows(store.stages)
     if action == "rename":
         rows[_find(rows, name)][0] = new_name
@@ -229,13 +249,48 @@ def plan(store: Store, action: str, name: str = "", new_name: str = "", role: st
             row[1] = role
         if valued is not None:
             row[2] = valued
+        if to is not None and any_stage:
+            raise StageOpError("--to and --any contradict each other")
     elif action == "remove":
         rows.pop(_find(rows, name))
     else:
         raise StageOpError(f"unknown action {action!r}")
     change = _build(store, rows)
     change.move_to, change.reason = move_to, reason
+    if action == "set" and (to is not None or any_stage):
+        _with_rule(change, stages_mod.clean(name), None if any_stage else to)
     return change
+
+
+def set_rules(store: Store, root, mode: str) -> str:
+    """Write `stage_rules = mode` to config.toml in one commit and make it live.
+    Returns the commit subject. StageOpError for a mode that does not exist."""
+    mode = str(mode or "").strip().lower()
+    if mode not in stages_mod.RULE_MODES:
+        raise StageOpError(f"stage rules are one of: {', '.join(stages_mod.RULE_MODES)}")
+    subject = f"ai: adjust: stage rules {mode}"
+    with store.batch(subject) as ctx:
+        setup_steps.set_config_values(Path(root) / "config.toml", {"stage_rules": mode})
+        if not setup_steps.config_holds_secret(root):    # else it stays uncommitted
+            store.notify(ctx["message"], ["config.toml"])
+    store.stage_rules = mode
+    return subject
+
+
+def rules_listing(store: Store) -> str:
+    """`hermitcrm stages rules`: the mode and each stage's rule."""
+    mode = store.stage_rules
+    lines = [f"Stage rules: {mode}"
+             + ("" if mode != "off" or not store.stages.has_rules
+                else " (the lists below are not looked at; `hermitcrm stages rules warn` "
+                     "or `enforce` turns them on)")]
+    if not store.stages.has_rules:
+        lines.append("No stage limits where a company can move: any move is allowed. "
+                     "Limit one with `hermitcrm stages set STAGE --to A,B`.")
+    for st in store.stages:
+        if st.to is not None:
+            lines.append(f"  {st.name} -> " + (", ".join(st.to) if st.to else "(nowhere)"))
+    return "\n".join(lines)
 
 
 def listing(store: Store) -> str:
@@ -245,10 +300,14 @@ def listing(store: Store) -> str:
     lines = [f"{'stage'.ljust(width)}  role    companies"]
     for s in store.stages:
         note = " valued" if s.valued else ""
+        if s.to is not None:
+            note += " -> " + (", ".join(s.to) or "(nowhere)")
         lines.append(f"{s.name.ljust(width)}  {s.role.ljust(7)} {counts.get(s.name, 0)}{note}")
     off = [(n, c) for n, c in sorted(counts.items()) if n not in store.stages]
     for name, count in off:
         lines.append(f"{name.ljust(width)}  (not in config.toml)  {count}")
+    if store.stages.has_rules:
+        lines.append(f"Stage rules: {store.stage_rules} (-> lists where a company may move next)")
     lines.append(f"Entry stage: {store.stages.entry}"
                  + (f"; the first outbound touch moves it to {store.stages.advance_target}"
                     if store.stages.advance_target else ""))
@@ -264,8 +323,9 @@ def render(store: Store, change: Change, root) -> str:
         was = new_old.get(s.name)
         n = counts.get(was or s.name, 0)
         mark = f" (was {was})" if was else (" (new)" if s.name not in change.before else "")
+        rule = "" if s.to is None else " -> " + (", ".join(s.to) or "(nowhere)")
         lines.append(f"  {s.name}  {s.role}{' valued' if s.valued else ''}"
-                     f"  {n} {'company' if n == 1 else 'companies'}{mark}")
+                     f"  {n} {'company' if n == 1 else 'companies'}{mark}{rule}")
     for old, new in change.renames.items():
         users = store.stage_users([old])
         now = counts.get(old, 0)
