@@ -820,9 +820,14 @@ pre.bookmarklet-code { background: var(--surface-2); border: 1px solid var(--lin
 
 /* The tour bubble and the thing it points at. */
 .tour-target { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 6px; position: relative; z-index: 60; }
-.tour-bubble { position: absolute; z-index: 70; max-width: 320px; padding: 12px 14px;
+/* tour.js places the bubble with transform: translate() from the page's top left, so
+   moving it between stops costs no layout. The first stop and a window resize land
+   without travelling; only a Next or Back (.is-travelling) glides. */
+.tour-bubble { position: absolute; top: 0; left: 0; z-index: 70; max-width: 320px; padding: 12px 14px;
                background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
                box-shadow: 0 10px 30px rgba(0, 0, 0, .18); }
+.tour-bubble.is-travelling { transition: transform 240ms var(--ease-in-out); }
+@media (prefers-reduced-motion: reduce) { .tour-bubble.is-travelling { transition: none; } }
 .tour-bubble p { margin: 6px 0 10px; }
 .tour-bubble .tour-nav { display: flex; align-items: center; gap: 8px; }
 .tour-bubble .tour-nav .small { margin-right: auto; }
@@ -1234,3 +1239,40 @@ ul.files .thumb { display: block; width: 44px; height: 44px; object-fit: cover; 
 #files ul.file-rows .thumb { width: 32px; height: 32px; }
 .drop-hint { position: fixed; inset: auto 16px 16px auto; z-index: 50; background: var(--accent); color: var(--surface); padding: 10px 14px; border-radius: 6px; font-size: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.25); pointer-events: none; }
 .drop-hint[hidden] { display: none; }
+
+/* Motion. Small on purpose: this is a work tool, so only what appears (a panel, an
+   overlay) or travels (the tour bubble, above) moves, and nothing a user does dozens
+   of times a day gets more than a one-pixel press. The curves are in tokens.css. */
+
+/* Summary buttons (Edit, Disqualify, Fetch from URL, + New approach, Ask) look and act
+   like buttons, so they hover and press like the button rule above. */
+details > summary.button, .ask-button { transition: background .12s, border-color .12s, transform .12s; }
+details > summary.button:active, .ask-button:active { transform: translateY(1px); }
+
+/* A panel hung from a <details> grows out of its trigger, from the corner it hangs
+   from. Entrance only. A closed <details> is hidden by ::details-content, not by
+   display: none, so @starting-style never fires on its children; a keyframe on [open]
+   does. Closing stays instant. */
+@keyframes panel-in { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes panel-fade { from { opacity: 0; } to { opacity: 1; } }
+details.ask[open] > .ask-panel,
+details.stage-menu[open] > .menu-panel,
+details.new-approach[open] > form {
+  transform-origin: top right;
+  animation: panel-in 150ms var(--ease-out);
+}
+/* On a phone the stage menu spans the row from the left edge, so there is no one corner
+   to grow from: it fades. Reduced motion: every panel fades and nothing scales. */
+@media (max-width: 760px) { details.stage-menu[open] > .menu-panel { animation-name: panel-fade; } }
+@media (prefers-reduced-motion: reduce) {
+  details.ask[open] > .ask-panel,
+  details.stage-menu[open] > .menu-panel,
+  details.new-approach[open] > form { animation-name: panel-fade; animation-duration: 120ms; }
+}
+
+/* The upgrade panel (upgrade.js) is added over a blurred wash in one go; fade the wash
+   in. The overlay only: upgrade.js rebuilds the box inside it at every step (ask,
+   working, done), so a scale-in on the box would replay each time. It has no exit, the
+   page reloads after. A fade is gentle enough to keep under reduced motion. */
+.upgrade-overlay { transition: opacity 180ms var(--ease-out); }
+@starting-style { .upgrade-overlay { opacity: 0; } }
