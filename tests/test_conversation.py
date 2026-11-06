@@ -664,6 +664,21 @@ def test_the_first_touch_advances_a_prospect_once_in_the_same_commit(store, mess
     assert planned(store, thread3()).stage_change == ""
 
 
+def test_a_first_touch_the_stage_rules_would_skip_is_not_announced(tmp_path):
+    """create_interaction skips the entry-stage advance when enforced rules forbid it
+    (PR 191), so the review page must not say the company will move."""
+    from hermitcrm import stages as st
+    rules = [{"name": "prospect", "to": ["lost"]}, {"name": "engaged"}, {"name": "lost", "role": "lost"}]
+    store = Store(tmp_path, clock=lambda: NOW, stages=st.from_config(rules),
+                  stage_rules="enforce")
+    store.load()
+    world(store)
+    p = planned(store, thread3())
+    assert p.stage_change == ""
+    conversation.apply(store, p, [0, 1, 2])
+    assert store.get(COMPANY).stage == "prospect"
+
+
 def _ready_item(store, ready):
     item_ = outreach.Item(
         id="li-1", state="ready", kind="first-touch", channel="linkedin", company=COMPANY,
