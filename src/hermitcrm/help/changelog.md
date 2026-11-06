@@ -8,6 +8,25 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Disqualifying a company and skipping outreach work as one.** A company in a
+  closed, parked, won or lost stage never gets a batch draft, and moving a company
+  out of an open stage now skips its open outreach drafts (researching, drafted,
+  ready, queued, failed) in the same commit, with the new skip reason
+  `company-closed`. The **Disqualify** menu on the company page asks "N open
+  outreach drafts: skip them" (ticked); `hermitcrm set --stage ... --keep-drafts`
+  and an unticked box keep them, and the dry run says how many it would skip. That
+  skip sets no cooldown, is not `bad-fit` and is left out of the learning, so a
+  company that requalifies is eligible at once. A batch lists the people it left out
+  for this reason apart, with a box each to **include anyway** (on the command line
+  `--include-closed company/contact`); one person named on its own (the Generate
+  button, one `--contact`) is drafted with a warning, and Sending lets that draft
+  through. A **reply to interest** is allowed for such a company too. **Skip as
+  bad-fit** can also disqualify the company (`hermitcrm outreach skip ID --reason
+  bad-fit --disqualify`). Do-not-contact, the suppression list (a batch now leaves a
+  suppressed address out too) and the playbook's disqualifiers are never lifted.
+  Drafts already sitting in the queue for companies closed earlier are left as they
+  are. Data format 22 reserves the new item key `stage_override` and the skip
+  reason; no file changes.
 - **A little motion, where it helps.** Panels that hang from a button (Ask · Adjust,
   Disqualify, + New approach) grow out of it in a tenth of a second instead of
   appearing at once. The guided tour's bubble glides to the next stop instead of

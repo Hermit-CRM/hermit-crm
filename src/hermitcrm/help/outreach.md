@@ -191,7 +191,11 @@ finds is saved as notes on the contact, sourced to the profile. The page text it
    notes. `hermitcrm outreach skip <id> --reason R [--note
    "..."]` drops it, R one of `bad-fit`, `wrong-person`, `bad-timing`,
    `bad-draft`, `already-in-contact`, `other`. A skipped person comes back in
-   batches after the cooldown; `bad-fit` keeps their company out.
+   batches after the cooldown; `bad-fit` keeps their company out. On the Outreach
+   page the skip form offers **Also disqualify** the company (off by default; only
+   `bad-fit` acts on it), and `--disqualify` does the same on the command line:
+   the company moves to your disqualified stage and its other open drafts are
+   skipped too. Nothing is offered for a company that is not open.
 
 5. **Send and log** it yourself, as you always do (by hand, BCC or the
    extension). The bot does neither. Logging the message on the item's channel
@@ -212,8 +216,9 @@ finds is saved as notes on the contact, sourced to the profile. The page text it
   (default `fit_score`, 0 to 100). A company without one comes last, with "no
   fit score" on its card; the bot never makes one up. Within a company, someone
   the playbook has a persona for goes first.
-- **Left out**, with the reason in the preview: a company in a closed or parked
-  stage; anything tagged `do-not-contact`; a company an approach's disqualifier
+- **Left out**, with the reason in the preview: a company in a closed, parked,
+  won or lost stage (see below); anything tagged `do-not-contact`; an address on
+  the suppression list; a company an approach's disqualifier
   hits or that misses every approach's ideal customer; a contact the channel
   cannot reach (email needs an address, LinkedIn a profile URL); a contact with
   an open item (researching, drafted or ready); a contact you messaged or
@@ -221,6 +226,30 @@ finds is saved as notes on the contact, sourced to the profile. The page text it
   `bad-fit`; for a first touch, anyone you messaged before. A reply to
   interest needs an interested reply owed, and skips the cooldown and the fit
   test: they asked (the approach is the one the conversation started with).
+- **Companies that are not open.** A batch never drafts for a company in a
+  closed, parked, won or lost stage. The preview lists such people apart, as
+  **Left out: their company is not open**, with their stage and a box each to
+  **include anyway** (off by default; the choice carries through the whole
+  batch). On the command line they are listed with the flag that brings one
+  back: `--include-closed company/contact` (repeatable), so an unattended run can
+  never include them by accident. Name **one** person (the Generate panel, or one
+  `--contact`) and the draft is made without asking, with a warning on the card
+  and on the panel; you decide whether it goes out, and Sending lets that draft
+  through although the company is not open. Everything else still applies:
+  do-not-contact, the suppression list and the approaches' disqualifiers are
+  never lifted, by a batch or by a single draft, and Sending checks them again.
+  A **reply to interest** is always allowed (they wrote to you); a first touch
+  or follow-up is not.
+- **Disqualifying a company skips its open drafts.** Moving a company out of an
+  open stage into a closed, parked, won or lost one (the company page, `hermitcrm
+  set`, an import, an agent) skips its drafts that are researching, drafted,
+  ready, queued or failed, in the same commit, with the reason `company-closed`.
+  The Disqualify form asks first ("3 open outreach drafts: skip them", ticked);
+  `hermitcrm set --stage ... --keep-drafts` and the unticked box keep them. The
+  skip is not a verdict on the draft: it sets no cooldown, does not count as
+  `bad-fit` and is left out of the learning, so a company that comes back (the
+  end of a temp disqualify, or you requalify it) is eligible again at once. Old
+  drafts are not revived.
 - **One item per company**, likely duplicates included: the same website
   domain, or names that are the same once `-ai`, `-hq`, `GmbH` and the like are
   dropped. The preview lists such pairs; merge them on the company page.
@@ -356,7 +385,8 @@ counts. `hermitcrm outreach show` prints the same line.
 ## The files
 
 `outreach/<id>.md`, one per item. The front matter holds `state`
-(`researching`, `drafted`, `ready`, `sent`, `skipped`; `logged` is for later), the
+(`researching`, `drafted`, `ready`, `sent`, `skipped`; `logged` is for later; a
+skip's `skip_reason` is one of the six above, or `company-closed`), the
 channel, contact, company, the reply it answers (`reply_to`) or the message it
 follows up (`follows`), approach,
 findings, check results, the critic's scores (`critic`, `critic_reason`,

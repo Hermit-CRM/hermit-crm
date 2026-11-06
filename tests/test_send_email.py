@@ -387,8 +387,8 @@ def test_every_guard_holds_the_item(folder, case):
     scheduled = False
     if case == "suppressed":
         suppress.add(root, "Mara@Lindenhof-Data.example.com", "opted-out", "2026-10-01")
-    elif case == "closed":
-        store.update_company(MARA[0], stage="won")
+    elif case == "closed":    # the stage moved after drafting; the draft was kept
+        store.update_company(MARA[0], stage="won", keep_drafts=True)
     elif case == "dnc":
         store.update_company(MARA[0], tags=["demo", "do-not-contact"])
     elif case == "sample":

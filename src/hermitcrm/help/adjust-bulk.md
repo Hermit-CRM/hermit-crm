@@ -48,7 +48,11 @@ hermitcrm set <companies|contacts|interactions> [--where KEY=VALUE ...] [--all]
 - `--stage` moves companies the way the stage buttons do: it goes into the stage
   history and the stage rules apply. `--stage lost` needs `--set lost_reason="..."` in
   the same command. Moving a company out of a parked or closed stage clears the
-  reason and the requalify date, and the dry run shows that.
+  reason and the requalify date, and the dry run shows that. Moving a company out
+  of an open stage into a closed, parked, won or lost one also skips its open
+  outreach drafts (reason `company-closed`) in the same commit; the dry run says
+  how many ("Warning: acme: 2 open outreach drafts skipped"). Add `--keep-drafts`
+  to leave them.
 - Your own fields (from `fields.toml`) work like built-in ones. A field that does not
   exist is refused with a hint. Add it to `fields.toml` first, see
   `hermitcrm help adjust-fields`.

@@ -951,11 +951,17 @@ class Store:
 
     @_locked
     def update_company(self, slug: str, message: str | None = None,
-                       force: bool | str = False, **fields) -> Company:
+                       force: bool | str = False, keep_drafts: bool = False,
+                       **fields) -> Company:
         """Update fields; `message` overrides the default commit message.
         `force=True` moves the company even where the stage rules forbid it; the
         override is named in the commit message and nowhere else. (Hermit's own
-        sweeps pass a word instead: they skip the rules without saying so.)"""
+        sweeps pass a word instead: they skip the rules without saying so.)
+        A move from an open stage to one that is not open (closed, parked, won,
+        lost) skips the company's open outreach items in the same commit, with the
+        skip reason `company-closed`, unless `keep_drafts`; the count is a notice
+        (`take_notices`). Moving between two stages that are not open, or back to an
+        open one, touches no item."""
         company = self._current(slug)
         if company is None:
             raise ValidationError({"slug": f"unknown company {slug!r}"})
@@ -1048,6 +1054,8 @@ class Store:
                 message = f"company: {slug} updated"
         if overridden:
             message += "; stage rule overridden"
+        leaving = (stage_changed and not keep_drafts and self.stages.is_open(old_stage)
+                   and not self.stages.is_open(new.stage))
         with self.batch(message):
             self.write_company(new)
             self.companies[slug] = new
@@ -1055,6 +1063,15 @@ class Store:
             if note:
                 self.create_interaction(slug, Channel.NOTE.value, "", body=note)
                 new = self.companies[slug]  # reloaded by the write: holds the note
+            if leaving:
+                from . import outreach
+                skipped = outreach.skip_open_for_company(
+                    self, slug, note=f"company moved to {new.stage}")
+                if skipped:
+                    self.notices.append(
+                        f"{len(skipped)} open outreach draft"
+                        f"{'s' if len(skipped) != 1 else ''} skipped "
+                        f"({new.name} is {new.stage})")
         return new
 
     @_locked

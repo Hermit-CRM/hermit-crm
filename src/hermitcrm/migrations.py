@@ -602,6 +602,8 @@ MIGRATIONS = [
               "companies/*/interactions/*.md", _noop),
     Migration(21, "interactions may have the source linkedin-import (nothing to change in a file)",
               "companies/*/interactions/*.md", _noop),
+    Migration(22, "outreach items may record a draft made on purpose for a company that is not open (nothing to change in a file)",
+              "outreach/*.md", _noop),
 ]
 LATEST = MIGRATIONS[-1].version
 

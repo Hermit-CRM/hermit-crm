@@ -852,7 +852,8 @@ def cmd_set(store: Store, args) -> tuple[str, int]:
     try:
         ops = bulk.Ops(set=bulk.parse_pairs(args.set), unset=list(args.unset),
                        add_tags=list(args.add_tag), remove_tags=list(args.remove_tag),
-                       stage=args.stage, force=bool(getattr(args, "force", False)))
+                       stage=args.stage, force=bool(getattr(args, "force", False)),
+                       keep_drafts=bool(getattr(args, "keep_drafts", False)))
         plan = bulk.plan(store, args.scope, args.where, ops, everything=args.all)
         if plan.matched == 0:
             return (f"No {plan.nouns} match {plan.describe_where()}. Nothing to change.", 0)
@@ -1613,6 +1614,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p_set.add_argument("--force", action="store_true",
                        help="with --stage: move even where the stage rules (config.toml "
                             "stage_rules) forbid it; the commit says so")
+    p_set.add_argument("--keep-drafts", action="store_true",
+                       help="with --stage: do not skip the open outreach drafts of "
+                            "companies that leave an open stage (the default skips them)")
     p_set.add_argument("--apply", action="store_true",
                        help="make the change: one commit. Without it, only a dry run")
     p_set.add_argument("--message", default=None, metavar="TEXT",
@@ -1770,6 +1774,12 @@ def _build_parser() -> argparse.ArgumentParser:
                             "followup_nudge_days)")
         o.add_argument("--limit", type=int, default=None, help="batch size (default 10)")
         o.add_argument("--approach", default="", help="the playbook approach to use")
+        o.add_argument("--include-closed", action="append", default=[], metavar="COMPANY/CONTACT",
+                       help="draft for this person although their company is closed, parked, "
+                            "won or lost (repeatable). A batch leaves such companies out and "
+                            "lists them; one --contact is drafted anyway, with a warning. "
+                            "Do-not-contact, the suppression list and the playbook's "
+                            "disqualifiers are never lifted")
         if verb == "build":
             o.add_argument("--research", default="",
                            help="research level: scrape (default), or ai-web (also "
@@ -1810,8 +1820,11 @@ def _build_parser() -> argparse.ArgumentParser:
     o_skip.add_argument("id")
     o_skip.add_argument("--reason", required=True,
                         choices=["bad-fit", "wrong-person", "bad-timing", "bad-draft",
-                                 "already-in-contact", "other"])
+                                 "already-in-contact", "other"])   # not company-closed
     o_skip.add_argument("--note", default="", help="anything else, in your words")
+    o_skip.add_argument("--disqualify", action="store_true",
+                        help="with --reason bad-fit: also move the company to the disqualified "
+                             "stage (its other open drafts are skipped too)")
     o_sched = o_sub.add_parser("schedule", help="queue approved email to go out over the "
                                "working day (spaced, capped); needs sending on in Settings")
     o_sched.add_argument("ids", nargs="*", metavar="id")
@@ -1971,15 +1984,27 @@ def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
             item = outreach.mark_sent(store, args.id)
             return (f"{item.id} is sent. Nothing was logged: log the message as usual.", 0)
         if action == "skip":
-            item = outreach.skip(store, args.id, args.reason, getattr(args, "note", ""))
+            if getattr(args, "disqualify", False) and args.reason != "bad-fit":
+                return ("--disqualify goes with --reason bad-fit: that is the one skip that "
+                        "says the company is wrong for you.", 2)
+            store.take_notices()
+            if getattr(args, "disqualify", False):
+                item, moved = outreach.skip_and_disqualify(store, args.id,
+                                                           getattr(args, "note", ""))
+            else:
+                item, moved = outreach.skip(store, args.id, args.reason,
+                                            getattr(args, "note", "")), ""
             return (f"{item.id} skipped: {item.skip_reason}"
-                    + (f" ({item.skip_note})" if item.skip_note else ""), 0)
+                    + (f" ({item.skip_note})" if item.skip_note else "")
+                    + (f"\n{item.company} moved to {moved}." if moved else "")
+                    + "".join(f"\n{n}" for n in store.take_notices()), 0)
         framework = getattr(args, "framework", "")
         if framework:   # before anyone is selected: an empty batch must not hide the refusal
             outreach.check_framework_choice(frameworks.load(root), args.kind, framework)
         selection = outreach.select(store, where=args.where, channel=args.channel,
                                     kind=args.kind, limit=args.limit, approach=args.approach,
-                                    contacts=args.contact, config=config)
+                                    contacts=args.contact, config=config,
+                                    include_closed=getattr(args, "include_closed", None))
         if action == "preview":
             return (selection.render() + "\n\nPreview only: no AI was run and nothing "
                     "was written.", 0)
@@ -2007,7 +2032,9 @@ def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
                                 framework=framework)
     except outreach.OutreachError as exc:
         return (str(exc), 1)
-    lines = result.lines + ["", f"{len(result.items)} item(s) in outreach/. Review them "
+    lines = result.lines + ([""] + selection.render_left_out()
+                            if selection.stage_left_out else [])
+    lines += ["", f"{len(result.items)} item(s) in outreach/. Review them "
                             "(hermitcrm outreach show <id>), then ready or skip. Nothing "
                             "was sent."]
     return ("\n".join(lines), 0)

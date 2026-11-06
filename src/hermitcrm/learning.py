@@ -550,6 +550,10 @@ def signal_of(store: Store, item, config: dict | None = None, checks: dict | Non
 
 
 def reviewed(item) -> bool:
+    """The person was done with it. Not an item the system skipped because its
+    company left an open stage: that says nothing about the draft."""
+    if item.state == "skipped" and item.skip_reason == outreach.COMPANY_CLOSED:
+        return False
     return item.state in REVIEWED_STATES or bool(item.edits)
 
 
