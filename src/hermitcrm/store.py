@@ -42,7 +42,7 @@ from . import dateformat
 from . import fields as fields_mod
 from .frameworks import ID as FRAMEWORK_ID
 from .paths import contained
-from .stages import DEFAULT_STAGES, StageSet
+from .stages import DEFAULT_STAGES, RULE_MODES, StageSet
 from .models import (
     Channel,
     Company,
@@ -361,6 +361,7 @@ class Store:
         outcomes: list[str] | None = None,
         task_types: list[str] | None = None,
         stages: StageSet | None = None,
+        stage_rules: str = "off",
     ):
         self.root = Path(root)
         self.companies_dir = self.root / "companies"
@@ -373,6 +374,11 @@ class Store:
         self.task_types = [str(t) for t in (task_types or [])]
         # The configured deal stages (config `stages`); the defaults without.
         self.stages = stages or DEFAULT_STAGES
+        # Whether the stages' `to` lists are looked at: "off", "warn", "enforce"
+        # (config `stage_rules`). Off, a move is checked only for a known stage.
+        self.stage_rules = stage_rules if stage_rules in RULE_MODES else "off"
+        # What "warn" said about the moves it let through, for the caller to show.
+        self.notices: list[str] = []
         self.on_write = on_write
         self._touched: list[str] = []
         self._batch: list[str] | None = None
@@ -692,6 +698,51 @@ class Store:
                           f"(allowed: {', '.join(self.stages.names)})"})
         return value
 
+    def move_allowed(self, old: str, new: str) -> bool:
+        """Whether the rules would let a company move `old` -> `new` without a
+        fuss: always, unless the rules are enforced and forbid it. For the moves
+        Hermit makes by itself (the first touch advances the entry stage), which
+        are skipped rather than refused."""
+        return (self.stage_rules != "enforce"
+                or self.stages.move_problem(old, new) is None)
+
+    def _check_move(self, old: str, new: str, force: bool = False) -> bool:
+        """Apply the stage rules to one move. Returns True when a rule was
+        overridden with `force` (the commit message says so); "warn" records a
+        notice and lets the move through; "enforce" raises a ValidationError
+        that names the legal moves. Off, or no rule in the way, does nothing."""
+        if self.stage_rules == "off":
+            return False
+        problem = self.stages.move_problem(old, new)
+        if problem is None:
+            return False
+        if force:
+            return True
+        if self.stage_rules == "warn":
+            self.notices.append(problem)
+            return False
+        raise ValidationError({"stage": problem})
+
+    def take_notices(self) -> list[str]:
+        """The warnings "warn" mode raised since the last call; the caller shows them."""
+        notices, self.notices = self.notices, []
+        return notices
+
+    def stage_rule_warnings(self) -> list[str]:
+        """`check` warnings: a recorded move that today's rules forbid. History
+        is never rewritten; this only says so. Nothing when the rules are off."""
+        if self.stage_rules == "off":
+            return []
+        out = []
+        for slug in sorted(self.companies):
+            for e in self.companies[slug].stage_history:
+                problem = self.stages.move_problem(e.from_stage, e.to_stage)
+                if problem:
+                    when = f"{e.date:%Y-%m-%d}" if e.date else "undated"
+                    out.append(f"companies/{slug}: stage_history {when}: {problem} "
+                               "under the current stage rules")
+        return out
+
     def _reason_rules(self, stage: str, reason: str, requalify_on):
         """What a stage does to `lost_reason` and `requalify_on`, by its role: a
         lost stage needs a reason, lost, closed and parked stages keep one, only
@@ -808,8 +859,12 @@ class Store:
         return company
 
     @_locked
-    def update_company(self, slug: str, message: str | None = None, **fields) -> Company:
-        """Update fields; `message` overrides the default commit message."""
+    def update_company(self, slug: str, message: str | None = None,
+                       force: bool | str = False, **fields) -> Company:
+        """Update fields; `message` overrides the default commit message.
+        `force=True` moves the company even where the stage rules forbid it; the
+        override is named in the commit message and nowhere else. (Hermit's own
+        sweeps pass a word instead: they skip the rules without saying so.)"""
         company = self._current(slug)
         if company is None:
             raise ValidationError({"slug": f"unknown company {slug!r}"})
@@ -837,8 +892,11 @@ class Store:
         if "source" in fields:
             new.source = self._coerce_enum(fields["source"], Source, "source", True,
                                            "other")
+        overridden = False
         if "stage" in fields:
             new.stage = self._coerce_stage(fields["stage"], company.stage)
+            overridden = (self._check_move(company.stage, new.stage, bool(force))
+                          and force is True)
         if "lost_reason" in fields:
             new.lost_reason = (fields["lost_reason"] or "").strip()
         if "requalify_on" in fields:
@@ -897,6 +955,8 @@ class Store:
                 message = f"company: {slug} next step {word}"
             else:
                 message = f"company: {slug} updated"
+        if overridden:
+            message += "; stage rule overridden"
         with self.batch(message):
             self.write_company(new)
             self.companies[slug] = new
@@ -1074,7 +1134,8 @@ class Store:
                 self.update_company(
                     company.slug, stage=move_to,
                     lost_reason=company.lost_reason or reason,
-                    message=f'company: {company.slug} stage {name} -> {move_to}')
+                    message=f'company: {company.slug} stage {name} -> {move_to}',
+                    force="sweep")   # the stage is going away: not a move the rules judge
         return n
 
     # --- merging
@@ -1591,7 +1652,8 @@ class Store:
         # A logged interaction means contact was made: a prospect becomes
         # engaged, in the same commit as the interaction. A note is not contact.
         entry, target = self.stages.entry, self.stages.advance_target
-        advance = target is not None and company.stage == entry and it.is_touch
+        advance = (target is not None and company.stage == entry and it.is_touch
+                   and self.move_allowed(entry, target))
         if advance:
             message += f"; stage {entry} -> {target}"
         # An outreach item marked ready is sent once you log the message, by

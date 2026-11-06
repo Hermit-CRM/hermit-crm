@@ -914,7 +914,8 @@ def create_app(root: Path, config: dict | None = None,
     store = Store(root, silent_days=int(config.get("silent_days", 14)),
                   on_write=on_write, outcomes=outcomes, clock=clock,
                   task_types=task_types.names(configured_types),
-                  stages=stages_mod.from_config(config.get("stages")))
+                  stages=stages_mod.from_config(config.get("stages")),
+                  stage_rules=stages_mod.rules_mode(config.get("stage_rules")))
     store.load()
 
     def load_custom_fields() -> list:
@@ -1045,6 +1046,7 @@ def create_app(root: Path, config: dict | None = None,
             "types": types,
             "type_names": task_types.names(types),
             "stages": stage_set,
+            "stage_rules": stages_mod.rules_mode(cfg.get("stage_rules")),
             "message_window": int(cfg.get("message_window_days", 14)),
             "enricher": build_enricher(cfg),
             "custom_fields": load_custom_fields(),
@@ -1104,6 +1106,7 @@ def create_app(root: Path, config: dict | None = None,
         app.state.task_types = derived["types"]
         store.task_types = derived["type_names"]
         store.set_stages(derived["stages"])
+        store.stage_rules = derived["stage_rules"]
         templates.env.globals["stages"][:] = derived["stages"].names
         message_window = derived["message_window"]
         app.state.enricher = derived["enricher"]
@@ -2563,6 +2566,10 @@ def create_app(root: Path, config: dict | None = None,
             "interaction": interaction,
             "focus": request.query_params.get("focus", ""),
             "focus_stage": request.query_params.get("stage", ""),
+            # A board move the stage rules refused: offers "Move anyway".
+            "move_anyway": (request.query_params.get("move_anyway", "")
+                            if request.query_params.get("move_anyway", "") in store.stages
+                            else ""),
             "others": sorted((c for c in store.companies.values() if c.slug != slug),
                              key=lambda c: c.name.lower()),
         })
@@ -2620,7 +2627,8 @@ def create_app(root: Path, config: dict | None = None,
         try:
             if custom_errors:
                 raise ValidationError(custom_errors)
-            store.update_company(slug, custom=extra, **values)
+            store.take_notices()    # only this save's warning is shown
+            store.update_company(slug, custom=extra, force=bool(form.get("force")), **values)
         except ValidationError as exc:
             return render(request, "company.html", {
                 "company": company,
@@ -2633,7 +2641,7 @@ def create_app(root: Path, config: dict | None = None,
                 "focus_stage": values.get("stage", ""),
                 "others": [],
             }, status_code=400)
-        return flashed(f"/companies/{slug}", "Saved")
+        return flashed(f"/companies/{slug}", "; ".join(["Saved", *store.take_notices()]))
 
     @app.post("/companies/{slug}/next-step")
     def company_next_step_status(request: Request, slug: str,
@@ -2744,6 +2752,7 @@ def create_app(root: Path, config: dict | None = None,
         stages = store.stages
         if not (stages.role_of(stage) in ("closed", "parked") or stage == stages.entry):
             return flashed(f"/companies/{slug}", f"unknown stage {stage!r}")
+        store.take_notices()
         try:
             store.update_company(slug, stage=stage, lost_reason=reason,
                                  requalify_on=requalify_on)
@@ -2752,7 +2761,7 @@ def create_app(root: Path, config: dict | None = None,
         word = "Requalified" if stage == stages.entry else stage.replace("-", " ").capitalize()
         if stages.is_parked(stage) and requalify_on:
             word += f" until {requalify_on}"
-        return flashed(f"/companies/{slug}", word)
+        return flashed(f"/companies/{slug}", "; ".join([word, *store.take_notices()]))
 
     @app.get("/companies/{slug}/merge", response_class=HTMLResponse)
     def company_merge_form(request: Request, slug: str, drop: str = ""):
@@ -2835,7 +2844,7 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.post("/companies/{slug}/stage")
     def company_stage(request: Request, slug: str, stage: str = Form(""),
-                      back: str = Form("")):
+                      back: str = Form(""), force: str = Form("")):
         company = need_company(slug)
         if store.stages.requires_reason(stage) and company.stage != stage:
             # A lost stage needs a reason: send the user to the form instead.
@@ -2844,11 +2853,19 @@ def create_app(root: Path, config: dict | None = None,
             first = store.stages.with_role("lost")[0]
             pick = "" if stage == first else "&" + urlencode({"stage": stage})
             return goto(f"/companies/{slug}?focus=lost_reason{pick}")
+        store.take_notices()    # only this move's warning is shown
         try:
-            store.update_company(slug, stage=stage)
+            store.update_company(slug, stage=stage, force=bool(force))
         except ValidationError as exc:
-            return flashed(f"/companies/{slug}", "; ".join(exc.errors.values()))
+            message = "; ".join(exc.errors.values())
+            if "is not allowed (" in message:    # the stage rules: offer "Move anyway"
+                return flashed(f"/companies/{slug}?" + urlencode({"move_anyway": stage}),
+                               message)
+            return flashed(f"/companies/{slug}", message)
         # Back to the board it was moved on, filters kept: "/" is Home now.
+        notices = store.take_notices()
+        if notices:
+            return flashed(safe_back(back, "/pipeline"), "; ".join(notices))
         return goto(safe_back(back, "/pipeline"))
 
     # --------------------------------------------------------------- contacts
@@ -3385,9 +3402,11 @@ def create_app(root: Path, config: dict | None = None,
     def stages_form_default() -> dict:
         counts = store.stage_counts()
         return {"rows": [{"name": s.name, "old": s.name, "role": s.role,
-                          "valued": s.valued, "count": counts.get(s.name, 0)}
+                          "valued": s.valued, "count": counts.get(s.name, 0),
+                          "to": None if s.to is None else list(s.to)}
                          for s in store.stages],
-                "roles": stages_mod.ROLES, "confirm": None}
+                "roles": stages_mod.ROLES, "confirm": None,
+                "rule_modes": stages_mod.RULE_MODES, "rule_mode": store.stage_rules}
 
     def settings_page(request: Request, status_code: int = 200, **extra):
         return render(request, "settings.html", settings_context(**extra),
@@ -4029,21 +4048,33 @@ def create_app(root: Path, config: dict | None = None,
                         name: list[str] = Form([]), role: list[str] = Form([]),
                         valued: list[str] = Form([]), old: list[str] = Form([]),
                         delete: str = Form(""), move: str = Form(""),
-                        move_to: str = Form(""), move_reason: str = Form("")):
+                        move_to: str = Form(""), move_reason: str = Form(""),
+                        restrict: list[str] = Form([]), to: list[str] = Form([]),
+                        stage_rules: str = Form("")):
         check_csrf(csrf_token)
         counts = store.stage_counts()
         before = store.stages
+        # The rule columns are in the form only on a page that shows them; a post
+        # without any (an older page, a script) leaves every rule as it is.
+        has_rules_form = bool(stage_rules)
         new, renames, removed, errors = stages_mod.plan_rows(
-            name, role, valued, old, before, delete, move)
+            name, role, valued, old, before, delete, move,
+            restrict=restrict if has_rules_form else None, to_boxes=to)
+        if has_rules_form and stage_rules not in stages_mod.RULE_MODES:
+            errors = {**errors, "stages": "Stage rules must be off, warn or enforce."}
 
         def form_back(error: str = "", confirm: dict | None = None):
             """The form as it was submitted, with an error or the move-to question."""
             rows = [{"name": stages_mod.clean(n) or n.strip(), "old": stages_mod.clean(o),
                      "role": r, "valued": str(i) in valued,
-                     "count": counts.get(stages_mod.clean(o), 0)}
+                     "count": counts.get(stages_mod.clean(o), 0),
+                     "to": ([b.split(":", 1)[1] for b in to if b.startswith(f"{i}:")]
+                            if str(i) in restrict else None)}
                     for i, (n, r, o) in enumerate(
                         zip(name, role + ["open"] * len(name), old + [""] * len(name)))]
-            form = {"rows": rows, "roles": stages_mod.ROLES, "confirm": confirm}
+            form = {"rows": rows, "roles": stages_mod.ROLES, "confirm": confirm,
+                    "rule_modes": stages_mod.RULE_MODES,
+                    "rule_mode": stage_rules or store.stage_rules}
             # The page script scrolls to the error box, so there is always one.
             result = setup_steps.StepResult(
                 ok=False, errors={"stages": error or "Check the stages below."})
@@ -4058,7 +4089,17 @@ def create_app(root: Path, config: dict | None = None,
             if ask:
                 ask["index"] = delete
             return form_back(why, ask)
-        parts = stage_ops.apply(store, root, change, config_reloaded)
+        mode_file = root / "config.toml"
+        before_bytes = mode_file.read_bytes() if mode_file.exists() else None
+        try:
+            if has_rules_form and stage_rules != store.stage_rules:
+                setup_steps.set_config_values(mode_file, {"stage_rules": stage_rules})
+            parts = stage_ops.apply(store, root, change, config_reloaded)
+        except Exception:
+            if before_bytes is not None:
+                mode_file.write_bytes(before_bytes)
+            config_reloaded()
+            raise
         return flashed("/settings", "Stages saved" + ("; " + "; ".join(parts) if parts else ""),
                        anchor="stages")
 
