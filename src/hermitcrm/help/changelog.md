@@ -58,7 +58,13 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   missing, unused or changed file, and `hermitcrm doctor` adds the folder's total
   size. Your data folder is migrated to format 20 (nothing in a file changes).
   See [Interactions](/help/interactions).
-
+- **Stage rules (optional).** Say where a company in a stage may go next
+  (Settings > Deal stages > can move to, or `hermitcrm stages set offer --to
+  discovery,won,lost`) and what happens to a move that list does not allow: nothing
+  (the default, so nothing changes for you), a warning, or a refusal. Enforced, it
+  covers the board, the company page, `hermitcrm set`, your AI agent and imports, and
+  the message names the allowed moves. **Move anyway** / `--force` overrides one move
+  and the commit says so. No data migration: the lists live in `config.toml`.
 - **Mark a follow-up done.** Each row on the Outreach **Follow-ups** tab has a **Mark
   done** button, for a follow-up you made somewhere else (a LinkedIn message, a call)
   or decided to let go. The row leaves the tab, the batch, the home page and

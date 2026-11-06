@@ -718,7 +718,11 @@ AGENT_CONFIG_KEYS = ("task_types", "outcomes", "silent_days")
 # choice of agent are the user's, checked here only so a wrong value is named.
 # `stages` is not an agent key either: changing a stage can rewrite company files,
 # so it goes through `hermitcrm stages` (help: adjust-stages).
-HINT_KEYS = (*AGENT_CONFIG_KEYS, "message_window_days", "stages", AGENT_KEY)
+# `stage_rules` (off, warn, enforce) is left out of DEFAULT_CONFIG on purpose, so a
+# new data folder's config.toml stays byte for byte what it was; it is named here so
+# a near miss is hinted, and it is not an agent key either: a rule an agent can
+# switch off is a convention, not a rule.
+HINT_KEYS = (*AGENT_CONFIG_KEYS, "message_window_days", "stages", "stage_rules", AGENT_KEY)
 
 
 # The one config.toml problem that is only a warning: the app still reads the
@@ -770,6 +774,10 @@ def validate_config(root: Path) -> list[str]:
                                     f"{near(colour, task_types.PALETTE)}")
     if "stages" in data:
         problems += stages.problems(data["stages"])
+    if "stage_rules" in data:
+        bad = stages.rules_problem(data["stage_rules"])
+        if bad:
+            problems.append(bad)
     if "outcomes" in data:
         raw = data["outcomes"]
         items = [str(o).strip() for o in raw] if isinstance(raw, list) else None
