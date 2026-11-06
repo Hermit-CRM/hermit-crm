@@ -47,7 +47,7 @@ company, contact and conversation as a Markdown file in a git folder on your
 own disk. A local web app gives you a pipeline board, a calendar of next steps,
 message drafts and reports. AI tools such as Claude Code, Codex or Claude
 Desktop can read and update the pipeline through the files, a small CLI or the
-built-in MCP server. It is alpha software under the Apache License 2.0, with no
+built-in MCP server. It is free under the Apache License 2.0, with no
 warranty and no support.
 """
 
@@ -113,7 +113,7 @@ hermit = "Download it and let your AI coding tool install it. It needs Python 3.
 [[rows]]
 key    = "support"
 label  = "Maturity and support"
-hermit = "Alpha software. No warranty and no support."
+hermit = "Version 1.0. No warranty and no support."
 
 
 # ── Headings used on every comparison page ───────────────────────────
@@ -145,7 +145,7 @@ before you decide. Found a mistake? Message
 """
 
 [footer]
-text = "Hermit CRM · Apache License 2.0 · alpha, no warranty · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
+text = "Hermit CRM · Apache License 2.0 · no warranty · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
 site_heading    = "Hermit CRM"
 features        = "Features"
 docs            = "Docs"

@@ -2,7 +2,7 @@
 
 > A free, open-source CRM for founders, freelancers and anyone doing their own sales. Your companies, contacts, pipeline, tasks, outreach and dashboards are plain text files on your laptop. Write your own outreach or let your AI draft it, and ask it to reshape Hermit CRM to fit how you work.
 
-Hermit CRM is a free, open-source CRM for founders, freelancers and anyone doing their own sales. It runs on your Mac or Linux computer and keeps every company, contact and conversation as a Markdown file in a git folder on your own disk. A local web app gives you a pipeline board, a calendar of next steps, message drafts and reports. AI tools such as Claude Code, Codex or Claude Desktop can read and update the pipeline through the files, a small CLI or the built-in MCP server. It is alpha software under the Apache License 2.0, with no warranty and no support.
+Hermit CRM is a free, open-source CRM for founders, freelancers and anyone doing their own sales. It runs on your Mac or Linux computer and keeps every company, contact and conversation as a Markdown file in a git folder on your own disk. A local web app gives you a pipeline board, a calendar of next steps, message drafts and reports. AI tools such as Claude Code, Codex or Claude Desktop can read and update the pipeline through the files, a small CLI or the built-in MCP server. It is free under the Apache License 2.0, with no warranty and no support.
 
 ## Docs
 
@@ -105,4 +105,4 @@ One page for each link in the app's left navigation.
 - Source code: Open source, Apache License 2.0.
 - Runs on: macOS and Linux, in your browser. No Windows and no mobile app.
 - Setup: Download it and let your AI coding tool install it. It needs Python 3.11 and git and installs them when they are missing.
-- Maturity and support: Alpha software. No warranty and no support.
+- Maturity and support: Version 1.0. No warranty and no support.
