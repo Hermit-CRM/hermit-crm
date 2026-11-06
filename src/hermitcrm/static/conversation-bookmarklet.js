@@ -31,12 +31,19 @@
 (function () {
   var B = '__BASE__', d = document, W = window;
   var say = function (s) { W.alert('Hermit: ' + s); };
-  // Every open shadow root, recursively: the chat bubble on a profile page lives
-  // in one, and a plain querySelector does not look inside.
+  // Every open shadow root and every frame of our own site, recursively: the chat
+  // bubble on a profile page lives in a shadow root, the full Messaging page in an
+  // iframe (seen 2026-11-06), and a plain querySelector looks inside neither.
   var roots = [d];
   var dig = function (root) {
     root.querySelectorAll('*').forEach(function (el) {
       if (el.shadowRoot) { roots.push(el.shadowRoot); dig(el.shadowRoot); }
+      if (el.tagName === 'IFRAME') {
+        var inner = null;
+        try { inner = el.contentDocument; } catch (e) { inner = null; }
+        // A frame from another site is closed to us (null): only ours can be read.
+        if (inner && inner.documentElement) { roots.push(inner); dig(inner); }
+      }
     });
   };
   dig(d);
@@ -57,7 +64,8 @@
     try {
       var sel = W.getSelection();
       if (sel && sel.getComposedRanges) {
-        sel.getComposedRanges({ shadowRoots: roots.slice(1) }).forEach(function (r) { spot.push(r.startContainer); });
+        var shadows = roots.filter(function (r) { return !!r.host; });
+        sel.getComposedRanges({ shadowRoots: shadows }).forEach(function (r) { spot.push(r.startContainer); });
       }
     } catch (e) { /* older browser: the other way below */ }
     roots.forEach(function (r) {
@@ -76,10 +84,25 @@
     list = hit[0];
   }
   // The other person, from the header of the conversation this list belongs to.
-  var link = null, up = list.parentElement;
+  // Walk outwards from the list, out of its shadow root or its frame when it has one.
+  var HEADER = 'h2.msg-overlay-bubble-header__title a, a.msg-thread__link-to-profile';
+  var outer = function (n) {
+    if (n.parentElement) { return n.parentElement; }
+    var top = n.getRootNode ? n.getRootNode() : null;
+    if (top && top.host) { return top.host; }
+    var win = top && top.defaultView;
+    return win && win.frameElement ? win.frameElement : null;
+  };
+  var link = null, up = outer(list);
   while (up && !link) {
-    link = up.querySelector('h2.msg-overlay-bubble-header__title a, a.msg-thread__link-to-profile');
-    up = up.parentElement;
+    link = up.querySelector(HEADER);
+    up = outer(up);
+  }
+  if (!link) {
+    // The header may sit beside the frame, not above it: take it when it is the only one.
+    var heads = [];
+    roots.forEach(function (r) { r.querySelectorAll(HEADER).forEach(function (a) { heads.push(a); }); });
+    if (heads.length === 1) { link = heads[0]; }
   }
   var nameOf = function (el) {
     var n = el.querySelector('.msg-entity-lockup__entity-title-wrapper, .hoverable-link-text');
@@ -126,7 +149,7 @@
   }
   var n = new Date(), two = function (v) { return ('0' + v).slice(-2); };
   var payload = {
-    v: 1, url: W.location.href, layout: list.getRootNode() === d ? 'page' : 'bubble',
+    v: 1, url: W.location.href, layout: list.getRootNode().host ? 'bubble' : 'page',
     other: other, lang: d.documentElement.lang || '',
     now_local: n.getFullYear() + '-' + two(n.getMonth() + 1) + '-' + two(n.getDate()) + 'T' + two(n.getHours()) + ':' + two(n.getMinutes()),
     tz_min: n.getTimezoneOffset(), items: items
