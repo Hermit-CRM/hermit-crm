@@ -8,6 +8,14 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **A little motion, where it helps.** Panels that hang from a button (Ask · Adjust,
+  Disqualify, + New approach) grow out of it in a tenth of a second instead of
+  appearing at once. The guided tour's bubble glides to the next stop instead of
+  jumping, and the upgrade panel fades in over the page. The Edit, Fetch from URL and
+  Disqualify buttons now press like every other button. Nothing you use dozens of times
+  a day animates, and with "reduce motion" on in your system the panels only fade and
+  the tour bubble jumps as before. Style only, no data change.
+
 - **Mark a follow-up done.** Each row on the Outreach **Follow-ups** tab has a **Mark
   done** button, for a follow-up you made somewhere else (a LinkedIn message, a call)
   or decided to let go. The row leaves the tab, the batch, the home page and
