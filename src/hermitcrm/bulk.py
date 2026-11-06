@@ -165,7 +165,8 @@ class Ops:
 
     `set` maps field -> the text a form would carry ("" clears the field);
     `unset` clears; `add_tags` / `remove_tags` edit a company's tags;
-    `stage` moves companies through the normal stage-change path.
+    `stage` moves companies through the normal stage-change path; `force` makes
+    that move even where the stage rules (config `stage_rules`) forbid it.
     """
 
     set: dict = field(default_factory=dict)
@@ -173,6 +174,7 @@ class Ops:
     add_tags: list = field(default_factory=list)
     remove_tags: list = field(default_factory=list)
     stage: str | None = None
+    force: bool = False
 
     def is_empty(self) -> bool:
         return not (self.set or self.unset or self.add_tags or self.remove_tags
@@ -229,6 +231,8 @@ class Plan:
     skipped: int
     _resolved: object = field(default=None, repr=False, compare=False)
     notes: list = field(default_factory=list)   # about the filter, not an error
+    warnings: list = field(default_factory=list)  # stage rules in "warn" mode: allowed, said
+    forced: int = 0     # moves the stage rules forbade and --force made anyway
 
     @property
     def changed(self) -> int:
@@ -272,6 +276,9 @@ class Plan:
                  + (f"; {self.skipped} already look like this and are skipped."
                     if self.skipped else "."),
                  *[f"Note: {n}" for n in self.notes],
+                 *[f"Warning: {w}" for w in self.warnings],
+                 *([f"Note: {self.forced} would break the stage rules; --force moves "
+                    "them anyway."] if self.forced else []),
                  ""]
         for change in self.changes[:samples]:
             for fc in change.fields:
@@ -354,6 +361,7 @@ class _Resolved:
     add_tags: list
     remove_tags: list
     stage: str | None
+    force: bool = False
 
     def asked(self) -> set:
         """The front-matter fields this change is meant to touch."""
@@ -484,7 +492,7 @@ def _resolve(scope: str, defs: list, ops: Ops, stages=None) -> _Resolved:
         if stages.resolve(stage) not in options:
             raise BulkError(f"--stage: unknown stage {stage!r}.{_hint(stage.lower(), options)} "
                             f"Allowed: {', '.join(options)}.")
-    return _Resolved(builtin, custom, add, remove, stage)
+    return _Resolved(builtin, custom, add, remove, stage, bool(ops.force))
 
 
 def _store_kwargs(record, resolved: _Resolved) -> dict:
@@ -492,6 +500,8 @@ def _store_kwargs(record, resolved: _Resolved) -> dict:
     kwargs = dict(resolved.builtin)
     if resolved.stage is not None:
         kwargs["stage"] = resolved.stage
+        if resolved.force:
+            kwargs["force"] = True
     if resolved.add_tags or resolved.remove_tags:
         tags = list(record.tags)
         have = {t.lower() for t in tags}
@@ -772,6 +782,7 @@ def _diff(before: dict, after: dict) -> tuple:
 
 
 def _simulate(store: Store, scope: str, refs: list, resolved: _Resolved):
+    # Returns (changes, skipped, errors, warnings, forced).
     """Run the change on a scratch copy of the matching companies.
 
     Returns (changes, skipped, errors). The copy lives in a temporary directory
@@ -780,6 +791,8 @@ def _simulate(store: Store, scope: str, refs: list, resolved: _Resolved):
     changes: list = []
     errors: dict = defaultdict(list)
     skipped = 0
+    warnings: list = []
+    forced = 0
     allowed = resolved.asked() | _CASCADE[scope]
     with tempfile.TemporaryDirectory(prefix="hermitcrm-bulk-") as tmp:
         scratch = Path(tmp)
@@ -787,7 +800,8 @@ def _simulate(store: Store, scope: str, refs: list, resolved: _Resolved):
         for slug in sorted({company for company, _, _ in refs}):
             shutil.copytree(store.company_dir(slug), scratch / "companies" / slug)
         sim = Store(scratch, silent_days=store.silent_days, outcomes=store.outcomes,
-                    task_types=store.task_types, clock=store.clock, stages=store.stages)
+                    task_types=store.task_types, clock=store.clock, stages=store.stages,
+                    stage_rules=store.stage_rules)
         sim.load()
         for company, key, label in refs:
             before = _meta(sim, scope, company, key)
@@ -795,7 +809,14 @@ def _simulate(store: Store, scope: str, refs: list, resolved: _Resolved):
                 errors[("record", "it changed on disk since the lists were read")].append(label)
                 continue
             try:
+                if (resolved.force and resolved.stage and scope == "companies"
+                        and sim.stage_rules != "off" and sim.companies.get(company)
+                        and sim.stages.move_problem(sim.companies[company].stage,
+                                                    sim.stages.resolve(resolved.stage))):
+                    forced += 1
                 _write_one(sim, scope, company, key, resolved)
+                for notice in sim.take_notices():
+                    warnings.append(f"{label}: {notice}")
             except ValidationError as exc:
                 for name, message in exc.errors.items():
                     errors[(name, message)].append(label)
@@ -816,7 +837,7 @@ def _simulate(store: Store, scope: str, refs: list, resolved: _Resolved):
                                   "in Hermit CRM, not in your command")].append(label)
                 continue
             changes.append(Change(scope, company, key, label, before, fields_changed))
-    return changes, skipped, errors
+    return changes, skipped, errors, warnings, forced
 
 
 def _refuse_errors(scope: str, errors: dict) -> BulkError:
@@ -864,11 +885,12 @@ def plan(store: Store, scope: str, where=None, ops: Ops | None = None, *,
     rows, cols = _rows_and_columns(store, scope, defs)
     matched = _match(rows, _parse_where(where, cols))
     refs = [_ref(scope, row) for row in matched]
-    changes, skipped, errors = _simulate(store, scope, refs, resolved) if refs else ([], 0, {})
+    changes, skipped, errors, warnings, forced = (
+        _simulate(store, scope, refs, resolved) if refs else ([], 0, {}, [], 0))
     if errors:
         raise _refuse_errors(scope, errors)
     return Plan(scope, where, everything, ops, len(refs), changes, skipped, resolved,
-                notes=text_compare_notes(cols, where))
+                notes=text_compare_notes(cols, where), warnings=warnings, forced=forced)
 
 
 # -------------------------------------------------------------------------- apply
@@ -888,6 +910,8 @@ def _commit_message(plan_: Plan, message: str | None) -> str:
             f"changed: {plan_.count(plan_.changed)}"
             + (f" ({plan_.skipped} more matched and were already like this)"
                if plan_.skipped else "")]
+    if plan_.forced:
+        body.append(f"stage rules overridden (--force) for {plan_.forced}")
     return subject + "\n\n" + "\n".join(body)
 
 
@@ -967,6 +991,7 @@ def apply(store: Store, plan_: Plan, message: str | None = None) -> str:
         try:
             for change in plan_.changes:
                 _write_one(store, scope, change.company, change.key, plan_._resolved)
+            store.take_notices()   # the dry run already said them
             stray = set(store.take_touched()) - set(paths)
             if stray:
                 raise ApplyError("a write touched a file the plan did not name: "

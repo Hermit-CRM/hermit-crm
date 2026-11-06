@@ -41,14 +41,15 @@ from typing import Callable
 from urllib.parse import parse_qsl as _parse_qsl, quote, urlencode, urlparse
 
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import (HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse,
-                               Response, StreamingResponse)
+from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse, PlainTextResponse,
+                               RedirectResponse, Response, StreamingResponse)
 from fastapi.staticfiles import StaticFiles
 from markupsafe import Markup, escape
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import QueryParams
 
 from . import __version__, updates
+from . import attachments as attachments_mod
 from . import upgrade as upgrading
 from fastapi.templating import Jinja2Templates
 
@@ -297,6 +298,34 @@ TASK_WHEN = [
     ("later", "Later", lambda d, t: d is not None and d > t + timedelta(days=7)),
     ("none", "No date", lambda d, t: d is None),
 ]
+
+
+async def read_uploads(request: Request, limit: int) -> list[attachments_mod.Incoming]:
+    """The files of a submitted form (field `files`), read in 1 MB chunks so one
+    over `limit` is refused as soon as it is too big. The browser sends an empty
+    part when no file was chosen, and an empty file is not worth keeping: both
+    are skipped, so is a field that is plain text."""
+    out = []
+    for upload in (await request.form()).getlist("files"):
+        name = getattr(upload, "filename", "") or ""
+        if not name or not hasattr(upload, "read"):
+            continue
+        chunks, size = [], 0
+        while chunk := await upload.read(1 << 20):
+            size += len(chunk)
+            if size > limit:
+                raise ValidationError({"files": (
+                    f"{attachments_mod.safe_name(name)} is larger than {limit >> 20} MB "
+                    "(attachment_max_mb in config.toml)")})
+            chunks.append(chunk)
+        if size:
+            out.append(attachments_mod.Incoming(name, b"".join(chunks)))
+    return out
+
+
+def attachment_json(company_slug: str, att) -> dict:
+    return {"file": att.file, "name": att.name, "size": att.size, "type": att.type,
+            "url": f"/companies/{company_slug}/attachments/{quote(att.file)}"}
 
 
 def safe_back(back: str, default: str) -> str:
@@ -775,6 +804,8 @@ def safe_page(page: str) -> str:
 # `allowed_hosts`. Tests add their client's "testserver" here.
 EXTRA_HOST_NAMES: set[str] = set()
 UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+# The routes that take uploaded files (see upload_size_limit).
+ATTACH_FORMS = re.compile(r"^/companies/[^/]+/(interactions|attachments)(/|$)")
 
 
 def host_name(value: str) -> str:
@@ -914,7 +945,8 @@ def create_app(root: Path, config: dict | None = None,
     store = Store(root, silent_days=int(config.get("silent_days", 14)),
                   on_write=on_write, outcomes=outcomes, clock=clock,
                   task_types=task_types.names(configured_types),
-                  stages=stages_mod.from_config(config.get("stages")))
+                  stages=stages_mod.from_config(config.get("stages")),
+                  stage_rules=stages_mod.rules_mode(config.get("stage_rules")))
     store.load()
 
     def load_custom_fields() -> list:
@@ -1045,6 +1077,7 @@ def create_app(root: Path, config: dict | None = None,
             "types": types,
             "type_names": task_types.names(types),
             "stages": stage_set,
+            "stage_rules": stages_mod.rules_mode(cfg.get("stage_rules")),
             "message_window": int(cfg.get("message_window_days", 14)),
             "enricher": build_enricher(cfg),
             "custom_fields": load_custom_fields(),
@@ -1104,6 +1137,7 @@ def create_app(root: Path, config: dict | None = None,
         app.state.task_types = derived["types"]
         store.task_types = derived["type_names"]
         store.set_stages(derived["stages"])
+        store.stage_rules = derived["stage_rules"]
         templates.env.globals["stages"][:] = derived["stages"].names
         message_window = derived["message_window"]
         app.state.enricher = derived["enricher"]
@@ -1285,6 +1319,20 @@ def create_app(root: Path, config: dict | None = None,
                 "from Hermit CRM itself.", status_code=403)
         return await call_next(request)
 
+    @app.middleware("http")
+    async def upload_size_limit(request: Request, call_next):
+        # A form that attaches files can carry a few big ones; this refuses a request
+        # that says it is far bigger before a byte of it is parsed. Each file is
+        # checked against attachment_max_mb again as it is read.
+        if request.method == "POST" and ATTACH_FORMS.match(request.url.path):
+            size = request.headers.get("content-length", "")
+            if size.isdigit() and int(size) > store.attachment_limit() * 4 + (1 << 20):
+                return PlainTextResponse(
+                    "Too much at once: attach fewer or smaller files "
+                    "(attachment_max_mb in config.toml sets the limit for each).",
+                    status_code=413)
+        return await call_next(request)
+
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 
     @app.get("/theme.css", include_in_schema=False)
@@ -1419,6 +1467,8 @@ def create_app(root: Path, config: dict | None = None,
     )
 
     templates.env.filters["slug"] = slugify  # CSS class names from outcome values
+    templates.env.filters["filesize"] = attachments_mod.human_size
+    templates.env.globals["attach_max_mb"] = lambda: store.attachment_limit() >> 20
     templates.env.filters["href"] = safe_href  # stored URLs: http(s) or nothing
     templates.env.filters["day_span"] = sendplan.compact_days  # "Mon, Tue, Wed" as "Mon–Wed"
     templates.env.filters["placeholders"] = placeholders  # a starter's [placeholders]
@@ -2188,7 +2238,7 @@ def create_app(root: Path, config: dict | None = None,
     @app.get("/companies", response_class=HTMLResponse)
     def companies_list(request: Request, q: str = ""):
         found = listing("companies", request.query_params, q)
-        cols, active, companies = found.columns, found.active, found.rows
+        active, companies = found.active, found.rows
         sort_key, sort_dir, shown = found.sort, found.dir, found.extra["shown"]
         show_parked, hidden = found.extra["show_parked"], found.extra["hidden_parked"]
         toggle = [(k, v) for k, v in request.query_params.multi_items()
@@ -2549,6 +2599,7 @@ def create_app(root: Path, config: dict | None = None,
     def company_notes_context(company: Company) -> dict:
         """What company.html shows about notes, for every way the page is rendered."""
         return {"company_notes": notes.company_notes(company),
+                "files": attachments_mod.files_of(company.interactions),
                 "note_counts": {cs: len(notes.contact_notes(company, cs))
                                 for cs in company.contacts}}
 
@@ -2563,6 +2614,10 @@ def create_app(root: Path, config: dict | None = None,
             "interaction": interaction,
             "focus": request.query_params.get("focus", ""),
             "focus_stage": request.query_params.get("stage", ""),
+            # A board move the stage rules refused: offers "Move anyway".
+            "move_anyway": (request.query_params.get("move_anyway", "")
+                            if request.query_params.get("move_anyway", "") in store.stages
+                            else ""),
             "others": sorted((c for c in store.companies.values() if c.slug != slug),
                              key=lambda c: c.name.lower()),
         })
@@ -2620,7 +2675,8 @@ def create_app(root: Path, config: dict | None = None,
         try:
             if custom_errors:
                 raise ValidationError(custom_errors)
-            store.update_company(slug, custom=extra, **values)
+            store.take_notices()    # only this save's warning is shown
+            store.update_company(slug, custom=extra, force=bool(form.get("force")), **values)
         except ValidationError as exc:
             return render(request, "company.html", {
                 "company": company,
@@ -2633,7 +2689,7 @@ def create_app(root: Path, config: dict | None = None,
                 "focus_stage": values.get("stage", ""),
                 "others": [],
             }, status_code=400)
-        return flashed(f"/companies/{slug}", "Saved")
+        return flashed(f"/companies/{slug}", "; ".join(["Saved", *store.take_notices()]))
 
     @app.post("/companies/{slug}/next-step")
     def company_next_step_status(request: Request, slug: str,
@@ -2744,6 +2800,7 @@ def create_app(root: Path, config: dict | None = None,
         stages = store.stages
         if not (stages.role_of(stage) in ("closed", "parked") or stage == stages.entry):
             return flashed(f"/companies/{slug}", f"unknown stage {stage!r}")
+        store.take_notices()
         try:
             store.update_company(slug, stage=stage, lost_reason=reason,
                                  requalify_on=requalify_on)
@@ -2752,7 +2809,7 @@ def create_app(root: Path, config: dict | None = None,
         word = "Requalified" if stage == stages.entry else stage.replace("-", " ").capitalize()
         if stages.is_parked(stage) and requalify_on:
             word += f" until {requalify_on}"
-        return flashed(f"/companies/{slug}", word)
+        return flashed(f"/companies/{slug}", "; ".join([word, *store.take_notices()]))
 
     @app.get("/companies/{slug}/merge", response_class=HTMLResponse)
     def company_merge_form(request: Request, slug: str, drop: str = ""):
@@ -2835,7 +2892,7 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.post("/companies/{slug}/stage")
     def company_stage(request: Request, slug: str, stage: str = Form(""),
-                      back: str = Form("")):
+                      back: str = Form(""), force: str = Form("")):
         company = need_company(slug)
         if store.stages.requires_reason(stage) and company.stage != stage:
             # A lost stage needs a reason: send the user to the form instead.
@@ -2844,11 +2901,19 @@ def create_app(root: Path, config: dict | None = None,
             first = store.stages.with_role("lost")[0]
             pick = "" if stage == first else "&" + urlencode({"stage": stage})
             return goto(f"/companies/{slug}?focus=lost_reason{pick}")
+        store.take_notices()    # only this move's warning is shown
         try:
-            store.update_company(slug, stage=stage)
+            store.update_company(slug, stage=stage, force=bool(force))
         except ValidationError as exc:
-            return flashed(f"/companies/{slug}", "; ".join(exc.errors.values()))
+            message = "; ".join(exc.errors.values())
+            if "is not allowed (" in message:    # the stage rules: offer "Move anyway"
+                return flashed(f"/companies/{slug}?" + urlencode({"move_anyway": stage}),
+                               message)
+            return flashed(f"/companies/{slug}", message)
         # Back to the board it was moved on, filters kept: "/" is Home now.
+        notices = store.take_notices()
+        if notices:
+            return flashed(safe_back(back, "/pipeline"), "; ".join(notices))
         return goto(safe_back(back, "/pipeline"))
 
     # --------------------------------------------------------------- contacts
@@ -3003,6 +3068,7 @@ def create_app(root: Path, config: dict | None = None,
             "contact": contact,
             "values": values or with_custom(contact_values(contact), contact, "contact"),
             "interactions": interactions,
+            "files": attachments_mod.files_of(interactions),
             "interaction": interaction_values(company, contact=contact.slug, channel=channel),
             "summary": contact_summary(company, contact, interactions, store.today()),
             "elsewhere": notes.elsewhere(company, contact.slug),
@@ -3115,6 +3181,32 @@ def create_app(root: Path, config: dict | None = None,
                                               channel=channel, body=body),
         })
 
+    @app.get("/companies/{slug}/attachments/{file}")
+    def attachment_get(slug: str, file: str, download: int = 0):
+        """A stored attachment, if something still refers to it. Only the harmless
+        types open in the browser (attachments.INLINE_TYPES); everything else
+        downloads, and none can run script on this origin."""
+        company = need_company(slug, refresh=True)
+        try:
+            path = store.attachment_path(slug, file)
+        except ValidationError:
+            raise HTTPException(status_code=404, detail="no such file") from None
+        if file not in store.referenced_files(slug) or not path.is_file():
+            raise HTTPException(status_code=404, detail="no such file")
+        name = next((a.name for i in company.interactions for a in i.attachments
+                     if a.file == file), file[attachments_mod.HASH_LEN + 1:])
+        kind = attachments_mod.media_type(name)
+        inline = kind in attachments_mod.INLINE_TYPES and not download
+        # A PDF viewer does not start inside a sandboxed document; the PDF is not
+        # a page and has nothing to script on this origin.
+        policy = "default-src 'none'" if kind == "application/pdf" \
+            else "sandbox; default-src 'none'"
+        return FileResponse(
+            path, media_type=kind + ("; charset=utf-8" if kind == "text/plain" else ""),
+            filename=name, content_disposition_type="inline" if inline else "attachment",
+            headers={"X-Content-Type-Options": "nosniff", "Content-Security-Policy": policy,
+                     "Cache-Control": "private, max-age=3600"})
+
     @app.post("/companies/{slug}/interactions")
     async def interaction_create(
         request: Request,
@@ -3139,7 +3231,9 @@ def create_app(root: Path, config: dict | None = None,
                                      "whole company")
             if errors:
                 raise ValidationError(errors)
-            created = store.create_interaction(slug, custom=extra, **values)
+            incoming = await read_uploads(request, store.attachment_limit())
+            created = store.create_interaction(slug, custom=extra, attachments=incoming,
+                                               **values)
         except ValidationError as exc:
             values.update(shown)
             return render(request, "interaction_new.html", {
@@ -3149,8 +3243,9 @@ def create_app(root: Path, config: dict | None = None,
             }, status_code=400)
         back = (f"/companies/{slug}/contacts/{created.contact}" if created.contact
                 else f"/companies/{slug}")   # a note for the whole company
-        return flashed(back,
-                       "Note added" if created.is_note else "Interaction logged",
+        done = "Note added" if created.is_note else "Interaction logged"
+        n = len(created.attachments)
+        return flashed(back, done + (f" with {n} file{'s' if n != 1 else ''}" if n else ""),
                        anchor=f"i-{created.id}")
 
     @app.get("/companies/{slug}/interactions/{id}/edit", response_class=HTMLResponse)
@@ -3165,7 +3260,8 @@ def create_app(root: Path, config: dict | None = None,
             "outcome": it.outcome, "body": it.body,
         }
         return render(request, "interaction_edit.html",
-                      {"company": company, "id": id, "interaction": values})
+                      {"company": company, "id": id, "interaction": values,
+                       "attachments": it.attachments})
 
     @app.post("/companies/{slug}/interactions/{id}/edit")
     async def interaction_save(
@@ -3181,7 +3277,8 @@ def create_app(root: Path, config: dict | None = None,
         body: str = Form(""),
     ):
         company = need_company(slug)
-        if not any(i.id == id for i in company.interactions):
+        current = next((i for i in company.interactions if i.id == id), None)
+        if current is None:
             raise HTTPException(status_code=404, detail=f"unknown interaction {id!r}")
         values = {"channel": channel, "direction": direction, "contact": contact,
                   "date": date, "subject": subject,
@@ -3190,14 +3287,93 @@ def create_app(root: Path, config: dict | None = None,
         try:
             if custom_errors:
                 raise ValidationError(custom_errors)
-            saved = store.update_interaction(slug, id, custom=extra, **values)
+            incoming = await read_uploads(request, store.attachment_limit())
+            saved = store.update_interaction(slug, id, custom=extra, add_files=incoming,
+                                             **values)
         except ValidationError as exc:
             return render(request, "interaction_edit.html", {
                 "company": company, "id": id, "interaction": values,
-                "errors": exc.errors,
+                "attachments": current.attachments, "errors": exc.errors,
             }, status_code=400)
         return flashed(f"/companies/{slug}", "Interaction updated",
                        anchor=f"i-{saved.id}")
+
+    def interaction_home(company: Company, it) -> str:
+        return (f"/companies/{company.slug}/contacts/{it.contact}" if it.contact
+                else f"/companies/{company.slug}")
+
+    @app.post("/companies/{slug}/attachments")
+    async def company_attach(request: Request, slug: str, contact: str = Form(""),
+                             back: str = Form("")):
+        """Files dropped on a company or contact page (or chosen in its Files
+        box) are kept in a new note: subject the file names, no body, about the
+        person when the page is theirs."""
+        company = need_company(slug, refresh=True)
+        contact = contact.strip()
+        wants_json = "application/json" in request.headers.get("accept", "")
+        home = f"/companies/{slug}/contacts/{contact}" if contact in company.contacts \
+            and contact else f"/companies/{slug}"
+        try:
+            if contact and contact not in company.contacts:
+                raise ValidationError({"contact": f"unknown contact {contact!r}"})
+            incoming = await read_uploads(request, store.attachment_limit())
+            if not incoming:
+                raise ValidationError({"files": "choose a file to attach"})
+            names = ", ".join(attachments_mod.safe_name(f.name) for f in incoming)
+            subject = "Files: " + names
+            note = store.create_interaction(
+                slug, "note", "", contact=contact, attachments=incoming,
+                subject=subject if len(subject) <= 120 else subject[:119] + "…")
+        except ValidationError as exc:
+            message = "; ".join(exc.errors.values())
+            if wants_json:
+                return JSONResponse({"ok": False, "error": message}, status_code=400)
+            return flashed(safe_back(back, home), message)
+        if wants_json:
+            return JSONResponse({"ok": True, "id": note.id, "attachments": [
+                attachment_json(slug, a) for a in note.attachments]})
+        n = len(note.attachments)
+        return flashed(safe_back(back, home), f"{n} file{'s' if n != 1 else ''} kept in a new note",
+                       anchor=f"i-{note.id}")
+
+    @app.post("/companies/{slug}/interactions/{id}/attachments")
+    async def interaction_attach(request: Request, slug: str, id: str,
+                                 back: str = Form("")):
+        """Add files to a note or interaction that exists: the picker on its edit
+        page, or a file dropped on it in the timeline (`Accept: application/json`)."""
+        company = need_company(slug, refresh=True)
+        it = next((i for i in company.interactions if i.id == id), None)
+        if it is None:
+            raise HTTPException(status_code=404, detail=f"unknown interaction {id!r}")
+        wants_json = "application/json" in request.headers.get("accept", "")
+        try:
+            incoming = await read_uploads(request, store.attachment_limit())
+            if not incoming:
+                raise ValidationError({"files": "choose a file to attach"})
+            saved = store.update_interaction(slug, id, add_files=incoming)
+        except ValidationError as exc:
+            message = "; ".join(exc.errors.values())
+            if wants_json:
+                return JSONResponse({"ok": False, "error": message}, status_code=400)
+            return flashed(safe_back(back, interaction_home(company, it)), message)
+        if wants_json:
+            return JSONResponse({"ok": True, "attachments": [
+                attachment_json(slug, a) for a in saved.attachments]})
+        return flashed(safe_back(back, interaction_home(company, it)), "File attached",
+                       anchor=f"i-{saved.id}")
+
+    @app.post("/companies/{slug}/interactions/{id}/attachments/{file}/delete")
+    def interaction_detach(slug: str, id: str, file: str, back: str = Form("")):
+        company = need_company(slug, refresh=True)
+        it = next((i for i in company.interactions if i.id == id), None)
+        if it is None:
+            raise HTTPException(status_code=404, detail=f"unknown interaction {id!r}")
+        try:
+            store.update_interaction(slug, id, remove_files=[file])
+        except ValidationError:
+            raise HTTPException(status_code=404, detail="no such file") from None
+        return flashed(safe_back(back, f"/companies/{slug}/interactions/{id}/edit"),
+                       "File removed")
 
     @app.post("/companies/{slug}/interactions/{id}/delete")
     def interaction_delete(request: Request, slug: str, id: str):
@@ -3385,9 +3561,11 @@ def create_app(root: Path, config: dict | None = None,
     def stages_form_default() -> dict:
         counts = store.stage_counts()
         return {"rows": [{"name": s.name, "old": s.name, "role": s.role,
-                          "valued": s.valued, "count": counts.get(s.name, 0)}
+                          "valued": s.valued, "count": counts.get(s.name, 0),
+                          "to": None if s.to is None else list(s.to)}
                          for s in store.stages],
-                "roles": stages_mod.ROLES, "confirm": None}
+                "roles": stages_mod.ROLES, "confirm": None,
+                "rule_modes": stages_mod.RULE_MODES, "rule_mode": store.stage_rules}
 
     def settings_page(request: Request, status_code: int = 200, **extra):
         return render(request, "settings.html", settings_context(**extra),
@@ -4029,21 +4207,33 @@ def create_app(root: Path, config: dict | None = None,
                         name: list[str] = Form([]), role: list[str] = Form([]),
                         valued: list[str] = Form([]), old: list[str] = Form([]),
                         delete: str = Form(""), move: str = Form(""),
-                        move_to: str = Form(""), move_reason: str = Form("")):
+                        move_to: str = Form(""), move_reason: str = Form(""),
+                        restrict: list[str] = Form([]), to: list[str] = Form([]),
+                        stage_rules: str = Form("")):
         check_csrf(csrf_token)
         counts = store.stage_counts()
         before = store.stages
+        # The rule columns are in the form only on a page that shows them; a post
+        # without any (an older page, a script) leaves every rule as it is.
+        has_rules_form = bool(stage_rules)
         new, renames, removed, errors = stages_mod.plan_rows(
-            name, role, valued, old, before, delete, move)
+            name, role, valued, old, before, delete, move,
+            restrict=restrict if has_rules_form else None, to_boxes=to)
+        if has_rules_form and stage_rules not in stages_mod.RULE_MODES:
+            errors = {**errors, "stages": "Stage rules must be off, warn or enforce."}
 
         def form_back(error: str = "", confirm: dict | None = None):
             """The form as it was submitted, with an error or the move-to question."""
             rows = [{"name": stages_mod.clean(n) or n.strip(), "old": stages_mod.clean(o),
                      "role": r, "valued": str(i) in valued,
-                     "count": counts.get(stages_mod.clean(o), 0)}
+                     "count": counts.get(stages_mod.clean(o), 0),
+                     "to": ([b.split(":", 1)[1] for b in to if b.startswith(f"{i}:")]
+                            if str(i) in restrict else None)}
                     for i, (n, r, o) in enumerate(
                         zip(name, role + ["open"] * len(name), old + [""] * len(name)))]
-            form = {"rows": rows, "roles": stages_mod.ROLES, "confirm": confirm}
+            form = {"rows": rows, "roles": stages_mod.ROLES, "confirm": confirm,
+                    "rule_modes": stages_mod.RULE_MODES,
+                    "rule_mode": stage_rules or store.stage_rules}
             # The page script scrolls to the error box, so there is always one.
             result = setup_steps.StepResult(
                 ok=False, errors={"stages": error or "Check the stages below."})
@@ -4058,7 +4248,17 @@ def create_app(root: Path, config: dict | None = None,
             if ask:
                 ask["index"] = delete
             return form_back(why, ask)
-        parts = stage_ops.apply(store, root, change, config_reloaded)
+        mode_file = root / "config.toml"
+        before_bytes = mode_file.read_bytes() if mode_file.exists() else None
+        try:
+            if has_rules_form and stage_rules != store.stage_rules:
+                setup_steps.set_config_values(mode_file, {"stage_rules": stage_rules})
+            parts = stage_ops.apply(store, root, change, config_reloaded)
+        except Exception:
+            if before_bytes is not None:
+                mode_file.write_bytes(before_bytes)
+            config_reloaded()
+            raise
         return flashed("/settings", "Stages saved" + ("; " + "; ".join(parts) if parts else ""),
                        anchor="stages")
 
@@ -4793,8 +4993,8 @@ def create_app(root: Path, config: dict | None = None,
         return flashed("/outreach/linkedin", text)
 
     @app.post("/outreach/{item_id}/page")
-    async def outreach_page(item_id: str, csrf_token: str = Form(""), url: str = Form(""),
-                            top: str = Form(""), about: str = Form(""), act: str = Form("")):
+    async def outreach_item_page(item_id: str, csrf_token: str = Form(""), url: str = Form(""),
+                                 top: str = Form(""), about: str = Form(""), act: str = Form("")):
         """Add to research: what the bookmarklet read on the contact's own LinkedIn
         profile, as trimmed on the Add page, becomes findings on the card. One AI
         call (no tools); the page text itself is not kept."""

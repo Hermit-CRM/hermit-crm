@@ -133,12 +133,19 @@ h1 { margin: 0; font-size: 72px; font-weight: 400; line-height: 1.05; letter-spa
 .btn:hover { background: var(--green-press); color: #FFFFFF; }
 .btn:active { background: var(--green-press); transform: translateY(1px); }
 .meta { font-size: 15px; line-height: 1.5; color: var(--muted); }
+.download .meta { margin: 0; }
 
-.install { margin-top: 44px; display: flex; flex-direction: column; gap: 14px; }
 .steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; counter-reset: step; }
 .steps li { display: flex; gap: 16px; counter-increment: step; }
 .steps li::before { content: counter(step); width: 18px; flex-shrink: 0; color: var(--muted); font-variant-numeric: oldstyle-nums; }
-.indent { margin-left: 34px; }
+
+/* The install: download, unpack, send. The button lives in step 1, the message to copy in step 3. */
+.install { margin-top: 44px; gap: 28px; }
+.step { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.step .download { margin-top: 0; }
+.needs, .handheld { margin: 0; font-size: 16px; line-height: 1.55; }
+.handheld { display: none; }
+@media (max-width: 640px) and (pointer: coarse) { .handheld { display: block; } }
 
 .card {
   background: var(--card); border: 1px solid var(--rule); border-radius: 14px;
@@ -174,7 +181,7 @@ h1 { margin: 0; font-size: 72px; font-weight: 400; line-height: 1.05; letter-spa
 .principles p { margin: 0; }
 
 /* ── One company, one file ──────────────────────────────────────── */
-.showcase h2.big, .idea h2.big, .yours h2.big { margin: 12px 0 0; font-size: 48px; font-weight: 400; line-height: 1.1; letter-spacing: -.01em; }
+.showcase h2.big, .idea h2.big, .yours h2.big { margin: 12px 0 0; font-size: 48px; font-weight: 400; line-height: 1.1; letter-spacing: -.01em; text-wrap: balance; }
 .idea-grid { margin-top: 56px; display: grid; grid-template-columns: 620px minmax(0, 1fr); gap: 40px; align-items: start; }
 .window {
   margin: 0; border-radius: 12px; overflow: hidden;
@@ -356,6 +363,12 @@ details p { margin: 0 0 24px; }
 .pager a { display: block; padding: 8px 0; font-size: 20px; font-weight: 500; text-decoration: none; }
 .pager small { display: block; font-size: 15px; font-weight: 400; color: var(--muted); }
 .pager .next { margin-left: auto; text-align: right; }
+/* Top of a feature page: breadcrumbs left, previous and next on the same row (they wrap below on narrow screens) */
+.page-nav { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 0 24px; }
+.pager-top { margin: 0 0 28px; padding: 0; border-top: 0; gap: 20px; margin-left: auto; }
+.pager-top a { padding: 0; font-size: 15px; font-weight: 500; }
+.pager-top small { display: inline; font-size: 15px; }
+.pager-bottom { margin-top: 0; }
 .tiles { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 44px 32px; }
 .tile { display: block; color: var(--text); text-decoration: none; }
 .tile img { display: block; width: 100%; height: auto; margin-bottom: 14px; border: 1px solid var(--rule); border-radius: 10px; }
@@ -368,7 +381,6 @@ details p { margin: 0 0 24px; }
 .tiles.compact .tile img { margin-bottom: 10px; border-radius: 8px; }
 .tiles.compact .tile-name { font-size: 20px; }
 .tiles.compact .tile-text { margin-top: 4px; font-size: 15px; line-height: 1.45; }
-.all-features { margin: 28px auto 0; font-size: 19px; }
 .more-link { margin: 28px auto 0; font-size: 19px; }
 @media (max-width: 900px) { .tiles.compact { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 640px) {
@@ -429,7 +441,10 @@ details p { margin: 0 0 24px; }
   .subline { margin-top: 18px; font-size: 19px; }
   .download { margin-top: 28px; align-items: stretch; }
   .install { margin-top: 36px; }
-  .indent { margin-left: 0; }
+  /* The numbers stay beside each step's first line; the button and the card use the full width under it. */
+  .install li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 12px 16px; }
+  .install .step { display: contents; }
+  .install .step > :not(span) { grid-column: 1 / -1; }
   .card { flex-direction: column; align-items: stretch; gap: 16px; padding: 20px; }
   .card .message { margin: 0; font-size: 16px; }
   .copy { width: 100%; font-size: 18px; border-radius: 10px; padding: 12px 16px; }
@@ -482,6 +497,8 @@ details p { margin: 0 0 24px; }
   .tile-name { font-size: 22px; }
   .closing { margin-top: 72px; }
   .pager a { font-size: 18px; }
+  .pager-top { margin-left: 0; width: 100%; }
+  .pager-top a { display: inline-block; padding: 10px 0; font-size: 16px; }
 }
 /* Phones: tighter header links keep the name and all three links on one line */
 @media (max-width: 439px) {
@@ -520,7 +537,7 @@ details p { margin: 0 0 24px; }
 .footer-cols h2 { margin: 0 0 8px; font-size: 15px; font-weight: 700; color: var(--text); }
 .footer-cols ul { margin: 0; padding: 0; list-style: none; }
 .footer-cols li { margin: 0 0 4px; }
-.outreach h2.big { margin: 12px 0 0; font-size: 48px; font-weight: 400; line-height: 1.1; letter-spacing: -.01em; }
+.outreach h2.big { margin: 12px 0 0; font-size: 48px; font-weight: 400; line-height: 1.1; letter-spacing: -.01em; text-wrap: balance; }
 .outreach .lead { margin-top: 24px; }
 .outreach .steps { margin-top: 28px; gap: 14px; }
 .outreach .safety { margin-top: 32px; }

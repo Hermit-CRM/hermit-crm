@@ -23,17 +23,25 @@ Stored as one config.toml line, `stages = [{name = ..., role = ...}]`, and on a
 company by name (`stage`, `stage_history[].from/to`), so a rename rewrites the
 companies (Store.rename_stage). Without the key the defaults below apply, which
 are the stages Hermit always had.
+
+A stage may also say where a company in it can go next, `to = ["won", "lost"]`.
+Absent means any stage, as always. Whether that list is obeyed is the config
+switch `stage_rules` ("off" by default, "warn" or "enforce"); see move_problem.
 """
 
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import yaml
 
 ROLES = ("open", "won", "lost", "closed", "parked")
+# config.toml `stage_rules`: whether each stage's `to` list is looked at when a
+# company moves. "off" (the default) changes nothing; "warn" lets the move
+# through and says so; "enforce" refuses it.
+RULE_MODES = ("off", "warn", "enforce")
 MAX_NAME = 30
 # Unquoted, these parse as a bool or null in YAML, so a company file would not
 # read back as the name that was written.
@@ -54,6 +62,8 @@ class Stage:
     valued: bool = False          # open only: the PIPELINE.md heading shows EUR/month
     # Keys Hermit does not know (a future `colour`) ride along untouched.
     extra: dict = field(default_factory=dict, hash=False)
+    # The stages a company in this one may move to; None means any stage.
+    to: tuple[str, ...] | None = None
 
 
 class StageSet:
@@ -177,6 +187,33 @@ class StageSet:
         target = ALIASES.get(name)
         return target if target and target in self._by_name else name
 
+    # --- move rules (the `to` key of a stage)
+
+    @property
+    def has_rules(self) -> bool:
+        return any(s.to is not None for s in self.stages)
+
+    def allowed_moves(self, name) -> list[str] | None:
+        """Where a company in `name` may go, or None when anything goes."""
+        stage = self._by_name.get(name)
+        return None if stage is None or stage.to is None else list(stage.to)
+
+    def move_problem(self, old, new) -> str | None:
+        """Why a company may not move from `old` to `new` under the rules, or
+        None. The message names the legal moves so a caller can recover.
+
+        Not a move, so never a problem: a new company (no `old`), staying put,
+        and a stage the settings do not list. A parked company returning to the
+        entry stage (requalifying) is always legal: that is what parked means."""
+        if not old or old == new or old not in self or new not in self:
+            return None
+        to = self._by_name[old].to
+        if to is None or new in to or (self.is_parked(old) and new == self.entry):
+            return None
+        if not to:
+            return f"{old} -> {new} is not allowed (no move is allowed out of {old})"
+        return f"{old} -> {new} is not allowed (allowed: {', '.join(to)})"
+
 
 DEFAULT_STAGES = StageSet([
     Stage("prospect"), Stage("engaged"),
@@ -251,8 +288,30 @@ def _parse(raw) -> tuple[list[Stage], list[str]]:
             problems.append(f"{where} ({name}): valued only applies to open stages")
             valued = False
         seen.add(name)
-        extra = {k: v for k, v in entry.items() if k not in ("name", "role", "valued")}
-        out.append(Stage(name, role, valued, extra))
+        to = entry.get("to")
+        if to is not None and (not isinstance(to, list)
+                               or not all(isinstance(t, str) for t in to)):
+            problems.append(f"{where} ({name}): to must be a list of stage names, "
+                            'e.g. to = ["won", "lost"]')
+            to = None
+        extra = {k: v for k, v in entry.items() if k not in ("name", "role", "valued", "to")}
+        out.append(Stage(name, role, valued, extra, tuple(to) if to is not None else None))
+    # `to` names are checked once every stage is known (a later one may be named).
+    names = {s.name for s in out}
+    checked: list[Stage] = []
+    for stage in out:
+        if stage.to is not None:
+            for target in stage.to:
+                if target not in names:
+                    problems.append(f"config.toml: stages ({stage.name}): to names "
+                                    f"{target!r}, which is not a stage")
+                elif target == stage.name:
+                    problems.append(f"config.toml: stages ({stage.name}): to lists the "
+                                    "stage itself; staying put is always allowed")
+            keep = tuple(t for t in dict.fromkeys(stage.to) if t in names and t != stage.name)
+            stage = replace(stage, to=keep)
+        checked.append(stage)
+    out = checked
     if not any(s.role == "open" for s in out):
         problems.append("config.toml: stages: needs at least one stage with role open")
         return [], problems
@@ -278,8 +337,24 @@ def to_config(stage_set: StageSet) -> list[dict]:
         if s.valued and s.role == "open":
             entry["valued"] = True
         entry.update(s.extra)
+        if s.to is not None:
+            entry["to"] = list(s.to)
         out.append(entry)
     return out
+
+
+def rules_mode(value) -> str:
+    """The `stage_rules` setting as one of RULE_MODES; anything unusable is
+    "off" (`check` names the bad value, see rules_problem)."""
+    mode = str(value or "off").strip().lower()
+    return mode if mode in RULE_MODES else "off"
+
+
+def rules_problem(value) -> str | None:
+    """What `hermitcrm check` says about the `stage_rules` setting, or None."""
+    if value is None or (isinstance(value, str) and value.strip().lower() in RULE_MODES):
+        return None
+    return (f"config.toml: stage_rules: {value!r} is not one of {', '.join(RULE_MODES)}")
 
 
 def load(root) -> StageSet:
@@ -323,12 +398,17 @@ def mentions(root, names) -> dict[str, list[str]]:
 
 def plan_rows(row_names: list[str], row_roles: list[str], valued_rows: list[str],
               olds: list[str], existing: StageSet | None = None,
-              delete: str = "", move: str = ""):
+              delete: str = "", move: str = "",
+              restrict: list[str] | None = None, to_boxes: list[str] | None = None):
     """Read the Settings form: one row per stage plus a blank row to add one.
 
     `olds` carries each row's saved name, so an edited name is a rename.
     `valued_rows` holds the indexes of the rows whose box is ticked.
     `delete` is a row index; `move` is "<index>-up" or "<index>-down".
+    `restrict` holds the indexes of the rows that limit where a company can go
+    next, and `to_boxes` the ticked "<index>:<stage>" boxes (stage = the saved
+    name); both None means the form said nothing about rules, so each stage
+    keeps the rule it has. Renames and removals are applied to every rule.
     Returns (StageSet or None when there are errors, renames {old: new},
     removed [names that are gone], errors {"stages": message}).
     """
@@ -350,7 +430,7 @@ def plan_rows(row_names: list[str], row_roles: list[str], valued_rows: list[str]
         if role not in ROLES:
             errors["stages"] = f"{name}: role must be one of {', '.join(ROLES)}."
             role = "open"
-        rows.append([name, role, str(i) in valued_rows and role == "open", old])
+        rows.append([name, role, str(i) in valued_rows and role == "open", old, i])
     seen: set[str] = set()
     for name, *_ in rows:
         if name in seen:
@@ -373,10 +453,29 @@ def plan_rows(row_names: list[str], row_roles: list[str], valued_rows: list[str]
     if errors:
         return None, {}, [], errors
     carried = {s.name: s.extra for s in existing} if existing else {}
-    stage_set = StageSet([Stage(name, role, valued, dict(carried.get(old or name, {})))
-                          for name, role, valued, old in rows])
-    renames = {old: name for name, _, _, old in rows if old and old != name}
-    kept = {old for *_, old in rows if old}
+    carried_to = {s.name: s.to for s in existing} if existing else {}
+    renames = {old: name for name, _, _, old, _ in rows if old and old != name}
+    final = [r[0] for r in rows]
+
+    def rule(name, old, index):
+        """The `to` list this row ends up with: the form's, or the saved one."""
+        if restrict is None:
+            to = carried_to.get(old or name)
+        elif str(index) in restrict:
+            prefix = f"{index}:"
+            to = [b[len(prefix):] for b in (to_boxes or []) if b.startswith(prefix)]
+        else:
+            to = None
+        if to is None:
+            return None
+        # Names in a rule are the saved ones; a rename or removal reaches them here.
+        mapped = [renames.get(t, t) for t in to]
+        return tuple(t for t in final if t in mapped and t != name)
+
+    stage_set = StageSet([Stage(name, role, valued, dict(carried.get(old or name, {})),
+                                rule(name, old, index))
+                          for name, role, valued, old, index in rows])
+    kept = {old for _, _, _, old, _ in rows if old}
     removed = [n for n in (existing.names if existing else [])
                if n not in kept and n not in stage_set]
     return stage_set, renames, removed, errors

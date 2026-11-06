@@ -133,6 +133,11 @@ hermitcrm add interaction SLUG --channel email|linkedin|call|whatsapp|meeting|no
                                         [--contact CSLUG] [--subject S] [--date D] [--body TEXT|-]
                                         log an interaction; --body - reads it from stdin, and a prospect becomes engaged
                                         (the first open stage moves to the next)
+hermitcrm attach COMPANY FILE... [--contact CSLUG] [--to INTERACTION_ID] [--note TEXT]
+                                        keep files on a new note (subject: the file names, or --note as its text)
+                                        or, with --to, on that interaction; writes and commits at once; at most
+                                        attachment_max_mb each
+hermitcrm attachments [COMPANY]            every stored file: company | stored name | size | the note it came with
 hermitcrm set companies|contacts|interactions --where KEY=VALUE ... [--all]
         [--set FIELD=VALUE ...] [--unset FIELD ...] [--add-tag T ...] [--remove-tag T ...]
         [--stage S] [--apply] [--message TEXT]
@@ -140,7 +145,7 @@ hermitcrm set companies|contacts|interactions --where KEY=VALUE ... [--all]
                                         before -> after samples), then ONE commit `bulk: <summary>` and its
                                         undo command. --where is the list pages' filter syntax; no --where
                                         needs --all. Bodies and names are never touched. See Make it yours: bulk changes
-hermitcrm stages [rename OLD NEW | add NAME | move NAME | set NAME | remove NAME] [--apply]
+hermitcrm stages [rename OLD NEW | add NAME | move NAME | set NAME [--to A,B | --any] | rules [MODE] | remove NAME] [--apply]
                                         the deal stages and their roles; a dry run unless --apply (rewrites
                                         companies, one `ai: adjust:` commit per step). See Make it yours: deal stages
 hermitcrm rebuild                          rebuild the index and PIPELINE.md, commit "pipeline: rebuild"
