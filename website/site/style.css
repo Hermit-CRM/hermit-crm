@@ -29,6 +29,7 @@
   --window-bar: light-dark(#EFEBE2, #2B2924);
   --window-dot: light-dark(#D6CFC0, #4A453D);
   --shadow-color: light-dark(rgba(40, 32, 20, .28), rgba(0, 0, 0, .6));
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);        /* the one curve for motion */
   --col: 640px;
   --wide: 1040px;
   --gutter: 20px;
@@ -131,7 +132,7 @@ h1 { margin: 0; font-size: 72px; font-weight: 400; line-height: 1.05; letter-spa
   padding: 18px 30px; border-radius: 10px;
 }
 .btn:hover { background: var(--green-press); color: #FFFFFF; }
-.btn:active { background: var(--green-press); transform: translateY(1px); }
+.btn:active { background: var(--green-press); }
 .meta { font-size: 15px; line-height: 1.5; color: var(--muted); }
 .download .meta { margin: 0; }
 
@@ -163,7 +164,7 @@ h1 { margin: 0; font-size: 72px; font-weight: 400; line-height: 1.05; letter-spa
   cursor: pointer;
 }
 .copy:hover { border-color: var(--green-ink); }
-.copy:active { border-color: var(--green-deep); transform: translateY(1px); }
+.copy:active { border-color: var(--green-deep); }
 .copy[hidden] { display: none; }
 .install .note { margin: 4px 0 0; font-size: 16px; line-height: 1.55; color: var(--muted); }
 .install .manual { margin: 0; font-size: 16px; }
@@ -524,7 +525,22 @@ details p { margin: 0 0 24px; }
   .brand span { font-size: 16px; }
 }
 
-@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+/* ── Motion ─────────────────────────────────────────────────────── */
+/* Press: a small scale, 160ms, on touch as well as mouse. Colour fades are for
+   pointers that hover, so a tap never leaves a faded hover colour behind. */
+.btn, .copy { transition: transform 160ms var(--ease-out); }
+.btn:active, .copy:active { transform: scale(0.97); }
+@media (hover: hover) and (pointer: fine) {
+  .btn, .copy { transition: transform 160ms var(--ease-out), background-color 150ms var(--ease-out), border-color 150ms var(--ease-out), color 150ms var(--ease-out); }
+  .site-nav a.nav-features { transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out); }
+}
+
+/* Reduced motion is gentler, not zero: fades stay, scale, height and rotation go. */
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; }
+  .btn:active, .copy:active { transform: none; }
+  .btn, .copy { transition-property: background-color, border-color, color; }
+}
 @media print {
   :root { color-scheme: light; }
   .copy, .skip { display: none; }
