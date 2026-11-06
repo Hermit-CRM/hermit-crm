@@ -335,6 +335,33 @@ def test_a_failing_remote_is_a_warning_and_the_local_backup_still_happens(folder
     assert refs(dest_of(folder, home))["refs/heads/main"] == git(folder, "rev-parse", "HEAD")
 
 
+def test_a_remote_push_that_times_out_is_a_warning_and_the_run_is_recorded(
+        folder, home, tmp_path, monkeypatch):
+    origin = tmp_path / "origin.git"
+    git(tmp_path, "init", "-q", "--bare", str(origin))
+    git(folder, "remote", "add", "origin", str(origin))
+    real_git = backup._git
+
+    def hanging_remote(args, cwd, env=None, timeout=120):
+        if args[:3] == ["push", "--quiet", "origin"]:  # not the push to the backup
+            raise subprocess.TimeoutExpired(["git", *args], timeout)
+        return real_git(args, cwd, env, timeout)
+
+    monkeypatch.setattr(backup, "_git", hanging_remote)
+    config = {"push_enabled": True, "remote": "origin"}
+    out = run(folder, home, config=config)
+    assert out.code == 1 and "push to origin failed" in out.warnings[0]
+    assert "timed out" in out.warnings[0]
+    assert refs(dest_of(folder, home))["refs/heads/main"] == git(folder, "rev-parse", "HEAD")
+    # The run counts as good, so `backup status` does not call a working backup stale.
+    assert backup.load_state(folder)["last_ok"] == NOW.isoformat(timespec="seconds")
+
+    monkeypatch.setattr(backup, "_git", real_git)  # the network is back
+    out = run(folder, home, minutes=5, config=config)
+    assert "pushed main to origin" in out.lines
+    assert git(origin, "rev-parse", "main") == git(folder, "rev-parse", "HEAD")
+
+
 # -------------------------------------------------------------- restoring
 
 
