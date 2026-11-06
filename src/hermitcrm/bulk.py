@@ -167,6 +167,8 @@ class Ops:
     `unset` clears; `add_tags` / `remove_tags` edit a company's tags;
     `stage` moves companies through the normal stage-change path; `force` makes
     that move even where the stage rules (config `stage_rules`) forbid it.
+    A move out of an open stage skips the company's open outreach drafts in the
+    same commit (see Store.update_company); `keep_drafts` leaves them.
     """
 
     set: dict = field(default_factory=dict)
@@ -175,6 +177,7 @@ class Ops:
     remove_tags: list = field(default_factory=list)
     stage: str | None = None
     force: bool = False
+    keep_drafts: bool = False
 
     def is_empty(self) -> bool:
         return not (self.set or self.unset or self.add_tags or self.remove_tags
@@ -208,6 +211,7 @@ class Change:
     label: str            # what the dry run calls it: slug, company/contact, company/id
     before: dict          # its front matter now (without `updated`), to spot a stale plan
     fields: list = field(default_factory=list)  # [FieldChange]
+    outreach: list = field(default_factory=list)  # open outreach items a stage move skips
 
     @property
     def path(self) -> str:
@@ -362,6 +366,7 @@ class _Resolved:
     remove_tags: list
     stage: str | None
     force: bool = False
+    keep_drafts: bool = False
 
     def asked(self) -> set:
         """The front-matter fields this change is meant to touch."""
@@ -492,7 +497,8 @@ def _resolve(scope: str, defs: list, ops: Ops, stages=None) -> _Resolved:
         if stages.resolve(stage) not in options:
             raise BulkError(f"--stage: unknown stage {stage!r}.{_hint(stage.lower(), options)} "
                             f"Allowed: {', '.join(options)}.")
-    return _Resolved(builtin, custom, add, remove, stage, bool(ops.force))
+    return _Resolved(builtin, custom, add, remove, stage, bool(ops.force),
+                     bool(ops.keep_drafts))
 
 
 def _store_kwargs(record, resolved: _Resolved) -> dict:
@@ -502,6 +508,8 @@ def _store_kwargs(record, resolved: _Resolved) -> dict:
         kwargs["stage"] = resolved.stage
         if resolved.force:
             kwargs["force"] = True
+        if resolved.keep_drafts:
+            kwargs["keep_drafts"] = True
     if resolved.add_tags or resolved.remove_tags:
         tags = list(record.tags)
         have = {t.lower() for t in tags}
@@ -781,6 +789,21 @@ def _diff(before: dict, after: dict) -> tuple:
     return changes, differing
 
 
+def _copy_open_drafts(store: Store, scratch: Path, slugs: set) -> dict:
+    """The open outreach items of these companies, copied into the scratch folder so
+    the dry run sees a stage move skip them: {company: {relative path: bytes}}."""
+    from . import outreach
+
+    found: dict = defaultdict(dict)
+    for item in outreach.items(store.root):
+        if item.is_open and item.company in slugs:
+            (scratch / outreach.DIR).mkdir(exist_ok=True)
+            data = (store.root / item.path).read_bytes()
+            (scratch / item.path).write_bytes(data)
+            found[item.company][item.path] = data
+    return found
+
+
 def _simulate(store: Store, scope: str, refs: list, resolved: _Resolved):
     # Returns (changes, skipped, errors, warnings, forced).
     """Run the change on a scratch copy of the matching companies.
@@ -799,6 +822,8 @@ def _simulate(store: Store, scope: str, refs: list, resolved: _Resolved):
         (scratch / "companies").mkdir()
         for slug in sorted({company for company, _, _ in refs}):
             shutil.copytree(store.company_dir(slug), scratch / "companies" / slug)
+        drafts = _copy_open_drafts(store, scratch, {company for company, _, _ in refs}) \
+            if scope == "companies" and resolved.stage is not None else {}
         sim = Store(scratch, silent_days=store.silent_days, outcomes=store.outcomes,
                     task_types=store.task_types, clock=store.clock, stages=store.stages,
                     stage_rules=store.stage_rules)
@@ -836,7 +861,10 @@ def _simulate(store: Store, scope: str, refs: list, resolved: _Resolved):
                     errors[(name, "would change without being asked to; this is a bug "
                                   "in Hermit CRM, not in your command")].append(label)
                 continue
-            changes.append(Change(scope, company, key, label, before, fields_changed))
+            skipped_drafts = sorted(rel for rel, text in drafts.get(company, {}).items()
+                                    if (scratch / rel).read_bytes() != text)
+            changes.append(Change(scope, company, key, label, before, fields_changed,
+                                  skipped_drafts))
     return changes, skipped, errors, warnings, forced
 
 
@@ -969,7 +997,8 @@ def apply(store: Store, plan_: Plan, message: str | None = None) -> str:
     config = load_config(root)
     git = GitOps(root, push_enabled=bool(config.get("push_enabled", True)),
                  remote=str(config.get("remote", "origin")))
-    paths = sorted({c.path for c in plan_.changes})
+    paths = sorted({c.path for c in plan_.changes}
+                   | {rel for c in plan_.changes for rel in c.outreach})
     companies = sorted({c.company for c in plan_.changes})
     everything = [*paths, "PIPELINE.md"]
 

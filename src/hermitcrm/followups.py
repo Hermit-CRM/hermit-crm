@@ -187,12 +187,13 @@ def _waiting(company, today: date) -> bool:
 
 
 def _row(company, it: Interaction | None, today: date, reply_after: int,
-         nudge_after: int) -> Followup | None:
+         nudge_after: int, any_stage: bool = False) -> Followup | None:
     """The radar row `it` puts `company` on, or None. The one rule for both
     the radar and a single contact's page: they wrote last and `reply_after`
     days passed, or you sent a message, nothing is planned and `nudge_after`
-    days passed."""
-    if it is None or not company.is_active:
+    days passed. A closed or parked company has none, unless `any_stage` (the
+    reply you owe someone who wrote to you, whatever their company's stage)."""
+    if it is None or not (any_stage or company.is_active):
         return None
     days = (today - it.date.date()).days
     if it.direction == Direction.IN.value:
@@ -208,13 +209,13 @@ def _row(company, it: Interaction | None, today: date, reply_after: int,
 
 
 def for_contact(company, cslug: str, today: date, reply_after: int = 1,
-                nudge_after: int = 5) -> Followup | None:
+                nudge_after: int = 5, any_stage: bool = False) -> Followup | None:
     """The radar's verdict on one person: the same rule as `radar()`, applied
     to the latest touch with this contact rather than with the company."""
     dated = [i for i in company.interactions
              if i.date and i.is_touch and i.contact == cslug]
     it = max(dated, key=lambda i: i.date) if dated else None
-    return _row(company, it, today, reply_after, nudge_after)
+    return _row(company, it, today, reply_after, nudge_after, any_stage)
 
 
 def radar(store: Store, today: date | None = None, reply_after: int = 1,

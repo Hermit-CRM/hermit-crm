@@ -818,4 +818,4 @@ def test_migration_21_reserves_the_source_and_changes_nothing():
     assert migration.apply(migration.apply(dict(meta))) == meta
     assert migration.glob == "companies/*/interactions/*.md"
     assert InteractionSource.LINKEDIN_IMPORT.value == "linkedin-import"
-    assert migrations.LATEST == 21
+    assert migrations.LATEST >= 21

@@ -51,7 +51,10 @@ you disqualify it instead.
 - **Disqualify** and **Temp disqualify** (with a reason and, for temp, an
   "until" date); **Requalify** brings a disqualified company back to prospect.
   The menu offers every stage whose role is closed or parked, so with stages
-  of your own the buttons carry their names.
+  of your own the buttons carry their names. When the company has open outreach
+  drafts the menu adds "N open outreach drafts: skip them", ticked: leave it
+  ticked and they are skipped with the move (see [Outreach](/help/outreach));
+  untick it to keep them. Requalifying revives nothing.
 - The next step (the open task due first) with its status tag, **Done** /
   **Reopen**, the Google Calendar link and a link down to all tasks.
 - **Company**: every field in an edit form. There is no notes box: company text is dated company notes, listed under **Company notes** below. Setting the stage to lost needs a

@@ -818,7 +818,12 @@ def local_hold(store: Store, item, settings: SendSettings, *, scheduled: bool,
         return f"{contact.email} is on the suppression list ({listed.reason}, {listed.date})"
     if company.is_sample:
         return "it is the made-up sample account"
-    if not store.stages.is_open(company.stage):
+    # The stage check only: a reply to interest answers someone who wrote to you, and a
+    # draft the person asked for on purpose for a company that is not open (the
+    # item's stage_override) is theirs to send. Suppression, do-not-contact and the
+    # playbook's tag disqualifiers above and below are never lifted.
+    if (not store.stages.is_open(company.stage) and item.kind != outreach.REPLY
+            and not item.stage_override):
         return f"the company is {company.stage} now"
     if do_not_contact(company, contact):
         return f"tagged {outreach.DO_NOT_CONTACT}"
