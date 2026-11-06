@@ -27,6 +27,13 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   Drafts already sitting in the queue for companies closed earlier are left as they
   are. Data format 22 reserves the new item key `stage_override` and the skip
   reason; no file changes.
+- **A little motion, where it helps.** Panels that hang from a button (Ask · Adjust,
+  Disqualify, + New approach) grow out of it in a tenth of a second instead of
+  appearing at once. The guided tour's bubble glides to the next stop instead of
+  jumping, and the upgrade panel fades in over the page. The Edit, Fetch from URL and
+  Disqualify buttons now press like every other button. Nothing you use dozens of times
+  a day animates, and with "reduce motion" on in your system the panels only fade and
+  the tour bubble jumps as before. Style only, no data change.
 
 - **The daily import waits for the network after a wake.** A Mac that was asleep at the
   scheduled time runs the daily sync the moment it wakes, before Wi-Fi and DNS are
