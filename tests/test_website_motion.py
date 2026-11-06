@@ -22,11 +22,22 @@ that were decided (durations, the easing token, reduced-motion and hover gating)
 
 from __future__ import annotations
 
+import importlib.util
 import re
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CSS = ROOT / "website" / "site" / "style.css"
+_spec = importlib.util.spec_from_file_location("website_build", ROOT / "website" / "build.py")
+build = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(build)
+
+
+def home() -> str:
+    c = tomllib.loads(build.CONTENT.read_text(encoding="utf-8"))
+    build.use_shots(c, build.load_shots())
+    return build.render(c)
 
 
 def css() -> str:
@@ -71,3 +82,21 @@ def test_reduced_motion_drops_the_press_scale_and_keeps_colour_fades():
     assert "transform: none" in block(reduce, ".btn:active, .copy:active")
     assert "transition-property: background-color, border-color, color" in block(reduce, ".btn, .copy")
     assert "scroll-behavior: auto !important" in block(reduce, "*")
+
+
+def test_copy_script_sets_done_state_and_clears_it_on_every_other_path():
+    page = home()
+    assert 'show(btn.dataset.done, 2000, "done")' in page
+    assert 'show(btn.dataset.failed, 4000)' in page          # failure passes no state
+    assert page.count("delete btn.dataset.state") == 2         # in show() and in its timer
+
+
+def test_copy_button_confirms_with_an_opacity_wash():
+    c = css()
+    copy = block(c, ".copy")
+    assert "position: relative" in copy and "isolation: isolate" in copy
+    wash = block(c, ".copy::before")
+    for part in ("opacity: 0", "z-index: -1", "background: var(--green-ink)",
+                 "transition: opacity 200ms var(--ease-out)"):
+        assert part in wash
+    assert "opacity: .12" in block(c, '.copy[data-state="done"]::before')
