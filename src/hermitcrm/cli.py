@@ -67,7 +67,8 @@ def build_store(root: Path) -> Store:
     config = load_config(root)
     store = Store(root, silent_days=config["silent_days"], outcomes=config["outcomes"],
                   task_types=task_types.names(task_types.from_config(config.get("task_types"))),
-                  stages=stages.from_config(config.get("stages")))
+                  stages=stages.from_config(config.get("stages")),
+                  stage_rules=stages.rules_mode(config.get("stage_rules")))
     store.load()
     return store
 
@@ -589,6 +590,9 @@ def cmd_check(store: Store) -> tuple[str, int]:
     # A company in a stage config.toml does not list loads fine; it is said, not failed.
     off_board = store.stage_warnings()
     stray += off_board
+    # A recorded move today's stage rules forbid: said, never rewritten.
+    rule_warns = store.stage_rule_warnings()
+    stray += rule_warns
     # MESSAGING.md's front matter (the outreach bot's playbook). A file from
     # before it is a hint; a front matter that is wrong is a problem.
     from hermitcrm import playbook
@@ -620,7 +624,7 @@ def cmd_check(store: Store) -> tuple[str, int]:
             0,
         )
     lines = [f"{p.path}: {p.message}" for p in store.problems] + extension + off_board \
-        + pb_hints + fw_hints + file_warnings
+        + rule_warns + pb_hints + fw_hints + file_warnings
     return ("\n".join(lines), 1)
 
 
@@ -848,7 +852,7 @@ def cmd_set(store: Store, args) -> tuple[str, int]:
     try:
         ops = bulk.Ops(set=bulk.parse_pairs(args.set), unset=list(args.unset),
                        add_tags=list(args.add_tag), remove_tags=list(args.remove_tag),
-                       stage=args.stage)
+                       stage=args.stage, force=bool(getattr(args, "force", False)))
         plan = bulk.plan(store, args.scope, args.where, ops, everything=args.all)
         if plan.matched == 0:
             return (f"No {plan.nouns} match {plan.describe_where()}. Nothing to change.", 0)
@@ -860,9 +864,14 @@ def cmd_set(store: Store, args) -> tuple[str, int]:
         if not args.apply:
             return (plan.render(arrow=_arrow()), 0)
         sha = bulk.apply(store, plan, message=args.message)
-        return (plan.result(sha), 0)
+        return (plan.result(sha) + "".join(f"\nWarning: {w}" for w in plan.warnings), 0)
     except bulk.BulkError as exc:
-        return (str(exc), exc.code)
+        text = str(exc)
+        if "is not allowed (" in text and "stage:" in text:
+            text = text.replace(
+                "\nFix the command", "\nTo move them anyway, add --force (the commit will "
+                "say the stage rules were overridden).\nFix the command", 1)
+        return (text, exc.code)
 
 
 def cmd_stages(store: Store, root: Path, config: dict, args) -> tuple[str, int]:
@@ -876,6 +885,23 @@ def cmd_stages(store: Store, root: Path, config: dict, args) -> tuple[str, int]:
     action = args.stages_action
     if action in (None, "list"):
         return (stage_ops.listing(store), 0)
+    if action == "rules":
+        mode = getattr(args, "mode", None)
+        try:
+            if mode is None:
+                return (stage_ops.rules_listing(store), 0)
+            if mode == store.stage_rules:
+                return (f"Nothing to change: stage rules are already {mode}.", 0)
+            if not args.apply:
+                return (f"Stage rules would change from {store.stage_rules} to {mode}.\n"
+                        "Dry run; add --apply to write (one commit, undoable).", 0)
+            store.on_write = _writer(store, root, config)
+            stage_ops.set_rules(store, root, mode)
+            sha = GitOps(root, push_enabled=False).last_commit_sha() or ""
+            return (f"Stage rules are now {mode}.\nUndo: hermitcrm undo "
+                    f"{sha[:7] if sha else '<commit>'}", 0)
+        except stage_ops.StageOpError as exc:
+            return (str(exc), 2)
     given = lambda key, default=None: getattr(args, key, default)   # noqa: E731
     valued = {"yes": True, "no": False}.get(given("valued"))
     if given("valued_flag"):
@@ -885,7 +911,10 @@ def cmd_stages(store: Store, root: Path, config: dict, args) -> tuple[str, int]:
             store, action, name=args.name, new_name=given("new", ""),
             role=given("role") or "", valued=valued, after=given("after") or "",
             first=bool(given("first")), move_to=given("move_to") or "",
-            reason=given("reason") or "")
+            reason=given("reason") or "",
+            to=([t for t in given("to").split(",") if t.strip()]
+                if given("to") is not None else None),
+            any_stage=bool(given("any_stage")))
         if not change.changes_anything:
             return ("Nothing to change: the stages are already like this.", 0)
         why, ask = stage_ops.blockers(store, change)
@@ -1581,6 +1610,9 @@ def _build_parser() -> argparse.ArgumentParser:
                        help="remove a tag from companies (repeatable)")
     p_set.add_argument("--stage", default=None, metavar="STAGE",
                        help="move companies to a stage (recorded in their stage history)")
+    p_set.add_argument("--force", action="store_true",
+                       help="with --stage: move even where the stage rules (config.toml "
+                            "stage_rules) forbid it; the commit says so")
     p_set.add_argument("--apply", action="store_true",
                        help="make the change: one commit. Without it, only a dry run")
     p_set.add_argument("--message", default=None, metavar="TEXT",
@@ -1607,17 +1639,26 @@ def _build_parser() -> argparse.ArgumentParser:
     s_move_to = s_move.add_mutually_exclusive_group(required=True)
     s_move_to.add_argument("--after", metavar="STAGE")
     s_move_to.add_argument("--first", action="store_true")
-    s_set = st_sub.add_parser("set", help="change a stage's role or whether it is valued")
+    s_set = st_sub.add_parser("set", help="change a stage's role, whether it is valued, or "
+                                          "where a company in it may move next")
     s_set.add_argument("name")
     s_set.add_argument("--role", choices=roles)
     s_set.add_argument("--valued", choices=["yes", "no"])
+    s_set.add_argument("--to", metavar="A,B",
+                       help="the only stages a company in this one may move to "
+                            "(empty: nowhere); applies once stage rules are warn or enforce")
+    s_set.add_argument("--any", dest="any_stage", action="store_true",
+                       help="lift the --to limit: a company may move to any stage")
+    s_rules = st_sub.add_parser("rules", help="show, or set, whether the --to limits are "
+                                              "obeyed: off (the default), warn or enforce")
+    s_rules.add_argument("mode", nargs="?", choices=list(stages.RULE_MODES))
     s_remove = st_sub.add_parser("remove", help="remove a stage; its companies move to "
                                                 "--move-to")
     s_remove.add_argument("name")
     s_remove.add_argument("--move-to", metavar="STAGE", help="where its companies go")
     s_remove.add_argument("--reason", metavar="TEXT",
                           help="the reason, when they move into a lost stage")
-    for sp in (s_rename, s_add, s_move, s_set, s_remove):
+    for sp in (s_rename, s_add, s_move, s_set, s_remove, s_rules):
         sp.add_argument("--apply", action="store_true",
                         help="make the change. Without it, only a dry run")
 

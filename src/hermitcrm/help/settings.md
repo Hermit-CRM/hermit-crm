@@ -265,6 +265,22 @@ lost, disqualified, temp-disqualified. Dashboards and routines that still name
 an old stage are listed after the save, not rewritten.
 The same changes are `hermitcrm stages` for an agent (`hermitcrm help adjust-stages`).
 
+**Stage rules.** By default a company can be moved to any stage. Under **can
+move to**, tick **only these** for a stage and choose where a company in it may
+go next (an offer may go to won, lost or back to discovery, but not straight to
+prospect). The **Stage rules** box under the table says what happens to a move
+the list does not allow: **off** (the default) ignores the lists, **warn** makes
+the move and tells you, **enforce** refuses it. Enforcing covers every way a stage
+changes: the board and the company page, `hermitcrm set`, your AI agent
+and the imports. The message names the moves that are allowed. **Move anyway**
+(or `--force` on the command line) overrides one move; the commit says so and
+nothing else records it. Two moves are never refused: a parked company returning to
+the first stage, and a stage you delete sending its companies to the stage you
+chose. A new company may start in any stage. If the first message you log
+would move a company on from the first stage and the rules forbid that, the message
+is logged and the company stays where it is. `hermitcrm check` warns about recorded
+moves today's rules would forbid; the history itself is never rewritten.
+
 ## Outcomes
 
 The outcome choices for interactions, one per line, in order: the first is
