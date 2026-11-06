@@ -133,3 +133,10 @@ def test_reduced_motion_drops_height_and_rotation():
     reduce = block(css(), "@media (prefers-reduced-motion: reduce)")
     assert "transition: opacity 160ms var(--ease-out)" in block(reduce, "details::details-content")
     assert "transition: none" in block(reduce, "summary::after")
+
+
+def test_faq_clip_leaves_room_for_the_focus_ring_of_links_in_answers():
+    # The global focus ring is a 2px outline with a 3px offset; overflow: clip would cut its edge
+    # where a link starts a line, so the clip edge sits 6px outside the box.
+    s = block(css(), "@supports (interpolate-size: allow-keywords)")
+    assert "overflow-clip-margin: 6px" in block(s, "details::details-content")
