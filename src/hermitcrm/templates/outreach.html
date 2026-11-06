@@ -26,6 +26,7 @@
 <section id="generate" class="outreach-generate">
   <h2>Generate for {{ gc.first_name or gc.name }}</h2>
   <p class="small">{{ gc.name }}{% if gc.title %}, {{ gc.title }}{% endif %} at <a href="/companies/{{ gen.company.slug }}">{{ gen.company.name }}</a>. Nothing runs until you press Generate; the draft appears under Drafts to review.</p>
+  {% if gen.stage_note %}<p class="warning-box generate-stage-note">{{ gen.stage_note }}</p>{% endif %}
   {% if gen.open_item %}
   <p>{{ gc.first_name or gc.name }} already has a {{ gen.open_item.kind | replace('-', ' ') }} by {{ gen.open_item.channel }} that is <strong>{{ gen.open_item.state }}</strong>. <a href="/outreach?tab={{ gen.open_tab }}#item-{{ gen.open_item.id }}">Open it</a></p>
   <form method="post" action="/outreach/note" id="gen-form">
@@ -89,6 +90,7 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <input type="hidden" name="batch" value="{{ form.batch }}">
   <input type="hidden" name="left" value="{{ form.left or '' }}">
+  {% for rec in form.include %}{% if not preview or rec not in (preview.stage_left_out | map(attribute='record') | list) %}<input type="hidden" name="include_closed" value="{{ rec }}">{% endif %}{% endfor %}
   <label>Who <input name="where" value="{{ form.where }}" placeholder="stage=prospect; country=DE" size="32"></label>
   <label>Draft type <select name="kind"><option value="first-touch"{% if form.kind == 'first-touch' %} selected{% endif %}>first touch</option><option value="follow-up"{% if form.kind == 'follow-up' %} selected{% endif %}>follow-up</option></select></label>
   <label>Channel <select name="channel">{% for c in channels %}<option value="{{ c }}"{% if c == form.channel %} selected{% endif %}>{{ c }}</option>{% endfor %}</select></label>
@@ -116,6 +118,11 @@
   {% if preview.excluded %}<details><summary>Not this time ({{ preview.excluded | length }})</summary><ul>
     {% for c in preview.excluded %}<li>{{ c.who }}: {{ c.reason }}</li>{% endfor %}
   </ul></details>{% endif %}
+  {% if preview.stage_left_out %}<div class="outreach-stage-left-out warning-box">
+    <p><strong>Left out: their company is not open ({{ preview.stage_left_out | length }})</strong>. Nothing else is wrong with them. Tick one to draft it anyway: you take it from there, and the card carries a warning. Do-not-contact, the suppression list and the playbook's disqualifiers are never lifted.</p>
+    <ul>{% for c in preview.stage_left_out %}<li><label class="check"><input type="checkbox" form="outreach-build" name="include_closed" value="{{ c.record }}"{% if c.record in form.include %} checked{% endif %}> include anyway</label> {{ c.who }} &middot; {{ c.stage_blocked }}</li>{% endfor %}</ul>
+    <p class="small">Then press Preview to see them in the batch, or Build.</p>
+  </div>{% endif %}
   {% if preview.duplicates %}<p class="small">Likely duplicates: {% for a, b, why in preview.duplicates %}<a href="/companies/{{ a }}/merge">{{ a }} / {{ b }}</a> ({{ why }}){% if not loop.last %}; {% endif %}{% endfor %}</p>{% endif %}
 </section>
 {% endif %}
@@ -306,11 +313,12 @@
 {% macro diff(parts) %}{% for kind, text in parts %}{% if kind == 'add' %}<ins>{{ text }}</ins>{% elif kind == 'del' %}<del>{{ text }}</del>{% else %}{{ text }}{% endif %}{% endfor %}{% endmacro %}
 
 {% macro about_line(counts) %}{% if counts %}{% set more = counts[0] > counts[1] %}<p class="small{% if more %} warning{% endif %}">About you {{ counts[0] }}, about them {{ counts[1] }}{% if more %}: more about you{% endif %}</p>{% endif %}{% endmacro %}
-{% macro skip_panel(i) %}
+{% macro skip_panel(i) %}{% set dq = disqualify_stage(i.company) %}
   <form method="post" action="/outreach/{{ i.id }}/skip" class="outreach-skip" id="skip-{{ i.id }}" hidden>
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <span class="small">Why skip? Pick one to skip.</span>
     <input name="note" placeholder="note (optional, type it first)" size="26" aria-label="Skip note">
+    {% if dq %}<label class="check small outreach-skip-disqualify"><input type="checkbox" name="disqualify" value="1"> Also disqualify {{ company_name(i.company) }} (moves it to {{ dq }}; only bad-fit acts on this)</label>{% endif %}
     <span class="outreach-skip-reasons">{% for r in skip_reasons %}<button type="submit" name="reason" value="{{ r }}" class="secondary">{{ r }}</button>{% endfor %}</span>
     <button type="button" class="secondary" data-skip-cancel="{{ i.id }}">Cancel</button>
   </form>
