@@ -359,7 +359,7 @@ def test_item_file_keeps_reply_to(root, client):
     assert meta["reply_to"] == it.id
     assert list(meta) == [k for k in outreach.ITEM_KEYS
                           if k not in ("framework", "exemplars_used", "language_pick",
-                                       "stage_override")]
+                                       "stage_override", "attachments")]
     again = outreach.item_from_text(item.id, (root / item.path).read_text())
     assert outreach.item_text(again) == (root / item.path).read_text()
 

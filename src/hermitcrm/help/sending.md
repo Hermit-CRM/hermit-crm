@@ -80,6 +80,7 @@ How many a day, and when:
 | `send_company_gap_hours` | 24 | two contacts at one company (or one email domain) go out a day apart |
 | `send_grace_minutes` | 10 | the earliest slot after Schedule, so a mistake can be undone |
 | `send_overdue_minutes` | 20 | later than this an item is planned again, never sent in a burst |
+| `send_attachment_max_mb` | 10 | all the files of one email together, in MB (1 to 25); see "Files" below |
 | `send_email_block_countries` | none | countries never emailed (see below) |
 
 The gap between two sends is the window divided by the day's cap, times a factor
@@ -112,6 +113,7 @@ refused while sending is paused. It is meant for replies and one-offs.
 | The daily quota is exceeded | Pauses until the next window, then plans again |
 | A temporary error (421, 450, a timeout, no network) | Tries again in 15 minutes, up to 3 times, then the item is failed |
 | The address does not exist | The item is failed and the address goes on the suppression list |
+| The server refuses the one message: too large (code 552 or "message size exceeds"), or a file type it blocks | That item is failed with the server's words. Sending is **not** paused and the address is **not** suppressed: attach fewer or smaller files, or send a link, then **Retry** |
 | The process stopped between sending and logging | The next run looks for the Message-ID in Sent: found, it logs it; not found, it sends again with the same Message-ID. Never twice |
 | Too many bounced (more than 3 of the last 50, or over 5%) | Pauses with a banner: a list-quality problem, check where the addresses came from |
 
@@ -122,6 +124,29 @@ UTF-8, exactly as approved: no HTML, no links in a first touch, no tracking
 pixel, no BCC and no List-Unsubscribe header (a one-to-one mail that looks like
 a newsletter is what filters punish). It is logged once, as an outbound email
 with `source: outreach`; a later BCC import of the same mail adds nothing.
+
+### Files
+
+An email can carry files: on the Outreach card, a draft or a ready email has a
+**Files** box. Pick files, drop them on the box, paste a screenshot, or choose
+**attach again** for a file already on that company (the deck you sent last
+time). Changing the files needs a draft or a ready item; a scheduled one must be
+unscheduled first, because the text you approved and the files go together:
+the hash taken at Schedule time covers both, so a file added, removed or changed
+later holds the item back with a note instead of sending something you did not
+approve. A file that has gone missing from the folder holds it back too.
+
+All the files of one email together may not pass `send_attachment_max_mb`
+(default 10, at most 25), because mail grows by about a third on the wire and
+most servers refuse more than 25 MB. The mail then has the approved text first
+and each file after it, and the logged email carries the same files (not copies).
+LinkedIn messages cannot carry files.
+
+The card warns, without stopping you, when the text says "attached", "anbei",
+"im Anhang", "in bijlage", "ci-joint" or "pièce jointe" and no file is attached,
+and when a cold **first** email carries a file: unexpected attachments are one of
+the things spam filters look for, so a link, or sending the file after they reply,
+usually works better.
 
 ## Bounces and opt-outs
 

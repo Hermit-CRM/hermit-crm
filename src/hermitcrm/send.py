@@ -53,6 +53,7 @@ from email.message import EmailMessage
 from email.utils import format_datetime, formataddr, make_msgid
 from pathlib import Path
 
+from . import attachments as attachments_mod
 from . import dateformat, mailtls, messaging, outreach, playbook, secrets, sendplan, suppress
 from .models import do_not_contact, normalise_email, valid_email
 from .store import Store, load_config
@@ -63,6 +64,9 @@ except ImportError:       # pragma: no cover
     fcntl = None
 
 AUTH, QUOTA, TEMPORARY, RECIPIENT, REFUSED = "auth", "quota", "temporary", "recipient", "refused"
+# These two fail the one mail (the server refused its size or its files, or a file is
+# gone) and nothing else: sending is not paused and the address is not suppressed.
+TOO_LARGE, ATTACHMENT = "too-large", "attachment"
 RETRY_MINUTES = 15       # a temporary error moves send_at this far
 MAX_TRIES = 3            # then the item is failed
 TIMEOUT = 30.0
@@ -119,6 +123,7 @@ class SendSettings:
     overdue: int = 20
     block_countries: tuple = ()
     my_addresses: tuple = ()
+    attachment_max_mb: int = 10  # all the files of one mail together (1 to 25)
     problems: tuple = ()         # config values that could not be read (defaults were used)
 
     @property
@@ -200,6 +205,8 @@ def settings_from_config(config: dict) -> SendSettings:
         grace=_int(c, "send_grace_minutes", d.grace, problems),
         overdue=_int(c, "send_overdue_minutes", d.overdue, problems, 1),
         block_countries=countries,
+        attachment_max_mb=min(25, _int(c, "send_attachment_max_mb", d.attachment_max_mb,
+                                       problems, 1)),
         my_addresses=tuple(sorted({normalise_email(a) for a in c.get("my_addresses") or []}
                                   | ({normalise_email(c.get("owner_email"))}
                                      if c.get("owner_email") else set()))),
@@ -274,6 +281,10 @@ _QUOTA = re.compile(r"5\.4\.5|sending (quota|limit)|quota exceeded|too many (mes
 _RECIPIENT = re.compile(r"5\.1\.\d|user unknown|does not exist|no such user|unknown user|"
                         r"mailbox unavailable|address rejected|invalid recipient|"
                         r"recipient (address )?rejected", re.I)
+# The server refused this one message for its size or its files (Gmail: 552 5.2.3
+# "exceeded ... size limits", 552 5.7.0 for a blocked file type).
+_TOO_LARGE = re.compile(r"too large|message size|size limit|exceeds? (the )?(fixed |maximum )?"
+                        r"(message )?size|5\.3\.4|5\.2\.3", re.I)
 
 
 def _cert_error(exc: BaseException) -> SendError:
@@ -312,6 +323,8 @@ def _by_code(code: int, text: str, recipient: bool) -> SendError:
         return SendError(TEMPORARY, shown, code)
     if _QUOTA.search(text):
         return SendError(QUOTA, shown, code)
+    if not recipient and (code == 552 or _TOO_LARGE.search(text)):
+        return SendError(TOO_LARGE, shown, code)
     if code in (530, 534, 535) or "authentication" in text.lower():
         return SendError(AUTH, shown, code)
     if recipient or _RECIPIENT.search(text):
@@ -322,9 +335,14 @@ def _by_code(code: int, text: str, recipient: bool) -> SendError:
 # ------------------------------------------------------------------ message
 
 
-def text_hash(subject: str, body: str) -> str:
-    """The hash kept at Schedule time: an edit to the subject or body changes it."""
-    return hashlib.sha256(f"{subject}\n{body}".encode("utf-8")).hexdigest()[:20]
+def text_hash(subject: str, body: str, attachments=()) -> str:
+    """The hash kept at Schedule time: an edit to the subject, the body or the files
+    changes it. Without files it is what it always was, so an item scheduled before
+    files existed is not taken for edited."""
+    text = f"{subject}\n{body}"
+    if attachments:
+        text += "\n" + "\n".join(a.file for a in attachments)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:20]
 
 
 def new_message_id(domain: str) -> str:
@@ -346,10 +364,11 @@ _ADDRESS = re.compile(r"^[^@\s,;<>\"]+@[^@\s,;<>\"]+$")
 
 def build_message(item, to: str, settings: SendSettings, *, message_id: str,
                   in_reply_to: str = "", references: str = "",
-                  when: datetime | None = None) -> EmailMessage:
+                  when: datetime | None = None, attachments=()) -> EmailMessage:
     """The mail exactly as approved: plain text, UTF-8, the item's subject and body.
     No BCC, no HTML, no tracking, no List-Unsubscribe (a one-to-one mail that
-    looks like a newsletter is what filters punish)."""
+    looks like a newsletter is what filters punish). `attachments` are
+    (attachments.Attachment, bytes) pairs, added after the text."""
     if not _ADDRESS.match(to or ""):
         raise SendError(RECIPIENT, f"{to!r} is not an email address")
     msg = EmailMessage()
@@ -365,6 +384,10 @@ def build_message(item, to: str, settings: SendSettings, *, message_id: str,
     body = item.body
     plain = body.isascii() and max((len(line) for line in body.split("\n")), default=0) < 900
     msg.set_content(body, cte="7bit" if plain else "quoted-printable")
+    for att, data in attachments:
+        maintype, _, subtype = (att.type or "application/octet-stream").partition("/")
+        msg.add_attachment(data, maintype=maintype, subtype=subtype or "octet-stream",
+                           filename=att.name)
     return msg
 
 
@@ -426,7 +449,23 @@ class SmtpSender:
             raise SendError(RECIPIENT, f"{contact.name} has no email address")
         reply_to, refs = thread_refs(company, item)
         return build_message(item, to, self.settings, message_id=item.message_id,
-                             in_reply_to=reply_to, references=refs, when=self.store.now())
+                             in_reply_to=reply_to, references=refs, when=self.store.now(),
+                             attachments=self.files_of(item))
+
+    def files_of(self, item) -> list:
+        """(Attachment, bytes) for every file of the item, read now. One that has gone
+        missing or changed fails this mail and nothing else (local_hold looks first;
+        this is the last look before the bytes are sent)."""
+        out = []
+        for att in item.attachments:
+            try:
+                path = self.store.attachment_path(item.company, att.file)
+                if not attachments_mod.intact(path):
+                    raise SendError(ATTACHMENT, f"{att.name} is missing or has changed")
+                out.append((att, path.read_bytes()))
+            except (OSError, ValueError) as exc:
+                raise SendError(ATTACHMENT, f"{att.name} cannot be read: {exc}") from exc
+        return out
 
     def send(self, item) -> outreach.SendResult:
         if not item.message_id:
@@ -456,6 +495,7 @@ class OutreachLogger:
         self.store.create_interaction(
             item.company, "email", "out", subject=" ".join((item.subject or "").split()),
             contact=item.contact, date=self.when or self.store.now(), body=item.body,
+            attachments=list(item.attachments),
             source="outreach",
             message_id=item.message_id, approach=item.approach)
 
@@ -802,8 +842,20 @@ def local_hold(store: Store, item, settings: SendSettings, *, scheduled: bool,
         # The app always stamps the hash when it schedules; an empty one means a hand- or
         # AI-edited file that nobody approved in the app.
         return "it was never scheduled in the app (no approval fingerprint)"
-    if scheduled and item.send_hash != text_hash(item.subject, item.body):
+    if scheduled and item.send_hash != text_hash(
+            item.subject, item.body, item.attachments):
         return "the text changed after it was scheduled"
+    for att in item.attachments:
+        path = store.attachment_path(item.company, att.file)
+        if not path.is_file():
+            return f"the attachment {att.name} is missing from the folder"
+        if not attachments_mod.intact(path):
+            return f"the attachment {att.name} has changed on disk"
+    total = sum(a.size for a in item.attachments)
+    if total > settings.attachment_max_mb * 1024 * 1024:
+        return (f"the attachments add up to {attachments_mod.human_size(total)}, more than "
+                f"one email may carry ({settings.attachment_max_mb} MB, "
+                "send_attachment_max_mb)")
     company = store.get(item.company)
     contact = company.contacts.get(item.contact) if company is not None else None
     if company is None or contact is None:
@@ -980,6 +1032,8 @@ def _failed_send(store: Store, item, err: SendError, settings: SendSettings, now
                        "resumes at the next window")
     if err.kind == RECIPIENT:
         return _fail_item(store, item, err, now, suppressed=True)
+    if err.kind in (TOO_LARGE, ATTACHMENT):   # this mail, not the account: no pause, no suppression
+        return _fail_item(store, item, err, now, suppressed=False)
     if not counted:
         item.send_tries += 1
     if item.send_tries >= MAX_TRIES:
@@ -987,7 +1041,7 @@ def _failed_send(store: Store, item, err: SendError, settings: SendSettings, now
                           prefix=f"gave up after {item.send_tries} tries: ")
     item.state, item.send_error = "queued", err.text
     item.queued = item.queued or now
-    item.send_hash = item.send_hash or text_hash(item.subject, item.body)
+    item.send_hash = item.send_hash or text_hash(item.subject, item.body, item.attachments)
     item.send_at = (now + timedelta(minutes=RETRY_MINUTES)).replace(second=0, microsecond=0)
     with store.lock:
         outreach.write_item(store.root, item)

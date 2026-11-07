@@ -410,7 +410,8 @@ def test_stage_override_is_written_only_when_set_and_round_trips(folder):
     assert list(meta) == [k for k in outreach.ITEM_KEYS
                           if k in meta or k not in ("stage_override", "framework",
                                                     "lessons_used", "exemplars_used",
-                                                    "language_pick", "notes_linked")]
+                                                    "language_pick", "notes_linked",
+                                                    "attachments")]
     again = outreach.item_from_text("b", outreach.item_text(marked))
     assert again.stage_override == "disqualified"
     assert outreach.item_text(again) == outreach.item_text(marked)      # deterministic
@@ -423,7 +424,7 @@ def test_migration_22_reserves_the_key_and_changes_nothing():
     assert migration.apply(migration.apply(dict(meta))) == meta
     assert migration.apply({"state": "drafted"}) == {"state": "drafted"}
     assert migration.glob == "outreach/*.md"
-    assert migrations.LATEST == 22
+    assert migrations.LATEST >= 22
 
 
 def test_the_migration_leaves_an_item_file_byte_for_byte(folder, tmp_path):

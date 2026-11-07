@@ -153,10 +153,10 @@
 
 {# Files for a note or interaction. Works with the plain picker; static/attach.js
    adds drop, paste and the list of what is chosen. #}
-{% macro attach_box(errors=None) %}
+{% macro attach_box(errors=None, help='') %}
 <div class="attach-box" data-max-mb="{{ attach_max_mb() }}">
   <label class="attach-pick">{{ icon('paperclip') }} files <input type="file" name="files" multiple></label>
-  <span class="small faint">Pick, drop or paste files here (up to {{ attach_max_mb() }} MB each). They are kept in this folder and in git.</span>
+  <span class="small faint">{{ help or ('Pick, drop or paste files here (up to ' ~ attach_max_mb() ~ ' MB each). They are kept in this folder and in git.') }}</span>
   {{ err(errors, 'files') }}
   <ul class="attach-list" aria-live="polite"></ul>
   <p class="small attach-note" role="status"></p>

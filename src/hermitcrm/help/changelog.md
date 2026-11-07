@@ -8,6 +8,20 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Send files with an outreach email.** A draft or ready email has a **Files** box on
+  its Outreach card: pick files, drop them on it, paste a screenshot, or attach again a
+  file already on the company. The email goes out with the approved text first and the
+  files after it, and the logged email carries the same files. The hash taken when you
+  Schedule covers the files too, so one added, removed or changed afterwards (or gone
+  from the folder) holds the item back with a note. All the files of one email may add
+  up to `send_attachment_max_mb` (default 10, at most 25). A server that refuses one
+  message for its size or a blocked file type now fails **that** item with its own words
+  and nothing else: sending is not paused and the address is not suppressed. The card
+  warns when the text mentions an attachment and none is attached (English, German,
+  Dutch, French), and when a cold first email carries one. LinkedIn messages cannot carry
+  files. Your data folder is migrated to format 23 (nothing in a file changes). See
+  [Sending](/help/sending).
+
 - **Disqualifying a company and skipping outreach work as one.** A company in a
   closed, parked, won or lost stage never gets a batch draft, and moving a company
   out of an open stage now skips its open outreach drafts (researching, drafted,
