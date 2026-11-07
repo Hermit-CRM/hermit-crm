@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{# The page the "Hermit: conversation" bookmark opens. A shell only: it reads and
+   writes nothing and carries no conversation text. static/conversation.js asks the
+   LinkedIn tab that opened it for the conversation, and the review below is the
+   server's own answer to a POST of it (conversation_review.html). #}
+{% block title %}Import a conversation{% endblock %}
+{% block content %}
+<h1>Import a LinkedIn conversation</h1>
+<div id="conversation" data-preview="/extension/conversation/preview"
+     data-import="/extension/conversation" data-csrf="{{ csrf_token }}">
+  <p id="conversation-status" class="small" role="status">Waiting for the conversation from LinkedIn&hellip;</p>
+  <div id="conversation-review"></div>
+</div>
+<noscript><p class="warning-box">This page needs JavaScript: it is how the conversation gets here from your LinkedIn tab.</p></noscript>
+<p class="small">Nothing is written until you press <em>Import</em>. Hermit listens only to the LinkedIn
+tab that opened this page (<code>https://www.linkedin.com</code>); nothing was fetched from LinkedIn.
+<a href="/extension">Get the bookmark</a></p>
+<script src="/static/conversation.js?v={{ asset_version }}" defer></script>
+{% endblock %}

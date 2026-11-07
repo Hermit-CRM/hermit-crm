@@ -8,7 +8,6 @@ you and a CLI and MCP server for your AI agent. No account, no cloud, Apache 2.0
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/hermitcrm.svg)](https://pypi.org/project/hermitcrm/)
-[![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)](DISCLAIMER.md)
 [![Website](https://img.shields.io/badge/web-hermitcrm.io-1E8A60.svg)](https://hermitcrm.io/?ref=readme)
 
 ![Hermit CRM: the pipeline, a company with its drafts and timeline, the calendar and the reports](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/demo.gif)
@@ -26,7 +25,7 @@ Prefer to type the commands yourself? See [Install](#install).
 |---|---|---|
 | [![The pipeline board with the follow-up radar above it](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/pipeline.png)](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/pipeline.png) | [![A company page: the timeline of every email, call and meeting](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/company.png)](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/company.png) | [![The calendar: every next step on a month grid](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/calendar.png)](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/calendar.png) |
 
-> **Alpha software.** Hermit CRM is incomplete, it changes without notice, and
+> **Use at your own risk.** Hermit CRM is incomplete, it changes without notice, and
 > it has bugs nobody has found yet. It is free and comes with **no warranty of
 > any kind** — nobody is on the hook if it loses your data. Keep your own
 > backups, and check that they restore. Read [DISCLAIMER.md](DISCLAIMER.md)

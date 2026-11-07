@@ -62,6 +62,23 @@ researching or already ready says it cannot take research now. Take the
 bookmarklet again from this page: older ones do not send About or Activity (the
 top card still works).
 
+## Hermit: conversation
+
+The page also has a second bookmark, **Hermit: conversation**. Open a LinkedIn
+conversation (the Messaging page, or the chat bubble that opens from a profile's
+*Message* button), click it, and Hermit CRM opens with the conversation read,
+matched to a contact and checked against what you have already logged. You review
+it and press **Import**; each new message becomes a `linkedin` interaction, in one
+step. Nothing is fetched and nothing goes to LinkedIn: the bookmark reads the
+conversation in your own tab and hands it to Hermit CRM, and nothing is written
+until you press Import. It reads only the messages the page has loaded.
+
+LinkedIn's User Agreement (8.2) forbids automated access and software that scrapes
+or copies its pages, and names browser plug-ins and add-ons in that list. The
+bookmark is the mildest form of it (it runs only when you click it, on the one
+conversation you have open, and reads only what the page already shows), but it is
+not something LinkedIn has approved. Use it knowing that.
+
 ## The bookmarklet
 
 The `/extension` page has a link to drag to your bookmarks bar. It points at the

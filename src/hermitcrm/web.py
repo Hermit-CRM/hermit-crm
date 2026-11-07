@@ -53,7 +53,8 @@ from . import attachments as attachments_mod
 from . import upgrade as upgrading
 from fastapi.templating import Jinja2Templates
 
-from . import (adjust, bcc, brief, calendar_sync, capture, dashboards, disclaimer, feedback,
+from . import (adjust, bcc, brief, calendar_sync, capture, conversation, dashboards, disclaimer,
+               feedback,
                fields as custom, filters, followups, history, messaging, migrations,
                pipeline, reports, sample, welcome)
 from . import layout
@@ -945,7 +946,8 @@ def create_app(root: Path, config: dict | None = None,
     store = Store(root, silent_days=int(config.get("silent_days", 14)),
                   on_write=on_write, outcomes=outcomes, clock=clock,
                   task_types=task_types.names(configured_types),
-                  stages=stages_mod.from_config(config.get("stages")))
+                  stages=stages_mod.from_config(config.get("stages")),
+                  stage_rules=stages_mod.rules_mode(config.get("stage_rules")))
     store.load()
 
     def load_custom_fields() -> list:
@@ -1076,6 +1078,7 @@ def create_app(root: Path, config: dict | None = None,
             "types": types,
             "type_names": task_types.names(types),
             "stages": stage_set,
+            "stage_rules": stages_mod.rules_mode(cfg.get("stage_rules")),
             "message_window": int(cfg.get("message_window_days", 14)),
             "enricher": build_enricher(cfg),
             "custom_fields": load_custom_fields(),
@@ -1135,6 +1138,7 @@ def create_app(root: Path, config: dict | None = None,
         app.state.task_types = derived["types"]
         store.task_types = derived["type_names"]
         store.set_stages(derived["stages"])
+        store.stage_rules = derived["stage_rules"]
         templates.env.globals["stages"][:] = derived["stages"].names
         message_window = derived["message_window"]
         app.state.enricher = derived["enricher"]
@@ -1429,6 +1433,10 @@ def create_app(root: Path, config: dict | None = None,
         date_hint_datetime=dateformat.hint_datetime,
         preview=followups.first_line,
         stage_exits=stage_exits,
+        open_drafts=lambda slug: sum(1 for i in outreach.items(root)
+                                     if i.company == slug and i.is_open),
+        disqualify_stage=lambda slug: outreach.disqualify_stage(store, slug),
+        company_name=lambda slug: (store.get(slug).name if store.get(slug) else slug),
         stage_keeps=lambda name: stage_keeps(store.stages, name),
         stages=list(store.stages.names),   # config_reloaded keeps it current in place
         sources=SOURCES,
@@ -2244,7 +2252,7 @@ def create_app(root: Path, config: dict | None = None,
     @app.get("/companies", response_class=HTMLResponse)
     def companies_list(request: Request, q: str = ""):
         found = listing("companies", request.query_params, q)
-        cols, active, companies = found.columns, found.active, found.rows
+        active, companies = found.active, found.rows
         sort_key, sort_dir, shown = found.sort, found.dir, found.extra["shown"]
         show_parked, hidden = found.extra["show_parked"], found.extra["hidden_parked"]
         toggle = [(k, v) for k, v in request.query_params.multi_items()
@@ -2469,10 +2477,15 @@ def create_app(root: Path, config: dict | None = None,
         """
         return capture.bookmarklet(str(request.base_url).rstrip("/"))
 
+    def conversation_bookmarklet_for(request: Request) -> str:
+        """"Hermit: conversation", pointed at the address this app answers on."""
+        return capture.conversation_bookmarklet(str(request.base_url).rstrip("/"))
+
     @app.get("/extension", response_class=HTMLResponse)
     def extension_page(request: Request):
         return render(request, "extension.html", {
             "bookmarklet": bookmarklet_for(request),
+            "conversation_bookmarklet": conversation_bookmarklet_for(request),
             "base": str(request.base_url).rstrip("/"),
         })
 
@@ -2544,6 +2557,223 @@ def create_app(root: Path, config: dict | None = None,
         return render(request, "company_new.html",
                       {"values": with_custom(found.values, None, "company"),
                        "capture": found})
+
+    # ------------------------------------------- a LinkedIn conversation (bookmarklet)
+    # The bookmark reads the conversation in the person's own LinkedIn tab and
+    # hands it to the receiver page (static/conversation.js) by postMessage. The
+    # server keeps nothing between the preview and the import: both are sent the
+    # conversation again and read it afresh, so what is written is always what the
+    # server planned from the payload, never what a rendered row said.
+
+    # The content cap is conversation.MAX_TOTAL_BYTES; the rest is JSON around it.
+    conversation_request_limit = conversation.MAX_TOTAL_BYTES + (256 << 10)
+
+    async def conversation_body(request: Request) -> dict:
+        """The JSON object the request carried.
+
+        Read in pieces and refused (413) once it passes the cap, whatever
+        Content-Length says or leaves out; a body that is not a JSON object is a 400.
+        """
+        declared = request.headers.get("content-length", "")
+        if declared.isdigit() and int(declared) > conversation_request_limit:
+            raise HTTPException(status_code=413, detail="this conversation is too big to import")
+        chunks, total = [], 0
+        async for chunk in request.stream():
+            total += len(chunk)
+            if total > conversation_request_limit:
+                raise HTTPException(status_code=413,
+                                    detail="this conversation is too big to import")
+            chunks.append(chunk)
+        try:
+            data = json.loads(b"".join(chunks))
+        except (ValueError, RecursionError):
+            raise HTTPException(status_code=400, detail="this is not a conversation Hermit can read")
+        if not isinstance(data, dict):
+            raise HTTPException(status_code=400, detail="this is not a conversation Hermit can read")
+        return data
+
+    def conversation_contact(value) -> tuple[str, str] | None:
+        """`company/contact` as the picker sends it, or None when it is not that."""
+        if not isinstance(value, str):
+            return None
+        company_slug, _, contact_slug = value.partition("/")
+        if not company_slug or not contact_slug or "/" in contact_slug:
+            return None
+        return company_slug, contact_slug
+
+    def conversation_problem(exc: Exception) -> str:
+        """Why a plan or an import was refused, in words for the person. A slug that
+        is not a name inside the data folder is a contact that does not exist."""
+        if isinstance(exc, ValidationError):
+            return "unknown contact: " + "; ".join(exc.errors.values())
+        return str(exc)
+
+    def conversation_answers(thread, raw) -> dict:
+        """The dates the person gave for the headings Hermit could not read.
+
+        Keyed by the heading's place in `thread.needs_date`; an answer that does not
+        read as a date, or names a place there is not, leaves the question open.
+        """
+        found: dict = {}
+        for key, value in (raw.items() if isinstance(raw, dict) else ()):
+            if not (isinstance(key, str) and key.isdigit() and isinstance(value, str)):
+                continue
+            if int(key) >= len(thread.needs_date):
+                continue
+            text = value.strip()
+            try:
+                answer = (datetime.fromisoformat(text).replace(tzinfo=None)
+                          if ("T" in text or " " in text) else date.fromisoformat(text))
+            except ValueError:
+                continue
+            found[thread.needs_date[int(key)]] = answer
+        return found
+
+    def conversation_directions(raw) -> dict:
+        return {int(k): v for k, v in (raw.items() if isinstance(raw, dict) else ())
+                if isinstance(k, str) and k.isdigit() and v in ("in", "out")}
+
+    def conversation_everyone() -> list[tuple[str, str]]:
+        people = [(f"{company.slug}/{contact.slug}", f"{contact.name} ({company.name})")
+                  for company in store.companies.values() for contact in company.contacts.values()]
+        return sorted(people, key=lambda p: (p[1].casefold(), p[0]))
+
+    def conversation_view(data: dict) -> dict:
+        """Everything the review fragment shows for this request. Writes nothing."""
+        view: dict = {"error": "", "thread": None, "chosen": "", "how": "", "candidates": [],
+                      "contacts": [], "plan": None, "problem": "", "questions": [],
+                      "review_rows": [], "selected": 0, "first": None, "last": None,
+                      "stage_change": "", "outreach_sent": [], "company_name": "",
+                      "create_url": ""}
+        now = store.now()
+        try:
+            thread = conversation.parse(data.get("payload"), now)
+        except conversation.ConversationError as exc:
+            view["error"] = str(exc)
+            return view
+        view["thread"] = thread
+        everyone = conversation_everyone()
+        view["contacts"] = everyone
+        who = {value: label for value, label in everyone}
+        # The new-contact form opens with what the thread knows. The header links the
+        # member id (/in/ACoAAA...), which is no address to keep; a vanity one is.
+        vanity = next((u for u in thread.profile_urls
+                       if not u[len(conversation.PROFILE_PREFIX):].startswith("ACo")), "")
+        values = capture.Capture(url=vanity, kind="person", name=thread.name,
+                                 person=scrape.PersonFacts(name=thread.name)).contact_values
+        view["create_url"] = "/contacts/new?" + urlencode(
+            {k: v for k, v in values.items() if k in ("name", "linkedin") and v})
+        picked = conversation_contact(data.get("contact"))
+        if picked is not None:
+            view["how"] = "chosen"
+            chosen = picked
+        else:
+            found = conversation.match(store, thread)
+            if found.candidates:
+                view["candidates"] = [(f"{c}/{k}", who[f"{c}/{k}"]) for c, k in found.candidates
+                                      if f"{c}/{k}" in who]
+                return view
+            if found.kind == "none":
+                return view
+            view["how"], chosen = found.kind, (found.company, found.contact)
+        view["chosen"] = f"{chosen[0]}/{chosen[1]}"
+        try:
+            made = conversation.plan(
+                store, chosen[0], chosen[1], thread, now,
+                dates=conversation_answers(thread, data.get("dates")),
+                directions=conversation_directions(data.get("directions")),
+                owner_name=str(config.get("owner_name") or ""))
+        except (conversation.ConversationError, ValidationError) as exc:
+            view["problem"], view["chosen"], view["how"] = conversation_problem(exc), "", ""
+            return view
+        view["plan"] = made
+        view["company_name"] = store.get(made.company).name
+        view["stage_change"] = made.stage_change.replace(" -> ", " to ")
+        view["outreach_sent"] = made.outreach_sent
+        ticks = data.get("ticks") if isinstance(data.get("ticks"), dict) else {}
+        by_index = {r.index: r for r in made.rows}
+        selected = set(made.default_selection)
+        for key, on in ticks.items():
+            row = by_index.get(int(key)) if isinstance(key, str) and key.isdigit() else None
+            if row is not None and row.status in ("new", "maybe") and isinstance(on, bool):
+                (selected.add if on else selected.discard)(row.index)
+        for question_index, heading in enumerate(thread.needs_date):
+            first = next(m for m in thread.messages if m.when is None and m.heading == heading)
+            answer = conversation_answers(thread, data.get("dates")).get(heading)
+            if isinstance(answer, datetime):
+                shown = f"{answer:%Y-%m-%dT%H:%M}"
+            else:
+                shown = answer.isoformat() if answer else ""
+            view["questions"].append({"index": question_index, "heading": heading,
+                                      "moment": first.clock is None, "value": shown})
+        labels = {"logged": "already logged",
+                  "maybe": "may already be logged (same words, same direction, within a day)",
+                  "ask": "who sent this? Pick a direction", "undated": "needs a date"}
+        today_limit = now + conversation.FUTURE_GRACE
+        for row in made.rows:
+            message = row.message
+            warning = ""
+            if row.suspect:
+                if message.date_conflict:
+                    warning = "check the date: the page's own time says another day"
+                elif message.when and message.when > today_limit:
+                    warning = "check the date: this is in the future"
+                else:
+                    warning = "check the date: this looks far too old"
+            text = message.text.strip()
+            view["review_rows"].append({
+                "row": row, "label": labels.get(row.status, ""), "warning": warning,
+                "tickable": row.status in ("new", "maybe"),
+                "checked": row.index in selected,
+                "long": "\n" in text or len(text) > 90})
+        view["selected"] = sum(1 for r in view["review_rows"] if r["checked"])
+        dated = [r.message.when for r in made.rows if r.message.when]
+        if dated:
+            view["first"], view["last"] = min(dated), max(dated)
+        return view
+
+    @app.get("/extension/conversation", response_class=HTMLResponse)
+    def extension_conversation(request: Request):
+        """The page the conversation bookmark opens: a shell. It reads and writes
+        nothing and carries no conversation text; the script in it asks the
+        LinkedIn tab that opened it for the conversation."""
+        return render(request, "conversation_import.html", {})
+
+    @app.post("/extension/conversation/preview", response_class=HTMLResponse)
+    async def extension_conversation_preview(request: Request):
+        """What importing this conversation would do, as a fragment. Writes nothing."""
+        view = conversation_view(await conversation_body(request))
+        return HTMLResponse(templates.get_template("conversation_review.html").render(
+            {**view, "fmt_datetime": dateformat.fmt_dt, "preview": followups.first_line}))
+
+    @app.post("/extension/conversation")
+    async def extension_conversation_import(request: Request):
+        """Log the ticked messages, one commit, and go to the contact."""
+        data = await conversation_body(request)
+        check_csrf(str(data.get("csrf_token") or ""))
+        picked = conversation_contact(data.get("contact"))
+        if picked is None:
+            raise HTTPException(status_code=400, detail="choose who this conversation is with")
+        ticked = data.get("ticked")
+        if not isinstance(ticked, list) or any(
+                type(n) is not int or n < 0 for n in ticked):
+            raise HTTPException(status_code=400, detail="the ticked messages are not a list of numbers")
+        try:
+            thread = conversation.parse(data.get("payload"), store.now())
+            made = conversation.plan(
+                store, picked[0], picked[1], thread, store.now(),
+                dates=conversation_answers(thread, data.get("dates")),
+                directions=conversation_directions(data.get("directions")),
+                owner_name=str(config.get("owner_name") or ""))
+            result = conversation.apply(store, made, ticked)
+        except (conversation.ConversationError, ValidationError) as exc:
+            raise HTTPException(status_code=400, detail=conversation_problem(exc))
+        logged = sum(1 for r in made.rows if r.status == "logged")
+        noun = "message" if len(result.ids) == 1 else "messages"
+        message = f"{len(result.ids)} {noun} imported"
+        if logged:
+            message += f", {logged} already logged"
+        return flashed(f"/companies/{picked[0]}/contacts/{picked[1]}", message)
 
     @app.get("/companies/new", response_class=HTMLResponse)
     def company_new(request: Request):
@@ -2620,6 +2850,10 @@ def create_app(root: Path, config: dict | None = None,
             "interaction": interaction,
             "focus": request.query_params.get("focus", ""),
             "focus_stage": request.query_params.get("stage", ""),
+            # A board move the stage rules refused: offers "Move anyway".
+            "move_anyway": (request.query_params.get("move_anyway", "")
+                            if request.query_params.get("move_anyway", "") in store.stages
+                            else ""),
             "others": sorted((c for c in store.companies.values() if c.slug != slug),
                              key=lambda c: c.name.lower()),
         })
@@ -2677,7 +2911,8 @@ def create_app(root: Path, config: dict | None = None,
         try:
             if custom_errors:
                 raise ValidationError(custom_errors)
-            store.update_company(slug, custom=extra, **values)
+            store.take_notices()    # only this save's warning is shown
+            store.update_company(slug, custom=extra, force=bool(form.get("force")), **values)
         except ValidationError as exc:
             return render(request, "company.html", {
                 "company": company,
@@ -2690,7 +2925,7 @@ def create_app(root: Path, config: dict | None = None,
                 "focus_stage": values.get("stage", ""),
                 "others": [],
             }, status_code=400)
-        return flashed(f"/companies/{slug}", "Saved")
+        return flashed(f"/companies/{slug}", "; ".join(["Saved", *store.take_notices()]))
 
     @app.post("/companies/{slug}/next-step")
     def company_next_step_status(request: Request, slug: str,
@@ -2794,22 +3029,27 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.post("/companies/{slug}/disqualify")
     def company_disqualify(request: Request, slug: str, stage: str = Form(""),
-                           reason: str = Form(""), requalify_on: str = Form("")):
+                           reason: str = Form(""), requalify_on: str = Form(""),
+                           skip_drafts: str = Form(""), asked_drafts: str = Form("")):
         """Move a company into a closed or parked stage (disqualify, temp
-        disqualify until a date, ...), or requalify it into the entry stage."""
+        disqualify until a date, ...), or requalify it into the entry stage. Its
+        open outreach drafts are skipped with it, unless the form asked about them
+        (`asked_drafts`) and `skip_drafts` was left unticked."""
         need_company(slug)
         stages = store.stages
         if not (stages.role_of(stage) in ("closed", "parked") or stage == stages.entry):
             return flashed(f"/companies/{slug}", f"unknown stage {stage!r}")
+        store.take_notices()
         try:
             store.update_company(slug, stage=stage, lost_reason=reason,
-                                 requalify_on=requalify_on)
+                                 requalify_on=requalify_on,
+                                 keep_drafts=bool(asked_drafts) and not skip_drafts)
         except ValidationError as exc:
             return flashed(f"/companies/{slug}", "; ".join(exc.errors.values()))
         word = "Requalified" if stage == stages.entry else stage.replace("-", " ").capitalize()
         if stages.is_parked(stage) and requalify_on:
             word += f" until {requalify_on}"
-        return flashed(f"/companies/{slug}", word)
+        return flashed(f"/companies/{slug}", "; ".join([word, *store.take_notices()]))
 
     @app.get("/companies/{slug}/merge", response_class=HTMLResponse)
     def company_merge_form(request: Request, slug: str, drop: str = ""):
@@ -2892,7 +3132,7 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.post("/companies/{slug}/stage")
     def company_stage(request: Request, slug: str, stage: str = Form(""),
-                      back: str = Form("")):
+                      back: str = Form(""), force: str = Form("")):
         company = need_company(slug)
         if store.stages.requires_reason(stage) and company.stage != stage:
             # A lost stage needs a reason: send the user to the form instead.
@@ -2901,11 +3141,19 @@ def create_app(root: Path, config: dict | None = None,
             first = store.stages.with_role("lost")[0]
             pick = "" if stage == first else "&" + urlencode({"stage": stage})
             return goto(f"/companies/{slug}?focus=lost_reason{pick}")
+        store.take_notices()    # only this move's warning is shown
         try:
-            store.update_company(slug, stage=stage)
+            store.update_company(slug, stage=stage, force=bool(force))
         except ValidationError as exc:
-            return flashed(f"/companies/{slug}", "; ".join(exc.errors.values()))
+            message = "; ".join(exc.errors.values())
+            if "is not allowed (" in message:    # the stage rules: offer "Move anyway"
+                return flashed(f"/companies/{slug}?" + urlencode({"move_anyway": stage}),
+                               message)
+            return flashed(f"/companies/{slug}", message)
         # Back to the board it was moved on, filters kept: "/" is Home now.
+        notices = store.take_notices()
+        if notices:
+            return flashed(safe_back(back, "/pipeline"), "; ".join(notices))
         return goto(safe_back(back, "/pipeline"))
 
     # --------------------------------------------------------------- contacts
@@ -2923,7 +3171,10 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.get("/contacts/new", response_class=HTMLResponse)
     def global_contact_new(request: Request):
-        return _global_contact_page(request, dict(GLOBAL_CONTACT_BLANK))
+        # A link may open the form with some of it filled in (the conversation
+        # review's "Create contact"). It only fills the form; nothing is written.
+        values = {key: request.query_params.get(key, "")[:300] for key in GLOBAL_CONTACT_BLANK}
+        return _global_contact_page(request, values)
 
     @app.post("/contacts")
     def global_contact_create(
@@ -3553,9 +3804,11 @@ def create_app(root: Path, config: dict | None = None,
     def stages_form_default() -> dict:
         counts = store.stage_counts()
         return {"rows": [{"name": s.name, "old": s.name, "role": s.role,
-                          "valued": s.valued, "count": counts.get(s.name, 0)}
+                          "valued": s.valued, "count": counts.get(s.name, 0),
+                          "to": None if s.to is None else list(s.to)}
                          for s in store.stages],
-                "roles": stages_mod.ROLES, "confirm": None}
+                "roles": stages_mod.ROLES, "confirm": None,
+                "rule_modes": stages_mod.RULE_MODES, "rule_mode": store.stage_rules}
 
     def settings_page(request: Request, status_code: int = 200, **extra):
         return render(request, "settings.html", settings_context(**extra),
@@ -4133,8 +4386,8 @@ def create_app(root: Path, config: dict | None = None,
             saved = ask_saved.save(store, question, scope)
         except ask_saved.AskSavedError as exc:
             if wants_json(request):
-                return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
-            return ask_page_view(request, page, question=question, error=str(exc),
+                return JSONResponse({"ok": False, "error": exc.message}, status_code=400)
+            return ask_page_view(request, page, question=question, error=exc.message,
                                  prefill=True, status_code=400)
         if wants_json(request):
             return JSONResponse({"ok": True, "saved": saved.as_json()})
@@ -4149,7 +4402,7 @@ def create_app(root: Path, config: dict | None = None,
         try:
             ask_saved.replace(store, ident, text, scope)
         except ask_saved.AskSavedError as exc:
-            return saved_back(page, str(exc))
+            return saved_back(page, exc.message)
         return saved_back(page, "Saved.")
 
     @app.post("/ask/saved/{ident}/delete")
@@ -4160,7 +4413,7 @@ def create_app(root: Path, config: dict | None = None,
         try:
             ask_saved.remove(store, ident)
         except ask_saved.AskSavedError as exc:
-            return saved_back(page, str(exc))
+            return saved_back(page, exc.message)
         return saved_back(page, "Removed.")
 
     @app.post("/settings/outcomes")
@@ -4197,21 +4450,33 @@ def create_app(root: Path, config: dict | None = None,
                         name: list[str] = Form([]), role: list[str] = Form([]),
                         valued: list[str] = Form([]), old: list[str] = Form([]),
                         delete: str = Form(""), move: str = Form(""),
-                        move_to: str = Form(""), move_reason: str = Form("")):
+                        move_to: str = Form(""), move_reason: str = Form(""),
+                        restrict: list[str] = Form([]), to: list[str] = Form([]),
+                        stage_rules: str = Form("")):
         check_csrf(csrf_token)
         counts = store.stage_counts()
         before = store.stages
+        # The rule columns are in the form only on a page that shows them; a post
+        # without any (an older page, a script) leaves every rule as it is.
+        has_rules_form = bool(stage_rules)
         new, renames, removed, errors = stages_mod.plan_rows(
-            name, role, valued, old, before, delete, move)
+            name, role, valued, old, before, delete, move,
+            restrict=restrict if has_rules_form else None, to_boxes=to)
+        if has_rules_form and stage_rules not in stages_mod.RULE_MODES:
+            errors = {**errors, "stages": "Stage rules must be off, warn or enforce."}
 
         def form_back(error: str = "", confirm: dict | None = None):
             """The form as it was submitted, with an error or the move-to question."""
             rows = [{"name": stages_mod.clean(n) or n.strip(), "old": stages_mod.clean(o),
                      "role": r, "valued": str(i) in valued,
-                     "count": counts.get(stages_mod.clean(o), 0)}
+                     "count": counts.get(stages_mod.clean(o), 0),
+                     "to": ([b.split(":", 1)[1] for b in to if b.startswith(f"{i}:")]
+                            if str(i) in restrict else None)}
                     for i, (n, r, o) in enumerate(
                         zip(name, role + ["open"] * len(name), old + [""] * len(name)))]
-            form = {"rows": rows, "roles": stages_mod.ROLES, "confirm": confirm}
+            form = {"rows": rows, "roles": stages_mod.ROLES, "confirm": confirm,
+                    "rule_modes": stages_mod.RULE_MODES,
+                    "rule_mode": stage_rules or store.stage_rules}
             # The page script scrolls to the error box, so there is always one.
             result = setup_steps.StepResult(
                 ok=False, errors={"stages": error or "Check the stages below."})
@@ -4226,7 +4491,17 @@ def create_app(root: Path, config: dict | None = None,
             if ask:
                 ask["index"] = delete
             return form_back(why, ask)
-        parts = stage_ops.apply(store, root, change, config_reloaded)
+        mode_file = root / "config.toml"
+        before_bytes = mode_file.read_bytes() if mode_file.exists() else None
+        try:
+            if has_rules_form and stage_rules != store.stage_rules:
+                setup_steps.set_config_values(mode_file, {"stage_rules": stage_rules})
+            parts = stage_ops.apply(store, root, change, config_reloaded)
+        except Exception:
+            if before_bytes is not None:
+                mode_file.write_bytes(before_bytes)
+            config_reloaded()
+            raise
         return flashed("/settings", "Stages saved" + ("; " + "; ".join(parts) if parts else ""),
                        anchor="stages")
 
@@ -4543,7 +4818,11 @@ def create_app(root: Path, config: dict | None = None,
         channel = params.get("channel", "email")
         kind = params.get("kind", "")
         level = params.get("research", "")
-        return {"where": params.get("where", ""),
+        raw = params.getlist("include_closed") if hasattr(params, "getlist") \
+            else params.get("include_closed") or []
+        include = sorted({r.strip() for r in ([raw] if isinstance(raw, str) else raw)
+                          if isinstance(r, str) and r.count("/") == 1 and r.strip()})
+        return {"where": params.get("where", ""), "include": include,
                 "research": level if level in outreach.LEVELS else outreach_level(),
                 "kind": kind if kind in outreach.BUILT_KINDS and kind != outreach.REPLY
                 else outreach.FIRST_TOUCH,
@@ -4561,8 +4840,10 @@ def create_app(root: Path, config: dict | None = None,
                   "kind": form["kind"] if form["kind"] != outreach.FIRST_TOUCH else "",
                   "research": form["research"] if form["research"] != outreach_level()
                   else "",
+                  "include_closed": form["include"],
                   **extra}
-        return urlencode({k: v for k, v in values.items() if v not in ("", None, 0)})
+        return urlencode({k: v for k, v in values.items() if v not in ("", None, 0, [])},
+                         doseq=True)
 
     def outreach_generate(value: str, every: list):
         """The Generate panel of /outreach?contact=<company>/<contact>: None unless
@@ -4579,6 +4860,11 @@ def create_app(root: Path, config: dict | None = None,
                 "language": messaging.draft_language(company, contact,
                                                      messages=app.state.messages),
                 "notes": notes.rows(company, cslug, store.today()),
+                "stage_note": ("" if store.stages.is_open(company.stage) else
+                               f"{company.name} is {company.stage}, so a first touch or "
+                               "follow-up here is drafted on purpose: the card carries a "
+                               "warning, and you decide if it goes out. A reply to someone "
+                               "who wrote to you needs no warning."),
                 "open_item": open_item,
                 "open_tab": outreach_tab(open_item) if open_item else ""}
 
@@ -4623,7 +4909,7 @@ def create_app(root: Path, config: dict | None = None,
                 preview = outreach.select(store, where=outreach_where(form["where"]),
                                           channel=form["channel"], kind=form["kind"],
                                           limit=form["limit"], approach=form["approach"],
-                                          config=config)
+                                          config=config, include_closed=form["include"])
             except outreach.OutreachError as exc:
                 preview_error = str(exc)
         fix_request = adjust.filter_help_request("Outreach", form["where"],
@@ -4654,7 +4940,7 @@ def create_app(root: Path, config: dict | None = None,
             "form": form, "preview": preview, "preview_error": preview_error,
             "fix_request": fix_request, "note_requests": note_requests,
             "gate": gate, "ai_problem": outreach_ai_problem(),
-            "skip_reasons": outreach.SKIP_REASONS,
+            "skip_reasons": outreach.MANUAL_SKIP_REASONS,
             "channels": outreach.CHANNELS, "levels": outreach.LEVELS,
             "built_levels": outreach.BUILT_LEVELS,
             "ai_web_problem": app.state.enricher.web_only_problem(),
@@ -4674,7 +4960,8 @@ def create_app(root: Path, config: dict | None = None,
                              kind: str = Form(outreach.FIRST_TOUCH),
                              approach: str = Form(""), research: str = Form(""),
                              signal: str = Form(""), note: str = Form(""),
-                             language: str = Form("")):
+                             language: str = Form(""),
+                             include_closed: list[str] = Form([])):
         """Research and draft the next contact of the batch (one per request).
         `contact` ("company/contact"): the Generate panel (with its signal, note
         and language), or a reply on the Replies tab (`kind` reply-to-interest)."""
@@ -4683,7 +4970,8 @@ def create_app(root: Path, config: dict | None = None,
             kind = outreach.FIRST_TOUCH
         form = outreach_form({"where": where, "channel": channel, "limit": limit,
                               "strong": strong, "left": left, "batch": batch,
-                              "approach": approach, "kind": kind, "research": research})
+                              "approach": approach, "kind": kind, "research": research,
+                              "include_closed": include_closed})
         if not left.strip():   # the first click: the whole batch is still to build
             form["left"] = form["limit"]
         back = safe_back(back, "/outreach") if contact else "/outreach"
@@ -4694,7 +4982,8 @@ def create_app(root: Path, config: dict | None = None,
                 outreach.select, store, where=outreach_where(form["where"]),
                 channel=form["channel"], kind=kind, limit=1,
                 approach="" if contact else form["approach"],
-                contacts=[contact] if contact else None, config=config)
+                contacts=[contact] if contact else None, config=config,
+                include_closed=form["include"])
         except outreach.OutreachError as exc:
             return flashed(back if contact else f"/outreach?{outreach_query(stop)}",
                            f"Not built: {exc}")
@@ -4703,6 +4992,10 @@ def create_app(root: Path, config: dict | None = None,
         if not selection.picked:
             why = (f": {selection.excluded[0].reason}" if contact and selection.excluded
                    else "")
+            if selection.stage_left_out and not contact:   # nothing else to draft: say why
+                n = len(selection.stage_left_out)
+                why += (f" ({n} left out because their company is not open; Preview "
+                        "lists them and lets you include them on purpose)")
             done = "Nothing to build" if not form["batch"] else "Batch done: nobody else to draft"
             return flashed(back if contact else f"/outreach?{outreach_query(stop)}",
                            f"{done}{why}.")
@@ -4961,8 +5254,8 @@ def create_app(root: Path, config: dict | None = None,
         return flashed("/outreach/linkedin", text)
 
     @app.post("/outreach/{item_id}/page")
-    async def outreach_page(item_id: str, csrf_token: str = Form(""), url: str = Form(""),
-                            top: str = Form(""), about: str = Form(""), act: str = Form("")):
+    async def outreach_item_page(item_id: str, csrf_token: str = Form(""), url: str = Form(""),
+                                 top: str = Form(""), about: str = Form(""), act: str = Form("")):
         """Add to research: what the bookmarklet read on the contact's own LinkedIn
         profile, as trimmed on the Add page, becomes findings on the card. One AI
         call (no tools); the page text itself is not kept."""
@@ -5042,7 +5335,8 @@ def create_app(root: Path, config: dict | None = None,
                               body: str | None = Form(None), pitch: str | None = Form(None),
                               reason: str = Form(""), note: str = Form(""),
                               strong: str = Form(""), add: str = Form(""),
-                              key: str = Form(""), tags: list[str] = Form([])):
+                              key: str = Form(""), tags: list[str] = Form([]),
+                              disqualify: str = Form("")):
         check_csrf(csrf_token)
         if what not in OUTREACH_ACTIONS:
             raise HTTPException(status_code=404, detail=f"unknown action {what!r}")
@@ -5095,8 +5389,16 @@ def create_app(root: Path, config: dict | None = None,
                 text = ("Regenerated." if item.state == "drafted" else
                         f"The AI gave no usable draft; skipped ({item.skip_note}).")
             elif what == "skip":
-                item = await run_in_threadpool(outreach.skip, store, item.id, reason, note)
-                text = f"Skipped: {item.skip_reason}."
+                moved = ""
+                store.take_notices()
+                if disqualify and (reason or "").strip().lower() == "bad-fit":
+                    item, moved = await run_in_threadpool(
+                        outreach.skip_and_disqualify, store, item.id, note)
+                else:
+                    item = await run_in_threadpool(outreach.skip, store, item.id, reason, note)
+                text = (f"Skipped: {item.skip_reason}."
+                        + (f" {store.get(item.company).name} is now {moved}." if moved else "")
+                        + "".join(f" {n}." for n in store.take_notices()))
             elif what == "sent":
                 item = await run_in_threadpool(outreach.mark_sent, store, item.id)
                 text = "Marked sent (nothing was logged)."

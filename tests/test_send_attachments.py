@@ -340,9 +340,9 @@ def test_the_send_limit_setting():
     assert s.attachment_max_mb == 10 and any("send_attachment_max_mb" in p for p in s.problems)
 
 
-def test_migration_21_is_a_noop_and_idempotent():
-    migration = next(m for m in migrations.MIGRATIONS if m.version == 21)
+def test_migration_23_is_a_noop_and_idempotent():
+    migration = next(m for m in migrations.MIGRATIONS if m.version == 23)
     assert migration.glob == "outreach/*.md"
     meta = {"state": "ready", "channel": "email"}
     assert migration.apply(dict(meta)) == meta
-    assert migrations.LATEST == 21
+    assert migrations.LATEST >= 23

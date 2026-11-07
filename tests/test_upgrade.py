@@ -21,6 +21,7 @@ the restart, that pages are held back while files are being replaced, and that t
 page that explains a stale server does not need a template.
 """
 
+import re
 import subprocess
 import sys
 import tempfile
@@ -130,7 +131,9 @@ def test_the_plan_says_why_not_instead_of_guessing(tmp_path):
     # The command installs from PyPI; another source is the user's to download from.
     elsewhere = upgrade.install_plan({"update_url": "https://downloads.example.com/v.json"},
                                      True, platform="darwin", in_venv=True)
-    assert not elsewhere.ok and "downloads.example.com" in elsewhere.why_not
+    assert not elsewhere.ok
+    # It names the source's whole host, compared exactly rather than found as a substring.
+    assert re.search(r"source is (\S+?),", elsewhere.why_not).group(1) == "downloads.example.com"
 
     exposed = upgrade.install_plan({"host": "0.0.0.0"}, True, platform="darwin", in_venv=True)
     assert not exposed.ok and "no password" in exposed.why_not

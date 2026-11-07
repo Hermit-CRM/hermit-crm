@@ -33,7 +33,9 @@ STYLE = (STATIC / "style.css").read_text(encoding="utf-8")
 # Tokens that are the same in light and dark by design.
 SCHEME_FREE = {"--brand", "--ink", "--sans", "--mono", "--serif", "--title-font", "--shadow",
                # button tokens: shapes and aliases of tokens that are already light-dark
-               "--btn-bg", "--btn-bg-hover", "--btn-border", "--btn-border-hover", "--btn-radius", "--btn-seam"}
+               "--btn-bg", "--btn-bg-hover", "--btn-border", "--btn-border-hover", "--btn-radius", "--btn-seam",
+               # motion curves: not colours at all
+               "--ease-out", "--ease-in-out"}
 
 # (foreground, background, minimum): every pair that carries text or marks a
 # control. DESIGN.md: 4.5:1 for text, 3:1 for control borders and hints.

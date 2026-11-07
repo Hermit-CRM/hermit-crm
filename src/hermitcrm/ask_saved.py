@@ -50,7 +50,16 @@ _HEADER = ("# Questions you saved for Ask the Hermit (the Save button next to As
 
 
 class AskSavedError(ValueError):
-    """A save, edit or delete that cannot be done; the message says why."""
+    """A save, edit or delete that cannot be done; ``message`` says why.
+
+    Every raise site writes ``message`` for the person using Hermit, never from
+    another exception, so it is safe to show. The web layer reads ``.message``
+    instead of ``str(exc)`` so nothing derived from an exception's own text
+    (a traceback, a path) can reach a response by accident."""
+
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.message = message
 
 
 @dataclass(frozen=True)

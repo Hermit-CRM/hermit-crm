@@ -19,8 +19,68 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   and nothing else: sending is not paused and the address is not suppressed. The card
   warns when the text mentions an attachment and none is attached (English, German,
   Dutch, French), and when a cold first email carries one. LinkedIn messages cannot carry
-  files. Your data folder is migrated to format 21 (nothing in a file changes). See
+  files. Your data folder is migrated to format 23 (nothing in a file changes). See
   [Sending](/help/sending).
+
+- **Disqualifying a company and skipping outreach work as one.** A company in a
+  closed, parked, won or lost stage never gets a batch draft, and moving a company
+  out of an open stage now skips its open outreach drafts (researching, drafted,
+  ready, queued, failed) in the same commit, with the new skip reason
+  `company-closed`. The **Disqualify** menu on the company page asks "N open
+  outreach drafts: skip them" (ticked); `hermitcrm set --stage ... --keep-drafts`
+  and an unticked box keep them, and the dry run says how many it would skip. That
+  skip sets no cooldown, is not `bad-fit` and is left out of the learning, so a
+  company that requalifies is eligible at once. A batch lists the people it left out
+  for this reason apart, with a box each to **include anyway** (on the command line
+  `--include-closed company/contact`); one person named on its own (the Generate
+  button, one `--contact`) is drafted with a warning, and Sending lets that draft
+  through. A **reply to interest** is allowed for such a company too. **Skip as
+  bad-fit** can also disqualify the company (`hermitcrm outreach skip ID --reason
+  bad-fit --disqualify`). Do-not-contact, the suppression list (a batch now leaves a
+  suppressed address out too) and the playbook's disqualifiers are never lifted.
+  Drafts already sitting in the queue for companies closed earlier are left as they
+  are. Data format 22 reserves the new item key `stage_override` and the skip
+  reason; no file changes.
+- **A little motion, where it helps.** Panels that hang from a button (Ask · Adjust,
+  Disqualify, + New approach) grow out of it in a tenth of a second instead of
+  appearing at once. The guided tour's bubble glides to the next stop instead of
+  jumping, and the upgrade panel fades in over the page. The Edit, Fetch from URL and
+  Disqualify buttons now press like every other button. Nothing you use dozens of times
+  a day animates, and with "reduce motion" on in your system the panels only fade and
+  the tour bubble jumps as before. Style only, no data change.
+
+- **The daily import waits for the network after a wake.** A Mac that was asleep at the
+  scheduled time runs the daily sync the moment it wakes, before Wi-Fi and DNS are
+  back, and the BCC import used to fail with "could not reach imap.gmail.com" until the
+  next day. The daily sync now tries again after 10, 30, 60 and 120 seconds, for the
+  mail and for the calendar, and only then reports the failure. A wrong password or URL
+  is still reported at once, and **Import now** and `hermitcrm bcc` do not wait. No data
+  migration.
+
+- **Mail connections check the server's certificate.** Sending over port 465 and every
+  IMAP connection (the reply check, the Sent check, the bounce scan and the BCC import)
+  now refuse a server whose certificate is not valid for its host name; port 587 already
+  did. A self-signed or mismatched certificate pauses sending with a banner that says
+  what is wrong, instead of retrying; **Send a test to myself** in Settings > Sending
+  and `hermitcrm doctor --online` show the same message, and a passing test lifts the
+  pause. Gmail, iCloud and Fastmail are unaffected. See [Sending](/help/sending). No
+  data migration.
+- **A queued email that was never scheduled in the app is held.** A file set to `queued`
+  by hand or by an agent, without pressing **Schedule**, goes back to Ready with "it was
+  never scheduled in the app" instead of going out. **Send now** still sends it. No data
+  migration.
+- **Delete approach works for any name.** The confirm dialog no longer breaks on an
+  approach name with an apostrophe or quotes. No data migration.
+- **Attachments of BCC'd mail are kept.** A PDF or document that comes with a mail you
+  BCC or forward is saved with the interaction it logs, so the proposal you sent
+  sits on the note next to the message. Logos in a signature, calendar invites and
+  signatures are left out. A mail that has to wait under **To file** keeps its files
+  in `inbox/attachments/` and they move to the company when you log it (or are
+  deleted when you discard it). `bcc_attachments` in `config.toml` sets what is kept:
+  `documents` (the default), `all` (also pictures shown inside the mail, 20 KB or
+  larger) or `off`. A file over `attachment_max_mb` is skipped, the mail is still
+  logged, and the import summary says how many were skipped. No data migration.
+  See [Settings](/help/settings).
 
 - **Attach files to notes and interactions.** A note, an email, a call or any
   other interaction can carry files: pick them under the body, drop them on the
@@ -39,7 +99,13 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   missing, unused or changed file, and `hermitcrm doctor` adds the folder's total
   size. Your data folder is migrated to format 20 (nothing in a file changes).
   See [Interactions](/help/interactions).
-
+- **Stage rules (optional).** Say where a company in a stage may go next
+  (Settings > Deal stages > can move to, or `hermitcrm stages set offer --to
+  discovery,won,lost`) and what happens to a move that list does not allow: nothing
+  (the default, so nothing changes for you), a warning, or a refusal. Enforced, it
+  covers the board, the company page, `hermitcrm set`, your AI agent and imports, and
+  the message names the allowed moves. **Move anyway** / `--force` overrides one move
+  and the commit says so. No data migration: the lists live in `config.toml`.
 - **Mark a follow-up done.** Each row on the Outreach **Follow-ups** tab has a **Mark
   done** button, for a follow-up you made somewhere else (a LinkedIn message, a call)
   or decided to let go. The row leaves the tab, the batch, the home page and

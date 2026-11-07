@@ -524,3 +524,200 @@ def test_a_page_that_sent_its_text_is_not_reported_empty(store):
                                "co": PAGE["co"]})
     assert not found.read_nothing
     assert found.contact_values["title"] == "Head of Compliance"
+
+
+# ------------------------------------------- the conversation bookmarklet
+# "Hermit: conversation" reads a LinkedIn conversation in the person's own tab and
+# hands it to Hermit's tab by postMessage. pytest cannot run it against LinkedIn's
+# page (the repo has no JS test runner and may not add one), so these pin what can
+# be pinned: the one-line rules every bookmarklet obeys, the Terms of Service rules
+# (read what is rendered, nothing else), and the handshake and refusals, run in
+# node against a stub page when node is installed. The extraction itself is checked
+# by hand on the synthetic fixtures and on a real thread (see the PR).
+
+import json as _json
+import re as _re
+import shutil as _shutil
+import subprocess as _subprocess
+
+BASE = "http://127.0.0.1:8765"
+CONVERSATION_SOURCE = capture.CONVERSATION_BOOKMARKLET_JS
+
+
+def test_the_conversation_bookmarklet_is_one_line_without_a_percent_sign():
+    js = capture.conversation_bookmarklet(BASE)
+    assert js.startswith("javascript:")
+    assert "\n" not in js and "\r" not in js and "%" not in js
+
+
+def test_the_conversation_bookmarklet_points_at_the_given_base():
+    js = capture.conversation_bookmarklet(BASE)
+    assert "__BASE__" not in js
+    assert f"'{BASE}'" in js
+    other = capture.conversation_bookmarklet("http://localhost:9000")
+    assert "'http://localhost:9000'" in other and BASE not in other
+
+
+def test_every_source_line_ends_a_statement_or_a_block_so_lines_join_safely():
+    lines = [line.strip() for line in CONVERSATION_SOURCE.read_text(encoding="utf-8").splitlines()]
+    code = [line for line in lines if line and not line.startswith("//")]
+    assert code, "no code"
+    for line, following in zip(code, code[1:] + [""]):
+        # a statement ends in ";", or the line goes on / opens a block; the last
+        # property of an object literal may end bare when the next line closes it
+        assert (line.endswith((";", "{", "}", ",", "(", "[", "||", "&&", "?", ":"))
+                or following.startswith(("}", ")", "]"))), line
+    assert code[-1].endswith(");")                              # the closing })();
+    joined = _re.sub(r"https?://", "", " ".join(code))
+    assert "//" not in joined                                   # a trailing comment would eat the rest
+
+
+def test_the_conversation_bookmarklet_only_reads_what_is_already_on_screen():
+    code = CONVERSATION_SOURCE.read_text(encoding="utf-8")
+    body = "\n".join(line for line in code.splitlines() if not line.strip().startswith("//"))
+    for banned in ("fetch(", "XMLHttpRequest", "sendBeacon", "WebSocket", "EventSource",
+                   "scroll", ".click(", "dispatchEvent", "setInterval", "requestAnimationFrame",
+                   "MutationObserver", "IntersectionObserver", "localStorage", "sessionStorage",
+                   "document.cookie", "eval(", "new Function", "importScripts", "location.assign",
+                   "location.href =", "location =", "innerHTML"):
+        assert banned not in body, banned
+    assert body.count("setTimeout") == 1                        # the handshake wait, nothing else
+    assert body.count("W.open(") == 1                           # one tab, Hermit's
+    assert "encodeURIComponent" not in body and "?" + "text" not in body   # nothing in a URL
+
+
+def test_the_conversation_bookmarklet_follows_the_contract_in_the_dom_note():
+    code = CONVERSATION_SOURCE.read_text(encoding="utf-8")
+    for needle in ("ul.msg-s-message-list-content", "shadowRoot", "getComposedRanges",
+                   "li.msg-s-message-list__event", "p.msg-s-event-listitem__body", "innerText",
+                   "data-event-urn", "msg-s-event-listitem--other", "now_local", "tz_min",
+                   "documentElement.lang", "[attachment]", "more than one conversation",
+                   "/extension/conversation", "v: 1"):
+        assert needle in code, needle
+
+
+NODE = _shutil.which("node")
+
+
+def run_conversation_bookmarklet(scenario: dict) -> dict:
+    """The bookmarklet as the browser would run it, on a stub page with `lists`
+    conversation lists (all empty), optionally a `frame` of the page with its own
+    lists, and a LinkedIn tab that receives messages."""
+    code = capture.conversation_bookmarklet(BASE)[len("javascript:"):]
+    harness = r"""
+const [code, scenario] = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+const out = { alerts: [], opened: [], posted: [], listeners: 0, removed: 0, timers: 0 };
+const handlers = [];
+const LIST = 'ul.msg-s-message-list-content';
+const makeList = (home) => ({ parentElement: null, querySelectorAll: () => [], contains: () => false,
+  getRootNode: () => home });
+// a frame of the page: `frame.lists` conversations inside it, or a closed one
+// (another site's: contentDocument is null, or reading it throws)
+const frame = scenario.frame;
+const inner = frame && { documentElement: {}, querySelectorAll: (sel) => (sel.indexOf(LIST) === 0
+  ? Array.from({ length: frame.lists }, () => makeList(inner)) : []) };
+const iframe = frame && { tagName: 'IFRAME', shadowRoot: null,
+  get contentDocument() { if (frame.throws) { throw new Error('blocked'); }
+                          return frame.closed ? null : inner; } };
+const doc = { documentElement: { lang: 'en' },
+  querySelectorAll: (sel) => (sel === '*' ? (iframe ? [iframe] : [])
+    : sel.indexOf(LIST) === 0 ? Array.from({ length: scenario.lists }, () => makeList(doc)) : []) };
+const tab = scenario.blocked ? null : { postMessage: (m, o) => out.posted.push([m, o]) };
+const win = { alert: (m) => out.alerts.push(m), location: { href: 'https://www.linkedin.com/messaging/thread/2-x/' },
+  open: (u, t) => { out.opened.push([u, t]); return tab; },
+  addEventListener: (t, f) => { out.listeners++; handlers.push(f); },
+  removeEventListener: () => { out.removed++; },
+  setTimeout: (f, ms) => { out.timers++; out.timeout = ms; return 1; },
+  getSelection: () => null };
+new Function('document', 'window', code)(doc, win);
+for (const m of scenario.messages || []) {
+  const source = m.source === 'tab' ? tab : {};
+  handlers.forEach((h) => h({ source, origin: m.origin, data: m.data }));
+}
+process.stdout.write(JSON.stringify(out));
+"""
+    done = _subprocess.run([NODE, "-e", harness], input=_json.dumps([code, scenario]),
+                           capture_output=True, text=True, check=True)
+    return _json.loads(done.stdout)
+
+
+needs_node = pytest.mark.skipif(NODE is None, reason="node is not installed")
+
+
+@needs_node
+def test_with_no_conversation_on_the_page_it_says_so_and_opens_nothing():
+    out = run_conversation_bookmarklet({"lists": 0})
+    assert out["opened"] == [] and out["listeners"] == 0
+    assert len(out["alerts"]) == 1 and "no open conversation" in out["alerts"][0]
+
+
+@needs_node
+def test_with_two_conversations_open_and_no_selection_it_refuses_to_guess():
+    out = run_conversation_bookmarklet({"lists": 2})
+    assert out["opened"] == []
+    assert "more than one conversation is open" in out["alerts"][0]
+
+
+@needs_node
+def test_it_opens_hermits_receiver_without_putting_anything_in_the_address():
+    out = run_conversation_bookmarklet({"lists": 1})
+    assert out["alerts"] == []
+    assert out["opened"] == [[BASE + "/extension/conversation", "_blank"]]
+
+
+@needs_node
+def test_a_blocked_window_is_explained():
+    out = run_conversation_bookmarklet({"lists": 1, "blocked": True})
+    assert "pop-ups" in out["alerts"][0]
+
+
+@needs_node
+def test_only_hermits_tab_on_hermits_origin_asking_ready_gets_the_conversation():
+    wrong = [
+        {"source": "tab", "origin": "https://evil.example", "data": "ready"},
+        {"source": "tab", "origin": "https://www.linkedin.com", "data": "ready"},
+        {"source": "other", "origin": BASE, "data": "ready"},
+        {"source": "tab", "origin": BASE, "data": "hello"},
+        {"source": "tab", "origin": BASE, "data": {"ready": True}},
+    ]
+    out = run_conversation_bookmarklet({"lists": 1, "messages": wrong})
+    assert out["posted"] == [] and out["removed"] == 0
+    out = run_conversation_bookmarklet({"lists": 1, "messages": [
+        {"source": "tab", "origin": BASE, "data": "ready"}]})
+    assert len(out["posted"]) == 1
+    payload, target = out["posted"][0]
+    assert target == BASE                                       # never "*"
+    assert payload["v"] == 1 and payload["items"] == [] and payload["layout"] == "page"
+    assert payload["url"].startswith("https://www.linkedin.com/")
+    assert _re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d", payload["now_local"])
+    assert isinstance(payload["tz_min"], int) and payload["lang"] == "en"
+    assert out["removed"] == 1                                  # one answer, then it stops listening
+
+
+@needs_node
+def test_the_listener_gives_up_after_a_wait_and_there_is_only_that_one_timer():
+    out = run_conversation_bookmarklet({"lists": 1})
+    assert out["timers"] == 1 and out["timeout"] <= 60_000
+
+
+@needs_node
+def test_a_conversation_inside_an_iframe_of_the_page_is_found():
+    # the full Messaging page keeps its conversation in a same-site iframe (2026-11-06)
+    out = run_conversation_bookmarklet({"lists": 0, "frame": {"lists": 1}, "messages": [
+        {"source": "tab", "origin": BASE, "data": "ready"}]})
+    assert out["alerts"] == []
+    assert out["opened"] == [[BASE + "/extension/conversation", "_blank"]]
+    assert out["posted"][0][0]["layout"] == "page"
+
+
+@needs_node
+@pytest.mark.parametrize("frame", [{"lists": 1, "closed": True}, {"lists": 1, "throws": True}])
+def test_a_frame_from_another_site_is_not_read_and_is_not_an_error(frame):
+    out = run_conversation_bookmarklet({"lists": 0, "frame": frame})
+    assert out["opened"] == [] and "no open conversation" in out["alerts"][0]
+
+
+@needs_node
+def test_a_conversation_in_the_page_and_one_in_a_frame_are_two_conversations():
+    out = run_conversation_bookmarklet({"lists": 1, "frame": {"lists": 1}})
+    assert out["opened"] == [] and "more than one conversation" in out["alerts"][0]
