@@ -271,12 +271,13 @@ document.querySelectorAll("[data-copy]").forEach(function (btn) {
   var label = btn.querySelector("span"), idle = label.textContent, timer;
   var message = document.getElementById("install-message");
   btn.hidden = false;
-  function show(text, ms) {
+  function show(text, ms, state) {
     label.textContent = text;
+    if (state) btn.dataset.state = state; else delete btn.dataset.state;
     clearTimeout(timer);
-    timer = setTimeout(function () { label.textContent = idle; }, ms);
+    timer = setTimeout(function () { label.textContent = idle; delete btn.dataset.state; }, ms);
   }
-  function done() { show(btn.dataset.done, 2000); }
+  function done() { show(btn.dataset.done, 2000, "done"); }
   function failed() {
     var range = document.createRange(), sel = window.getSelection();
     range.selectNodeContents(message); sel.removeAllRanges(); sel.addRange(range);
