@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or idea
+    url: https://github.com/Hermit-CRM/hermit-crm/discussions
+    about: Ask how something works, or talk an idea through before it becomes an issue.
+  - name: Report a security problem privately
+    url: https://github.com/Hermit-CRM/hermit-crm/security/advisories/new
+    about: Please do not open a public issue for something exploitable. See SECURITY.md.
