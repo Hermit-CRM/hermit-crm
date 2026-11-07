@@ -37,7 +37,7 @@ shot    = "make-it-yours-field"
 heading = "A routine that drafts follow-ups"
 text = """
 Small jobs that run every morning: a brief of meetings, tasks and replies you owe, or one AI draft per quiet thread. A routine starts paused so you see first who it would pick,
-its drafts wait on Home for you to edit and send yourself, and Hermit never sends a message.
+its drafts wait on Home for you to edit and send yourself, and a routine never sends anything.
 """
 shot    = "make-it-yours-routine"
 

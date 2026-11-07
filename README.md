@@ -50,7 +50,7 @@ A modest, factual comparison (checked September 2026; corrections welcome):
 | Data as Markdown files | Yes | No | No (Postgres) | Yes |
 | Git history of every change | Yes, one commit per write | No (activity log) | No | Only with a git plugin |
 | Web app | Yes, local | Yes, hosted | Yes | No (inside Obsidian) |
-| Email capture | BCC/forward via Gmail IMAP | Yes (BCC, inbox sync) | Yes (Gmail/Outlook sync) | Depends on the plugin |
+| Email capture | BCC/forward over IMAP (Gmail; Outlook and iCloud untested) | Yes (BCC, inbox sync) | Yes (Gmail/Outlook sync) | Depends on the plugin |
 | AI-agent friendly | Plain files, CLI, AGENTS.md | Via API | Via API | Plain files |
 | Self-hosted without Docker | Yes (`git clone` + `pip`) | No (SaaS only) | No (Docker Compose) | n/a (desktop app) |
 | Multi-user teams | No | Yes | Yes | No |
@@ -252,7 +252,7 @@ Uncomment what you want to change.
 | `theme` | `"light"` | Look of the web app: `light`, `dark` or `system`. |
 | `date_format` | `"iso"` | How the web app shows and takes dates: `iso` (2026-12-31), `dmy-dash` (31-12-2026), `dmy` (31/12/2026) or `mdy` (12/31/2026). Files and exports stay YYYY-MM-DD. |
 | `update_check` | `true` | Check for a newer Hermit CRM at most once a day (no identifiers sent). |
-| `update_url` | `""` | Where that check asks; empty means PyPI. Any URL answering `{"version": "0.4.0"}` works. |
+| `update_url` | `""` | Where that check asks; empty means PyPI. Any URL answering `{"version": "1.2.3"}` works. |
 | `feedback_email` | `""` | Address the Feedback form offers to mail a report to; empty means copy it yourself. |
 
 Secrets never go in `config.toml`; see [Secrets](#secrets).
@@ -399,7 +399,7 @@ button, rather than failing on pages.)
 The web app checks at most once a day (no identifiers sent; turn it off with
 `update_check = false` or `HERMITCRM_NO_UPDATE_CHECK=1`) and shows a notice in
 the nav when a newer version exists. It asks PyPI unless `update_url` points
-elsewhere; any URL answering `{"version": "0.4.0"}` works, so a static file on a
+elsewhere; any URL answering `{"version": "1.2.3"}` works, so a static file on a
 download page needs no package index. A check that 404s or cannot reach the
 network says so -- it never reports "is the latest" for a question it failed to
 ask. When a release changes the data
@@ -433,10 +433,28 @@ Hermit CRM does not know are kept, after the known ones.
 
 ## Your data, your responsibility
 
-Hermit CRM runs on your machine and sends nothing anywhere. There is no
-account, no server, no telemetry. The author never receives, stores or
-processes your data, and under the GDPR you are the data controller for
-everything you put in.
+Hermit CRM runs on your machine. There is no account, no Hermit server and no
+telemetry. The author never receives, stores or processes your data, and under
+the GDPR you are the data controller for everything you put in.
+
+Your files stay on your machine. Hermit only goes online for what you set up
+or ask for:
+
+- **Update check.** At most once a day the web app asks PyPI for the latest
+  version number, with no identifiers. Turn it off with `update_check = false`
+  or `HERMITCRM_NO_UPDATE_CHECK=1`.
+- **Your AI tool.** Enrich, Ask Hermit, routines and outreach drafts run the AI
+  command-line tool you chose, which sends what it reads to its own provider.
+- **Public web pages.** Adding a company from a web address, or letting
+  outreach research a company, fetches that page.
+- **Your mail.** BCC import reads your capture mailbox over IMAP. Sending is
+  off until you turn it on in Settings; after that, only messages you approved
+  go out, through your own mailbox.
+- **Your calendar.** Calendar import fetches the calendar address you gave it.
+- **Your backup.** An online copy pushes to the private git remote you added.
+
+Use none of the last five and turn off the update check, and nothing leaves
+your machine.
 
 The other side of that: the data is yours to look after. A commit per write and
 a copy of the folder every few minutes are a convenience, not a guarantee. **Do
@@ -522,7 +540,7 @@ in your week, you can support its development with a tip on
 
 ## Licence
 
-Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 The licence covers the code. It does not license the "Hermit CRM" name or the
 hermit logo (section 6): fork it, rename it. There is no warranty and no

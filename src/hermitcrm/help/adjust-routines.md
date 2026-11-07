@@ -1,6 +1,6 @@
 # Make it yours: routines
 
-Small jobs in `routines.toml` that run every morning after the daily sync: a morning brief, or one AI draft per quiet thread. Drafts wait on Home; Hermit never sends anything.
+Small jobs in `routines.toml` that run every morning after the daily sync: a morning brief, or one AI draft per quiet thread. Drafts wait on Home; a routine never sends anything.
 
 This page is a recipe for an AI agent (Claude Code, Codex, Cursor, Gemini CLI)
 asked to set up or change a routine, and the reference for the file. Read
