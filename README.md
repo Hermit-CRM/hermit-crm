@@ -25,11 +25,10 @@ Prefer to type the commands yourself? See [Install](#install).
 |---|---|---|
 | [![The pipeline board with the follow-up radar above it](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/pipeline.png)](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/pipeline.png) | [![A company page: the timeline of every email, call and meeting](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/company.png)](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/company.png) | [![The calendar: every next step on a month grid](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/calendar.png)](https://raw.githubusercontent.com/Hermit-CRM/hermit-crm/main/docs/img/calendar.png) |
 
-> **Use at your own risk.** Hermit CRM is incomplete, it changes without notice, and
-> it has bugs nobody has found yet. It is free and comes with **no warranty of
-> any kind** — nobody is on the hook if it loses your data. Keep your own
-> backups, and check that they restore. Read [DISCLAIMER.md](DISCLAIMER.md)
-> before you put real work in it.
+> **Use at your own risk.** Hermit CRM 1.0 is stable for daily use, but it is
+> free and comes with **no warranty of any kind**, and nobody is on the hook if
+> it loses your data. Keep your own backups, and check that they restore. Read
+> [DISCLAIMER.md](DISCLAIMER.md) before you put real work in it.
 
 Your CRM is a folder of Markdown files in git. Every company, contact and
 conversation is a small text file you can read, grep, edit and diff; every
