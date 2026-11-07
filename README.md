@@ -43,7 +43,7 @@ their own sales.
 
 ## How it compares
 
-A modest, factual comparison (checked September 2026; corrections welcome):
+A modest, factual comparison (checked November 2026; corrections welcome):
 
 | | Hermit CRM | HubSpot Free | Twenty | Obsidian CRM plugin |
 |---|---|---|---|---|
@@ -51,9 +51,9 @@ A modest, factual comparison (checked September 2026; corrections welcome):
 | Git history of every change | Yes, one commit per write | No (activity log) | No | Only with a git plugin |
 | Web app | Yes, local | Yes, hosted | Yes | No (inside Obsidian) |
 | Email capture | BCC/forward over IMAP (Gmail; Outlook and iCloud untested) | Yes (BCC, inbox sync) | Yes (Gmail/Outlook sync) | Depends on the plugin |
-| AI-agent friendly | Plain files, CLI, AGENTS.md | Via API | Via API | Plain files |
+| AI-agent friendly | Plain files, CLI, AGENTS.md | API and MCP server | API and MCP server | Plain files |
 | Self-hosted without Docker | Yes (`git clone` + `pip`) | No (SaaS only) | No (Docker Compose) | n/a (desktop app) |
-| Multi-user teams | No | Yes | Yes | No |
+| Multi-user teams | No | Yes (free: up to 2 users) | Yes | No |
 
 If you need a team CRM, use one of the others. If you want your pipeline in
 files you own, Hermit CRM is for you.
