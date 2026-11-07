@@ -200,7 +200,7 @@ next_step_due: 2026-09-24
         </figure>
       </li>
     </ol>
-    <p class="safety narrow"><strong>Safe to try.</strong> Every change is a git commit you can undo in one click. Routines only write drafts: they start paused, and Hermit never sends a message.</p>
+    <p class="safety narrow"><strong>Safe to try.</strong> Every change is a git commit you can undo in one click. Routines only write drafts and start paused. Mail goes out only when you approve it, and sending is off until you turn it on.</p>
     <p class="more-link narrow"><a href="features/make-it-yours/">Make it yours, with all three examples in full</a></p>
   </section>
 
@@ -237,7 +237,7 @@ next_step_due: 2026-09-24
     <div>
       <details open><summary>Where does my data live?</summary><p>In one folder on your computer, <code>~/crm</code> unless you choose another. Every company, contact and conversation is its own plain text file, and Hermit saves a version each time something changes, so any mistake can be undone. Technically: Markdown files in a git repository, and <code>git revert</code> goes back.</p></details>
       <details><summary>What are Markdown and git?</summary><p>Markdown is a simple text format that any editor can open, so your records are never locked inside Hermit. Git is a free tool that remembers every version of your files. Hermit uses both so that you can read your data without Hermit and undo any change. You never have to type a git command yourself.</p></details>
-      <details open><summary>Does anything leave my Mac?</summary><p>Only what you send. A private git backup, if you add one. The AI tool you ask, when you use Ask Hermit or enrichment. A once-a-day version check with no identifiers, which you can turn off.</p></details>
+      <details open><summary>Does anything leave my Mac?</summary><p>Only what you set up or ask for. Mail you approved, once you turn sending on. A private git backup, if you add one. The AI tool you ask, when you use Ask Hermit, enrichment, routines or outreach drafts. A public web page, when you add a company from its address or let outreach research one. Your mailbox and calendar, if you connect them. And a once-a-day version check with no identifiers, which you can turn off.</p></details>
       <details><summary>Do I need to be a developer?</summary><p>No, but you do need an AI coding tool such as Claude Code, Codex or Cursor to install it, or you can <a href="https://github.com/Hermit-CRM/hermit-crm#install">install it by hand</a> with Python and git. Your AI tool runs the commands and tells you in plain words what it is doing. On a fresh Mac you click Install once in an Apple dialog.</p></details>
       <details><summary>Does it run on Linux?</summary><p>Yes, but it is less tested than on a Mac. The install is the same: your AI tool checks for git and Python and installs what is missing, which on Linux may ask for your password. There is no keychain on Linux, so the mail password is kept in a file only your user account can read.</p></details>
       <details><summary>Which AI tools work?</summary><p>For the install, any AI coding tool that can read a file and run commands: Claude Code, Codex, Cursor, Gemini CLI, Grok Build and others. Afterwards, Claude Desktop, ChatGPT, Cursor or any other MCP client can read your pipeline and log interactions. An AI tool that wants the whole manual can read <a href="docs/">the docs</a>, or the same text as one file in <a href="llms-full.txt">llms-full.txt</a>.</p></details>

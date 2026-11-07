@@ -114,7 +114,7 @@ CONFIG_DOCS = {
     "calendar_ignore_titles": "Events whose title contains one of these are skipped.",
     "calendar_min_attendees": "Events with fewer participants (you included) are skipped.",
     "update_check": "Check for a newer Hermit CRM at most once a day (no identifiers sent).",
-    "update_url": "Where that check asks; empty means PyPI. Any URL answering {\"version\": \"0.4.0\"} works.",
+    "update_url": "Where that check asks; empty means PyPI. Any URL answering {\"version\": \"1.2.3\"} works.",
     "feedback_email": "Address the Feedback form offers to mail a report to; empty means copy it yourself.",
     "send_enabled": "Master switch for sending approved outreach email from the app (Settings > Sending). Send now and Schedule are hidden while off.",
     "send_paused": "The kill switch (the Pause button on Outreach): nothing goes out while true.",

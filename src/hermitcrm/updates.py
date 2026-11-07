@@ -27,7 +27,7 @@ Two things this module is careful about, both learned from getting them wrong:
   code collapsed all three into "" and `doctor` reported "is the latest" for a check
   that had never succeeded.
 * **The index is configurable** (``update_url``). The default is PyPI, but any URL
-  serving ``{"version": "0.4.0"}`` works, so a static file on a download site is
+  serving ``{"version": "1.2.3"}`` works, so a static file on a download site is
   enough -- no package index required.
 """
 

@@ -157,8 +157,8 @@ prompt_label = "You type"
 change_label = "What changes"
 safety = """
 **Safe to try.** Every change is a git commit you can undo in one click.
-Routines only write drafts: they start paused, and Hermit never sends a
-message.
+Routines only write drafts and start paused. Mail goes out only when you
+approve it, and sending is off until you turn it on.
 """
 more      = "Make it yours, with all three examples in full"
 more_link = "features/make-it-yours/"
@@ -259,9 +259,12 @@ undo any change. You never have to type a git command yourself.
 [[questions.items]]
 q = "Does anything leave my Mac?"
 a = """
-Only what you send. A private git backup, if you add one. The AI tool you
-ask, when you use Ask Hermit or enrichment. A once-a-day version check with
-no identifiers, which you can turn off.
+Only what you set up or ask for. Mail you approved, once you turn sending on.
+A private git backup, if you add one. The AI tool you ask, when you use Ask
+Hermit, enrichment, routines or outreach drafts. A public web page, when you add
+a company from its address or let outreach research one. Your mailbox and
+calendar, if you connect them. And a once-a-day version check with no
+identifiers, which you can turn off.
 """
 open = true
 
