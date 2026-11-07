@@ -4377,8 +4377,8 @@ def create_app(root: Path, config: dict | None = None,
             saved = ask_saved.save(store, question, scope)
         except ask_saved.AskSavedError as exc:
             if wants_json(request):
-                return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
-            return ask_page_view(request, page, question=question, error=str(exc),
+                return JSONResponse({"ok": False, "error": exc.message}, status_code=400)
+            return ask_page_view(request, page, question=question, error=exc.message,
                                  prefill=True, status_code=400)
         if wants_json(request):
             return JSONResponse({"ok": True, "saved": saved.as_json()})
@@ -4393,7 +4393,7 @@ def create_app(root: Path, config: dict | None = None,
         try:
             ask_saved.replace(store, ident, text, scope)
         except ask_saved.AskSavedError as exc:
-            return saved_back(page, str(exc))
+            return saved_back(page, exc.message)
         return saved_back(page, "Saved.")
 
     @app.post("/ask/saved/{ident}/delete")
@@ -4404,7 +4404,7 @@ def create_app(root: Path, config: dict | None = None,
         try:
             ask_saved.remove(store, ident)
         except ask_saved.AskSavedError as exc:
-            return saved_back(page, str(exc))
+            return saved_back(page, exc.message)
         return saved_back(page, "Removed.")
 
     @app.post("/settings/outcomes")

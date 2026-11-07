@@ -30,6 +30,7 @@ from outreach_client import MARA, client, commits, drafted, post, query, root, f
 from outreach_fakes import NOW
 
 CO, PERSON = "lindenhof-data", "mara-keller"
+COMPANY_SITE = "https://lindenhof-data.example.com"   # the company's website, as the fixture stores it
 PANEL = f"/outreach?contact={MARA}"
 
 
@@ -80,7 +81,7 @@ def test_the_panel_preselects_the_draft_type_channel_and_language_and_lists_the_
     assert "German" in re.search(r'<select name="language".*?</select>', panel, re.S).group(0)
     assert "Mara runs the Hamburg office." in panel
     links = re.findall(r'href="([^"]+)"', panel)
-    assert "https://lindenhof-data.example.com" in links          # their site, the exact address
+    assert any(link == COMPANY_SITE for link in links)            # their site, the exact address
     assert any(link.endswith("/insights/") for link in links)     # the LinkedIn insights link
 
 
