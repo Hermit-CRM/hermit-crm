@@ -42,7 +42,8 @@ hermitcrm stages                                   the stages, their roles and c
 hermitcrm stages rename OLD NEW [--apply]
 hermitcrm stages add NAME [--role open] [--valued] [--after STAGE] [--apply]
 hermitcrm stages move NAME (--after STAGE | --first) [--apply]
-hermitcrm stages set NAME [--role ROLE] [--valued yes|no] [--apply]
+hermitcrm stages set NAME [--role ROLE] [--valued yes|no] [--to A,B | --any] [--apply]
+hermitcrm stages rules [off|warn|enforce] [--apply]
 hermitcrm stages remove NAME --move-to STAGE [--reason TEXT] [--apply]
 ```
 
@@ -51,6 +52,15 @@ hermitcrm stages remove NAME --move-to STAGE [--reason TEXT] [--apply]
 - `remove` needs `--move-to` when companies are in the stage: they are moved with an ordinary stage change, so each history records it. Moving into a `lost` stage needs `--reason`.
 - `set --role lost` is refused while companies in that stage have no reason.
 - Putting a new stage first, or moving one first, changes the entry stage. The start of an old history is "created in the entry stage", so the command first writes that start into the files of companies that only imply it (in the same commit), and nothing is re-dated.
+
+## Stage rules: which moves are legal
+
+A stage can say where a company in it may go next. Absent means any stage, as always.
+
+- `set NAME --to A,B` limits the moves out of NAME to A and B (`--to ""` means nowhere). `set NAME --any` lifts the limit. It is stored as `to = ["A", "B"]` on the stage in `config.toml`; renaming or removing a stage updates every list that names it.
+- `hermitcrm stages rules` shows the mode and the lists; `rules warn` or `rules enforce --apply` changes the mode (`stage_rules` in `config.toml`). The default is `off`: the lists are not looked at. With `warn` a forbidden move still happens and says so; with `enforce` it is refused with `offer -> prospect is not allowed (allowed: discovery, won, lost)`.
+- A parked company may always go back to the first stage, and a new company may start in any stage.
+- **These are the user's rules, not yours.** Do not turn them off or loosen them to get a move through. If a move is refused, tell the user which move and the allowed list. Only the user overrides one: `hermitcrm set companies --where ... --stage X --force` (or **Move anyway** in the app), and the commit says so. MCP has no override and `stage_rules` is not one of the `config.toml` keys you may write.
 
 ## Worked example: rename and insert
 

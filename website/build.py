@@ -582,12 +582,13 @@ document.querySelectorAll("[data-copy]").forEach(function (btn) {{
   var label = btn.querySelector("span"), idle = label.textContent, timer;
   var message = document.getElementById("install-message");
   btn.hidden = false;
-  function show(text, ms) {{
+  function show(text, ms, state) {{
     label.textContent = text;
+    if (state) btn.dataset.state = state; else delete btn.dataset.state;
     clearTimeout(timer);
-    timer = setTimeout(function () {{ label.textContent = idle; }}, ms);
+    timer = setTimeout(function () {{ label.textContent = idle; delete btn.dataset.state; }}, ms);
   }}
-  function done() {{ show(btn.dataset.done, 2000); }}
+  function done() {{ show(btn.dataset.done, 2000, "done"); }}
   function failed() {{
     var range = document.createRange(), sel = window.getSelection();
     range.selectNodeContents(message); sel.removeAllRanges(); sel.addRange(range);
@@ -1035,10 +1036,13 @@ def render_feature(c: dict, hub: dict, fhub: dict, p: dict, pages: list[dict]) -
                         f'      <ul class="points">\n{items}\n      </ul>\n')
     prev_q = pages[at - 1] if at > 0 else None
     next_q = pages[at + 1] if at + 1 < len(pages) else None
+    # The same two links twice: small at the top beside the breadcrumbs, so a reader can
+    # step through the pages without scrolling, and large right after the last section.
     pager = "".join(
         f'<a class="{cls}" href="{root}features/{q["slug"]}/" rel="{rel}"><small>{md(label)}</small> {md(q["name"])}</a>'
         for q, cls, rel, label in ((prev_q, "prev", "prev", fl["previous"]), (next_q, "next", "next", fl["next"]))
         if q)
+    pager_label = attr(fl["pager_label"])
     docs_link = p.get("docs_label") or fl["docs_link"].replace("{name}", name)
 
     ld = jsonld(
@@ -1056,7 +1060,10 @@ def render_feature(c: dict, hub: dict, fhub: dict, p: dict, pages: list[dict]) -
             + f"""
 <main id="main">
   <div class="page-top col">
-    {features_crumbs(hub, fhub, root, name, "../")}
+    <div class="page-nav">
+      {features_crumbs(hub, fhub, root, name, "../")}
+      <nav class="pager pager-top" aria-label="{pager_label} (top of page)">{pager}</nav>
+    </div>
     <h1 class="page-h1">{md(p.get("h1", name))}</h1>
     <p class="lead">{md(p["intro"])}</p>
     <p class="checked">{md(fl["in_nav"])} <strong>{md(p["nav"])}</strong></p>{note}
@@ -1064,9 +1071,9 @@ def render_feature(c: dict, hub: dict, fhub: dict, p: dict, pages: list[dict]) -
 
 {"".join(sections)}
   <section class="part col more" aria-label="{attr(fl["related"])}">
+    <nav class="pager pager-bottom" aria-label="{pager_label} (end of page)">{pager}</nav>
     <p><a href="{root}docs/#{attr(p["docs"])}">{md(docs_link)}</a></p>
-{related_html}    <nav class="pager" aria-label="{attr(fl["breadcrumb_features"])}">{pager}</nav>
-    <p><a href="../">{md(fl["all_features"])}</a></p>
+{related_html}    <p><a href="../">{md(fl["all_features"])}</a></p>
   </section>
 
 {about_block(hub, root)}

@@ -79,7 +79,7 @@ def test_a_header_never_displaces_a_shebang():
 
 def test_the_risk_documents_are_there_and_link_up():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "Alpha software" in readme
+    assert "Use at your own risk" in readme
     assert "no warranty of" in readme
     assert "(DISCLAIMER.md)" in readme and "(LICENSE)" in readme
     assert "(SECURITY.md)" in readme

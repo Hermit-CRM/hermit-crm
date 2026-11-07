@@ -50,8 +50,11 @@ hermitcrm playbook upgrade [--dry-run]     add the front matter and missing head
                                         keeping every line; one commit, and a second run changes nothing
 hermitcrm outreach preview [--where K=V ...] [--contact CO/PERSON] [--channel email|linkedin]
                          [--limit N] [--approach NAME] [--kind first-touch|reply-to-interest|follow-up]
+                         [--include-closed CO/PERSON ...]
                                         who an outreach batch would go to, and why not the rest; no AI,
-                                        nothing written
+                                        nothing written. People at a closed, parked, won or lost company
+                                        are listed apart with the flag that brings one in
+                                        (--include-closed); one --contact is drafted anyway, with a warning
 hermitcrm outreach build (same flags) [--research scrape] [--strong] [--framework ID]
                                         research, draft and check each contact: one item per contact in
                                         outreach/, one commit per step; refused until the playbook is ready;
@@ -69,9 +72,11 @@ hermitcrm outreach sent ID                 you sent it (logging the message does
 hermitcrm outreach followup-done COMPANY/CONTACT [--undo]
                                         a follow-up you did elsewhere or dropped: off the Follow-ups tab,
                                         the batch and `followups` until a newer message goes unanswered
-hermitcrm outreach skip ID --reason R [--note TEXT]
+hermitcrm outreach skip ID --reason R [--note TEXT] [--disqualify]
                                         drop an item: bad-fit, wrong-person, bad-timing, bad-draft,
-                                        already-in-contact or other
+                                        already-in-contact or other; --disqualify (with bad-fit)
+                                        also moves the company to disqualified, skipping its other
+                                        open drafts
 hermitcrm outreach schedule ID... | --all-ready [--dry-run]
                                         queue approved email to go out over the working day, spaced
                                         and capped; --dry-run shows the times and writes nothing
@@ -140,12 +145,14 @@ hermitcrm attach COMPANY FILE... [--contact CSLUG] [--to INTERACTION_ID] [--note
 hermitcrm attachments [COMPANY]            every stored file: company | stored name | size | the note it came with
 hermitcrm set companies|contacts|interactions --where KEY=VALUE ... [--all]
         [--set FIELD=VALUE ...] [--unset FIELD ...] [--add-tag T ...] [--remove-tag T ...]
-        [--stage S] [--apply] [--message TEXT]
-                                        change many records at once. A dry run unless --apply (count, five
+        [--stage S [--keep-drafts]] [--apply] [--message TEXT]
+                                        change many records at once. A stage move out of an open stage
+                                        skips the company's open outreach drafts in the same commit
+                                        (the dry run says how many); --keep-drafts leaves them. A dry run unless --apply (count, five
                                         before -> after samples), then ONE commit `bulk: <summary>` and its
                                         undo command. --where is the list pages' filter syntax; no --where
                                         needs --all. Bodies and names are never touched. See Make it yours: bulk changes
-hermitcrm stages [rename OLD NEW | add NAME | move NAME | set NAME | remove NAME] [--apply]
+hermitcrm stages [rename OLD NEW | add NAME | move NAME | set NAME [--to A,B | --any] | rules [MODE] | remove NAME] [--apply]
                                         the deal stages and their roles; a dry run unless --apply (rewrites
                                         companies, one `ai: adjust:` commit per step). See Make it yours: deal stages
 hermitcrm rebuild                          rebuild the index and PIPELINE.md, commit "pipeline: rebuild"

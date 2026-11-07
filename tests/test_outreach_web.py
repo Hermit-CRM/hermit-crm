@@ -282,8 +282,9 @@ def test_skip_is_a_button_that_opens_a_one_click_reason_panel(client, root):
     assert f'data-skip-toggle="{item.id}"' in page                       # Skip is in the main row
     panel = re.search(rf'<form[^>]*id="skip-{re.escape(item.id)}"[^>]*>.*?</form>', page, re.S)
     assert panel and " hidden" in panel.group(0).split(">")[0]           # closed until clicked
-    for reason in outreach.SKIP_REASONS:                                 # one button per reason
+    for reason in outreach.MANUAL_SKIP_REASONS:                          # one button per reason
         assert f'name="reason" value="{reason}"' in panel.group(0)
+    assert 'value="company-closed"' not in panel.group(0)                # the system's alone
     assert 'aria-label="Why skip"' not in page                           # no dropdown any more
 
 

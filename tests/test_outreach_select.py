@@ -185,12 +185,22 @@ def test_cooldown_and_first_touch(folder):
 
 def test_closed_and_parked_stages_and_do_not_contact(folder):
     root, store = folder
+    # The demo's closed companies were all written to before they closed, so they
+    # are out as "not a first touch" whatever their stage; move prospects instead.
+    store.update_company("kestrel-metrics", stage="disqualified")
+    store.update_company("saltmarsh-labs", stage="temp-disqualified")
+    store.update_company("tallpine-software", stage="won")
     sel = outreach.select(store, where=[], limit=50)
     why = reasons(sel)
-    assert why["driftwood-media/sanne-de-wit"] == \
-        "its company is disqualified (a closed or parked stage)"
-    assert why["glasshouse-health/aoife-byrne"].startswith("its company is temp-disqualified")
-    assert why["quartzline-logistics/maya-chen"].startswith("its company is won")
+    # Only their stage is in the way: listed apart, with the stage, not excluded.
+    left_out = {c.record: c.stage_blocked for c in sel.stage_left_out}
+    assert left_out["kestrel-metrics/daan-visser"] == "disqualified"
+    assert left_out["saltmarsh-labs/niamh-walsh"] == "temp-disqualified"
+    assert "won" in left_out.values()
+    assert not set(left_out) & set(why)
+    # a closed company with some other problem shows that problem, not an offer
+    assert "driftwood-media/sanne-de-wit" not in left_out
+    assert "driftwood-media/sanne-de-wit" in why
     assert why["ravenmoor-systems/ines-moreau"] == "tagged do-not-contact"
 
 

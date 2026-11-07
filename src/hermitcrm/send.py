@@ -54,7 +54,7 @@ from email.utils import format_datetime, formataddr, make_msgid
 from pathlib import Path
 
 from . import attachments as attachments_mod
-from . import dateformat, messaging, outreach, playbook, secrets, sendplan, suppress
+from . import dateformat, mailtls, messaging, outreach, playbook, secrets, sendplan, suppress
 from .models import do_not_contact, normalise_email, valid_email
 from .store import Store, load_config
 
@@ -287,10 +287,20 @@ _TOO_LARGE = re.compile(r"too large|message size|size limit|exceeds? (the )?(fix
                         r"(message )?size|5\.3\.4|5\.2\.3", re.I)
 
 
+def _cert_error(exc: BaseException) -> SendError:
+    """A certificate that does not verify is a settings problem, not a bad moment:
+    retrying cannot fix it, so it pauses sending (REFUSED, lifted by a passing Send a
+    test to myself) and says in plain words what is wrong, with the raw error after."""
+    return SendError(REFUSED, "the mail server's certificate could not be verified "
+                     f"(self-signed, expired or the wrong host name): {_text(exc)}")
+
+
 def classify_smtp(exc: BaseException) -> SendError:
     """Turn what smtplib raised into a SendError, keeping the server's text."""
     if isinstance(exc, SendError):
         return exc
+    if isinstance(exc, ssl.SSLCertVerificationError):
+        return _cert_error(exc)
     if isinstance(exc, smtplib.SMTPAuthenticationError):
         return SendError(AUTH, f"{exc.smtp_code} {_text(exc.smtp_error)}", exc.smtp_code)
     if isinstance(exc, smtplib.SMTPRecipientsRefused):
@@ -387,7 +397,7 @@ def build_message(item, to: str, settings: SendSettings, *, message_id: str,
 def connect(settings: SendSettings, password: str, factory=None, timeout: float = TIMEOUT):
     """An authenticated SMTP connection: STARTTLS on 587, SSL on 465."""
     ssl_port = settings.smtp_port == 465
-    factory = factory or (smtplib.SMTP_SSL if ssl_port else smtplib.SMTP)
+    factory = factory or (mailtls.smtp_ssl if ssl_port else smtplib.SMTP)
     conn = None
     try:
         conn = factory(settings.smtp_host, settings.smtp_port, timeout=timeout)
@@ -533,7 +543,7 @@ class Mailbox:
     def __init__(self, settings: SendSettings, password: str, factory=None,
                  timeout: float = TIMEOUT):
         self.settings, self.password = settings, password
-        self.factory = factory or imaplib.IMAP4_SSL
+        self.factory = factory or mailtls.imap_ssl
         self.timeout = timeout
         self.conn = None
         self.folders: dict[str, str] = {}
@@ -542,6 +552,8 @@ class Mailbox:
         host, user = self.settings.imap_host, self.settings.smtp_user
         try:
             self.conn = self.factory(host, 993, timeout=self.timeout)
+        except ssl.SSLCertVerificationError as exc:
+            raise _cert_error(exc) from exc
         except (OSError, imaplib.IMAP4.error) as exc:
             raise SendError(TEMPORARY, f"could not reach {host}: {_text(exc)}") from exc
         try:
@@ -826,7 +838,11 @@ def local_hold(store: Store, item, settings: SendSettings, *, scheduled: bool,
     plain words (it becomes the item's `send_note`)."""
     if item.channel != "email":
         return "only email is sent from the app (LinkedIn is a session)"
-    if scheduled and item.send_hash and item.send_hash != text_hash(
+    if scheduled and not item.send_hash:
+        # The app always stamps the hash when it schedules; an empty one means a hand- or
+        # AI-edited file that nobody approved in the app.
+        return "it was never scheduled in the app (no approval fingerprint)"
+    if scheduled and item.send_hash != text_hash(
             item.subject, item.body, item.attachments):
         return "the text changed after it was scheduled"
     for att in item.attachments:
@@ -854,7 +870,12 @@ def local_hold(store: Store, item, settings: SendSettings, *, scheduled: bool,
         return f"{contact.email} is on the suppression list ({listed.reason}, {listed.date})"
     if company.is_sample:
         return "it is the made-up sample account"
-    if not store.stages.is_open(company.stage):
+    # The stage check only: a reply to interest answers someone who wrote to you, and a
+    # draft the person asked for on purpose for a company that is not open (the
+    # item's stage_override) is theirs to send. Suppression, do-not-contact and the
+    # playbook's tag disqualifiers above and below are never lifted.
+    if (not store.stages.is_open(company.stage) and item.kind != outreach.REPLY
+            and not item.stage_override):
         return f"the company is {company.stage} now"
     if do_not_contact(company, contact):
         return f"tagged {outreach.DO_NOT_CONTACT}"

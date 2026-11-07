@@ -7,8 +7,8 @@ is the Apache License 2.0 in [LICENSE](LICENSE), sections 7 and 8.
 
 Hermit CRM is free. You pay nothing and you owe nothing.
 
-It is alpha software. It is incomplete, it changes without notice, and it has
-bugs that nobody has found yet. Parts of it will break.
+It is incomplete, it changes without notice, and it has bugs that nobody has
+found yet. Parts of it will break.
 
 It comes with **no warranty of any kind**. Not that it works. Not that it keeps
 working. Not that it fits what you want to do with it. It is provided "as is".

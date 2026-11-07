@@ -27,6 +27,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import tomllib
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -66,7 +67,8 @@ def build_store(root: Path) -> Store:
     config = load_config(root)
     store = Store(root, silent_days=config["silent_days"], outcomes=config["outcomes"],
                   task_types=task_types.names(task_types.from_config(config.get("task_types"))),
-                  stages=stages.from_config(config.get("stages")))
+                  stages=stages.from_config(config.get("stages")),
+                  stage_rules=stages.rules_mode(config.get("stage_rules")))
     store.load()
     return store
 
@@ -588,6 +590,9 @@ def cmd_check(store: Store) -> tuple[str, int]:
     # A company in a stage config.toml does not list loads fine; it is said, not failed.
     off_board = store.stage_warnings()
     stray += off_board
+    # A recorded move today's stage rules forbid: said, never rewritten.
+    rule_warns = store.stage_rule_warnings()
+    stray += rule_warns
     # MESSAGING.md's front matter (the outreach bot's playbook). A file from
     # before it is a hint; a front matter that is wrong is a problem.
     from hermitcrm import playbook
@@ -619,7 +624,7 @@ def cmd_check(store: Store) -> tuple[str, int]:
             0,
         )
     lines = [f"{p.path}: {p.message}" for p in store.problems] + extension + off_board \
-        + pb_hints + fw_hints + file_warnings
+        + rule_warns + pb_hints + fw_hints + file_warnings
     return ("\n".join(lines), 1)
 
 
@@ -847,7 +852,8 @@ def cmd_set(store: Store, args) -> tuple[str, int]:
     try:
         ops = bulk.Ops(set=bulk.parse_pairs(args.set), unset=list(args.unset),
                        add_tags=list(args.add_tag), remove_tags=list(args.remove_tag),
-                       stage=args.stage)
+                       stage=args.stage, force=bool(getattr(args, "force", False)),
+                       keep_drafts=bool(getattr(args, "keep_drafts", False)))
         plan = bulk.plan(store, args.scope, args.where, ops, everything=args.all)
         if plan.matched == 0:
             return (f"No {plan.nouns} match {plan.describe_where()}. Nothing to change.", 0)
@@ -859,9 +865,14 @@ def cmd_set(store: Store, args) -> tuple[str, int]:
         if not args.apply:
             return (plan.render(arrow=_arrow()), 0)
         sha = bulk.apply(store, plan, message=args.message)
-        return (plan.result(sha), 0)
+        return (plan.result(sha) + "".join(f"\nWarning: {w}" for w in plan.warnings), 0)
     except bulk.BulkError as exc:
-        return (str(exc), exc.code)
+        text = str(exc)
+        if "is not allowed (" in text and "stage:" in text:
+            text = text.replace(
+                "\nFix the command", "\nTo move them anyway, add --force (the commit will "
+                "say the stage rules were overridden).\nFix the command", 1)
+        return (text, exc.code)
 
 
 def cmd_stages(store: Store, root: Path, config: dict, args) -> tuple[str, int]:
@@ -875,6 +886,23 @@ def cmd_stages(store: Store, root: Path, config: dict, args) -> tuple[str, int]:
     action = args.stages_action
     if action in (None, "list"):
         return (stage_ops.listing(store), 0)
+    if action == "rules":
+        mode = getattr(args, "mode", None)
+        try:
+            if mode is None:
+                return (stage_ops.rules_listing(store), 0)
+            if mode == store.stage_rules:
+                return (f"Nothing to change: stage rules are already {mode}.", 0)
+            if not args.apply:
+                return (f"Stage rules would change from {store.stage_rules} to {mode}.\n"
+                        "Dry run; add --apply to write (one commit, undoable).", 0)
+            store.on_write = _writer(store, root, config)
+            stage_ops.set_rules(store, root, mode)
+            sha = GitOps(root, push_enabled=False).last_commit_sha() or ""
+            return (f"Stage rules are now {mode}.\nUndo: hermitcrm undo "
+                    f"{sha[:7] if sha else '<commit>'}", 0)
+        except stage_ops.StageOpError as exc:
+            return (str(exc), 2)
     given = lambda key, default=None: getattr(args, key, default)   # noqa: E731
     valued = {"yes": True, "no": False}.get(given("valued"))
     if given("valued_flag"):
@@ -884,7 +912,10 @@ def cmd_stages(store: Store, root: Path, config: dict, args) -> tuple[str, int]:
             store, action, name=args.name, new_name=given("new", ""),
             role=given("role") or "", valued=valued, after=given("after") or "",
             first=bool(given("first")), move_to=given("move_to") or "",
-            reason=given("reason") or "")
+            reason=given("reason") or "",
+            to=([t for t in given("to").split(",") if t.strip()]
+                if given("to") is not None else None),
+            any_stage=bool(given("any_stage")))
         if not change.changes_anything:
             return ("Nothing to change: the stages are already like this.", 0)
         why, ask = stage_ops.blockers(store, change)
@@ -1072,8 +1103,28 @@ def cmd_fetch(store: Store, slug: str, url: str = "", apply: bool = False,
     return ("\n".join(lines), 0)
 
 
+# The daily sync runs at a fixed time, and a Mac that was asleep then runs it the moment
+# it wakes, before Wi-Fi and DNS are back ("nodename nor servname provided"; a read
+# timeout is the other kind). Seconds to wait before each further try; a network that
+# is still down after the last wait is reported like any other failure.
+# Only the daily job waits: Import now and `hermitcrm bcc` answer at once.
+SYNC_RETRY_WAITS = (10, 30, 60, 120)
+
+
+def _retry_network(attempt, errors: tuple, waits: tuple, sleep):
+    """attempt() -> its result; an error of the `errors` kinds waits for the next of
+    `waits` and tries again, and is raised once the waits run out."""
+    for wait in waits:
+        try:
+            return attempt()
+        except errors:
+            sleep(wait)
+    return attempt()
+
+
 def cmd_bcc(store: Store, root: Path, config: dict, apply: bool = False,
-            eml: list[Path] | tuple = (), open_mailbox=None) -> tuple[str, int]:
+            eml: list[Path] | tuple = (), open_mailbox=None,
+            retry_waits: tuple = (), sleep=time.sleep) -> tuple[str, int]:
     """Import mails BCC'd or forwarded to the tracking address (no AI)."""
     from hermitcrm import bcc
 
@@ -1084,8 +1135,10 @@ def cmd_bcc(store: Store, root: Path, config: dict, apply: bool = False,
             result = bcc.import_mails(store, inbox, [Path(p).read_bytes() for p in eml],
                                       settings, apply=apply)
         else:
-            result = bcc.run_bcc(store, inbox, settings, apply,
-                                 open_mailbox or (lambda: bcc.open_gmail(settings, root)))
+            result = _retry_network(
+                lambda: bcc.run_bcc(store, inbox, settings, apply,
+                                    open_mailbox or (lambda: bcc.open_gmail(settings, root))),
+                (bcc.NetworkTrouble,), retry_waits, sleep)
     except bcc.BccError as exc:
         return (f"BCC import failed: {exc}", 1)
     lines = result.lines + [result.summary()]
@@ -1222,7 +1275,8 @@ def cmd_report(store: Store, days: int | None = None, start: date | None = None,
 
 def cmd_calendar(store: Store, root: Path, config: dict, apply: bool = False,
                  ics: list[Path] | tuple = (), fetch=None, resolve=None,
-                 quiet_if_unconfigured: bool = False) -> tuple[str, int]:
+                 quiet_if_unconfigured: bool = False, retry_waits: tuple = (),
+                 sleep=time.sleep) -> tuple[str, int]:
     """Import past meetings from the secret ICS feed, or from .ics files (no AI)."""
     from hermitcrm import bcc, calendar_sync
 
@@ -1244,7 +1298,9 @@ def cmd_calendar(store: Store, root: Path, config: dict, apply: bool = False,
                         return ("Calendar import skipped: no calendar URL configured", 0)
                     return (f"Calendar import failed: {calendar_sync.setup_hint(settings)}", 1)
                 fetch = lambda: calendar_sync.fetch_ics(url)  # noqa: E731
-            result = calendar_sync.run_calendar(store, inbox, settings, apply, fetch)
+            result = _retry_network(
+                lambda: calendar_sync.run_calendar(store, inbox, settings, apply, fetch),
+                (calendar_sync.CalendarNetworkError,), retry_waits, sleep)
     except (calendar_sync.CalendarError, OSError) as exc:
         return (f"Calendar import failed: {exc}", 1)
     lines = result.lines + [result.summary()]
@@ -1254,12 +1310,16 @@ def cmd_calendar(store: Store, root: Path, config: dict, apply: bool = False,
 
 
 def cmd_sync(store: Store, root: Path, config: dict, apply: bool = False,
-             open_mailbox=None, fetch=None, resolve=None, enricher=None) -> tuple[str, int]:
+             open_mailbox=None, fetch=None, resolve=None, enricher=None,
+             retry_waits: tuple = SYNC_RETRY_WAITS, sleep=time.sleep) -> tuple[str, int]:
     """BCC import, then calendar import (skipped quietly when not set up), then
-    every routine that is on. A routine that fails is one line, never the exit code."""
-    bcc_text, bcc_code = cmd_bcc(store, root, config, apply=apply, open_mailbox=open_mailbox)
+    every routine that is on. A routine that fails is one line, never the exit code.
+    Each import waits out a network that is not back yet (see SYNC_RETRY_WAITS)."""
+    bcc_text, bcc_code = cmd_bcc(store, root, config, apply=apply, open_mailbox=open_mailbox,
+                                 retry_waits=retry_waits, sleep=sleep)
     cal_text, cal_code = cmd_calendar(store, root, config, apply=apply, fetch=fetch,
-                                      resolve=resolve, quiet_if_unconfigured=True)
+                                      resolve=resolve, quiet_if_unconfigured=True,
+                                      retry_waits=retry_waits, sleep=sleep)
     text = f"== BCC ==\n{bcc_text}\n\n== Calendar ==\n{cal_text}"
     routine_lines = _sync_routines(store, config, apply, enricher)
     if routine_lines:
@@ -1551,6 +1611,12 @@ def _build_parser() -> argparse.ArgumentParser:
                        help="remove a tag from companies (repeatable)")
     p_set.add_argument("--stage", default=None, metavar="STAGE",
                        help="move companies to a stage (recorded in their stage history)")
+    p_set.add_argument("--force", action="store_true",
+                       help="with --stage: move even where the stage rules (config.toml "
+                            "stage_rules) forbid it; the commit says so")
+    p_set.add_argument("--keep-drafts", action="store_true",
+                       help="with --stage: do not skip the open outreach drafts of "
+                            "companies that leave an open stage (the default skips them)")
     p_set.add_argument("--apply", action="store_true",
                        help="make the change: one commit. Without it, only a dry run")
     p_set.add_argument("--message", default=None, metavar="TEXT",
@@ -1577,17 +1643,26 @@ def _build_parser() -> argparse.ArgumentParser:
     s_move_to = s_move.add_mutually_exclusive_group(required=True)
     s_move_to.add_argument("--after", metavar="STAGE")
     s_move_to.add_argument("--first", action="store_true")
-    s_set = st_sub.add_parser("set", help="change a stage's role or whether it is valued")
+    s_set = st_sub.add_parser("set", help="change a stage's role, whether it is valued, or "
+                                          "where a company in it may move next")
     s_set.add_argument("name")
     s_set.add_argument("--role", choices=roles)
     s_set.add_argument("--valued", choices=["yes", "no"])
+    s_set.add_argument("--to", metavar="A,B",
+                       help="the only stages a company in this one may move to "
+                            "(empty: nowhere); applies once stage rules are warn or enforce")
+    s_set.add_argument("--any", dest="any_stage", action="store_true",
+                       help="lift the --to limit: a company may move to any stage")
+    s_rules = st_sub.add_parser("rules", help="show, or set, whether the --to limits are "
+                                              "obeyed: off (the default), warn or enforce")
+    s_rules.add_argument("mode", nargs="?", choices=list(stages.RULE_MODES))
     s_remove = st_sub.add_parser("remove", help="remove a stage; its companies move to "
                                                 "--move-to")
     s_remove.add_argument("name")
     s_remove.add_argument("--move-to", metavar="STAGE", help="where its companies go")
     s_remove.add_argument("--reason", metavar="TEXT",
                           help="the reason, when they move into a lost stage")
-    for sp in (s_rename, s_add, s_move, s_set, s_remove):
+    for sp in (s_rename, s_add, s_move, s_set, s_remove, s_rules):
         sp.add_argument("--apply", action="store_true",
                         help="make the change. Without it, only a dry run")
 
@@ -1699,6 +1774,12 @@ def _build_parser() -> argparse.ArgumentParser:
                             "followup_nudge_days)")
         o.add_argument("--limit", type=int, default=None, help="batch size (default 10)")
         o.add_argument("--approach", default="", help="the playbook approach to use")
+        o.add_argument("--include-closed", action="append", default=[], metavar="COMPANY/CONTACT",
+                       help="draft for this person although their company is closed, parked, "
+                            "won or lost (repeatable). A batch leaves such companies out and "
+                            "lists them; one --contact is drafted anyway, with a warning. "
+                            "Do-not-contact, the suppression list and the playbook's "
+                            "disqualifiers are never lifted")
         if verb == "build":
             o.add_argument("--research", default="",
                            help="research level: scrape (default), or ai-web (also "
@@ -1739,8 +1820,11 @@ def _build_parser() -> argparse.ArgumentParser:
     o_skip.add_argument("id")
     o_skip.add_argument("--reason", required=True,
                         choices=["bad-fit", "wrong-person", "bad-timing", "bad-draft",
-                                 "already-in-contact", "other"])
+                                 "already-in-contact", "other"])   # not company-closed
     o_skip.add_argument("--note", default="", help="anything else, in your words")
+    o_skip.add_argument("--disqualify", action="store_true",
+                        help="with --reason bad-fit: also move the company to the disqualified "
+                             "stage (its other open drafts are skipped too)")
     o_sched = o_sub.add_parser("schedule", help="queue approved email to go out over the "
                                "working day (spaced, capped); needs sending on in Settings")
     o_sched.add_argument("ids", nargs="*", metavar="id")
@@ -1900,15 +1984,27 @@ def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
             item = outreach.mark_sent(store, args.id)
             return (f"{item.id} is sent. Nothing was logged: log the message as usual.", 0)
         if action == "skip":
-            item = outreach.skip(store, args.id, args.reason, getattr(args, "note", ""))
+            if getattr(args, "disqualify", False) and args.reason != "bad-fit":
+                return ("--disqualify goes with --reason bad-fit: that is the one skip that "
+                        "says the company is wrong for you.", 2)
+            store.take_notices()
+            if getattr(args, "disqualify", False):
+                item, moved = outreach.skip_and_disqualify(store, args.id,
+                                                           getattr(args, "note", ""))
+            else:
+                item, moved = outreach.skip(store, args.id, args.reason,
+                                            getattr(args, "note", "")), ""
             return (f"{item.id} skipped: {item.skip_reason}"
-                    + (f" ({item.skip_note})" if item.skip_note else ""), 0)
+                    + (f" ({item.skip_note})" if item.skip_note else "")
+                    + (f"\n{item.company} moved to {moved}." if moved else "")
+                    + "".join(f"\n{n}" for n in store.take_notices()), 0)
         framework = getattr(args, "framework", "")
         if framework:   # before anyone is selected: an empty batch must not hide the refusal
             outreach.check_framework_choice(frameworks.load(root), args.kind, framework)
         selection = outreach.select(store, where=args.where, channel=args.channel,
                                     kind=args.kind, limit=args.limit, approach=args.approach,
-                                    contacts=args.contact, config=config)
+                                    contacts=args.contact, config=config,
+                                    include_closed=getattr(args, "include_closed", None))
         if action == "preview":
             return (selection.render() + "\n\nPreview only: no AI was run and nothing "
                     "was written.", 0)
@@ -1936,7 +2032,9 @@ def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
                                 framework=framework)
     except outreach.OutreachError as exc:
         return (str(exc), 1)
-    lines = result.lines + ["", f"{len(result.items)} item(s) in outreach/. Review them "
+    lines = result.lines + ([""] + selection.render_left_out()
+                            if selection.stage_left_out else [])
+    lines += ["", f"{len(result.items)} item(s) in outreach/. Review them "
                             "(hermitcrm outreach show <id>), then ready or skip. Nothing "
                             "was sent."]
     return ("\n".join(lines), 0)

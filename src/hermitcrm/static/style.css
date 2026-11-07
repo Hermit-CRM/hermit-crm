@@ -143,8 +143,6 @@ a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset:
 
 .small { font-size: 12px; color: var(--muted); margin: 2px 0; }
 .empty { color: var(--muted); font-style: italic; }
-/* A company whose stage config.toml no longer lists (Companies table). */
-td.off-board { color: var(--muted); font-style: italic; }
 /* Deal stages in Settings: a name has to stay readable on a phone, so the table
    keeps its width and scrolls (.table-scroll) rather than squeezing the boxes. */
 .stages-table input[name=name] { min-width: 11em; }
@@ -203,6 +201,32 @@ th { background: var(--subtle); font-weight: 600; }
 /* A wide table scrolls inside its own box at every width instead of pushing the
    whole page sideways (Messages is 1420px of table; Companies, 1140px). */
 .table-scroll { overflow-x: auto; }
+
+/* The list tables (Companies, Contacts, Tasks): one rounded frame, rules between
+   rows only, a quiet header, and room to breathe. The first row is the column
+   names; the second is the filters. */
+.table-scroll:has(> table.filterable) {
+  border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
+}
+table.filterable { border: 0; }
+table.filterable th, table.filterable td { border: 0; border-bottom: 1px solid var(--line); padding: 8px 10px; }
+table.filterable tbody tr:last-child td { border-bottom: 0; }
+table.filterable thead tr:first-child th, table.filterable > tbody > tr:first-child > th {
+  background: var(--surface-2); color: var(--muted); font-size: 12px; font-weight: 600;
+  white-space: nowrap; border-bottom-color: var(--line-strong);
+}
+table.filterable tbody tr:hover td { background: var(--surface-2); }
+/* Numbers and dates: right edge, tabular figures. */
+table.filterable .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.filterable td.muted { color: var(--muted); }
+/* The name is the way into the record: bold, plain until you point at it. */
+table.filterable td.name { min-width: 9em; }
+table.filterable td.name a { font-weight: 600; color: var(--text); text-decoration: none; }
+table.filterable td.name a:hover, table.filterable td.name a:focus-visible { color: var(--accent); text-decoration: underline; }
+/* A company whose stage config.toml no longer lists (Companies table). */
+td.off-board { color: var(--muted); font-style: italic; }
+/* A stage as a pill (the colours are the task-type pairs; the role picks one). */
+.type-chip.stage-pill { border-radius: 999px; padding: 1px 10px; font-weight: 600; }
 
 /* forms */
 form.record-form, form.interaction-form {
@@ -435,10 +459,14 @@ table.month .task.overdue a { color: var(--danger); }
 @media (max-width: 760px) {
   .hint .tip { position: fixed; left: 12px; right: 12px; top: auto; bottom: 12px; width: auto; max-width: none; }
 }
-.sort { white-space: nowrap; font-size: 11px; margin-left: 2px; }
-.sort a { color: var(--muted); text-decoration: none; padding: 2px 1px; }
+/* Sort controls: two small chevrons. Only the active direction shows until you
+   point at the header (or on a touch screen, where nothing can hover). */
+.sort { display: inline-flex; vertical-align: middle; margin-left: 2px; }
+.sort a { display: inline-flex; color: var(--muted); text-decoration: none; padding: 2px 1px; opacity: 0; }
+.sort a .icon { width: 12px; height: 12px; }
+.sort a.on, th:hover .sort a, th:focus-within .sort a { opacity: 1; }
 .sort a.on, .sort a:hover { color: var(--accent); }
-th .sort { vertical-align: middle; }
+@media (hover: none) { .sort a { opacity: 1; } }
 a.toggle-parked { font-size: 12px; margin-left: 12px; }
 
 /* drafts */
@@ -717,6 +745,35 @@ pre.bookmarklet-code { background: var(--surface-2); border: 1px solid var(--lin
                        font-size: 12px; white-space: pre-wrap; word-break: break-all; }
 .capture-note { margin-bottom: 12px; }
 
+/* the LinkedIn conversation review (/extension/conversation): one row per message,
+   a tick, a direction arrow that flips, the time, the text */
+.cv-contact { margin: 10px 0; }
+.cv-contact select { max-width: 100%; }
+.cv-questions label { display: block; margin: 6px 0; }
+.cv-effect { background: var(--info-bg); border: 1px solid var(--info-line);
+             padding: 6px 10px; border-radius: 4px; margin: 8px 0; }
+.cv-rows { list-style: none; margin: 10px 0; padding: 0; border: 1px solid var(--line);
+           border-radius: 4px; }
+.cv-row { display: grid; grid-template-columns: 24px auto 9.5em 1fr; gap: 8px;
+          align-items: start; padding: 6px 10px; border-top: 1px solid var(--line); }
+.cv-row:first-child { border-top: 0; }
+.cv-row.cv-logged, .cv-row.cv-undated { color: var(--muted); }
+.cv-row.cv-maybe, .cv-row.cv-ask { background: var(--warn-bg); }
+.cv-dir { white-space: nowrap; }
+.cv-flip { padding: 0 8px; min-width: 2em; font-size: 13px; }
+.cv-when { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cv-text, .cv-body pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.cv-body pre { margin: 4px 0 0; }
+.cv-body details.body-preview > summary { cursor: pointer; list-style: none; }
+.cv-body details.body-preview > summary::-webkit-details-marker { display: none; }
+.cv-body details.body-preview[open] .first-line { display: none; }
+.cv-status, .cv-warn { display: block; margin-top: 2px; }
+.cv-warn { color: var(--warn); font-weight: 600; }
+@media (max-width: 640px) {
+  .cv-row { grid-template-columns: 24px auto 1fr; }
+  .cv-body { grid-column: 1 / -1; }
+}
+
 /* On a phone the filter block and four board columns fill the screen before any
    company does. Fold the filters away and stack the stages; on a wide screen
    neither rule applies and the board is unchanged. */
@@ -763,9 +820,14 @@ pre.bookmarklet-code { background: var(--surface-2); border: 1px solid var(--lin
 
 /* The tour bubble and the thing it points at. */
 .tour-target { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 6px; position: relative; z-index: 60; }
-.tour-bubble { position: absolute; z-index: 70; max-width: 320px; padding: 12px 14px;
+/* tour.js places the bubble with transform: translate() from the page's top left, so
+   moving it between stops costs no layout. The first stop and a window resize land
+   without travelling; only a Next or Back (.is-travelling) glides. */
+.tour-bubble { position: absolute; top: 0; left: 0; z-index: 70; max-width: 320px; padding: 12px 14px;
                background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
                box-shadow: 0 10px 30px rgba(0, 0, 0, .18); }
+.tour-bubble.is-travelling { transition: transform 240ms var(--ease-in-out); }
+@media (prefers-reduced-motion: reduce) { .tour-bubble.is-travelling { transition: none; } }
 .tour-bubble p { margin: 6px 0 10px; }
 .tour-bubble .tour-nav { display: flex; align-items: center; gap: 8px; }
 .tour-bubble .tour-nav .small { margin-right: auto; }
@@ -1180,3 +1242,40 @@ ul.files .thumb { display: block; width: 44px; height: 44px; object-fit: cover; 
 /* The Files panel of an Outreach card: set off from the buttons above it. */
 .outreach-files { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--line); }
 .outreach-files form + form, .outreach-files ul.files + form { margin-top: 6px; }
+
+/* Motion. Small on purpose: this is a work tool, so only what appears (a panel, an
+   overlay) or travels (the tour bubble, above) moves, and nothing a user does dozens
+   of times a day gets more than a one-pixel press. The curves are in tokens.css. */
+
+/* Summary buttons (Edit, Disqualify, Fetch from URL, + New approach, Ask) look and act
+   like buttons, so they hover and press like the button rule above. */
+details > summary.button, .ask-button { transition: background .12s, border-color .12s, transform .12s; }
+details > summary.button:active, .ask-button:active { transform: translateY(1px); }
+
+/* A panel hung from a <details> grows out of its trigger, from the corner it hangs
+   from. Entrance only. A closed <details> is hidden by ::details-content, not by
+   display: none, so @starting-style never fires on its children; a keyframe on [open]
+   does. Closing stays instant. */
+@keyframes panel-in { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes panel-fade { from { opacity: 0; } to { opacity: 1; } }
+details.ask[open] > .ask-panel,
+details.stage-menu[open] > .menu-panel,
+details.new-approach[open] > form {
+  transform-origin: top right;
+  animation: panel-in 150ms var(--ease-out);
+}
+/* On a phone the stage menu spans the row from the left edge, so there is no one corner
+   to grow from: it fades. Reduced motion: every panel fades and nothing scales. */
+@media (max-width: 760px) { details.stage-menu[open] > .menu-panel { animation-name: panel-fade; } }
+@media (prefers-reduced-motion: reduce) {
+  details.ask[open] > .ask-panel,
+  details.stage-menu[open] > .menu-panel,
+  details.new-approach[open] > form { animation-name: panel-fade; animation-duration: 120ms; }
+}
+
+/* The upgrade panel (upgrade.js) is added over a blurred wash in one go; fade the wash
+   in. The overlay only: upgrade.js rebuilds the box inside it at every step (ask,
+   working, done), so a scale-in on the box would replay each time. It has no exit, the
+   page reloads after. A fade is gentle enough to keep under reduced motion. */
+.upgrade-overlay { transition: opacity 180ms var(--ease-out); }
+@starting-style { .upgrade-overlay { opacity: 0; } }

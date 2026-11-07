@@ -8,6 +8,12 @@
 {% block content %}
 {%- set hide = layout_hidden('company') %}
 <h1>{{ company.name }}</h1>
+{% if move_anyway %}
+<form method="post" action="/companies/{{ company.slug }}/stage" class="inline-form move-anyway">
+  <input type="hidden" name="stage" value="{{ move_anyway }}"><input type="hidden" name="force" value="1">
+  <button type="submit" title="Move {{ company.name }} to {{ move_anyway }} although the stage rules do not list it; the commit says so">Move anyway to {{ move_anyway }}</button>
+</form>
+{% endif %}
 {% if company.product_oneliner and 'product_oneliner' not in hide %}<p class="oneliner">{{ company.product_oneliner }}</p>{% endif %}
 <div class="small record-meta">
   {% if company.website and 'website' not in hide %}<a href="{{ company.website | href }}" target="_blank" rel="noopener">{{ company.website | replace('https://', '') | replace('http://', '') }}</a>{% endif %}
@@ -18,6 +24,7 @@
   <span>{{ f.label }} {{ f.display(company.extra.get(f.key)) }}</span>
   {% endfor %}
   {% set exits = stage_exits(company.stages) %}
+  {% set drafts = open_drafts(company.slug) %}
   {% if company.stages.role_of(company.stage) in ['closed', 'parked'] %}
   <form method="post" action="/companies/{{ company.slug }}/disqualify" class="inline">
     <input type="hidden" name="stage" value="{{ company.stages.entry }}"><button type="submit">Requalify</button>
@@ -31,6 +38,8 @@
         <input type="hidden" name="stage" value="{{ x.name }}">
         <input name="reason" placeholder="reason" value="{{ company.lost_reason }}">
         {% if x.parked %}<label class="inline">until {{ m.date_input('requalify_on', company.requalify_on, title='the company goes back to ' ~ company.stages.entry ~ ' on this date') }}</label>{% endif %}
+        {% if drafts %}<input type="hidden" name="asked_drafts" value="1">
+        <label class="inline skip-drafts"><input type="checkbox" name="skip_drafts" value="1" checked> {{ drafts }} open outreach draft{{ 's' if drafts != 1 }}: skip {{ 'them' if drafts != 1 else 'it' }}</label>{% endif %}
         <button type="submit">{{ x.label }}</button>
       </form>
       {% endfor %}
@@ -73,6 +82,7 @@
     <input type="hidden" name="version" value="{{ record_version(company.slug) }}">
     {{ m.company_fields(values, errors) }}
     <button type="submit">Save company</button>
+    {% if errors and errors.stage and 'is not allowed (' in errors.stage %}<button type="submit" name="force" value="1" title="Save anyway, moving to {{ values.stage }} although the stage rules do not list it; the commit says so">Move anyway</button>{% endif %}
   </form>
   <p class="small">slug {{ company.slug }} &middot; created {{ fmt_datetime(company.created) }} &middot; updated {{ fmt_datetime(company.updated) }} &middot; stage changed {{ fmt_date(company.stage_changed) }}</p>
   {% if company.stage_history %}

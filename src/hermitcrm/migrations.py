@@ -600,7 +600,11 @@ MIGRATIONS = [
               folder=m19_company_notes),
     Migration(20, "interactions may have attachments (nothing to change in a file)",
               "companies/*/interactions/*.md", _noop),
-    Migration(21, "outreach items may have attachments (nothing to change in a file)",
+    Migration(21, "interactions may have the source linkedin-import (nothing to change in a file)",
+              "companies/*/interactions/*.md", _noop),
+    Migration(22, "outreach items may record a draft made on purpose for a company that is not open (nothing to change in a file)",
+              "outreach/*.md", _noop),
+    Migration(23, "outreach items may have attachments (nothing to change in a file)",
               "outreach/*.md", _noop),
 ]
 LATEST = MIGRATIONS[-1].version

@@ -67,15 +67,20 @@
     history.replaceState(null, "", location.pathname + (q ? "?" + q : "") + location.hash);
   }
 
-  function place() {
+  // travel: true when the move comes from Next or Back, so the bubble glides to
+  // the next stop. The first stop and a resize (the resize listener passes an
+  // event, not true) jump straight there. Position is a transform, not top and
+  // left, so the glide never forces a layout.
+  function place(travel) {
     if (!target) return;
     var r = target.getBoundingClientRect();
     var b = bubble.getBoundingClientRect();
     var top = r.bottom + 10;
     if (top + b.height > window.innerHeight - 8) top = Math.max(8, r.top - b.height - 10);
     var left = Math.min(Math.max(8, r.left), window.innerWidth - b.width - 8);
-    bubble.style.top = (top + window.scrollY) + "px";
-    bubble.style.left = (left + window.scrollX) + "px";
+    bubble.classList.toggle("is-travelling", travel === true);
+    bubble.style.transform = "translate(" + Math.round(left + window.scrollX) + "px, " +
+                             Math.round(top + window.scrollY) + "px)";
   }
 
   function show(i) {
@@ -102,7 +107,7 @@
       : button("Done", end));
     nav.appendChild(button("Close", end, "tour-close"));
     bubble.append(h, p, nav);
-    place();
+    place(bubble.style.transform !== "");   // empty only before the first stop: that one lands, the rest glide
     // Focus goes forward (Next, or Done on the last stop), so Enter moves on.
     var forward = bubble.querySelectorAll("button:not(.tour-close)");
     forward[forward.length - 1].focus();
