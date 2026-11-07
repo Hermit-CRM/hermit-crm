@@ -14,8 +14,7 @@
 
 """Generate outreach for one contact: /outreach?contact=<company>/<contact> opens
 a panel (channel, kind, research, signal, language, a note box, the notes the
-draft will use); nothing runs until Generate is pressed
-(docs/superpowers/specs/2026-10-20-outreach-notes-and-drafts-design.md, part B).
+draft will use); nothing runs until Generate is pressed.
 The AI is a fake; all names are made up."""
 
 from __future__ import annotations

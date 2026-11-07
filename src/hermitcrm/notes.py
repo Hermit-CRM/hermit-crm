@@ -14,8 +14,7 @@
 
 """A finding is a note. What is known about a person lives on their timeline
 as notes (interactions of channel `note`); the Outreach bot writes what it
-researches as notes and drafts from the notes it finds
-(docs/superpowers/specs/2026-10-20-outreach-notes-and-drafts-design.md, part C).
+researches as notes and drafts from the notes it finds.
 
 A note you wrote is plain text. A note the research wrote ends in one line of
 fixed text that keeps where it came from:

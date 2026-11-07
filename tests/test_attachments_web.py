@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Attachments in the web app: serving, uploading, the Files section
-(docs/superpowers/plans/2026-10-31-attachments.md, Tasks 2 to 4)."""
+"""Attachments in the web app: serving, uploading, the Files section."""
 
 from __future__ import annotations
 

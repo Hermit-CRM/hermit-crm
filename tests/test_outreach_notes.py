@@ -13,8 +13,7 @@
 # limitations under the License.
 
 """The Outreach bot and the notes: research is saved as notes, the draft is
-written from the notes, a regenerate reads them again
-(docs/superpowers/specs/2026-10-20-outreach-notes-and-drafts-design.md, part C).
+written from the notes, a regenerate reads them again.
 The AI is a fake; all names are made up."""
 
 from __future__ import annotations

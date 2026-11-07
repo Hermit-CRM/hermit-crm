@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """The Files panel on an Outreach card: attach to a draft or ready email, remove, attach
-again, and what is refused (docs/superpowers/plans/2026-10-31-attachments.md, Task 8).
+again, and what is refused.
 The AI is a fake; all names are made up."""
 
 from __future__ import annotations

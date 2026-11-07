@@ -7,7 +7,7 @@ shape of attributes kept). Nothing here came from reading a real conversation.
 
 This note is the contract for the bookmarklet's extractor. LinkedIn changes class names
 every few months, so every selector below is a **guess that worked on the day**, and the
-extractor must degrade to "could not read this page" (Task 4.1), never to a wrong import.
+extractor must degrade to "could not read this page", never to a wrong import.
 
 Fixtures built from this note, all invented people: `tests/fixtures/linkedin/`.
 

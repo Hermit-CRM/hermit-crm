@@ -39,9 +39,7 @@ sans at 12 to 14px; the website is a page to read, so its text is serif. No web
 fonts anywhere: every font is already on the computer, so nothing is downloaded
 and no font host is ever asked.
 
-Decided on 19 Sep 2026, replacing "the app stays blue" of the day before; the
-options, pictures and contrast figures are in
-`docs/superpowers/specs/2026-09-19-app-site-look-design.md`.
+Decided on 19 Sep 2026, replacing "the app stays blue" of the day before.
 
 ## Tokens
 
