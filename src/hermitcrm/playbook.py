@@ -369,6 +369,79 @@ def body_for_ai(text: str, approach: str = "") -> str:
     return general + (body[span[0]:span[2]] if span else "")
 
 
+# A lesson line that holds for one outreach framework only starts with its id
+# in brackets: "- [gap-question] Lead with the gap, not the product." A line
+# without a tag holds for every framework (and for every lesson written
+# before tags existed).
+LESSON_TAG = re.compile(r"^\[([a-z0-9][a-z0-9-]*)\]\s+")
+_TAGGED_LINE = re.compile(r"^\s*[-*+]\s+\[([a-z0-9][a-z0-9-]*)\]\s+")
+
+
+def lesson_framework(text: str) -> str:
+    """The framework id a lesson line is tagged with, or "" for every framework."""
+    m = LESSON_TAG.match(re.sub(r"^\s*[-*+]\s+", "", text or "", count=1))
+    return m.group(1) if m else ""
+
+
+def _lessons_spans(body: str) -> list[tuple[int, int]]:
+    """(start, end) of every `## Lessons` section in body, heading included."""
+    title = _norm(SECTION_TITLES["lessons"])
+    heads = _headings(body)
+    out = []
+    for i, (start, _, level, name) in enumerate(heads):
+        if level == 2 and _norm(name) == title:
+            stop = next((h[0] for h in heads[i + 1:] if h[2] <= 2), len(body))
+            out.append((start, stop))
+    return out
+
+
+def filter_lessons(body: str, framework: str | None) -> str:
+    """body with the lesson lines tagged for another framework left out.
+    `framework` None keeps every line; "" (a draft without a framework, such
+    as a reply) keeps only the untagged ones. Text outside Lessons is untouched."""
+    if framework is None:
+        return body
+    spans = _lessons_spans(body)
+    if not spans:
+        return body
+    out, pos = [], 0
+    for start, stop in spans:
+        out.append(body[pos:start])
+        for line in body[start:stop].splitlines(keepends=True):
+            m = _TAGGED_LINE.match(line)
+            if m and m.group(1) != framework:
+                continue
+            out.append(line)
+        pos = stop
+    out.append(body[pos:])
+    return "".join(out)
+
+
+def fit_for_prompt(body: str, limit: int) -> str:
+    """The playbook body cut to `limit` characters for a prompt without ever
+    cutting the Lessons: they sit at the end of an approach, so a plain cut
+    dropped exactly what the person taught the drafter. When the body is too
+    long, the Lessons (comments left out) move to the end and the rest is cut
+    to make room."""
+    body = (body or "").strip()
+    if len(body) <= limit:
+        return body
+    spans = _lessons_spans(body)
+    lessons = "\n\n".join(_COMMENT.sub("", body[s:e]).strip() for s, e in spans).strip()
+    if not lessons:
+        return body[:limit]
+    rest, pos = [], 0
+    for start, stop in spans:
+        rest.append(body[pos:start])
+        pos = stop
+    rest.append(body[pos:])
+    gap = "\n[...]\n\n"
+    room = limit - len(lessons) - len(gap)
+    if room <= 0:
+        return lessons[:limit]
+    return "".join(rest).strip()[:room].rstrip() + gap + lessons
+
+
 # --------------------------------------------------------------- validation
 
 

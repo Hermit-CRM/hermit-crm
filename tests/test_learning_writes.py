@@ -364,3 +364,16 @@ def test_set_lessons_is_reached_through_accept_only_for_the_named_approach(folde
     after = (root / "MESSAGING.md").read_text()
     head, tail = before.split("# Approach: Scaling the sales team")
     assert after.endswith("# Approach: Scaling the sales team" + tail)
+
+
+def test_an_edited_framework_lesson_keeps_its_tag(folder):
+    root, store = folder
+    (p,) = pending(root, store, add(["t00", "t01", "t02"]))
+    state = learning.load_state(root)
+    entry = next(e for e in state["proposals"] if e["id"] == p.id)
+    entry["text"] = "[gap-question] " + entry["text"]
+    learning._write_state(root, state)
+    learning.accept(store, p.id, text="Open with the gap, in one line.")
+    found = learning.lessons(root, APPROACH)[-1]
+    assert (found.text, found.framework) == ("[gap-question] Open with the gap, in one line.",
+                                             "gap-question")

@@ -69,6 +69,13 @@ PARTS = tuple(key for key, _ in playbook.LESSONS)          # worked, failed, ope
 OPS = ("add", "merge", "rewrite", "retire")
 MAX_PROPOSALS = 5
 LESSON_CAP = 12                 # active lessons per approach (~600 tokens)
+# `learning_lessons`: which drafts a learned lesson is for. approach (default):
+# every draft of the approach, as before. framework: only drafts of the
+# framework its cards came from (the line gets a [framework-id] tag). both:
+# per framework, plus untagged lessons for every framework when the cards
+# hold across frameworks. Each framework (and the untagged lines) keeps its
+# own cap of LESSON_CAP.
+SCOPES = ("approach", "framework", "both")
 MIN_CARDS = 3                   # an `add` cites at least this many cards...
 MIN_CONTACTS = 3                # ...from at least this many contacts
 LESSON_MAX_CHARS = 300
@@ -158,6 +165,11 @@ class Lesson:
     id: str
     part: str      # worked | failed | open
     text: str
+
+    @property
+    def framework(self) -> str:
+        """The framework this lesson is for ("" = every framework)."""
+        return playbook.lesson_framework(self.text)
 
 
 def _lesson_text(line: str) -> str:
@@ -1185,6 +1197,7 @@ PROPOSAL_SCHEMA = {
                     "replaces": {"type": "array", "items": {"type": "string"}},
                     "cites": {"type": "array", "items": {"type": "string"}},
                     "why": {"type": "string"},
+                    "framework": {"type": "string"},
                 },
                 "required": ["op", "part", "text", "replaces", "cites", "why"],
             },
@@ -1196,10 +1209,32 @@ PROPOSAL_SCHEMA = {
 PART_TITLES = dict(playbook.LESSONS)
 
 
+def scope(config: dict | None) -> str:
+    """`learning_lessons`: approach (default), framework or both (see SCOPES)."""
+    value = str(_cfg(config, "learning_lessons", "approach")).strip().lower()
+    return value if value in SCOPES else "approach"
+
+
+SCOPE_RULES = {
+    "framework": (
+        "Each card says which outreach framework the draft was written with. Every "
+        "lesson belongs to one framework: set framework to its id, and cite only cards "
+        "of that framework. A lesson tagged [id] below holds for that framework only."),
+    "both": (
+        "Each card says which outreach framework the draft was written with. A lesson "
+        "seen in one framework's cards belongs to that framework: set framework to its "
+        "id and cite only cards of it. Leave framework empty only for a lesson that "
+        "holds for every framework, best shown by cards of more than one. A lesson "
+        "tagged [id] below holds for that framework only; untagged ones hold for all."),
+}
+
+
 def distill_prompt(approach: str, cards: list[Card], current_lessons: list[Lesson],
-                   rejected: list[str] | tuple = ()) -> str:
+                   rejected: list[str] | tuple = (), lesson_scope: str = "approach") -> str:
     """The one distillation prompt: the current lessons with their ids, the
-    texts the person rejected before, and the evidence cards."""
+    texts the person rejected before, and the evidence cards. With a
+    `lesson_scope` other than approach it also says how lessons are tied to
+    frameworks (the answer's `framework` field)."""
     lines = [
         f"You keep the lessons of a seller's outreach playbook for the approach "
         f"\"{approach}\". Below are the current lessons and evidence cards: how the seller "
@@ -1218,6 +1253,9 @@ def distill_prompt(approach: str, cards: list[Card], current_lessons: list[Lesso
         "",
         "--- current lessons ---",
     ]
+    if lesson_scope in SCOPE_RULES:
+        lines[3:3] = [SCOPE_RULES[lesson_scope] + " Write the text without the [id] tag; "
+                      "Hermit adds it. The cap of 12 counts per framework."]
     if current_lessons:
         lines += [f"{lesson.id} [{lesson.part}] {lesson.text}" for lesson in current_lessons]
     else:
@@ -1271,13 +1309,17 @@ def _strings(value) -> list[str]:
 
 
 def validate_proposals(data, cards: list[Card], lessons: list[Lesson],
-                       rejected: list[str] | tuple | set = (), approach: str = ""
+                       rejected: list[str] | tuple | set = (), approach: str = "",
+                       lesson_scope: str = "approach"
                        ) -> tuple[list[Proposal], list[str]]:
     """The AI's (or the person's agent's) answer, checked: cites must exist;
     an `add` needs >= 3 cards from >= 3 contacts; nothing is proposed straight
     into `worked` (it goes to `open`); at most 12 active lessons after
     applying ("merge or retire first"); honesty and opt-out lessons are never
-    touched; rejected texts never come back. Returns (kept, problems)."""
+    touched; rejected texts never come back. With a `lesson_scope` of
+    framework or both, a lesson for one framework cites only that framework's
+    cards and its text gets the [framework-id] tag; framework scope needs one;
+    the cap counts per framework. Returns (kept, problems)."""
     problems: list[str] = []
     if not isinstance(data, dict) or not isinstance(data.get("proposals"), list):
         return [], ["the answer has no list of proposals"]
@@ -1297,6 +1339,9 @@ def validate_proposals(data, cards: list[Card], lessons: list[Lesson],
         op = str(entry.get("op") or "").strip().lower()
         part = str(entry.get("part") or "").strip().lower()
         text = _lesson_text(str(entry.get("text") or ""))
+        fw = str(entry.get("framework") or "").strip().lower() or \
+            playbook.lesson_framework(text)
+        text = playbook.LESSON_TAG.sub("", text, count=1)
         replaces, cites = _strings(entry.get("replaces")), _strings(entry.get("cites"))
         why = " ".join(str(entry.get("why") or "").split())
         label = f"proposal {n} ({op or '?'}: {_short(text, 40) or '-'})"
@@ -1312,13 +1357,38 @@ def validate_proposals(data, cards: list[Card], lessons: list[Lesson],
         if len(text) > LESSON_MAX_CHARS:
             problems.append(f"{label}: longer than {LESSON_MAX_CHARS} characters")
             continue
-        if text and lesson_id(text) in gone:
+        if text and (lesson_id(text) in gone or (fw and lesson_id(f"[{fw}] {text}") in gone)):
             problems.append(f"{label}: you rejected this before")
             continue
         unknown = [c for c in cites if c not in by_card]
         if unknown or not cites:
             problems.append(f"{label}: " + (f"cites unknown cards {', '.join(unknown)}"
                                             if unknown else "cites no card"))
+            continue
+        if lesson_scope == "approach":
+            fw = ""
+        else:
+            seen = {by_card[c].framework for c in cites}
+            if not fw and lesson_scope == "framework":
+                if len(seen) == 1 and "" not in seen:
+                    fw = next(iter(seen))
+                else:
+                    problems.append(f"{label}: says which framework it is for")
+                    continue
+            if fw and not playbook.LESSON_TAG.match(f"[{fw}] x"):
+                problems.append(f"{label}: {fw!r} is not a framework id")
+                continue
+            if fw and seen != {fw}:
+                problems.append(f"{label}: a lesson for {fw} cites only {fw} cards")
+                continue
+            if fw and any(by_lesson[r].framework not in ("", fw)
+                          for r in replaces if r in by_lesson):
+                problems.append(f"{label}: replaces a lesson of another framework")
+                continue
+        if text and fw:
+            text = f"[{fw}] {text}"
+        if text and lesson_id(text) in gone:
+            problems.append(f"{label}: you rejected this before")
             continue
         missing = [r for r in replaces if r not in by_lesson]
         if missing:
@@ -1359,17 +1429,21 @@ def validate_proposals(data, cards: list[Card], lessons: list[Lesson],
             text = text or by_lesson[replaces[0]].text
         kept.append(Proposal(proposal_id(approach, op, part, text, replaces), approach, op,
                              part, text, replaces, sorted(set(cites), key=cites.index), why))
-    # the cap: count what applying every kept proposal would leave
-    active = len(lessons)
+    # the cap: count what applying every kept proposal would leave, per framework
+    # (untagged lessons are one more group; with no tags this is the whole list)
+    active: dict[str, int] = {}
+    for lesson in lessons:
+        active[lesson.framework] = active.get(lesson.framework, 0) + 1
     capped: list[Proposal] = []
     for p in kept:
+        group = playbook.lesson_framework(p.text)
         delta = {"add": 1, "rewrite": 0, "merge": 1 - len(p.replaces),
                  "retire": -len(p.replaces)}[p.op]
-        if delta > 0 and active + delta > LESSON_CAP:
-            problems.append(f"\"{_short(p.text, 40)}\": {LESSON_CAP} lessons already; "
-                            "merge or retire first")
+        if delta > 0 and active.get(group, 0) + delta > LESSON_CAP:
+            problems.append(f"\"{_short(p.text, 40)}\": {LESSON_CAP} lessons already"
+                            + (f" for {group}" if group else "") + "; merge or retire first")
             continue
-        active += delta
+        active[group] = active.get(group, 0) + delta
         capped.append(p)
     return capped, problems
 
@@ -1496,7 +1570,8 @@ def run(store: Store, approach: str, enricher=None, config: dict | None = None) 
             "nothing new to learn from" + (f" since {outreach.fmt_datetime(since)}"
                                            if since else "")))
     current = lessons(store.root, approach)
-    prompt = distill_prompt(approach, cs, current, rejected_texts(state))
+    lesson_scope = scope(config)
+    prompt = distill_prompt(approach, cs, current, rejected_texts(state), lesson_scope)
     result = RunResult(approach, how, "handoff" if how == "handoff" else "proposed",
                        cards=len(cs), tokens=estimate_tokens(prompt))
     now = outreach.fmt_datetime(store.now())
@@ -1507,7 +1582,8 @@ def run(store: Store, approach: str, enricher=None, config: dict | None = None) 
             pack.parent.mkdir(parents=True, exist_ok=True)
             pack.write_text(_pack_text(approach, prompt), encoding="utf-8")
             slot["pack"] = {"cards": {c.id: c.contact for c in cs}, "until": _until(cs),
-                            "written": now}
+                            "written": now,
+                            "frameworks": {c.id: c.framework for c in cs if c.framework}}
             paths = [f"{DIR}/{PACK_FILE}", _write_state(store.root, state)]
             store.notify(f"learn: evidence pack for {approach} ({len(cs)} cards)", paths)
         result.path = f"{DIR}/{PACK_FILE}"
@@ -1524,7 +1600,8 @@ def run(store: Store, approach: str, enricher=None, config: dict | None = None) 
         raise
     except Exception as exc:  # a runner that is not the CLI wrapper
         raise LearningError(f"the AI call failed: {exc}") from exc
-    found, problems = validate_proposals(data, cs, current, rejected_texts(state), approach)
+    found, problems = validate_proposals(data, cs, current, rejected_texts(state), approach,
+                                         lesson_scope)
     with store.lock:
         added = _store_proposals(state, found, now)
         slot["watermark"] = _until(cs)
@@ -1556,9 +1633,12 @@ def import_proposals(store: Store, approach: str) -> RunResult:
     if not isinstance(pack, dict) or not isinstance(pack.get("cards"), dict):
         raise LearningError(f"no evidence pack for {approach} is waiting; run "
                             "`hermitcrm learn run` first")
-    cs = [Card(id=k, contact=v) for k, v in sorted(pack["cards"].items())]
+    frameworks = pack.get("frameworks") if isinstance(pack.get("frameworks"), dict) else {}
+    cs = [Card(id=k, contact=v, framework=str(frameworks.get(k) or ""))
+          for k, v in sorted(pack["cards"].items())]
     found, problems = validate_proposals(data, cs, lessons(store.root, approach),
-                                         rejected_texts(state), approach)
+                                         rejected_texts(state), approach,
+                                         scope(load_config(store.root)))
     now = outreach.fmt_datetime(store.now())
     with store.lock:
         added = _store_proposals(state, found, now)
@@ -1641,6 +1721,9 @@ def accept(store: Store, proposal_id: str, text: str | None = None) -> Proposal:
             raise LearningError("the lesson needs some text")
         if _WEAKEN.search(edited):
             raise LearningError("learning never weakens an honesty or opt-out rule")
+        tag = playbook.lesson_framework(p.text)
+        if edited and tag and not playbook.lesson_framework(edited):
+            edited = f"[{tag}] {edited}"   # an edited wording keeps its framework
         p.text = edited or p.text
 
     def change(lines):
@@ -1837,7 +1920,8 @@ def status(store: Store, approach: str, config: dict | None = None) -> Status:
     ph = phase(c, config, approach)
     cs = cards(store, approach, since, sigs)
     current = lessons(store.root, approach)
-    prompt = distill_prompt(approach, cs, current, rejected_texts(state)) if cs else ""
+    prompt = distill_prompt(approach, cs, current, rejected_texts(state),
+                            scope(config)) if cs else ""
     return Status(approach, ph, banner(ph), c, mode(config),
                   outreach.fmt_datetime(since) if since else "", cs, len(prompt),
                   estimate_tokens(prompt), proposals(store.root, approach, "pending"),
