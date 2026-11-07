@@ -15,7 +15,7 @@ Fixtures built from this note, all invented people: `tests/fixtures/linkedin/`.
 
 | Situation | Where the messages live | Tested |
 |---|---|---|
-| (a) Full Messaging page, `linkedin.com/messaging/thread/<id>/` | Ordinary DOM (light DOM) | Yes |
+| (a) Full Messaging page, `linkedin.com/messaging/thread/<id>/` | **Inside a same-origin `iframe`** (found 2026-11-06 on the owner's real page: the main document and its shadow roots held no message list; one accessible iframe held the `[data-event-urn]` rows, two other iframes were closed to scripts). Ordinary DOM inside that frame. | Yes, but first assumed to be light DOM in the page itself, which was wrong |
 | (b) Chat bubble after **Message** on `linkedin.com/in/<name>/` | **Inside an open shadow root** on `div#interop-outlet` (`aside#msg-overlay` > `div.msg-overlay-conversation-bubble`) | Yes |
 | (c) Bubble opened from `messaging/compose/?profileUrn=...&recipient=...` for someone already written to | Assumed identical to (b); same overlay | **Not run** |
 | (d) Someone never written to (empty thread) | Unknown; expected: the list has no `li.msg-s-message-list__event` | **Not run** |
@@ -23,8 +23,9 @@ Fixtures built from this note, all invented people: `tests/fixtures/linkedin/`.
 The list of messages is the same in (a) and (b): `ul.msg-s-message-list-content`, children
 `li.msg-s-message-list__event`. **Consequences:**
 
-- One extractor serves both. It must look for that `ul` in `document` **and in every open
-  shadow root** (`document.querySelectorAll('*')` and each `el.shadowRoot`, recursively).
+- One extractor serves both. It must look for that `ul` in `document`, **in every open
+  shadow root and in every same-origin `iframe`** (`el.contentDocument`; a frame from another
+  site gives `null` and is skipped), and walk the header search out of the frame and the shadow root (`document.querySelectorAll('*')` and each `el.shadowRoot`, recursively).
   A plain `document.querySelector` finds nothing in (b). This is why the first version of the
   spike bookmark "did nothing" in the bubble: `window.getSelection()` reports an empty
   selection when the selection is inside a shadow root.

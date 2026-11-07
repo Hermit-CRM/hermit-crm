@@ -601,17 +601,27 @@ NODE = _shutil.which("node")
 
 def run_conversation_bookmarklet(scenario: dict) -> dict:
     """The bookmarklet as the browser would run it, on a stub page with `lists`
-    conversation lists (all empty) and a LinkedIn tab that receives messages."""
+    conversation lists (all empty), optionally a `frame` of the page with its own
+    lists, and a LinkedIn tab that receives messages."""
     code = capture.conversation_bookmarklet(BASE)[len("javascript:"):]
     harness = r"""
 const [code, scenario] = JSON.parse(require('fs').readFileSync(0, 'utf8'));
 const out = { alerts: [], opened: [], posted: [], listeners: 0, removed: 0, timers: 0 };
 const handlers = [];
-const list = { parentElement: null, querySelectorAll: () => [], contains: () => false,
-  getRootNode: () => doc };
+const LIST = 'ul.msg-s-message-list-content';
+const makeList = (home) => ({ parentElement: null, querySelectorAll: () => [], contains: () => false,
+  getRootNode: () => home });
+// a frame of the page: `frame.lists` conversations inside it, or a closed one
+// (another site's: contentDocument is null, or reading it throws)
+const frame = scenario.frame;
+const inner = frame && { documentElement: {}, querySelectorAll: (sel) => (sel.indexOf(LIST) === 0
+  ? Array.from({ length: frame.lists }, () => makeList(inner)) : []) };
+const iframe = frame && { tagName: 'IFRAME', shadowRoot: null,
+  get contentDocument() { if (frame.throws) { throw new Error('blocked'); }
+                          return frame.closed ? null : inner; } };
 const doc = { documentElement: { lang: 'en' },
-  querySelectorAll: (sel) => (sel.indexOf('ul.msg-s-message-list-content') === 0
-    ? Array.from({ length: scenario.lists }, () => list) : []) };
+  querySelectorAll: (sel) => (sel === '*' ? (iframe ? [iframe] : [])
+    : sel.indexOf(LIST) === 0 ? Array.from({ length: scenario.lists }, () => makeList(doc)) : []) };
 const tab = scenario.blocked ? null : { postMessage: (m, o) => out.posted.push([m, o]) };
 const win = { alert: (m) => out.alerts.push(m), location: { href: 'https://www.linkedin.com/messaging/thread/2-x/' },
   open: (u, t) => { out.opened.push([u, t]); return tab; },
@@ -688,3 +698,26 @@ def test_only_hermits_tab_on_hermits_origin_asking_ready_gets_the_conversation()
 def test_the_listener_gives_up_after_a_wait_and_there_is_only_that_one_timer():
     out = run_conversation_bookmarklet({"lists": 1})
     assert out["timers"] == 1 and out["timeout"] <= 60_000
+
+
+@needs_node
+def test_a_conversation_inside_an_iframe_of_the_page_is_found():
+    # the full Messaging page keeps its conversation in a same-site iframe (2026-11-06)
+    out = run_conversation_bookmarklet({"lists": 0, "frame": {"lists": 1}, "messages": [
+        {"source": "tab", "origin": BASE, "data": "ready"}]})
+    assert out["alerts"] == []
+    assert out["opened"] == [[BASE + "/extension/conversation", "_blank"]]
+    assert out["posted"][0][0]["layout"] == "page"
+
+
+@needs_node
+@pytest.mark.parametrize("frame", [{"lists": 1, "closed": True}, {"lists": 1, "throws": True}])
+def test_a_frame_from_another_site_is_not_read_and_is_not_an_error(frame):
+    out = run_conversation_bookmarklet({"lists": 0, "frame": frame})
+    assert out["opened"] == [] and "no open conversation" in out["alerts"][0]
+
+
+@needs_node
+def test_a_conversation_in_the_page_and_one_in_a_frame_are_two_conversations():
+    out = run_conversation_bookmarklet({"lists": 1, "frame": {"lists": 1}})
+    assert out["opened"] == [] and "more than one conversation" in out["alerts"][0]
