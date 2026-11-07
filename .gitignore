@@ -13,3 +13,6 @@ build/
 dist/
 .claude/
 .gstack/
+
+# Working notes written by AI sessions: kept on the maintainer machine, not published.
+docs/superpowers/

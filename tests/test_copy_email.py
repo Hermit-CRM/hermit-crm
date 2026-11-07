@@ -13,8 +13,7 @@
 # limitations under the License.
 
 """One click copies an email address: on an Outreach card and on the contact
-page (docs/superpowers/specs/2026-10-20-outreach-notes-and-drafts-design.md,
-part A). The address stays a mailto link."""
+page. The address stays a mailto link."""
 
 from __future__ import annotations
 
