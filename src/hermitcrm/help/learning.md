@@ -36,6 +36,28 @@ to outcomes over edits. `hermitcrm learn report` opens with a banner such as
 6. `hermitcrm learn suggest` lists deterministic suggestions (a lower email word
    limit, phrases you keep deleting); `hermitcrm learn apply ID` applies one.
 
+## Lessons per framework
+
+By default a lesson holds for every draft of its approach. When you test more
+than one outreach framework, what works for one can be wrong for another. Set
+**Lessons are for** in Settings (Playbook), or `learning_lessons` in
+`config.toml`:
+
+- `approach` (default): every draft of the approach, as before.
+- `framework`: each lesson belongs to the framework its cards came from. Its
+  line starts with the framework id, `- [gap-question] Lead with the gap.`, and
+  only drafts built with that framework see it.
+- `both`: per framework, plus untagged lessons for patterns that hold across
+  frameworks.
+
+A line without a tag holds for every framework, so lessons you already have
+keep working. Replies and follow-ups have no framework and see only the
+untagged lines. Each framework keeps its own cap of 12 lessons. You can tag or
+untag a line by hand in `MESSAGING.md`.
+
+However long your playbook is, the Lessons always reach the drafter: when the
+playbook is longer than the prompt allows, the rest is cut, never the Lessons.
+
 ## Examples instead of rules
 
 Lessons are advice. Examples show the drafter what you mean: the closest

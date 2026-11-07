@@ -8,6 +8,20 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Lessons always reach the drafter.** A playbook longer than the prompt allows
+  (12,000 characters) was cut at the end, which is exactly where an approach's
+  Lessons sit, so a long playbook's lessons never reached the drafts while
+  `lessons_used` still named them. Now the rest is cut and the Lessons stay, and
+  `lessons_used` names only what the prompt held. Nothing to do: your next drafts
+  use them.
+
+- **Lessons per framework.** A new setting, **Lessons are for** (Settings >
+  Playbook, or `learning_lessons` in `config.toml`): `approach` (as before),
+  `framework` (a lesson only reaches drafts of the framework it was learned
+  from; its line starts with `[framework-id]`), or `both` (per framework, plus
+  lessons that hold for every framework). Untagged lessons keep working
+  everywhere. See [Learning](/help/learning).
+
 - **Send files with an outreach email.** A draft or ready email has a **Files** box on
   its Outreach card: pick files, drop them on it, paste a screenshot, or attach again a
   file already on the company. The email goes out with the approved text first and the
