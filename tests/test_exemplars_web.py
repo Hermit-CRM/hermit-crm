@@ -117,3 +117,16 @@ def test_the_card_says_what_the_draft_was_modeled_on(folder):
     assert body.count("positive reply, ") == 1               # the deleted one is left out
     quiet = make(root, 6, TARGET - 1, state="drafted", days=0)
     assert quiet.exemplars_used == []
+
+
+def test_the_settings_save_the_lesson_scope(folder):
+    root, store = folder
+    client = make_client(root)
+    assert 'name="learning_lessons"' in client.get("/settings").text
+    assert flash(post(client, "/settings/learning", learning_distill="hermit",
+                      learning_lessons="both")).startswith(
+        "Learning saved: hermit, lessons per both.")
+    assert load_config(root)["learning_lessons"] == "both"
+    assert "per approach, framework or both" in flash(
+        post(client, "/settings/learning", learning_distill="hermit", learning_lessons="x"))
+    assert load_config(root)["learning_lessons"] == "both"

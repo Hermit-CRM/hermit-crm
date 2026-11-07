@@ -378,6 +378,15 @@
           <option value="both"{% if learning_form.exemplars == 'both' %} selected{% endif %}>both (adds roughly 300 to 500 tokens to each first-touch draft)</option>
         </select>
       </label>
+    </div>
+    <div class="row">
+      <label>Lessons are for
+        <select name="learning_lessons">
+          <option value="approach"{% if learning_form.lessons == 'approach' %} selected{% endif %}>approach: every draft of the approach</option>
+          <option value="framework"{% if learning_form.lessons == 'framework' %} selected{% endif %}>framework: only drafts of the framework they were learned from</option>
+          <option value="both"{% if learning_form.lessons == 'both' %} selected{% endif %}>both: per framework, plus lessons that hold for every framework</option>
+        </select>
+      </label>
       <button type="submit">Save</button>
     </div>
   </form>

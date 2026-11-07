@@ -3739,7 +3739,8 @@ def create_app(root: Path, config: dict | None = None,
             "custom_field_defs": app.state.custom_fields,
             "playbook_status": playbook_status(),
             "learning_form": {"distill": learning.mode(config),
-                              "exemplars": exemplars.mode(config)},
+                              "exemplars": exemplars.mode(config),
+                              "lessons": learning.scope(config)},
             "messaging_form": {
                 "size_field": str(config.get("messaging_size_field") or ""),
                 "team_field": str(config.get("messaging_team_field") or "")},
@@ -5638,7 +5639,8 @@ def create_app(root: Path, config: dict | None = None,
     @app.post("/settings/learning")
     def settings_learning(request: Request, csrf_token: str = Form(""),
                           learning_distill: str = Form("hermit"),
-                          learning_exemplars: str | None = Form(None)):
+                          learning_exemplars: str | None = Form(None),
+                          learning_lessons: str | None = Form(None)):
         """The learning settings. Each one is changed only when the form sent it,
         so a form that knows only the first (an older page) leaves the rest."""
         check_csrf(csrf_token)
@@ -5654,6 +5656,13 @@ def create_app(root: Path, config: dict | None = None,
                                anchor="playbook")
             changes["learning_exemplars"] = shown
             saved.append(f"examples {shown}")
+        if learning_lessons is not None:
+            scope = learning_lessons.strip().lower()
+            if scope not in learning.SCOPES:
+                return flashed("/settings", "Lessons are per approach, framework or both",
+                               anchor="playbook")
+            changes["learning_lessons"] = scope
+            saved.append(f"lessons per {scope}")
         setup_steps.set_config_values(root / "config.toml", changes)
         config_saved()
         return flashed("/settings", f"Learning saved: {', '.join(saved)}.", anchor="playbook")

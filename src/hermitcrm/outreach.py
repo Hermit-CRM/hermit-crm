@@ -1425,7 +1425,11 @@ class AIDrafter:
                                     messages=self.messages, language=language)
         try:
             text = (Path(self.store.root) / playbook.FILENAME).read_text(encoding="utf-8")
-            pb_text = playbook.body_for_ai(text, approach.name if approach else "")
+            # Only this framework's lessons (and the untagged ones), and never cut off:
+            # lessons_used below is read from exactly what the prompt holds.
+            pb_text = playbook.fit_for_prompt(playbook.filter_lessons(
+                playbook.body_for_ai(text, approach.name if approach else ""),
+                framework.id if framework is not None else ""), PLAYBOOK_LIMIT)
         except OSError:
             pb_text = ""
         owner = str(self.config.get("owner_name") or "")
@@ -1625,7 +1629,8 @@ class AICritic:
                  thread=None) -> CriticResult:
         try:
             text = (Path(self.store.root) / playbook.FILENAME).read_text(encoding="utf-8")
-            pb_text = playbook.body_for_ai(text, approach.name if approach else "")
+            pb_text = playbook.fit_for_prompt(
+                playbook.body_for_ai(text, approach.name if approach else ""), PLAYBOOK_LIMIT)
         except OSError:
             pb_text = ""
         prompt = critic_prompt(kind, brief, channel, subject, body, pitch, findings, approach,
