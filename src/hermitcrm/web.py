@@ -806,7 +806,7 @@ def safe_page(page: str) -> str:
 EXTRA_HOST_NAMES: set[str] = set()
 UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 # The routes that take uploaded files (see upload_size_limit).
-ATTACH_FORMS = re.compile(r"^/companies/[^/]+/(interactions|attachments)(/|$)")
+ATTACH_FORMS = re.compile(r"^/(companies/[^/]+/(interactions|attachments)(/|$)|outreach/[^/]+/attach$)")
 
 
 def host_name(value: str) -> str:
@@ -1474,6 +1474,15 @@ def create_app(root: Path, config: dict | None = None,
     templates.env.filters["slug"] = slugify  # CSS class names from outcome values
     templates.env.filters["filesize"] = attachments_mod.human_size
     templates.env.globals["attach_max_mb"] = lambda: store.attachment_limit() >> 20
+    templates.env.globals["send_attachment_mb"] = lambda: outreach.attachment_limit_bytes(root) >> 20
+    templates.env.globals["attachment_flags"] = outreach.attachment_flags
+
+    def company_files(slug: str) -> list:
+        """The files already on a company's notes, newest first: what "attach again" offers."""
+        company = store.get(slug)
+        return [a for a, _ in attachments_mod.files_of(company.interactions)] if company else []
+
+    templates.env.globals["company_files"] = company_files
     templates.env.filters["href"] = safe_href  # stored URLs: http(s) or nothing
     templates.env.filters["day_span"] = sendplan.compact_days  # "Mon, Tue, Wed" as "Mon–Wed"
     templates.env.filters["placeholders"] = placeholders  # a starter's [placeholders]
@@ -5275,6 +5284,47 @@ def create_app(root: Path, config: dict | None = None,
                "to use them." if added else
                "Nothing usable on that page that the notes do not already have.")
         return flashed(f"/outreach?tab={outreach_tab(item)}", say, anchor=anchor)
+
+    @app.post("/outreach/{item_id}/attach")
+    async def outreach_attach(request: Request, item_id: str):
+        """Add files to a draft or ready email: files chosen, dropped or pasted on the
+        card, and/or "attach again" for a file already on the company."""
+        form = await request.form()
+        check_csrf(str(form.get("csrf_token") or ""))
+        item = outreach.get_item(root, item_id)
+        if item is None:
+            raise HTTPException(status_code=404, detail=f"unknown outreach item {item_id!r}")
+        back, anchor = f"/outreach?tab={outreach_tab(item)}", f"files-{item.id}"
+        try:
+            incoming = await read_uploads(request, store.attachment_limit())
+            reuse = [str(v) for v in form.getlist("reuse") if str(v).strip()]
+            if not incoming and not reuse:
+                raise outreach.OutreachError("choose a file to attach")
+            item = await run_in_threadpool(outreach.set_attachments, store, item.id,
+                                           incoming, (), reuse)
+        except (outreach.OutreachError, ValidationError) as exc:
+            message = "; ".join(exc.errors.values()) if isinstance(exc, ValidationError) \
+                else str(exc)
+            return flashed(back, f"Not attached: {message}", anchor=anchor)
+        n = len(incoming) + len(reuse)
+        return flashed(f"/outreach?tab={outreach_tab(item)}",
+                       f"Attached {n} file{'s' if n != 1 else ''}.", anchor=anchor)
+
+    @app.post("/outreach/{item_id}/detach")
+    async def outreach_detach(item_id: str, csrf_token: str = Form(""), file: str = Form("")):
+        check_csrf(csrf_token)
+        item = outreach.get_item(root, item_id)
+        if item is None:
+            raise HTTPException(status_code=404, detail=f"unknown outreach item {item_id!r}")
+        anchor = f"files-{item.id}"
+        try:
+            item = await run_in_threadpool(outreach.set_attachments, store, item.id,
+                                           (), [file], ())
+        except outreach.OutreachError as exc:
+            return flashed(f"/outreach?tab={outreach_tab(item)}", f"Not removed: {exc}",
+                           anchor=anchor)
+        return flashed(f"/outreach?tab={outreach_tab(item)}", "File taken off this email.",
+                       anchor=anchor)
 
     OUTREACH_ACTIONS = ("check", "ready", "unready", "regenerate", "skip", "sent", "note",
                         "proposal", "schedule", "unschedule", "send-now", "front", "retry")

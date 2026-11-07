@@ -208,6 +208,7 @@ DEFAULT_CONFIG = {
     "send_company_gap_hours": 24,
     "send_grace_minutes": 10,
     "send_overdue_minutes": 20,
+    "send_attachment_max_mb": 10,
     "send_email_block_countries": [],
     # The LinkedIn session (hermitcrm/linkedin.py): you click Send, Hermit paces it.
     "linkedin_invites_per_day": 20,

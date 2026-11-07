@@ -132,6 +132,7 @@ CONFIG_DOCS = {
     "send_company_gap_hours": "The least time between two emails to one company (or one email domain).",
     "send_grace_minutes": "How long after Schedule the earliest slot is, so a mistake can still be undone.",
     "send_overdue_minutes": "An item later than this is moved to the next free slot, never sent in a burst.",
+    "send_attachment_max_mb": "The most all the files of one email may add up to, in MB (1 to 25). Mail grows by about a third when it is sent, and most mail servers refuse more than 25 MB.",
     "send_email_block_countries": "ISO country codes whose companies are never mailed by email (the card suggests LinkedIn); empty means no country is blocked.",
     "linkedin_invites_per_day": "The most connection invites in a LinkedIn session day.",
     "linkedin_invites_per_week": "The most connection invites in any rolling 7 days.",
