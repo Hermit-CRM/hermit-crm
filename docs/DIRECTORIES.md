@@ -1,7 +1,7 @@
 # Directories, lists and newsletters
 
-The launch plan in `TODO.md` names the sites; this file says how and when to
-use each one. Rules were checked on 15 Oct 2026; check again before you submit.
+This file lists the sites and says how and when to use each one. Rules were
+checked on 15 Oct 2026; check again before you submit.
 These are free listings only, with no paid fast tracks.
 
 The repo goes public on Mon 19 Oct 2026 as a new repo with new history, so any
