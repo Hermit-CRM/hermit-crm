@@ -9,8 +9,8 @@ prompt). Your agent does the work in your data folder. Hermit picks the change
 up on the next page you open, without a restart, and lists it under **Recent
 changes** with an **Undo** button.
 
-Hermit never builds the change itself, and never sends a message: routines and
-templates only write drafts for you to send.
+Hermit never builds the change itself, and routines and templates never send a
+message: they only write drafts for you to send.
 
 ## For the agent: read this first
 

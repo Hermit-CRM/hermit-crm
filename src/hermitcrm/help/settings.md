@@ -347,7 +347,7 @@ a newer version, "the latest", "no release published yet" when nothing is
 published where it asks, or "could not reach ..." when it could not ask at all.
 Those last two are not the same as being up to date, and it will not say they
 are. It asks PyPI unless `update_url` in `config.toml` points somewhere else;
-any URL answering `{"version": "0.4.0"}` works, so a static file on a download
+any URL answering `{"version": "1.2.3"}` works, so a static file on a download
 page is enough. Turn it off with `update_check = false`.
 
 When a newer version exists, the About row and the sidebar show an **Upgrade**

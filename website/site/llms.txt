@@ -53,7 +53,7 @@ Say what you want in one sentence. Your own AI agent (Claude Code, Codex, Cursor
 - A new field: "Add a "date" field for "contract renewal" to companies, shown on the company page and in the companies list." Seven lines in fields.toml. The field shows on every company page, and as a column you can sort and filter in the companies list.
 - A routine that drafts follow-ups: "Every morning, for people I messaged 7 days ago without a reply, draft a short follow-up. Never send anything." A routine in routines.toml. It starts paused, so you see first who it would pick. Once you turn it on, its drafts wait on Home for you to edit and send yourself.
 
-Safe to try. Every change is a git commit you can undo in one click. Routines only write drafts: they start paused, and Hermit never sends a message.
+Safe to try. Every change is a git commit you can undo in one click. Routines only write drafts and start paused. Mail goes out only when you approve it, and sending is off until you turn it on.
 
 ## Pages
 
