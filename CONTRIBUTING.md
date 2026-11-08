@@ -113,8 +113,8 @@ Anything you contribute is under the same licence, as Apache 2.0 section 5 sets
 out, unless you say otherwise in writing. You keep the copyright in your own
 work; nothing here transfers it.
 
-Do not paste in code you found unless you know its licence and it is compatible
-— and say where it came from in the commit body. That includes code an AI tool
+Do not paste in code you found unless you know its licence and it is compatible,
+and say where it came from in the commit body. That includes code an AI tool
 produced from a prompt naming someone else's project.
 
 ## Rules
