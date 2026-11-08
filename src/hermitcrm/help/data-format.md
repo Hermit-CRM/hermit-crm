@@ -158,8 +158,10 @@ omitted when empty: the id of the outreach framework the message was built with,
 such as `house` or `trigger-tension-trust`, lower case letters, digits and hyphens;
 it is the item's when logging marks an outreach item sent, and the id stays if the
 framework is removed later), `approach` (optional,
-omitted when empty: the playbook approach the message was for),
-`outcome` (one line; see the configured outcomes), `result` (legacy: success,
+omitted when empty: the playbook approach the message was for), `lead_rule` (optional,
+omitted when empty: the research rule whose gap led the message, such as `r08`; lower
+case letters, digits, hyphens and underscores; it is the item's when logging marks an
+outreach item sent), `outcome` (one line; see the configured outcomes), `result` (legacy: success,
 unsuccessful or empty), `source` (manual, bcc-import, calendar-import, migration, outreach),
 `message_id` (imports, and email Hermit CRM sent itself: the mail's Message-ID, or
 `ical:<UID>:<RECURRENCE-ID>:<attendee>` for a meeting), `attachments` (optional,
@@ -225,7 +227,10 @@ and format 22 reserves the outreach item key `stage_override` (absent when empty
 stage of a company that was not open when a draft was made for it on purpose) and
 the skip reason `company-closed`, and format 23 reserves the outreach item key
 `attachments` (absent when empty: the files that go out with an email, see
-[Sending](/help/sending)); none changes a file. The latest format is 23;
+[Sending](/help/sending)); none changes a file. Formats 24 and 25 reserve the key
+`lead_rule` on outreach items and then on interactions (absent when empty; a
+hand-written one is trimmed and put in lower case, and an empty one or one that is not
+shaped like a rule id is dropped). The latest format is 25;
 `hermitcrm migrate --dry-run` lists the files first and `git revert` undoes it. A
 folder written by a newer Hermit CRM is refused until you upgrade.
 

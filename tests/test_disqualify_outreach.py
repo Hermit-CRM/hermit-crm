@@ -409,7 +409,7 @@ def test_stage_override_is_written_only_when_set_and_round_trips(folder):
     meta = marked.to_frontmatter()
     assert list(meta) == [k for k in outreach.ITEM_KEYS
                           if k in meta or k not in ("stage_override", "framework",
-                                                    "lessons_used", "exemplars_used",
+                                                    "lead_rule", "lessons_used", "exemplars_used",
                                                     "language_pick", "notes_linked",
                                                     "attachments")]
     again = outreach.item_from_text("b", outreach.item_text(marked))

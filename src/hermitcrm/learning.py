@@ -1143,11 +1143,19 @@ def _card_of(store: Store, s: Signal, item) -> Card:
         reviewed_at=outreach.fmt_datetime(s.reviewed_at) if s.reviewed_at else "")
 
 
+def _form_only(s: Signal) -> bool:
+    """Every reason chip on the edits is `wrong-form`: a du/Sie/je fix, not taste."""
+    return bool(s.tags) and set(s.tags) <= {outreach.FORM_TAG}
+
+
 def _keep(s: Signal, repeated: set[str]) -> bool:
     """The deterministic pre-filter: no situational edits, no typo fixes, no
-    edits under 3 words unless a removed phrase repeats elsewhere."""
+    edits under 3 words unless a removed phrase repeats elsewhere, and no edits that
+    only fix the form of address."""
     if s.state == "skipped" or not s.edits:
         return True
+    if _form_only(s):
+        return False
     f = s.overall
     if f is None:
         return True
@@ -1172,6 +1180,8 @@ def cards(store: Store, approach: str, since: datetime | None = None,
              and (since is None or s.reviewed_at > since)]
     counted: dict[str, int] = {}
     for s in fresh:
+        if _form_only(s):
+            continue    # what a du/Sie fix removed does not repeat as a style
         for p in set(s.overall.removed_phrases if s.overall else []):
             counted[p] = counted.get(p, 0) + 1
     repeated = {p for p, n in counted.items() if n >= 2}
