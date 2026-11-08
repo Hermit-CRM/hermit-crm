@@ -318,6 +318,14 @@ otherwise the company's country's, with the culture norms of `[culture.<lang>]`
 in `messages.toml` (German first contact uses `du`); your playbook's Voice wins
 over them.
 
+A contact's **form of address** changes this. Give contacts a select field with the key
+`address_form` (options `du`, `Sie`, `je`; see [Fields](/help/adjust-fields)). For a German draft to a
+contact set to `Sie`, the formality, greeting and names norms switch to formal: the greeting
+is "Guten Tag Herr/Frau Surname," (Herr or Frau chosen from the first name; first and last
+name when the gender is not clear), and a hard check refuses a greeting by first name
+("Hallo Jana,"). The wording is `[address.de.sie]` in `messages.toml`. `du` and `je` are the
+defaults and change nothing; other languages keep their norms.
+
 The checks are rules, not AI: exactly one question, or what the framework allows
 (a LinkedIn connection note may ask none, and at most what the framework allows); not opening with I, Ich, Ik or Je; no calendar link or proposed
 time; the channel's length (email: subject 60 characters, except in a reply or
@@ -419,7 +427,7 @@ the message, byte for byte. `hermitcrm check` reports a file it cannot read.
 Settings in `config.toml`: `outreach_research` (`scrape`, `ai-web` or `none`), `outreach_cooldown_days`,
 `outreach_fit_field`, `outreach_high_fit` (65: the preview counts high-fit
 companies never contacted), `outreach_batch_size` (10), `outreach_critic_threshold` (2; 0 = no critic).
-Channel rules and culture norms: `[outreach.<channel>]` and `[culture.<lang>]`
-in `messages.toml`, over the shipped defaults.
+Channel rules and culture norms: `[outreach.<channel>]`, `[culture.<lang>]` and
+`[address.<lang>.<form>]` in `messages.toml`, over the shipped defaults.
 
 Related: [Playbook](/help/playbook), [Messages](/help/messages), [Sending](/help/sending), [CLI](/help/cli)
