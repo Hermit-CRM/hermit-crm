@@ -4,6 +4,8 @@ Thanks for helping. Hermit CRM is deliberately small: plain files, a thin web ap
 no database and no JavaScript framework. Changes that keep it that way are the
 easiest to accept.
 
+Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## Before you start: safety first
 
 People install Hermit CRM on their own Mac, often by letting an AI agent follow
