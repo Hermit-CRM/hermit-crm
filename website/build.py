@@ -430,6 +430,8 @@ def footer_columns(hub: dict, pages: list[dict], *, features: str, docs: str, ch
     f = hub["footer"]
     site = [(f["features"], features), (f["docs"], docs), (f["changelog"], changelog),
             (f["stats"], stats), (f["about"], about)]
+    if f.get("community") and f.get("community_url"):  # the GitHub Discussions board
+        site.append((f["community"], f["community_url"]))
     comp = [(f["all_comparisons"], compare)] + [
         (f["versus"].replace("{name}", p["name"]), f"{compare}{p['slug']}/") for p in pages]
 

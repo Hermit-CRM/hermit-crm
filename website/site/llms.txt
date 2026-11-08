@@ -103,6 +103,6 @@ One page for each link in the app's left navigation.
 - Email and calendar: BCC or forward mail to a Gmail address you choose, and it is logged on the right contact. Past meetings come from your calendar's ICS link. No inbox sync.
 - History and undo: Every change is a git commit, so every earlier version is kept and can be restored.
 - Source code: Open source, Apache License 2.0.
-- Runs on: macOS and Linux, in your browser. No Windows and no mobile app.
+- Runs on: macOS, and Linux where it is less tested, in your browser. No Windows and no mobile app.
 - Setup: Download it and let your AI coding tool install it. It needs Python 3.11 and git and installs them when they are missing.
 - Maturity and support: Version 1.0. No warranty and no support.
