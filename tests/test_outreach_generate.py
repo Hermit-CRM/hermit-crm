@@ -229,3 +229,57 @@ def test_the_button_says_why_when_the_ai_cannot_run(client):
 def test_the_panel_offers_every_signal(client):
     panel = panel_html(client)
     assert '<option value="declining">headcount decline</option>' in panel
+
+
+# ------------------------------------------------------------ the approach picker
+
+APPROACHES = ("Founder coaching", "Scaling the sales team")
+
+
+def best_fit(client) -> str:
+    """The approach the engine would pick for Mara with no pick (no AI, no writes)."""
+    sel = outreach.select(store_of(client), contacts=[MARA], config=client.app.state.config)
+    return sel.picked[0].approach
+
+
+def test_the_panel_offers_the_playbook_approaches_and_defaults_to_the_best_fit(client):
+    picker = re.search(r'<select name="approach".*?</select>', panel_html(client), re.S).group(0)
+    assert '<option value="" selected>the best fit for them</option>' in picker
+    for name in APPROACHES:
+        assert f">{name}</option>" in picker
+
+
+def test_a_picked_approach_that_fits_shapes_the_draft_and_is_kept_on_the_item(client, root):
+    post(client, "/outreach/build", contact=MARA, back=PANEL, approach="Scaling the sales team")
+    item = next(i for i in outreach.items(root) if i.record == MARA)
+    assert item.approach == "Scaling the sales team"
+
+
+def test_a_picked_approach_that_does_not_fit_them_is_refused_with_its_reason(client, root, fake):
+    """The pick reaches the selection: the approach's ideal customer still applies to the
+    named person, so a pick they do not fit builds nothing and says why."""
+    assert best_fit(client) == "Scaling the sales team"
+    response = post(client, "/outreach/build", contact=MARA, back=PANEL,
+                    approach="Founder coaching")
+    flash = query(response)["flash"]
+    assert "Nothing to build" in flash and "Founder coaching" in flash
+    assert outreach.items(root) == [] and fake.calls == []
+
+
+def test_without_a_pick_the_best_fit_decides(client, root):
+    expected = best_fit(client)
+    post(client, "/outreach/build", contact=MARA, back=PANEL, approach="")
+    item = next(i for i in outreach.items(root) if i.record == MARA)
+    assert item.approach == expected
+
+
+def test_an_unknown_approach_builds_nothing_and_says_so(client, root, fake):
+    response = post(client, "/outreach/build", contact=MARA, back=PANEL, approach="Selling ice")
+    assert "Not built" in query(response)["flash"] and "Selling ice" in query(response)["flash"]
+    assert outreach.items(root) == [] and fake.calls == []
+
+
+def test_the_panels_pick_is_not_carried_into_the_batch_bar(client):
+    response = post(client, "/outreach/build", contact=MARA, back=PANEL,
+                    approach="Scaling the sales team")
+    assert "approach" not in query(response)
