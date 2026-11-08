@@ -258,11 +258,36 @@ def meta_line(c: dict) -> str:
     return f'<p class="meta">Version {md(r["version"])} · {md(r["license"])}</p>'
 
 
-def download_block(c: dict, notes: str = "") -> str:
-    """The button and the version line; `notes` are the lines the caller puts under them."""
+def sha256_of(c: dict) -> str:
+    """The SHA-256 of the download, read from the .sha256 file next to it in site/
+    ("<64 hex>  <name>", as `shasum -a 256` and release.sh write it). Empty when the
+    file is not there or does not look like a checksum, so the page then just shows the
+    link in the footer; a wrong hash printed on the page would be worse than none."""
+    link = c["links"]["sha256"]
+    if link in ("", "#") or "://" in link:
+        return ""
+    try:
+        words = (SITE / link).read_text(encoding="utf-8").split()
+    except OSError:
+        return ""
+    return words[0].lower() if words and re.fullmatch(r"[0-9a-fA-F]{64}", words[0]) else ""
+
+
+def sha256_line(c: dict) -> str:
+    """'SHA-256 <hash>' under the version line, the hash linking to the .sha256 file."""
+    digest = sha256_of(c)
+    if not digest:
+        return ""
+    return (f'  <p class="meta sha256">{md(c["hero"]["sha256_label"])} '
+            f'<a href="{attr(c["links"]["sha256"])}"><code>{digest}</code></a></p>\n')
+
+
+def download_block(c: dict, notes: str = "", with_hash: bool = False) -> str:
+    """The button and the version line; `notes` are the lines the caller puts under them.
+    `with_hash` adds the SHA-256 of the download (once on a page is enough)."""
     return (f'<div class="download">\n'
             f'  <a class="btn" href="{attr(c["links"]["download"])}">{md(c["hero"]["download_button"])}</a>\n'
-            f'  {meta_line(c)}\n{notes}</div>')
+            f'  {meta_line(c)}\n{sha256_line(c) if with_hash else ""}{notes}</div>')
 
 
 def handheld_note(c: dict) -> str:
@@ -445,7 +470,7 @@ def render(c: dict, ld: str = "") -> str:
     # Step 1 holds the button, step 3 the message to copy; the others are one line.
     first, second, third = i["steps"]
     steps = "\n".join([
-        f'      <li><div class="step"><span>{md(first)}</span>\n{download_block(c, needs)}</div></li>',
+        f'      <li><div class="step"><span>{md(first)}</span>\n{download_block(c, needs, with_hash=True)}</div></li>',
         f'      <li><span>{md(second)}</span></li>',
         f'      <li><div class="step"><span>{md(third)}</span>\n        {copy_card}</div></li>',
     ])
