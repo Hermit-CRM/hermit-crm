@@ -11,7 +11,9 @@ up leads with its status, such as the last import; its form opens under
 
 Every section writes `config.toml` in the data folder, keeping its comments;
 secrets (the mail app password, the calendar URL) go to `.secrets.toml`
-(mode 600) or the system's secret store, never to `config.toml`. The secret
+(mode 600) or the system's secret store, never to `config.toml`. Hermit CRM looks
+for each secret in this order: the environment (`HERMITCRM_BCC_PASSWORD`,
+`HERMITCRM_CALENDAR_ICS_URL`), then `.secrets.toml`, then the secret store. The secret
 store is the Keychain on macOS and the Secret Service on Linux (GNOME Keyring,
 KWallet or KeePassXC, reached through `secret-tool` from `libsecret-tools`);
 Settings offers it only when it answers. Without one, secrets are stored in
@@ -68,7 +70,10 @@ scheduled sending** installs the worker job. [How it works](/help/sending).
 ## Calendar
 
 The secret ICS address of your calendar (Google: Settings, your calendar,
-Integrate calendar, secret address in iCal format; `webcal://` is fine).
+Integrate calendar, secret address in iCal format; `webcal://` is fine). In
+Outlook or Microsoft 365: Settings, Calendar, Shared calendars, Publish a
+calendar, then copy the ICS link. In iCloud: share the calendar as a public
+calendar. Treat the address like a password.
 It is tested with a dry run and never shown again. Past meetings with an
 external attendee become `meeting` interactions; unmatched ones wait under
 **To file** on Home; events in the next 7 days show on the Calendar page. Below
