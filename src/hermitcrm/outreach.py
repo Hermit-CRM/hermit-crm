@@ -597,12 +597,15 @@ def channel_rules(channel: str, messages: dict | None = None) -> dict:
 
 
 def framework_rules(rules: dict, framework: Framework | None, channel: str, kind: str) -> dict:
-    """The channel rules for a draft written with `framework`: a copy. Only an email
-    first touch changes, and only to the lower of the two word limits."""
+    """The channel rules for a draft written with `framework`: a copy. An email first
+    touch gets the lower of the two word limits, and a first touch of a framework that
+    allows links may carry one (a booking link is still refused)."""
     out = dict(rules)
     if framework is not None and framework.max_words is not None and channel == "email" \
             and kind == FIRST_TOUCH:
         out["body_max_words"] = min(int(rules.get("body_max_words", 120)), framework.max_words)
+    if framework is not None and framework.links == "allowed" and kind == FIRST_TOUCH:
+        out["links"] = True
     return out
 
 
@@ -905,6 +908,19 @@ def unsupported_quotes(texts: list[str], findings: list[Finding]) -> list[str]:
     return out
 
 
+_COUNT_WORDS = {0: "none", 1: "one", 2: "two"}
+
+
+def question_phrase(low: int, high: int) -> str:
+    """How many questions a message must ask, in words: "exactly one", "at most two",
+    "one or two"."""
+    if low == high:
+        return f"exactly {_COUNT_WORDS[low]}"
+    if low == 0:
+        return f"at most {_COUNT_WORDS[high]}"
+    return f"{_COUNT_WORDS[low]} or {_COUNT_WORDS[high]}"
+
+
 def count_questions(text: str) -> int:
     """Question marks outside quotes ("..." “...” „...“ «...»). A French ` ?` is
     one too; a question mark inside a quoted line of theirs is not ours."""
@@ -971,10 +987,12 @@ def check_text(subject: str, body: str, pitch: str, ctx: CheckContext) -> list[s
     thread = in_thread(ctx.kind)
     for label, text in parts:
         n = count_questions(text)
-        # A LinkedIn connection note may ask nothing; a first touch with a framework asks
-        # what the framework allows (an email, or a LinkedIn pitch); everything else asks one.
+        # A LinkedIn connection note may ask nothing, and at most what the framework allows
+        # (one without a framework); a first touch with a framework asks what the framework
+        # allows (an email, or a LinkedIn pitch); everything else asks one.
         if ctx.channel == "linkedin" and label == "message" and not thread:
-            allowed = (0, 1)
+            allowed = tuple(range(0, ctx.framework.questions[1] + 1)) \
+                if ctx.framework is not None and ctx.kind == FIRST_TOUCH else (0, 1)
         elif ctx.framework is not None and ctx.kind == FIRST_TOUCH and (
                 (ctx.channel == "email" and label == "message")
                 or (ctx.channel == "linkedin" and label == "pitch message")):
@@ -983,7 +1001,7 @@ def check_text(subject: str, body: str, pitch: str, ctx: CheckContext) -> list[s
             allowed = (1,)
         if n not in allowed:
             problems.append(f"the {label} asks {n} questions; it must ask "
-                            + ("at most one" if allowed == (0, 1) else "exactly one"))
+                            + question_phrase(allowed[0], allowed[-1]))
     if opens_with_i(body):
         problems.append(f"it opens with \"{opening_line(body).split()[0]}\"; open with "
                         "them or the finding, not yourself")
@@ -1244,7 +1262,7 @@ FRAMEWORK_CHANNEL_TEXT = {
     "email": ("Channel: email. A subject of at most {subject_max} characters; the body at "
               "most {body_max_words} words, greeting and sign-off included."),
     "linkedin": ("Channel: LinkedIn. body is the connection note: at most {note_max_chars} "
-                 "characters, no pitch, at most one question. pitch is the message sent once "
+                 "characters, no pitch, at most {note_questions}. pitch is the message sent once "
                  "they accept: at most {pitch_max_chars} characters, built with the framework "
                  "above. No subject."),
 }
@@ -1316,16 +1334,20 @@ def framework_rule_lines(framework: Framework) -> list[str]:
     """The rule lines a first touch gets after its recipe, from the fixed ones and
     the framework's own question, offer line and proof values: what keeps the checks
     Python runs on the text in the prompt, whatever the framework's instructions say."""
+    low, high = framework.questions
+    phrase = question_phrase(low, high).capitalize()
     lines = [
         "- Never open with \"I\" (or Ich, Ik, Je): the first word is about them.",
-        "- No meeting ask, no call ask, no link, no proposed day or time.",
+        "- No meeting ask, no call ask, no proposed day or time." if framework.links == "allowed"
+        else "- No meeting ask, no call ask, no link, no proposed day or time.",
         "- When no finding is usable, write from the playbook's general notes instead and "
         "mark what only the seller can fill in with [square brackets].",
         "- The playbook's Voice section wins over the framework on wording, greeting, "
         "sign-off and formality.",
-        "- Exactly one question mark in the whole message." if framework.questions == (1, 1)
-        else "- At most one question mark in the whole message.",
+        f"- {phrase} question mark{'' if high == 1 else 's'} in the whole message.",
     ]
+    if framework.links == "allowed":
+        lines.insert(2, "- No booking link.")
     if framework.offer_line == "never":
         lines.append("- Do not state the offer line; it is below as background.")
     elif framework.offer_line == "required":
@@ -1362,7 +1384,7 @@ def draft_prompt(kind: str, brief: Brief, ctx: CheckContext, approach, playbook_
     in place of SHAPES and CHANNEL_TEXT; house is today's paragraph, word for word, and
     when its instructions were rewritten they get the rule lines after them."""
     rules = {"subject_max": 60, "body_max_words": 120, "note_max_chars": 300,
-             "pitch_max_chars": 600, **ctx.rules}
+             "pitch_max_chars": 600, "note_questions": "one question", **ctx.rules}
     shape = SHAPES[kind]
     channel_text = CHANNEL_TEXTS.get(kind, CHANNEL_TEXT)[ctx.channel]
     if kind == FIRST_TOUCH and ctx.framework is not None:
@@ -1373,6 +1395,8 @@ def draft_prompt(kind: str, brief: Brief, ctx: CheckContext, approach, playbook_
         else:
             shape = framework_block(ctx.framework)
             channel_text = FRAMEWORK_CHANNEL_TEXT[ctx.channel]
+            most = ctx.framework.questions[1]
+            rules["note_questions"] = f"{_COUNT_WORDS[most]} question{'' if most == 1 else 's'}"
     parts = [
         "You draft one sales message for a person to review, edit and send themselves. "
         "Nothing you write is sent automatically.",
@@ -2999,11 +3023,12 @@ def researcher_for(level: str, enricher, fetcher=None, today: date | None = None
 def unmet_needs(framework: Framework, findings: list[Finding]) -> list[str]:
     """The needs of `framework` that no usable finding meets. A finding from a note
     you wrote (source YOURS) meets `personal-connection`; one about the person meets
-    `premise`. Findings are a snapshot of the contact's notes, so a note you wrote
-    is both."""
+    `premise`; a gap that is not stale meets `gap`. Findings are a snapshot of the
+    contact's notes, so a note you wrote is both."""
     usable = [f for f in findings if f.usable]
     met = {"personal-connection": any(f.source == YOURS for f in usable),
-           "premise": any(f.kind == "person" for f in usable)}
+           "premise": any(f.kind == "person" for f in usable),
+           "gap": any(f.is_gap and not f.stale for f in usable)}
     return [need for need in framework.needs if not met[need]]
 
 

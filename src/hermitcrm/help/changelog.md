@@ -8,6 +8,15 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Frameworks can ask two questions, allow a link, and need a gap.** A framework's
+  `questions` can now go up to two (`[0, 2]`, `[1, 2]` or `[2, 2]`); a LinkedIn connection
+  note may ask what the framework allows, and the problem a draft gets says "exactly two" or
+  "one or two" instead of "exactly one". A new `links = "allowed"` lets a first touch carry a
+  link (a booking link is refused either way; replies and follow-ups never get one). A
+  framework can list `needs = ["gap"]`: without a usable, fresh gap the draft falls back as it
+  does for the other needs. Nothing changes for the frameworks that ship, which still ask
+  one question and allow no link. See [Playbook](/help/playbook).
+
 - **Gaps, and the rule that led a message.** A finding can now be a **gap**: something
   the company could improve, backed by evidence. A research note ends in
   `Source: <url> (gap, <date>, <confidence>)`, and a note titled `Research R08: ...`

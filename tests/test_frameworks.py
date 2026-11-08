@@ -87,7 +87,9 @@ GOOD = '[frameworks.x]\nname = "X"\nsteps = ["A"]\ninstructions = "Do it."\n'
 @pytest.mark.parametrize("extra, expected", [
     ('cta = "meeting-ask"\n', "frameworks.toml: x.cta: unknown call to action 'meeting-ask'"),
     ('max_words = "sixty"\n', "frameworks.toml: x.max_words:"),
-    ("questions = [1, 2]\n", "frameworks.toml: x.questions: [min, max] with max 1"),
+    ("questions = [1, 3]\n", "frameworks.toml: x.questions: [min, max] with max 2"),
+    ("questions = [2, 1]\n", "frameworks.toml: x.questions: [min, max] with max 2"),
+    ('links = "always"\n', "frameworks.toml: x.links: unknown link rule 'always'"),
     ('needs = ["budget"]\n', "frameworks.toml: x.needs: unknown need 'budget'"),
     ('proof = "always"\n', "frameworks.toml: x.proof:"),
 ])
@@ -124,7 +126,7 @@ def test_a_file_that_is_not_toml_leaves_the_shipped_library(tmp_path):
 
 
 def test_a_broken_house_keeps_the_shipped_one(tmp_path):
-    (tmp_path / "frameworks.toml").write_text("[frameworks.house]\nquestions = [2, 2]\n",
+    (tmp_path / "frameworks.toml").write_text("[frameworks.house]\nquestions = [3, 3]\n",
                                              encoding="utf-8")
     lib = frameworks.load(tmp_path)
     assert lib.house == frameworks.load().house and lib.problems
@@ -175,3 +177,25 @@ def test_a_frameworks_key_that_is_not_a_table_leaves_the_shipped_library(tmp_pat
     lib = frameworks.load(tmp_path)
     assert lib.ids == ORDER and lib.problems == [
         "frameworks.toml: frameworks: must be a table of [frameworks.<id>] tables"]
+
+
+@pytest.mark.parametrize("questions", [[0, 1], [1, 1], [0, 2], [1, 2], [2, 2]])
+def test_a_framework_may_ask_up_to_two_questions(tmp_path, questions):
+    (tmp_path / "frameworks.toml").write_text(GOOD + f"questions = {questions}\n",
+                                             encoding="utf-8")
+    lib = frameworks.load(tmp_path)
+    assert lib.problems == [] and lib.get("x").questions == tuple(questions)
+
+
+def test_links_are_never_allowed_unless_the_framework_says_so(tmp_path):
+    assert frameworks.load().get("house").links == "never"
+    (tmp_path / "frameworks.toml").write_text(GOOD + 'links = "allowed"\n', encoding="utf-8")
+    lib = frameworks.load(tmp_path)
+    assert lib.problems == [] and lib.get("x").links == "allowed"
+
+
+def test_a_framework_may_need_a_gap(tmp_path):
+    (tmp_path / "frameworks.toml").write_text(GOOD + 'needs = ["gap"]\n', encoding="utf-8")
+    lib = frameworks.load(tmp_path)
+    assert lib.problems == [] and lib.get("x").needs == ("gap",)
+    assert "gap" in frameworks.NEEDS
