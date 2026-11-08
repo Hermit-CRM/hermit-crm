@@ -142,6 +142,16 @@ class Channel(str, Enum):
     NOTE = "note"  # a memo about a person: no direction, never a touch
 
 
+RULE_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,19}$")
+
+
+def normalise_rule(value) -> str:
+    """A research rule id as stored (`r08`): trimmed and lower case; anything not shaped
+    like an id reads as empty, so a stray value never travels with a message."""
+    text = str(value or "").strip().lower()
+    return text if RULE_ID.match(text) else ""
+
+
 def normalise_framework(value) -> str:
     """A framework id as stored: trimmed and lower case. Whether it names a
     framework in the library is not decided here; the Store checks only that it
@@ -410,6 +420,7 @@ class Interaction:
     attachments: list = field(default_factory=list)  # files kept with it (attachments.py)
     body: str = ""
     extra: dict = field(default_factory=dict)  # unknown front-matter keys, round-tripped
+    lead_rule: str = ""  # the research rule whose gap led the message (`r08`), or ""
 
     @property
     def is_note(self) -> bool:
@@ -981,6 +992,8 @@ def interaction_to_frontmatter(i: Interaction) -> dict:
         meta["framework"] = i.framework
     if i.approach:
         meta["approach"] = i.approach
+    if i.lead_rule:
+        meta["lead_rule"] = i.lead_rule
     meta["outcome"] = i.outcome
     meta["source"] = i.source
     if i.message_id:  # only BCC imports carry one
@@ -1005,7 +1018,7 @@ CONTACT_KEYS = frozenset({
 })
 INTERACTION_KEYS = frozenset({
     "date", "channel", "direction", "contact", "subject", "framework", "approach",
-    "outcome", "source", "message_id", "attachments",
+    "lead_rule", "outcome", "source", "message_id", "attachments",
 })
 
 
@@ -1191,6 +1204,7 @@ def interaction_from_dict(meta: dict, body: str, id: str) -> Interaction:
         subject=_str(meta, "subject").strip(),
         framework=normalise_framework(_str(meta, "framework")),
         approach=_str(meta, "approach").strip(),
+        lead_rule=normalise_rule(_str(meta, "lead_rule")),
         outcome=_str(meta, "outcome").strip(),
         source=_enum(_str(meta, "source"), InteractionSource, "source", True, errors,
                      "manual"),

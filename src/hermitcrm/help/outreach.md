@@ -291,13 +291,15 @@ the card says why.
 
 A first touch opens with something about them (never "I"), says the offer in
 one line, and ends with exactly one question about their situation: no meeting
-ask, no link, no time slot. It is written in the contact's draft language,
+ask, no link, no time slot. A framework can change two of these: it may ask up to
+two questions (`questions = [2, 2]`, `[1, 2]` or `[0, 2]`) and it may allow a
+link (`links = "allowed"`; a booking link is still refused). It is written in the contact's draft language,
 otherwise the company's country's, with the culture norms of `[culture.<lang>]`
 in `messages.toml` (German first contact uses `du`); your playbook's Voice wins
 over them.
 
-The checks are rules, not AI: exactly one question (a LinkedIn connection note
-may ask none); not opening with I, Ich, Ik or Je; no calendar link or proposed
+The checks are rules, not AI: exactly one question, or what the framework allows
+(a LinkedIn connection note may ask none, and at most what the framework allows); not opening with I, Ich, Ik or Je; no calendar link or proposed
 time; the channel's length (email: subject 60 characters, except in a reply or
 follow-up, which keeps their "Re:" subject however long; 120 words; LinkedIn:
 a 300-character connection note and a 600-character message for after they

@@ -120,11 +120,11 @@ def test_m3_before_after(old_folder):
     folder = old_folder / "companies" / "acme" / "interactions"
     before = {name: (folder / f"{name}.md").read_text() for name in CASES}
     text = migrations.dry_run(old_folder)
-    assert "Data format 2 → 23" in text
+    assert "Data format 2 → 25" in text
     assert "3. interaction result folded into outcome: 9 file(s)" in text
 
     summary = migrations.ensure_current(old_folder)
-    assert summary.startswith("migrate: data format 2 → 23 (interaction result folded into "
+    assert summary.startswith("migrate: data format 2 → 25 (interaction result folded into "
                               "outcome; stage reached-out renamed to engaged; scores and "
                               "team size become fields you define; agents may not "
                               "rewrite history (.claude/settings.json); contact notes "

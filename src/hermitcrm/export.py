@@ -70,7 +70,7 @@ CONTACT_FIELDS = (
 )
 INTERACTION_FIELDS = (
     "company_slug", "company", "id", "date", "channel", "direction", "contact",
-    "subject", "framework", "approach", "outcome", "source",
+    "subject", "framework", "approach", "lead_rule", "outcome", "source",
     "message_id", "body",
 )
 TASK_FIELDS = (

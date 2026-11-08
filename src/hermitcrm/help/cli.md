@@ -67,7 +67,7 @@ hermitcrm outreach edits [--positive] [--noted]
                                         with your explainer, and how the message was answered
 hermitcrm outreach ready ID [--tag T ...]  approve a draft (the checks run again on your text; a failing
                                         one is a warning); never sent; --tag says why you changed it
-                                        (too-long, wrong-tone, wrong-pain, bad-finding, wrong-fact, cliche, other)
+                                        (too-long, wrong-tone, wrong-pain, bad-finding, wrong-fact, cliche, wrong-form, other)
 hermitcrm outreach sent ID                 you sent it (logging the message does this too); logs nothing
 hermitcrm outreach followup-done COMPANY/CONTACT [--undo]
                                         a follow-up you did elsewhere or dropped: off the Follow-ups tab,

@@ -73,6 +73,7 @@ from .models import (
     normalise_framework,
     normalise_language,
     normalise_linkedin,
+    normalise_rule,
     normalise_website,
     parse_date,
     parse_datetime,
@@ -303,7 +304,7 @@ CONTACT_MERGE_FIELDS = tuple(
     f for f in CONTACT_COPY_FIELDS if f not in ("slug", "created", "updated", "tasks"))
 INTERACTION_COPY_FIELDS = (
     "id", "date", "channel", "direction", "contact", "subject", "framework",
-    "approach", "outcome", "source", "message_id", "attachments", "body",
+    "approach", "lead_rule", "outcome", "source", "message_id", "attachments", "body",
 )
 
 
@@ -777,6 +778,15 @@ class Store:
             raise ValidationError(
                 {"framework": "a framework id: lower case letters, digits and hyphens"})
         return value
+
+    @staticmethod
+    def _coerce_rule(value, current: str = "") -> str:
+        """Empty, shaped like a research rule id (`r08`), or unchanged."""
+        text = str(value or "").strip().lower()
+        if text and text != normalise_rule(current) and not normalise_rule(text):
+            raise ValidationError(
+                {"lead_rule": "a rule id: lower case letters, digits and hyphens, like r08"})
+        return text
 
     def _coerce_stage(self, value, current: str = "") -> str:
         """Empty (the entry stage), a configured stage, or unchanged (a stage
@@ -1739,7 +1749,7 @@ class Store:
     def create_interaction(self, company_slug: str, channel, direction, subject="",
                            contact="", date=None, outcome="", body="",
                            source="manual", message_id="", custom=None,
-                           approach="", framework="",
+                           approach="", framework="", lead_rule="",
                            attachments: Sequence[Incoming | Attachment] = ()) -> Interaction:
         company = self._current(company_slug)
         if company is None:
@@ -1763,6 +1773,7 @@ class Store:
             subject=subject,
             framework=self._coerce_framework(framework),
             approach=(approach or "").strip(),
+            lead_rule=self._coerce_rule(lead_rule),
             outcome=self._coerce_outcome(outcome),
             source=self._coerce_enum(source, InteractionSource, "source", False),
             message_id=(message_id or "").strip(),
@@ -1791,6 +1802,7 @@ class Store:
         for item in sent:
             it.framework = it.framework or item.framework
             it.approach = it.approach or item.approach
+            it.lead_rule = it.lead_rule or item.lead_rule
             message += f"; outreach {item.id} sent"
         stored = self.add_files(company_slug, [a for a in attachments if isinstance(a, Incoming)])
         it.attachments = [a for a in attachments if isinstance(a, Attachment)] + [
@@ -1858,6 +1870,8 @@ class Store:
             new.framework = self._coerce_framework(fields["framework"], old.framework)
         if "approach" in fields:
             new.approach = (fields["approach"] or "").strip()
+        if "lead_rule" in fields:
+            new.lead_rule = self._coerce_rule(fields["lead_rule"], old.lead_rule)
         if "outcome" in fields:
             new.outcome = self._coerce_outcome(fields["outcome"], old.outcome)
         if "body" in fields:

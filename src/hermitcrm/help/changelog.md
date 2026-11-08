@@ -8,6 +8,33 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Frameworks can ask two questions, allow a link, and need a gap.** A framework's
+  `questions` can now go up to two (`[0, 2]`, `[1, 2]` or `[2, 2]`); a LinkedIn connection
+  note may ask what the framework allows, and the problem a draft gets says "exactly two" or
+  "one or two" instead of "exactly one". A new `links = "allowed"` lets a first touch carry a
+  link (a booking link is refused either way; replies and follow-ups never get one). A
+  framework can list `needs = ["gap"]`: without a usable, fresh gap the draft falls back as it
+  does for the other needs. Nothing changes for the frameworks that ship, which still ask
+  one question and allow no link. See [Playbook](/help/playbook).
+
+- **Gaps, and the rule that led a message.** A finding can now be a **gap**: something
+  the company could improve, backed by evidence. A research note ends in
+  `Source: <url> (gap, <date>, <confidence>)`, and a note titled `Research R08: ...`
+  gives the finding its rule (`r08`). When a first touch has a usable, fresh gap, the
+  draft must lead with one (the prompt says so and the hard checks refuse a draft that
+  cites none). The web researcher cannot report a gap itself: gaps come from your own
+  research rules. The rule of the gap that led is kept on the outreach item as
+  `lead_rule` and copied onto the message when it is logged. Your data folder is
+  migrated to format 25 (a hand-written `lead_rule` is trimmed and lower-cased). See
+  [Data format](/help/data-format).
+
+- **Quotes must match the evidence.** A first-touch draft that puts a phrase of two or
+  more words in quotation marks must quote it word for word from a usable finding
+  (case, spacing and the dot at the end do not matter). A paraphrased quote is a hard
+  check, named in the problem, on the draft and again when you approve your edit. A
+  single quoted word is left alone. New reason chip **wrong-form** for fixing du, Sie
+  or je: an edit with only that chip is not learned as taste.
+
 - **Secrets and calendar links, explained in Settings Help.** The Settings page now
   says where Hermit CRM looks for each secret (the environment, then `.secrets.toml`,
   then the system secret store) and how to get the calendar link from Outlook,

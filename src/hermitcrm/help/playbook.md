@@ -156,6 +156,14 @@ in your data folder on top. A help page that describes each framework comes
 later. `hermitcrm check` names an id the library does not have, and a key or
 answer it does not know.
 
+Three keys of a framework in `frameworks.toml` change what a first message may
+do. `questions = [min, max]` sets how many questions it asks, up to two
+(`[2, 2]` is exactly two; a LinkedIn connection note may also ask none).
+`links = "allowed"` lets it carry a link; a booking link is refused either way,
+and a reply or follow-up never gets a link. `needs = ["gap"]` makes it need a
+usable, fresh gap from your research rules; without one the draft falls back to
+the approach's default framework, or to `house`, and says so on the card.
+
 ## The body
 
 Each approach block holds these `## ` headings. A comment under each heading says
