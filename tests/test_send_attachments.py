@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """Files on an outreach email: attach to a draft, send them with the approved text,
-log what went out (docs/superpowers/plans/2026-10-31-attachments.md, Task 8). SMTP
+log what went out. SMTP
 and IMAP are in-memory doubles; no test touches the network."""
 
 from __future__ import annotations

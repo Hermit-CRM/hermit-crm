@@ -17,7 +17,7 @@
 // stripped of line breaks before it runs, so: whole-line comments only (they
 // are dropped), every statement ends in ";", no percent sign anywhere (so no
 // modulo), and no // after code. Read the rules in
-// docs/superpowers/specs/linkedin-conversation-dom.md before changing a selector.
+// docs/linkedin-conversation-dom.md before changing a selector.
 //
 // It reads the conversation the person is looking at, in their own tab, and
 // hands it to Hermit's tab (the one this opens) with postMessage. Terms of

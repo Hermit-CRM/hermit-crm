@@ -13,8 +13,7 @@
 # limitations under the License.
 
 """The contact page: the status strip on top, the action row, the read-only
-fields with an Edit box, the contact-page timeline, and the folded boxes
-(docs/superpowers/specs/2026-10-15-contact-page-layout-design.md, P1)."""
+fields with an Edit box, the contact-page timeline, and the folded boxes."""
 
 from __future__ import annotations
 
