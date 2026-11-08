@@ -4982,7 +4982,7 @@ def create_app(root: Path, config: dict | None = None,
             selection = await run_in_threadpool(
                 outreach.select, store, where=outreach_where(form["where"]),
                 channel=form["channel"], kind=kind, limit=1,
-                approach="" if contact else form["approach"],
+                approach=form["approach"],
                 contacts=[contact] if contact else None, config=config,
                 include_closed=form["include"])
         except outreach.OutreachError as exc:
@@ -5037,7 +5037,9 @@ def create_app(root: Path, config: dict | None = None,
         line = (f"{selection.picked[0].who}: "
                 + ("drafted" if item.state == "drafted" else f"skipped ({item.skip_note})"))
         remaining = 0 if contact else max(0, form["left"] - 1)
-        query = outreach_query({**form, "left": remaining, "batch": batch_id},
+        # The panel's pick is for this one person: it is not carried into the batch bar.
+        query = outreach_query({**form, "left": remaining, "batch": batch_id,
+                                **({"approach": ""} if contact else {})},
                                tab=outreach_tab(item))
         if remaining:
             line += f". Building the next one ({remaining} left)…"

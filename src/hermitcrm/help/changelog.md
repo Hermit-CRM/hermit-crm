@@ -8,6 +8,19 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **A LinkedIn profile that cannot be read no longer claims its address gave a name.** When
+  LinkedIn refuses the anonymous request and the address spells no name (`/in/hrijpstra`),
+  the note on the new-contact form now asks you to type the name and the company, instead of
+  only the company. Addresses that do spell a name (`/in/ines-vega-8a1b2c3d`) read as before.
+  No data change.
+
+- **Pick the approach in a contact's Generate panel.** The panel opened by **Generate
+  outreach** on a contact now has an **Approach** dropdown, as the batch bar does. Left on
+  "the best fit for them" nothing changes. Pick one and the draft uses that approach and its
+  default framework (for example a value-added approach with a gap framework). The
+  approach's ideal customer still applies: a pick the person does not fit builds nothing and
+  says why. No data change. See [Outreach](/help/outreach).
+
 - **Frameworks can ask two questions, allow a link, and need a gap.** A framework's
   `questions` can now go up to two (`[0, 2]`, `[1, 2]` or `[2, 2]`); a LinkedIn connection
   note may ask what the framework allows, and the problem a draft gets says "exactly two" or
