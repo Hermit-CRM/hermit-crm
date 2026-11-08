@@ -7,8 +7,8 @@ is the Apache License 2.0 in [LICENSE](LICENSE), sections 7 and 8.
 
 Hermit CRM is free. You pay nothing and you owe nothing.
 
-It is incomplete, it changes without notice, and it has bugs that nobody has
-found yet. Parts of it will break.
+It is version 1.0 and stable for daily use, but it is not perfect: it still
+changes between releases, and it has bugs that nobody has found yet.
 
 It comes with **no warranty of any kind**. Not that it works. Not that it keeps
 working. Not that it fits what you want to do with it. It is provided "as is".
@@ -33,7 +33,7 @@ second repository every few minutes. That is a convenience, not a guarantee.
 
 **You are responsible for your own backups.** You are also responsible for
 testing that a restore actually works. A backup you have never restored is not
-a backup — it is a hope. Restore one to a scratch folder now and then and check
+a backup. It is a hope. Restore one to a scratch folder now and then and check
 the result with your own eyes.
 
 If the backup does not run, does not include what you expected, or cannot be
@@ -67,7 +67,7 @@ it to read, and AI command-line tools such as Claude Code or Codex.
   [LinkedIn User Agreement](https://www.linkedin.com/legal/user-agreement).
   Whether fetching a given page is allowed is between you and them.
 - **You are responsible for your own GDPR obligations** whenever data leaves
-  your machine — for example when an AI tool is given a contact's details to
+  your machine, for example when an AI tool is given a contact's details to
   enrich or draft with. That is a transfer you have chosen to make, on your
   legal basis, under that provider's terms.
 - Costs are yours too. AI tools bill you, not the author.
@@ -86,6 +86,6 @@ with more care but carry no promise either.
 The Apache License covers the code. It does **not** grant rights to the name
 "Hermit CRM" or to the hermit logo (Apache 2.0, section 6).
 
-Fork the code, change it, ship it — that is what the licence is for. Give your
+Fork the code, change it, ship it. That is what the licence is for. Give your
 fork a different name, and do not use the name or logo in a way that suggests
 the original project endorses it.

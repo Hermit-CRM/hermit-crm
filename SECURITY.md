@@ -2,14 +2,17 @@
 
 ## Reporting a vulnerability
 
-Mail **gcjbos@gmail.com** with `hermitcrm security` in the subject.
+Use GitHub's private reporting: open the repository's
+[Security tab](https://github.com/Hermit-CRM/hermit-crm/security/advisories/new)
+and choose **Report a vulnerability**. Only the maintainer can see the report.
+Or mail **gcjbos@gmail.com** with `hermitcrm security` in the subject.
 
 Useful things to include: the version (`hermitcrm --version`), what an attacker
 would gain, and the smallest set of steps that shows it. A patch is welcome and
 not expected.
 
 Please do not open a public issue for something exploitable. Give it a little
-time in private first — a week or two is plenty for a project this size.
+time in private first. A week or two is plenty for a project this size.
 
 ## What you will get back
 
@@ -17,9 +20,9 @@ An acknowledgement when the report is read, and an honest answer about whether
 it will be fixed.
 
 **There is no guarantee of a fix.** There is no response time, no service level
-and no obligation to act at all. Hermit CRM is free, unpaid alpha software
-maintained by one person in their own time. A report may be fixed the same day,
-fixed in six months, documented as a known limitation, or declined. Assume
+and no obligation to act at all. Hermit CRM is free software, stable for daily
+use, maintained by one person in their own unpaid time. A report may be fixed
+the same day, fixed in six months, documented as a known limitation, or declined. Assume
 nothing; the answer will be honest either way.
 
 If a report is not acted on and you think it should be public, say so and
