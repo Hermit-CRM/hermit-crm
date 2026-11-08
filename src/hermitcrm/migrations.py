@@ -33,7 +33,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from .models import COUNTRY_CODE_ALIASES, DEFAULT_OUTCOMES
+from .models import COUNTRY_CODE_ALIASES, DEFAULT_OUTCOMES, normalise_rule
 from .store import build_file, split_file
 from .updates import UPGRADE_HINT
 
@@ -563,6 +563,23 @@ def m15_framework(meta: dict) -> dict:
     return {k: (value if k == "framework" else v) for k, v in meta.items()}
 
 
+def m24_lead_rule(meta: dict) -> dict:
+    """Outreach items and interactions gained an optional `lead_rule`: the research
+    rule whose gap led the message (`r08`), absent when empty. A hand-written one is
+    trimmed and put in lower case; an empty one or one not shaped like a rule id is
+    dropped. A file without `lead_rule`, or with it as the app writes it, is returned
+    as it is. Format 24 runs this over items, format 25 over interactions."""
+    if "lead_rule" not in meta:
+        return meta
+    raw = meta["lead_rule"]
+    value = normalise_rule(raw)
+    if not value:
+        return {k: v for k, v in meta.items() if k != "lead_rule"}
+    if value == raw:
+        return meta
+    return {k: (value if k == "lead_rule" else v) for k, v in meta.items()}
+
+
 MIGRATIONS = [
     Migration(1, "rename gijs_score to my_score", "companies/*/company.md", m1_my_score),
     Migration(2, "country UK→GB, USA→US", "companies/*/company.md", m2_country_codes),
@@ -606,6 +623,10 @@ MIGRATIONS = [
               "outreach/*.md", _noop),
     Migration(23, "outreach items may have attachments (nothing to change in a file)",
               "outreach/*.md", _noop),
+    Migration(24, "outreach items record the rule that led the message", "outreach/*.md",
+              m24_lead_rule),
+    Migration(25, "interactions record the rule that led the message",
+              "companies/*/interactions/*.md", m24_lead_rule),
 ]
 LATEST = MIGRATIONS[-1].version
 

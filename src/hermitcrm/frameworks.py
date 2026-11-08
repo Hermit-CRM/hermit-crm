@@ -42,14 +42,17 @@ ID = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 CTAS = ("situation-question", "interest-question", "small-step-question", "easy-no",
         "yes-no", "reply-invite")
 LEVELS = ("required", "optional", "never")          # proof and offer_line
+LINKS = ("never", "allowed")                        # a link in a first touch
 RESEARCH = ("none", "trigger", "individual")
 NEEDS = {"premise": "a premise (something they wrote, said or shared)",
-         "personal-connection": "a personal connection"}
+         "personal-connection": "a personal connection",
+         "gap": "a gap (something their own pages show could be better)"}
+QUESTIONS = ([0, 1], [1, 1], [0, 2], [1, 2], [2, 2])   # [min, max]: Hermit asks at most two
 ANSWERS = {"deal": ("small", "mid", "large", "xl"), "buyer": ("exec", "lead", "staff"),
            "volume": ("low", "mid", "high"), "research": ("minute", "five", "fifteen"),
            "tone": ("plain", "warm", "blunt")}
 KEYS = ("name", "after", "summary", "steps", "max_words", "cta", "questions", "proof",
-        "offer_line", "needs", "research", "best_for", "watch_out", "evidence",
+        "offer_line", "links", "needs", "research", "best_for", "watch_out", "evidence",
         "instructions", "example", "fits")
 INSTRUCTIONS_MAX = 900
 _TEXT_KEYS = ("after", "summary", "best_for", "watch_out", "evidence", "example")
@@ -66,6 +69,7 @@ class Framework:
     questions: tuple[int, int] = (1, 1)
     proof: str = "optional"
     offer_line: str = "optional"
+    links: str = "never"                  # allowed: the first touch may carry a link
     needs: tuple[str, ...] = ()
     research: str = "trigger"
     after: str = ""
@@ -150,12 +154,13 @@ def from_table(fid: str, table) -> tuple[Framework | None, list[str], list[str]]
         max_words = None
     questions = table.get("questions", [1, 1])
     if not (isinstance(questions, list) and len(questions) == 2
-            and all(_whole(q) for q in questions) and questions in ([0, 1], [1, 1])):
-        bad("questions", "[min, max] with max 1 (Hermit asks at most one question)")
+            and all(_whole(q) for q in questions) and questions in QUESTIONS):
+        bad("questions", "[min, max] with max 2 (Hermit asks at most two questions)")
         questions = [1, 1]
     cta = choice("cta", CTAS, "situation-question", "call to action")
     proof = choice("proof", LEVELS, "optional", "level")
     offer_line = choice("offer_line", LEVELS, "optional", "level")
+    links = choice("links", LINKS, "never", "link rule")
     research = choice("research", RESEARCH, "trigger", "research depth")
     needs = table.get("needs", [])
     if not isinstance(needs, list):
@@ -172,7 +177,8 @@ def from_table(fid: str, table) -> tuple[Framework | None, list[str], list[str]]
     return Framework(
         id=fid, name=name, steps=tuple(steps), instructions=instructions,
         max_words=max_words, cta=cta, questions=(questions[0], questions[1]), proof=proof,
-        offer_line=offer_line, needs=tuple(needs), research=research, **texts), errors, hints
+        offer_line=offer_line, links=links, needs=tuple(needs), research=research,
+        **texts), errors, hints
 
 
 def load(root: Path | str | None = None) -> Library:

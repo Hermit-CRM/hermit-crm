@@ -446,6 +446,28 @@ def test_cards_keep_style_edits_and_drop_noise(folder):
     assert ids == ["t01", "t05", "t06", "t07"]
 
 
+def test_wrong_form_is_a_reason_chip_that_keeps_its_place_before_other():
+    assert "wrong-form" in outreach.EDIT_TAGS
+    assert outreach.EDIT_TAGS.index("wrong-form") < outreach.EDIT_TAGS.index("other")
+    assert outreach.clean_tags(["OTHER", "Wrong-Form"]) == ["wrong-form", "other"]
+
+
+def test_a_correction_of_du_or_sie_alone_is_not_evidence_for_a_lesson(folder):
+    """Fixing the form of address is not taste: a German reader's du/Sie fixes must not
+    become 'write shorter' or 'drop the greeting'."""
+    root, store = folder
+    make(root, 1, edits=[(shorter(ai_body("Mara")), "Sie, not du", ("wrong-form",))])
+    make(root, 2, 1, edits=[(shorter(ai_body("Daan")), "too long", ("too-long",))])
+    assert [c.id for c in learning.cards(store, APPROACH)] == ["t02"]
+
+
+def test_a_wrong_form_edit_that_also_has_another_reason_still_counts(folder):
+    root, store = folder
+    make(root, 1, edits=[(shorter(ai_body("Mara")), "Sie, and too long",
+                          ("wrong-form", "too-long"))])
+    assert [c.id for c in learning.cards(store, APPROACH)] == ["t01"]
+
+
 def test_a_card_is_short_pseudonymous_and_says_what_changed(folder):
     root, store = folder
     body = ai_body("Mara") + "\nLindenhof Data is growing fast."

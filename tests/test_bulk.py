@@ -316,6 +316,16 @@ def test_a_change_that_would_lose_data_is_refused_not_run(store, monkeypatch):
     assert "tasks" in str(exc.value) and "without being asked" in str(exc.value)
 
 
+def test_a_bulk_set_can_backfill_the_lead_rule_of_messages(store, root):
+    p = run_plan(store, "interactions", ["channel=linkedin", "status=unknown"],
+                 set={"lead_rule": "r08"})
+    bulk.apply(store, p)
+    it = next(i for i in fresh(root).get("delta").interactions if i.channel == "linkedin")
+    assert it.lead_rule == "r08"
+    with pytest.raises(Exception, match="lead_rule"):
+        run_plan(store, "interactions", ["channel=linkedin"], set={"lead_rule": "Not A Rule!"})
+
+
 def test_interactions_front_matter_only(store, root):
     bodies = {p.name: p.read_bytes() for p in (root / "companies").glob("*/interactions/*.md")}
     p = run_plan(store, "interactions", ["channel=linkedin", "status=unknown"],
