@@ -3,7 +3,7 @@
 
 name    = "Twenty"
 order   = 5
-checked = 2026-09-23
+checked = 2026-11-07
 
 title = "Hermit CRM vs Twenty: two open-source CRMs compared"
 description = """
@@ -45,12 +45,12 @@ switch = [
 
 # One cell per row of the table; the keys are the rows in index.toml.
 [cells]
-price     = "Self-hosting is free. Cloud: Pro $9 a user a month billed yearly, Organization $19. A 30-day trial."
+price     = "Self-hosting is free. Cloud: Pro $9 a user a month billed yearly, Organization $39. A 30-day trial."
 data      = "On your own server, or in Twenty's cloud."
 format    = "A PostgreSQL database, with objects and fields you define. Export to CSV."
 offline   = "Only if you run the server on your own computer."
 team      = "Yes. Workspaces, members, roles and permissions."
-ai        = "REST and GraphQL APIs, and workflows."
+ai        = "REST and GraphQL APIs, workflows and a built-in MCP server."
 email     = "Gmail and Outlook mailbox and calendar sync."
 history   = "A timeline of changes on each record."
 code      = "Open source, AGPL-3.0. Some enterprise files are under a commercial licence."
@@ -85,6 +85,10 @@ licence.
 [[sources]]
 label = "Twenty pricing"
 url   = "https://twenty.com/pricing"
+
+[[sources]]
+label = "Twenty MCP server documentation"
+url   = "https://docs.twenty.com/user-guide/ai/capabilities/mcp"
 
 [[sources]]
 label = "Twenty licence (GitHub)"
