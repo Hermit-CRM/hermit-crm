@@ -55,6 +55,9 @@ and from the command line; both do the same steps and write the same files.
   you press **Generate**. The panel has the channel and the draft type (from the
   history: someone who replied with interest gets a reply to interest, someone
   whose message went unanswered a follow-up, everyone else a first touch), the
+  **approach** (left on "the best fit for them" it picks the one this person fits
+  best; pick one to use that approach and its default framework. An approach their
+  company does not fit is refused with the reason, and nothing is built), the
   research level, the **signal** you read off LinkedIn insights, and a
   **language** for this card and its regenerates (the default is the contact's
   draft language, else the company's country's). Under the list of notes the draft
