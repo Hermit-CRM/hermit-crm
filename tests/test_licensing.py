@@ -81,8 +81,10 @@ def test_the_risk_documents_are_there_and_link_up():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "Use at your own risk" in readme
     assert "no warranty of" in readme
-    assert "(DISCLAIMER.md)" in readme and "(LICENSE)" in readme
-    assert "(SECURITY.md)" in readme
+    # Absolute GitHub links, not relative ones: PyPI shows this file and cannot resolve
+    # a relative link, so only the end of the address is checked.
+    assert "/DISCLAIMER.md)" in readme and "/LICENSE)" in readme
+    assert "/SECURITY.md)" in readme
     assert "MIT licensed" not in readme
 
     security = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
