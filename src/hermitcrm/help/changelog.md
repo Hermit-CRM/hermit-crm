@@ -8,6 +8,24 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Gaps, and the rule that led a message.** A finding can now be a **gap**: something
+  the company could improve, backed by evidence. A research note ends in
+  `Source: <url> (gap, <date>, <confidence>)`, and a note titled `Research R08: ...`
+  gives the finding its rule (`r08`). When a first touch has a usable, fresh gap, the
+  draft must lead with one (the prompt says so and the hard checks refuse a draft that
+  cites none). The web researcher cannot report a gap itself: gaps come from your own
+  research rules. The rule of the gap that led is kept on the outreach item as
+  `lead_rule` and copied onto the message when it is logged. Your data folder is
+  migrated to format 25 (a hand-written `lead_rule` is trimmed and lower-cased). See
+  [Data format](/help/data-format).
+
+- **Quotes must match the evidence.** A first-touch draft that puts a phrase of two or
+  more words in quotation marks must quote it word for word from a usable finding
+  (case, spacing and the dot at the end do not matter). A paraphrased quote is a hard
+  check, named in the problem, on the draft and again when you approve your edit. A
+  single quoted word is left alone. New reason chip **wrong-form** for fixing du, Sie
+  or je: an edit with only that chip is not learned as taste.
+
 - **Lessons always reach the drafter.** A playbook longer than the prompt allows
   (12,000 characters) was cut at the end, which is exactly where an approach's
   Lessons sit, so a long playbook's lessons never reached the drafts while

@@ -95,6 +95,7 @@ from . import attachments as attachments_mod
 from . import followups, frameworks, messaging, playbook, suppress
 from .enrich import WEB_ONLY, EnrichError
 from .frameworks import HOUSE, Framework
+from .models import normalise_rule as clean_rule
 from .models import (
     DO_NOT_CONTACT, INTERESTED, ValidationError, do_not_contact, fmt_datetime,
     normalise_website, parse_datetime, slugify, unique_slug,
@@ -123,7 +124,8 @@ CHANNELS = ("email", "linkedin")
 LEVELS = ("scrape", "ai-web")
 BUILT_LEVELS = LEVELS
 CRITIC_SCORES = ("relevance", "personal", "tone", "honesty")
-FINDING_KINDS = ("company", "person", "trigger")
+RESEARCH_KINDS = ("company", "person", "trigger")   # what the web researcher may report
+FINDING_KINDS = (*RESEARCH_KINDS, "gap")            # a gap comes from your research rules
 CONFIDENCE = ("high", "medium", "low")
 USABLE = ("high", "medium")
 STALE_DAYS = 90
@@ -139,7 +141,7 @@ DUPLICATE_SUFFIXES = ("ai", "hq", "app", "io", "group", "gmbh", "inc", "ltd", "l
 
 ITEM_KEYS = (
     "state", "kind", "channel", "company", "contact", "reply_to", "follows", "approach",
-    "framework", "language",
+    "framework", "lead_rule", "language",
     "subject", "pitch", "attachments", "research_level", "model", "attempts", "seconds", "checks",
     "critic", "critic_reason", "critic_model", "flags", "stage_override", "norms", "findings", "proof_used",
     "lessons_used", "exemplars_used", "proposals", "edit_distance",
@@ -156,13 +158,16 @@ SEND_KEYS = ("queued", "send_at", "send_hash", "message_id", "send_tries", "send
 EDIT_KEYS = ("at", "words", "note", "tags", "subject", "pitch", "body")
 # Reason chips on a tracked edit: a label for the learning counters without any AI.
 EDIT_TAGS = ("too-long", "wrong-tone", "wrong-pain", "bad-finding", "wrong-fact", "cliche",
-             "other")
+             "wrong-form", "other")
+# A fix of the form of address (du, Sie, je) is a correction of a fact about the person,
+# not a matter of taste: edits with only this chip are left out of learning.
+FORM_TAG = "wrong-form"
 REASON_CHIP_WORDS = 15   # the edit form offers the chips above this many changed words
 NEVER_WRITE_MAX = 10     # phrases in config.toml `outreach_never_write`
 EARLIER_KEYS = ("model", "drafted", "replaced", "why", "ai_subject", "ai_pitch", "ai_body",
                 "edits")
 NOTE_MAX = 500   # characters in the explainer of one tracked edit
-FINDING_KEYS = ("text", "source", "kind", "confidence", "date", "stale", "used")
+FINDING_KEYS = ("text", "source", "kind", "confidence", "date", "stale", "used", "rule")
 _ID = re.compile(r"^[0-9A-Za-z][0-9A-Za-z-]*$")
 
 CONFIG_DEFAULTS = {
@@ -195,18 +200,24 @@ def _config(config: dict | None, key: str):
 class Finding:
     text: str          # "Opened a second office in September"
     source: str        # the URL it was read on, or "crm" for something already known
-    kind: str          # company | person | trigger (hiring, funding, launch...)
+    kind: str          # company | person | trigger (hiring, funding, launch...) | gap
     confidence: str    # high | medium | low
     date: str = ""     # when it happened, as far as the source says (YYYY-MM[-DD])
     stale: bool = False  # older than ~90 days: never the opening line
     used: bool = False   # the draft cites it
+    rule: str = ""       # a gap: the research rule that found it ("r08"); "" = none
 
     @property
     def usable(self) -> bool:
         return self.confidence in USABLE
 
+    @property
+    def is_gap(self) -> bool:
+        return self.kind == "gap"
+
     def to_dict(self) -> dict:
-        return {k: getattr(self, k) for k in FINDING_KEYS}
+        # `rule` is absent until a gap has one, so older findings keep their bytes.
+        return {k: getattr(self, k) for k in FINDING_KEYS if k != "rule" or self.rule}
 
     @classmethod
     def from_dict(cls, data) -> "Finding | None":
@@ -220,7 +231,8 @@ class Finding:
                    kind=_choice(data.get("kind"), FINDING_KINDS, "company"),
                    confidence=_choice(data.get("confidence"), CONFIDENCE, "low"),
                    date=str(data.get("date") or "").strip(),
-                   stale=bool(data.get("stale")), used=bool(data.get("used")))
+                   stale=bool(data.get("stale")), used=bool(data.get("used")),
+                   rule=clean_rule(data.get("rule")))
 
 
 def _choice(value, allowed, default: str) -> str:
@@ -289,6 +301,8 @@ def keep_findings(raw, sources: list[str], today: date) -> list[Finding]:
             if match is None:
                 continue
             finding.source = match
+        if finding.kind not in RESEARCH_KINDS:
+            finding.kind = "company"   # only your research rules call something a gap
         finding.stale = is_stale(finding.date, today)
         finding.used = False
         if all(f.text != finding.text for f in out):
@@ -308,7 +322,7 @@ RESEARCH_SCHEMA = {
                     "source": {"type": "string",
                                "description": "the URL of the page it is on, exactly as "
                                               "given, or crm"},
-                    "kind": {"type": "string", "enum": list(FINDING_KINDS)},
+                    "kind": {"type": "string", "enum": list(RESEARCH_KINDS)},
                     "confidence": {"type": "string", "enum": list(CONFIDENCE)},
                     "date": {"type": "string",
                              "description": "YYYY-MM-DD or YYYY-MM when the page dates "
@@ -865,6 +879,32 @@ _PRICE = re.compile(
 _OPT_OUT_MARK = "⁠"  # not used in text; the opt-out line is matched as a whole
 
 
+QUOTE_MIN_WORDS = 2   # a single quoted word is a term or scare quotes, not a claim
+_FOLD = str.maketrans({"’": "'", "‘": "'", "–": "-", "—": "-", "\u00a0": " "})
+_EDGE = " .,;:!?…-\"'“”„«»"
+
+
+def _fold(text: str) -> str:
+    """Text as compared for a quote: one space between words, lower case, one kind of
+    apostrophe and dash, no punctuation or quotation marks at either end."""
+    return " ".join((text or "").translate(_FOLD).casefold().split()).strip(_EDGE)
+
+
+def unsupported_quotes(texts: list[str], findings: list[Finding]) -> list[str]:
+    """The quoted strings in `texts` that no usable finding says word for word.
+    A quote of fewer than QUOTE_MIN_WORDS words is left alone."""
+    evidence = [_fold(f.text) for f in findings if f.usable]
+    out: list[str] = []
+    for text in texts:
+        for match in _QUOTED.finditer(text or ""):
+            inner = match.group()[1:-1].strip()
+            folded = _fold(inner)
+            if (len(folded.split()) >= QUOTE_MIN_WORDS and inner not in out
+                    and not any(folded in e for e in evidence)):
+                out.append(inner)
+    return out
+
+
 def count_questions(text: str) -> int:
     """Question marks outside quotes ("..." “...” „...“ «...»). A French ` ?` is
     one too; a question mark inside a quoted line of theirs is not ours."""
@@ -992,6 +1032,11 @@ def check_text(subject: str, body: str, pitch: str, ctx: CheckContext) -> list[s
         if len((pitch or "").strip()) > most:
             problems.append(f"the pitch message is {len(pitch.strip())} characters; "
                             f"at most {most}")
+    if ctx.kind == FIRST_TOUCH and ctx.findings:
+        for quote in unsupported_quotes([subject, main, pitch], ctx.findings)[:3]:
+            problems.append(f"it quotes \"{quote}\", which no finding says word for word; "
+                            "quote only what a finding says, or say it in your own words "
+                            "without quotation marks")
     # A gap refuses a draft. Only a fallback written without any usable finding
     # keeps its gaps: it is shown as needing hand edits instead (hand_edits).
     banned = next((p for p in ctx.never_write if p and p.lower() in lowered), None)
@@ -1048,6 +1093,22 @@ class Draft:
     exemplars_used: list[str] = field(default_factory=list)  # example ids in the prompt
     framework: str = ""    # the id of the framework the draft was asked for ("" = none)
     failed: str = ""   # the AI gave no usable draft at all (twice): why
+
+
+def leading_gaps(findings) -> list[int]:
+    """The numbers (1..n, as in the prompt) of the gaps a first touch can lead with:
+    usable and not stale. When there are any, the message leads with one of them."""
+    return [n for n, f in enumerate(findings, 1) if f.is_gap and f.usable and not f.stale]
+
+
+def gap_lead_line(ctx: CheckContext) -> str:
+    """The prompt line that makes a gap lead; "" when there is no gap to lead with."""
+    gaps = leading_gaps(ctx.findings)
+    if not gaps or ctx.kind != FIRST_TOUCH:
+        return ""
+    numbers = ", ".join(str(n) for n in gaps)
+    return (f"A gap leads: open with one of the findings of kind gap (number {numbers}) and "
+            "put its number in findings_used. Other findings may support it, never lead.")
 
 
 def _text(value) -> str:
@@ -1109,6 +1170,12 @@ def clean_answer(data, ctx: CheckContext) -> Draft:
         if given and given != fw.id and fw.id != HOUSE:
             problems.append(f"it says framework '{given}'; this draft was asked for {fw.id}")
         draft.framework = fw.id
+    gaps = leading_gaps(ctx.findings) if ctx.kind == FIRST_TOUCH else []
+    if gaps and not any(n in gaps for n in ids):
+        problems.append("a gap finding leads the message: cite "
+                        + (f"finding {gaps[0]}" if len(gaps) == 1 else
+                           "one of the gap findings " + ", ".join(str(n) for n in gaps))
+                        + " in findings_used and open with it")
     stale_open = [n for n in ids if ctx.findings[n - 1].stale]
     if stale_open and any(_norm_space(ctx.findings[n - 1].text)[:40]
                           in _norm_space(opening_line(draft.body)) for n in stale_open):
@@ -1355,6 +1422,8 @@ def draft_prompt(kind: str, brief: Brief, ctx: CheckContext, approach, playbook_
             lines.append(f"{n}. [{f.kind}, {f.confidence}, {note}; source {f.source}] {f.text}")
         parts.append("--- findings (cite by number in findings_used; usable ones only) ---\n"
                      + ("\n".join(lines) or "none: nothing usable was found") + "\n--- end ---")
+        if gap_lead_line(ctx):
+            parts.append(gap_lead_line(ctx))
     if approach is not None:
         parts.append(f"--- offer line (approach \"{approach.name}\") ---\n"
                      f"{approach.offer_line}\n--- end ---")
@@ -1798,6 +1867,7 @@ class Item:
     follows: str = ""     # follow-up: the id of your unanswered message (an interaction)
     approach: str = ""
     framework: str = ""   # a first touch: the id of the framework it was drafted with
+    lead_rule: str = ""   # the research rule whose gap leads the draft (`r08`), or ""
     language: str = ""
     subject: str = ""
     pitch: str = ""
@@ -1877,7 +1947,7 @@ class Item:
                 if not value:
                     continue    # absent until a file is attached (keeps older files' bytes)
                 value = attachments_mod.to_meta(value)
-            elif key in ("framework", "lessons_used", "exemplars_used", "language_pick",
+            elif key in ("framework", "lead_rule", "lessons_used", "exemplars_used", "language_pick",
                          "notes_linked", "stage_override") and not value:
                 continue    # absent until they apply (keeps older files' bytes)
             meta[key] = value
@@ -1957,6 +2027,7 @@ def item_from_text(item_id: str, text: str) -> Item:
         follows=s("follows").strip(),
         approach=s("approach"),
         framework=s("framework").strip().lower(),
+        lead_rule=clean_rule(s("lead_rule")),
         language=s("language").strip(), subject=s("subject"), pitch=s("pitch"),
         research_level=s("research_level").strip(), model=s("model"),
         attempts=_int_or_none(meta.get("attempts")) or 0,
@@ -3150,6 +3221,7 @@ def _apply_draft(item: Item, draft: Draft, fallback: bool, when: datetime) -> st
         f.used = False
     for n in draft.findings_used:
         item.findings[n - 1].used = True
+    item.lead_rule = next((f.rule for f in item.findings if f.used and f.is_gap and f.rule), "")
     item.state = "drafted"
     item.subject, item.pitch = draft.subject, draft.pitch
     item.body, item.checks, item.norms = draft.body, draft.problems, draft.norms
