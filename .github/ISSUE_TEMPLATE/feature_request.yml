@@ -1,0 +1,37 @@
+name: Feature request
+description: An idea for something Hermit CRM could do
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Hermit CRM is deliberately small: plain files, a thin local web app, and a CRM for one person. Ideas that keep it that way are the easiest to take on. For open-ended questions or half-formed ideas, [Discussions](https://github.com/Hermit-CRM/hermit-crm/discussions) is the better place.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the situation, not the solution. What is hard or missing today?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like Hermit CRM to do?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: How do you work around it today?
+      description: Optional. A spreadsheet, a routine, a template, a manual step.
+  - type: dropdown
+    id: build
+    attributes:
+      label: Would you like to build it?
+      description: Small, focused pull requests are welcome. Please agree the approach here first. See CONTRIBUTING.md.
+      options:
+        - "No, I am only suggesting it"
+        - "Yes, I would like to try"
+        - "Maybe, I would like some guidance"
+    validations:
+      required: true
