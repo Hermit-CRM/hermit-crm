@@ -19,10 +19,13 @@
 #   cta           Python: the kind of closing question
 #                 (situation-question, interest-question, small-step-question,
 #                 easy-no, yes-no, reply-invite)
-#   questions     Python: [min, max] questions in the message; max is 1
+#   questions     Python: [min, max] questions in the message; max is 2 (a LinkedIn
+#                 connection note may also ask none, whatever the minimum)
 #   proof         Python: required, optional or never
 #   offer_line    Python: required, optional or never
-#   needs         Python: what the research must find (premise, personal-connection)
+#   links         Python: never (the default) or allowed: whether a first touch may
+#                 carry a link (a booking link is refused either way)
+#   needs         Python: what the research must find (premise, personal-connection, gap)
 #   research      Python: how deep the research goes (none, trigger, individual)
 #   best_for, watch_out, evidence, example
 #                 people: when to pick it, what to watch, what we know, a sample

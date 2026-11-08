@@ -120,7 +120,8 @@ refused while sending is paused. It is meant for replies and one-offs.
 Each message gets a `Message-ID` on your sending domain, written on the item and
 committed **before** it goes out; a follow-up or reply carries `In-Reply-To` and
 `References`, so it threads under the mail it follows. The mail is plain text,
-UTF-8, exactly as approved: no HTML, no links in a first touch, no tracking
+UTF-8, exactly as approved: no HTML, no links in a first touch (unless its framework
+allows one), no tracking
 pixel, no BCC and no List-Unsubscribe header (a one-to-one mail that looks like
 a newsletter is what filters punish). It is logged once, as an outbound email
 with `source: outreach`; a later BCC import of the same mail adds nothing.

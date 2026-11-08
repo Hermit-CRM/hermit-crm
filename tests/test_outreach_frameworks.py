@@ -456,3 +456,126 @@ def test_a_hand_logged_message_may_carry_a_framework(folder):
         store.create_interaction("lindenhof-data", "email", "out", subject="Hello",
                                  contact="mara-keller", body="Hi\n", framework="Trigger tension")
     assert store.update_interaction("lindenhof-data", it.id, framework="").framework == ""
+
+
+# ------------------------------------------------- two questions, links, the gap need
+
+
+def custom(**table):
+    """A framework built from a table, and the checks' context for it."""
+    base = {"name": "X", "steps": ["A"], "instructions": "Do it."}
+    fw, errors, _ = frameworks.from_table("x", {**base, **table})
+    assert errors == [], errors
+    return fw
+
+
+def ctx_with(fw, channel="email"):
+    rules = outreach.framework_rules(outreach.channel_rules(channel), fw, channel,
+                                     outreach.FIRST_TOUCH)
+    return outreach.CheckContext(channel=channel, rules=rules, framework=fw)
+
+
+TWO = ("Hi Mara,\n\nThe contact form shows no way to book a call. Do visitors drop out there?\n"
+       "I found 8 more. Want them?\n\nSam\n")
+ONE = "Hi Mara,\n\nThe contact form shows no way to book a call. Is that on purpose?\n\nSam\n"
+NONE = "Hi Mara,\n\nThe contact form shows no way to book a call.\n\nSam\n"
+
+
+def test_a_framework_with_two_questions_passes_a_message_with_two():
+    assert outreach.check_text("Your form", TWO, "", ctx_with(custom(questions=[2, 2]))) == []
+
+
+def test_exactly_two_refuses_one_and_says_two():
+    found = outreach.check_text("Your form", ONE, "", ctx_with(custom(questions=[2, 2])))
+    assert "the message asks 1 questions; it must ask exactly two" in found
+
+
+def test_one_or_two_refuses_three_and_none():
+    fw = custom(questions=[1, 2])
+    assert outreach.check_text("Your form", ONE, "", ctx_with(fw)) == []
+    assert outreach.check_text("Your form", TWO, "", ctx_with(fw)) == []
+    assert "the message asks 0 questions; it must ask one or two" in \
+        outreach.check_text("Your form", NONE, "", ctx_with(fw))
+    three = TWO.replace("Sam", "Is this right?\n\nSam")
+    assert "the message asks 3 questions; it must ask one or two" in \
+        outreach.check_text("Your form", three, "", ctx_with(fw))
+
+
+def test_a_one_question_framework_still_refuses_two():
+    found = outreach.check_text("Your form", TWO, "", ctx_with(custom(questions=[1, 1])))
+    assert "the message asks 2 questions; it must ask exactly one" in found
+
+
+def test_a_linkedin_note_may_ask_what_the_framework_allows():
+    note = "Hi Mara, no way to book a call on your form. Do visitors drop out? Want 8 more?"
+    two = ctx_with(custom(questions=[2, 2]), "linkedin")
+    assert outreach.check_text("", note, "", two) == []
+    assert "the message asks 2 questions; it must ask at most one" in \
+        outreach.check_text("", note, "", ctx_with(custom(questions=[1, 1]), "linkedin"))
+    assert "the message asks 2 questions; it must ask at most one" in \
+        outreach.check_text("", note, "", ctx_for("house", "linkedin"))
+
+
+def test_a_framework_that_allows_links_lets_a_link_through_but_no_booking_link():
+    plain = "Hi Mara,\n\nThe pricing page is a form: https://example.com/pricing\nWant 8 more?\n\nSam\n"
+    assert any("contains a link" in p for p in
+               outreach.check_text("Your form", plain, "", ctx_with(custom())))
+    assert outreach.check_text("Your form", plain, "", ctx_with(custom(links="allowed"))) == []
+    booking = plain.replace("https://example.com/pricing", "https://calendly.com/sam/15")
+    assert any("calendar link" in p for p in
+               outreach.check_text("Your form", booking, "", ctx_with(custom(links="allowed"))))
+
+
+def test_links_stay_off_for_replies_and_follow_ups_whatever_the_framework_says():
+    fw = custom(links="allowed")
+    rules = outreach.framework_rules(outreach.channel_rules("email"), fw, "email",
+                                     outreach.REPLY)
+    assert not rules.get("links")
+
+
+def test_the_question_and_link_rule_lines_follow_the_framework():
+    both = outreach.framework_rule_lines(custom(questions=[2, 2], links="allowed"))
+    assert "- Exactly two question marks in the whole message." in both
+    assert not any("no link" in line for line in both)
+    assert "- No meeting ask, no call ask, no proposed day or time." in both
+    assert "- No booking link." in both
+    one_two = outreach.framework_rule_lines(custom(questions=[1, 2]))
+    assert "- One or two question marks in the whole message." in one_two
+    assert "- No meeting ask, no call ask, no link, no proposed day or time." in one_two
+    assert "- At most two question marks in the whole message." in \
+        outreach.framework_rule_lines(custom(questions=[0, 2]))
+
+
+def test_the_linkedin_note_line_in_the_prompt_names_the_frameworks_question_limit(folder):
+    root, store = folder
+    (root / "frameworks.toml").write_text(
+        '[frameworks.gap-two]\nname = "Gap two"\nsteps = ["Gap", "Offer"]\n'
+        'questions = [2, 2]\ninstructions = "Lead with the gap."\n', encoding="utf-8")
+    prompt = first_touch_prompt(store, frameworks.load(root).get("gap-two"), "linkedin")
+    assert "at most two questions" in prompt and "at most one question" not in prompt
+    other = first_touch_prompt(store, LIB.get("trigger-tension-trust"), "linkedin")
+    assert "at most one question" in other
+
+
+def test_the_gap_need_is_met_by_a_usable_fresh_gap_only():
+    def finding(kind="gap", confidence="high", stale=False):
+        return outreach.Finding(text="No way to book a call", source="https://example.com/c",
+                                kind=kind, confidence=confidence, stale=stale, rule="r08")
+    fw = custom(needs=["gap"])
+    assert outreach.unmet_needs(fw, [finding()]) == []
+    assert outreach.unmet_needs(fw, [finding(confidence="low")]) == ["gap"]
+    assert outreach.unmet_needs(fw, [finding(stale=True)]) == ["gap"]
+    assert outreach.unmet_needs(fw, [finding(kind="company")]) == ["gap"]
+    assert outreach.unmet_needs(fw, []) == ["gap"]
+
+
+def test_a_gap_framework_without_a_gap_falls_back_to_house_with_a_flag(folder):
+    root, store = folder
+    (root / "frameworks.toml").write_text(
+        '[frameworks.gap-two]\nname = "Gap two"\nsteps = ["Gap"]\nneeds = ["gap"]\n'
+        'instructions = "Lead with the gap."\n', encoding="utf-8")
+    library = frameworks.load(root)
+    fw, flag = outreach.meet_needs(library, None, library.get("gap-two"), [])
+    assert fw.id == "house"
+    assert flag == "gap-two needs a gap (something their own pages show could be better); " \
+                   "drafted with house"
