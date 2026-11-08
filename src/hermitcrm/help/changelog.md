@@ -35,6 +35,12 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   single quoted word is left alone. New reason chip **wrong-form** for fixing du, Sie
   or je: an edit with only that chip is not learned as taste.
 
+- **Secrets and calendar links, explained in Settings Help.** The Settings page now
+  says where Hermit CRM looks for each secret (the environment, then `.secrets.toml`,
+  then the system secret store) and how to get the calendar link from Outlook,
+  Microsoft 365 or iCloud. This text used to live only in the project README. See
+  [Settings](/help/settings).
+
 - **Lessons always reach the drafter.** A playbook longer than the prompt allows
   (12,000 characters) was cut at the end, which is exactly where an approach's
   Lessons sit, so a long playbook's lessons never reached the drafts while
