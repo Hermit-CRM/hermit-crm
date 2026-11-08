@@ -14,7 +14,7 @@
 
 """One-click upgrade: install the newest release, then restart this server on it.
 
-Spec: docs/superpowers/specs/2026-10-20-one-click-upgrade-design.md. Three steps,
+Three steps,
 each of which can stop the whole thing without leaving the app worse off:
 
 1. **install** -- the fixed command from ``updates.upgrade_argv`` (uv, pipx or pip),

@@ -3278,8 +3278,7 @@ def skip(store: Store, item_id: str, reason: str, note: str = "") -> Item:
 
 # ------------------------------------------------------------------ attachments
 #
-# Files that go out with an approved email (docs/superpowers/plans/2026-10-31-
-# attachments.md). They are kept like the files of a note, in the company's
+# Files that go out with an approved email. They are kept like the files of a note, in the company's
 # attachments folder; the item lists them and the send path attaches them. They
 # can change while the item is a draft or ready, never while it is queued or sent.
 

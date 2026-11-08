@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""attachments.py and the store: files owned by interactions, stored by content
-(docs/superpowers/plans/2026-10-31-attachments.md, Task 1)."""
+"""attachments.py and the store: files owned by interactions, stored by content."""
 
 from __future__ import annotations
 

@@ -13,8 +13,7 @@
 # limitations under the License.
 
 """notes.py: a finding is a note. The note format, the snapshot the draft is
-written from, and the rows of the Outreach card's Notes panel
-(docs/superpowers/specs/2026-10-20-outreach-notes-and-drafts-design.md, part C)."""
+written from, and the rows of the Outreach card's Notes panel."""
 
 from __future__ import annotations
 

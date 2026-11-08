@@ -13,8 +13,7 @@
 # limitations under the License.
 
 """Attachments of BCC'd and forwarded mail: kept on the logged interaction, or in
-the inbox until a person files the mail
-(docs/superpowers/plans/2026-10-31-attachments.md, Task 7)."""
+the inbox until a person files the mail."""
 
 from __future__ import annotations
 
