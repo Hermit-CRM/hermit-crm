@@ -57,7 +57,12 @@ and from the command line; both do the same steps and write the same files.
   whose message went unanswered a follow-up, everyone else a first touch), the
   **approach** (left on "the best fit for them" it picks the one this person fits
   best; pick one to use that approach and its default framework. An approach their
-  company does not fit is refused with the reason, and nothing is built), the
+  company does not fit is refused with the reason, and the panel then offers
+  **Generate anyway**: it builds the draft with a warning on its card, and you
+  decide whether it goes out. The same button appears when a refusal is only a
+  judgement (messaged recently, skipped recently, already messaged before, skipped
+  as bad-fit). Do-not-contact, the suppression list and disqualifier tags have no
+  button), the
   research level, the **signal** you read off LinkedIn insights, and a
   **language** for this card and its regenerates (the default is the contact's
   draft language, else the company's country's). Under the list of notes the draft
