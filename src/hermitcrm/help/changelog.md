@@ -8,6 +8,17 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Generate anyway, instead of "Nothing to build".** When Generate refuses one person for a
+  judgement call (their company is outside the picked approach's ideal customer, for example
+  "fte estimate 146, wants 10-120", or they were messaged recently, skipped recently, messaged
+  before, or skipped as bad-fit), you now land back on the panel with your choices kept, the
+  reason in plain words and a **Generate anyway** button. It builds the draft with a warning on
+  its card and you decide whether it goes out. With no approach picked and none fitting, it uses
+  the closest one and says so. Do-not-contact, the suppression list, disqualifier tags and the
+  sample account are never lifted, and the message says so. A batch never overrides. On the
+  command line it is `--override` with exactly one `--contact`. Open items, "no follow-up due"
+  and "no reply to answer" still refuse. No data change.
+
 - **A LinkedIn profile that cannot be read no longer claims its address gave a name.** When
   LinkedIn refuses the anonymous request and the address spells no name (`/in/hrijpstra`),
   the note on the new-contact form now asks you to type the name and the company, instead of

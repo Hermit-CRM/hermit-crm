@@ -79,7 +79,8 @@ disqualifiers are never lifted.
 One named contact can also be drafted although a judgement rule kept them out
 (`select(override=True)`, the panel's "Generate anyway", `--override`): the
 picked approach's ideal customer (or, with no pick, the closest approach when
-none fits). The draft carries a warning in its `flags`, like the stage override.
+none fits), the cooldown after a message or a skip, "already messaged before"
+and "skipped as bad-fit". The draft carries a warning in its `flags`, like the stage override.
 A refusal that can be lifted has `Candidate.overridable`; one that never can
 (do-not-contact, suppression, tag disqualifiers, the sample account) has
 `never_lifted`. A batch never overrides.
