@@ -367,3 +367,18 @@ def test_a_hostile_note_round_trips_escaped_and_capped(client):
     tag = re.search(r'<input[^>]*id="gen-note"[^>]*>', panel).group(0)
     value = html.unescape(re.search(r'value="([^"]*)"', tag).group(1))
     assert value.startswith("x&y#<script>") and len(value) <= 1000
+
+
+def test_a_recently_messaged_contact_gets_the_button_and_the_retry_builds(client, root):
+    store_of(client).create_interaction(
+        CO, "email", "out", contact=PERSON,
+        date=(NOW - timedelta(days=5)).isoformat(timespec="minutes"),
+        subject="Hello", body="Hello Mara.\n")
+    response = post(client, "/outreach/build", contact=MARA, back=PANEL)
+    q = query(response)
+    assert q["flash"].startswith("Not built: messaged 5 days ago") and q["refused"] == "1"
+    assert 'name="override" value="1"' in panel_html(client, response.headers["location"])
+    assert outreach.items(root) == []
+    post(client, "/outreach/build", contact=MARA, back=PANEL, override="1")
+    item = next(i for i in outreach.items(root) if i.record == MARA)
+    assert any("messaged 5 days ago" in f and "drafted anyway" in f for f in item.flags)
