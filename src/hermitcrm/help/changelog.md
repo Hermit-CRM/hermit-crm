@@ -6,6 +6,20 @@ To upgrade, press **Upgrade** in the notice (the sidebar, or Settings > About): 
 
 Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups and undo](/help/backups)
 
+## Unreleased
+
+- **Research can be switched off: "none (use my notes)".** The **Research** select on the
+  Outreach page (a contact's Generate panel and the batch bar) and `--research` on the command
+  line have a third level, `none`. No page is read and no AI is asked; the draft is written
+  from the notes the contact and its company already have. It is for work you already
+  researched: a gap framework's gap can only come from your own research rules, so the scrape
+  added notes next to it and could push an older gap note out of the 20 newest notes a draft
+  reads. In the Generate panel, picking an approach whose framework needs a gap, for a person
+  whose notes hold a fresh one, sets Research to `none` for you; with no fresh gap on file the
+  panel warns that the draft would fall back to the house framework. Reading the picked
+  level, the commit says "notes only" and the card's research level is empty, as on a reply.
+  No data change, no migration. See [Outreach](/help/outreach).
+
 ## 1.1.0 (2026-11-09)
 
 - **Generate anyway, instead of "Nothing to build".** When Generate refuses one person for a

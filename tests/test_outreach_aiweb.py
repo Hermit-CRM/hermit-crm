@@ -245,7 +245,7 @@ def test_a_cli_that_cannot_be_restricted_is_refused_before_any_call(root):
 def test_ai_web_is_a_built_level_now():
     assert outreach.BUILT_LEVELS == outreach.LEVELS
     assert outreach.research_level({}, "ai-web") == "ai-web"
-    with pytest.raises(outreach.OutreachError, match="use scrape or ai-web"):
+    with pytest.raises(outreach.OutreachError, match="use scrape, ai-web or none"):
         outreach.research_level({}, "clay")
     scrape_r = outreach.researcher_for("scrape", ai(FakeAI()), fetcher=good_fetch)
     web_r = outreach.researcher_for("ai-web", ai(FakeAI()), fetcher=good_fetch)
