@@ -2868,12 +2868,13 @@ def _excluded(store, cand: Candidate, approaches, forced: str, channel, kind, co
     return ""
 
 
-def _soft(cand: Candidate, override: bool, reason: str, warning: str) -> str:
+def _soft(cand: Candidate, override: bool, reason: str, warning: str = "") -> str:
     """A judgement rule the person may lift for one named contact. Without
     `override`: the reason (the contact stays out, marked `overridable`). With it:
-    "" and `warning` on the draft, so the card says it was drafted on purpose."""
+    "" and `warning` (default: the reason, drafted anyway) on the draft, so the
+    card says it was drafted on purpose."""
     if override:
-        cand.warnings.append(warning)
+        cand.warnings.append(warning or f"{reason}: drafted anyway, so check it should go out")
         return ""
     cand.overridable = True
     return reason
@@ -2996,15 +2997,23 @@ def _excluded_rest(store, cand: Candidate, approaches, forced: str, channel, kin
         if other in open_by_company:
             return f"likely duplicate {other} has an open outreach item ({open_by_company[other]})"
     if company.slug in (bad_fit or {}) and not reply:
-        return f"skipped as bad-fit ({bad_fit[company.slug].id})"
+        lifted = _soft(cand, override, f"skipped as bad-fit ({bad_fit[company.slug].id})")
+        if lifted:
+            return lifted
     skipped = (skipped_by_contact or {}).get(cand.record)
     answered = (interest or {}).get(cand.record)
     if skipped is not None and skipped.skipped is not None and not (
             answered is not None and skipped.skipped < answered.interaction.date):
         days = (today - skipped.skipped.date()).days
         if days < cooldown:
-            return (f"skipped {days} days ago ({skipped.skip_reason or 'other'}); back "
-                    f"after the cooldown of {cooldown} days")
+            lifted = _soft(cand, override,
+                           f"skipped {days} days ago ({skipped.skip_reason or 'other'}); back "
+                           f"after the cooldown of {cooldown} days",
+                           f"skipped {days} days ago ({skipped.skip_reason or 'other'}), "
+                           f"inside the cooldown of {cooldown} days: drafted anyway, so check "
+                           "it should go out")
+            if lifted:
+                return lifted
     if reply:
         return ""
     if follow:
@@ -3033,9 +3042,13 @@ def _excluded_rest(store, cand: Candidate, approaches, forced: str, channel, kin
     recent = [i for i in outs if (today - i.date.date()).days < cooldown]
     if recent:
         days = (today - max(i.date for i in recent).date()).days
-        return f"messaged {days} days ago (cooldown {cooldown} days)"
+        lifted = _soft(cand, override, f"messaged {days} days ago (cooldown {cooldown} days)")
+        if lifted:
+            return lifted
     if kind == "first-touch" and any(i.is_message for i in outs):
-        return "already messaged before; not a first touch"
+        lifted = _soft(cand, override, "already messaged before; not a first touch")
+        if lifted:
+            return lifted
     return ""
 
 

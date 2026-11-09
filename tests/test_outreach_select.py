@@ -594,3 +594,75 @@ def test_an_unknown_range_is_not_a_miss(folder):
     sel = named(store, "tallpine-software/oliver-hart", approach=SCALING)
     assert [c.record for c in sel.picked] == ["tallpine-software/oliver-hart"]
     assert sel.picked[0].overridable is False and sel.picked[0].warnings == []
+
+
+def message(store, company, contact, days_ago, who):
+    store.create_interaction(company, "email", "out", contact=contact,
+                             date=(NOW - timedelta(days=days_ago)).isoformat(timespec="minutes"),
+                             subject="Hello", body=f"Hello {who}.\n")
+
+
+def skip_item(root, company, contact, reason, days_ago):
+    item = outreach.Item(id=f"2026-10-01T0900-email-{company}-{contact}", state="skipped",
+                         company=company, contact=contact, created=NOW, body="Hi.\n",
+                         skip_reason=reason, skipped=NOW - timedelta(days=days_ago))
+    outreach.write_item(root, item)
+    return item
+
+
+MARA = "lindenhof-data/mara-keller"
+
+
+def test_override_lifts_a_recent_message_and_says_so(folder):
+    root, store = folder
+    message(store, "lindenhof-data", "mara-keller", 5, "Mara")
+    refused = named(store, MARA)
+    assert refused.excluded[0].reason == "messaged 5 days ago (cooldown 30 days)"
+    assert refused.excluded[0].overridable is True and refused.excluded[0].never_lifted is False
+    sel = named(store, MARA, override=True)
+    assert [c.record for c in sel.picked] == [MARA]
+    assert any("messaged 5 days ago (cooldown 30 days): drafted anyway" in w
+               for w in sel.picked[0].warnings)
+
+
+def test_override_lifts_not_a_first_touch(folder):
+    root, store = folder
+    message(store, "kestrel-metrics", "daan-visser", 45, "Daan")
+    assert named(store, KESTREL).excluded[0].reason == "already messaged before; not a first touch"
+    assert named(store, KESTREL).excluded[0].overridable is True
+    sel = named(store, KESTREL, override=True)
+    assert [c.record for c in sel.picked] == [KESTREL]
+    assert any("already messaged before" in w for w in sel.picked[0].warnings)
+
+
+def test_override_lifts_a_recent_skip(folder):
+    root, store = folder
+    skip_item(root, "lindenhof-data", "mara-keller", "bad-timing", 3)
+    refused = named(store, MARA)
+    assert refused.excluded[0].reason.startswith("skipped 3 days ago (bad-timing)")
+    assert refused.excluded[0].overridable is True
+    sel = named(store, MARA, override=True)
+    assert [c.record for c in sel.picked] == [MARA]
+    assert any("skipped 3 days ago (bad-timing)" in w for w in sel.picked[0].warnings)
+
+
+def test_override_lifts_a_bad_fit_skip(folder):
+    root, store = folder
+    item = skip_item(root, "lindenhof-data", "mara-keller", "bad-fit", 90)
+    refused = named(store, MARA)
+    assert refused.excluded[0].reason == f"skipped as bad-fit ({item.id})"
+    assert refused.excluded[0].overridable is True
+    sel = named(store, MARA, override=True)
+    assert [c.record for c in sel.picked] == [MARA]
+    assert any("skipped as bad-fit" in w for w in sel.picked[0].warnings)
+
+
+@pytest.mark.parametrize("who", [MARA, "saltmarsh-labs/niamh-walsh"])
+def test_an_open_item_is_not_overridable(folder, who):
+    root, store = folder
+    write_open_item(root, "lindenhof-data", "mara-keller")
+    write_open_item(root, "saltmarsh-labs", "ciaran-doyle", state="ready")
+    sel = named(store, who, override=True)
+    assert sel.picked == []
+    assert "open outreach item" in sel.excluded[0].reason
+    assert sel.excluded[0].overridable is False
