@@ -575,7 +575,7 @@ def test_build_refuses_an_unknown_level_and_an_unknown_kind(tmp_path, fake_cli, 
     root = init_folder(tmp_path / "x", demo=True)
     assert cli.main(["outreach", "build", "--where", "stage=prospect", "--research",
                      "clay"], root=root) == 1
-    assert "use scrape or ai-web" in capsys.readouterr().err
+    assert "use scrape, ai-web or none" in capsys.readouterr().err
     assert cli.main(["outreach", "build", "--where", "stage=prospect", "--kind",
                      "cold-call"], root=root) == 1
     assert "draft type" in capsys.readouterr().err

@@ -130,7 +130,8 @@ MANUAL_SKIP_REASONS = ("bad-fit", "wrong-person", "bad-timing", "bad-draft",
 COMPANY_CLOSED = "company-closed"
 SKIP_REASONS = (*MANUAL_SKIP_REASONS, COMPANY_CLOSED)
 CHANNELS = ("email", "linkedin")
-LEVELS = ("scrape", "ai-web")
+NO_RESEARCH = "none"   # read nothing: the draft uses the notes that already exist
+LEVELS = ("scrape", "ai-web", NO_RESEARCH)
 BUILT_LEVELS = LEVELS
 CRITIC_SCORES = ("relevance", "personal", "tone", "honesty")
 RESEARCH_KINDS = ("company", "person", "trigger")   # what the web researcher may report
@@ -552,6 +553,18 @@ class AiWebResearcher:
         out.findings += [f for f in found if all(f.text != g.text for g in out.findings)]
         out.sources += [u for u in trusted if u not in out.sources]
         return out
+
+
+class NoResearcher:
+    """The `none` level: no page is read and no AI is asked. The draft is written from
+    the notes the contact and its company already have (a gap you researched yourself,
+    a note you wrote). The item keeps `research_level` empty, as a reply or a follow-up
+    does."""
+
+    level = ""
+
+    def research(self, company, contact) -> Research:
+        return Research(level=self.level)
 
 
 class EscalatingResearcher:
@@ -3102,7 +3115,7 @@ def default_enricher(config: dict, tier: str = "medium"):
 def research_level(config: dict | None, override: str = "") -> str:
     level = (override or str(_config(config, "outreach_research"))).strip().lower()
     if level not in LEVELS:
-        raise OutreachError(f"research level {level!r}: use scrape or ai-web")
+        raise OutreachError(f"research level {level!r}: use scrape, ai-web or none")
     if level not in BUILT_LEVELS:
         raise OutreachError(f"{level} research comes in a later version; use scrape")
     return level
@@ -3112,7 +3125,10 @@ def researcher_for(level: str, enricher, fetcher=None, today: date | None = None
                    timeout: float = 10, escalate: bool = False):
     """The researcher for a level (`research_level` has checked it): the CLI and
     the Outreach page both build theirs here. `escalate` lets a scrape-level
-    build fall back to one ai-web pass when the scrape finds nothing."""
+    build fall back to one ai-web pass when the scrape finds nothing. `none` reads
+    nothing."""
+    if level == NO_RESEARCH:
+        return NoResearcher()
     if level == "ai-web":
         cls = AiWebResearcher
     else:
@@ -3130,6 +3146,29 @@ def unmet_needs(framework: Framework, findings: list[Finding]) -> list[str]:
            "premise": any(f.kind == "person" for f in usable),
            "gap": any(f.is_gap and not f.stale for f in usable)}
     return [need for need in framework.needs if not met[need]]
+
+
+def gap_approaches(root: Path) -> list[str]:
+    """The names of the ready approaches whose default framework needs a gap. Research
+    cannot supply a gap (only your own research rules do, as notes), so for these the
+    Generate panel offers to skip it."""
+    ready, _ = _ready_approaches(root)
+    library = frameworks.load(root)
+    out = []
+    for a in ready:
+        fw = library.get(a.default_framework)
+        if fw is not None and "gap" in fw.needs:
+            out.append(a.name)
+    return out
+
+
+def has_fresh_gap(company, contact_slug: str, today: date) -> bool:
+    """Whether the notes a draft to this person would read hold a usable gap that is not
+    stale: the need of a framework that leads with one."""
+    from . import notes
+
+    return any(f.is_gap and f.usable and not f.stale
+               for f in notes.snapshot(company, contact_slug, today))
 
 
 def check_framework_choice(library: frameworks.Library, kind: str, framework: str) -> None:
@@ -3269,7 +3308,8 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
                        if answering else
                        f"outreach: follow-up {item.record} ({item.follows})"
                        if following else
-                       f"outreach: research {item.record} ({item.research_level}, "
+                       f"outreach: research {item.record} "
+                       f"({item.research_level or 'notes only'}, "
                        f"{len(item.findings)} findings)")
             ctx["message"] = message
             write_item(root, item)
@@ -4020,7 +4060,7 @@ def render_item(store: Store, item: Item) -> str:
         lines.append(f"Company: {company.name} | {company.website or 'no website'}")
     lines.append(f"Approach: {item.approach or '-'}"
                  + (f" | framework: {item.framework}" if item.framework else "")
-                 + f" | language: {item.language or '-'} | research: {item.research_level}")
+                 + f" | language: {item.language or '-'} | research: {item.research_level or '-'}")
     if item.flags:
         lines.append("Flags:")
         lines += [f"- {f}" for f in item.flags]
