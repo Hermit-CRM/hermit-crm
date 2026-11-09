@@ -75,6 +75,14 @@ the stage); a batch leaves them out and lists them (`Selection.stage_left_out`)
 unless told to include them (`include_closed`). A reply to interest is always
 allowed. `do-not-contact`, the suppression list and the playbook's tag
 disqualifiers are never lifted.
+
+One named contact can also be drafted although a judgement rule kept them out
+(`select(override=True)`, the panel's "Generate anyway", `--override`): the
+picked approach's ideal customer (or, with no pick, the closest approach when
+none fits). The draft carries a warning in its `flags`, like the stage override.
+A refusal that can be lifted has `Candidate.overridable`; one that never can
+(do-not-contact, suppression, tag disqualifiers, the sample account) has
+`never_lifted`. A batch never overrides.
 """
 
 from __future__ import annotations
@@ -2557,6 +2565,10 @@ class Candidate:
     # when the stage check was lifted on purpose (one named contact, or included).
     stage_blocked: str = ""
     stage_override: str = ""
+    # `reason` is a judgement the person may lift for one named contact
+    # (`select(override=True)`); or a fact / safety rule that is never lifted.
+    overridable: bool = False
+    never_lifted: bool = False
 
     @property
     def who(self) -> str:
@@ -2685,14 +2697,20 @@ def select(store: Store, where: list[str] | None = None, channel: str = "email",
            kind: str = "first-touch", limit: int | None = None, approach: str = "",
            contacts: list[str] | None = None, config: dict | None = None,
            today: date | None = None,
-           include_closed: set[str] | list[str] | None = None) -> Selection:
+           include_closed: set[str] | list[str] | None = None,
+           override: bool = False) -> Selection:
     """Who a batch would go to, in order, and why the rest would not. No AI, no
     writes. `contacts` ("company/contact") replaces the filter: the per-contact
     Generate outreach button. A company whose stage is not open keeps its
     contacts out of a batch (they are listed in `stage_left_out`), unless the
     contact is the one named contact or is in `include_closed` ("company/contact"
     records the person confirmed): then it is drafted, with a warning. That is
-    the stage check only; nothing else is lifted."""
+    the stage check only; nothing else is lifted.
+    `override`: the one named contact is drafted although a judgement rule kept
+    them out (the picked approach's ideal customer, see `_soft`), with a warning.
+    Ignored unless exactly one contact is named. Do-not-contact, the suppression
+    list, tag disqualifiers and the sample account are never lifted (a refusal
+    that can be lifted has `overridable`, one that never can has `never_lifted`)."""
     if channel not in CHANNELS:
         raise OutreachError(f"channel {channel!r}: use email or linkedin")
     if kind not in KINDS:
@@ -2774,7 +2792,8 @@ def select(store: Store, where: list[str] | None = None, channel: str = "email",
                                 today, open_by_contact, open_by_company, dupes,
                                 bad_fit, skipped_by_contact, interest, earlier, due, nudge,
                                 named=bool(contacts), done=done,
-                                stage_ok=one_named or cand.record in confirmed)
+                                stage_ok=one_named or cand.record in confirmed,
+                                override=override and one_named)
         if cand.fit is None and not cand.reason:
             cand.flags.append(f"no fit score ({fit_field} is empty)")
         if cand.stage_blocked:   # nothing but the stage is in the way: offer it back
@@ -2804,7 +2823,7 @@ def select(store: Store, where: list[str] | None = None, channel: str = "email",
 def _excluded(store, cand: Candidate, approaches, forced: str, channel, kind, cooldown,
               today, open_by_contact, open_by_company, dupes, bad_fit=None,
               skipped_by_contact=None, interest=None, earlier=None, due=None,
-              nudge=5, named=False, done=None, stage_ok=False) -> str:
+              nudge=5, named=False, done=None, stage_ok=False, override=False) -> str:
     """Why this contact gets no item this time, or "" (and its approach and flags).
     A company whose stage is not open keeps a first touch or follow-up out, but
     not a reply (they wrote to you): with `stage_ok` it is lifted on purpose (a
@@ -2822,6 +2841,7 @@ def _excluded(store, cand: Candidate, approaches, forced: str, channel, kind, co
     follow = kind == FOLLOW_UP
     thread = in_thread(kind)
     if company.is_sample:
+        cand.never_lifted = True
         return "the sample account is made up"
     stage_text = ""
     if not store.stages.is_open(company.stage) and not reply:
@@ -2834,7 +2854,8 @@ def _excluded(store, cand: Candidate, approaches, forced: str, channel, kind, co
             stage_text = ""
     reason = _excluded_rest(store, cand, approaches, forced, channel, kind, cooldown, today,
                             open_by_contact, open_by_company, dupes, bad_fit,
-                            skipped_by_contact, interest, earlier, due, nudge, named, done)
+                            skipped_by_contact, interest, earlier, due, nudge, named, done,
+                            override)
     if reason:
         return reason
     if stage_text:   # all else is fine: only the stage keeps them out
@@ -2843,22 +2864,45 @@ def _excluded(store, cand: Candidate, approaches, forced: str, channel, kind, co
     return ""
 
 
+def _soft(cand: Candidate, override: bool, reason: str, warning: str) -> str:
+    """A judgement rule the person may lift for one named contact. Without
+    `override`: the reason (the contact stays out, marked `overridable`). With it:
+    "" and `warning` on the draft, so the card says it was drafted on purpose."""
+    if override:
+        cand.warnings.append(warning)
+        return ""
+    cand.overridable = True
+    return reason
+
+
+def _closest_approach(company, approaches):
+    """The approach with the fewest ideal-customer misses that has no tag
+    disqualifier against the company (ties: the playbook's order); None when
+    every approach is disqualified."""
+    open_ones = [a for a in approaches if not playbook.disqualify(company, a).excluded]
+    return min(open_ones, key=lambda a: len(playbook.fit(company, a)[1]), default=None)
+
+
 def _excluded_rest(store, cand: Candidate, approaches, forced: str, channel, kind, cooldown,
                    today, open_by_contact, open_by_company, dupes, bad_fit, skipped_by_contact,
-                   interest, earlier, due, nudge, named, done) -> str:
-    """The rules of `_excluded` after the stage check."""
+                   interest, earlier, due, nudge, named, done, override=False) -> str:
+    """The rules of `_excluded` after the stage check. A judgement rule goes
+    through `_soft`; a fact or safety rule sets `never_lifted`."""
     company, contact = cand.company, cand.contact
     reply = kind == REPLY
     follow = kind == FOLLOW_UP
     thread = in_thread(kind)
     if do_not_contact(company, contact):
+        cand.never_lifted = True
         return f"tagged {DO_NOT_CONTACT}"
     if contact.email:   # never drafted, whatever else was asked: send.py would refuse it
         try:
             listed = suppress.lookup(store.root, contact.email)
         except suppress.SuppressError as exc:
+            cand.never_lifted = True
             return str(exc)
         if listed is not None:
+            cand.never_lifted = True
             return f"{contact.email} is on the suppression list ({listed.reason})"
     if reply and cand.record not in (interest or {}):
         return ("no reply showing interest to answer (log their reply with the outcome "
@@ -2889,8 +2933,16 @@ def _excluded_rest(store, cand: Candidate, approaches, forced: str, channel, kin
             only = approaches[0]
             dq = playbook.disqualify(company, only)
             matches, misses, unknown = playbook.fit(company, only)
-            if dq.reasons or misses:
+            if dq.reasons:
+                cand.never_lifted = True
                 return f"{only.name}: " + "; ".join(dq.reasons + misses)
+            if misses:
+                text = "; ".join(misses)
+                lifted = _soft(cand, override, f"{only.name}: {text}",
+                               f"outside {only.name}'s ideal customer ({text}): drafted "
+                               "anyway, so check it fits")
+                if lifted:
+                    return lifted
             cand.approach = only.name
             cand.flags += unknown + dq.unchecked
         else:
@@ -2906,8 +2958,21 @@ def _excluded_rest(store, cand: Candidate, approaches, forced: str, channel, kin
                                   f"{pick.unclear[0]}; rebuild with --approach to change")
                 cand.flags += pick.why
             else:
-                return "fits no approach: " + " | ".join(
+                why = "fits no approach: " + " | ".join(
                     f"{name}: {'; '.join(why)}" for name, why in pick.left_out.items())
+                # Only misses are a judgement; one tag disqualifier makes it a hard no for
+                # that approach, and an approach with none left to try is never lifted.
+                closest = _closest_approach(company, approaches)
+                if closest is None:
+                    cand.never_lifted = True
+                    return why
+                text = "; ".join(playbook.fit(company, closest)[1])
+                lifted = _soft(cand, override, why,
+                               f"outside {closest.name}'s ideal customer ({text}): it fits "
+                               "no approach, this is the closest; drafted anyway, so check it fits")
+                if lifted:
+                    return lifted
+                cand.approach = closest.name
         chosen = next(a for a in approaches if a.name == cand.approach)
         cand.flags += [u for u in playbook.fit(company, chosen)[2] if u not in cand.flags]
         cand.persona = playbook.match_persona(contact.title, chosen.personas)
