@@ -262,8 +262,9 @@ def test_a_picked_approach_that_does_not_fit_them_is_refused_with_its_reason(cli
     assert best_fit(client) == "Scaling the sales team"
     response = post(client, "/outreach/build", contact=MARA, back=PANEL,
                     approach="Founder coaching")
-    flash = query(response)["flash"]
-    assert "Not built" in flash and "Founder coaching" in flash and "Nothing to build" not in flash
+    assert query(response)["refused"] == "1" and "flash" not in query(response)
+    panel = panel_html(client, response.headers["location"])
+    assert "Not built" in panel and "Founder coaching" in panel and "Nothing to build" not in panel
     assert outreach.items(root) == [] and fake.calls == []
 
 
@@ -304,8 +305,8 @@ def test_a_refused_pick_comes_back_to_the_panel_with_your_choices(client, root, 
     assert q["refused"] == "1" and q["contact"] == MARA and q["approach"] == MISFIT
     assert (q["channel"], q["signal"], q["language"]) == ("linkedin", signal, "de")
     assert q["note"] == "read the site" and q["strong"] == "1"
-    assert q["flash"].startswith("Not built:") and "Nothing to build" not in q["flash"]
-    assert "Generate anyway is in the panel" in q["flash"]
+    # One warning, not two: the panel's box carries the reason, so no banner is sent.
+    assert "flash" not in q
     assert outreach.items(root) == [] and fake.calls == []
 
 
@@ -323,6 +324,18 @@ def test_the_refused_panel_shows_the_reason_and_generate_anyway(client):
     assert '<option value="de" selected>' in panel
     assert 'value="read the site"' in panel
     assert re.search(r'name="strong" value="1" checked', panel)
+
+
+def test_the_refusal_is_one_box_at_the_top_of_the_panel(client):
+    store_of(client).update_contact(CO, PERSON, linkedin="https://www.linkedin.com/in/mara-example")
+    url = refused(client).headers["location"]
+    assert client.get(url).text.count("Not built") == 1   # no banner above the panel too
+    panel = panel_html(client, url)
+    assert panel.count("generate-refusal") == 1
+    # above the form and the notes, with its button still wired to the form below
+    assert panel.index("generate-refusal") < panel.index('id="gen-form"')
+    assert panel.index("generate-refusal") < panel.index("Notes the draft will use")
+    assert 'form="gen-form" name="override" value="1"' in panel
 
 
 def test_generate_anyway_builds_with_a_warning(client, root, fake):
@@ -376,8 +389,10 @@ def test_a_recently_messaged_contact_gets_the_button_and_the_retry_builds(client
         subject="Hello", body="Hello Mara.\n")
     response = post(client, "/outreach/build", contact=MARA, back=PANEL)
     q = query(response)
-    assert q["flash"].startswith("Not built: messaged 5 days ago") and q["refused"] == "1"
-    assert 'name="override" value="1"' in panel_html(client, response.headers["location"])
+    assert q["refused"] == "1" and "flash" not in q
+    panel = panel_html(client, response.headers["location"])
+    assert "Not built." in panel and "messaged 5 days ago" in panel
+    assert 'name="override" value="1"' in panel
     assert outreach.items(root) == []
     post(client, "/outreach/build", contact=MARA, back=PANEL, override="1")
     item = next(i for i in outreach.items(root) if i.record == MARA)
@@ -396,9 +411,10 @@ def test_a_refused_follow_up_comes_back_as_a_follow_up_not_a_first_touch(client,
     response = post(client, "/outreach/build", contact=MARA, kind="follow-up",
                     back="/outreach?tab=follow-ups")
     q = query(response)
-    assert q["flash"].startswith("Not built: skipped 3 days ago") and q["refused"] == "1"
+    assert q["refused"] == "1" and "flash" not in q
     assert q["kind"] == "follow-up"
     panel = panel_html(client, response.headers["location"])
+    assert "Not built." in panel and "skipped 3 days ago" in panel
     assert '<option value="follow-up" selected>' in panel and 'name="override"' in panel
     post(client, "/outreach/build", contact=MARA, kind="follow-up", override="1",
          back="/outreach?tab=follow-ups")

@@ -390,10 +390,11 @@ def test_a_refused_reply_comes_back_to_the_panel_as_a_reply(client, root):
     r = post(client, "/outreach/build", contact=MARA, kind=outreach.REPLY, channel="email",
              back="/outreach?tab=replies")
     q = dict(QueryParams(URL(r.headers["location"]).query))
-    assert q["flash"].startswith("Not built: skipped 0 days ago")
+    assert "flash" not in q
     assert q["refused"] == "1" and q["kind"] == outreach.REPLY
     page = client.get(r.headers["location"]).text
     panel = re.search(r'<section id="generate".*?</section>', page, re.S).group(0)
+    assert "Not built." in panel and "skipped 0 days ago" in panel
     assert '<option value="reply-to-interest" selected>' in panel
     assert 'name="override" value="1"' in panel
     post(client, "/outreach/build", contact=MARA, kind=outreach.REPLY, channel="email",
