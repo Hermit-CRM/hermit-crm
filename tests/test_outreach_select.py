@@ -500,3 +500,97 @@ def test_culture_defaults_for_every_language_and_a_country_override(folder):
     messages = messaging.load_messages(root)
     assert outreach.culture("de", "AT", messages)["signoff"] == "Liebe Grüße"
     assert outreach.culture("de", "DE", messages)["signoff"] == "Viele Grüße"
+
+
+# ------------------------------------------------------------------ override
+
+KESTREL = "kestrel-metrics/daan-visser"   # ae count 0: misses "Scaling the sales team" (1-8)
+SCALING = "Scaling the sales team"
+
+
+def named(store, record, **kw):
+    return outreach.select(store, contacts=[record], **kw)
+
+
+def test_a_picked_misfit_is_refused_and_marked_overridable(folder):
+    root, store = folder
+    sel = named(store, KESTREL, approach=SCALING)
+    assert sel.picked == []
+    cand = sel.excluded[0]
+    assert cand.reason.startswith(f"{SCALING}: ") and "ae count 0, wants 1-8" in cand.reason
+    assert cand.overridable is True and cand.never_lifted is False
+
+
+def test_override_drafts_the_misfit_with_a_warning(folder):
+    root, store = folder
+    sel = named(store, KESTREL, approach=SCALING, override=True)
+    assert [c.record for c in sel.picked] == [KESTREL]
+    cand = sel.picked[0]
+    assert cand.approach == SCALING
+    assert len(cand.warnings) == 1
+    assert "ideal customer" in cand.warnings[0] and "ae count 0, wants 1-8" in cand.warnings[0]
+
+
+def test_override_is_ignored_for_a_batch(folder):
+    root, store = folder
+    plain = pick(store, approach=SCALING, limit=10)
+    lifted = pick(store, approach=SCALING, limit=10, override=True)
+    assert KESTREL not in picked(lifted)
+    assert reasons(lifted) == reasons(plain)
+
+
+def test_override_does_not_lift_a_tag_disqualifier(folder):
+    root, store = folder
+    store.update_company("lindenhof-data", tags=["b2b-saas", "customer", "demo"])
+    sel = named(store, "lindenhof-data/mara-keller", approach=SCALING, override=True)
+    assert sel.picked == []
+    cand = sel.excluded[0]
+    assert cand.reason == f"{SCALING}: tagged customer"
+    assert cand.overridable is False and cand.never_lifted is True
+
+
+def test_override_does_not_lift_do_not_contact(folder):
+    root, store = folder
+    sel = named(store, "ravenmoor-systems/ines-moreau", override=True)
+    assert sel.picked == []
+    assert sel.excluded[0].reason == "tagged do-not-contact"
+    assert sel.excluded[0].never_lifted is True and sel.excluded[0].overridable is False
+
+
+def test_override_does_not_lift_the_suppression_list(folder):
+    root, store = folder
+    from hermitcrm import suppress
+    email = store.get("lindenhof-data").contacts["mara-keller"].email
+    suppress.add(root, email, "opted-out", "2026-10-01")
+    sel = named(store, "lindenhof-data/mara-keller", override=True)
+    assert sel.picked == []
+    assert "suppression list" in sel.excluded[0].reason
+    assert sel.excluded[0].never_lifted is True and sel.excluded[0].overridable is False
+
+
+def test_fits_no_approach_override_takes_the_closest_approach(folder):
+    root, store = folder
+    store.update_company("kestrel-metrics", country="US")
+    refused = named(store, KESTREL)
+    assert refused.picked == [] and refused.excluded[0].reason.startswith("fits no approach: ")
+    assert refused.excluded[0].overridable is True
+    sel = named(store, KESTREL, override=True)
+    cand = sel.picked[0]
+    # Founder coaching misses only the country; Scaling the sales team the country and the AE count.
+    assert cand.approach == "Founder coaching"
+    assert "Founder coaching" in cand.warnings[0] and "ideal customer" in cand.warnings[0]
+
+
+def test_fits_no_approach_through_tags_is_never_lifted(folder):
+    root, store = folder
+    store.update_company("lindenhof-data", tags=["b2b-saas", "customer", "demo"])
+    sel = named(store, "lindenhof-data/mara-keller", override=True)
+    assert sel.picked == []
+    assert sel.excluded[0].overridable is False and sel.excluded[0].never_lifted is True
+
+
+def test_an_unknown_range_is_not_a_miss(folder):
+    root, store = folder
+    sel = named(store, "tallpine-software/oliver-hart", approach=SCALING)
+    assert [c.record for c in sel.picked] == ["tallpine-software/oliver-hart"]
+    assert sel.picked[0].overridable is False and sel.picked[0].warnings == []
