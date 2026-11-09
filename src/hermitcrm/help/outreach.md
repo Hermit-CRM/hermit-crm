@@ -269,7 +269,7 @@ finds is saved as notes on the contact, sourced to the profile. The page text it
 
 ## Research
 
-Two levels, `outreach_research` in `config.toml` (default `scrape`), or the
+Three levels, `outreach_research` in `config.toml` (default `scrape`), or the
 **Research** select on the Outreach page and `--research` on the command line.
 
 **`scrape`** (free): the company website, its LinkedIn page and the person's
@@ -294,6 +294,18 @@ finding stays only if it names a page the run listed as read, that page is an
 http(s) address, and it can be read again (LinkedIn is taken as listed); the rest
 are dropped, never shown as fact. If the run fails, the scrape findings stand and
 the card says why.
+
+**`none`** (free, instant): no page is read and no AI is asked. The draft is
+written from the notes the contact and its company already have, such as a gap
+you researched yourself or a note you wrote. Use it when the research is already
+done. The card's research level is then empty, as on a reply. This matters most
+for an approach whose framework **needs a gap** (for example a value-added
+approach with a gap framework): research cannot find a gap, since only your own
+research rules produce one, so it only adds notes next to the one you have. In
+a contact's Generate panel, picking such an approach for a contact whose notes
+hold a fresh gap sets Research to `none` for you (change it back if you want the
+scrape). If no fresh gap is on file, the panel says so, because without one the
+draft falls back to the house framework.
 
 ## The draft and its checks
 
@@ -404,7 +416,7 @@ findings, check results, the critic's scores (`critic`, `critic_reason`,
 timestamps, the AI's original text and how much you changed it. The body is
 the message, byte for byte. `hermitcrm check` reports a file it cannot read.
 
-Settings in `config.toml`: `outreach_research` (`scrape` or `ai-web`), `outreach_cooldown_days`,
+Settings in `config.toml`: `outreach_research` (`scrape`, `ai-web` or `none`), `outreach_cooldown_days`,
 `outreach_fit_field`, `outreach_high_fit` (65: the preview counts high-fit
 companies never contacted), `outreach_batch_size` (10), `outreach_critic_threshold` (2; 0 = no critic).
 Channel rules and culture norms: `[outreach.<channel>]` and `[culture.<lang>]`

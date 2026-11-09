@@ -1788,8 +1788,9 @@ def _build_parser() -> argparse.ArgumentParser:
                             "disqualifiers are never lifted")
         if verb == "build":
             o.add_argument("--research", default="",
-                           help="research level: scrape (default), or ai-web (also "
-                                "searches the web; Claude Code only)")
+                           help="research level: scrape (default), ai-web (also "
+                                "searches the web; Claude Code only), or none (read "
+                                "no page: draft from the notes already there)")
             o.add_argument("--strong", action="store_true",
                            help="draft on the strong model tier (default: medium)")
             o.add_argument("--framework", default="",

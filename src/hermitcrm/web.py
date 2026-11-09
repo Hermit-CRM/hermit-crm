@@ -4889,6 +4889,10 @@ def create_app(root: Path, config: dict | None = None,
                 "language": messaging.draft_language(company, contact,
                                                      messages=app.state.messages),
                 "notes": notes.rows(company, cslug, store.today()),
+                # An approach whose framework leads with a gap cannot get one from
+                # research; with a fresh gap note in hand the panel skips research.
+                "gap_approaches": outreach.gap_approaches(root),
+                "gap_ready": outreach.has_fresh_gap(company, cslug, store.today()),
                 "stage_note": ("" if store.stages.is_open(company.stage) else
                                f"{company.name} is {company.stage}, so a first touch or "
                                "follow-up here is drafted on purpose: the card carries a "
@@ -4946,6 +4950,11 @@ def create_app(root: Path, config: dict | None = None,
         note_requests = [adjust.filter_help_request("Outreach", form["where"], n)
                          for n in (preview.notes if preview else [])]
         ready, gate = outreach._ready_approaches(root)
+        gen = outreach_generate(params.get("contact", ""), every, params)
+        if (gen and not gen["open_item"] and "research" not in params
+                and params.get("refused") != "1"   # a refused pick keeps what was chosen
+                and form["approach"] in gen["gap_approaches"] and gen["gap_ready"]):
+            form = {**form, "research": outreach.NO_RESEARCH}   # the gap is already in the notes
         known = exemplar_index_for(shown)
         about = {i.id: outreach.about_for_item(root, i) for i in shown
                  if i.state in ("drafted", "ready")}   # the cards that show the line
@@ -4957,7 +4966,7 @@ def create_app(root: Path, config: dict | None = None,
             "schedule_preview": schedule_preview, "schedule_error": schedule_error,
             "ready_email": sum(1 for i in every if i.state == "ready" and i.channel == "email"),
             "tab": tab, "cards": [outreach_card(i, known) for i in shown],
-            "gen": outreach_generate(params.get("contact", ""), every, params),
+            "gen": gen,
             "reply_rows": [r for r in reply_rows if r["item"] is None] if tab == "replies"
             else [],
             "due_rows": due_rows if tab == "follow-ups" else [],
