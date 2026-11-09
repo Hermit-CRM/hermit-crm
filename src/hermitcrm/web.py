@@ -5038,8 +5038,9 @@ def create_app(root: Path, config: dict | None = None,
                                        signal=signal, note=note.strip()[:OUTREACH_NOTE_CARRY],
                                        kind="" if kind == outreach.FIRST_TOUCH else kind,
                                        refused="1")
-                return flashed(f"/outreach?{carry}",
-                               f"{text} Generate anyway is in the panel.")
+                # No flash: the panel's own box (at its top) says the reason once,
+                # with the button; a banner above it would be the same warning twice.
+                return goto(f"/outreach?{carry}")
             if cand.never_lifted:
                 text += (" This cannot be overridden: do-not-contact, the suppression list "
                          "and disqualifier tags are never lifted.")

@@ -8,6 +8,11 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **One warning, not two, when Generate refuses someone.** After Generate refused a person
+  you got a banner at the top of the page and the same reason again in a box between the form
+  and the notes. Now there is only the box, and it sits at the top of the Generate panel, above
+  the form, with the **Generate anyway** button. No data change.
+
 - **Research can be switched off: "none (use my notes)".** The **Research** select on the
   Outreach page (a contact's Generate panel and the batch bar) and `--research` on the command
   line have a third level, `none`. No page is read and no AI is asked; the draft is written
