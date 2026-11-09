@@ -4865,22 +4865,26 @@ def create_app(root: Path, config: dict | None = None,
                           and i.contact == cslug), None)
         params = params if params is not None else {}
         refusal, form = None, outreach_form(params)
-        if params.get("refused") == "1" and open_item is None:
+        refused = params.get("refused") == "1"
+        # A refused build comes back with its draft type as it was (a reply included).
+        asked = params.get("kind", "")
+        kind = asked if asked in outreach.BUILT_KINDS else outreach.FIRST_TOUCH
+        if refused and open_item is None:
             try:   # the same pick again, no AI and no writes: the reason is not taken
                 found = outreach.select(   # from the address
-                    store, kind=form["kind"], channel=form["channel"],
+                    store, kind=kind, channel=form["channel"],
                     approach=form["approach"], contacts=[f"{slug}/{cslug}"], config=config)
             except outreach.OutreachError:
                 found = None
             cand = found.excluded[0] if found is not None and found.excluded else None
             if cand is not None and cand.overridable:
-                refusal = {"reason": cand.reason}
+                refusal = {"reason": cand.reason, "lifts": cand.lifts}
         return {"company": company, "contact": contact, "record": f"{slug}/{cslug}",
                 "refusal": refusal,
                 "pick": {"signal": params.get("signal", ""),
                          "language": params.get("language", ""),
                          "note": params.get("note", "")[:OUTREACH_NOTE_CARRY]},
-                "kind": (form["kind"] if params.get("refused") == "1"
+                "kind": (kind if refused
                          else outreach.kind_for(store, company, contact, config=config)),
                 "language": messaging.draft_language(company, contact,
                                                      messages=app.state.messages),
@@ -5020,8 +5024,10 @@ def create_app(root: Path, config: dict | None = None,
             cand = selection.excluded[0]
             text = f"Not built: {cand.reason}."
             if cand.overridable:   # back to the panel with what was chosen, and the button
+                # `kind` is carried as typed: the page form turns a reply into a first touch.
                 carry = outreach_query(stop, contact=contact, language=language,
                                        signal=signal, note=note.strip()[:OUTREACH_NOTE_CARRY],
+                                       kind="" if kind == outreach.FIRST_TOUCH else kind,
                                        refused="1")
                 return flashed(f"/outreach?{carry}",
                                f"{text} Generate anyway is in the panel.")
