@@ -26,6 +26,12 @@
 <section id="generate" class="outreach-generate">
   <h2>Generate for {{ gc.first_name or gc.name }}</h2>
   <p class="small">{{ gc.name }}{% if gc.title %}, {{ gc.title }}{% endif %} at <a href="/companies/{{ gen.company.slug }}">{{ gen.company.name }}</a>. Nothing runs until you press Generate; the draft appears under Drafts to review.</p>
+  {% if gen.refusal %}<div class="warning-box generate-refusal">
+    <p><strong>Not built.</strong> {{ gen.refusal.reason }}.</p>
+    <p class="small">You can generate it anyway: the draft appears under Drafts with a warning on its card, and you decide whether it goes out. It uses the choices below.{% if gen.refusal.lifts %} It will carry {{ 'this warning' if gen.refusal.lifts | length == 1 else 'these warnings' }}:{% endif %}</p>
+    {% if gen.refusal.lifts %}<ul class="small">{% for w in gen.refusal.lifts %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}
+    <button type="submit" form="gen-form" name="override" value="1" data-busy="Generating&hellip;"{% if gate or ai_problem %} disabled{% endif %}>Generate anyway</button>
+  </div>{% endif %}
   {% if gen.stage_note %}<p class="warning-box generate-stage-note">{{ gen.stage_note }}</p>{% endif %}
   {% if gen.open_item %}
   <p>{{ gc.first_name or gc.name }} already has a {{ gen.open_item.kind | replace('-', ' ') }} by {{ gen.open_item.channel }} that is <strong>{{ gen.open_item.state }}</strong>. <a href="/outreach?tab={{ gen.open_tab }}#item-{{ gen.open_item.id }}">Open it</a></p>
@@ -51,12 +57,6 @@
     <button type="submit" data-busy="Generating&hellip;"{% if gate or ai_problem %} disabled{% endif %}>Generate</button>
   </form>
   <p class="warning-box small" id="gen-gap-warning"{% if not (form.approach in gen.gap_approaches and not gen.gap_ready) %} hidden{% endif %}>This approach leads with a gap, and no fresh gap note is on file. Research cannot find one (only your own research rules do), so the draft would fall back to the house framework. Add the gap as a note first.</p>
-  {% if gen.refusal %}<div class="warning-box generate-refusal">
-    <p><strong>Not built.</strong> {{ gen.refusal.reason }}.</p>
-    <p class="small">You can generate it anyway: the draft appears under Drafts with a warning on its card, and you decide whether it goes out. It uses the choices above.{% if gen.refusal.lifts %} It will carry {{ 'this warning' if gen.refusal.lifts | length == 1 else 'these warnings' }}:{% endif %}</p>
-    {% if gen.refusal.lifts %}<ul class="small">{% for w in gen.refusal.lifts %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}
-    <button type="submit" form="gen-form" name="override" value="1" data-busy="Generating&hellip;"{% if gate or ai_problem %} disabled{% endif %}>Generate anyway</button>
-  </div>{% endif %}
   {% endif %}
   <h3>Notes the draft will use ({{ gen.notes | length }})</h3>
   {% if gen.notes %}<ol class="outreach-note-list small">{% for r in gen.notes %}
