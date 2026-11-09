@@ -50,11 +50,14 @@ hermitcrm playbook upgrade [--dry-run]     add the front matter and missing head
                                         keeping every line; one commit, and a second run changes nothing
 hermitcrm outreach preview [--where K=V ...] [--contact CO/PERSON] [--channel email|linkedin]
                          [--limit N] [--approach NAME] [--kind first-touch|reply-to-interest|follow-up]
-                         [--include-closed CO/PERSON ...]
+                         [--include-closed CO/PERSON ...] [--override]
                                         who an outreach batch would go to, and why not the rest; no AI,
                                         nothing written. People at a closed, parked, won or lost company
                                         are listed apart with the flag that brings one in
-                                        (--include-closed); one --contact is drafted anyway, with a warning
+                                        (--include-closed); one --contact is drafted anyway, with a warning;
+                                        --override (exactly one --contact) also lifts a judgement refusal
+                                        (the approach's ideal customer, cooldowns), with a warning; a
+                                        refusal it can lift says so in the preview
 hermitcrm outreach build (same flags) [--research scrape] [--strong] [--framework ID]
                                         research, draft and check each contact: one item per contact in
                                         outreach/, one commit per step; refused until the playbook is ready;
