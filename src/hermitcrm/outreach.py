@@ -2597,6 +2597,7 @@ class Selection:
     gate: str = ""                     # why the build would refuse; "" = ready
     approaches: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)   # about the filter, not an error
+    one_named: bool = False            # one contact was named: `override` can apply
 
     def render_left_out(self) -> list[str]:
         """The contacts only their company's stage kept out, with the way back in."""
@@ -2629,7 +2630,9 @@ class Selection:
                          + ", ".join(c.who for c in self.over_limit))
         if self.excluded:
             lines.append("Not this time:")
-            lines += [f"- {c.who} | {c.reason}" for c in self.excluded]
+            lines += [f"- {c.who} | {c.reason}"
+                      + (" | --override lifts it" if self.one_named and c.overridable else "")
+                      for c in self.excluded]
         lines += self.render_left_out()
         if self.duplicates:
             lines.append("Likely duplicates (merge one into the other on its page, "
@@ -2786,6 +2789,7 @@ def select(store: Store, where: list[str] | None = None, channel: str = "email",
     one_named = bool(contacts) and len(contacts) == 1   # the per-contact Generate button
     confirmed = {str(r) for r in include_closed or ()}
     ranked: list[Candidate] = []
+    sel.one_named = one_named
     for company, contact in pairs:
         cand = Candidate(company, contact, fit=fit_value(company, fit_field))
         cand.reason = _excluded(store, cand, approaches, approach, channel, kind, cooldown,

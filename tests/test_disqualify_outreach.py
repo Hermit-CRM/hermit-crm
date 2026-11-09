@@ -518,3 +518,56 @@ def test_the_cli_skip_can_also_disqualify(folder):
     assert code == 0 and "moved to disqualified" in text and "1 open outreach draft skipped" in text
     assert store.get("lindenhof-data").stage == "disqualified"
     assert outreach.get_item(root, two.id).skip_reason == "company-closed"
+
+
+# ------------------------------------------------------------- --override (CLI)
+
+KESTREL = "kestrel-metrics/daan-visser"   # ae count 0: misses "Scaling the sales team" (1-8)
+
+
+def override_args(**kw):
+    from types import SimpleNamespace
+    base = dict(action="preview", where=[], contact=[KESTREL], channel="email",
+                kind="first-touch", limit=3, approach="Scaling the sales team",
+                include_closed=[], override=False)
+    return SimpleNamespace(**{**base, **kw})
+
+
+def test_the_cli_preview_names_the_override_for_an_overridable_refusal(folder):
+    from hermitcrm.cli import cmd_outreach
+    root, store = folder
+    text, code = cmd_outreach(store, root, {}, override_args(), researcher=None, drafter=None)
+    assert code == 0 and "Would build nothing now." in text
+    assert "ae count 0, wants 1-8 | --override lifts it" in text
+
+
+def test_the_cli_override_previews_the_draft_with_its_warning(folder):
+    from hermitcrm.cli import cmd_outreach
+    root, store = folder
+    text, code = cmd_outreach(store, root, {}, override_args(override=True),
+                              researcher=None, drafter=None)
+    assert code == 0 and "Would build 1:" in text
+    # this fixture's Kestrel is also in a closed stage: both lifts show, stage first
+    assert "outside Scaling the sales team's ideal customer (ae count 0, wants 1-8)" in text
+
+
+@pytest.mark.parametrize("contact", [[], [KESTREL, "lindenhof-data/mara-keller"]])
+@pytest.mark.parametrize("action", ["preview", "build"])
+def test_the_cli_override_needs_exactly_one_contact(folder, action, contact):
+    from hermitcrm.cli import cmd_outreach
+    root, store = folder
+    head = git(root, "rev-parse", "HEAD")
+    text, code = cmd_outreach(store, root, {}, override_args(action=action, contact=contact,
+                                                             where=["stage=prospect"],
+                                                             override=True))
+    assert code == 2 and "--override needs exactly one --contact" in text
+    assert git(root, "rev-parse", "HEAD") == head and not (root / "outreach").exists()
+
+
+def test_the_cli_override_flag_is_parsed(folder):
+    from hermitcrm import cli
+    parsed = cli._build_parser().parse_args(
+        ["outreach", "build", "--contact", KESTREL, "--override"])
+    assert parsed.override is True
+    parsed = cli._build_parser().parse_args(["outreach", "build", "--contact", KESTREL])
+    assert parsed.override is False

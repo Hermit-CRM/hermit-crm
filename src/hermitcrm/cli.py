@@ -1774,6 +1774,12 @@ def _build_parser() -> argparse.ArgumentParser:
                             "followup_nudge_days)")
         o.add_argument("--limit", type=int, default=None, help="batch size (default 10)")
         o.add_argument("--approach", default="", help="the playbook approach to use")
+        o.add_argument("--override", action="store_true",
+                       help="draft for the one --contact although a judgement rule kept them "
+                            "out: the picked --approach's ideal customer (with no pick, the "
+                            "closest approach), with a warning on the draft. Needs exactly "
+                            "one --contact. Do-not-contact, the suppression list and the "
+                            "playbook's disqualifiers are never lifted")
         o.add_argument("--include-closed", action="append", default=[], metavar="COMPANY/CONTACT",
                        help="draft for this person although their company is closed, parked, "
                             "won or lost (repeatable). A batch leaves such companies out and "
@@ -2001,10 +2007,15 @@ def cmd_outreach(store: Store, root: Path, config: dict, args, researcher=None,
         framework = getattr(args, "framework", "")
         if framework:   # before anyone is selected: an empty batch must not hide the refusal
             outreach.check_framework_choice(frameworks.load(root), args.kind, framework)
+        override = bool(getattr(args, "override", False))
+        if override and len(args.contact or []) != 1:
+            return ("--override needs exactly one --contact company/contact: it lifts a "
+                    "refusal for that one person, never for a batch.", 2)
         selection = outreach.select(store, where=args.where, channel=args.channel,
                                     kind=args.kind, limit=args.limit, approach=args.approach,
                                     contacts=args.contact, config=config,
-                                    include_closed=getattr(args, "include_closed", None))
+                                    include_closed=getattr(args, "include_closed", None),
+                                    override=override)
         if action == "preview":
             return (selection.render() + "\n\nPreview only: no AI was run and nothing "
                     "was written.", 0)
