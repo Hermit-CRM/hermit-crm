@@ -2570,6 +2570,9 @@ class Candidate:
     # (`select(override=True)`); or a fact / safety rule that is never lifted.
     overridable: bool = False
     never_lifted: bool = False
+    # The warnings `override` would put on the draft: every judgement rule it lifts,
+    # so the person sees all of them before pressing the button (see `select`).
+    lifts: list[str] = field(default_factory=list)
 
     @property
     def who(self) -> str:
@@ -2793,12 +2796,26 @@ def select(store: Store, where: list[str] | None = None, channel: str = "email",
     sel.one_named = one_named
     for company, contact in pairs:
         cand = Candidate(company, contact, fit=fit_value(company, fit_field))
-        cand.reason = _excluded(store, cand, approaches, approach, channel, kind, cooldown,
-                                today, open_by_contact, open_by_company, dupes,
-                                bad_fit, skipped_by_contact, interest, earlier, due, nudge,
-                                named=bool(contacts), done=done,
-                                stage_ok=one_named or cand.record in confirmed,
-                                override=override and one_named)
+
+        def check(c: Candidate, lift: bool) -> str:
+            return _excluded(store, c, approaches, approach, channel, kind, cooldown,
+                             today, open_by_contact, open_by_company, dupes,
+                             bad_fit, skipped_by_contact, interest, earlier, due, nudge,
+                             named=bool(contacts), done=done,
+                             stage_ok=one_named or c.record in confirmed, override=lift)
+
+        cand.reason = check(cand, override and one_named)
+        if one_named and not override and cand.reason and cand.overridable:
+            # Try the override on a copy (no AI, no writes): a rule after the judgement one
+            # that it cannot lift (no address, an open item) is the real blocker, and what
+            # it does lift is listed, so the button never promises more than it can do.
+            trial = Candidate(company, contact, fit=cand.fit)
+            again = check(trial, True)
+            if again:
+                cand.reason, cand.overridable = again, False
+                cand.never_lifted = trial.never_lifted
+            else:
+                cand.lifts = [w for w in trial.warnings if w not in cand.warnings]
         if cand.fit is None and not cand.reason:
             cand.flags.append(f"no fit score ({fit_field} is empty)")
         if cand.stage_blocked:   # nothing but the stage is in the way: offer it back

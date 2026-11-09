@@ -382,3 +382,37 @@ def test_a_recently_messaged_contact_gets_the_button_and_the_retry_builds(client
     post(client, "/outreach/build", contact=MARA, back=PANEL, override="1")
     item = next(i for i in outreach.items(root) if i.record == MARA)
     assert any("messaged 5 days ago" in f and "drafted anyway" in f for f in item.flags)
+
+
+def test_a_refused_follow_up_comes_back_as_a_follow_up_not_a_first_touch(client, root):
+    store = store_of(client)
+    store.create_interaction(CO, "email", "out", contact=PERSON,
+                             date=(NOW - timedelta(days=10)).isoformat(timespec="minutes"),
+                             subject="Hello", body="Hello Mara.\n")
+    outreach.write_item(root, outreach.Item(
+        id="2026-11-01T0900-email-lindenhof-data-mara-keller", state="skipped",
+        kind="follow-up", company=CO, contact=PERSON, created=NOW, body="Hi.\n",
+        skip_reason="bad-timing", skipped=NOW - timedelta(days=3)))
+    response = post(client, "/outreach/build", contact=MARA, kind="follow-up",
+                    back="/outreach?tab=follow-ups")
+    q = query(response)
+    assert q["flash"].startswith("Not built: skipped 3 days ago") and q["refused"] == "1"
+    assert q["kind"] == "follow-up"
+    panel = panel_html(client, response.headers["location"])
+    assert '<option value="follow-up" selected>' in panel and 'name="override"' in panel
+    post(client, "/outreach/build", contact=MARA, kind="follow-up", override="1",
+         back="/outreach?tab=follow-ups")
+    item = next(i for i in outreach.items(root) if i.record == MARA and i.state != "skipped")
+    assert item.kind == "follow-up"
+    assert any("skipped 3 days ago" in f and "drafted anyway" in f for f in item.flags)
+
+
+def test_the_refused_panel_lists_every_rule_generate_anyway_will_lift(client):
+    store_of(client).create_interaction(
+        CO, "email", "out", contact=PERSON,
+        date=(NOW - timedelta(days=5)).isoformat(timespec="minutes"),
+        subject="Hello", body="Hello Mara.\n")
+    response = post(client, "/outreach/build", contact=MARA, back=PANEL)
+    panel = panel_html(client, response.headers["location"])
+    assert "messaged 5 days ago (cooldown 30 days): drafted anyway" in panel
+    assert "already messaged before; not a first touch: drafted anyway" in panel

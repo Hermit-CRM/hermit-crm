@@ -666,3 +666,34 @@ def test_an_open_item_is_not_overridable(folder, who):
     assert sel.picked == []
     assert "open outreach item" in sel.excluded[0].reason
     assert sel.excluded[0].overridable is False
+
+
+# ------------------------------------------- review fixes: dead ends and what is lifted
+
+
+def test_a_refusal_the_override_cannot_lift_is_not_offered_when_the_company_has_an_open_item(folder):
+    root, store = folder
+    write_open_item(root, "saltmarsh-labs", "ciaran-doyle", state="ready")
+    sel = named(store, "saltmarsh-labs/niamh-walsh", approach="Founder coaching")
+    cand = sel.excluded[0]
+    assert "open outreach item" in cand.reason       # the real blocker, not the fit miss
+    assert cand.overridable is False and cand.lifts == []
+
+
+def test_a_refusal_the_override_cannot_lift_is_not_offered_without_an_address(folder):
+    root, store = folder
+    store.update_contact("kestrel-metrics", "daan-visser", email="")
+    sel = named(store, KESTREL, approach=SCALING)
+    cand = sel.excluded[0]
+    assert cand.reason == "no email address" and cand.overridable is False
+
+
+def test_the_refusal_lists_every_rule_the_override_would_lift(folder):
+    root, store = folder
+    message(store, "lindenhof-data", "mara-keller", 5, "Mara")
+    cand = named(store, MARA).excluded[0]
+    assert cand.overridable is True
+    assert len(cand.lifts) == 2
+    assert "messaged 5 days ago (cooldown 30 days)" in cand.lifts[0]
+    assert "already messaged before" in cand.lifts[1]
+    assert named(store, MARA, override=True).picked[0].warnings == cand.lifts

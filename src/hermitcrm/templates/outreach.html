@@ -51,7 +51,8 @@
   </form>
   {% if gen.refusal %}<div class="warning-box generate-refusal">
     <p><strong>Not built.</strong> {{ gen.refusal.reason }}.</p>
-    <p class="small">You can generate it anyway: the draft appears under Drafts with a warning on its card, and you decide whether it goes out. It uses the choices above.</p>
+    <p class="small">You can generate it anyway: the draft appears under Drafts with a warning on its card, and you decide whether it goes out. It uses the choices above.{% if gen.refusal.lifts %} It will carry {{ 'this warning' if gen.refusal.lifts | length == 1 else 'these warnings' }}:{% endif %}</p>
+    {% if gen.refusal.lifts %}<ul class="small">{% for w in gen.refusal.lifts %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}
     <button type="submit" form="gen-form" name="override" value="1" data-busy="Generating&hellip;"{% if gate or ai_problem %} disabled{% endif %}>Generate anyway</button>
   </div>{% endif %}
   {% endif %}
