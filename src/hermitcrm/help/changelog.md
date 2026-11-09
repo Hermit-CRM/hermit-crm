@@ -6,7 +6,7 @@ To upgrade, press **Upgrade** in the notice (the sidebar, or Settings > About): 
 
 Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups and undo](/help/backups)
 
-## Unreleased
+## 1.1.0 (2026-11-09)
 
 - **A LinkedIn profile that cannot be read no longer claims its address gave a name.** When
   LinkedIn refuses the anonymous request and the address spells no name (`/in/hrijpstra`),
