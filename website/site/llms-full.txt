@@ -2,7 +2,7 @@
 
 > How every part of Hermit CRM works: pipeline, contacts, mail capture, reports, the CLI, the MCP server and how your AI agent can change it.
 
-For version 1.0.0, 2026-10-27. The same text as https://hermitcrm.io/docs/ and as `hermitcrm help <topic>` in the app.
+For version 1.1.0, 2026-11-09. The same text as https://hermitcrm.io/docs/ and as `hermitcrm help <topic>` in the app.
 
 ## Pipeline
 
@@ -227,7 +227,10 @@ you disqualify it instead.
 - **Disqualify** and **Temp disqualify** (with a reason and, for temp, an
   "until" date); **Requalify** brings a disqualified company back to prospect.
   The menu offers every stage whose role is closed or parked, so with stages
-  of your own the buttons carry their names.
+  of your own the buttons carry their names. When the company has open outreach
+  drafts the menu adds "N open outreach drafts: skip them", ticked: leave it
+  ticked and they are skipped with the move (see [Outreach](https://hermitcrm.io/docs/#outreach));
+  untick it to keep them. Requalifying revives nothing.
 - The next step (the open task due first) with its status tag, **Done** /
   **Reopen**, the Google Calendar link and a link down to all tasks.
 - **Company**: every field in an edit form. There is no notes box: company text is dated company notes, listed under **Company notes** below. Setting the stage to lost needs a
@@ -420,6 +423,41 @@ Saving redirects to the contact's page with the timeline scrolled to the new
 entry. Each entry has an edit link (`/companies/<slug>/interactions/<id>/edit`)
 where every field including the date can change; a date change renames the
 file.
+
+### Files
+
+An interaction can carry files: a proposal you sent, a screenshot of their
+pricing page, the PDF they attached.
+
+- **On the form**: under the body, **files** opens the file picker. Drop files
+  on the form, or paste a screenshot into it (a pasted picture is named
+  `pasted-<date>.png`), and they are listed with a remove button before you save.
+  Saving keeps the note and its files in one commit.
+- **On an existing entry**: drop a file on it in the timeline, or use the picker
+  on its edit page, which also lists the files with **Remove**.
+- **On a page**: drop files anywhere on a company or contact page, or use the
+  **Files** box at the bottom, and they become a new note (the subject is the file
+  names; on a contact page the note is about that person). The **Files**
+  section lists every file once, newest first, each linking back to its note.
+
+A file is stored in `companies/<slug>/attachments/` under a name that starts with
+twelve characters of its content hash, so the same file attached twice is kept
+once and renaming or re-dating a note never loses it. The limit is
+`attachment_max_mb` in `config.toml` (default 25, at most 90): git hosts refuse
+larger files.
+
+Pictures, PDFs and plain text open in the browser; every other type
+(including `.svg` and `.html`) downloads. **Removing** a file, or deleting the
+note that was the last to use it, deletes it from the folder, but git keeps the
+old copy: Hermit CRM never rewrites history, so a large file you attached by
+mistake stays in the repository's history. Keep very large files elsewhere and
+link to them in a note.
+
+From the command line, `hermitcrm attach COMPANY FILE... [--contact SLUG] [--to
+INTERACTION_ID] [--note TEXT]` keeps files on a new note (or on an existing
+interaction) and `hermitcrm attachments [COMPANY]` lists them. `hermitcrm check`
+reports a note whose file is missing as an error, and a file no note uses, a
+file whose content changed or one over the limit as a warning.
 
 ### Outcome
 
@@ -678,6 +716,14 @@ in your data folder on top. A help page that describes each framework comes
 later. `hermitcrm check` names an id the library does not have, and a key or
 answer it does not know.
 
+Three keys of a framework in `frameworks.toml` change what a first message may
+do. `questions = [min, max]` sets how many questions it asks, up to two
+(`[2, 2]` is exactly two; a LinkedIn connection note may also ask none).
+`links = "allowed"` lets it carry a link; a booking link is refused either way,
+and a reply or follow-up never gets a link. `needs = ["gap"]` makes it need a
+usable, fresh gap from your research rules; without one the draft falls back to
+the approach's default framework, or to `house`, and says so on the card.
+
 ### The body
 
 Each approach block holds these `## ` headings. A comment under each heading says
@@ -798,6 +844,9 @@ and from the command line; both do the same steps and write the same files.
   you press **Generate**. The panel has the channel and the draft type (from the
   history: someone who replied with interest gets a reply to interest, someone
   whose message went unanswered a follow-up, everyone else a first touch), the
+  **approach** (left on "the best fit for them" it picks the one this person fits
+  best; pick one to use that approach and its default framework. An approach their
+  company does not fit is refused with the reason, and nothing is built), the
   research level, the **signal** you read off LinkedIn insights, and a
   **language** for this card and its regenerates (the default is the contact's
   draft language, else the company's country's). Under the list of notes the draft
@@ -888,6 +937,14 @@ the radar read the same setting, so they never disagree.
 - A cold follow-up email gets the playbook's opt-out line, as a first touch does.
   A LinkedIn follow-up is a message in the conversation, so it only works if they
   accepted your connection; the bot cannot know that.
+- **Mark done** on a row is for a follow-up you made somewhere else (a LinkedIn
+  message, a call) or decided to drop. The row leaves the tab, the batch, the home
+  page and `hermitcrm followups`; nothing is logged and the message is not
+  changed. It holds for that silence only: if you write to them again and they
+  go quiet again, they are due again. The **Done** box under the list shows what
+  you marked, each with **Reopen**. From the command line:
+  `hermitcrm outreach followup-done COMPANY/CONTACT [--undo]`. The marks are in
+  `outreach/followups.json`, one commit each, so they are in your backups.
 
 ### Add what you see on their LinkedIn profile
 
@@ -926,7 +983,11 @@ finds is saved as notes on the contact, sourced to the profile. The page text it
    notes. `hermitcrm outreach skip <id> --reason R [--note
    "..."]` drops it, R one of `bad-fit`, `wrong-person`, `bad-timing`,
    `bad-draft`, `already-in-contact`, `other`. A skipped person comes back in
-   batches after the cooldown; `bad-fit` keeps their company out.
+   batches after the cooldown; `bad-fit` keeps their company out. On the Outreach
+   page the skip form offers **Also disqualify** the company (off by default; only
+   `bad-fit` acts on it), and `--disqualify` does the same on the command line:
+   the company moves to your disqualified stage and its other open drafts are
+   skipped too. Nothing is offered for a company that is not open.
 
 5. **Send and log** it yourself, as you always do (by hand, BCC or the
    extension). The bot does neither. Logging the message on the item's channel
@@ -947,8 +1008,9 @@ finds is saved as notes on the contact, sourced to the profile. The page text it
   (default `fit_score`, 0 to 100). A company without one comes last, with "no
   fit score" on its card; the bot never makes one up. Within a company, someone
   the playbook has a persona for goes first.
-- **Left out**, with the reason in the preview: a company in a closed or parked
-  stage; anything tagged `do-not-contact`; a company an approach's disqualifier
+- **Left out**, with the reason in the preview: a company in a closed, parked,
+  won or lost stage (see below); anything tagged `do-not-contact`; an address on
+  the suppression list; a company an approach's disqualifier
   hits or that misses every approach's ideal customer; a contact the channel
   cannot reach (email needs an address, LinkedIn a profile URL); a contact with
   an open item (researching, drafted or ready); a contact you messaged or
@@ -956,6 +1018,30 @@ finds is saved as notes on the contact, sourced to the profile. The page text it
   `bad-fit`; for a first touch, anyone you messaged before. A reply to
   interest needs an interested reply owed, and skips the cooldown and the fit
   test: they asked (the approach is the one the conversation started with).
+- **Companies that are not open.** A batch never drafts for a company in a
+  closed, parked, won or lost stage. The preview lists such people apart, as
+  **Left out: their company is not open**, with their stage and a box each to
+  **include anyway** (off by default; the choice carries through the whole
+  batch). On the command line they are listed with the flag that brings one
+  back: `--include-closed company/contact` (repeatable), so an unattended run can
+  never include them by accident. Name **one** person (the Generate panel, or one
+  `--contact`) and the draft is made without asking, with a warning on the card
+  and on the panel; you decide whether it goes out, and Sending lets that draft
+  through although the company is not open. Everything else still applies:
+  do-not-contact, the suppression list and the approaches' disqualifiers are
+  never lifted, by a batch or by a single draft, and Sending checks them again.
+  A **reply to interest** is always allowed (they wrote to you); a first touch
+  or follow-up is not.
+- **Disqualifying a company skips its open drafts.** Moving a company out of an
+  open stage into a closed, parked, won or lost one (the company page, `hermitcrm
+  set`, an import, an agent) skips its drafts that are researching, drafted,
+  ready, queued or failed, in the same commit, with the reason `company-closed`.
+  The Disqualify form asks first ("3 open outreach drafts: skip them", ticked);
+  `hermitcrm set --stage ... --keep-drafts` and the unticked box keep them. The
+  skip is not a verdict on the draft: it sets no cooldown, does not count as
+  `bad-fit` and is left out of the learning, so a company that comes back (the
+  end of a temp disqualify, or you requalify it) is eligible again at once. Old
+  drafts are not revived.
 - **One item per company**, likely duplicates included: the same website
   domain, or names that are the same once `-ai`, `-hq`, `GmbH` and the like are
   dropped. The preview lists such pairs; merge them on the company page.
@@ -997,13 +1083,15 @@ the card says why.
 
 A first touch opens with something about them (never "I"), says the offer in
 one line, and ends with exactly one question about their situation: no meeting
-ask, no link, no time slot. It is written in the contact's draft language,
+ask, no link, no time slot. A framework can change two of these: it may ask up to
+two questions (`questions = [2, 2]`, `[1, 2]` or `[0, 2]`) and it may allow a
+link (`links = "allowed"`; a booking link is still refused). It is written in the contact's draft language,
 otherwise the company's country's, with the culture norms of `[culture.<lang>]`
 in `messages.toml` (German first contact uses `du`); your playbook's Voice wins
 over them.
 
-The checks are rules, not AI: exactly one question (a LinkedIn connection note
-may ask none); not opening with I, Ich, Ik or Je; no calendar link or proposed
+The checks are rules, not AI: exactly one question, or what the framework allows
+(a LinkedIn connection note may ask none, and at most what the framework allows); not opening with I, Ich, Ik or Je; no calendar link or proposed
 time; the channel's length (email: subject 60 characters, except in a reply or
 follow-up, which keeps their "Re:" subject however long; 120 words; LinkedIn:
 a 300-character connection note and a 600-character message for after they
@@ -1091,7 +1179,8 @@ counts. `hermitcrm outreach show` prints the same line.
 ### The files
 
 `outreach/<id>.md`, one per item. The front matter holds `state`
-(`researching`, `drafted`, `ready`, `sent`, `skipped`; `logged` is for later), the
+(`researching`, `drafted`, `ready`, `sent`, `skipped`; `logged` is for later; a
+skip's `skip_reason` is one of the six above, or `company-closed`), the
 channel, contact, company, the reply it answers (`reply_to`) or the message it
 follows up (`follows`), approach,
 findings, check results, the critic's scores (`critic`, `critic_reason`,
@@ -1162,7 +1251,9 @@ Before each send it checks again:
 - sending is on, not paused, inside the window, under today's cap, and the last
   send was at least the minimum gap ago;
 - the text is still exactly what you approved (an edit on the page, or by hand
-  in the file, puts it back to Ready);
+  in the file, puts it back to Ready). A file set to `queued` by hand or by an
+  agent, without pressing **Schedule**, is held the same way and goes back to
+  Ready ("it was never scheduled in the app"); **Send now** still sends it;
 - the contact has an email address that is not on the suppression list, and the
   company is still open and not do-not-contact;
 - **nobody there has written to you** since you approved it: in the CRM, and in
@@ -1187,6 +1278,7 @@ How many a day, and when:
 | `send_company_gap_hours` | 24 | two contacts at one company (or one email domain) go out a day apart |
 | `send_grace_minutes` | 10 | the earliest slot after Schedule, so a mistake can be undone |
 | `send_overdue_minutes` | 20 | later than this an item is planned again, never sent in a burst |
+| `send_attachment_max_mb` | 10 | all the files of one email together, in MB (1 to 25); see "Files" below |
 | `send_email_block_countries` | none | countries never emailed (see below) |
 
 The gap between two sends is the window divided by the day's cap, times a factor
@@ -1215,19 +1307,45 @@ refused while sending is paused. It is meant for replies and one-offs.
 | What happened | What it does |
 |---|---|
 | The login is refused (a revoked app password) | Pauses everything; a red banner on every page shows the server's own words; nothing retries until a new **Send a test** passes |
+| The mail server's certificate cannot be verified (self-signed, expired or for another host name) | Pauses everything with the same banner, which says what is wrong; fix the host name or the server, then a passing **Send a test** lifts it |
 | The daily quota is exceeded | Pauses until the next window, then plans again |
 | A temporary error (421, 450, a timeout, no network) | Tries again in 15 minutes, up to 3 times, then the item is failed |
 | The address does not exist | The item is failed and the address goes on the suppression list |
+| The server refuses the one message: too large (code 552 or "message size exceeds"), or a file type it blocks | That item is failed with the server's words. Sending is **not** paused and the address is **not** suppressed: attach fewer or smaller files, or send a link, then **Retry** |
 | The process stopped between sending and logging | The next run looks for the Message-ID in Sent: found, it logs it; not found, it sends again with the same Message-ID. Never twice |
 | Too many bounced (more than 3 of the last 50, or over 5%) | Pauses with a banner: a list-quality problem, check where the addresses came from |
 
 Each message gets a `Message-ID` on your sending domain, written on the item and
 committed **before** it goes out; a follow-up or reply carries `In-Reply-To` and
 `References`, so it threads under the mail it follows. The mail is plain text,
-UTF-8, exactly as approved: no HTML, no links in a first touch, no tracking
+UTF-8, exactly as approved: no HTML, no links in a first touch (unless its framework
+allows one), no tracking
 pixel, no BCC and no List-Unsubscribe header (a one-to-one mail that looks like
 a newsletter is what filters punish). It is logged once, as an outbound email
 with `source: outreach`; a later BCC import of the same mail adds nothing.
+
+#### Files
+
+An email can carry files: on the Outreach card, a draft or a ready email has a
+**Files** box. Pick files, drop them on the box, paste a screenshot, or choose
+**attach again** for a file already on that company (the deck you sent last
+time). Changing the files needs a draft or a ready item; a scheduled one must be
+unscheduled first, because the text you approved and the files go together:
+the hash taken at Schedule time covers both, so a file added, removed or changed
+later holds the item back with a note instead of sending something you did not
+approve. A file that has gone missing from the folder holds it back too.
+
+All the files of one email together may not pass `send_attachment_max_mb`
+(default 10, at most 25), because mail grows by about a third on the wire and
+most servers refuse more than 25 MB. The mail then has the approved text first
+and each file after it, and the logged email carries the same files (not copies).
+LinkedIn messages cannot carry files.
+
+The card warns, without stopping you, when the text says "attached", "anbei",
+"im Anhang", "in bijlage", "ci-joint" or "pièce jointe" and no file is attached,
+and when a cold **first** email carries a file: unexpected attachments are one of
+the things spam filters look for, so a link, or sending the file after they reply,
+usually works better.
 
 ### Bounces and opt-outs
 
@@ -1336,6 +1454,28 @@ to outcomes over edits. `hermitcrm learn report` opens with a banner such as
 6. `hermitcrm learn suggest` lists deterministic suggestions (a lower email word
    limit, phrases you keep deleting); `hermitcrm learn apply ID` applies one.
 
+### Lessons per framework
+
+By default a lesson holds for every draft of its approach. When you test more
+than one outreach framework, what works for one can be wrong for another. Set
+**Lessons are for** in Settings (Playbook), or `learning_lessons` in
+`config.toml`:
+
+- `approach` (default): every draft of the approach, as before.
+- `framework`: each lesson belongs to the framework its cards came from. Its
+  line starts with the framework id, `- [gap-question] Lead with the gap.`, and
+  only drafts built with that framework see it.
+- `both`: per framework, plus untagged lessons for patterns that hold across
+  frameworks.
+
+A line without a tag holds for every framework, so lessons you already have
+keep working. Replies and follow-ups have no framework and see only the
+untagged lines. Each framework keeps its own cap of 12 lessons. You can tag or
+untag a line by hand in `MESSAGING.md`.
+
+However long your playbook is, the Lessons always reach the drafter: when the
+playbook is longer than the prompt allows, the rest is cut, never the Lessons.
+
 ### Examples instead of rules
 
 Lessons are advice. Examples show the drafter what you mean: the closest
@@ -1364,7 +1504,9 @@ contain, with the reason for each example and a token count; no AI is used.
 
 Add `--approach NAME` when you have more than one approach; the default is the
 first. Tell Hermit why you changed a draft with `hermitcrm outreach ready ID
---tag too-long` (repeatable).
+--tag too-long` (repeatable). Use `wrong-form` when you only fixed the form of address
+(du, Sie or je): that is a correction, not taste, so an edit with no other chip is
+left out of the lessons Hermit proposes.
 
 Related: [Outreach bot](https://hermitcrm.io/docs/#outreach), [Playbook](https://hermitcrm.io/docs/#playbook), [CLI](https://hermitcrm.io/docs/#cli)
 
@@ -1411,8 +1553,8 @@ prompt). Your agent does the work in your data folder. Hermit picks the change
 up on the next page you open, without a restart, and lists it under **Recent
 changes** with an **Undo** button.
 
-Hermit never builds the change itself, and never sends a message: routines and
-templates only write drafts for you to send.
+Hermit never builds the change itself, and routines and templates never send a
+message: they only write drafts for you to send.
 
 ### For the agent: read this first
 
@@ -1586,7 +1728,9 @@ up leads with its status, such as the last import; its form opens under
 
 Every section writes `config.toml` in the data folder, keeping its comments;
 secrets (the mail app password, the calendar URL) go to `.secrets.toml`
-(mode 600) or the system's secret store, never to `config.toml`. The secret
+(mode 600) or the system's secret store, never to `config.toml`. Hermit CRM looks
+for each secret in this order: the environment (`HERMITCRM_BCC_PASSWORD`,
+`HERMITCRM_CALENDAR_ICS_URL`), then `.secrets.toml`, then the secret store. The secret
 store is the Keychain on macOS and the Secret Service on Linux (GNOME Keyring,
 KWallet or KeePassXC, reached through `secret-tool` from `libsecret-tools`);
 Settings offers it only when it answers. Without one, secrets are stored in
@@ -1622,6 +1766,14 @@ companies) goes to the review queue, which is **To file** on Home. Dedup is by
 Message-ID. Below the form: the last import (time and summary, or the error)
 and **Import now**, which runs the import on the spot.
 
+Attachments come with the mail: a PDF or document is saved with the interaction
+it logs (see [Interactions](https://hermitcrm.io/docs/#interactions)), and a mail waiting under **To
+file** keeps its files until you log it. Set `bcc_attachments` in `config.toml` to
+`documents` (the default: real attachments, not a logo in a signature, a calendar
+invite or a signature file), `all` (also pictures shown inside the mail, 20 KB or
+larger) or `off`. A file over `attachment_max_mb` is skipped and the import summary
+counts it; the mail itself is still logged.
+
 ### Sending
 
 Send approved outreach email from the Outreach page, from a mailbox of its own.
@@ -1635,7 +1787,10 @@ scheduled sending** installs the worker job. [How it works](https://hermitcrm.io
 ### Calendar
 
 The secret ICS address of your calendar (Google: Settings, your calendar,
-Integrate calendar, secret address in iCal format; `webcal://` is fine).
+Integrate calendar, secret address in iCal format; `webcal://` is fine). In
+Outlook or Microsoft 365: Settings, Calendar, Shared calendars, Publish a
+calendar, then copy the ICS link. In iCloud: share the calendar as a public
+calendar. Treat the address like a password.
 It is tested with a dry run and never shown again. Past meetings with an
 external attendee become `meeting` interactions; unmatched ones wait under
 **To file** on Home; events in the next 7 days show on the Calendar page. Below
@@ -1832,6 +1987,22 @@ lost, disqualified, temp-disqualified. Dashboards and routines that still name
 an old stage are listed after the save, not rewritten.
 The same changes are `hermitcrm stages` for an agent (`hermitcrm help adjust-stages`).
 
+**Stage rules.** By default a company can be moved to any stage. Under **can
+move to**, tick **only these** for a stage and choose where a company in it may
+go next (an offer may go to won, lost or back to discovery, but not straight to
+prospect). The **Stage rules** box under the table says what happens to a move
+the list does not allow: **off** (the default) ignores the lists, **warn** makes
+the move and tells you, **enforce** refuses it. Enforcing covers every way a stage
+changes: the board and the company page, `hermitcrm set`, your AI agent
+and the imports. The message names the moves that are allowed. **Move anyway**
+(or `--force` on the command line) overrides one move; the commit says so and
+nothing else records it. Two moves are never refused: a parked company returning to
+the first stage, and a stage you delete sending its companies to the stage you
+chose. A new company may start in any stage. If the first message you log
+would move a company on from the first stage and the rules forbid that, the message
+is logged and the company stays where it is. `hermitcrm check` warns about recorded
+moves today's rules would forbid; the history itself is never rewritten.
+
 ### Outcomes
 
 The outcome choices for interactions, one per line, in order: the first is
@@ -1853,6 +2024,11 @@ Read-only status of the daily job (`hermitcrm sync --apply`: BCC, then calendar)
 installed by `hermitcrm schedule install [--at HH:MM] [--serve]` through launchd
 (macOS) or systemd user units (Linux); on Windows the `schtasks` commands are
 printed for you to run. The install command to copy is on the page.
+
+A Mac that is asleep at the scheduled time runs the job when it wakes, which can be
+before the network is back. The job then retries a failed connection after 10, 30, 60
+and 120 seconds (mail and calendar each) before it gives up and reports it; a wrong
+password or calendar URL is reported at once.
 
 ### Access
 
@@ -1893,7 +2069,7 @@ a newer version, "the latest", "no release published yet" when nothing is
 published where it asks, or "could not reach ..." when it could not ask at all.
 Those last two are not the same as being up to date, and it will not say they
 are. It asks PyPI unless `update_url` in `config.toml` points somewhere else;
-any URL answering `{"version": "0.4.0"}` works, so a static file on a download
+any URL answering `{"version": "1.2.3"}` works, so a static file on a download
 page is enough. Turn it off with `update_check = false`.
 
 When a newer version exists, the About row and the sidebar show an **Upgrade**
@@ -2050,6 +2226,23 @@ card's message is not touched. It needs your AI CLI. A card that is still
 researching or already ready says it cannot take research now. Take the
 bookmarklet again from this page: older ones do not send About or Activity (the
 top card still works).
+
+### Hermit: conversation
+
+The page also has a second bookmark, **Hermit: conversation**. Open a LinkedIn
+conversation (the Messaging page, or the chat bubble that opens from a profile's
+*Message* button), click it, and Hermit CRM opens with the conversation read,
+matched to a contact and checked against what you have already logged. You review
+it and press **Import**; each new message becomes a `linkedin` interaction, in one
+step. Nothing is fetched and nothing goes to LinkedIn: the bookmark reads the
+conversation in your own tab and hands it to Hermit CRM, and nothing is written
+until you press Import. It reads only the messages the page has loaded.
+
+LinkedIn's User Agreement (8.2) forbids automated access and software that scrapes
+or copies its pages, and names browser plug-ins and add-ons in that list. The
+bookmark is the mildest form of it (it runs only when you click it, on the one
+conversation you have open, and reads only what the page already shows), but it is
+not something LinkedIn has approved. Use it knowing that.
 
 ### The bookmarklet
 
@@ -2330,8 +2523,11 @@ hermitcrm playbook upgrade [--dry-run]     add the front matter and missing head
                                         keeping every line; one commit, and a second run changes nothing
 hermitcrm outreach preview [--where K=V ...] [--contact CO/PERSON] [--channel email|linkedin]
                          [--limit N] [--approach NAME] [--kind first-touch|reply-to-interest|follow-up]
+                         [--include-closed CO/PERSON ...]
                                         who an outreach batch would go to, and why not the rest; no AI,
-                                        nothing written
+                                        nothing written. People at a closed, parked, won or lost company
+                                        are listed apart with the flag that brings one in
+                                        (--include-closed); one --contact is drafted anyway, with a warning
 hermitcrm outreach build (same flags) [--research scrape] [--strong] [--framework ID]
                                         research, draft and check each contact: one item per contact in
                                         outreach/, one commit per step; refused until the playbook is ready;
@@ -2344,11 +2540,16 @@ hermitcrm outreach edits [--positive] [--noted]
                                         with your explainer, and how the message was answered
 hermitcrm outreach ready ID [--tag T ...]  approve a draft (the checks run again on your text; a failing
                                         one is a warning); never sent; --tag says why you changed it
-                                        (too-long, wrong-tone, wrong-pain, bad-finding, wrong-fact, cliche, other)
+                                        (too-long, wrong-tone, wrong-pain, bad-finding, wrong-fact, cliche, wrong-form, other)
 hermitcrm outreach sent ID                 you sent it (logging the message does this too); logs nothing
-hermitcrm outreach skip ID --reason R [--note TEXT]
+hermitcrm outreach followup-done COMPANY/CONTACT [--undo]
+                                        a follow-up you did elsewhere or dropped: off the Follow-ups tab,
+                                        the batch and `followups` until a newer message goes unanswered
+hermitcrm outreach skip ID --reason R [--note TEXT] [--disqualify]
                                         drop an item: bad-fit, wrong-person, bad-timing, bad-draft,
-                                        already-in-contact or other
+                                        already-in-contact or other; --disqualify (with bad-fit)
+                                        also moves the company to disqualified, skipping its other
+                                        open drafts
 hermitcrm outreach schedule ID... | --all-ready [--dry-run]
                                         queue approved email to go out over the working day, spaced
                                         and capped; --dry-run shows the times and writes nothing
@@ -2410,14 +2611,21 @@ hermitcrm add interaction SLUG --channel email|linkedin|call|whatsapp|meeting|no
                                         [--contact CSLUG] [--subject S] [--date D] [--body TEXT|-]
                                         log an interaction; --body - reads it from stdin, and a prospect becomes engaged
                                         (the first open stage moves to the next)
+hermitcrm attach COMPANY FILE... [--contact CSLUG] [--to INTERACTION_ID] [--note TEXT]
+                                        keep files on a new note (subject: the file names, or --note as its text)
+                                        or, with --to, on that interaction; writes and commits at once; at most
+                                        attachment_max_mb each
+hermitcrm attachments [COMPANY]            every stored file: company | stored name | size | the note it came with
 hermitcrm set companies|contacts|interactions --where KEY=VALUE ... [--all]
         [--set FIELD=VALUE ...] [--unset FIELD ...] [--add-tag T ...] [--remove-tag T ...]
-        [--stage S] [--apply] [--message TEXT]
-                                        change many records at once. A dry run unless --apply (count, five
+        [--stage S [--keep-drafts]] [--apply] [--message TEXT]
+                                        change many records at once. A stage move out of an open stage
+                                        skips the company's open outreach drafts in the same commit
+                                        (the dry run says how many); --keep-drafts leaves them. A dry run unless --apply (count, five
                                         before -> after samples), then ONE commit `bulk: <summary>` and its
                                         undo command. --where is the list pages' filter syntax; no --where
                                         needs --all. Bodies and names are never touched. See Make it yours: bulk changes
-hermitcrm stages [rename OLD NEW | add NAME | move NAME | set NAME | remove NAME] [--apply]
+hermitcrm stages [rename OLD NEW | add NAME | move NAME | set NAME [--to A,B | --any] | rules [MODE] | remove NAME] [--apply]
                                         the deal stages and their roles; a dry run unless --apply (rewrites
                                         companies, one `ai: adjust:` commit per step). See Make it yours: deal stages
 hermitcrm rebuild                          rebuild the index and PIPELINE.md, commit "pipeline: rebuild"
@@ -2657,6 +2865,7 @@ Every record is a Markdown file with YAML front matter in a fixed key order; the
   companies/<slug>/company.md
   companies/<slug>/contacts/<contact-slug>.md
   companies/<slug>/interactions/<id>.md
+  companies/<slug>/attachments/<hash>-<name>   files kept with notes, referenced from the interaction
 ```
 
 Writes are deterministic: known keys in the order below, unknown keys after
@@ -2792,11 +3001,18 @@ omitted when empty: the id of the outreach framework the message was built with,
 such as `house` or `trigger-tension-trust`, lower case letters, digits and hyphens;
 it is the item's when logging marks an outreach item sent, and the id stays if the
 framework is removed later), `approach` (optional,
-omitted when empty: the playbook approach the message was for),
-`outcome` (one line; see the configured outcomes), `result` (legacy: success,
+omitted when empty: the playbook approach the message was for), `lead_rule` (optional,
+omitted when empty: the research rule whose gap led the message, such as `r08`; lower
+case letters, digits, hyphens and underscores; it is the item's when logging marks an
+outreach item sent), `outcome` (one line; see the configured outcomes), `result` (legacy: success,
 unsuccessful or empty), `source` (manual, bcc-import, calendar-import, migration, outreach),
 `message_id` (imports, and email Hermit CRM sent itself: the mail's Message-ID, or
-`ical:<UID>:<RECURRENCE-ID>:<attendee>` for a meeting). Body: the message or
+`ical:<UID>:<RECURRENCE-ID>:<attendee>` for a meeting), `attachments` (optional,
+omitted when empty, after `message_id`: a list with one flow map per file,
+`{file: <hash>-<name>, name: <name>, size: <bytes>, type: <media type>}`; `file` is the
+name under `companies/<slug>/attachments/` (twelve hex characters of the SHA-256
+of the content, a hyphen, the cleaned name), and `type` is worked out from the name
+when read). Body: the message or
 notes verbatim. Id: `YYYY-MM-DDTHHMM-<channel>-<direction>-<contact or company>`
 (a note: `YYYY-MM-DDTHHMM-note-<contact>`), `-2`, `-3` on collision. A note is a
 memo, not a touch: it never moves last touch, outcomes, follow-ups or reports.
@@ -2849,7 +3065,15 @@ keys scheduling, sending and the LinkedIn session write to every outreach item
 unasked, see [Sending](https://hermitcrm.io/docs/#sending); formats 15 and 16 trim a hand-written
 `framework` and put it in lower case, and drop an empty one, on outreach items and
 then on interactions); format 17 drops the `angle` key from outreach items and
-format 18 drops it from interactions. Format 19 moves each company's notes body into note interactions (channel `note`, no contact, `source: migration`): a line starting with a date (`21-10-2026`, `21/10/2026`, `21.10.2026` or `2026-10-21`, followed by the end of the line, a space, `:` or `-`) opens a note on that day with the lines under it, text before the first dated line is a note dated at the company's creation (else last update), and `Imported fields (yyyy-mm-dd):` opens one too. The time of day is not kept. `company.md` keeps its front matter byte for byte, `updated` included. The latest format is 19;
+format 18 drops it from interactions. Format 19 moves each company's notes body into note interactions (channel `note`, no contact, `source: migration`): a line starting with a date (`21-10-2026`, `21/10/2026`, `21.10.2026` or `2026-10-21`, followed by the end of the line, a space, `:` or `-`) opens a note on that day with the lines under it, text before the first dated line is a note dated at the company's creation (else last update), and `Imported fields (yyyy-mm-dd):` opens one too. The time of day is not kept. `company.md` keeps its front matter byte for byte, `updated` included. Formats 20 and 21 reserve interaction attachments and the source `linkedin-import`,
+and format 22 reserves the outreach item key `stage_override` (absent when empty: the
+stage of a company that was not open when a draft was made for it on purpose) and
+the skip reason `company-closed`, and format 23 reserves the outreach item key
+`attachments` (absent when empty: the files that go out with an email, see
+[Sending](https://hermitcrm.io/docs/#sending)); none changes a file. Formats 24 and 25 reserve the key
+`lead_rule` on outreach items and then on interactions (absent when empty; a
+hand-written one is trimmed and put in lower case, and an empty one or one that is not
+shaped like a rule id is dropped). The latest format is 25;
 `hermitcrm migrate --dry-run` lists the files first and `git revert` undoes it. A
 folder written by a newer Hermit CRM is refused until you upgrade.
 
@@ -3087,8 +3311,8 @@ came with Hermit CRM.
 
 Hermit CRM is free. You pay nothing and you owe nothing.
 
-It is incomplete, it changes without notice, and it has bugs that nobody has
-found yet. Parts of it will break.
+It is version 1.0 and stable for daily use, but it is not perfect: it still
+changes between releases, and it has bugs that nobody has found yet.
 
 It comes with **no warranty of any kind**. Not that it works. Not that it keeps
 working. Not that it fits what you want to do with it. It is provided "as is".
@@ -3113,7 +3337,7 @@ second repository every few minutes. That is a convenience, not a guarantee.
 
 **You are responsible for your own backups.** You are also responsible for
 testing that a restore actually works. A backup you have never restored is not
-a backup — it is a hope. Restore one to a scratch folder now and then and check
+a backup. It is a hope. Restore one to a scratch folder now and then and check
 the result with your own eyes.
 
 If the backup does not run, does not include what you expected, or cannot be
@@ -3147,7 +3371,7 @@ it to read, and AI command-line tools such as Claude Code or Codex.
   [LinkedIn User Agreement](https://www.linkedin.com/legal/user-agreement).
   Whether fetching a given page is allowed is between you and them.
 - **You are responsible for your own GDPR obligations** whenever data leaves
-  your machine — for example when an AI tool is given a contact's details to
+  your machine, for example when an AI tool is given a contact's details to
   enrich or draft with. That is a transfer you have chosen to make, on your
   legal basis, under that provider's terms.
 - Costs are yours too. AI tools bill you, not the author.
@@ -3166,7 +3390,7 @@ with more care but carry no promise either.
 The Apache License covers the code. It does **not** grant rights to the name
 "Hermit CRM" or to the hermit logo (Apache 2.0, section 6).
 
-Fork the code, change it, ship it — that is what the licence is for. Give your
+Fork the code, change it, ship it. That is what the licence is for. Give your
 fork a different name, and do not use the name or logo in a way that suggests
 the original project endorses it.
 
@@ -3999,7 +4223,11 @@ hermitcrm set <companies|contacts|interactions> [--where KEY=VALUE ...] [--all]
 - `--stage` moves companies the way the stage buttons do: it goes into the stage
   history and the stage rules apply. `--stage lost` needs `--set lost_reason="..."` in
   the same command. Moving a company out of a parked or closed stage clears the
-  reason and the requalify date, and the dry run shows that.
+  reason and the requalify date, and the dry run shows that. Moving a company out
+  of an open stage into a closed, parked, won or lost one also skips its open
+  outreach drafts (reason `company-closed`) in the same commit; the dry run says
+  how many ("Warning: acme: 2 open outreach drafts skipped"). Add `--keep-drafts`
+  to leave them.
 - Your own fields (from `fields.toml`) work like built-in ones. A field that does not
   exist is refused with a hint. Add it to `fields.toml` first, see
   `hermitcrm help adjust-fields`.
@@ -4219,8 +4447,8 @@ Disqualify) always stays on top and is not a section.
 
 | Page | Section names, in their default order |
 |---|---|
-| `[company]` | `enrich` (the Enrich and Fetch from URL buttons), `next-step` (the next step line), `details` (the edit form), `contacts`, `tasks`, `merge`, `timeline` |
-| `[contact]` | `details` (the fields, with an Edit button), `tasks`, `quick-add` (Log an interaction), `timeline` (interactions), `merge` (only shown when the company has two or more people), `delete`. Merge and delete always sit in the closed More box at the bottom; their order applies inside it. |
+| `[company]` | `enrich` (the Enrich and Fetch from URL buttons), `next-step` (the next step line), `details` (the edit form), `contacts`, `tasks`, `files` (the files kept with notes), `merge`, `timeline` |
+| `[contact]` | `details` (the fields, with an Edit button), `tasks`, `quick-add` (Log an interaction), `timeline` (interactions), `files` (their files), `merge` (only shown when the company has two or more people), `delete`. Merge and delete always sit in the closed More box at the bottom; their order applies inside it. |
 | `[home]` | `doing` (What needs doing), `to-file` (To file, only while there is something to file), `owed` (Replies you owe, only when you owe some), `keep-in-touch` (Keep in touch, only when somebody is on it), `going` (How it is going) |
 
 A `drafts` section named in an older file is ignored: the Message drafts box is gone (Outreach replaced it), and nothing is reported.
@@ -4327,7 +4555,7 @@ Related: [Data format](https://hermitcrm.io/docs/#data-format), [Companies](http
 
 ## Make it yours: routines
 
-Small jobs in `routines.toml` that run every morning after the daily sync: a morning brief, or one AI draft per quiet thread. Drafts wait on Home; Hermit never sends anything.
+Small jobs in `routines.toml` that run every morning after the daily sync: a morning brief, or one AI draft per quiet thread. Drafts wait on Home; a routine never sends anything.
 
 This page is a recipe for an AI agent (Claude Code, Codex, Cursor, Gemini CLI)
 asked to set up or change a routine, and the reference for the file. Read
@@ -4582,7 +4810,8 @@ hermitcrm stages                                   the stages, their roles and c
 hermitcrm stages rename OLD NEW [--apply]
 hermitcrm stages add NAME [--role open] [--valued] [--after STAGE] [--apply]
 hermitcrm stages move NAME (--after STAGE | --first) [--apply]
-hermitcrm stages set NAME [--role ROLE] [--valued yes|no] [--apply]
+hermitcrm stages set NAME [--role ROLE] [--valued yes|no] [--to A,B | --any] [--apply]
+hermitcrm stages rules [off|warn|enforce] [--apply]
 hermitcrm stages remove NAME --move-to STAGE [--reason TEXT] [--apply]
 ```
 
@@ -4591,6 +4820,15 @@ hermitcrm stages remove NAME --move-to STAGE [--reason TEXT] [--apply]
 - `remove` needs `--move-to` when companies are in the stage: they are moved with an ordinary stage change, so each history records it. Moving into a `lost` stage needs `--reason`.
 - `set --role lost` is refused while companies in that stage have no reason.
 - Putting a new stage first, or moving one first, changes the entry stage. The start of an old history is "created in the entry stage", so the command first writes that start into the files of companies that only imply it (in the same commit), and nothing is re-dated.
+
+### Stage rules: which moves are legal
+
+A stage can say where a company in it may go next. Absent means any stage, as always.
+
+- `set NAME --to A,B` limits the moves out of NAME to A and B (`--to ""` means nowhere). `set NAME --any` lifts the limit. It is stored as `to = ["A", "B"]` on the stage in `config.toml`; renaming or removing a stage updates every list that names it.
+- `hermitcrm stages rules` shows the mode and the lists; `rules warn` or `rules enforce --apply` changes the mode (`stage_rules` in `config.toml`). The default is `off`: the lists are not looked at. With `warn` a forbidden move still happens and says so; with `enforce` it is refused with `offer -> prospect is not allowed (allowed: discovery, won, lost)`.
+- A parked company may always go back to the first stage, and a new company may start in any stage.
+- **These are the user's rules, not yours.** Do not turn them off or loosen them to get a move through. If a move is refused, tell the user which move and the allowed list. Only the user overrides one: `hermitcrm set companies --where ... --stage X --force` (or **Move anyway** in the app), and the commit says so. MCP has no override and `stage_rules` is not one of the `config.toml` keys you may write.
 
 ### Worked example: rename and insert
 

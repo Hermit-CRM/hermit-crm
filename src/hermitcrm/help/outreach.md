@@ -55,6 +55,14 @@ and from the command line; both do the same steps and write the same files.
   you press **Generate**. The panel has the channel and the draft type (from the
   history: someone who replied with interest gets a reply to interest, someone
   whose message went unanswered a follow-up, everyone else a first touch), the
+  **approach** (left on "the best fit for them" it picks the one this person fits
+  best; pick one to use that approach and its default framework. An approach their
+  company does not fit is refused with the reason, and the panel then offers
+  **Generate anyway**: it builds the draft with a warning on its card, and you
+  decide whether it goes out. The same button appears when a refusal is only a
+  judgement (messaged recently, skipped recently, already messaged before, skipped
+  as bad-fit). Do-not-contact, the suppression list and disqualifier tags have no
+  button), the
   research level, the **signal** you read off LinkedIn insights, and a
   **language** for this card and its regenerates (the default is the contact's
   draft language, else the company's country's). Under the list of notes the draft
@@ -261,7 +269,7 @@ finds is saved as notes on the contact, sourced to the profile. The page text it
 
 ## Research
 
-Two levels, `outreach_research` in `config.toml` (default `scrape`), or the
+Three levels, `outreach_research` in `config.toml` (default `scrape`), or the
 **Research** select on the Outreach page and `--research` on the command line.
 
 **`scrape`** (free): the company website, its LinkedIn page and the person's
@@ -287,17 +295,31 @@ http(s) address, and it can be read again (LinkedIn is taken as listed); the res
 are dropped, never shown as fact. If the run fails, the scrape findings stand and
 the card says why.
 
+**`none`** (free, instant): no page is read and no AI is asked. The draft is
+written from the notes the contact and its company already have, such as a gap
+you researched yourself or a note you wrote. Use it when the research is already
+done. The card's research level is then empty, as on a reply. This matters most
+for an approach whose framework **needs a gap** (for example a value-added
+approach with a gap framework): research cannot find a gap, since only your own
+research rules produce one, so it only adds notes next to the one you have. In
+a contact's Generate panel, picking such an approach for a contact whose notes
+hold a fresh gap sets Research to `none` for you (change it back if you want the
+scrape). If no fresh gap is on file, the panel says so, because without one the
+draft falls back to the house framework.
+
 ## The draft and its checks
 
 A first touch opens with something about them (never "I"), says the offer in
 one line, and ends with exactly one question about their situation: no meeting
-ask, no link, no time slot. It is written in the contact's draft language,
+ask, no link, no time slot. A framework can change two of these: it may ask up to
+two questions (`questions = [2, 2]`, `[1, 2]` or `[0, 2]`) and it may allow a
+link (`links = "allowed"`; a booking link is still refused). It is written in the contact's draft language,
 otherwise the company's country's, with the culture norms of `[culture.<lang>]`
 in `messages.toml` (German first contact uses `du`); your playbook's Voice wins
 over them.
 
-The checks are rules, not AI: exactly one question (a LinkedIn connection note
-may ask none); not opening with I, Ich, Ik or Je; no calendar link or proposed
+The checks are rules, not AI: exactly one question, or what the framework allows
+(a LinkedIn connection note may ask none, and at most what the framework allows); not opening with I, Ich, Ik or Je; no calendar link or proposed
 time; the channel's length (email: subject 60 characters, except in a reply or
 follow-up, which keeps their "Re:" subject however long; 120 words; LinkedIn:
 a 300-character connection note and a 600-character message for after they
@@ -394,7 +416,7 @@ findings, check results, the critic's scores (`critic`, `critic_reason`,
 timestamps, the AI's original text and how much you changed it. The body is
 the message, byte for byte. `hermitcrm check` reports a file it cannot read.
 
-Settings in `config.toml`: `outreach_research` (`scrape` or `ai-web`), `outreach_cooldown_days`,
+Settings in `config.toml`: `outreach_research` (`scrape`, `ai-web` or `none`), `outreach_cooldown_days`,
 `outreach_fit_field`, `outreach_high_fit` (65: the preview counts high-fit
 companies never contacted), `outreach_batch_size` (10), `outreach_critic_threshold` (2; 0 = no critic).
 Channel rules and culture norms: `[outreach.<channel>]` and `[culture.<lang>]`

@@ -19,12 +19,13 @@ The AI is a fake; all names are made up."""
 
 from __future__ import annotations
 
+import html
 import re
 from datetime import timedelta
 
 import pytest
 
-from hermitcrm import notes, outreach
+from hermitcrm import messaging, notes, outreach
 from outreach_client import MARA, client, commits, drafted, post, query, root, fake  # noqa: F401
 from outreach_fakes import NOW
 
@@ -229,3 +230,205 @@ def test_the_button_says_why_when_the_ai_cannot_run(client):
 def test_the_panel_offers_every_signal(client):
     panel = panel_html(client)
     assert '<option value="declining">headcount decline</option>' in panel
+
+
+# ------------------------------------------------------------ the approach picker
+
+APPROACHES = ("Founder coaching", "Scaling the sales team")
+
+
+def best_fit(client) -> str:
+    """The approach the engine would pick for Mara with no pick (no AI, no writes)."""
+    sel = outreach.select(store_of(client), contacts=[MARA], config=client.app.state.config)
+    return sel.picked[0].approach
+
+
+def test_the_panel_offers_the_playbook_approaches_and_defaults_to_the_best_fit(client):
+    picker = re.search(r'<select name="approach".*?</select>', panel_html(client), re.S).group(0)
+    assert '<option value="" selected>the best fit for them</option>' in picker
+    for name in APPROACHES:
+        assert f">{name}</option>" in picker
+
+
+def test_a_picked_approach_that_fits_shapes_the_draft_and_is_kept_on_the_item(client, root):
+    post(client, "/outreach/build", contact=MARA, back=PANEL, approach="Scaling the sales team")
+    item = next(i for i in outreach.items(root) if i.record == MARA)
+    assert item.approach == "Scaling the sales team"
+
+
+def test_a_picked_approach_that_does_not_fit_them_is_refused_with_its_reason(client, root, fake):
+    """The pick reaches the selection: the approach's ideal customer still applies to the
+    named person, so a pick they do not fit builds nothing and says why."""
+    assert best_fit(client) == "Scaling the sales team"
+    response = post(client, "/outreach/build", contact=MARA, back=PANEL,
+                    approach="Founder coaching")
+    assert query(response)["refused"] == "1" and "flash" not in query(response)
+    panel = panel_html(client, response.headers["location"])
+    assert "Not built" in panel and "Founder coaching" in panel and "Nothing to build" not in panel
+    assert outreach.items(root) == [] and fake.calls == []
+
+
+def test_without_a_pick_the_best_fit_decides(client, root):
+    expected = best_fit(client)
+    post(client, "/outreach/build", contact=MARA, back=PANEL, approach="")
+    item = next(i for i in outreach.items(root) if i.record == MARA)
+    assert item.approach == expected
+
+
+def test_an_unknown_approach_builds_nothing_and_says_so(client, root, fake):
+    response = post(client, "/outreach/build", contact=MARA, back=PANEL, approach="Selling ice")
+    assert "Not built" in query(response)["flash"] and "Selling ice" in query(response)["flash"]
+    assert outreach.items(root) == [] and fake.calls == []
+
+
+def test_the_panels_pick_is_not_carried_into_the_batch_bar(client):
+    response = post(client, "/outreach/build", contact=MARA, back=PANEL,
+                    approach="Scaling the sales team")
+    assert "approach" not in query(response)
+
+
+# ------------------------------------------------------------- Generate anyway
+
+MISFIT = "Founder coaching"   # wants 0 account executives; Mara's company has 1
+
+
+def refused(client, **extra):
+    return post(client, "/outreach/build", contact=MARA, back=PANEL, approach=MISFIT, **extra)
+
+
+def test_a_refused_pick_comes_back_to_the_panel_with_your_choices(client, root, fake):
+    store_of(client).update_contact(CO, PERSON, linkedin="https://www.linkedin.com/in/mara-example")
+    signal = messaging.SIGNALS[1]
+    response = refused(client, channel="linkedin", signal=signal, language="de",
+                       note="read the site", strong="1")
+    q = query(response)
+    assert q["refused"] == "1" and q["contact"] == MARA and q["approach"] == MISFIT
+    assert (q["channel"], q["signal"], q["language"]) == ("linkedin", signal, "de")
+    assert q["note"] == "read the site" and q["strong"] == "1"
+    # One warning, not two: the panel's box carries the reason, so no banner is sent.
+    assert "flash" not in q
+    assert outreach.items(root) == [] and fake.calls == []
+
+
+def test_the_refused_panel_shows_the_reason_and_generate_anyway(client):
+    store_of(client).update_contact(CO, PERSON, linkedin="https://www.linkedin.com/in/mara-example")
+    signal = messaging.SIGNALS[1]
+    response = refused(client, channel="linkedin", signal=signal, language="de",
+                       note="read the site", strong="1")
+    panel = panel_html(client, response.headers["location"])
+    assert 'name="override" value="1"' in panel and "Generate anyway" in panel
+    assert "ae count 1, wants 0" in panel
+    assert f'<option value="{MISFIT}" selected>' in panel
+    assert '<option value="linkedin" selected>' in panel
+    assert f'<option value="{signal}" selected>' in panel
+    assert '<option value="de" selected>' in panel
+    assert 'value="read the site"' in panel
+    assert re.search(r'name="strong" value="1" checked', panel)
+
+
+def test_the_refusal_is_one_box_at_the_top_of_the_panel(client):
+    store_of(client).update_contact(CO, PERSON, linkedin="https://www.linkedin.com/in/mara-example")
+    url = refused(client).headers["location"]
+    assert client.get(url).text.count("Not built") == 1   # no banner above the panel too
+    panel = panel_html(client, url)
+    assert panel.count("generate-refusal") == 1
+    # above the form and the notes, with its button still wired to the form below
+    assert panel.index("generate-refusal") < panel.index('id="gen-form"')
+    assert panel.index("generate-refusal") < panel.index("Notes the draft will use")
+    assert 'form="gen-form" name="override" value="1"' in panel
+
+
+def test_generate_anyway_builds_with_a_warning(client, root, fake):
+    response = refused(client, note="read the site", override="1")
+    assert response.status_code == 303
+    item = next(i for i in outreach.items(root) if i.record == MARA)
+    assert item.approach == MISFIT
+    assert any("ideal customer" in f and "ae count 1, wants 0" in f for f in item.flags)
+    assert fake.calls
+    assert "read the site" in [n.body.strip() for n in mara_notes(client)]
+
+
+def test_override_with_nothing_refused_adds_no_warning(client, root):
+    post(client, "/outreach/build", contact=MARA, back=PANEL, approach="", override="1")
+    item = next(i for i in outreach.items(root) if i.record == MARA)
+    assert not any("ideal customer" in f for f in item.flags)
+
+
+def test_a_forged_override_cannot_lift_do_not_contact(client, root, fake):
+    store_of(client).update_company(CO, tags=["demo", "do-not-contact"])
+    response = post(client, "/outreach/build", contact=MARA, back=PANEL, approach="",
+                    override="1")
+    q = query(response)
+    assert "tagged do-not-contact" in q["flash"] and "cannot be overridden" in q["flash"]
+    assert outreach.items(root) == [] and fake.calls == []
+    assert 'name="override"' not in panel_html(client, response.headers["location"])
+
+
+def test_a_batch_post_ignores_override(client, root):
+    post(client, "/outreach/build", where="stage=prospect", limit="1", approach=MISFIT,
+         override="1")
+    items = outreach.items(root)
+    assert all(i.record != MARA for i in items)
+    assert not any("ideal customer" in f for i in items for f in i.flags)
+
+
+def test_a_hostile_note_round_trips_escaped_and_capped(client):
+    note = "x&y#<script>" + "a" * 2000
+    response = refused(client, note=note)
+    panel = panel_html(client, response.headers["location"])
+    assert "<script>" not in panel and "&lt;script&gt;" in panel
+    tag = re.search(r'<input[^>]*id="gen-note"[^>]*>', panel).group(0)
+    value = html.unescape(re.search(r'value="([^"]*)"', tag).group(1))
+    assert value.startswith("x&y#<script>") and len(value) <= 1000
+
+
+def test_a_recently_messaged_contact_gets_the_button_and_the_retry_builds(client, root):
+    store_of(client).create_interaction(
+        CO, "email", "out", contact=PERSON,
+        date=(NOW - timedelta(days=5)).isoformat(timespec="minutes"),
+        subject="Hello", body="Hello Mara.\n")
+    response = post(client, "/outreach/build", contact=MARA, back=PANEL)
+    q = query(response)
+    assert q["refused"] == "1" and "flash" not in q
+    panel = panel_html(client, response.headers["location"])
+    assert "Not built." in panel and "messaged 5 days ago" in panel
+    assert 'name="override" value="1"' in panel
+    assert outreach.items(root) == []
+    post(client, "/outreach/build", contact=MARA, back=PANEL, override="1")
+    item = next(i for i in outreach.items(root) if i.record == MARA)
+    assert any("messaged 5 days ago" in f and "drafted anyway" in f for f in item.flags)
+
+
+def test_a_refused_follow_up_comes_back_as_a_follow_up_not_a_first_touch(client, root):
+    store = store_of(client)
+    store.create_interaction(CO, "email", "out", contact=PERSON,
+                             date=(NOW - timedelta(days=10)).isoformat(timespec="minutes"),
+                             subject="Hello", body="Hello Mara.\n")
+    outreach.write_item(root, outreach.Item(
+        id="2026-11-01T0900-email-lindenhof-data-mara-keller", state="skipped",
+        kind="follow-up", company=CO, contact=PERSON, created=NOW, body="Hi.\n",
+        skip_reason="bad-timing", skipped=NOW - timedelta(days=3)))
+    response = post(client, "/outreach/build", contact=MARA, kind="follow-up",
+                    back="/outreach?tab=follow-ups")
+    q = query(response)
+    assert q["refused"] == "1" and "flash" not in q
+    assert q["kind"] == "follow-up"
+    panel = panel_html(client, response.headers["location"])
+    assert "Not built." in panel and "skipped 3 days ago" in panel
+    assert '<option value="follow-up" selected>' in panel and 'name="override"' in panel
+    post(client, "/outreach/build", contact=MARA, kind="follow-up", override="1",
+         back="/outreach?tab=follow-ups")
+    item = next(i for i in outreach.items(root) if i.record == MARA and i.state != "skipped")
+    assert item.kind == "follow-up"
+    assert any("skipped 3 days ago" in f and "drafted anyway" in f for f in item.flags)
+
+
+def test_the_refused_panel_lists_every_rule_generate_anyway_will_lift(client):
+    store_of(client).create_interaction(
+        CO, "email", "out", contact=PERSON,
+        date=(NOW - timedelta(days=5)).isoformat(timespec="minutes"),
+        subject="Hello", body="Hello Mara.\n")
+    response = post(client, "/outreach/build", contact=MARA, back=PANEL)
+    panel = panel_html(client, response.headers["location"])
+    assert "messaged 5 days ago (cooldown 30 days): drafted anyway" in panel
+    assert "already messaged before; not a first touch: drafted anyway" in panel

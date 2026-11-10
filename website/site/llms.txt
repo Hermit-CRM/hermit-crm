@@ -8,7 +8,7 @@ Hermit CRM is a free, open-source CRM for founders, freelancers and anyone doing
 
 What Hermit CRM does, feature by feature: the app's own Help pages for the released version. Read the AI agents page first if you will work in a data folder or over MCP.
 
-- [All docs in one file](https://hermitcrm.io/llms-full.txt): every topic below as Markdown, for version 1.0.0
+- [All docs in one file](https://hermitcrm.io/llms-full.txt): every topic below as Markdown, for version 1.1.0
 - [Docs](https://hermitcrm.io/docs/): the same as one web page
 - [Pipeline](https://hermitcrm.io/docs/#pipeline): The board at /pipeline: one column per open stage, cards you can move with a dropdown, closed companies in lists below. The stages are yours to name and order (Settings > Deal stages); this page describes the defaults.
 - [Calendar](https://hermitcrm.io/docs/#calendar): /calendar: meetings this week, your tasks on their due date, and accounts going quiet. The list of all tasks, with filters, is on the Tasks page.
@@ -42,7 +42,7 @@ What Hermit CRM does, feature by feature: the app's own Help pages for the relea
 - [Make it yours: dashboards](https://hermitcrm.io/docs/#adjust-dashboards): Pages of your own at /d/<name>: lists, counts, bars, trends over time and report sections, written as dashboards/<name>.toml by you or your AI agent, and pinned in the sidebar if you like.
 - [Make it yours: bulk changes](https://hermitcrm.io/docs/#adjust-bulk): Recipe for an AI agent: change many records at once with hermitcrm set, always as a dry run first, then one commit that can be undone.
 - [Make it yours: page layout](https://hermitcrm.io/docs/#adjust-layout): A recipe for your AI agent: put the sections of the company, contact and home pages in another order or hide them, hide fields, and choose the columns of the Companies and Contacts lists, all in one file, layout.toml.
-- [Make it yours: routines](https://hermitcrm.io/docs/#adjust-routines): Small jobs in routines.toml that run every morning after the daily sync: a morning brief, or one AI draft per quiet thread. Drafts wait on Home; Hermit never sends anything.
+- [Make it yours: routines](https://hermitcrm.io/docs/#adjust-routines): Small jobs in routines.toml that run every morning after the daily sync: a morning brief, or one AI draft per quiet thread. Drafts wait on Home; a routine never sends anything.
 - [Make it yours: deal stages](https://hermitcrm.io/docs/#adjust-stages): Recipe for an AI agent: rename, add, reorder or remove the stages a deal goes through with hermitcrm stages, always as a dry run first.
 
 ## Make it yours, with your own AI

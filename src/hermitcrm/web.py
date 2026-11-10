@@ -737,6 +737,11 @@ def goto(path: str) -> RedirectResponse:
     return RedirectResponse("/", status_code=303)
 
 
+# How much of a typed note travels in the address when a refused build comes back to
+# the Generate panel (so it is not lost): the rest is cut.
+OUTREACH_NOTE_CARRY = 1000
+
+
 def flashed(path: str, message: str, anchor: str = "") -> RedirectResponse:
     url = f"{path}{'&' if '?' in path else '?'}flash={quote(message, safe='')}"
     if anchor:
@@ -4846,9 +4851,11 @@ def create_app(root: Path, config: dict | None = None,
         return urlencode({k: v for k, v in values.items() if v not in ("", None, 0, [])},
                          doseq=True)
 
-    def outreach_generate(value: str, every: list):
+    def outreach_generate(value: str, every: list, params=None):
         """The Generate panel of /outreach?contact=<company>/<contact>: None unless
-        both exist. Nothing here runs the AI or writes."""
+        both exist. Nothing here runs the AI or writes. `params`: the page's query;
+        with `refused=1` (a build the engine refused, sent back here) the panel
+        keeps what was chosen and says what can be overridden."""
         slug, _, cslug = (value or "").partition("/")
         company = store.get(slug) if slug and cslug and "/" not in cslug else None
         contact = company.contacts.get(cslug) if company is not None else None
@@ -4856,11 +4863,36 @@ def create_app(root: Path, config: dict | None = None,
             return None
         open_item = next((i for i in every if i.is_open and i.company == slug
                           and i.contact == cslug), None)
+        params = params if params is not None else {}
+        refusal, form = None, outreach_form(params)
+        refused = params.get("refused") == "1"
+        # A refused build comes back with its draft type as it was (a reply included).
+        asked = params.get("kind", "")
+        kind = asked if asked in outreach.BUILT_KINDS else outreach.FIRST_TOUCH
+        if refused and open_item is None:
+            try:   # the same pick again, no AI and no writes: the reason is not taken
+                found = outreach.select(   # from the address
+                    store, kind=kind, channel=form["channel"],
+                    approach=form["approach"], contacts=[f"{slug}/{cslug}"], config=config)
+            except outreach.OutreachError:
+                found = None
+            cand = found.excluded[0] if found is not None and found.excluded else None
+            if cand is not None and cand.overridable:
+                refusal = {"reason": cand.reason, "lifts": cand.lifts}
         return {"company": company, "contact": contact, "record": f"{slug}/{cslug}",
-                "kind": outreach.kind_for(store, company, contact, config=config),
+                "refusal": refusal,
+                "pick": {"signal": params.get("signal", ""),
+                         "language": params.get("language", ""),
+                         "note": params.get("note", "")[:OUTREACH_NOTE_CARRY]},
+                "kind": (kind if refused
+                         else outreach.kind_for(store, company, contact, config=config)),
                 "language": messaging.draft_language(company, contact,
                                                      messages=app.state.messages),
                 "notes": notes.rows(company, cslug, store.today()),
+                # An approach whose framework leads with a gap cannot get one from
+                # research; with a fresh gap note in hand the panel skips research.
+                "gap_approaches": outreach.gap_approaches(root),
+                "gap_ready": outreach.has_fresh_gap(company, cslug, store.today()),
                 "stage_note": ("" if store.stages.is_open(company.stage) else
                                f"{company.name} is {company.stage}, so a first touch or "
                                "follow-up here is drafted on purpose: the card carries a "
@@ -4918,6 +4950,11 @@ def create_app(root: Path, config: dict | None = None,
         note_requests = [adjust.filter_help_request("Outreach", form["where"], n)
                          for n in (preview.notes if preview else [])]
         ready, gate = outreach._ready_approaches(root)
+        gen = outreach_generate(params.get("contact", ""), every, params)
+        if (gen and not gen["open_item"] and "research" not in params
+                and params.get("refused") != "1"   # a refused pick keeps what was chosen
+                and form["approach"] in gen["gap_approaches"] and gen["gap_ready"]):
+            form = {**form, "research": outreach.NO_RESEARCH}   # the gap is already in the notes
         known = exemplar_index_for(shown)
         about = {i.id: outreach.about_for_item(root, i) for i in shown
                  if i.state in ("drafted", "ready")}   # the cards that show the line
@@ -4929,7 +4966,7 @@ def create_app(root: Path, config: dict | None = None,
             "schedule_preview": schedule_preview, "schedule_error": schedule_error,
             "ready_email": sum(1 for i in every if i.state == "ready" and i.channel == "email"),
             "tab": tab, "cards": [outreach_card(i, known) for i in shown],
-            "gen": outreach_generate(params.get("contact", ""), every),
+            "gen": gen,
             "reply_rows": [r for r in reply_rows if r["item"] is None] if tab == "replies"
             else [],
             "due_rows": due_rows if tab == "follow-ups" else [],
@@ -4961,11 +4998,13 @@ def create_app(root: Path, config: dict | None = None,
                              kind: str = Form(outreach.FIRST_TOUCH),
                              approach: str = Form(""), research: str = Form(""),
                              signal: str = Form(""), note: str = Form(""),
-                             language: str = Form(""),
+                             language: str = Form(""), override: str = Form(""),
                              include_closed: list[str] = Form([])):
         """Research and draft the next contact of the batch (one per request).
         `contact` ("company/contact"): the Generate panel (with its signal, note
-        and language), or a reply on the Replies tab (`kind` reply-to-interest)."""
+        and language), or a reply on the Replies tab (`kind` reply-to-interest).
+        `override=1` (the panel's Generate anyway) lifts a refusal that is a judgement
+        (the approach's ideal customer), for that one contact only."""
         check_csrf(csrf_token)
         if kind not in outreach.BUILT_KINDS or (kind == outreach.REPLY and not contact):
             kind = outreach.FIRST_TOUCH
@@ -4982,17 +5021,32 @@ def create_app(root: Path, config: dict | None = None,
             selection = await run_in_threadpool(
                 outreach.select, store, where=outreach_where(form["where"]),
                 channel=form["channel"], kind=kind, limit=1,
-                approach="" if contact else form["approach"],
+                approach=form["approach"],
                 contacts=[contact] if contact else None, config=config,
-                include_closed=form["include"])
+                include_closed=form["include"], override=override == "1" and bool(contact))
         except outreach.OutreachError as exc:
             return flashed(back if contact else f"/outreach?{outreach_query(stop)}",
                            f"Not built: {exc}")
         if selection.gate:
             return flashed(back, f"Not built: {selection.gate}")
+        if not selection.picked and contact and selection.excluded:
+            cand = selection.excluded[0]
+            text = f"Not built: {cand.reason}."
+            if cand.overridable:   # back to the panel with what was chosen, and the button
+                # `kind` is carried as typed: the page form turns a reply into a first touch.
+                carry = outreach_query(stop, contact=contact, language=language,
+                                       signal=signal, note=note.strip()[:OUTREACH_NOTE_CARRY],
+                                       kind="" if kind == outreach.FIRST_TOUCH else kind,
+                                       refused="1")
+                # No flash: the panel's own box (at its top) says the reason once,
+                # with the button; a banner above it would be the same warning twice.
+                return goto(f"/outreach?{carry}")
+            if cand.never_lifted:
+                text += (" This cannot be overridden: do-not-contact, the suppression list "
+                         "and disqualifier tags are never lifted.")
+            return flashed(back, text)
         if not selection.picked:
-            why = (f": {selection.excluded[0].reason}" if contact and selection.excluded
-                   else "")
+            why = ""
             if selection.stage_left_out and not contact:   # nothing else to draft: say why
                 n = len(selection.stage_left_out)
                 why += (f" ({n} left out because their company is not open; Preview "
@@ -5037,7 +5091,9 @@ def create_app(root: Path, config: dict | None = None,
         line = (f"{selection.picked[0].who}: "
                 + ("drafted" if item.state == "drafted" else f"skipped ({item.skip_note})"))
         remaining = 0 if contact else max(0, form["left"] - 1)
-        query = outreach_query({**form, "left": remaining, "batch": batch_id},
+        # The panel's pick is for this one person: it is not carried into the batch bar.
+        query = outreach_query({**form, "left": remaining, "batch": batch_id,
+                                **({"approach": ""} if contact else {})},
                                tab=outreach_tab(item))
         if remaining:
             line += f". Building the next one ({remaining} left)…"

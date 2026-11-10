@@ -75,6 +75,15 @@ the stage); a batch leaves them out and lists them (`Selection.stage_left_out`)
 unless told to include them (`include_closed`). A reply to interest is always
 allowed. `do-not-contact`, the suppression list and the playbook's tag
 disqualifiers are never lifted.
+
+One named contact can also be drafted although a judgement rule kept them out
+(`select(override=True)`, the panel's "Generate anyway", `--override`): the
+picked approach's ideal customer (or, with no pick, the closest approach when
+none fits), the cooldown after a message or a skip, "already messaged before"
+and "skipped as bad-fit". The draft carries a warning in its `flags`, like the stage override.
+A refusal that can be lifted has `Candidate.overridable`; one that never can
+(do-not-contact, suppression, tag disqualifiers, the sample account) has
+`never_lifted`. A batch never overrides.
 """
 
 from __future__ import annotations
@@ -95,6 +104,7 @@ from . import attachments as attachments_mod
 from . import followups, frameworks, messaging, playbook, suppress
 from .enrich import WEB_ONLY, EnrichError
 from .frameworks import HOUSE, Framework
+from .models import normalise_rule as clean_rule
 from .models import (
     DO_NOT_CONTACT, INTERESTED, ValidationError, do_not_contact, fmt_datetime,
     normalise_website, parse_datetime, slugify, unique_slug,
@@ -120,10 +130,12 @@ MANUAL_SKIP_REASONS = ("bad-fit", "wrong-person", "bad-timing", "bad-draft",
 COMPANY_CLOSED = "company-closed"
 SKIP_REASONS = (*MANUAL_SKIP_REASONS, COMPANY_CLOSED)
 CHANNELS = ("email", "linkedin")
-LEVELS = ("scrape", "ai-web")
+NO_RESEARCH = "none"   # read nothing: the draft uses the notes that already exist
+LEVELS = ("scrape", "ai-web", NO_RESEARCH)
 BUILT_LEVELS = LEVELS
 CRITIC_SCORES = ("relevance", "personal", "tone", "honesty")
-FINDING_KINDS = ("company", "person", "trigger")
+RESEARCH_KINDS = ("company", "person", "trigger")   # what the web researcher may report
+FINDING_KINDS = (*RESEARCH_KINDS, "gap")            # a gap comes from your research rules
 CONFIDENCE = ("high", "medium", "low")
 USABLE = ("high", "medium")
 STALE_DAYS = 90
@@ -139,7 +151,7 @@ DUPLICATE_SUFFIXES = ("ai", "hq", "app", "io", "group", "gmbh", "inc", "ltd", "l
 
 ITEM_KEYS = (
     "state", "kind", "channel", "company", "contact", "reply_to", "follows", "approach",
-    "framework", "language",
+    "framework", "lead_rule", "language",
     "subject", "pitch", "attachments", "research_level", "model", "attempts", "seconds", "checks",
     "critic", "critic_reason", "critic_model", "flags", "stage_override", "norms", "findings", "proof_used",
     "lessons_used", "exemplars_used", "proposals", "edit_distance",
@@ -156,13 +168,16 @@ SEND_KEYS = ("queued", "send_at", "send_hash", "message_id", "send_tries", "send
 EDIT_KEYS = ("at", "words", "note", "tags", "subject", "pitch", "body")
 # Reason chips on a tracked edit: a label for the learning counters without any AI.
 EDIT_TAGS = ("too-long", "wrong-tone", "wrong-pain", "bad-finding", "wrong-fact", "cliche",
-             "other")
+             "wrong-form", "other")
+# A fix of the form of address (du, Sie, je) is a correction of a fact about the person,
+# not a matter of taste: edits with only this chip are left out of learning.
+FORM_TAG = "wrong-form"
 REASON_CHIP_WORDS = 15   # the edit form offers the chips above this many changed words
 NEVER_WRITE_MAX = 10     # phrases in config.toml `outreach_never_write`
 EARLIER_KEYS = ("model", "drafted", "replaced", "why", "ai_subject", "ai_pitch", "ai_body",
                 "edits")
 NOTE_MAX = 500   # characters in the explainer of one tracked edit
-FINDING_KEYS = ("text", "source", "kind", "confidence", "date", "stale", "used")
+FINDING_KEYS = ("text", "source", "kind", "confidence", "date", "stale", "used", "rule")
 _ID = re.compile(r"^[0-9A-Za-z][0-9A-Za-z-]*$")
 
 CONFIG_DEFAULTS = {
@@ -195,18 +210,24 @@ def _config(config: dict | None, key: str):
 class Finding:
     text: str          # "Opened a second office in September"
     source: str        # the URL it was read on, or "crm" for something already known
-    kind: str          # company | person | trigger (hiring, funding, launch...)
+    kind: str          # company | person | trigger (hiring, funding, launch...) | gap
     confidence: str    # high | medium | low
     date: str = ""     # when it happened, as far as the source says (YYYY-MM[-DD])
     stale: bool = False  # older than ~90 days: never the opening line
     used: bool = False   # the draft cites it
+    rule: str = ""       # a gap: the research rule that found it ("r08"); "" = none
 
     @property
     def usable(self) -> bool:
         return self.confidence in USABLE
 
+    @property
+    def is_gap(self) -> bool:
+        return self.kind == "gap"
+
     def to_dict(self) -> dict:
-        return {k: getattr(self, k) for k in FINDING_KEYS}
+        # `rule` is absent until a gap has one, so older findings keep their bytes.
+        return {k: getattr(self, k) for k in FINDING_KEYS if k != "rule" or self.rule}
 
     @classmethod
     def from_dict(cls, data) -> "Finding | None":
@@ -220,7 +241,8 @@ class Finding:
                    kind=_choice(data.get("kind"), FINDING_KINDS, "company"),
                    confidence=_choice(data.get("confidence"), CONFIDENCE, "low"),
                    date=str(data.get("date") or "").strip(),
-                   stale=bool(data.get("stale")), used=bool(data.get("used")))
+                   stale=bool(data.get("stale")), used=bool(data.get("used")),
+                   rule=clean_rule(data.get("rule")))
 
 
 def _choice(value, allowed, default: str) -> str:
@@ -289,6 +311,8 @@ def keep_findings(raw, sources: list[str], today: date) -> list[Finding]:
             if match is None:
                 continue
             finding.source = match
+        if finding.kind not in RESEARCH_KINDS:
+            finding.kind = "company"   # only your research rules call something a gap
         finding.stale = is_stale(finding.date, today)
         finding.used = False
         if all(f.text != finding.text for f in out):
@@ -308,7 +332,7 @@ RESEARCH_SCHEMA = {
                     "source": {"type": "string",
                                "description": "the URL of the page it is on, exactly as "
                                               "given, or crm"},
-                    "kind": {"type": "string", "enum": list(FINDING_KINDS)},
+                    "kind": {"type": "string", "enum": list(RESEARCH_KINDS)},
                     "confidence": {"type": "string", "enum": list(CONFIDENCE)},
                     "date": {"type": "string",
                              "description": "YYYY-MM-DD or YYYY-MM when the page dates "
@@ -531,6 +555,18 @@ class AiWebResearcher:
         return out
 
 
+class NoResearcher:
+    """The `none` level: no page is read and no AI is asked. The draft is written from
+    the notes the contact and its company already have (a gap you researched yourself,
+    a note you wrote). The item keeps `research_level` empty, as a reply or a follow-up
+    does."""
+
+    level = ""
+
+    def research(self, company, contact) -> Research:
+        return Research(level=self.level)
+
+
 class EscalatingResearcher:
     """The `scrape` level with a safety net: when the free scrape finds nothing
     usable (a company with no website, LinkedIn refusing), one `ai-web` pass runs
@@ -583,12 +619,15 @@ def channel_rules(channel: str, messages: dict | None = None) -> dict:
 
 
 def framework_rules(rules: dict, framework: Framework | None, channel: str, kind: str) -> dict:
-    """The channel rules for a draft written with `framework`: a copy. Only an email
-    first touch changes, and only to the lower of the two word limits."""
+    """The channel rules for a draft written with `framework`: a copy. An email first
+    touch gets the lower of the two word limits, and a first touch of a framework that
+    allows links may carry one (a booking link is still refused)."""
     out = dict(rules)
     if framework is not None and framework.max_words is not None and channel == "email" \
             and kind == FIRST_TOUCH:
         out["body_max_words"] = min(int(rules.get("body_max_words", 120)), framework.max_words)
+    if framework is not None and framework.links == "allowed" and kind == FIRST_TOUCH:
+        out["links"] = True
     return out
 
 
@@ -865,6 +904,45 @@ _PRICE = re.compile(
 _OPT_OUT_MARK = "⁠"  # not used in text; the opt-out line is matched as a whole
 
 
+QUOTE_MIN_WORDS = 2   # a single quoted word is a term or scare quotes, not a claim
+_FOLD = str.maketrans({"’": "'", "‘": "'", "–": "-", "—": "-", "\u00a0": " "})
+_EDGE = " .,;:!?…-\"'“”„«»"
+
+
+def _fold(text: str) -> str:
+    """Text as compared for a quote: one space between words, lower case, one kind of
+    apostrophe and dash, no punctuation or quotation marks at either end."""
+    return " ".join((text or "").translate(_FOLD).casefold().split()).strip(_EDGE)
+
+
+def unsupported_quotes(texts: list[str], findings: list[Finding]) -> list[str]:
+    """The quoted strings in `texts` that no usable finding says word for word.
+    A quote of fewer than QUOTE_MIN_WORDS words is left alone."""
+    evidence = [_fold(f.text) for f in findings if f.usable]
+    out: list[str] = []
+    for text in texts:
+        for match in _QUOTED.finditer(text or ""):
+            inner = match.group()[1:-1].strip()
+            folded = _fold(inner)
+            if (len(folded.split()) >= QUOTE_MIN_WORDS and inner not in out
+                    and not any(folded in e for e in evidence)):
+                out.append(inner)
+    return out
+
+
+_COUNT_WORDS = {0: "none", 1: "one", 2: "two"}
+
+
+def question_phrase(low: int, high: int) -> str:
+    """How many questions a message must ask, in words: "exactly one", "at most two",
+    "one or two"."""
+    if low == high:
+        return f"exactly {_COUNT_WORDS[low]}"
+    if low == 0:
+        return f"at most {_COUNT_WORDS[high]}"
+    return f"{_COUNT_WORDS[low]} or {_COUNT_WORDS[high]}"
+
+
 def count_questions(text: str) -> int:
     """Question marks outside quotes ("..." “...” „...“ «...»). A French ` ?` is
     one too; a question mark inside a quoted line of theirs is not ours."""
@@ -931,10 +1009,12 @@ def check_text(subject: str, body: str, pitch: str, ctx: CheckContext) -> list[s
     thread = in_thread(ctx.kind)
     for label, text in parts:
         n = count_questions(text)
-        # A LinkedIn connection note may ask nothing; a first touch with a framework asks
-        # what the framework allows (an email, or a LinkedIn pitch); everything else asks one.
+        # A LinkedIn connection note may ask nothing, and at most what the framework allows
+        # (one without a framework); a first touch with a framework asks what the framework
+        # allows (an email, or a LinkedIn pitch); everything else asks one.
         if ctx.channel == "linkedin" and label == "message" and not thread:
-            allowed = (0, 1)
+            allowed = tuple(range(0, ctx.framework.questions[1] + 1)) \
+                if ctx.framework is not None and ctx.kind == FIRST_TOUCH else (0, 1)
         elif ctx.framework is not None and ctx.kind == FIRST_TOUCH and (
                 (ctx.channel == "email" and label == "message")
                 or (ctx.channel == "linkedin" and label == "pitch message")):
@@ -943,7 +1023,7 @@ def check_text(subject: str, body: str, pitch: str, ctx: CheckContext) -> list[s
             allowed = (1,)
         if n not in allowed:
             problems.append(f"the {label} asks {n} questions; it must ask "
-                            + ("at most one" if allowed == (0, 1) else "exactly one"))
+                            + question_phrase(allowed[0], allowed[-1]))
     if opens_with_i(body):
         problems.append(f"it opens with \"{opening_line(body).split()[0]}\"; open with "
                         "them or the finding, not yourself")
@@ -992,6 +1072,11 @@ def check_text(subject: str, body: str, pitch: str, ctx: CheckContext) -> list[s
         if len((pitch or "").strip()) > most:
             problems.append(f"the pitch message is {len(pitch.strip())} characters; "
                             f"at most {most}")
+    if ctx.kind == FIRST_TOUCH and ctx.findings:
+        for quote in unsupported_quotes([subject, main, pitch], ctx.findings)[:3]:
+            problems.append(f"it quotes \"{quote}\", which no finding says word for word; "
+                            "quote only what a finding says, or say it in your own words "
+                            "without quotation marks")
     # A gap refuses a draft. Only a fallback written without any usable finding
     # keeps its gaps: it is shown as needing hand edits instead (hand_edits).
     banned = next((p for p in ctx.never_write if p and p.lower() in lowered), None)
@@ -1048,6 +1133,22 @@ class Draft:
     exemplars_used: list[str] = field(default_factory=list)  # example ids in the prompt
     framework: str = ""    # the id of the framework the draft was asked for ("" = none)
     failed: str = ""   # the AI gave no usable draft at all (twice): why
+
+
+def leading_gaps(findings) -> list[int]:
+    """The numbers (1..n, as in the prompt) of the gaps a first touch can lead with:
+    usable and not stale. When there are any, the message leads with one of them."""
+    return [n for n, f in enumerate(findings, 1) if f.is_gap and f.usable and not f.stale]
+
+
+def gap_lead_line(ctx: CheckContext) -> str:
+    """The prompt line that makes a gap lead; "" when there is no gap to lead with."""
+    gaps = leading_gaps(ctx.findings)
+    if not gaps or ctx.kind != FIRST_TOUCH:
+        return ""
+    numbers = ", ".join(str(n) for n in gaps)
+    return (f"A gap leads: open with one of the findings of kind gap (number {numbers}) and "
+            "put its number in findings_used. Other findings may support it, never lead.")
 
 
 def _text(value) -> str:
@@ -1109,6 +1210,12 @@ def clean_answer(data, ctx: CheckContext) -> Draft:
         if given and given != fw.id and fw.id != HOUSE:
             problems.append(f"it says framework '{given}'; this draft was asked for {fw.id}")
         draft.framework = fw.id
+    gaps = leading_gaps(ctx.findings) if ctx.kind == FIRST_TOUCH else []
+    if gaps and not any(n in gaps for n in ids):
+        problems.append("a gap finding leads the message: cite "
+                        + (f"finding {gaps[0]}" if len(gaps) == 1 else
+                           "one of the gap findings " + ", ".join(str(n) for n in gaps))
+                        + " in findings_used and open with it")
     stale_open = [n for n in ids if ctx.findings[n - 1].stale]
     if stale_open and any(_norm_space(ctx.findings[n - 1].text)[:40]
                           in _norm_space(opening_line(draft.body)) for n in stale_open):
@@ -1177,7 +1284,7 @@ FRAMEWORK_CHANNEL_TEXT = {
     "email": ("Channel: email. A subject of at most {subject_max} characters; the body at "
               "most {body_max_words} words, greeting and sign-off included."),
     "linkedin": ("Channel: LinkedIn. body is the connection note: at most {note_max_chars} "
-                 "characters, no pitch, at most one question. pitch is the message sent once "
+                 "characters, no pitch, at most {note_questions}. pitch is the message sent once "
                  "they accept: at most {pitch_max_chars} characters, built with the framework "
                  "above. No subject."),
 }
@@ -1249,16 +1356,20 @@ def framework_rule_lines(framework: Framework) -> list[str]:
     """The rule lines a first touch gets after its recipe, from the fixed ones and
     the framework's own question, offer line and proof values: what keeps the checks
     Python runs on the text in the prompt, whatever the framework's instructions say."""
+    low, high = framework.questions
+    phrase = question_phrase(low, high).capitalize()
     lines = [
         "- Never open with \"I\" (or Ich, Ik, Je): the first word is about them.",
-        "- No meeting ask, no call ask, no link, no proposed day or time.",
+        "- No meeting ask, no call ask, no proposed day or time." if framework.links == "allowed"
+        else "- No meeting ask, no call ask, no link, no proposed day or time.",
         "- When no finding is usable, write from the playbook's general notes instead and "
         "mark what only the seller can fill in with [square brackets].",
         "- The playbook's Voice section wins over the framework on wording, greeting, "
         "sign-off and formality.",
-        "- Exactly one question mark in the whole message." if framework.questions == (1, 1)
-        else "- At most one question mark in the whole message.",
+        f"- {phrase} question mark{'' if high == 1 else 's'} in the whole message.",
     ]
+    if framework.links == "allowed":
+        lines.insert(2, "- No booking link.")
     if framework.offer_line == "never":
         lines.append("- Do not state the offer line; it is below as background.")
     elif framework.offer_line == "required":
@@ -1295,7 +1406,7 @@ def draft_prompt(kind: str, brief: Brief, ctx: CheckContext, approach, playbook_
     in place of SHAPES and CHANNEL_TEXT; house is today's paragraph, word for word, and
     when its instructions were rewritten they get the rule lines after them."""
     rules = {"subject_max": 60, "body_max_words": 120, "note_max_chars": 300,
-             "pitch_max_chars": 600, **ctx.rules}
+             "pitch_max_chars": 600, "note_questions": "one question", **ctx.rules}
     shape = SHAPES[kind]
     channel_text = CHANNEL_TEXTS.get(kind, CHANNEL_TEXT)[ctx.channel]
     if kind == FIRST_TOUCH and ctx.framework is not None:
@@ -1306,6 +1417,8 @@ def draft_prompt(kind: str, brief: Brief, ctx: CheckContext, approach, playbook_
         else:
             shape = framework_block(ctx.framework)
             channel_text = FRAMEWORK_CHANNEL_TEXT[ctx.channel]
+            most = ctx.framework.questions[1]
+            rules["note_questions"] = f"{_COUNT_WORDS[most]} question{'' if most == 1 else 's'}"
     parts = [
         "You draft one sales message for a person to review, edit and send themselves. "
         "Nothing you write is sent automatically.",
@@ -1355,6 +1468,8 @@ def draft_prompt(kind: str, brief: Brief, ctx: CheckContext, approach, playbook_
             lines.append(f"{n}. [{f.kind}, {f.confidence}, {note}; source {f.source}] {f.text}")
         parts.append("--- findings (cite by number in findings_used; usable ones only) ---\n"
                      + ("\n".join(lines) or "none: nothing usable was found") + "\n--- end ---")
+        if gap_lead_line(ctx):
+            parts.append(gap_lead_line(ctx))
     if approach is not None:
         parts.append(f"--- offer line (approach \"{approach.name}\") ---\n"
                      f"{approach.offer_line}\n--- end ---")
@@ -1798,6 +1913,7 @@ class Item:
     follows: str = ""     # follow-up: the id of your unanswered message (an interaction)
     approach: str = ""
     framework: str = ""   # a first touch: the id of the framework it was drafted with
+    lead_rule: str = ""   # the research rule whose gap leads the draft (`r08`), or ""
     language: str = ""
     subject: str = ""
     pitch: str = ""
@@ -1877,7 +1993,7 @@ class Item:
                 if not value:
                     continue    # absent until a file is attached (keeps older files' bytes)
                 value = attachments_mod.to_meta(value)
-            elif key in ("framework", "lessons_used", "exemplars_used", "language_pick",
+            elif key in ("framework", "lead_rule", "lessons_used", "exemplars_used", "language_pick",
                          "notes_linked", "stage_override") and not value:
                 continue    # absent until they apply (keeps older files' bytes)
             meta[key] = value
@@ -1957,6 +2073,7 @@ def item_from_text(item_id: str, text: str) -> Item:
         follows=s("follows").strip(),
         approach=s("approach"),
         framework=s("framework").strip().lower(),
+        lead_rule=clean_rule(s("lead_rule")),
         language=s("language").strip(), subject=s("subject"), pitch=s("pitch"),
         research_level=s("research_level").strip(), model=s("model"),
         attempts=_int_or_none(meta.get("attempts")) or 0,
@@ -2462,6 +2579,13 @@ class Candidate:
     # when the stage check was lifted on purpose (one named contact, or included).
     stage_blocked: str = ""
     stage_override: str = ""
+    # `reason` is a judgement the person may lift for one named contact
+    # (`select(override=True)`); or a fact / safety rule that is never lifted.
+    overridable: bool = False
+    never_lifted: bool = False
+    # The warnings `override` would put on the draft: every judgement rule it lifts,
+    # so the person sees all of them before pressing the button (see `select`).
+    lifts: list[str] = field(default_factory=list)
 
     @property
     def who(self) -> str:
@@ -2490,6 +2614,7 @@ class Selection:
     gate: str = ""                     # why the build would refuse; "" = ready
     approaches: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)   # about the filter, not an error
+    one_named: bool = False            # one contact was named: `override` can apply
 
     def render_left_out(self) -> list[str]:
         """The contacts only their company's stage kept out, with the way back in."""
@@ -2522,7 +2647,9 @@ class Selection:
                          + ", ".join(c.who for c in self.over_limit))
         if self.excluded:
             lines.append("Not this time:")
-            lines += [f"- {c.who} | {c.reason}" for c in self.excluded]
+            lines += [f"- {c.who} | {c.reason}"
+                      + (" | --override lifts it" if self.one_named and c.overridable else "")
+                      for c in self.excluded]
         lines += self.render_left_out()
         if self.duplicates:
             lines.append("Likely duplicates (merge one into the other on its page, "
@@ -2590,14 +2717,20 @@ def select(store: Store, where: list[str] | None = None, channel: str = "email",
            kind: str = "first-touch", limit: int | None = None, approach: str = "",
            contacts: list[str] | None = None, config: dict | None = None,
            today: date | None = None,
-           include_closed: set[str] | list[str] | None = None) -> Selection:
+           include_closed: set[str] | list[str] | None = None,
+           override: bool = False) -> Selection:
     """Who a batch would go to, in order, and why the rest would not. No AI, no
     writes. `contacts` ("company/contact") replaces the filter: the per-contact
     Generate outreach button. A company whose stage is not open keeps its
     contacts out of a batch (they are listed in `stage_left_out`), unless the
     contact is the one named contact or is in `include_closed` ("company/contact"
     records the person confirmed): then it is drafted, with a warning. That is
-    the stage check only; nothing else is lifted."""
+    the stage check only; nothing else is lifted.
+    `override`: the one named contact is drafted although a judgement rule kept
+    them out (the picked approach's ideal customer, see `_soft`), with a warning.
+    Ignored unless exactly one contact is named. Do-not-contact, the suppression
+    list, tag disqualifiers and the sample account are never lifted (a refusal
+    that can be lifted has `overridable`, one that never can has `never_lifted`)."""
     if channel not in CHANNELS:
         raise OutreachError(f"channel {channel!r}: use email or linkedin")
     if kind not in KINDS:
@@ -2673,13 +2806,29 @@ def select(store: Store, where: list[str] | None = None, channel: str = "email",
     one_named = bool(contacts) and len(contacts) == 1   # the per-contact Generate button
     confirmed = {str(r) for r in include_closed or ()}
     ranked: list[Candidate] = []
+    sel.one_named = one_named
     for company, contact in pairs:
         cand = Candidate(company, contact, fit=fit_value(company, fit_field))
-        cand.reason = _excluded(store, cand, approaches, approach, channel, kind, cooldown,
-                                today, open_by_contact, open_by_company, dupes,
-                                bad_fit, skipped_by_contact, interest, earlier, due, nudge,
-                                named=bool(contacts), done=done,
-                                stage_ok=one_named or cand.record in confirmed)
+
+        def check(c: Candidate, lift: bool) -> str:
+            return _excluded(store, c, approaches, approach, channel, kind, cooldown,
+                             today, open_by_contact, open_by_company, dupes,
+                             bad_fit, skipped_by_contact, interest, earlier, due, nudge,
+                             named=bool(contacts), done=done,
+                             stage_ok=one_named or c.record in confirmed, override=lift)
+
+        cand.reason = check(cand, override and one_named)
+        if one_named and not override and cand.reason and cand.overridable:
+            # Try the override on a copy (no AI, no writes): a rule after the judgement one
+            # that it cannot lift (no address, an open item) is the real blocker, and what
+            # it does lift is listed, so the button never promises more than it can do.
+            trial = Candidate(company, contact, fit=cand.fit)
+            again = check(trial, True)
+            if again:
+                cand.reason, cand.overridable = again, False
+                cand.never_lifted = trial.never_lifted
+            else:
+                cand.lifts = [w for w in trial.warnings if w not in cand.warnings]
         if cand.fit is None and not cand.reason:
             cand.flags.append(f"no fit score ({fit_field} is empty)")
         if cand.stage_blocked:   # nothing but the stage is in the way: offer it back
@@ -2709,7 +2858,7 @@ def select(store: Store, where: list[str] | None = None, channel: str = "email",
 def _excluded(store, cand: Candidate, approaches, forced: str, channel, kind, cooldown,
               today, open_by_contact, open_by_company, dupes, bad_fit=None,
               skipped_by_contact=None, interest=None, earlier=None, due=None,
-              nudge=5, named=False, done=None, stage_ok=False) -> str:
+              nudge=5, named=False, done=None, stage_ok=False, override=False) -> str:
     """Why this contact gets no item this time, or "" (and its approach and flags).
     A company whose stage is not open keeps a first touch or follow-up out, but
     not a reply (they wrote to you): with `stage_ok` it is lifted on purpose (a
@@ -2727,6 +2876,7 @@ def _excluded(store, cand: Candidate, approaches, forced: str, channel, kind, co
     follow = kind == FOLLOW_UP
     thread = in_thread(kind)
     if company.is_sample:
+        cand.never_lifted = True
         return "the sample account is made up"
     stage_text = ""
     if not store.stages.is_open(company.stage) and not reply:
@@ -2739,7 +2889,8 @@ def _excluded(store, cand: Candidate, approaches, forced: str, channel, kind, co
             stage_text = ""
     reason = _excluded_rest(store, cand, approaches, forced, channel, kind, cooldown, today,
                             open_by_contact, open_by_company, dupes, bad_fit,
-                            skipped_by_contact, interest, earlier, due, nudge, named, done)
+                            skipped_by_contact, interest, earlier, due, nudge, named, done,
+                            override)
     if reason:
         return reason
     if stage_text:   # all else is fine: only the stage keeps them out
@@ -2748,22 +2899,46 @@ def _excluded(store, cand: Candidate, approaches, forced: str, channel, kind, co
     return ""
 
 
+def _soft(cand: Candidate, override: bool, reason: str, warning: str = "") -> str:
+    """A judgement rule the person may lift for one named contact. Without
+    `override`: the reason (the contact stays out, marked `overridable`). With it:
+    "" and `warning` (default: the reason, drafted anyway) on the draft, so the
+    card says it was drafted on purpose."""
+    if override:
+        cand.warnings.append(warning or f"{reason}: drafted anyway, so check it should go out")
+        return ""
+    cand.overridable = True
+    return reason
+
+
+def _closest_approach(company, approaches):
+    """The approach with the fewest ideal-customer misses that has no tag
+    disqualifier against the company (ties: the playbook's order); None when
+    every approach is disqualified."""
+    open_ones = [a for a in approaches if not playbook.disqualify(company, a).excluded]
+    return min(open_ones, key=lambda a: len(playbook.fit(company, a)[1]), default=None)
+
+
 def _excluded_rest(store, cand: Candidate, approaches, forced: str, channel, kind, cooldown,
                    today, open_by_contact, open_by_company, dupes, bad_fit, skipped_by_contact,
-                   interest, earlier, due, nudge, named, done) -> str:
-    """The rules of `_excluded` after the stage check."""
+                   interest, earlier, due, nudge, named, done, override=False) -> str:
+    """The rules of `_excluded` after the stage check. A judgement rule goes
+    through `_soft`; a fact or safety rule sets `never_lifted`."""
     company, contact = cand.company, cand.contact
     reply = kind == REPLY
     follow = kind == FOLLOW_UP
     thread = in_thread(kind)
     if do_not_contact(company, contact):
+        cand.never_lifted = True
         return f"tagged {DO_NOT_CONTACT}"
     if contact.email:   # never drafted, whatever else was asked: send.py would refuse it
         try:
             listed = suppress.lookup(store.root, contact.email)
         except suppress.SuppressError as exc:
+            cand.never_lifted = True
             return str(exc)
         if listed is not None:
+            cand.never_lifted = True
             return f"{contact.email} is on the suppression list ({listed.reason})"
     if reply and cand.record not in (interest or {}):
         return ("no reply showing interest to answer (log their reply with the outcome "
@@ -2794,8 +2969,16 @@ def _excluded_rest(store, cand: Candidate, approaches, forced: str, channel, kin
             only = approaches[0]
             dq = playbook.disqualify(company, only)
             matches, misses, unknown = playbook.fit(company, only)
-            if dq.reasons or misses:
+            if dq.reasons:
+                cand.never_lifted = True
                 return f"{only.name}: " + "; ".join(dq.reasons + misses)
+            if misses:
+                text = "; ".join(misses)
+                lifted = _soft(cand, override, f"{only.name}: {text}",
+                               f"outside {only.name}'s ideal customer ({text}): drafted "
+                               "anyway, so check it fits")
+                if lifted:
+                    return lifted
             cand.approach = only.name
             cand.flags += unknown + dq.unchecked
         else:
@@ -2811,8 +2994,21 @@ def _excluded_rest(store, cand: Candidate, approaches, forced: str, channel, kin
                                   f"{pick.unclear[0]}; rebuild with --approach to change")
                 cand.flags += pick.why
             else:
-                return "fits no approach: " + " | ".join(
+                why = "fits no approach: " + " | ".join(
                     f"{name}: {'; '.join(why)}" for name, why in pick.left_out.items())
+                # Only misses are a judgement; one tag disqualifier makes it a hard no for
+                # that approach, and an approach with none left to try is never lifted.
+                closest = _closest_approach(company, approaches)
+                if closest is None:
+                    cand.never_lifted = True
+                    return why
+                text = "; ".join(playbook.fit(company, closest)[1])
+                lifted = _soft(cand, override, why,
+                               f"outside {closest.name}'s ideal customer ({text}): it fits "
+                               "no approach, this is the closest; drafted anyway, so check it fits")
+                if lifted:
+                    return lifted
+                cand.approach = closest.name
         chosen = next(a for a in approaches if a.name == cand.approach)
         cand.flags += [u for u in playbook.fit(company, chosen)[2] if u not in cand.flags]
         cand.persona = playbook.match_persona(contact.title, chosen.personas)
@@ -2832,15 +3028,23 @@ def _excluded_rest(store, cand: Candidate, approaches, forced: str, channel, kin
         if other in open_by_company:
             return f"likely duplicate {other} has an open outreach item ({open_by_company[other]})"
     if company.slug in (bad_fit or {}) and not reply:
-        return f"skipped as bad-fit ({bad_fit[company.slug].id})"
+        lifted = _soft(cand, override, f"skipped as bad-fit ({bad_fit[company.slug].id})")
+        if lifted:
+            return lifted
     skipped = (skipped_by_contact or {}).get(cand.record)
     answered = (interest or {}).get(cand.record)
     if skipped is not None and skipped.skipped is not None and not (
             answered is not None and skipped.skipped < answered.interaction.date):
         days = (today - skipped.skipped.date()).days
         if days < cooldown:
-            return (f"skipped {days} days ago ({skipped.skip_reason or 'other'}); back "
-                    f"after the cooldown of {cooldown} days")
+            lifted = _soft(cand, override,
+                           f"skipped {days} days ago ({skipped.skip_reason or 'other'}); back "
+                           f"after the cooldown of {cooldown} days",
+                           f"skipped {days} days ago ({skipped.skip_reason or 'other'}), "
+                           f"inside the cooldown of {cooldown} days: drafted anyway, so check "
+                           "it should go out")
+            if lifted:
+                return lifted
     if reply:
         return ""
     if follow:
@@ -2869,9 +3073,13 @@ def _excluded_rest(store, cand: Candidate, approaches, forced: str, channel, kin
     recent = [i for i in outs if (today - i.date.date()).days < cooldown]
     if recent:
         days = (today - max(i.date for i in recent).date()).days
-        return f"messaged {days} days ago (cooldown {cooldown} days)"
+        lifted = _soft(cand, override, f"messaged {days} days ago (cooldown {cooldown} days)")
+        if lifted:
+            return lifted
     if kind == "first-touch" and any(i.is_message for i in outs):
-        return "already messaged before; not a first touch"
+        lifted = _soft(cand, override, "already messaged before; not a first touch")
+        if lifted:
+            return lifted
     return ""
 
 
@@ -2907,7 +3115,7 @@ def default_enricher(config: dict, tier: str = "medium"):
 def research_level(config: dict | None, override: str = "") -> str:
     level = (override or str(_config(config, "outreach_research"))).strip().lower()
     if level not in LEVELS:
-        raise OutreachError(f"research level {level!r}: use scrape or ai-web")
+        raise OutreachError(f"research level {level!r}: use scrape, ai-web or none")
     if level not in BUILT_LEVELS:
         raise OutreachError(f"{level} research comes in a later version; use scrape")
     return level
@@ -2917,7 +3125,10 @@ def researcher_for(level: str, enricher, fetcher=None, today: date | None = None
                    timeout: float = 10, escalate: bool = False):
     """The researcher for a level (`research_level` has checked it): the CLI and
     the Outreach page both build theirs here. `escalate` lets a scrape-level
-    build fall back to one ai-web pass when the scrape finds nothing."""
+    build fall back to one ai-web pass when the scrape finds nothing. `none` reads
+    nothing."""
+    if level == NO_RESEARCH:
+        return NoResearcher()
     if level == "ai-web":
         cls = AiWebResearcher
     else:
@@ -2928,12 +3139,36 @@ def researcher_for(level: str, enricher, fetcher=None, today: date | None = None
 def unmet_needs(framework: Framework, findings: list[Finding]) -> list[str]:
     """The needs of `framework` that no usable finding meets. A finding from a note
     you wrote (source YOURS) meets `personal-connection`; one about the person meets
-    `premise`. Findings are a snapshot of the contact's notes, so a note you wrote
-    is both."""
+    `premise`; a gap that is not stale meets `gap`. Findings are a snapshot of the
+    contact's notes, so a note you wrote is both."""
     usable = [f for f in findings if f.usable]
     met = {"personal-connection": any(f.source == YOURS for f in usable),
-           "premise": any(f.kind == "person" for f in usable)}
+           "premise": any(f.kind == "person" for f in usable),
+           "gap": any(f.is_gap and not f.stale for f in usable)}
     return [need for need in framework.needs if not met[need]]
+
+
+def gap_approaches(root: Path) -> list[str]:
+    """The names of the ready approaches whose default framework needs a gap. Research
+    cannot supply a gap (only your own research rules do, as notes), so for these the
+    Generate panel offers to skip it."""
+    ready, _ = _ready_approaches(root)
+    library = frameworks.load(root)
+    out = []
+    for a in ready:
+        fw = library.get(a.default_framework)
+        if fw is not None and "gap" in fw.needs:
+            out.append(a.name)
+    return out
+
+
+def has_fresh_gap(company, contact_slug: str, today: date) -> bool:
+    """Whether the notes a draft to this person would read hold a usable gap that is not
+    stale: the need of a framework that leads with one."""
+    from . import notes
+
+    return any(f.is_gap and f.usable and not f.stale
+               for f in notes.snapshot(company, contact_slug, today))
 
 
 def check_framework_choice(library: frameworks.Library, kind: str, framework: str) -> None:
@@ -3073,7 +3308,8 @@ def build(store: Store, selection: Selection, researcher: Researcher, drafter: D
                        if answering else
                        f"outreach: follow-up {item.record} ({item.follows})"
                        if following else
-                       f"outreach: research {item.record} ({item.research_level}, "
+                       f"outreach: research {item.record} "
+                       f"({item.research_level or 'notes only'}, "
                        f"{len(item.findings)} findings)")
             ctx["message"] = message
             write_item(root, item)
@@ -3150,6 +3386,7 @@ def _apply_draft(item: Item, draft: Draft, fallback: bool, when: datetime) -> st
         f.used = False
     for n in draft.findings_used:
         item.findings[n - 1].used = True
+    item.lead_rule = next((f.rule for f in item.findings if f.used and f.is_gap and f.rule), "")
     item.state = "drafted"
     item.subject, item.pitch = draft.subject, draft.pitch
     item.body, item.checks, item.norms = draft.body, draft.problems, draft.norms
@@ -3823,7 +4060,7 @@ def render_item(store: Store, item: Item) -> str:
         lines.append(f"Company: {company.name} | {company.website or 'no website'}")
     lines.append(f"Approach: {item.approach or '-'}"
                  + (f" | framework: {item.framework}" if item.framework else "")
-                 + f" | language: {item.language or '-'} | research: {item.research_level}")
+                 + f" | language: {item.language or '-'} | research: {item.research_level or '-'}")
     if item.flags:
         lines.append("Flags:")
         lines += [f"- {f}" for f in item.flags]

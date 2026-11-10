@@ -358,8 +358,8 @@ def test_item_file_keeps_reply_to(root, client):
     meta, body = split_file((root / item.path).read_text())
     assert meta["reply_to"] == it.id
     assert list(meta) == [k for k in outreach.ITEM_KEYS
-                          if k not in ("framework", "exemplars_used", "language_pick",
-                                       "stage_override", "attachments")]
+                          if k not in ("framework", "lead_rule", "exemplars_used",
+                                       "language_pick", "stage_override", "attachments")]
     again = outreach.item_from_text(item.id, (root / item.path).read_text())
     assert outreach.item_text(again) == (root / item.path).read_text()
 
@@ -376,3 +376,29 @@ def test_a_reply_item_gets_no_framework_even_when_the_approach_has_a_default(roo
     item, = [i for i in outreach.items(root) if i.record == MARA]
     meta, _ = split_file((root / item.path).read_text())
     assert item.kind == outreach.REPLY and item.framework == "" and "framework" not in meta
+
+
+def test_a_refused_reply_comes_back_to_the_panel_as_a_reply(client, root):
+    """A reply draft refused on a judgement rule (here: skipped two hours ago) must not
+    turn into a first touch on the way to the Generate panel."""
+    from starlette.datastructures import URL, QueryParams
+    log_reply(client, outcome="interested")
+    outreach.write_item(root, outreach.Item(
+        id="2026-11-01T0900-email-lindenhof-data-mara-keller", state="skipped",
+        kind=outreach.REPLY, company="lindenhof-data", contact="mara-keller", created=NOW,
+        body="Hi.\n", skip_reason="bad-timing", skipped=NOW - timedelta(hours=2)))
+    r = post(client, "/outreach/build", contact=MARA, kind=outreach.REPLY, channel="email",
+             back="/outreach?tab=replies")
+    q = dict(QueryParams(URL(r.headers["location"]).query))
+    assert "flash" not in q
+    assert q["refused"] == "1" and q["kind"] == outreach.REPLY
+    page = client.get(r.headers["location"]).text
+    panel = re.search(r'<section id="generate".*?</section>', page, re.S).group(0)
+    assert "Not built." in panel and "skipped 0 days ago" in panel
+    assert '<option value="reply-to-interest" selected>' in panel
+    assert 'name="override" value="1"' in panel
+    post(client, "/outreach/build", contact=MARA, kind=outreach.REPLY, channel="email",
+         override="1", back="/outreach?tab=replies")
+    item, = [i for i in outreach.items(root) if i.record == MARA and i.state != "skipped"]
+    assert item.kind == outreach.REPLY
+    assert any("skipped 0 days ago" in f and "drafted anyway" in f for f in item.flags)

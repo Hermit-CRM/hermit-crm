@@ -26,6 +26,12 @@
 <section id="generate" class="outreach-generate">
   <h2>Generate for {{ gc.first_name or gc.name }}</h2>
   <p class="small">{{ gc.name }}{% if gc.title %}, {{ gc.title }}{% endif %} at <a href="/companies/{{ gen.company.slug }}">{{ gen.company.name }}</a>. Nothing runs until you press Generate; the draft appears under Drafts to review.</p>
+  {% if gen.refusal %}<div class="warning-box generate-refusal">
+    <p><strong>Not built.</strong> {{ gen.refusal.reason }}.</p>
+    <p class="small">You can generate it anyway: the draft appears under Drafts with a warning on its card, and you decide whether it goes out. It uses the choices below.{% if gen.refusal.lifts %} It will carry {{ 'this warning' if gen.refusal.lifts | length == 1 else 'these warnings' }}:{% endif %}</p>
+    {% if gen.refusal.lifts %}<ul class="small">{% for w in gen.refusal.lifts %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}
+    <button type="submit" form="gen-form" name="override" value="1" data-busy="Generating&hellip;"{% if gate or ai_problem %} disabled{% endif %}>Generate anyway</button>
+  </div>{% endif %}
   {% if gen.stage_note %}<p class="warning-box generate-stage-note">{{ gen.stage_note }}</p>{% endif %}
   {% if gen.open_item %}
   <p>{{ gc.first_name or gc.name }} already has a {{ gen.open_item.kind | replace('-', ' ') }} by {{ gen.open_item.channel }} that is <strong>{{ gen.open_item.state }}</strong>. <a href="/outreach?tab={{ gen.open_tab }}#item-{{ gen.open_item.id }}">Open it</a></p>
@@ -40,21 +46,24 @@
     <input type="hidden" name="contact" value="{{ gen.record }}">
     <input type="hidden" name="back" value="/outreach?contact={{ gen.record }}">
     <label>Draft type <select name="kind"><option value="first-touch"{% if gen.kind == 'first-touch' %} selected{% endif %}>first touch</option><option value="reply-to-interest"{% if gen.kind == 'reply-to-interest' %} selected{% endif %}>reply to interest</option><option value="follow-up"{% if gen.kind == 'follow-up' %} selected{% endif %}>follow-up</option></select></label>
-    <label>Channel <select name="channel">{% for c in channels %}<option value="{{ c }}"{% if c == 'email' %} selected{% endif %}>{{ c }}</option>{% endfor %}</select></label>
-    <label>Research <select name="research">{% for l in levels %}{% set off = l not in built_levels or (l == 'ai-web' and ai_web_problem) %}<option value="{{ l }}"{% if l == form.research %} selected{% endif %}{% if off %} disabled{% endif %}>{{ l }}{% if l == 'ai-web' and ai_web_problem %} (Claude Code only){% endif %}</option>{% endfor %}</select></label> <span class="small quiet">scrape, then ai-web automatically if it finds nothing</span>
-    <label class="check"><input type="checkbox" name="strong" value="1"> stronger model</label>
+    <label>Channel <select name="channel">{% for c in channels %}<option value="{{ c }}"{% if c == form.channel %} selected{% endif %}>{{ c }}</option>{% endfor %}</select></label>
+    <label>Approach <select name="approach" id="gen-approach" data-gap-approaches="{{ gen.gap_approaches | tojson | forceescape }}" data-gap-ready="{{ '1' if gen.gap_ready else '' }}"><option value=""{% if not form.approach %} selected{% endif %}>the best fit for them</option>{% for a in approaches %}<option value="{{ a }}"{% if a == form.approach %} selected{% endif %}>{{ a }}</option>{% endfor %}</select></label>
+    <label>Research <select name="research" id="gen-research">{% for l in levels %}{% set off = l not in built_levels or (l == 'ai-web' and ai_web_problem) %}<option value="{{ l }}"{% if l == form.research %} selected{% endif %}{% if off %} disabled{% endif %}>{{ l }}{% if l == 'none' %} (use my notes){% elif l == 'ai-web' and ai_web_problem %} (Claude Code only){% endif %}</option>{% endfor %}</select></label>
+    <span class="small quiet" id="gen-research-hint" data-scrape="scrape, then ai-web automatically if it finds nothing" data-none="no page is read: the draft uses the notes below">{% if form.research == 'none' %}no page is read: the draft uses the notes below{% else %}scrape, then ai-web automatically if it finds nothing{% endif %}</span>
+    <label class="check"><input type="checkbox" name="strong" value="1"{% if form.strong %} checked{% endif %}> stronger model</label>
     <label>Signal (check <a href="{{ (gen.company.linkedin | href) ~ '/insights/' if gen.company.linkedin | href else 'https://www.linkedin.com/company/' ~ gen.company.slug ~ '/insights/' }}" target="_blank" rel="noopener">LinkedIn insights</a>)
-      <select name="signal">{% for sg in signals %}<option value="{{ sg }}">{{ signal_labels[sg] }}</option>{% endfor %}</select></label>
-    <label>Language <select name="language"><option value="">{{ language_names[gen.language] }} (default)</option>{% for code, name in language_names.items() %}<option value="{{ code }}">{{ name }}</option>{% endfor %}</select></label>
+      <select name="signal">{% for sg in signals %}<option value="{{ sg }}"{% if sg == gen.pick.signal %} selected{% endif %}>{{ signal_labels[sg] }}</option>{% endfor %}</select></label>
+    <label>Language <select name="language"><option value="">{{ language_names[gen.language] }} (default)</option>{% for code, name in language_names.items() %}<option value="{{ code }}"{% if code == gen.pick.language %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
     <button type="submit" data-busy="Generating&hellip;"{% if gate or ai_problem %} disabled{% endif %}>Generate</button>
   </form>
+  <p class="warning-box small" id="gen-gap-warning"{% if not (form.approach in gen.gap_approaches and not gen.gap_ready) %} hidden{% endif %}>This approach leads with a gap, and no fresh gap note is on file. Research cannot find one (only your own research rules do), so the draft would fall back to the house framework. Add the gap as a note first.</p>
   {% endif %}
   <h3>Notes the draft will use ({{ gen.notes | length }})</h3>
   {% if gen.notes %}<ol class="outreach-note-list small">{% for r in gen.notes %}
     <li>{{ r.text }} <span class="quiet">&middot; {{ fmt_date(r.note.date) }} &middot; {% if r.source_url %}<a href="{{ r.source_url }}" target="_blank" rel="noopener">{{ r.source_url | replace('https://', '') | truncate(40) }}</a>{% else %}{{ 'company' if r.origin == 'company' else 'you' }}{% endif %}</span></li>{% endfor %}
   </ol>{% else %}<p class="small quiet">None yet. Research adds what it finds as notes, and anything you write here or on their page counts too.</p>{% endif %}
   <div class="outreach-add">
-    <input name="note" form="gen-form" id="gen-note" placeholder="add a note: something you know about them, or one thing from their site" aria-label="Add a note" autocomplete="off">
+    <input name="note" form="gen-form" id="gen-note" value="{{ gen.pick.note }}" placeholder="add a note: something you know about them, or one thing from their site" aria-label="Add a note" autocomplete="off">
     <button type="submit" form="gen-form" formaction="/outreach/note" class="secondary" id="gen-add-note">Add note</button>
   </div>
   <p class="small quiet">Saved as a note when you press Add note (or Enter){% if not gen.open_item %} or Generate{% endif %}, and the draft uses it. {% if gen.company.website %}One thing worth noting may be on <a href="{{ gen.company.website | href }}" target="_blank" rel="noopener">their site</a>.{% endif %}</p>
@@ -96,7 +105,7 @@
   <label>Channel <select name="channel">{% for c in channels %}<option value="{{ c }}"{% if c == form.channel %} selected{% endif %}>{{ c }}</option>{% endfor %}</select></label>
   <label>Batch size <input name="limit" type="number" min="1" max="50" value="{{ form.limit }}"></label>
   <label>Approach <select name="approach"><option value="">the best fit per company</option>{% for a in approaches %}<option value="{{ a }}"{% if a == form.approach %} selected{% endif %}>{{ a }}</option>{% endfor %}{% if form.approach and form.approach not in approaches %}<option value="{{ form.approach }}" selected>{{ form.approach }}</option>{% endif %}</select></label>
-  <label>Research <select name="research">{% for l in levels %}{% set off = l not in built_levels or (l == 'ai-web' and ai_web_problem) %}<option value="{{ l }}"{% if l == form.research %} selected{% endif %}{% if off %} disabled{% endif %}{% if l == 'ai-web' and ai_web_problem %} title="{{ ai_web_problem }}"{% endif %}>{{ l }}{% if l not in built_levels %} (later){% elif l == 'ai-web' and ai_web_problem %} (Claude Code only){% endif %}</option>{% endfor %}</select></label>
+  <label>Research <select name="research">{% for l in levels %}{% set off = l not in built_levels or (l == 'ai-web' and ai_web_problem) %}<option value="{{ l }}"{% if l == form.research %} selected{% endif %}{% if off %} disabled{% endif %}{% if l == 'ai-web' and ai_web_problem %} title="{{ ai_web_problem }}"{% endif %}>{{ l }}{% if l not in built_levels %} (later){% elif l == 'none' %} (use my notes){% elif l == 'ai-web' and ai_web_problem %} (Claude Code only){% endif %}</option>{% endfor %}</select></label>
   <label class="check"><input type="checkbox" name="strong" value="1"{% if form.strong %} checked{% endif %}> stronger model</label>
   <button type="submit" formmethod="get" formaction="/outreach" name="preview" value="1" class="secondary">Preview</button>
   <button type="submit" data-busy="Building…"{% if gate or ai_problem %} disabled{% endif %}>{% if form.left %}Build the next one{% else %}Build queue{% endif %}</button>
@@ -639,4 +648,5 @@
   {% endif %}
 })();
 </script>
-{% endblock %}
+{% if gen %}<script src="/static/generate.js?v={{ asset_version }}" defer></script>
+{% endif %}{% endblock %}

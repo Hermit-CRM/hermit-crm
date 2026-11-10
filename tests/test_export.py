@@ -166,6 +166,19 @@ def test_the_interactions_csv_has_the_framework_right_after_the_subject(demo):
     assert {r["framework"] for k, r in by_id.items() if k != (company.slug, it.id)} == {""}
 
 
+def test_the_interactions_csv_has_the_lead_rule_right_after_the_approach(demo):
+    store = open_store(demo)
+    company = next(c for c in store.all() if any(i.is_message for i in c.interactions))
+    it = next(i for i in company.interactions if i.is_message)
+    store.update_interaction(company.slug, it.id, lead_rule="r08")
+    header, rows = table(unzip(export.zip_bytes(open_store(demo)))["interactions.csv"])
+    assert header[header.index("approach") + 1] == "lead_rule"
+    assert header.count("lead_rule") == 1
+    by_id = {(r["company_slug"], r["id"]): r for r in rows}
+    assert by_id[(company.slug, it.id)]["lead_rule"] == "r08"
+    assert {r["lead_rule"] for k, r in by_id.items() if k != (company.slug, it.id)} == {""}
+
+
 def test_user_fields_then_unknown_keys_come_after_the_known_columns_sorted(demo):
     company = next(p for p in sorted((demo / "companies").iterdir()) if p.is_dir())
     path = company / "company.md"
