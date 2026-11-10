@@ -127,9 +127,11 @@ text = """
 Use the AI subscription you already have, such as Claude, ChatGPT or Gemini.
 There are no credits to buy from a CRM vendor, and Hermit CRM adds no AI bill.
 Ask what is in your pipeline this week, or to log a call with a contact, and it
-reads and updates your records for you. Ask Hermit answers questions on every
-page through the same AI tool. For developers: plain files, a small command
-line tool and an MCP server.
+reads and updates your records for you. Ask Hermit is a question box on every
+page: ask who you wrote to last week without a follow-up planned, and your AI
+tool answers from your own records, with links to the people and companies. It
+only reads and never changes anything. For developers: plain files, a small
+command line tool and an MCP server.
 """
 
 [[principles]]
@@ -323,7 +325,7 @@ better choice.
 
 [[questions.items]]
 q = "Does it run on Windows?"
-a = "Not yet. Hermit CRM runs on macOS and Linux."
+a = "Not yet. Hermit CRM runs on macOS, and on Linux where it is less tested."
 
 [[questions.items]]
 q = "What does it cost?"
