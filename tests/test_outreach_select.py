@@ -500,3 +500,200 @@ def test_culture_defaults_for_every_language_and_a_country_override(folder):
     messages = messaging.load_messages(root)
     assert outreach.culture("de", "AT", messages)["signoff"] == "Liebe Grüße"
     assert outreach.culture("de", "DE", messages)["signoff"] == "Viele Grüße"
+
+
+# ------------------------------------------------------------------ override
+
+KESTREL = "kestrel-metrics/daan-visser"   # ae count 0: misses "Scaling the sales team" (1-8)
+SCALING = "Scaling the sales team"
+
+
+def named(store, record, **kw):
+    return outreach.select(store, contacts=[record], **kw)
+
+
+def test_a_picked_misfit_is_refused_and_marked_overridable(folder):
+    root, store = folder
+    sel = named(store, KESTREL, approach=SCALING)
+    assert sel.picked == []
+    cand = sel.excluded[0]
+    assert cand.reason.startswith(f"{SCALING}: ") and "ae count 0, wants 1-8" in cand.reason
+    assert cand.overridable is True and cand.never_lifted is False
+
+
+def test_override_drafts_the_misfit_with_a_warning(folder):
+    root, store = folder
+    sel = named(store, KESTREL, approach=SCALING, override=True)
+    assert [c.record for c in sel.picked] == [KESTREL]
+    cand = sel.picked[0]
+    assert cand.approach == SCALING
+    assert len(cand.warnings) == 1
+    assert "ideal customer" in cand.warnings[0] and "ae count 0, wants 1-8" in cand.warnings[0]
+
+
+def test_override_is_ignored_for_a_batch(folder):
+    root, store = folder
+    plain = pick(store, approach=SCALING, limit=10)
+    lifted = pick(store, approach=SCALING, limit=10, override=True)
+    assert KESTREL not in picked(lifted)
+    assert reasons(lifted) == reasons(plain)
+
+
+def test_override_does_not_lift_a_tag_disqualifier(folder):
+    root, store = folder
+    store.update_company("lindenhof-data", tags=["b2b-saas", "customer", "demo"])
+    sel = named(store, "lindenhof-data/mara-keller", approach=SCALING, override=True)
+    assert sel.picked == []
+    cand = sel.excluded[0]
+    assert cand.reason == f"{SCALING}: tagged customer"
+    assert cand.overridable is False and cand.never_lifted is True
+
+
+def test_override_does_not_lift_do_not_contact(folder):
+    root, store = folder
+    sel = named(store, "ravenmoor-systems/ines-moreau", override=True)
+    assert sel.picked == []
+    assert sel.excluded[0].reason == "tagged do-not-contact"
+    assert sel.excluded[0].never_lifted is True and sel.excluded[0].overridable is False
+
+
+def test_override_does_not_lift_the_suppression_list(folder):
+    root, store = folder
+    from hermitcrm import suppress
+    email = store.get("lindenhof-data").contacts["mara-keller"].email
+    suppress.add(root, email, "opted-out", "2026-10-01")
+    sel = named(store, "lindenhof-data/mara-keller", override=True)
+    assert sel.picked == []
+    assert "suppression list" in sel.excluded[0].reason
+    assert sel.excluded[0].never_lifted is True and sel.excluded[0].overridable is False
+
+
+def test_fits_no_approach_override_takes_the_closest_approach(folder):
+    root, store = folder
+    store.update_company("kestrel-metrics", country="US")
+    refused = named(store, KESTREL)
+    assert refused.picked == [] and refused.excluded[0].reason.startswith("fits no approach: ")
+    assert refused.excluded[0].overridable is True
+    sel = named(store, KESTREL, override=True)
+    cand = sel.picked[0]
+    # Founder coaching misses only the country; Scaling the sales team the country and the AE count.
+    assert cand.approach == "Founder coaching"
+    assert "Founder coaching" in cand.warnings[0] and "ideal customer" in cand.warnings[0]
+
+
+def test_fits_no_approach_through_tags_is_never_lifted(folder):
+    root, store = folder
+    store.update_company("lindenhof-data", tags=["b2b-saas", "customer", "demo"])
+    sel = named(store, "lindenhof-data/mara-keller", override=True)
+    assert sel.picked == []
+    assert sel.excluded[0].overridable is False and sel.excluded[0].never_lifted is True
+
+
+def test_an_unknown_range_is_not_a_miss(folder):
+    root, store = folder
+    sel = named(store, "tallpine-software/oliver-hart", approach=SCALING)
+    assert [c.record for c in sel.picked] == ["tallpine-software/oliver-hart"]
+    assert sel.picked[0].overridable is False and sel.picked[0].warnings == []
+
+
+def message(store, company, contact, days_ago, who):
+    store.create_interaction(company, "email", "out", contact=contact,
+                             date=(NOW - timedelta(days=days_ago)).isoformat(timespec="minutes"),
+                             subject="Hello", body=f"Hello {who}.\n")
+
+
+def skip_item(root, company, contact, reason, days_ago):
+    item = outreach.Item(id=f"2026-10-01T0900-email-{company}-{contact}", state="skipped",
+                         company=company, contact=contact, created=NOW, body="Hi.\n",
+                         skip_reason=reason, skipped=NOW - timedelta(days=days_ago))
+    outreach.write_item(root, item)
+    return item
+
+
+MARA = "lindenhof-data/mara-keller"
+
+
+def test_override_lifts_a_recent_message_and_says_so(folder):
+    root, store = folder
+    message(store, "lindenhof-data", "mara-keller", 5, "Mara")
+    refused = named(store, MARA)
+    assert refused.excluded[0].reason == "messaged 5 days ago (cooldown 30 days)"
+    assert refused.excluded[0].overridable is True and refused.excluded[0].never_lifted is False
+    sel = named(store, MARA, override=True)
+    assert [c.record for c in sel.picked] == [MARA]
+    assert any("messaged 5 days ago (cooldown 30 days): drafted anyway" in w
+               for w in sel.picked[0].warnings)
+
+
+def test_override_lifts_not_a_first_touch(folder):
+    root, store = folder
+    message(store, "kestrel-metrics", "daan-visser", 45, "Daan")
+    assert named(store, KESTREL).excluded[0].reason == "already messaged before; not a first touch"
+    assert named(store, KESTREL).excluded[0].overridable is True
+    sel = named(store, KESTREL, override=True)
+    assert [c.record for c in sel.picked] == [KESTREL]
+    assert any("already messaged before" in w for w in sel.picked[0].warnings)
+
+
+def test_override_lifts_a_recent_skip(folder):
+    root, store = folder
+    skip_item(root, "lindenhof-data", "mara-keller", "bad-timing", 3)
+    refused = named(store, MARA)
+    assert refused.excluded[0].reason.startswith("skipped 3 days ago (bad-timing)")
+    assert refused.excluded[0].overridable is True
+    sel = named(store, MARA, override=True)
+    assert [c.record for c in sel.picked] == [MARA]
+    assert any("skipped 3 days ago (bad-timing)" in w for w in sel.picked[0].warnings)
+
+
+def test_override_lifts_a_bad_fit_skip(folder):
+    root, store = folder
+    item = skip_item(root, "lindenhof-data", "mara-keller", "bad-fit", 90)
+    refused = named(store, MARA)
+    assert refused.excluded[0].reason == f"skipped as bad-fit ({item.id})"
+    assert refused.excluded[0].overridable is True
+    sel = named(store, MARA, override=True)
+    assert [c.record for c in sel.picked] == [MARA]
+    assert any("skipped as bad-fit" in w for w in sel.picked[0].warnings)
+
+
+@pytest.mark.parametrize("who", [MARA, "saltmarsh-labs/niamh-walsh"])
+def test_an_open_item_is_not_overridable(folder, who):
+    root, store = folder
+    write_open_item(root, "lindenhof-data", "mara-keller")
+    write_open_item(root, "saltmarsh-labs", "ciaran-doyle", state="ready")
+    sel = named(store, who, override=True)
+    assert sel.picked == []
+    assert "open outreach item" in sel.excluded[0].reason
+    assert sel.excluded[0].overridable is False
+
+
+# ------------------------------------------- review fixes: dead ends and what is lifted
+
+
+def test_a_refusal_the_override_cannot_lift_is_not_offered_when_the_company_has_an_open_item(folder):
+    root, store = folder
+    write_open_item(root, "saltmarsh-labs", "ciaran-doyle", state="ready")
+    sel = named(store, "saltmarsh-labs/niamh-walsh", approach="Founder coaching")
+    cand = sel.excluded[0]
+    assert "open outreach item" in cand.reason       # the real blocker, not the fit miss
+    assert cand.overridable is False and cand.lifts == []
+
+
+def test_a_refusal_the_override_cannot_lift_is_not_offered_without_an_address(folder):
+    root, store = folder
+    store.update_contact("kestrel-metrics", "daan-visser", email="")
+    sel = named(store, KESTREL, approach=SCALING)
+    cand = sel.excluded[0]
+    assert cand.reason == "no email address" and cand.overridable is False
+
+
+def test_the_refusal_lists_every_rule_the_override_would_lift(folder):
+    root, store = folder
+    message(store, "lindenhof-data", "mara-keller", 5, "Mara")
+    cand = named(store, MARA).excluded[0]
+    assert cand.overridable is True
+    assert len(cand.lifts) == 2
+    assert "messaged 5 days ago (cooldown 30 days)" in cand.lifts[0]
+    assert "already messaged before" in cand.lifts[1]
+    assert named(store, MARA, override=True).picked[0].warnings == cand.lifts

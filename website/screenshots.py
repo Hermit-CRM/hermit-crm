@@ -3,7 +3,7 @@
 
     python3 screenshots.py                       # every shot, from the release in [links].download
     python3 screenshots.py --only pipeline-board outreach-card
-    python3 screenshots.py --source ../dist/hermitcrm-1.0.0.tar.gz
+    python3 screenshots.py --source ../dist/hermitcrm-1.1.0.tar.gz
     python3 screenshots.py --source ~/Code/HermitCRM   # a checkout: what main looks like
     python3 screenshots.py --list
 

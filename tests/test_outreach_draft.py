@@ -101,11 +101,14 @@ def test_exactly_one_question(body, count):
 
 
 def test_a_question_inside_quotes_does_not_count():
+    # The quoted line is on their page, so a finding says it word for word (the quote check).
+    said = [outreach.Finding('Opened a second office; their page asks "who sells when you '
+                             'don\'t?"', "https://a.example.com", "trigger", "high")]
     body = GOOD.replace("The second office", 'Your line "who sells when you don\'t?" and '
                         "the second office")
-    assert problems(answer(body)) == []
+    assert problems(answer(body), findings=said) == []
     french = GOOD.replace("deal size?", "deal size ?")
-    assert problems(answer(french)) == []
+    assert problems(answer(french), findings=said) == []
 
 
 @pytest.mark.parametrize("opening", ["I saw your second office.", "Ich habe gesehen, dass.",
@@ -323,7 +326,8 @@ def test_item_files_are_deterministic_and_keep_the_body_byte_for_byte(folder):
     again = outreach.get_item(root, item.id)
     assert outreach.item_text(again).encode() == text            # read, write: same bytes
     meta, body = split_file(text.decode())
-    absent = ("attachments", "exemplars_used", "language_pick", "stage_override")   # absent until they apply
+    absent = ("attachments", "exemplars_used", "language_pick", "stage_override",
+              "lead_rule")   # absent until they apply
     assert list(meta) == [k for k in outreach.ITEM_KEYS if k not in absent]
     # a hand edit with odd whitespace survives a step byte for byte
     odd = "Hi Mara,  \n\n\tThe second office caught my eye.\nWhere does it hurt most?\n\n\nSam\n"
@@ -571,7 +575,7 @@ def test_build_refuses_an_unknown_level_and_an_unknown_kind(tmp_path, fake_cli, 
     root = init_folder(tmp_path / "x", demo=True)
     assert cli.main(["outreach", "build", "--where", "stage=prospect", "--research",
                      "clay"], root=root) == 1
-    assert "use scrape or ai-web" in capsys.readouterr().err
+    assert "use scrape, ai-web or none" in capsys.readouterr().err
     assert cli.main(["outreach", "build", "--where", "stage=prospect", "--kind",
                      "cold-call"], root=root) == 1
     assert "draft type" in capsys.readouterr().err

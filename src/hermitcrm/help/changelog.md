@@ -8,6 +8,76 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **One warning, not two, when Generate refuses someone.** After Generate refused a person
+  you got a banner at the top of the page and the same reason again in a box between the form
+  and the notes. Now there is only the box, and it sits at the top of the Generate panel, above
+  the form, with the **Generate anyway** button. No data change.
+
+- **Research can be switched off: "none (use my notes)".** The **Research** select on the
+  Outreach page (a contact's Generate panel and the batch bar) and `--research` on the command
+  line have a third level, `none`. No page is read and no AI is asked; the draft is written
+  from the notes the contact and its company already have. It is for work you already
+  researched: a gap framework's gap can only come from your own research rules, so the scrape
+  added notes next to it and could push an older gap note out of the 20 newest notes a draft
+  reads. In the Generate panel, picking an approach whose framework needs a gap, for a person
+  whose notes hold a fresh one, sets Research to `none` for you; with no fresh gap on file the
+  panel warns that the draft would fall back to the house framework. Reading the picked
+  level, the commit says "notes only" and the card's research level is empty, as on a reply.
+  No data change, no migration. See [Outreach](/help/outreach).
+
+## 1.1.0 (2026-11-09)
+
+- **Generate anyway, instead of "Nothing to build".** When Generate refuses one person for a
+  judgement call (their company is outside the picked approach's ideal customer, for example
+  "fte estimate 146, wants 10-120", or they were messaged recently, skipped recently, messaged
+  before, or skipped as bad-fit), you now land back on the panel with your choices kept, the
+  reason in plain words and a **Generate anyway** button. It builds the draft with a warning on
+  its card and you decide whether it goes out. With no approach picked and none fitting, it uses
+  the closest one and says so. Do-not-contact, the suppression list, disqualifier tags and the
+  sample account are never lifted, and the message says so. A batch never overrides. On the
+  command line it is `--override` with exactly one `--contact`. Open items, "no follow-up due"
+  and "no reply to answer" still refuse. No data change.
+
+- **A LinkedIn profile that cannot be read no longer claims its address gave a name.** When
+  LinkedIn refuses the anonymous request and the address spells no name (`/in/hrijpstra`),
+  the note on the new-contact form now asks you to type the name and the company, instead of
+  only the company. Addresses that do spell a name (`/in/ines-vega-8a1b2c3d`) read as before.
+  No data change.
+
+- **Pick the approach in a contact's Generate panel.** The panel opened by **Generate
+  outreach** on a contact now has an **Approach** dropdown, as the batch bar does. Left on
+  "the best fit for them" nothing changes. Pick one and the draft uses that approach and its
+  default framework (for example a value-added approach with a gap framework). The
+  approach's ideal customer still applies: a pick the person does not fit builds nothing and
+  says why. No data change. See [Outreach](/help/outreach).
+
+- **Frameworks can ask two questions, allow a link, and need a gap.** A framework's
+  `questions` can now go up to two (`[0, 2]`, `[1, 2]` or `[2, 2]`); a LinkedIn connection
+  note may ask what the framework allows, and the problem a draft gets says "exactly two" or
+  "one or two" instead of "exactly one". A new `links = "allowed"` lets a first touch carry a
+  link (a booking link is refused either way; replies and follow-ups never get one). A
+  framework can list `needs = ["gap"]`: without a usable, fresh gap the draft falls back as it
+  does for the other needs. Nothing changes for the frameworks that ship, which still ask
+  one question and allow no link. See [Playbook](/help/playbook).
+
+- **Gaps, and the rule that led a message.** A finding can now be a **gap**: something
+  the company could improve, backed by evidence. A research note ends in
+  `Source: <url> (gap, <date>, <confidence>)`, and a note titled `Research R08: ...`
+  gives the finding its rule (`r08`). When a first touch has a usable, fresh gap, the
+  draft must lead with one (the prompt says so and the hard checks refuse a draft that
+  cites none). The web researcher cannot report a gap itself: gaps come from your own
+  research rules. The rule of the gap that led is kept on the outreach item as
+  `lead_rule` and copied onto the message when it is logged. Your data folder is
+  migrated to format 25 (a hand-written `lead_rule` is trimmed and lower-cased). See
+  [Data format](/help/data-format).
+
+- **Quotes must match the evidence.** A first-touch draft that puts a phrase of two or
+  more words in quotation marks must quote it word for word from a usable finding
+  (case, spacing and the dot at the end do not matter). A paraphrased quote is a hard
+  check, named in the problem, on the draft and again when you approve your edit. A
+  single quoted word is left alone. New reason chip **wrong-form** for fixing du, Sie
+  or je: an edit with only that chip is not learned as taste.
+
 - **Secrets and calendar links, explained in Settings Help.** The Settings page now
   says where Hermit CRM looks for each secret (the environment, then `.secrets.toml`,
   then the system secret store) and how to get the calendar link from Outlook,

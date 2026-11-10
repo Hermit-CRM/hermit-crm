@@ -86,6 +86,8 @@ contain, with the reason for each example and a token count; no AI is used.
 
 Add `--approach NAME` when you have more than one approach; the default is the
 first. Tell Hermit why you changed a draft with `hermitcrm outreach ready ID
---tag too-long` (repeatable).
+--tag too-long` (repeatable). Use `wrong-form` when you only fixed the form of address
+(du, Sie or je): that is a correction, not taste, so an edit with no other chip is
+left out of the lessons Hermit proposes.
 
 Related: [Outreach bot](/help/outreach), [Playbook](/help/playbook), [CLI](/help/cli)

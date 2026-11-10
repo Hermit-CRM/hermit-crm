@@ -39,7 +39,9 @@ from .models import ValidationError
 NOTE_COUNT = 20     # notes a draft is written from: the newest ones
 NOTE_CHARS = 4000   # and their text in all; over it the longest goes first
 SOURCE_LINE = re.compile(
-    r"^Source: (\S+) \((company|person|trigger), ([0-9-]*), (high|medium)\)\s*$")
+    r"^Source: (\S+) \((company|person|trigger|gap), ([0-9-]*), (high|medium)\)\s*$")
+# "Research R08: ..." is the note of rule 8: how a gap keeps the rule that found it.
+RULE_SUBJECT = re.compile(r"^Research R(\d+)\b", re.I)
 
 
 def _norm(text: str) -> str:
@@ -90,7 +92,8 @@ def research_note(finding) -> tuple[str, str]:
     """(subject, body) of the note that keeps a research finding: the text, then
     its origin on a line of its own."""
     host = (urlparse(finding.source).hostname or finding.source).removeprefix("www.")
-    return (f"Research: {host}",
+    label = f"Research {finding.rule.upper()}" if finding.rule else "Research"
+    return (f"{label}: {host}",
             f"{finding.text}\nSource: {finding.source} "
             f"({finding.kind}, {finding.date}, {finding.confidence})")
 
@@ -104,8 +107,11 @@ def finding_of(note, today: date):
     before = " ".join(" ".join(lines[:-1]).split()) if match else ""
     if match and before:
         url, kind, when, confidence = match.groups()
+        numbered = RULE_SUBJECT.match(note.subject or "")
         return outreach.Finding(text=before, source=url, kind=kind, confidence=confidence,
-                                date=when, stale=outreach.is_stale(when, today))
+                                date=when, stale=outreach.is_stale(when, today),
+                                rule=outreach.clean_rule(f"r{int(numbered.group(1)):02d}")
+                                if numbered else "")
     text = " ".join((note.body or "").split()) or " ".join((note.subject or "").split())
     return outreach.Finding(text=text, source=outreach.YOURS, kind="person",
                             confidence="high",
