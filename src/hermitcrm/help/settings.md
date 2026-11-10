@@ -224,7 +224,7 @@ whatever the plan gets. A model you type into the fields below is always used,
 whatever the account type.
 
 **Model** switches between the medium
-tier (default; Claude: Opus) and the strong tier (Claude: Fable) for Enrich
+tier (default; Claude: Sonnet) and the strong tier (Claude: Fable) for Enrich
 and [Ask the Hermit](/help/ask); `ai_tier` in `config.toml`. Answers and proposals
 made on the medium tier offer "Retry with" the strong model. The two model
 fields (`enrich_model`, `enrich_model_strong`) override the provider defaults; a

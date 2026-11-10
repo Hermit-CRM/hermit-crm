@@ -70,7 +70,7 @@ def test_answer_from_page_does_not_search_the_crm(tmp_path):
     answer = asking.ask(e, " What stage is Acme? ", "/companies/acme",
                         "<main><h1>Acme</h1></main>", tmp_path)
     assert (answer.scope, answer.text, answer.model) == ("page", "Acme is **qualified**.",
-                                                        "claude-opus-5")
+                                                        "claude-sonnet-5-5")
     (call,) = e.runner.calls
     assert call["tools"] == "" and "cwd" not in call
     assert "What stage is Acme?" in call["prompt"] and "Acme" in call["prompt"]
@@ -330,7 +330,7 @@ def test_theme_setting_and_ai_tier_switch(app_client):
     token = app.state.csrf_token
     page = client.get("/settings").text
     assert 'id="appearance"' in page and "Night mode" in page
-    assert "Medium: Opus" in page and "Strong: Fable" in page
+    assert "Medium: Sonnet" in page and "Strong: Fable" in page
     r = client.post("/settings/appearance", data={"csrf_token": token, "theme": "dark"})
     assert r.status_code == 303 and 'data-theme="dark"' in client.get("/pipeline").text
     assert client.post("/settings/appearance",

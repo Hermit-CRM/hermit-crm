@@ -62,7 +62,7 @@ def cli(monkeypatch):
     return stand_in
 
 
-@pytest.fixture(params=[("medium", "claude-opus-5"), ("strong", "claude-fable-5-1")],
+@pytest.fixture(params=[("medium", "claude-sonnet-5-5"), ("strong", "claude-fable-5-1")],
                 ids=["medium", "strong"])
 def built(request, tmp_path, cli):
     """One first touch built the way the pages and the command line build it: the
@@ -102,7 +102,7 @@ def test_ai_web_reads_the_scrape_on_the_light_model_and_searches_on_the_medium_o
     outreach.researcher_for("ai-web", enricher, fetcher=fake_page,
                             today=NOW.date()).research(company, contact)
     assert [(c["kind"], c["model"]) for c in cli.calls] == [
-        ("research", "claude-haiku-5-5"), ("web", "claude-opus-5")]
+        ("research", "claude-haiku-5-5"), ("web", "claude-sonnet-5-5")]
     web = cli.calls[1]["argv"]
     assert web[web.index("--tools") + 1] == "WebSearch,WebFetch"
 

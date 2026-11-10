@@ -187,7 +187,7 @@ def _schema_instruction(prompt: str, schema: dict) -> str:
 # CLI; the others follow each vendor's naming and may need a Settings override.
 TIERS = ("medium", "strong", "light", "ask")
 DEFAULT_MODELS = {
-    "claude": {"medium": "claude-opus-5", "strong": "claude-fable-5-1"},
+    "claude": {"medium": "claude-sonnet-5-5", "strong": "claude-fable-5-1"},
     "codex": {"medium": "gpt-5-mini", "strong": "gpt-5"},
     "gemini": {"medium": "gemini-2.5-flash", "strong": "gemini-2.5-pro"},
     "grok": {"medium": "grok-4-fast", "strong": "grok-4"},
@@ -198,8 +198,10 @@ DEFAULT_MODELS = {
 LIGHT_MODELS = {"claude": "claude-haiku-5-5"}
 
 # Ask the Hermit answers a question from a page or a read-only look at the CRM,
-# which a mid-size model does well. Claude's medium tier is Opus, so Ask gets
-# Sonnet; the other providers' medium models already are their mid-size ones.
+# which a mid-size model does well. Claude's medium tier is Sonnet too (it was Opus
+# until 1.1.1: a draft took ~40 s of reasoning on Opus against ~10 s on Sonnet), but
+# Ask keeps its own entry so it stays Sonnet if medium moves again; the other
+# providers' medium models already are their mid-size ones.
 # A medium model you named yourself still wins, as for light.
 ASK_MODELS = {"claude": "claude-sonnet-5-5"}
 

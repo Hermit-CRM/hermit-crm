@@ -140,7 +140,7 @@ DEFAULT_CONFIG = {
     # this model (Claude: Haiku) unless you named your own enrich_model.
     "enrich_model_light": "",
     "enrich_timeout": 180,
-    # Enrich and Ask the Hermit run on the "medium" model (Claude: Opus) unless this
+    # Enrich and Ask the Hermit run on the "medium" model (Claude: Sonnet) unless this
     # says "strong" (Claude: Fable); "Retry with ..." always uses strong.
     "ai_tier": "medium",
     "ask_timeout": 300,

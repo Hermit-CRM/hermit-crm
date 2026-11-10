@@ -86,7 +86,7 @@ Two tiers per provider. Medium is the default; switch it under Settings → AI.
 
 | provider | medium | strong |
 |---|---|---|
-| claude | `claude-opus-5` (Opus) | `claude-fable-5-1` (Fable) |
+| claude | `claude-sonnet-5-5` (Sonnet) | `claude-fable-5-1` (Fable) |
 | codex | `gpt-5-mini` | `gpt-5` |
 | gemini | `gemini-2.5-flash` | `gemini-2.5-pro` |
 | grok | `grok-4-fast` | `grok-4` |
@@ -95,11 +95,10 @@ Override either with `enrich_model` / `enrich_model_strong` in `config.toml`
 (or the Settings fields) when your CLI names a model differently. Only the
 claude IDs are verified. Fable needs Claude Code 2.1.251 or newer.
 
-Ask the Hermit has its own default: for claude it answers on Sonnet
-(`claude-sonnet-5-5`), which is plenty for reading a page or the CRM and cheaper
-than Opus. The other providers' medium models are already their mid-size ones, so
-Ask uses those. If you set `enrich_model` yourself, Ask follows it; "Retry" still
-uses the strong model.
+Ask the Hermit has its own default, which for claude is the same Sonnet
+(`claude-sonnet-5-5`) as the medium tier: plenty for reading a page or the CRM. The
+other providers' medium models are already their mid-size ones, so Ask uses those. If you
+set `enrich_model` yourself, Ask follows it; "Retry" still uses the strong model.
 
 A third, **light** tier is used only by the outreach bot's scrape research and
 critic, which read and score rather than write. For claude it is
