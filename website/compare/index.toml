@@ -103,7 +103,7 @@ hermit = "Open source, Apache License 2.0."
 [[rows]]
 key    = "platforms"
 label  = "Runs on"
-hermit = "macOS and Linux, in your browser. No Windows and no mobile app."
+hermit = "macOS, and Linux where it is less tested, in your browser. No Windows and no mobile app."
 
 [[rows]]
 key    = "setup"
@@ -152,6 +152,8 @@ docs            = "Docs"
 changelog       = "Changelog"
 stats           = "Stats"
 about           = "About"
+community       = "Community"
+community_url   = "https://github.com/Hermit-CRM/hermit-crm/discussions"
 compare_heading = "Compare"
 all_comparisons = "All comparisons"
 versus          = "Hermit CRM vs {name}"
