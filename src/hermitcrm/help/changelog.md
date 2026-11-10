@@ -8,6 +8,17 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Outreach drafts are much faster: the medium model is now Sonnet, not Opus (Claude).**
+  A draft took about 80 seconds, almost all of it the model reasoning at length before it
+  wrote a hundred words; on Sonnet the same draft takes about 10 to 15 seconds. This is the
+  default of the medium tier, so Enrich, drafts, replies and the other medium-tier calls
+  move with it; the strong tier is still Fable, **Retry with** still uses it, and Ask the
+  Hermit was on Sonnet already. If you prefer Opus, set `enrich_model = "claude-opus-5"`
+  in `config.toml` (or Settings > AI). Sonnet follows a framework's lead rule (for example
+  the gap first) a little less reliably in our one check, so read the first lines of a
+  draft, and use Regenerate with the stronger model where one reads generic. No data
+  change, no migration. See [Settings](/help/settings) and [Ask the Hermit](/help/ask).
+
 - **One warning, not two, when Generate refuses someone.** After Generate refused a person
   you got a banner at the top of the page and the same reason again in a box between the form
   and the notes. Now there is only the box, and it sits at the top of the Generate panel, above

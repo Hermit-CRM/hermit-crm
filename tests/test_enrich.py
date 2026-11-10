@@ -186,16 +186,16 @@ def test_claude_without_model_uses_the_medium_default(monkeypatch):
     monkeypatch.setattr(subprocess, "run", run)
     Enricher(provider="claude", which=ALL).runner("p", {})
     argv = run.seen["argv"]
-    assert argv[0].endswith("/claude") and argv[argv.index("--model") + 1] == "claude-opus-5"
+    assert argv[0].endswith("/claude") and argv[argv.index("--model") + 1] == "claude-sonnet-5-5"
 
 
 def test_tiers_overrides_and_with_tier(monkeypatch):
     run = FakeRun(CLAUDE_STDOUT)
     monkeypatch.setattr(subprocess, "run", run)
     e = Enricher(provider="claude", which=ALL)
-    assert (e.model, e.strong_model) == ("claude-opus-5", "claude-fable-5-1")
+    assert (e.model, e.strong_model) == ("claude-sonnet-5-5", "claude-fable-5-1")
     strong = e.with_tier("strong")
-    assert strong.model == "claude-fable-5-1" and e.model == "claude-opus-5"
+    assert strong.model == "claude-fable-5-1" and e.model == "claude-sonnet-5-5"
     strong.runner("p", {})
     assert run.seen["argv"][run.seen["argv"].index("--model") + 1] == "claude-fable-5-1"
     assert Enricher(provider="claude", model="x", model_strong="y", tier="strong",
@@ -229,7 +229,7 @@ def test_the_light_tier_asks_the_cli_for_its_model(monkeypatch):
     e.with_tier("light").runner("p", {})
     argv = run.seen["argv"]
     assert argv[argv.index("--model") + 1] == "claude-haiku-5-5"
-    assert e.model == "claude-opus-5"        # the original keeps its tier
+    assert e.model == "claude-sonnet-5-5"        # the original keeps its tier
 
 
 def test_both_haiku_generations_are_labelled_haiku():
@@ -270,7 +270,7 @@ def test_an_api_key_keeps_the_pinned_codex_tiers():
 def test_claude_tiers_survive_a_subscription():
     """Only what is known to differ is listed; claude's ids work either way."""
     e = Enricher(provider="claude", which=ALL, account="subscription")
-    assert (e.model, e.strong_model) == ("claude-opus-5", "claude-fable-5-1")
+    assert (e.model, e.strong_model) == ("claude-sonnet-5-5", "claude-fable-5-1")
 
 
 def test_an_explicit_model_wins_over_the_account_type():
@@ -528,7 +528,7 @@ def test_claude_and_codex_and_a_missing_cli_have_no_such_problem():
 
 def test_ask_tier_is_sonnet_on_claude_and_follows_a_named_medium_model():
     claude = Enricher(provider="claude", which=ALL)
-    assert claude.model_for("ask") == "claude-sonnet-5-5" and claude.model == "claude-opus-5"
+    assert claude.model_for("ask") == "claude-sonnet-5-5" and claude.model == "claude-sonnet-5-5"
     named = Enricher(provider="claude", which=ALL, model="my-model")
     assert named.model_for("ask") == "my-model"
     gemini = Enricher(provider="gemini", which=ALL)
