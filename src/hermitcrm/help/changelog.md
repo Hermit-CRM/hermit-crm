@@ -8,6 +8,14 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **A bookmark from before the bookmarklet could read pages is named when LinkedIn refuses.**
+  Such a bookmark opens `/capture/new` and sends only the address, so the app asks LinkedIn
+  logged out and gets HTTP 999, and the note on the new-contact form then sent you to the
+  bookmarklet you had just pressed. The note now says it is an old bookmark and what to do:
+  delete it and drag the current **Add to Hermit CRM** button from the
+  [Extension](/extension) page. A fresh bookmarklet or a pasted address keeps the general
+  advice. No data change.
+
 - **A contact's form of address now sets the German greeting.** A contact with a field
   `address_form` of `Sie` used to be greeted "Hallo Jana," while the body said "Ihre
   Kontaktseite", because the drafter only knew the language's norms (`du`). Now a German draft

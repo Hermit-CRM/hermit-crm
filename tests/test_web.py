@@ -2086,6 +2086,47 @@ def test_a_profile_linkedin_refuses_still_opens_the_contact_form(client, app):
     assert app.state.store.companies == {}
 
 
+def test_a_handle_that_spells_no_name_asks_for_the_name_too(client, app):
+    """`/in/hrijpstra` spells no name, so the note must not claim the address
+    gave one and ask only for the company."""
+    def refuse(url):
+        from hermitcrm.scrape import ScrapeError
+        raise ScrapeError("LinkedIn refused the anonymous request (HTTP 999)")
+
+    app.state.fetcher = refuse
+    r = client.get("/extension/new",
+                   params={"url": "https://www.linkedin.com/in/hrijpstra"})
+    assert r.status_code == 200
+    assert 'name="name" value=""' in r.text
+    note = re.search(r'<div class="flash capture-note">(.*?)</div>', r.text, re.S).group(1)
+    assert "HTTP 999" in note
+    assert "type the name and the company yourself" in note
+    assert "only what its address says" not in note
+    assert 'href="/extension"' in note
+
+
+def test_a_bookmark_from_before_page_reading_is_named_when_linkedin_refuses(client, app):
+    """The log showed `GET /capture/new` then 999: a bookmark from 17-18 Sept
+    sends only the address, so the app asks LinkedIn logged out. Say so, and
+    say what to replace, instead of a note that sends you to the bookmarklet
+    you already pressed."""
+    def refuse(url):
+        from hermitcrm.scrape import ScrapeError
+        raise ScrapeError("LinkedIn refused the anonymous request (HTTP 999)")
+
+    app.state.fetcher = refuse
+    r = client.get("/capture/new", params={"url": "https://www.linkedin.com/in/hrijpstra"},
+                   follow_redirects=True)
+    assert r.status_code == 200 and "<h1>New contact</h1>" in r.text
+    note = re.search(r'<div class="flash capture-note">(.*?)</div>', r.text, re.S).group(1)
+    assert "HTTP 999" in note
+    assert "old bookmark" in note and 'href="/extension"' in note
+    # a fresh bookmarklet or a pasted address keeps the general advice
+    r = client.get("/extension/new", params={"url": "https://www.linkedin.com/in/hrijpstra"})
+    note = re.search(r'<div class="flash capture-note">(.*?)</div>', r.text, re.S).group(1)
+    assert "old bookmark" not in note
+
+
 CONTACT_FORM = {"name": "Ines Vega", "email": "", "title": "",
                 "linkedin": "https://www.linkedin.com/in/ines-vega", "website": ""}
 
@@ -2202,7 +2243,9 @@ def test_the_old_capture_paths_still_work(client, app):
     r = client.get("/capture/new", params={"url": "https://northwind.example.com"},
                    follow_redirects=False)
     assert r.status_code == 303
-    assert r.headers["location"] == "/extension/new?url=https%3A%2F%2Fnorthwind.example.com"
+    # `old=1` tells the form the bookmark in the bar predates page reading
+    assert r.headers["location"] == ("/extension/new?url=https%3A%2F%2Fnorthwind.example.com"
+                                     "&old=1")
     r = client.get("/capture/new", follow_redirects=False)
     assert r.headers["location"] == "/extension"
 
