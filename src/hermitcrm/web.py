@@ -2501,7 +2501,9 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.get("/capture/new", include_in_schema=False)
     def capture_new_moved(url: str = ""):
-        return goto(("/extension/new?url=" + quote(url, safe="")) if url else "/extension")
+        # `old=1`: this bookmark predates page reading and sends only the address.
+        return goto(("/extension/new?url=" + quote(url, safe="") + "&old=1") if url
+                    else "/extension")
 
     def outreach_add_page(request: Request, found, cslug: str, page: dict):
         """"Add to research": the bookmarklet read a profile whose contact has an
@@ -2543,6 +2545,7 @@ def create_app(root: Path, config: dict | None = None,
                     custom_keys={d.key for d in custom_defs('company')})
         except ScrapeError as exc:
             return flashed("/extension", f"Could not read that page: {exc}")
+        found.old_bookmark = bool(page.get("old")) and not page.get("v")
         if found.kind == "person":
             if found.existing is not None:
                 cslug = capture.contact_slug_in(found.existing, found.url)
