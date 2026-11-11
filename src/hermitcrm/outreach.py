@@ -597,15 +597,32 @@ class EscalatingResearcher:
 # ------------------------------------------------------------- culture, rules
 
 
-def culture(language: str, country: str = "", messages: dict | None = None) -> dict:
+ADDRESS_FORMS = {"du": "du", "sie": "Sie", "je": "je"}
+
+
+def address_form_of(contact) -> str:
+    """The contact's `address_form` field (du, Sie or je) in its canonical spelling, ""
+    when unset or not one of those. Hand-typed case and spaces are forgiven."""
+    value = (getattr(contact, "extra", None) or {}).get("address_form")
+    return ADDRESS_FORMS.get(value.strip().lower(), "") if isinstance(value, str) else ""
+
+
+def culture(language: str, country: str = "", messages: dict | None = None,
+            address_form: str = "") -> dict:
     """The culture norms for a draft: `[culture.<language>]`, then a
     `[culture.<COUNTRY>]` table over it when one exists (Austria's or
-    Switzerland's German, say). Starting points; the playbook's Voice wins."""
+    Switzerland's German, say), then `[address.<language>.<form>]` when the contact
+    has an `address_form` and that language has a table for it (formal `Sie` is
+    greeted as Herr or Frau and the surname, not by first name). Starting points;
+    the playbook's Voice wins."""
     messages = messages if messages is not None else messaging.default_messages()
     tables = messages.get("culture") or {}
     norms = dict(tables.get("en") or {})
     norms.update(tables.get(language) or {})
     norms.update(tables.get((country or "").upper()) or {} if country else {})
+    by_language = (messages.get("address") or {}).get(language) or {}
+    form = (address_form or "").strip().lower()
+    norms.update(by_language.get(form) or {} if form in ADDRESS_FORMS else {})
     return {k: v for k, v in norms.items() if isinstance(v, (str, int, float, bool))}
 
 
@@ -841,7 +858,8 @@ def make_brief(store: Store, company, contact, approach, research: Research,
                   persona=playbook.match_persona(contact.title, personas),
                   role=contact.role, seniority=seniority(contact.title), language=lang,
                   language_name=messaging.language_names(messages).get(lang, lang),
-                  norms=culture(lang, company.country, messages), flags=list(flags or []))
+                  norms=culture(lang, company.country, messages, address_form_of(contact)),
+                  flags=list(flags or []))
     if company.product_oneliner:
         brief.situation.append(f"What they do: {company.product_oneliner}")
     brief.situation.append(f"Stage in your pipeline: {company.stage}")
@@ -985,6 +1003,7 @@ class CheckContext:
     opt_out: str = ""                                       # the line Python adds, if any
     never_write: list[str] = field(default_factory=list)    # config `outreach_never_write`
     framework: Framework | None = None                      # a first touch only
+    address_form: str = ""                                  # "Sie": German formal greeting
 
     @property
     def usable_ids(self) -> set[int]:
@@ -996,6 +1015,19 @@ def never_write(config: dict | None) -> list[str]:
     value = (config or {}).get("outreach_never_write")
     phrases = [" ".join(str(v).split()) for v in value] if isinstance(value, list) else []
     return [p for p in phrases if p][:NEVER_WRITE_MAX]
+
+
+_CASUAL_GREETING = re.compile(r"^(hallo|hi|hey|moin|servus|hoi|liebe|lieber)\b", re.I)
+_FORMAL_TITLE = re.compile(r"\b(herr|herrn|frau)\b", re.I)
+
+
+def greets_by_first_name(text: str) -> bool:
+    """Does the text open with a casual German greeting that has no Herr or Frau in it
+    (Hallo Jürgen, / Hi Jana,)? The greeting is the first line, when it is short."""
+    lines = [line.strip() for line in (text or "").splitlines() if line.strip()]
+    first = lines[0] if lines else ""
+    return (len(first.split()) <= 6 and bool(_CASUAL_GREETING.match(first))
+            and not _FORMAL_TITLE.search(first))
 
 
 def check_text(subject: str, body: str, pitch: str, ctx: CheckContext) -> list[str]:
@@ -1024,6 +1056,13 @@ def check_text(subject: str, body: str, pitch: str, ctx: CheckContext) -> list[s
         if n not in allowed:
             problems.append(f"the {label} asks {n} questions; it must ask "
                             + question_phrase(allowed[0], allowed[-1]))
+    if ctx.address_form == "Sie":
+        for label, text in parts:
+            if greets_by_first_name(text):
+                problems.append(f"the {label} greets by first name but this contact is "
+                                "addressed with Sie; open with Guten Tag Herr or Frau and "
+                                "the surname (or first and last name if the gender is "
+                                "not clear)")
     if opens_with_i(body):
         problems.append(f"it opens with \"{opening_line(body).split()[0]}\"; open with "
                         "them or the finding, not yourself")
@@ -1511,7 +1550,7 @@ class AIDrafter:
         touch only: a reply or a follow-up has none."""
         lang = messaging.draft_language(company, contact, override=language,
                                         messages=self.messages)
-        norms = culture(lang, company.country, self.messages)
+        norms = culture(lang, company.country, self.messages, address_form_of(contact))
         if kind != FIRST_TOUCH:
             framework = None
         rules = framework_rules(channel_rules(channel, self.messages), framework, channel,
@@ -1522,7 +1561,8 @@ class AIDrafter:
                            proof=approach.proof if approach is not None else [],
                            offer_lines=[approach.offer_line] if approach is not None else [],
                            opt_out=opt_out,
-                           never_write=never_write(self.config), framework=framework)
+                           never_write=never_write(self.config), framework=framework,
+                           address_form=address_form_of(contact) if lang == "de" else "")
         return ctx, norms
 
     def draft(self, kind, company, contact, research, channel, approach=None,
@@ -3411,6 +3451,18 @@ def _refresh(store: Store, item_id: str) -> Item:
     return item
 
 
+def item_address_form(store: Store, item: Item) -> str:
+    """The item's contact's address form, for a German item only ("" otherwise, or when
+    the contact is gone)."""
+    if (item.language or "") != "de":
+        return ""
+    try:
+        company = store.get(item.company)
+    except (KeyError, ValueError):
+        return ""
+    return address_form_of(company.contacts.get(item.contact)) if company else ""
+
+
 def check_item(store: Store, item: Item, config: dict | None = None) -> list[str]:
     """The hard checks again, on the text as it is now (the person may have
     edited it). The findings and proof it cites stay as the AI declared them."""
@@ -3427,7 +3479,8 @@ def check_item(store: Store, item: Item, config: dict | None = None) -> list[str
                        opt_out=opt_out,
                        never_write=never_write(config if config is not None
                                                else load_config(store.root)),
-                       framework=framework)
+                       framework=framework,
+                       address_form=item_address_form(store, item))
     found = check_text(item.subject, item.body, item.pitch, ctx)
     gaps = hand_edits(item.subject, item.body, item.pitch)
     if gaps and not any(p.startswith("it leaves a gap") for p in found):

@@ -145,6 +145,16 @@ signoff = "Bien à vous,"
 names = "first name with Bonjour; never tu"
 cta = "polite and indirect (Seriez-vous..., Qu'est-ce qui...)"
 
+# [address.<language>.<form>]: a contact whose `address_form` field is du, Sie or je gets
+# these keys over the culture norms above (only the keys given; the rest stay). Only
+# German formal Sie is shipped: it greets by Herr or Frau and the surname, not by first
+# name. Without a table for a language and form, the culture norms apply as they are.
+
+[address.de.sie]
+formality = "formal: Sie on first contact and throughout, never du"
+greeting = "Guten Tag Herr {last}, or Guten Tag Frau {last},"
+names = "Herr or Frau and the surname, chosen from the first name; when the gender is not clear use first and last name (Guten Tag Jana Muster,)"
+
 # [outreach]: shared rules. calendar_links: a draft that contains one of these
 # is refused before they have answered (booking links lost real replies).
 [outreach]

@@ -61,6 +61,7 @@ class Capture:
     company: Company | None = None   # the employer, when we already have it
     fetch_error: str = ""            # why the page itself could not be read
     read_nothing: bool = False       # the bookmarklet ran, but the page gave nothing
+    old_bookmark: bool = False       # it came through /capture/new: a bookmark that reads no page
     stage: str = "prospect"          # the stage a new company starts in (the entry stage)
 
     @property
