@@ -697,3 +697,35 @@ def test_the_refusal_lists_every_rule_the_override_would_lift(folder):
     assert "messaged 5 days ago (cooldown 30 days)" in cand.lifts[0]
     assert "already messaged before" in cand.lifts[1]
     assert named(store, MARA, override=True).picked[0].warnings == cand.lifts
+
+
+def test_sie_overrides_formality_greeting_and_names_for_german(folder):
+    norms = outreach.culture("de", "DE", address_form="Sie")
+    assert norms["formality"].startswith("formal: Sie")
+    assert norms["greeting"].startswith("Guten Tag") and "{last}" in norms["greeting"]
+    assert "Herr" in norms["names"] and "Frau" in norms["names"]
+    assert norms["signoff"] == "Viele Grüße"   # keys the form does not touch stay
+
+
+def test_sie_survives_a_country_table_and_other_languages_are_untouched(folder):
+    assert outreach.culture("de", "AT", address_form="sie")["greeting"].startswith("Guten Tag")
+    assert outreach.culture("en", "GB", address_form="Sie") == outreach.culture("en", "GB")
+
+
+def test_no_or_unknown_address_form_changes_nothing(folder):
+    base = outreach.culture("de", "DE")
+    assert outreach.culture("de", "DE", address_form="") == base
+    assert outreach.culture("de", "DE", address_form="tu") == base
+    assert outreach.culture("de", "DE", address_form="du") == base
+
+
+@pytest.mark.parametrize("value, expected", [
+    ("Sie", "Sie"), (" sie ", "Sie"), ("SIE", "Sie"), ("DU", "du"), ("Je", "je"),
+    ("tu", ""), ("", ""), (None, ""), (5, "")])
+def test_address_form_of_reads_the_contact_field_forgivingly(value, expected):
+    from hermitcrm.models import Contact
+    contact = Contact(first_name="Jana", last_name="Muster", slug="jana-muster")
+    if value is not None:
+        contact.extra["address_form"] = value
+    assert outreach.address_form_of(contact) == expected
+    assert outreach.address_form_of(None) == ""

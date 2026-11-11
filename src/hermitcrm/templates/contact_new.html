@@ -13,8 +13,10 @@
   {% if capture.read_nothing %}
   Nothing could be read from <a href="{{ capture.url | href }}" rel="noreferrer noopener">{{ capture.url }}</a>: the profile had probably not finished loading. Click the bookmarklet again once it has loaded, or fill in the rest yourself.
   {% elif capture.fetch_error %}
-  Could not read <a href="{{ capture.url | href }}" rel="noreferrer noopener">{{ capture.url }}</a> ({{ capture.fetch_error }}), so this is only what its address says: type the company yourself.
-  On a profile you are logged in to, the <a href="/extension">bookmarklet</a> reads the page you are looking at instead.
+  Could not read <a href="{{ capture.url | href }}" rel="noreferrer noopener">{{ capture.url }}</a> ({{ capture.fetch_error }}),
+  {% if capture.name %}so this is only what its address says: type the company yourself.{% else %}and its address does not spell a name either: type the name and the company yourself.{% endif %}
+  {% if capture.old_bookmark %}The bookmark in your bookmarks bar is an old bookmark: it sends only the address, so Hermit CRM asked LinkedIn without your login. Delete it and drag the new <a href="/extension">Add to Hermit CRM</a> button to the bar; that one reads the profile you are looking at instead.
+  {% else %}On a profile you are logged in to, the <a href="/extension">bookmarklet</a> reads the page you are looking at instead.{% endif %}
   {% else %}
   Read from <a href="{{ capture.url | href }}" rel="noreferrer noopener">{{ capture.url }}</a>: a profile, so this makes a contact and the company it names.
   {% if capture.company %}<strong>{{ capture.company.name }}</strong> is already in the CRM and the contact will go there.

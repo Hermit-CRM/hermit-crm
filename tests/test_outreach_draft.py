@@ -254,6 +254,63 @@ def test_one_retry_fixes_a_broken_draft(folder):
     assert "Sign as: Sam." in prompts[0]
 
 
+SIE_GOOD = GOOD.replace("Hi Mara,", "Guten Tag Frau Keller,")
+
+
+@pytest.mark.parametrize("greeting, address_form, flagged", [
+    ("Hallo Mara,", "Sie", True), ("Hi Mara,", "Sie", True), ("Liebe Mara,", "Sie", True),
+    ("Guten Tag Frau Keller,", "Sie", False), ("Guten Tag Mara Keller,", "Sie", False),
+    ("Sehr geehrte Frau Keller,", "Sie", False),
+    ("Hallo Mara,", "du", False), ("Hallo Mara,", "", False)])
+def test_a_sie_contact_is_not_greeted_by_first_name(greeting, address_form, flagged):
+    body = GOOD.replace("Hi Mara,", greeting)
+    found = problems_for_body(body, address_form=address_form)
+    assert any("Sie" in p and "first name" in p for p in found) is flagged
+
+
+def problems_for_body(body, **kw):
+    return outreach.check_text("Your second office", body, "", ctx(**kw))
+
+
+def test_the_sie_check_runs_on_the_pitch_message_too():
+    pitch = "Hallo Mara,\n\nWas hält Sie davon ab?"
+    found = outreach.check_text("", SIE_GOOD, pitch, ctx(channel="linkedin",
+                                                         address_form="Sie"))
+    assert any("pitch message" in p and "Sie" in p for p in found)
+
+
+def test_a_sie_contacts_draft_carries_the_formal_norms_and_the_greeting(folder):
+    root, store = folder
+    company = store.get("lindenhof-data")
+    contact = company.contacts["mara-keller"]
+    contact.extra["address_form"] = "Sie"
+    drafter, fake = drafter_for(store, answer(SIE_GOOD))
+    research = outreach.Research(findings=list(FINDINGS))
+    approach = outreach.playbook.load(store.root).approach("Scaling the sales team")
+    draft = drafter.draft("first-touch", company, contact, research, "email",
+                          approach=approach)
+    assert draft.problems == [] and draft.attempts == 1
+    assert draft.norms[0].startswith("formality: formal: Sie")
+    assert "greeting: Guten Tag Herr {last}, or Guten Tag Frau {last}," in draft.norms
+    prompt = fake.of("draft")[0]["prompt"]
+    assert "Guten Tag Herr {last}" in prompt and "formal: Sie" in prompt
+
+
+def test_a_sie_contact_greeted_by_first_name_is_retried(folder):
+    root, store = folder
+    company = store.get("lindenhof-data")
+    contact = company.contacts["mara-keller"]
+    contact.extra["address_form"] = "Sie"
+    drafter, fake = drafter_for(store, answer(GOOD.replace("Hi Mara,", "Hallo Mara,")),
+                                answer(SIE_GOOD))
+    research = outreach.Research(findings=list(FINDINGS))
+    approach = outreach.playbook.load(store.root).approach("Scaling the sales team")
+    draft = drafter.draft("first-touch", company, contact, research, "email",
+                          approach=approach)
+    assert draft.problems == [] and draft.attempts == 2
+    assert "first name" in fake.of("draft")[1]["prompt"]
+
+
 def test_after_one_retry_the_draft_is_shown_with_the_problem_marked(folder):
     root, store = folder
     bad = answer(GOOD.replace("deal size?", "deal size."))
