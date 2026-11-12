@@ -266,15 +266,31 @@ def collect_website(data_dir: Path) -> str:
     return f"{len(fresh)} lines on the volume, {len(ordered)} saved"
 
 
-def collect_visits(data_dir: Path) -> str:
+LIVE_TAIL = 3000  # lines; a live pull asks for this many of the newest page requests, not the whole log
+
+
+def collect_visits(data_dir: Path, tail: int | None = None) -> str:
+    """Save the page log. `tail` pulls only the newest N lines (the live view, every 10 minutes,
+    would otherwise download the whole growing log each time). Rows are merged by id, so a short
+    pull is safe as long as it reaches back to a row we already have; when it does not (a long
+    gap: the dashboard was closed for days, or a burst of traffic), the whole log is pulled."""
+    path = data_dir / "visits.jsonl"
+    merged = {r["id"]: r for r in parse_log(path.read_text())} if path.exists() else {}
     try:
-        text = ssh_cat("/data/visits.log")
+        text = None
+        if tail and merged:
+            text = fly_ssh(f"tail -n {int(tail)} /data/visits.log")
+            rows = parse_log(text)
+            newest_saved = max(r["t"] for r in merged.values())
+            # ISO times with the same offset sort as text. No rows at all: an empty log, nothing is missing.
+            if rows and rows[0]["t"] > newest_saved:
+                text = None  # the tail starts after what we have; something in between may be missing
+        if text is None:
+            text = ssh_cat("/data/visits.log")
     except RuntimeError as e:
         if "No such file" not in str(e):  # the site has not been deployed with the page log yet
             raise
         return "no page log on the site yet (deploy website/ first)"
-    path = data_dir / "visits.jsonl"
-    merged = {r["id"]: r for r in parse_log(path.read_text())} if path.exists() else {}
     fresh = parse_log(text)
     merged.update({r["id"]: r for r in fresh})
     ordered = sorted(merged.values(), key=lambda r: (r["t"], r["id"]))
@@ -282,15 +298,23 @@ def collect_visits(data_dir: Path) -> str:
     return f"{len(fresh)} lines on the volume, {len(ordered)} saved"
 
 
+def collect_visits_recent(data_dir: Path) -> str:
+    return collect_visits(data_dir, tail=LIVE_TAIL)
+
+
 SOURCES = {"pypi": collect_pypi, "github": collect_github, "website": collect_website, "visits": collect_visits}
+# What the dashboard's live view runs every 10 minutes: only the page log, and only its newest lines.
+LIVE_SOURCES = {"visits": collect_visits_recent}
 
 
-def collect(data_dir: Path) -> int:
+def collect(data_dir: Path, sources: dict | None = None) -> int:
+    """Run every source (or just the given {name: function} ones) and record each result in status.json."""
+    sources = SOURCES if sources is None else sources
     data_dir.mkdir(parents=True, exist_ok=True)
     status_path = data_dir / "status.json"
     status = json.loads(status_path.read_text()) if status_path.exists() else {}
     failed = []
-    for name, fn in SOURCES.items():
+    for name, fn in sources.items():
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
         entry = status.setdefault(name, {})
         try:
