@@ -16,6 +16,7 @@
 """A local dashboard for the numbers scripts/downloads.py collects.
 
     dashboard.py serve            http://127.0.0.1:8777, with a Refresh button that runs `collect`
+                                  and a Live section that updates every 10 minutes while the page is in front
     dashboard.py serve --open     ...and open it in the browser
     dashboard.py build            write dashboard.html into the data folder (no Refresh button)
 
@@ -69,9 +70,80 @@ def count_by(rows: list[dict], key, weight=lambda r: 1) -> dict[str, int]:
     return out
 
 
-def summarize(data_dir: Path, today: str | None = None) -> dict:
+LIVE_MINUTES = 10      # one column of the live chart, and how often the open page asks for new data
+LIVE_SLOTS = 144       # 24 hours of those
+LIVE_RECENT = 12       # rows in "latest page views"
+LIVE_SERIES = ("Arrivals", "Other page views", "AI crawlers and assistants")
+
+
+def utc_time(row: dict) -> datetime:
+    return datetime.fromisoformat(row["t"]).astimezone(timezone.utc)
+
+
+def stamp(moment: datetime) -> str:
+    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def live_summary(visits: dict[str, list[dict]], now: datetime, collected: str | None = None) -> dict:
+    """The last 24 hours in 10-minute columns, from the rows downloads.visit_events sorted.
+
+    `now` is passed in (not read here) so the same rows give the same answer in a test. The last
+    column is the slot still filling, so it grows until the next one begins. Times go out as
+    UTC strings; the page shows them in the viewer's own time zone. Same rules as everywhere
+    else: bots, scripts and your own hits are not in it, and an arrival is a person who came from outside."""
+    now = now.astimezone(timezone.utc)
+    current = now.replace(minute=now.minute - now.minute % LIVE_MINUTES, second=0, microsecond=0)
+    starts = [current - timedelta(minutes=LIVE_MINUTES * n) for n in range(LIVE_SLOTS - 1, -1, -1)]
+    where = {s: i for i, s in enumerate(starts)}
+    series = {name: [0] * LIVE_SLOTS for name in LIVE_SERIES}
+
+    def add(rows, name):
+        for r in rows:
+            t = utc_time(r)
+            i = where.get(t.replace(minute=t.minute - t.minute % LIVE_MINUTES, second=0, microsecond=0))
+            if i is not None and t <= now:
+                series[name][i] += 1
+
+    people = visits["people"]
+    arrivals = [r for r in people if dl.is_arrival(r)]
+    add(arrivals, "Arrivals")
+    add([r for r in people if not dl.is_arrival(r)], "Other page views")
+    add(visits["ai"], "AI crawlers and assistants")
+
+    def since(rows, minutes):
+        edge = now - timedelta(minutes=minutes)
+        return sum(1 for r in rows if edge < utc_time(r) <= now)
+
+    newest = sorted(people, key=lambda r: (r["t"], r["id"]), reverse=True)
+    return {
+        "now": stamp(now),
+        "slots": [stamp(s) for s in starts],
+        "series": series,
+        "tiles": {"arrivals_10m": since(arrivals, 10), "arrivals_1h": since(arrivals, 60),
+                  "arrivals_24h": since(arrivals, 24 * 60), "views_1h": since(people, 60)},
+        "last_arrival": stamp(max(map(utc_time, arrivals))) if arrivals else None,
+        "recent": [{"t": stamp(utc_time(r)), "page": page_name(r["path"]),
+                    "arrival": dl.is_arrival(r), "from": r.get("ref") or "direct", "tag": campaign(r)}
+                   for r in newest[:LIVE_RECENT]],
+        "collected": collected,
+    }
+
+
+def live_for(data_dir: Path, now: datetime | None = None) -> dict | None:
+    """live_summary from the saved page log; None before there is one."""
+    vpath = data_dir / "visits.jsonl"
+    if not vpath.exists():
+        return None
+    visits = dl.visit_events(dl.parse_log(vpath.read_text()), dl.read_ignored(data_dir))
+    spath = data_dir / "status.json"
+    status = json.loads(spath.read_text()) if spath.exists() else {}
+    return live_summary(visits, now or datetime.now(timezone.utc), status.get("visits", {}).get("last_ok"))
+
+
+def summarize(data_dir: Path, today: str | None = None, now: datetime | None = None) -> dict:
     """Everything the page shows, as plain data, from the files `collect` saved."""
-    today = today or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    now = now or datetime.now(timezone.utc)
+    today = today or now.strftime("%Y-%m-%d")
 
     pypi = dl.read_csv(data_dir / "pypi-downloads.csv")
     buckets = {b: 0 for b in ("installs", "ci", "browser", "scripts", "unknown", "mirrors", "other")}
@@ -122,8 +194,10 @@ def summarize(data_dir: Path, today: str | None = None) -> dict:
 
     best = buckets["installs"] + github_total + len(site["downloads"])
     status_path = data_dir / "status.json"
+    status = json.loads(status_path.read_text()) if status_path.exists() else {}
     return {
         "today": today,
+        "live": None if visits is None else live_summary(visits, now, status.get("visits", {}).get("last_ok")),
         "tiles": {"best": best, "pypi": buckets["installs"], "github": github_total,
                   "website": len(site["downloads"])},
         "days": days,
@@ -165,7 +239,7 @@ def summarize(data_dir: Path, today: str | None = None) -> dict:
             ("Website: bots and crawlers", len(site["bots"])),
             ("Website: yours (?own, selftest, ignore.txt)", len(site["mine"])),
         ],
-        "status": json.loads(status_path.read_text()) if status_path.exists() else {},
+        "status": status,
     }
 
 
@@ -223,6 +297,10 @@ details{margin-top:8px}summary{cursor:pointer;color:var(--muted)}
 .ok{color:var(--ok)}.bad{color:var(--danger)}
 .empty{color:var(--muted);padding:24px 0}
 .hint{color:var(--muted);font-size:12px}
+.kind{display:inline-block;border:1px solid var(--line-strong);border-radius:999px;padding:0 8px;font-size:11px;color:var(--muted)}
+.kind.arrival{border-color:var(--s1);color:var(--s1)}
+td.when{white-space:nowrap}
+.scroll{overflow-x:auto}
 @media (max-width:520px){.tile.hero .value{font-size:40px}}
 """
 
@@ -230,7 +308,7 @@ JS = r"""
 const D = JSON.parse(document.getElementById('data').textContent);
 const COLOR = {'PyPI installs': 'var(--s1)', 'Website downloads': 'var(--s2)',
   'Unique visitors': 'var(--s1)', 'Unique cloners': 'var(--s2)',
-  'Arrivals': 'var(--s1)', 'New stars': 'var(--s1)', 'AI crawlers and assistants': 'var(--s3)'};
+  'Arrivals': 'var(--s1)', 'Other page views': 'var(--s2)', 'New stars': 'var(--s1)', 'AI crawlers and assistants': 'var(--s3)'};
 let range = 30;
 const NS = 'http://www.w3.org/2000/svg';
 const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag);
@@ -246,7 +324,7 @@ function topRounded(x, y, w, h, r) {
 }
 
 // Stacked daily columns. Segments touch with a 2px surface gap; only the top one is rounded.
-function columns(host, days, series, names) {
+function columns(host, days, series, names, fmt = {axis: fmtDay, full: fmtDay}) {
   host.querySelectorAll('svg').forEach(s => s.remove());
   const W = Math.max(280, host.clientWidth), H = 220, L = 36, B = 22, T = 8, R = 4;
   const n = days.length, totals = days.map((_, i) => names.reduce((a, k) => a + series[k][i], 0));
@@ -260,7 +338,7 @@ function columns(host, days, series, names) {
   const every = Math.ceil(n / Math.max(2, Math.floor((W - L) / 70)));  // a label needs about 70px
   days.forEach((d, i) => {
     const cx = L + slot * (i + 0.5);
-    if (i % every === 0 || i === n - 1) el('text', {x: cx, y: H - 6, 'text-anchor': 'middle'}, svg).textContent = fmtDay(d);
+    if (i % every === 0 || i === n - 1) el('text', {x: cx, y: H - 6, 'text-anchor': 'middle'}, svg).textContent = fmt.axis(d);
     let base = H - B;
     const live = names.filter(k => series[k][i] > 0);
     live.forEach((k, j) => {
@@ -271,17 +349,17 @@ function columns(host, days, series, names) {
       base = yy - 2;
     });
     const hit = el('rect', {x: cx - slot / 2, y: T, width: slot, height: H - T - B, class: 'col', tabindex: 0,
-      'aria-label': `${fmtDay(d)}: ` + names.map(k => `${k} ${series[k][i]}`).join(', ')}, svg);
-    const show = () => tip(host, hit, d, series, names, i);
+      'aria-label': `${fmt.full(d)}: ` + names.map(k => `${k} ${series[k][i]}`).join(', ')}, svg);
+    const show = () => tip(host, hit, d, series, names, i, fmt);
     hit.addEventListener('pointermove', show); hit.addEventListener('focus', show);
     hit.addEventListener('pointerleave', () => host.querySelector('.tip').hidden = true);
     hit.addEventListener('blur', () => host.querySelector('.tip').hidden = true);
   });
 }
 
-function tip(host, hit, d, series, names, i) {
+function tip(host, hit, d, series, names, i, fmt) {
   const t = host.querySelector('.tip'); t.replaceChildren();
-  const head = document.createElement('div'); head.className = 'd'; head.textContent = fmtDay(d); t.appendChild(head);
+  const head = document.createElement('div'); head.className = 'd'; head.textContent = fmt.full(d); t.appendChild(head);
   names.forEach(k => { const row = document.createElement('div');
     const key = document.createElement('span'); key.className = 'k'; key.style.background = COLOR[k];
     const v = document.createElement('b'); v.textContent = series[k][i].toLocaleString();
@@ -306,7 +384,62 @@ function draw() {
 }
 document.querySelectorAll('[data-range]').forEach(b => b.addEventListener('click', () => { range = +b.dataset.range; draw(); }));
 draw();
-let resizing; addEventListener('resize', () => { clearTimeout(resizing); resizing = setTimeout(draw, 100); });
+
+// Live: the last 24 hours in 10-minute columns. While this page is the one in front it asks the server for
+// the newest page requests every 10 minutes (POST /live/refresh); a hidden tab asks for nothing, so a
+// dashboard left open overnight does not keep the site's machine awake.
+const LIVE_MS = 10 * 60 * 1000;
+const clock = t => new Date(t).toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'});
+const SLOT = {axis: clock, full: t => { const a = new Date(t);
+  return a.toLocaleDateString(undefined, {weekday: 'short'}) + ' ' + clock(a) + '–' + clock(a.getTime() + LIVE_MS); }};
+const ago = t => { const m = Math.floor((Date.now() - new Date(t)) / 60000);
+  return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.floor(m / 60) + ' h ago' : Math.floor(m / 1440) + ' d ago'; };
+const say = (id, value) => { document.getElementById(id).textContent = value; };
+let nextAt = 0, busy = false, updated = 0, problem = '';
+
+function drawLive() {
+  const L = D.live; if (!L) return;
+  say('live-10m', L.tiles.arrivals_10m.toLocaleString());
+  say('live-1h', L.tiles.arrivals_1h.toLocaleString());
+  say('live-24h', L.tiles.arrivals_24h.toLocaleString());
+  say('live-last', L.last_arrival ? 'last one ' + ago(L.last_arrival) : 'none in the log yet');
+  columns(document.querySelector('[data-live-chart]'), L.slots, L.series, Object.keys(L.series), SLOT);
+  const body = document.getElementById('live-recent'); body.replaceChildren();
+  const cell = (tr, text, cls) => { const td = document.createElement('td'); td.textContent = text; if (cls) td.className = cls; tr.appendChild(td); return td; };
+  L.recent.forEach(r => { const tr = document.createElement('tr');
+    cell(tr, clock(r.t) + ', ' + ago(r.t), 'when');
+    const kind = document.createElement('span'); kind.className = 'kind' + (r.arrival ? ' arrival' : '');
+    kind.textContent = r.arrival ? 'arrival' : 'view'; cell(tr, '').appendChild(kind);
+    cell(tr, r.page); cell(tr, r.arrival ? r.from : '–'); cell(tr, r.tag || '');
+    body.appendChild(tr); });
+  if (!L.recent.length) { const tr = document.createElement('tr'); cell(tr, 'No page views by people yet.').colSpan = 5; body.appendChild(tr); }
+}
+
+function tick() {
+  if (!D.live) return;
+  const secs = Math.max(0, Math.round((nextAt - Date.now()) / 1000));
+  const next = Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
+  say('live-status', busy ? 'Updating…' : problem
+    ? 'Could not update (' + problem + '). Showing what is saved' + (D.live.collected ? ', from ' + clock(D.live.collected) : '') + '. Trying again in ' + next + '.'
+    : 'Updated ' + clock(updated) + '. Next update in ' + next + '.');
+  if (!busy && !document.hidden && Date.now() >= nextAt) liveRefresh();
+}
+
+async function liveRefresh() {
+  busy = true; tick();
+  try {
+    const r = await fetch('/live/refresh', {method: 'POST'}), j = await r.json();
+    if (j.live) { D.live = j.live; drawLive(); }
+    problem = j.ok ? '' : (j.error || 'the page log could not be fetched');
+    if (j.ok) updated = Date.now();
+  } catch (e) { problem = String(e); }
+  busy = false; nextAt = Date.now() + LIVE_MS; tick();
+}
+
+let resizing; addEventListener('resize', () => { clearTimeout(resizing); resizing = setTimeout(() => { draw(); drawLive(); }, 100); });
+drawLive();
+if (D.live && document.body.dataset.live === 'on') setInterval(tick, 1000), tick();
+else if (D.live) say('live-status', 'Static copy, as of when the page was built. Run dashboard.py serve for live updates.');
 
 const refresh = document.getElementById('refresh');
 if (refresh) refresh.addEventListener('click', async () => {
@@ -377,7 +510,7 @@ def render(summary: dict, live: bool, generated: str | None = None) -> str:
     v = s["visits"]
     series = {"downloads": s["downloads_per_day"], "traffic": s["github_traffic"], "stars": s["stars_per_day"],
               **({"visits": v["per_day"], "ai": v["ai_per_day"]} if v else {})}
-    data = json.dumps({"days": s["days"], "series": series}).replace("</", "<\\/")
+    data = json.dumps({"days": s["days"], "series": series, "live": s["live"]}).replace("</", "<\\/")
     g = s["github"]
     github = ""
     if g:
@@ -425,6 +558,29 @@ def render(summary: dict, live: bool, generated: str | None = None) -> str:
         visitors = ('<h2>Visitors</h2><div class="card"><p class="empty">No page log saved yet. Deploy <code>website/</code>, '
                     'then Refresh.</p></div>')
 
+    # Filled in by the page's JavaScript from the data below, on load and after every update.
+    live_panel = ""
+    if s["live"]:
+        live_legend = "".join(f'<span><i style="background:var(--s{i + 1})"></i>{esc(n)}</span>'
+                              for i, n in enumerate(LIVE_SERIES))
+        live_panel = f"""
+<h2>Live</h2>
+<p class="hint" id="live-status" role="status"></p>
+<div class="tiles">
+  <div class="tile hero"><div class="label">Arrivals, last 10 minutes</div><div class="value" id="live-10m">0</div>
+    <div class="note" id="live-last"></div></div>
+  <div class="tile"><div class="label">Arrivals, last hour</div><div class="value" id="live-1h">0</div>
+    <div class="note">people who came from outside the site</div></div>
+  <div class="tile"><div class="label">Arrivals, last 24 hours</div><div class="value" id="live-24h">0</div>
+    <div class="note">same rules as Visitors below</div></div>
+</div>
+<div class="card"><h3>Last 24 hours</h3><p class="sub">Per 10 minutes, in your time zone. The last column is still filling.</p>
+  <div class="chart" data-live-chart data-label="Website visits in the last 24 hours, per 10 minutes"><div class="tip" hidden></div></div>
+  <div class="legend">{live_legend}</div></div>
+<div class="card"><h3>Latest page views by people</h3>
+  <div class="scroll"><table><thead><tr><th>When</th><th>What</th><th>Page</th><th>From</th><th>Tag</th></tr></thead>
+  <tbody id="live-recent"></tbody></table></div></div>"""
+
     return f"""<!doctype html>
 <html lang="en" data-theme="system">
 <head>
@@ -434,12 +590,14 @@ def render(summary: dict, live: bool, generated: str | None = None) -> str:
 <style>{tokens}</style>
 <style>{CSS}</style>
 </head>
-<body><main>
+<body data-live="{'on' if live else 'off'}"><main>
 <header>
   <div><h1>Hermit CRM numbers</h1>
   <p class="sub">Real downloads, bots and your own hits left out. Page built {esc(generated)}.</p></div>
   {refresh}
 </header>
+
+{live_panel}
 
 <div class="filters"><span class="label">Show</span>{ranges}</div>
 
@@ -505,6 +663,13 @@ def make_handler(data_dir: Path):
             self.send(200, render(summarize(data_dir), live=True).encode(), "text/html; charset=utf-8")
 
         def do_POST(self):
+            if self.path == "/live/refresh":
+                # The open page asks for this every 10 minutes: only the newest page requests, not the whole collect.
+                with lock:
+                    code = dl.collect(data_dir, dl.LIVE_SOURCES)
+                status = json.loads((data_dir / "status.json").read_text())
+                reply = {"ok": code == 0, "error": status.get("visits", {}).get("error", ""), "live": live_for(data_dir)}
+                return self.send(200, json.dumps(reply).encode(), "application/json")
             if self.path != "/refresh":
                 return self.send(404, b"not found", "text/plain")
             with lock:  # one collect at a time

@@ -292,7 +292,20 @@ source does not blank the page: it shows what is saved and the Sources table at 
 bottom says which source failed and since when. `dashboard.py build` writes
 `dashboard.html` into the data folder instead, a static copy without the button.
 
-The page shows the Visitors section first (who came to the website, and from where),
+**Live view.** Above everything else the page has a Live section: arrivals in the last 10
+minutes, hour and 24 hours, the last 24 hours in 10-minute columns (in your time zone), and the
+newest page views by people with their page, where they came from and their tag. While the
+page is open **and in front**, it asks the server for new data every 10 minutes (and once when
+it opens): the server pulls only the newest 3000 lines of the page log from the Fly volume, not the
+whole file, and falls back to the whole file when those lines do not reach back to the newest
+saved row, so nothing is lost after a long gap. A hidden tab asks for nothing. That matters
+because the site's machine is stopped whenever nobody is looking at the site, and the pull
+starts it: a dashboard left in front keeps it running (a 256 MB machine: a small but not zero running cost on Fly),
+a closed one costs nothing. A failed pull shows the reason and what is saved.
+The live view is private by design: the public `/stats/` page keeps its rule of nothing finer
+than a day and nothing seen fewer than three times, because one hit can point at one person.
+
+The page shows the Visitors section next (who came to the website, and from where),
 then real downloads per day (PyPI installs and website downloads), GitHub's numbers, who downloads, and a "Left out" table with every
 count that was set aside (CI, mirrors, browsers on PyPI, bots, your own), so a
 total that looks low can be checked. It makes no counting rules of its own: it calls

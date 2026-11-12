@@ -283,6 +283,53 @@ def test_the_visit_pull_merges_by_id_so_a_second_pull_loses_nothing(tmp_path, mo
     assert "3 saved" in dl.collect_visits(tmp_path)
 
 
+def lines(*rows):
+    return "".join(json.dumps(r) + "\n" for r in rows)
+
+
+def test_a_live_pull_asks_for_the_newest_lines_only_when_they_reach_back_to_what_is_saved(tmp_path, monkeypatch):
+    (tmp_path / "visits.jsonl").write_text(lines(view(1), view(2)))
+    sent = []
+
+    def fly(command):
+        sent.append(command)
+        return lines(view(2), view(3))                            # starts at a row we already have: no gap
+
+    monkeypatch.setattr(dl, "fly_ssh", fly)
+    monkeypatch.setattr(dl, "ssh_cat", lambda path: (_ for _ in ()).throw(AssertionError("pulled the whole log")))
+    assert "3 saved" in dl.collect_visits_recent(tmp_path)
+    assert sent == [f"tail -n {dl.LIVE_TAIL} /data/visits.log"]
+
+
+def test_a_live_pull_falls_back_to_the_whole_log_when_the_tail_could_hide_a_gap(tmp_path, monkeypatch):
+    (tmp_path / "visits.jsonl").write_text(lines(view(1)))
+    monkeypatch.setattr(dl, "fly_ssh", lambda command: lines(view(9)))     # starts after the newest saved row
+    monkeypatch.setattr(dl, "ssh_cat", lambda path: lines(view(1), view(5), view(9)))
+    assert "3 saved" in dl.collect_visits_recent(tmp_path)
+
+
+def test_a_live_pull_with_nothing_saved_yet_takes_the_whole_log(tmp_path, monkeypatch):
+    monkeypatch.setattr(dl, "fly_ssh", lambda command: (_ for _ in ()).throw(AssertionError("tail with no base")))
+    monkeypatch.setattr(dl, "ssh_cat", lambda path: lines(view(1), view(2)))
+    assert "2 saved" in dl.collect_visits_recent(tmp_path)
+
+
+def test_a_live_pull_of_an_empty_log_is_not_a_gap(tmp_path, monkeypatch):
+    (tmp_path / "visits.jsonl").write_text(lines(view(1)))
+    monkeypatch.setattr(dl, "fly_ssh", lambda command: "")
+    monkeypatch.setattr(dl, "ssh_cat", lambda path: (_ for _ in ()).throw(AssertionError("pulled the whole log")))
+    assert "1 saved" in dl.collect_visits_recent(tmp_path)
+
+
+def test_collect_can_run_just_the_given_sources_and_leaves_the_others_status_alone(tmp_path, monkeypatch):
+    (tmp_path / "status.json").write_text(json.dumps({"pypi": {"ok": True, "last_ok": "2026-10-04T06:20:00+00:00"}}))
+    monkeypatch.setattr(dl, "SOURCES", {"pypi": lambda _: (_ for _ in ()).throw(AssertionError("ran pypi"))})
+    assert dl.collect(tmp_path, {"visits": lambda _: "fine"}) == 0
+    status = json.loads((tmp_path / "status.json").read_text())
+    assert status["visits"]["ok"] and status["pypi"]["last_ok"] == "2026-10-04T06:20:00+00:00"
+    assert list(dl.LIVE_SOURCES) == ["visits"]
+
+
 def test_report_counts_arrivals_apart_from_page_views(tmp_path, capsys):
     rows = [view(1), view(2, sf="same-origin", ref=""), view(3, ua="GPTBot/1.1", sf="", sd="")]
     (tmp_path / "visits.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
