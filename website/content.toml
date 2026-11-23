@@ -393,7 +393,7 @@ text  = "Free and open source. Your data stays in a folder on your computer."
 [footer]
 # {github} is replaced by a link to [links].github labelled with
 # [header].github_label, {sha256} by a link to [links].sha256.
-text = "Hermit CRM · Apache License 2.0 · no warranty · {github} · {sha256} · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
+text = "Hermit CRM · Apache License 2.0 · no warranty · {github} · {sha256} · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos), [Compound GTM](https://compoundgtm.io/?utm_source=hermitcrm&utm_medium=referral){rel=noopener}"
 
 
 # ── Share image (og.png, 1200 x 630) ─────────────────────────────────

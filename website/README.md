@@ -21,6 +21,7 @@ rebuilds the page every time you save `content.toml`, `site/style.css` or the ap
 `tokens.css`; just reload the browser.
 
 Inside any text you can write `**bold**`, `` `code` `` and `[link text](https://...)`.
+Put `{rel=noopener}` straight after a link to give it that `rel`.
 
 After each build the script lists every `[TBC]` still on the page and warns about em
 dashes, exclamation marks and the banned marketing words from the brief.

@@ -194,7 +194,8 @@ def typeset_html(markup: str) -> str:
 
 
 def md(text: str) -> str:
-    """Escape, then apply **bold**, `code` and [text](url), with typographic quotes."""
+    """Escape, then apply **bold**, `code` and [text](url), with typographic quotes.
+    [text](url){rel=noopener} also gives the link that rel."""
     out = html.escape(flat(text), quote=False)
     codes: list[str] = []
 
@@ -202,10 +203,15 @@ def md(text: str) -> str:
         codes.append(f"<code>{m.group(1)}</code>")
         return f"\x00{len(codes) - 1}\x00"
 
+    def link(m: re.Match) -> str:
+        # The text is escaped already: unescape the address first, or the & in
+        # ?a=1&b=2 comes out as &amp;amp; and the browser reads a parameter "amp;b".
+        rel = f' rel="{m.group(3)}"' if m.group(3) else ""
+        return f'<a href="{html.escape(html.unescape(m.group(2)))}"{rel}>{m.group(1)}</a>'
+
     out = re.sub(r"`([^`]+)`", keep_code, out)
     out = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", out)
-    out = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)",
-                 lambda m: f'<a href="{html.escape(m.group(2))}">{m.group(1)}</a>', out)
+    out = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)(?:\{rel=([a-z ]+)\})?", link, out)
     out = "".join(p if p.startswith("<") else typeset(p) for p in re.split(r"(<[^>]+>)", out))
     return re.sub(r"\x00(\d+)\x00", lambda m: codes[int(m.group(1))], out)
 
