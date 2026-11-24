@@ -168,3 +168,12 @@ def test_changelog_has_its_own_page_from_the_download(tmp_path):
     # A download from before the changelog was a Help page gets no page (and
     # nothing is written).
     assert build.build_changelog(c, hub, build.Docs(docs, changelog=None)) is False
+
+
+def test_docs_text_wraps_long_words_on_a_phone():
+    """A bare URL in a Help page (no spaces to break at) must wrap, not widen /docs/
+    past a 320 px screen; code blocks scroll inside their own box instead."""
+    css = (ROOT / "website" / "site" / "style.css").read_text(encoding="utf-8")
+    rule = re.search(r"^\.doc \{([^}]*)\}", css, re.M).group(1)
+    assert "overflow-wrap: break-word" in rule
+    assert re.search(r"\.doc pre \{[^}]*overflow-x: auto", css)
