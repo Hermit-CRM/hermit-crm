@@ -183,7 +183,7 @@ link previews find the share image.
 ### The GitHub star count
 
 The top bar shows GitHub's mark and the repository's star count ("★ 41"), and the
-home page has a "Star on GitHub" button beside Download. The count is asked from
+home page has a "View on GitHub" button beside Download. The count is asked from
 the GitHub API (`repos/<owner>/<repo>`, `stargazers_count`) by `python3 build.py`,
 once per run, and written into the HTML: visitors' browsers never contact GitHub
 or a badge service. So the number is as fresh as the last build: run

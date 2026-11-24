@@ -66,7 +66,7 @@ plain text files on your laptop. Write your own outreach or let your AI draft
 it, and ask it to reshape Hermit CRM to fit how you work.
 """
 download_button = "Download for Mac and Linux"
-github_button   = "Star on GitHub"   # the outline button beside it; empty hides it
+github_button   = "View on GitHub"   # the outline button beside it; empty hides it
 sha256_label    = "SHA-256"
 # Under the download button; the closing button repeats the short one.
 needs_tool = "Use your AI coding tool to install it: Claude Code, Codex, Cursor, Gemini CLI, Grok Build or another."
