@@ -37,6 +37,7 @@ from __future__ import annotations
 import html
 import importlib.util
 import json
+import os
 import re
 import struct
 import sys
@@ -46,7 +47,8 @@ import time
 import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
+from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parent
 CONTENT = ROOT / "content.toml"
@@ -79,6 +81,50 @@ MARK = ('<svg viewBox="4.5 10.5 55 43" aria-hidden="true" focusable="false">'
         '<path d="M16 43 a8 8 0 0 1 16 0 z" fill="#1E8A60"/>'
         '<rect x="38" y="25" width="12" height="4" rx="2" fill="currentColor"/>'
         '<rect x="38" y="34" width="8" height="4" rx="2" fill="currentColor"/></svg>')
+
+
+# GitHub's mark (Octicon "mark-github", 16 px grid), in the text colour.
+GITHUB_MARK = ('<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="'
+               'M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49'
+               '-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58'
+               ' 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31'
+               '-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09'
+               ' 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87'
+               ' 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013'
+               ' 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>')
+
+
+def fetch_stars(github_url: str) -> int | None:
+    """The repository's star count from the GitHub API, asked once per build on the
+    maintainer's computer (never by a visitor's browser: the number is baked into the
+    HTML). None when it cannot be had, offline or rate-limited; the bar then says
+    "GitHub" without a number and the build carries on. HERMIT_SITE_OFFLINE=1 skips it."""
+    path = urlparse(github_url).path.strip("/")
+    if os.environ.get("HERMIT_SITE_OFFLINE") or urlparse(github_url).hostname != "github.com" or path.count("/") != 1:
+        return None
+    try:
+        req = Request(f"https://api.github.com/repos/{path}",
+                      headers={"Accept": "application/vnd.github+json", "User-Agent": "hermitcrm-site-build"})
+        with urlopen(req, timeout=10) as r:
+            stars = json.load(r)["stargazers_count"]
+        return stars if isinstance(stars, int) and stars >= 0 else None
+    except Exception as e:  # noqa: BLE001: any failure means "no number", never a failed build
+        print(f"  warning: no GitHub star count ({e}); the bar shows \"GitHub\" without a number")
+        return None
+
+
+def star_text(stars: int) -> str:
+    """41 -> "41", 1234 -> "1.2k", 12345 -> "12k"."""
+    if stars < 1000:
+        return str(stars)
+    k = stars / 1000
+    return f"{k:.1f}".rstrip("0").rstrip(".") + "k" if k < 10 else f"{int(k)}k"
+
+
+def github_link(c: dict, cls: str, label: str) -> str:
+    """A link to the repository: GitHub's mark, then `label`. Same tab, rel=noopener."""
+    return (f'<a class="{cls}" href="{attr(c["links"]["github"])}" rel="noopener" '
+            f'aria-label="{attr(c["header"]["github_aria"])}">{GITHUB_MARK}<span>{label}</span></a>')
 
 
 # Meta tags every page carries. max-snippet:-1 lets search and AI answer engines
@@ -288,11 +334,16 @@ def sha256_line(c: dict) -> str:
             f'<a href="{attr(c["links"]["sha256"])}"><code>{digest}</code></a></p>\n')
 
 
-def download_block(c: dict, notes: str = "", with_hash: bool = False) -> str:
+def download_block(c: dict, notes: str = "", with_hash: bool = False, star: bool = False) -> str:
     """The button and the version line; `notes` are the lines the caller puts under them.
-    `with_hash` adds the SHA-256 of the download (once on a page is enough)."""
+    `with_hash` adds the SHA-256 of the download (once on a page is enough). `star`
+    puts the secondary "Star on GitHub" button beside the download (the hero only)."""
+    button = f'<a class="btn" href="{attr(c["links"]["download"])}">{md(c["hero"]["download_button"])}</a>'
+    if star and c["links"]["github"] and c["hero"].get("github_button"):
+        button = (f'<div class="actions">{button}'
+                  f'{github_link(c, "btn btn-secondary", md(c["hero"]["github_button"]))}</div>')
     return (f'<div class="download">\n'
-            f'  <a class="btn" href="{attr(c["links"]["download"])}">{md(c["hero"]["download_button"])}</a>\n'
+            f'  {button}\n'
             f'  {meta_line(c)}\n{sha256_line(c) if with_hash else ""}{notes}</div>')
 
 
@@ -391,7 +442,11 @@ def site_nav(c: dict, root: str, here: str = "") -> str:
         cls = ' class="nav-more"' if more else ' class="nav-features"' if cta else ""
         return f'<a href="{root}{section}/"{cls}{cur}>{md(label)}</a>'
 
-    github = (f'<a href="{attr(c["links"]["github"])}">{md(h["github_label"])}</a>'
+    # GitHub's mark and the star count from build time ("★ 41"), or "GitHub" without one
+    # (on a phone that word is left out to keep the bar on one line; the aria-label names it).
+    stars = c["links"].get("github_stars")
+    github = (github_link(c, "nav-github", f"★ {star_text(stars)}" if stars is not None
+                          else f'<span class="nav-github-word">{md(h["github_label"])}</span>')
               if c["links"]["github"] else "")
     return ('<nav class="site-nav" aria-label="Site">'
             + link("features", h["features_label"], cta=True) + link("docs", h["docs_label"])
@@ -478,7 +533,7 @@ def render(c: dict, ld: str = "") -> str:
     # Step 1 holds the button, step 3 the message to copy; the others are one line.
     first, second, third = i["steps"]
     steps = "\n".join([
-        f'      <li><div class="step"><span>{md(first)}</span>\n{download_block(c, needs, with_hash=True)}</div></li>',
+        f'      <li><div class="step"><span>{md(first)}</span>\n{download_block(c, needs, with_hash=True, star=True)}</div></li>',
         f'      <li><span>{md(second)}</span></li>',
         f'      <li><div class="step"><span>{md(third)}</span>\n        {copy_card}</div></li>',
     ])
@@ -1697,6 +1752,10 @@ def check(c: dict, pages: list[dict] | None = None, hub: dict | None = None,
     return problems, tbc
 
 
+_UNSET = object()
+_STARS = _UNSET
+
+
 def build() -> tuple[dict, list[str], list[str]]:
     """Build both files; raise BuildError when the site and the app have drifted."""
     app_css = app_tokens_css(TOKENS.read_text(encoding="utf-8"))
@@ -1705,6 +1764,11 @@ def build() -> tuple[dict, list[str], list[str]]:
         raise BuildError("the site no longer matches the app's tokens:\n  " + "\n  ".join(broken))
     c = tomllib.loads(CONTENT.read_text(encoding="utf-8"))
     use_shots(c, load_shots())
+    if c["links"]["github"]:
+        global _STARS
+        if _STARS is _UNSET:  # once per run: --watch rebuilds without asking GitHub again
+            _STARS = fetch_stars(c["links"]["github"])
+        c["links"]["github_stars"] = _STARS
     site_url = c["page"]["site_url"].rstrip("/")
     APP_TOKENS.write_text(app_css, encoding="utf-8")
     # The comparison pages and the About page need the site's address for their

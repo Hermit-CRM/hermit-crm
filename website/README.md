@@ -180,6 +180,17 @@ analytics, no cookies, no trackers. (The site's own numbers are public at
 `/stats/`, counted from nginx's logs on the server; see "Public stats".) Set `[page].site_url` first so
 link previews find the share image.
 
+### The GitHub star count
+
+The top bar shows GitHub's mark and the repository's star count ("★ 41"), and the
+home page has a "Star on GitHub" button beside Download. The count is asked from
+the GitHub API (`repos/<owner>/<repo>`, `stargazers_count`) by `python3 build.py`,
+once per run, and written into the HTML: visitors' browsers never contact GitHub
+or a badge service. So the number is as fresh as the last build: run
+`python3 build.py` before `flyctl deploy`. When the API cannot be reached (offline,
+rate-limited) the build prints a warning and the bar says "GitHub" without a
+number; `HERMIT_SITE_OFFLINE=1 python3 build.py` skips the request on purpose.
+
 ### Publishing a build
 
 The download is served by the site itself, from `site/download/`. The files
