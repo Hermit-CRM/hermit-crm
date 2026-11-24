@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-"""website/build.py: the GitHub link in the top bar and "Star on GitHub" on the home page.
+"""website/build.py: the GitHub link in the top bar and "View on GitHub" on the home page.
 
 The star count is fetched at build time and baked into the HTML; a page never asks
 GitHub or a badge service itself. Without a count the link says "GitHub". Nothing
@@ -75,10 +75,10 @@ def test_star_button_sits_beside_download_on_the_home_page_only():
     home = build.render(c)
     actions = re.search(r'<div class="actions">.*?</div>', home).group(0)
     assert actions.index('class="btn"') < actions.index('class="btn btn-secondary"')
-    assert "Star on GitHub" in actions and 'rel="noopener"' in actions
-    assert home.count("Star on GitHub") == 1  # not in the closing section
+    assert "View on GitHub" in actions and 'rel="noopener"' in actions
+    assert home.count("View on GitHub") == 1  # not in the closing section
     hub, _ = build.load_compare()
-    assert "Star on GitHub" not in build.render_about(c, hub, build.load_about())
+    assert "View on GitHub" not in build.render_about(c, hub, build.load_about())
 
 
 def test_no_github_request_from_the_page():
@@ -90,7 +90,7 @@ def test_empty_github_link_hides_both():
     c = content(41)
     c["links"]["github"] = ""
     home = build.render(c)
-    assert "nav-github" not in home and "Star on GitHub" not in home
+    assert "nav-github" not in home and "View on GitHub" not in home
 
 
 @pytest.mark.parametrize("n, text", [(0, "0"), (41, "41"), (999, "999"), (1000, "1k"),

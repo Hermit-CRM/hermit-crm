@@ -138,7 +138,7 @@ h1 { margin: 0; font-size: 72px; font-weight: 400; line-height: 1.05; letter-spa
 }
 .btn:hover { background: var(--green-press); color: #FFFFFF; }
 .btn:active { background: var(--green-press); }
-/* The hero's second button, Star on GitHub: an outline, so Download stays the one filled action. */
+/* The hero's second button, View on GitHub: an outline, so Download stays the one filled action. */
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .btn-secondary { gap: 10px; background: transparent; color: var(--green-ink); font-weight: 600; border: 1px solid var(--copy-border); padding: 17px 26px; }
 .btn-secondary svg { width: 20px; height: 20px; flex-shrink: 0; }

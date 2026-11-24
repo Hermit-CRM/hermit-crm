@@ -337,7 +337,7 @@ def sha256_line(c: dict) -> str:
 def download_block(c: dict, notes: str = "", with_hash: bool = False, star: bool = False) -> str:
     """The button and the version line; `notes` are the lines the caller puts under them.
     `with_hash` adds the SHA-256 of the download (once on a page is enough). `star`
-    puts the secondary "Star on GitHub" button beside the download (the hero only)."""
+    puts the secondary "View on GitHub" button beside the download (the hero only)."""
     button = f'<a class="btn" href="{attr(c["links"]["download"])}">{md(c["hero"]["download_button"])}</a>'
     if star and c["links"]["github"] and c["hero"].get("github_button"):
         button = (f'<div class="actions">{button}'
