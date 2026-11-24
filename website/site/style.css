@@ -117,6 +117,11 @@ hr.rule.blank { border-top-color: transparent; }
 .site-nav a.nav-features:hover, .site-nav a.nav-features[aria-current="page"] { background: var(--green-ink); color: var(--paper); }
 @media (max-width: 640px) { .site-nav a.nav-features { padding-inline: 11px; margin-inline: -3px; } }
 @media (max-width: 439px) { .site-nav a.nav-features { padding-inline: 9px; margin-inline: -2px; } }
+/* GitHub: its mark and the star count baked in at build time (no request from the page). */
+.site-nav a.nav-github { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; text-decoration: none; font-variant-numeric: lining-nums tabular-nums; }
+.site-nav a.nav-github svg { width: 1.05em; height: 1.05em; flex-shrink: 0; }
+@media (max-width: 439px) { .site-nav .nav-github-word { display: none; } }  /* no count: the mark alone fits the bar */
+.site-nav a.nav-github:hover span { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 
 /* ── Hero ───────────────────────────────────────────────────────── */
 .hero { padding-top: 72px; }
@@ -133,6 +138,12 @@ h1 { margin: 0; font-size: 72px; font-weight: 400; line-height: 1.05; letter-spa
 }
 .btn:hover { background: var(--green-press); color: #FFFFFF; }
 .btn:active { background: var(--green-press); }
+/* The hero's second button, Star on GitHub: an outline, so Download stays the one filled action. */
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.btn-secondary { gap: 10px; background: transparent; color: var(--green-ink); font-weight: 600; border: 1px solid var(--copy-border); padding: 17px 26px; }
+.btn-secondary svg { width: 20px; height: 20px; flex-shrink: 0; }
+.btn-secondary:hover { background: var(--card); color: var(--green-deep); border-color: var(--green-ink); }
+.btn-secondary:active { background: var(--card); }
 .meta { font-size: 15px; line-height: 1.5; color: var(--muted); }
 .download .meta { margin: 0; }
 /* The 64-character checksum has no spaces, so let it break anywhere instead of overflowing a phone. */
@@ -445,6 +456,7 @@ details p { margin: 0; padding-bottom: 24px; }
   h1 { font-size: 44px; }
   .subline { margin-top: 18px; font-size: 19px; }
   .download { margin-top: 28px; align-items: stretch; }
+  .actions { flex-direction: column; align-items: stretch; }
   .install { margin-top: 36px; }
   /* The numbers stay beside each step's first line; the button and the card use the full width under it. */
   .install li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 12px 16px; }
