@@ -169,4 +169,4 @@ def test_the_lead_rule_migration_returns_an_unchanged_value_as_it_is():
 def test_items_and_interactions_have_a_migration_each():
     steps = {m.version: m for m in migrations.MIGRATIONS}
     assert steps[24].glob == "outreach/*.md" and steps[25].glob == "companies/*/interactions/*.md"
-    assert migrations.LATEST == 25
+    assert migrations.LATEST == 26

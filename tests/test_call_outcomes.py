@@ -21,7 +21,7 @@ from __future__ import annotations
 import pytest
 
 from conftest import FIXED_NOW
-from hermitcrm import datafolder, fields, models
+from hermitcrm import datafolder, fields, migrations, models
 from hermitcrm.fields import FieldError
 from hermitcrm.models import Interaction, ValidationError
 from hermitcrm.store import DEFAULT_CONFIG, Store, split_file
@@ -307,3 +307,42 @@ def test_new_call_names_show_on_the_form_without_restart(web):
     page = client.get(f"/companies/{SLUG}/interactions/new?channel=call").text
     assert '<option value="reached"' in page and '<option value="cold"' in page
     assert '<option value="connected"' not in page
+
+
+# ------------------------------------------------------------ Task 6: migration
+
+BASE_META = {"date": "2026-09-01T10:00", "channel": "call", "direction": "out"}
+
+
+@pytest.mark.parametrize("given,expected", [
+    ({"call_outcome": ""}, {}),
+    ({"call_outcome": None}, {}),
+    ({"call_type": ""}, {}),
+    ({"call_outcome": "  no   answer "}, {"call_outcome": "no answer"}),
+    ({"call_type": " pipeline\tdevelopment"}, {"call_type": "pipeline development"}),
+    ({"call_outcome": "Left a message"}, {"call_outcome": "Left a message"}),
+    ({}, {}),
+])
+def test_the_call_fields_migration_normalises_and_is_idempotent(given, expected):
+    out = migrations.m26_call_fields({**BASE_META, **given})
+    assert out == {**BASE_META, **expected}
+    assert migrations.m26_call_fields(out) == out
+
+
+def test_the_call_fields_migration_keeps_the_key_order():
+    meta = {**BASE_META, "outcome": "", "call_outcome": " busy", "source": "manual"}
+    assert list(migrations.m26_call_fields(meta)) == list(meta)
+
+
+def test_the_call_fields_migration_returns_an_unchanged_file_as_it_is():
+    meta = {**BASE_META, "call_outcome": "busy", "call_type": "prospecting"}
+    assert migrations.m26_call_fields(meta) is meta
+    plain = dict(BASE_META)
+    assert migrations.m26_call_fields(plain) is plain
+
+
+def test_interactions_have_migration_26():
+    steps = {m.version: m for m in migrations.MIGRATIONS}
+    assert migrations.LATEST == 26
+    assert steps[26].glob == "companies/*/interactions/*.md"
+    assert steps[26].title == "interactions may record a call outcome and a call type"

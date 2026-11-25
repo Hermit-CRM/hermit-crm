@@ -580,6 +580,27 @@ def m24_lead_rule(meta: dict) -> dict:
     return {k: (value if k == "lead_rule" else v) for k, v in meta.items()}
 
 
+def m26_call_fields(meta: dict) -> dict:
+    """Interactions gained an optional `call_outcome` and `call_type` (outbound
+    calls only), absent when empty. An empty one is dropped; a hand-written one
+    is trimmed with inner whitespace collapsed. Nothing is matched against
+    config (a migration has none) and no value someone wrote is dropped. A file
+    without them, or with them as the app writes them, is returned as it is."""
+    changed = False
+    out = {}
+    for key, value in meta.items():
+        if key in ("call_outcome", "call_type"):
+            if value is None or not str(value).strip():
+                changed = True
+                continue
+            clean = " ".join(str(value).split())
+            if clean != value:
+                changed = True
+                value = clean
+        out[key] = value
+    return out if changed else meta
+
+
 MIGRATIONS = [
     Migration(1, "rename gijs_score to my_score", "companies/*/company.md", m1_my_score),
     Migration(2, "country UK→GB, USA→US", "companies/*/company.md", m2_country_codes),
@@ -627,6 +648,8 @@ MIGRATIONS = [
               m24_lead_rule),
     Migration(25, "interactions record the rule that led the message",
               "companies/*/interactions/*.md", m24_lead_rule),
+    Migration(26, "interactions may record a call outcome and a call type",
+              "companies/*/interactions/*.md", m26_call_fields),
 ]
 LATEST = MIGRATIONS[-1].version
 
