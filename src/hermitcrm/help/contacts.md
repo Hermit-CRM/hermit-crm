@@ -19,6 +19,9 @@ box matches name, email, title and company.
   (stored lower case), phone, LinkedIn. There is no notes field: what you
   know about a person is a **note** on their timeline.
 - **Interactions** of this contact, newest first, notes included.
+- **Files**: the company's client folder, the same list as on the company page
+  (see [Client folders](/help/companies#client-folders)), then the files
+  attached to this person's notes.
 - **Log an interaction** for this contact: an email, LinkedIn message, call,
   meeting or note.
 - **Tasks** you owe this person.

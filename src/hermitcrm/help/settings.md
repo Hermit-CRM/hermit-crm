@@ -243,6 +243,15 @@ Gemini CLI. The General tab's first card, **Make it yours with your AI**, opens
 the same page, and each section of the Your CRM tab has an *or describe it*
 link that starts it with a matching request.
 
+## Client folders
+
+Settings > Your CRM > **Client folders**: one folder on this computer that holds
+a folder per company, named after it (`~/Clients/Example Labs BV`). The company
+and contact pages then list what is in it and open files in their own apps; see
+[Client folders](/help/companies#client-folders). The folder must be outside the
+data folder, so those files never end up in git. Leave it empty to keep it off.
+`hermitcrm doctor` has a line for it once it is set.
+
 ## Deal stages
 
 The steps a deal goes through, in order: the Pipeline columns, the stage

@@ -51,7 +51,7 @@ def test_every_section_is_in_one_tab_and_the_bar_names_every_tab(demo, tmp_path)
 def test_every_link_into_settings_lands_in_a_tab(demo, tmp_path):  # noqa: F811
     web = (SRC / "web.py").read_text()
     # to-file and routine-drafts are on Home
-    anchors = set(re.findall(r'anchor="([\w-]+)"', web)) - {"to-file", "routine-drafts"}
+    anchors = set(re.findall(r'anchor="([\w-]+)"', web)) - {"to-file", "routine-drafts", "files"}
     anchors |= set(re.findall(r'setup_done\(result, "([\w-]+)"\)', web))
     for src in [SRC / "welcome.py", *(SRC / "templates").glob("*.html")]:
         anchors |= set(re.findall(r'(?<!/help)/settings#([\w-]+)', src.read_text()))

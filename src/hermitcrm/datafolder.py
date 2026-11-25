@@ -99,6 +99,7 @@ CONFIG_DOCS = {
     "message_window_days": "A message without reply or outcome counts as the last outcome after this many days.",
     "fetch_timeout": "Seconds to wait when Fetch from URL reads a page.",
     "attachment_max_mb": "Largest file you can attach, in MB (1 to 90). History is never rewritten, so a big file stays in the folder.",
+    "client_files_root": "A folder on this computer (outside the data folder) holding one folder per company, named after it; the company and contact pages list and open those files. Empty means off.",
     "outcomes": "Outcome choices for an interaction; first = what a reply counts as, last = what silence counts as.",
     "bcc_address": "Address you BCC or forward mail to, e.g. you+crm@gmail.com; empty disables BCC import.",
     "bcc_imap_host": "IMAP server of that mailbox.",

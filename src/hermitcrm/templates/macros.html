@@ -166,9 +166,55 @@
 {# The Files section of a company or contact page: every file once, newest first,
    each pointing back at its note, plus a plain form. `data-page-drop` makes a
    file dropped anywhere on the page a new note (static/attach.js). #}
-{% macro files_section(company, files, contact='') %}
+{#- The company's client folder on this computer (clientfiles.py): its path to
+    copy, Show in Finder, and what is in it. A name opens the file in its own app
+    when the page is open on that computer, and downloads it anywhere else. -#}
+{% macro folder_section(company, folder, back) %}
+{% set base = '/companies/' ~ company.slug ~ '/folder/' %}
+<div class="client-folder" id="client-folder">
+  <h3>Client folder</h3>
+  {% if not folder.root_exists %}
+  <p class="small">The folder that holds the client folders, <code>{{ folder.root }}</code>, does not exist. Make it in Finder, or change it in <a href="/settings#client-folders">Settings</a>.</p>
+  {% else %}
+  <p class="small folder-path"><code>{{ folder.path }}</code> <button type="button" class="copy-btn" data-copy-text="{{ folder.path }}" title="Copy the folder's path">copy</button>
+    {%- if folder.exists and folder.local %}
+    <form method="post" action="{{ base }}reveal" class="folder-reveal"><input type="hidden" name="back" value="{{ back }}"><button type="submit" class="copy-btn">Show in Finder</button></form>
+    {%- endif %}</p>
+  {% if folder.exists %}
+  {% if folder.files %}
+  {% if folder.local %}<form method="post" action="{{ base }}open" class="folder-open"><input type="hidden" name="back" value="{{ back }}">{% endif %}
+  <ul class="file-rows folder-rows">
+    {% for f in folder.files %}
+    <li>
+      {% if folder.local %}<button type="submit" name="path" value="{{ f.rel }}" class="linklike" title="{{ 'Show in Finder' if f.is_dir else 'Open in its app' }}">{{ f.rel }}{% if f.is_dir %}/{% endif %}</button>
+      {%- elif f.is_dir %}<span>{{ f.rel }}/</span>
+      {%- else %}<a href="{{ base }}file?path={{ f.rel | urlencode }}">{{ f.rel }}</a>{% endif %}
+      <span class="small faint">{% if not f.is_dir %}{{ f.size | filesize }} &middot; {% endif %}{{ fmt_date(f.modified) }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% if folder.local %}</form>{% endif %}
+  {% if folder.truncated %}<p class="small">Showing the newest {{ folder.files | length }} of {{ folder.total }}; Show in Finder for the rest.</p>{% endif %}
+  {% else %}
+  <p class="small">The folder is empty. Put files in it in Finder; they show here.</p>
+  {% endif %}
+  {% else %}
+  <p class="small">No folder yet for {{ company.name }}.</p>
+  <form method="post" action="{{ base }}create" class="folder-create"><input type="hidden" name="back" value="{{ back }}"><button type="submit">Create folder</button></form>
+  {% endif %}
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% macro files_section(company, files, contact='', folder=None) %}
 <section id="files" data-page-drop="/companies/{{ company.slug }}/attachments"{% if contact %} data-page-contact="{{ contact }}"{% endif %}>
+  {% if folder %}
+  <h2>Files</h2>
+  {{ folder_section(company, folder, '/companies/' ~ company.slug ~ ('/contacts/' ~ contact if contact else '')) }}
+  <h3 class="attached-head">Attached to notes ({{ files | length }})</h3>
+  {% else %}
   <h2>Files ({{ files | length }})</h2>
+  {% endif %}
   {% if files %}
   <ul class="file-rows">
     {% for a, i in files %}

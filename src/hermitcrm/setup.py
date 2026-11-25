@@ -35,7 +35,7 @@ from typing import Callable
 from urllib.parse import urlparse
 
 from . import backup as local_backup
-from . import bcc, calendar_sync, dateformat, secrets, stages
+from . import bcc, calendar_sync, clientfiles, dateformat, secrets, stages
 from .gitops import GitOps
 from .store import DEFAULT_CONFIG, Store, load_config
 
@@ -900,6 +900,35 @@ def save_date_format(data_dir: Path, style: str) -> StepResult:
     result.values = {"date_format": style}
     set_config_values(Path(data_dir) / "config.toml", result.values)
     result.messages.append(f"Date format saved: {DATE_FORMATS[style][2]}.")
+    return result
+
+
+def save_client_files_root(data_dir: Path, raw: str) -> StepResult:
+    """Write client_files_root to config.toml. Empty turns client folders off. A
+    folder inside the data folder is refused: its files would end up in git. A
+    folder that does not exist yet is saved, with a note to make it."""
+    raw = (raw or "").strip()
+    result = StepResult()
+    found = clientfiles.root({clientfiles.CONFIG_KEY: raw})
+    problem = clientfiles.root_problem(found, Path(data_dir))
+    if problem:
+        result.ok = False
+        result.errors["client_files_root"] = problem
+        return result
+    if "\x00" in raw or "\n" in raw:
+        result.ok = False
+        result.errors["client_files_root"] = "Give one folder path."
+        return result
+    result.values = {clientfiles.CONFIG_KEY: raw}
+    set_config_values(Path(data_dir) / "config.toml", result.values)
+    if found is None:
+        result.messages.append("Client folders are off.")
+    elif found.is_dir():
+        result.messages.append(f"Client folders saved: {found}.")
+    else:
+        result.messages.append(f"Client folders saved: {found}.")
+        result.warnings.append("That folder does not exist yet; make it in Finder, "
+                               "then use Create folder on a company page.")
     return result
 
 
