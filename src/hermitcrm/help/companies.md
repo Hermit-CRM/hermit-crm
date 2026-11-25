@@ -77,6 +77,34 @@ you disqualify it instead.
 Edits made outside the app (by hand or by an agent) show up on the next page
 view: the company's folder is re-read for every request.
 
+## Client folders
+
+Keep each client's working files (decks, spreadsheets, Markdown notes) in a
+normal folder on your computer and edit them in their own apps. Hermit links to
+the folder from the company page; it never uploads, copies or commits them.
+
+- **Set the root once** in [Settings](/help/settings#client-folders) > Your CRM >
+  Client folders, for example `~/Clients` (or `client_files_root` in
+  `config.toml`). It must be outside the data folder. Empty turns it off.
+- **Each company's folder** is `<root>/<company name>`, worked out for you:
+  `~/Clients/Example Labs BV`. A folder named after the slug
+  (`example-labs`) or with other capitals is found too.
+- The **Files** section shows the path with a **copy** button, **Show in
+  Finder**, and the files in the folder, newest first (three levels deep, the
+  newest 300). Click a name to open it in its own app, as a double-click in
+  Finder would. A subfolder, an app or a script is shown in Finder instead,
+  never run.
+- No folder yet: **Create folder** makes it. Nothing is made until you click.
+  To make them for all your customers at once (companies in a won stage), run
+  `hermitcrm folders --create`; without `--create` it only lists what is missing.
+  `--stage offer` or `--all` covers other companies.
+- **Renaming a company** does not rename its folder. Rename the folder in
+  Finder too, or the page shows it as missing.
+- Opening works on the computer Hermit runs on. From your phone the names are
+  download links instead.
+- An AI app connected over MCP can ask for the folder and its files
+  (`company_folder`) and read them from there.
+
 ## Tasks and the next step
 
 A company has as many **tasks** as you like, each with an optional due date.

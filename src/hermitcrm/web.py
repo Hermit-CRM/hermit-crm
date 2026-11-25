@@ -50,6 +50,7 @@ from starlette.datastructures import QueryParams
 
 from . import __version__, updates
 from . import attachments as attachments_mod
+from . import clientfiles
 from . import upgrade as upgrading
 from fastapi.templating import Jinja2Templates
 
@@ -330,6 +331,36 @@ async def read_uploads(request: Request, limit: int) -> list[attachments_mod.Inc
 def attachment_json(company_slug: str, att) -> dict:
     return {"file": att.file, "name": att.name, "size": att.size, "type": att.type,
             "url": f"/companies/{company_slug}/attachments/{quote(att.file)}"}
+
+
+def is_loopback(request: Request | None) -> bool:
+    """The request comes from this computer itself, not a phone on the network.
+    Only then may a page open files in their apps: the app opens them on the
+    computer it runs on, which is no use to (and not for) anyone else."""
+    host = getattr(getattr(request, "client", None), "host", "") or ""
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def file_response(path: Path, name: str, download: bool = False) -> FileResponse:
+    """A file for the browser. Only the harmless types open in a tab
+    (attachments.INLINE_TYPES); everything else downloads, and none can run
+    script on this origin."""
+    kind = attachments_mod.media_type(name)
+    inline = kind in attachments_mod.INLINE_TYPES and not download
+    # A PDF viewer does not start inside a sandboxed document; the PDF is not
+    # a page and has nothing to script on this origin.
+    policy = "default-src 'none'" if kind == "application/pdf" \
+        else "sandbox; default-src 'none'"
+    return FileResponse(
+        path, media_type=kind + ("; charset=utf-8" if kind == "text/plain" else ""),
+        filename=name, content_disposition_type="inline" if inline else "attachment",
+        headers={"X-Content-Type-Options": "nosniff", "Content-Security-Policy": policy,
+                 "Cache-Control": "private, max-age=3600"})
 
 
 def safe_back(back: str, default: str) -> str:
@@ -1017,6 +1048,8 @@ def create_app(root: Path, config: dict | None = None,
     app.state.setup_redirected = False
     app.state.setup_runner = subprocess.run
     app.state.setup_platform = sys.platform
+    app.state.folder_runner = subprocess.Popen   # client folders: open / show in Finder
+    app.state.folder_platform = sys.platform
     app.state.setup_push = None
     app.state.setup_state = None
     app.state.os_store = None  # (platform, store); probing secret-tool costs a process
@@ -2860,10 +2893,11 @@ def create_app(root: Path, config: dict | None = None,
                           status_code=400)
         return flashed(f"/companies/{company.slug}", "Company created")
 
-    def company_notes_context(company: Company) -> dict:
+    def company_notes_context(company: Company, request: Request | None = None) -> dict:
         """What company.html shows about notes, for every way the page is rendered."""
         return {"company_notes": notes.company_notes(company),
                 "files": attachments_mod.files_of(company.interactions),
+                "folder": folder_context(company, request),
                 "note_counts": {cs: len(notes.contact_notes(company, cs))
                                 for cs in company.contacts}}
 
@@ -2873,7 +2907,7 @@ def create_app(root: Path, config: dict | None = None,
         interaction = interaction_values(company)
         return render(request, "company.html", {
             "company": company,
-            **company_notes_context(company),
+            **company_notes_context(company, request),
             "values": with_custom(company_values(company), company, "company"),
             "interaction": interaction,
             "focus": request.query_params.get("focus", ""),
@@ -2927,7 +2961,7 @@ def create_app(root: Path, config: dict | None = None,
             current = need_company(slug, refresh=True)
             return render(request, "company.html", {
                 "company": current,
-                **company_notes_context(current),
+                **company_notes_context(current, request),
                 "values": {**with_custom(company_values(current), current, "company"),
                            **values, **shown},
                 "flash": stale_form_text("company",
@@ -2944,7 +2978,7 @@ def create_app(root: Path, config: dict | None = None,
         except ValidationError as exc:
             return render(request, "company.html", {
                 "company": company,
-                **company_notes_context(company),
+                **company_notes_context(company, request),
                 "values": {**with_custom(company_values(company), company, "company"),
                            **values, **shown},
                 "errors": exc.errors,
@@ -3340,6 +3374,7 @@ def create_app(root: Path, config: dict | None = None,
             "values": values or with_custom(contact_values(contact), contact, "contact"),
             "interactions": interactions,
             "files": attachments_mod.files_of(interactions),
+            "folder": folder_context(company, request),
             "interaction": interaction_values(company, contact=contact.slug, channel=channel),
             "summary": contact_summary(company, contact, interactions, store.today()),
             "elsewhere": notes.elsewhere(company, contact.slug),
@@ -3466,17 +3501,116 @@ def create_app(root: Path, config: dict | None = None,
             raise HTTPException(status_code=404, detail="no such file")
         name = next((a.name for i in company.interactions for a in i.attachments
                      if a.file == file), file[attachments_mod.HASH_LEN + 1:])
-        kind = attachments_mod.media_type(name)
-        inline = kind in attachments_mod.INLINE_TYPES and not download
-        # A PDF viewer does not start inside a sandboxed document; the PDF is not
-        # a page and has nothing to script on this origin.
-        policy = "default-src 'none'" if kind == "application/pdf" \
-            else "sandbox; default-src 'none'"
-        return FileResponse(
-            path, media_type=kind + ("; charset=utf-8" if kind == "text/plain" else ""),
-            filename=name, content_disposition_type="inline" if inline else "attachment",
-            headers={"X-Content-Type-Options": "nosniff", "Content-Security-Policy": policy,
-                     "Cache-Control": "private, max-age=3600"})
+        return file_response(path, name, bool(download))
+
+    # ---------------------------------------------------------- client folders
+    # A folder per company on this computer (clientfiles.py), linked, never
+    # copied or committed. Opening and revealing only answer this computer
+    # itself; the GET serves the file to a phone instead.
+
+    def folder_root() -> Path | None:
+        found = clientfiles.root(config)
+        return None if found is None or clientfiles.root_problem(found, root) else found
+
+    def folder_context(company: Company, request: Request | None) -> dict | None:
+        """What the Files section shows about the company's client folder; None
+        when client folders are off (or the root is unusable: Settings says why)."""
+        base = folder_root()
+        if base is None:
+            return None
+        found = clientfiles.find_folder(base, company)
+        listing = clientfiles.list_files(found) if found is not None else None
+        return {"path": str(found or clientfiles.expected_folder(base, company)),
+                "root": str(base), "root_exists": base.is_dir(),
+                "exists": found is not None,
+                "files": listing.files if listing else [],
+                "total": listing.total if listing else 0,
+                "truncated": bool(listing and listing.truncated),
+                "local": is_loopback(request)}
+
+    def company_folder(slug: str) -> tuple[Company, Path]:
+        company = need_company(slug, refresh=True)
+        found = clientfiles.find_folder(folder_root(), company)
+        if found is None:
+            raise HTTPException(status_code=404, detail="no client folder for this company")
+        return company, found
+
+    def folder_back(slug: str, back: str) -> str:
+        return safe_back(back, f"/companies/{slug}")
+
+    def need_local(request: Request) -> None:
+        if not is_loopback(request):
+            raise HTTPException(status_code=403, detail=(
+                "Files open on the computer Hermit runs on, so this only works there. "
+                "From here, click the file's name to download it."))
+
+    @app.post("/companies/{slug}/folder/open")
+    def folder_open(request: Request, slug: str, path: str = Form(""), back: str = Form("")):
+        """Open one file in its own app, as a double-click in Finder would. A
+        folder, an app or a script is shown in Finder instead, never run."""
+        need_local(request)
+        _, folder = company_folder(slug)
+        try:
+            target = clientfiles.resolve(folder, path)
+        except ValueError:
+            raise HTTPException(status_code=404, detail="no such file") from None
+        if target == folder:
+            raise HTTPException(status_code=404, detail="no such file")
+        cmd = clientfiles.open_command(target, app.state.folder_platform)
+        clientfiles.run(cmd, runner=app.state.folder_runner)
+        verb = "Shown in Finder" if "-R" in cmd or cmd[0] == "explorer" \
+            or target.is_dir() else "Opened"
+        return flashed(folder_back(slug, back), f"{verb}: {target.name}", anchor="files")
+
+    @app.post("/companies/{slug}/folder/reveal")
+    def folder_reveal(request: Request, slug: str, path: str = Form(""),
+                      back: str = Form("")):
+        """Show the company's folder (or one file in it) in Finder."""
+        need_local(request)
+        _, folder = company_folder(slug)
+        try:
+            target = clientfiles.resolve(folder, path)
+        except ValueError:
+            raise HTTPException(status_code=404, detail="no such file") from None
+        clientfiles.run(clientfiles.reveal_command(target, app.state.folder_platform),
+                        runner=app.state.folder_runner)
+        return flashed(folder_back(slug, back), f"Shown in Finder: {target.name}",
+                       anchor="files")
+
+    @app.post("/companies/{slug}/folder/create")
+    def folder_create(request: Request, slug: str, back: str = Form("")):
+        """Make the company's folder under the root. Nothing is committed: the
+        folder is outside the data folder."""
+        company = need_company(slug, refresh=True)
+        back = folder_back(slug, back)
+        base = clientfiles.root(config)
+        problem = clientfiles.root_problem(base, root) if base is not None else (
+            "Client folders are off: set the folder in Settings > Your CRM first.")
+        if problem:
+            return flashed(back, problem, anchor="files")
+        if not base.is_dir():
+            return flashed(back, f"The client folders root {base} does not exist. Make it "
+                           "in Finder (or fix it in Settings), then try again.", anchor="files")
+        existed = clientfiles.find_folder(base, company) is not None
+        try:
+            made = clientfiles.create(base, company)
+        except (OSError, ValueError) as exc:
+            return flashed(back, f"The folder could not be made: {exc}", anchor="files")
+        return flashed(back, ("Folder already there: " if existed else "Folder created: ")
+                       + str(made), anchor="files")
+
+    @app.get("/companies/{slug}/folder/file")
+    def folder_file(slug: str, path: str = "", download: int = 0):
+        """One file from the client folder, for a device that cannot open it in
+        an app (a phone): served like an attachment."""
+        _, folder = company_folder(slug)
+        try:
+            target = clientfiles.resolve(folder, path)
+        except ValueError:
+            raise HTTPException(status_code=404, detail="no such file") from None
+        if not target.is_file():
+            raise HTTPException(status_code=404, detail="no such file")
+        return file_response(target, target.name, bool(download))
 
     @app.post("/companies/{slug}/interactions")
     async def interaction_create(
@@ -3780,6 +3914,7 @@ def create_app(root: Path, config: dict | None = None,
             "learning_form": {"distill": learning.mode(config),
                               "exemplars": exemplars.mode(config),
                               "lessons": learning.scope(config)},
+            "client_files": client_files_status(),
             "messaging_form": {
                 "size_field": str(config.get("messaging_size_field") or ""),
                 "team_field": str(config.get("messaging_team_field") or "")},
@@ -3835,6 +3970,13 @@ def create_app(root: Path, config: dict | None = None,
         ctx.update(inbox_context())
         ctx.update(extra)
         return ctx
+
+    def client_files_status() -> dict:
+        raw = str(config.get(clientfiles.CONFIG_KEY) or "")
+        base = clientfiles.root(config)
+        return {"raw": raw, "path": str(base or ""),
+                "exists": bool(base and base.is_dir()),
+                "problem": clientfiles.root_problem(base, root)}
 
     def playbook_status() -> dict:
         pb = playbook.load(root)
@@ -4079,6 +4221,15 @@ def create_app(root: Path, config: dict | None = None,
             return setup_invalid(request, result, "fields")
         fields_saved(result)
         return flashed("/settings", result.text(), anchor="fields")
+
+    @app.post("/settings/client-folders")
+    def settings_client_folders(request: Request, csrf_token: str = Form(""),
+                                client_files_root: str = Form("")):
+        check_csrf(csrf_token)
+        result = setup_steps.save_client_files_root(root, client_files_root)
+        if not result.ok:
+            return setup_invalid(request, result, "client-folders")
+        return setup_done(result, "client-folders")
 
     @app.post("/settings/messaging")
     def settings_messaging(request: Request, csrf_token: str = Form(""),

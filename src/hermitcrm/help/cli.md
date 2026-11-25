@@ -148,6 +148,9 @@ hermitcrm attach COMPANY FILE... [--contact CSLUG] [--to INTERACTION_ID] [--note
                                         or, with --to, on that interaction; writes and commits at once; at most
                                         attachment_max_mb each
 hermitcrm attachments [COMPANY]            every stored file: company | stored name | size | the note it came with
+hermitcrm folders [--create] [--stage STAGE ...] [--all]
+                                        each customer's client folder (won stages by default): found or
+                                        missing, with its path; --create makes the missing ones
 hermitcrm set companies|contacts|interactions --where KEY=VALUE ... [--all]
         [--set FIELD=VALUE ...] [--unset FIELD ...] [--add-tag T ...] [--remove-tag T ...]
         [--stage S [--keep-drafts]] [--apply] [--message TEXT]

@@ -131,6 +131,38 @@ def build_tools(root: Path, store) -> list[Tool]:
             raise ToolError("slug is required")
         return cmd_show(fresh(), slug, bodies=as_int(args.get("bodies"), "bodies", 3))
 
+    def folder_tool(args: dict) -> str:
+        from . import clientfiles
+        from .attachments import human_size
+
+        slug = str(args.get("slug", "")).strip()
+        if not slug:
+            raise ToolError("slug is required")
+        company = fresh().get(slug)
+        if company is None:
+            raise ToolError(f"unknown company: {slug}")
+        base = clientfiles.root(load_config(root))
+        if base is None:
+            return "Client folders are off (client_files_root is not set)."
+        problem = clientfiles.root_problem(base, root)
+        if problem:
+            return problem
+        found = clientfiles.find_folder(base, company)
+        if found is None:
+            return (f"{company.name} has no client folder yet. It would be "
+                    f"{clientfiles.expected_folder(base, company)}.")
+        listing = clientfiles.list_files(found)
+        lines = [f"folder: {found}", ""]
+        for f in listing.files:
+            when = f.modified.strftime("%Y-%m-%d %H:%M")
+            lines.append(f"{f.rel}/ | folder | {when}" if f.is_dir
+                         else f"{f.rel} | {human_size(f.size)} | {when}")
+        if not listing.files:
+            lines.append("(empty)")
+        if listing.truncated:
+            lines.append(f"... the newest {len(listing.files)} of {listing.total}")
+        return "\n".join(lines)
+
     def search_tool(args: dict) -> str:
         needle = str(args.get("query", "")).strip().lower()
         if not needle:
@@ -564,6 +596,12 @@ def build_tools(root: Path, store) -> list[Tool]:
                      "bodies": text("integer", "How many recent bodies to include "
                                                "(default 3).")},
                     ["slug"]), show_tool),
+        Tool("company_folder",
+             "The company's client folder on this computer (a normal folder outside "
+             "the CRM, named after the company): its absolute path and the files in "
+             "it, newest first. Read the files from that path. Read-only.",
+             schema({"slug": text(description="The company's slug.")}, ["slug"]),
+             folder_tool),
         Tool("search_companies",
              "Find companies by name, slug, website, country, tag, one-liner or "
              "contact name. Use this to turn a name into a slug.",

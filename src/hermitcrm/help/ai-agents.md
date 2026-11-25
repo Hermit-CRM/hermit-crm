@@ -153,6 +153,7 @@ The tools, reads first:
 | `list_pipeline` | The whole pipeline as one page. Start here. |
 | `search_companies` | Turn a name into a slug. |
 | `show_company` | One account: fields, contacts, timeline, recent bodies. |
+| `company_folder` | The company's client folder on this computer: its path and the files in it, newest first (read-only; see [Client folders](/help/companies#client-folders)). |
 | `digest` | Interactions in the last N days. |
 | `report` | Activity, funnel, time in stage, outcomes, hygiene. |
 | `followups` | Threads you owe a reply, then ones you are waiting on. |

@@ -11,7 +11,7 @@
 {% set groups = [
   ('general', 'General', ['make-it-yours', 'you', 'enrichment', 'appearance', 'support', 'about']),
   ('mail', 'Email & calendar', ['bcc', 'send', 'calendar']),
-  ('crm', 'Your CRM', ['playbook', 'fields', 'messaging', 'task-types', 'stages', 'outcomes', 'calls']),
+  ('crm', 'Your CRM', ['playbook', 'fields', 'messaging', 'client-folders', 'task-types', 'stages', 'outcomes', 'calls']),
   ('backup', 'Data', ['backup', 'export']),
   ('advanced', 'Advanced', ['schedule', 'access', 'mcp', 'doctor']),
 ] %}
@@ -473,6 +473,25 @@
       <button type="submit">Save</button>
     </div>
   </form>
+</section>
+
+<section class="setup-step" id="client-folders">
+  <div class="setting-head"><h2>Client folders</h2>{% if client_files.raw %}{{ status(client_files.exists and not client_files.problem, 'on', 'folder missing') }}{% endif %}{{ how('/help/companies#client-folders') }}</div>
+  <p class="summary">One folder on this computer that holds a folder per company, named after it. The company and contact pages list what is in it and open files in their own apps. Hermit never copies, moves or commits these files.</p>
+  {{ step_errors('client-folders') }}
+  <form method="post" action="/settings/client-folders" class="record-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="row">
+      <label>Folder
+        <input type="text" name="client_files_root" value="{{ client_files.raw }}" placeholder="~/Clients" size="40">
+      </label>
+      <button type="submit">Save</button>
+    </div>
+  </form>
+  {% if client_files.problem %}<p class="small provider-note warning">{{ client_files.problem }}</p>
+  {% elif client_files.raw and not client_files.exists %}<p class="small provider-note warning"><code>{{ client_files.path }}</code> does not exist yet. Make it in Finder; Create folder on a company page then makes that company's folder in it.</p>
+  {% elif client_files.raw %}<p class="small">In use: <code>{{ client_files.path }}</code>. A company's folder is <code>{{ client_files.path }}/&lt;company name&gt;</code>; rename the folder too when you rename a company.</p>
+  {% else %}<p class="small">Off. Leave it empty to keep the pages as they are.</p>{% endif %}
 </section>
 
 <section class="setup-step" id="task-types">

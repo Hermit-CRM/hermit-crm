@@ -19,6 +19,15 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   interaction field named `call_outcome` or `call_type` now clashes with the
   built-in one: rename it in `fields.toml`. See [Interactions](/help/interactions#calls).
 
+- **Client folders: your files for a client, one click from Hermit.** Set one folder in
+  Settings > Your CRM > Client folders (for example `~/Clients`). Each company's folder is
+  `<that folder>/<company name>`; the company and contact pages list what is in it, newest
+  first, with the path to copy and **Show in Finder**, and a click opens a deck or a sheet in
+  its own app. **Create folder** makes a missing one; `hermitcrm folders --create` makes them
+  for every customer at once. The files stay where they are: nothing is uploaded, copied or
+  committed. An app or script in a folder is shown in Finder, never run. No data change. See
+  [Companies](/help/companies#client-folders).
+
 ## 1.2.0 (2026-11-25)
 
 - **A bare web address in Help is a link.** An address written as `<https://...>` showed with

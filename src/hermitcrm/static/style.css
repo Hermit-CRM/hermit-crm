@@ -1239,6 +1239,12 @@ ul.files .thumb { display: block; width: 44px; height: 44px; object-fit: cover; 
 #files ul.file-rows { list-style: none; margin: 0 0 8px; padding: 0; }
 #files ul.file-rows li { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
 #files ul.file-rows .thumb { width: 32px; height: 32px; }
+#files .client-folder { margin: 0 0 14px; }
+#files .client-folder h3, #files h3.attached-head { margin: 0 0 4px; font-size: 14px; }
+#files .folder-path code { word-break: break-all; }
+#files form.folder-reveal { display: inline; margin: 0; }
+#files form.folder-open { margin: 0; }
+#files ul.folder-rows button.linklike { text-align: left; }
 .drop-hint { position: fixed; inset: auto 16px 16px auto; z-index: 50; background: var(--accent); color: var(--surface); padding: 10px 14px; border-radius: 6px; font-size: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.25); pointer-events: none; }
 .drop-hint[hidden] { display: none; }
 /* The Files panel of an Outreach card: set off from the buttons above it. */
