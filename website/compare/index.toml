@@ -145,7 +145,7 @@ before you decide. Found a mistake? Message
 """
 
 [footer]
-text = "Hermit CRM · Apache License 2.0 · no warranty · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
+text = "Hermit CRM · Apache License 2.0 · no warranty · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos), [Compound GTM](https://compoundgtm.io/?utm_source=hermitcrm&utm_medium=referral){rel=noopener}"
 site_heading    = "Hermit CRM"
 features        = "Features"
 docs            = "Docs"

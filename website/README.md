@@ -21,6 +21,7 @@ rebuilds the page every time you save `content.toml`, `site/style.css` or the ap
 `tokens.css`; just reload the browser.
 
 Inside any text you can write `**bold**`, `` `code` `` and `[link text](https://...)`.
+Put `{rel=noopener}` straight after a link to give it that `rel`.
 
 After each build the script lists every `[TBC]` still on the page and warns about em
 dashes, exclamation marks and the banned marketing words from the brief.
@@ -178,6 +179,17 @@ Cloudflare Pages), including the generated `app-tokens.css`. It makes no request
 analytics, no cookies, no trackers. (The site's own numbers are public at
 `/stats/`, counted from nginx's logs on the server; see "Public stats".) Set `[page].site_url` first so
 link previews find the share image.
+
+### The GitHub star count
+
+The top bar shows GitHub's mark and the repository's star count ("★ 41"), and the
+home page has a "View on GitHub" button beside Download. The count is asked from
+the GitHub API (`repos/<owner>/<repo>`, `stargazers_count`) by `python3 build.py`,
+once per run, and written into the HTML: visitors' browsers never contact GitHub
+or a badge service. So the number is as fresh as the last build: run
+`python3 build.py` before `flyctl deploy`. When the API cannot be reached (offline,
+rate-limited) the build prints a warning and the bar says "GitHub" without a
+number; `HERMIT_SITE_OFFLINE=1 python3 build.py` skips the request on purpose.
 
 ### Publishing a build
 
