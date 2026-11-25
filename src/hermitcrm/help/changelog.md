@@ -8,6 +8,11 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **A bare web address in Help is a link.** An address written as `<https://...>` showed with
+  its angle brackets and could not be clicked, as with the Google app password page in
+  [Sending](/help/sending). Help, and the website's docs from the next release, now show it
+  as a link that opens in a new tab. No data change.
+
 - **A bookmark from before the bookmarklet could read pages is named when LinkedIn refuses.**
   Such a bookmark opens `/capture/new` and sends only the address, so the app asks LinkedIn
   logged out and gets HTTP 999, and the note on the new-contact form then sent you to the

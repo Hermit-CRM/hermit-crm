@@ -150,6 +150,9 @@ _TABLE_SEP = re.compile(r"^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$")
 _CODE_SPAN = re.compile(r"`([^`]+)`")
 _BOLD = re.compile(r"\*\*(.+?)\*\*")
 _LINK = re.compile(r"\[([^\]]+)\]\(([^)\s]+)\)")
+# An autolink, <https://example.com/x>, as it reads once escaped. Only http(s):
+# the address is the link text, without the angle brackets.
+_AUTOLINK = re.compile(r"&lt;(https?://[^\s<>]+?)&gt;")
 
 
 def _safe_href(url: str) -> str:
@@ -160,7 +163,8 @@ def _safe_href(url: str) -> str:
 
 
 def inline(text: str) -> str:
-    """Escape, then code spans, bold and links (code spans stay literal)."""
+    """Escape, then code spans, bold, links and <https://...> autolinks (code
+    spans stay literal)."""
     out = []
     for i, part in enumerate(_CODE_SPAN.split(text)):
         if i % 2:  # inside backticks
@@ -178,7 +182,11 @@ def inline(text: str) -> str:
             new_tab = ' target="_blank" rel="noopener"' if href.startswith(("http://", "https://")) else ""
             return f'<a href="{html.escape(href, quote=True)}"{new_tab}>{m.group(1)}</a>'
 
-        out.append(_LINK.sub(link, part))
+        def autolink(m: re.Match) -> str:
+            href = html.escape(html.unescape(m.group(1)), quote=True)
+            return f'<a href="{href}" target="_blank" rel="noopener">{m.group(1)}</a>'
+
+        out.append(_AUTOLINK.sub(autolink, _LINK.sub(link, part)))
     return "".join(out)
 
 
