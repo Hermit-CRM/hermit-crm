@@ -194,6 +194,6 @@ rename it. There is no warranty and no liability.
 
 ---
 
-Built by Gijs Bos. A personal project shared as it is, not a product and not a
+Built by Gijs Bos ([Compound GTM](https://compoundgtm.io/?utm_source=github&utm_medium=referral)). A personal project shared as it is, not a product and not a
 service. If it is useful to you,
 [a star on GitHub](https://github.com/Hermit-CRM/hermit-crm) helps others find it.

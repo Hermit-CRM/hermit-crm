@@ -52,7 +52,8 @@ features_label = "Features"   # top right, links to /features/
 docs_label     = "Docs"       # links to /docs/
 compare_label  = "Compare"    # links to /compare/
 about_label    = "About"      # links to /about/
-github_label   = "GitHub"
+github_label   = "GitHub"     # shown beside GitHub's mark when the build could not get the star count
+github_aria    = "Hermit CRM on GitHub"   # what screen readers say for both GitHub links
 
 
 # ── First screen ─────────────────────────────────────────────────────
@@ -65,6 +66,7 @@ plain text files on your laptop. Write your own outreach or let your AI draft
 it, and ask it to reshape Hermit CRM to fit how you work.
 """
 download_button = "Download for Mac and Linux"
+github_button   = "View on GitHub"   # the outline button beside it; empty hides it
 sha256_label    = "SHA-256"
 # Under the download button; the closing button repeats the short one.
 needs_tool = "Use your AI coding tool to install it: Claude Code, Codex, Cursor, Gemini CLI, Grok Build or another."
@@ -393,7 +395,7 @@ text  = "Free and open source. Your data stays in a folder on your computer."
 [footer]
 # {github} is replaced by a link to [links].github labelled with
 # [header].github_label, {sha256} by a link to [links].sha256.
-text = "Hermit CRM · Apache License 2.0 · no warranty · {github} · {sha256} · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos)"
+text = "Hermit CRM · Apache License 2.0 · no warranty · {github} · {sha256} · Built by [Gijs Bos](https://www.linkedin.com/in/gijsbos), [Compound GTM](https://compoundgtm.io/?utm_source=hermitcrm&utm_medium=referral){rel=noopener}"
 
 
 # ── Share image (og.png, 1200 x 630) ─────────────────────────────────

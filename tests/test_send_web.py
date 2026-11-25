@@ -65,7 +65,10 @@ def env(tmp_path):
     git(root, "add", "-A")
     git(root, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-qm", "setup")
     smtp, imap = FakeSmtp(), FakeImap()
-    app = create_app(root, {**load_config(root), "push_enabled": False})
+    # The demo folder is built on NOW, so the app must run on NOW too. On the
+    # real clock, Glasshouse Health's "requalify on" date (NOW + 30 days) passes
+    # and the first page view commits its requalify, whatever the test is about.
+    app = create_app(root, {**load_config(root), "push_enabled": False}, clock=lambda: NOW)
     app.state.setup_redirected = True
     app.state.send_smtp = smtp.factory
     app.state.send_imap = imap.factory
