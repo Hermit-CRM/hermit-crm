@@ -91,6 +91,22 @@ def test_render_opens_links_out_of_the_app_in_a_new_tab():
     assert '<a href="https://ko-fi.com/gijsbos" target="_blank" rel="noopener">out</a>' in html
 
 
+def test_render_turns_autolinks_into_links_without_the_brackets():
+    html = helpdocs.render("Make one (<https://example.com/app?a=1&b=2>).")
+    assert ('(<a href="https://example.com/app?a=1&amp;b=2" target="_blank" '
+            'rel="noopener">https://example.com/app?a=1&amp;b=2</a>).') in html
+    assert "&lt;" not in html
+    # Only http(s); anything else stays escaped text, and code spans stay literal.
+    assert "&lt;javascript:alert(1)&gt;" in helpdocs.render("<javascript:alert(1)>")
+    assert "<code>&lt;https://example.com&gt;</code>" in helpdocs.render("`<https://example.com>`")
+
+
+def test_sending_page_links_the_app_password_address():
+    html = helpdocs.render(helpdocs.read("sending") or "")
+    assert '<a href="https://myaccount.google.com/apppasswords"' in html
+    assert "&lt;https://" not in html
+
+
 def test_render_escapes_and_refuses_unsafe_links():
     html = helpdocs.render("[x](javascript:alert(1)) and `**not bold**` <script>")
     assert "javascript:" not in html or 'href="javascript' not in html
