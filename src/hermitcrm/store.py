@@ -162,6 +162,10 @@ DEFAULT_CONFIG = {
     # Largest file you can attach, in MB (1 to 90). A git host refuses a file over
     # 100 MB and history is never rewritten, so a mistake would stay in the folder.
     "attachment_max_mb": 25,
+    # Client folders (hermitcrm/clientfiles.py): one folder on this computer that
+    # holds a folder per company, `<root>/<company name>`, linked from the company
+    # and contact pages. Nothing in it is copied or committed. Empty means off.
+    "client_files_root": "",
     # BCC import (hermitcrm/bcc.py): mails BCC'd or forwarded to bcc_address.
     "bcc_address": "",
     "bcc_imap_host": "imap.gmail.com",

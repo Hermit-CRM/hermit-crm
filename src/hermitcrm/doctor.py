@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from . import (__version__, backup, bcc, guard, migrations, schedule, secrets, send, sendqueue,
+from . import (__version__, backup, bcc, clientfiles, guard, migrations, schedule, secrets, send, sendqueue,
                updates, usertheme)
 from . import setup as setup_steps
 from .attachments import human_size
@@ -248,6 +248,17 @@ def run_checks(root: Path, *, online: bool = False, env: dict | None = None,
     except Exception as exc:
         add("enrich cli", WARN, f"could not check: {exc}")
 
+    client_root = clientfiles.root(config)
+    if client_root is not None:
+        problem = clientfiles.root_problem(client_root, root)
+        if problem:
+            add("client folders", WARN, problem)
+        elif not client_root.is_dir():
+            add("client folders", WARN, f"{client_root} does not exist (client_files_root)")
+        else:
+            add("client folders", OK, f"{client_root}: "
+                f"{client_folder_count(root, client_root)} company folder(s) linked")
+
     theme = usertheme.status(root)
     if theme["active"]:
         problems = theme["problems"]
@@ -261,6 +272,19 @@ def run_checks(root: Path, *, online: bool = False, env: dict | None = None,
     result = updates.look(config, fetcher=update_fetcher, cache=update_cache, env=env)
     add("update", WARN if result.state == updates.NEWER else OK, result.sentence())
     return checks
+
+
+def client_folder_count(root: Path, client_root: Path) -> int:
+    """How many companies have a folder under the client folders root."""
+    from .store import Store
+
+    try:
+        store = Store(root)
+        store.load()
+    except Exception:
+        return 0
+    return sum(1 for c in store.companies.values()
+               if clientfiles.find_folder(client_root, c) is not None)
 
 
 def mac_sleep_minutes(runner, platform: str) -> int | None:

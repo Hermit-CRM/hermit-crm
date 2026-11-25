@@ -32,7 +32,7 @@ import tomllib
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from hermitcrm import __version__, attachments as attachments_mod, layout, migrations, stages, task_types
+from hermitcrm import __version__, attachments as attachments_mod, clientfiles, layout, migrations, stages, task_types
 from hermitcrm.datafolder import InitError, NotDataFolder, init_folder, resolve_data_dir
 from hermitcrm.enrich import EnrichError, Enricher
 from hermitcrm.gitops import GitOps
@@ -540,6 +540,13 @@ def cmd_show(store: Store, slug: str, bodies: int = 3, all_bodies: bool = False)
     for it in interactions:
         lines.append(_interaction_header(it, it.contact_label))
 
+    base = clientfiles.root(load_config(store.root))
+    if base is not None:
+        found = clientfiles.find_folder(base, company)
+        lines.append("")
+        lines.append(f"folder: {found}" if found is not None
+                     else f"folder: (none yet) {clientfiles.expected_folder(base, company)}")
+
     n_bodies = len(interactions) if all_bodies else min(bodies, len(interactions))
     if n_bodies > 0:
         for it in interactions[:n_bodies]:
@@ -683,6 +690,68 @@ def cmd_attachments(store: Store, slug: str = "") -> tuple[str, int]:
                          f"{attachments_mod.human_size(att.size)} | {it.id}")
     return ("\n".join(lines) or
             "No attachments yet. Add one with: hermitcrm attach <company> <file>"), 0
+
+
+# ------------------------------------------------------------ client folders
+
+
+def cmd_folders(store: Store, config: dict, create: bool = False,
+                stage_names: list[str] | None = None, every: bool = False) -> tuple[str, int]:
+    """Each company's client folder: found or missing, and where. A dry run unless
+    `create`, which makes the missing ones. By default only companies in a won
+    stage (your customers); `stage_names` picks stages, `every` takes them all."""
+    base = clientfiles.root(config)
+    if base is None:
+        return ("Client folders are off. Set client_files_root in config.toml (or "
+                "Settings > Your CRM > Client folders) to a folder on this computer."), 1
+    problem = clientfiles.root_problem(base, store.root)
+    if problem:
+        return problem, 1
+    if not base.is_dir():
+        return (f"{base} does not exist. Make it first (mkdir -p \"{base}\"), then run "
+                "this again."), 1
+    if every:
+        wanted, scope = None, "every company"
+    else:
+        wanted = []
+        for name in stage_names or []:
+            known = store.stages.resolve(name)
+            if known not in store.stages:
+                return f"unknown stage: {name} (hermitcrm stages lists them)", 1
+            wanted.append(known)
+        if not wanted:
+            wanted = store.stages.with_role("won")
+        scope = "stage " + ", ".join(wanted) if wanted else "no won stage"
+    lines, made, missing = [], 0, 0
+    for company in sorted(store.companies.values(), key=lambda c: c.name.lower()):
+        if wanted is not None and company.stage not in wanted:
+            continue
+        found = clientfiles.find_folder(base, company)
+        if found is not None:
+            lines.append(f"found    {company.slug} | {found}")
+            continue
+        target = clientfiles.expected_folder(base, company)
+        if create:
+            try:
+                clientfiles.create(base, company)
+            except (OSError, ValueError) as exc:
+                lines.append(f"failed   {company.slug} | {target}: {exc}")
+                continue
+            made += 1
+            lines.append(f"created  {company.slug} | {target}")
+        else:
+            missing += 1
+            lines.append(f"missing  {company.slug} | {target}")
+    if not lines:
+        return f"No companies in {scope}.", 0
+    if create:
+        lines.append(f"\n{made} folder(s) created in {base} ({scope}).")
+    elif missing:
+        lines.append(f"\n{missing} missing ({scope}). Nothing was made: add --create "
+                     "to make them.")
+    else:
+        lines.append(f"\nEvery folder is there ({scope}).")
+    return "\n".join(lines), 0
 
 
 # --------------------------------------------------------------------- undo
@@ -1546,6 +1615,14 @@ def _build_parser() -> argparse.ArgumentParser:
     p_attach.add_argument("--note", default="", help="the text of the new note")
     p_files = sub.add_parser("attachments", help="every stored file, one line each")
     p_files.add_argument("company", nargs="?", default="")
+
+    p_folders = sub.add_parser("folders", help="each customer's client folder (found or "
+                               "missing); a dry run unless --create")
+    p_folders.add_argument("--create", action="store_true", help="make the missing folders")
+    p_folders.add_argument("--stage", action="append", default=[], metavar="STAGE",
+                           help="these stages instead of the won ones (repeatable)")
+    p_folders.add_argument("--all", action="store_true", dest="every",
+                           help="every company, whatever its stage")
 
     sub.add_parser("rebuild", help="rebuild the index and PIPELINE.md")
     sub.add_parser("check", help="validate every file")
@@ -2449,6 +2526,12 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
     if args.command == "attachments":
         text, code = cmd_attachments(store, args.company)
         print(text)
+        return code
+
+    if args.command == "folders":
+        text, code = cmd_folders(store, load_config(root), create=args.create,
+                                 stage_names=args.stage, every=args.every)
+        print(text, file=sys.stderr if code else sys.stdout)
         return code
 
     if args.command == "show":
