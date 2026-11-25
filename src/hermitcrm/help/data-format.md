@@ -161,7 +161,11 @@ framework is removed later), `approach` (optional,
 omitted when empty: the playbook approach the message was for), `lead_rule` (optional,
 omitted when empty: the research rule whose gap led the message, such as `r08`; lower
 case letters, digits, hyphens and underscores; it is the item's when logging marks an
-outreach item sent), `outcome` (one line; see the configured outcomes), `result` (legacy: success,
+outreach item sent), `outcome` (one line; see the configured outcomes), `call_outcome` and
+`call_type` (optional, omitted when empty, an outbound call only: what happened on the
+line and what the call was for, each one of `call_outcomes` / `call_types` in
+`config.toml`, stored as the configured name; a name removed from the list later stays
+on the call that has it; migration 26 trims a hand-written one), `result` (legacy: success,
 unsuccessful or empty), `source` (manual, bcc-import, calendar-import, migration, outreach),
 `message_id` (imports, and email Hermit CRM sent itself: the mail's Message-ID, or
 `ical:<UID>:<RECURRENCE-ID>:<attendee>` for a meeting), `attachments` (optional,

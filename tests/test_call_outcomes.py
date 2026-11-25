@@ -346,3 +346,14 @@ def test_interactions_have_migration_26():
     assert migrations.LATEST == 26
     assert steps[26].glob == "companies/*/interactions/*.md"
     assert steps[26].title == "interactions may record a call outcome and a call type"
+
+
+# ------------------------------------------------------------ Task 7: help
+
+def test_help_describes_every_default_call_name(web):
+    app, client, _ = web
+    page = client.get("/help/interactions").text
+    assert 'id="calls"' in page
+    for name in (*models.DEFAULT_CALL_OUTCOMES, *models.DEFAULT_CALL_TYPES):
+        assert f"<strong>{name}</strong>" in page, name
+    assert "<strong>out</strong> (outbound)" in page and "<strong>in</strong> (inbound)" in page

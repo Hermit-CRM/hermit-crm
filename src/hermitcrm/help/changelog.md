@@ -6,6 +6,19 @@ To upgrade, press **Upgrade** in the notice (the sidebar, or Settings > About): 
 
 Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups and undo](/help/backups)
 
+## Unreleased
+
+- **Outbound calls record a call outcome and a call type.** Log a call with
+  direction out and the form asks what happened on the line (connected,
+  conversation, message to other human, voicemail message, no answer, busy,
+  rejected by automated call screening, wrong number) and what the call was for
+  (prospecting or pipeline development). You can change both lists under
+  **Settings > Calls**. Both show on the timeline and can be set with
+  `--call-outcome` and `--call-type`. Your folder is migrated to format 26
+  (nothing changes in your files unless they already had these keys). A custom
+  interaction field named `call_outcome` or `call_type` now clashes with the
+  built-in one: rename it in `fields.toml`. See [Interactions](/help/interactions#calls).
+
 ## 1.2.0 (2026-11-25)
 
 - **A bare web address in Help is a link.** An address written as `<https://...>` showed with

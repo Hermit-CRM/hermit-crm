@@ -20,7 +20,8 @@ the contact (the "log interaction" links on the Calendar open it). Fields:
 channel (a dropdown: `email`, `linkedin`, `call`, `whatsapp`, `meeting`,
 `note`, default linkedin),
 direction (`out` or `in`, default out; hidden for a note), date and time
-(default now, editable), subject, outcome and the body.
+(default now, editable), subject, outcome, call outcome and call type (an
+outbound call only, see [Calls](/help/interactions#calls)) and the body.
 The body is the pasted message or the call notes; it is stored byte for byte
 and never rewritten.
 
@@ -81,6 +82,52 @@ configured outcome; otherwise, once the message is older than
 `message_window_days` (default 14), it counts as the **last** one; until then
 it is unknown. Files from before format 3 carried a separate `result` key;
 migration 3 folded it into `outcome`.
+
+## Calls
+
+A call is logged like any interaction, with channel `call`. Its **direction**
+says who rang: **out** (outbound) when you called them, **in** (inbound) when they
+called you.
+
+An **outbound** call has two more fields, which the form shows only when the
+channel is `call` and the direction is `out`. Both are optional. You can change
+both lists in [Settings](/settings#calls). These are the defaults:
+
+**Call outcome**: what happened on the line.
+
+- **connected**: you reached the person you called, but there was no real
+  conversation: it was a bad time, they asked you to call back, or they hung up.
+- **conversation**: you reached the person and talked with them about why you
+  called.
+- **message to other human**: someone else answered (a colleague, an assistant,
+  reception) and you left a message with them.
+- **voicemail message**: you left a message on their voicemail.
+- **no answer**: it rang out and you left no message.
+- **busy**: the line was busy, or the call dropped before it rang.
+- **rejected by automated call screening**: an automated screen on their phone
+  answered, asked who you were, and did not put you through.
+- **wrong number**: the number does not belong to this person. Fix or remove it
+  on the contact.
+
+**Call type**: what the call was for.
+
+- **prospecting**: opening a conversation with someone who is not yet a real
+  opportunity in your pipeline.
+- **pipeline development**: moving an existing opportunity forward: a follow-up,
+  discovery, or agreeing next steps with an account already in your pipeline.
+
+The call outcome is separate from **outcome** above. Outcome is what came of an
+interaction and drives the Messages tab. Call outcome is only what happened on
+the line. A voicemail can still lead to a reply.
+
+In the file they are `call_outcome` and `call_type`, left out when empty, stored
+as the name from your list. In `config.toml` the lists are `call_outcomes` and
+`call_types`. Renaming or removing a name in Settings does not change calls
+already logged: they keep the old name, and their edit form still offers it.
+Changing a call's channel or direction so that it is no longer outbound clears
+both. From the command line:
+`hermitcrm add interaction COMPANY --channel call --direction out --call-outcome
+"voicemail message" --call-type prospecting`.
 
 ## Where interactions come from
 

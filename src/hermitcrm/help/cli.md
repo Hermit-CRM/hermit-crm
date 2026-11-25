@@ -139,8 +139,10 @@ hermitcrm add contact SLUG NAME [--title T] [--email E] [--phone P] [--role R] [
                                         --notes is logged as a note interaction on them
 hermitcrm add interaction SLUG --channel email|linkedin|call|whatsapp|meeting|note --direction in|out (not for a note)
                                         [--contact CSLUG] [--subject S] [--date D] [--body TEXT|-]
+                                        [--call-outcome NAME] [--call-type NAME]
                                         log an interaction; --body - reads it from stdin, and a prospect becomes engaged
-                                        (the first open stage moves to the next)
+                                        (the first open stage moves to the next); --call-outcome and --call-type are for
+                                        an outbound call only, one of call_outcomes / call_types in config.toml
 hermitcrm attach COMPANY FILE... [--contact CSLUG] [--to INTERACTION_ID] [--note TEXT]
                                         keep files on a new note (subject: the file names, or --note as its text)
                                         or, with --to, on that interaction; writes and commits at once; at most

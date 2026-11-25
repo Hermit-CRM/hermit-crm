@@ -306,7 +306,7 @@ press **Add interested**.
 The call outcomes (`call_outcomes`) and call types (`call_types`) an outbound
 call can record, one per line; an empty list and duplicates are refused.
 Renaming or removing a name does not change calls already logged: they keep
-the old name. What each default means is in [Interactions](/help/interactions).
+the old name. What each default means is in [Interactions](/help/interactions#calls).
 
 ## Schedule
 
