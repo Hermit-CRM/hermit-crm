@@ -252,3 +252,15 @@ def test_the_registry_entry_matches_the_package():
     assert package["version"] == __version__
     assert package["packageArguments"] == [{"type": "positional", "value": "mcp"}]
     assert len(entry["description"]) <= 100
+
+
+def test_add_interaction_tool_takes_call_outcome(tools, store):
+    text, failed = call(tools, "add_interaction", company="acme", channel="call",
+                        direction="out", contact="jane-roe", call_outcome="No answer",
+                        call_type="pipeline development")
+    assert not failed, text
+    it = store.get("acme").interactions[-1]
+    assert it.call_outcome == "no answer" and it.call_type == "pipeline development"
+    text, failed = call(tools, "add_interaction", company="acme", channel="call",
+                        direction="in", contact="jane-roe", call_outcome="busy")
+    assert failed and "only for an outbound call" in text
