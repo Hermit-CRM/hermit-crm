@@ -2,7 +2,7 @@
 
 > How every part of Hermit CRM works: pipeline, contacts, mail capture, reports, the CLI, the MCP server and how your AI agent can change it.
 
-For version 1.1.0, 2026-11-09. The same text as https://hermitcrm.io/docs/ and as `hermitcrm help <topic>` in the app.
+For version 1.2.0, 2026-11-25. The same text as https://hermitcrm.io/docs/ and as `hermitcrm help <topic>` in the app.
 
 ## Pipeline
 
@@ -846,7 +846,12 @@ and from the command line; both do the same steps and write the same files.
   whose message went unanswered a follow-up, everyone else a first touch), the
   **approach** (left on "the best fit for them" it picks the one this person fits
   best; pick one to use that approach and its default framework. An approach their
-  company does not fit is refused with the reason, and nothing is built), the
+  company does not fit is refused with the reason, and the panel then offers
+  **Generate anyway**: it builds the draft with a warning on its card, and you
+  decide whether it goes out. The same button appears when a refusal is only a
+  judgement (messaged recently, skipped recently, already messaged before, skipped
+  as bad-fit). Do-not-contact, the suppression list and disqualifier tags have no
+  button), the
   research level, the **signal** you read off LinkedIn insights, and a
   **language** for this card and its regenerates (the default is the contact's
   draft language, else the company's country's). Under the list of notes the draft
@@ -1053,7 +1058,7 @@ finds is saved as notes on the contact, sourced to the profile. The page text it
 
 ### Research
 
-Two levels, `outreach_research` in `config.toml` (default `scrape`), or the
+Three levels, `outreach_research` in `config.toml` (default `scrape`), or the
 **Research** select on the Outreach page and `--research` on the command line.
 
 **`scrape`** (free): the company website, its LinkedIn page and the person's
@@ -1079,6 +1084,18 @@ http(s) address, and it can be read again (LinkedIn is taken as listed); the res
 are dropped, never shown as fact. If the run fails, the scrape findings stand and
 the card says why.
 
+**`none`** (free, instant): no page is read and no AI is asked. The draft is
+written from the notes the contact and its company already have, such as a gap
+you researched yourself or a note you wrote. Use it when the research is already
+done. The card's research level is then empty, as on a reply. This matters most
+for an approach whose framework **needs a gap** (for example a value-added
+approach with a gap framework): research cannot find a gap, since only your own
+research rules produce one, so it only adds notes next to the one you have. In
+a contact's Generate panel, picking such an approach for a contact whose notes
+hold a fresh gap sets Research to `none` for you (change it back if you want the
+scrape). If no fresh gap is on file, the panel says so, because without one the
+draft falls back to the house framework.
+
 ### The draft and its checks
 
 A first touch opens with something about them (never "I"), says the offer in
@@ -1089,6 +1106,14 @@ link (`links = "allowed"`; a booking link is still refused). It is written in th
 otherwise the company's country's, with the culture norms of `[culture.<lang>]`
 in `messages.toml` (German first contact uses `du`); your playbook's Voice wins
 over them.
+
+A contact's **form of address** changes this. Give contacts a select field with the key
+`address_form` (options `du`, `Sie`, `je`; see [Fields](https://hermitcrm.io/docs/#adjust-fields)). For a German draft to a
+contact set to `Sie`, the formality, greeting and names norms switch to formal: the greeting
+is "Guten Tag Herr/Frau Surname," (Herr or Frau chosen from the first name; first and last
+name when the gender is not clear), and a hard check refuses a greeting by first name
+("Hallo Jana,"). The wording is `[address.de.sie]` in `messages.toml`. `du` and `je` are the
+defaults and change nothing; other languages keep their norms.
 
 The checks are rules, not AI: exactly one question, or what the framework allows
 (a LinkedIn connection note may ask none, and at most what the framework allows); not opening with I, Ich, Ik or Je; no calendar link or proposed
@@ -1188,11 +1213,11 @@ findings, check results, the critic's scores (`critic`, `critic_reason`,
 timestamps, the AI's original text and how much you changed it. The body is
 the message, byte for byte. `hermitcrm check` reports a file it cannot read.
 
-Settings in `config.toml`: `outreach_research` (`scrape` or `ai-web`), `outreach_cooldown_days`,
+Settings in `config.toml`: `outreach_research` (`scrape`, `ai-web` or `none`), `outreach_cooldown_days`,
 `outreach_fit_field`, `outreach_high_fit` (65: the preview counts high-fit
 companies never contacted), `outreach_batch_size` (10), `outreach_critic_threshold` (2; 0 = no critic).
-Channel rules and culture norms: `[outreach.<channel>]` and `[culture.<lang>]`
-in `messages.toml`, over the shipped defaults.
+Channel rules and culture norms: `[outreach.<channel>]`, `[culture.<lang>]` and
+`[address.<lang>.<form>]` in `messages.toml`, over the shipped defaults.
 
 Related: [Playbook](https://hermitcrm.io/docs/#playbook), [Messages](https://hermitcrm.io/docs/#messages), [Sending](https://hermitcrm.io/docs/#sending), [CLI](https://hermitcrm.io/docs/#cli)
 
@@ -1941,7 +1966,7 @@ whatever the plan gets. A model you type into the fields below is always used,
 whatever the account type.
 
 **Model** switches between the medium
-tier (default; Claude: Opus) and the strong tier (Claude: Fable) for Enrich
+tier (default; Claude: Sonnet) and the strong tier (Claude: Fable) for Enrich
 and [Ask the Hermit](https://hermitcrm.io/docs/#ask); `ai_tier` in `config.toml`. Answers and proposals
 made on the medium tier offer "Retry with" the strong model. The two model
 fields (`enrich_model`, `enrich_model_strong`) override the provider defaults; a
@@ -2413,7 +2438,7 @@ Two tiers per provider. Medium is the default; switch it under Settings → AI.
 
 | provider | medium | strong |
 |---|---|---|
-| claude | `claude-opus-5` (Opus) | `claude-fable-5-1` (Fable) |
+| claude | `claude-sonnet-5-5` (Sonnet) | `claude-fable-5-1` (Fable) |
 | codex | `gpt-5-mini` | `gpt-5` |
 | gemini | `gemini-2.5-flash` | `gemini-2.5-pro` |
 | grok | `grok-4-fast` | `grok-4` |
@@ -2422,11 +2447,10 @@ Override either with `enrich_model` / `enrich_model_strong` in `config.toml`
 (or the Settings fields) when your CLI names a model differently. Only the
 claude IDs are verified. Fable needs Claude Code 2.1.251 or newer.
 
-Ask the Hermit has its own default: for claude it answers on Sonnet
-(`claude-sonnet-5-5`), which is plenty for reading a page or the CRM and cheaper
-than Opus. The other providers' medium models are already their mid-size ones, so
-Ask uses those. If you set `enrich_model` yourself, Ask follows it; "Retry" still
-uses the strong model.
+Ask the Hermit has its own default, which for claude is the same Sonnet
+(`claude-sonnet-5-5`) as the medium tier: plenty for reading a page or the CRM. The
+other providers' medium models are already their mid-size ones, so Ask uses those. If you
+set `enrich_model` yourself, Ask follows it; "Retry" still uses the strong model.
 
 A third, **light** tier is used only by the outreach bot's scrape research and
 critic, which read and score rather than write. For claude it is
@@ -2523,11 +2547,14 @@ hermitcrm playbook upgrade [--dry-run]     add the front matter and missing head
                                         keeping every line; one commit, and a second run changes nothing
 hermitcrm outreach preview [--where K=V ...] [--contact CO/PERSON] [--channel email|linkedin]
                          [--limit N] [--approach NAME] [--kind first-touch|reply-to-interest|follow-up]
-                         [--include-closed CO/PERSON ...]
+                         [--include-closed CO/PERSON ...] [--override]
                                         who an outreach batch would go to, and why not the rest; no AI,
                                         nothing written. People at a closed, parked, won or lost company
                                         are listed apart with the flag that brings one in
-                                        (--include-closed); one --contact is drafted anyway, with a warning
+                                        (--include-closed); one --contact is drafted anyway, with a warning;
+                                        --override (exactly one --contact) also lifts a judgement refusal
+                                        (the approach's ideal customer, cooldowns), with a warning; a
+                                        refusal it can lift says so in the preview
 hermitcrm outreach build (same flags) [--research scrape] [--strong] [--framework ID]
                                         research, draft and check each contact: one item per contact in
                                         outreach/, one commit per step; refused until the playbook is ready;
