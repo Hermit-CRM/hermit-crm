@@ -952,7 +952,9 @@ def create_app(root: Path, config: dict | None = None,
                   on_write=on_write, outcomes=outcomes, clock=clock,
                   task_types=task_types.names(configured_types),
                   stages=stages_mod.from_config(config.get("stages")),
-                  stage_rules=stages_mod.rules_mode(config.get("stage_rules")))
+                  stage_rules=stages_mod.rules_mode(config.get("stage_rules")),
+                  call_outcomes=config.get("call_outcomes"),
+                  call_types=config.get("call_types"))
     store.load()
 
     def load_custom_fields() -> list:

@@ -70,6 +70,8 @@ from .models import (
     dump_frontmatter,
     interaction_from_dict,
     interaction_to_frontmatter,
+    is_outbound_call,
+    match_choice,
     normalise_country,
     normalise_email,
     normalise_framework,
@@ -380,6 +382,8 @@ class Store:
         task_types: list[str] | None = None,
         stages: StageSet | None = None,
         stage_rules: str = "off",
+        call_outcomes: list[str] | None = None,
+        call_types: list[str] | None = None,
     ):
         self.root = Path(root)
         self.companies_dir = self.root / "companies"
@@ -388,6 +392,10 @@ class Store:
         self.silent_days = silent_days
         # Allowed interaction outcomes (config `outcomes`); "" is always allowed.
         self.outcomes = [str(o) for o in (outcomes or DEFAULT_OUTCOMES)]
+        # Allowed call outcomes and call types of an outbound call (config
+        # `call_outcomes` / `call_types`); "" is always allowed.
+        self.call_outcomes = [str(o) for o in (call_outcomes or DEFAULT_CALL_OUTCOMES)]
+        self.call_types = [str(t) for t in (call_types or DEFAULT_CALL_TYPES)]
         # Allowed task types (config task_types, by name); "" is always allowed.
         self.task_types = [str(t) for t in (task_types or [])]
         # The configured deal stages (config `stages`); the defaults without.
@@ -877,6 +885,30 @@ class Store:
                             f"(allowed: {', '.join(self.outcomes)})"}
             )
         return value
+
+    def _coerce_call_fields(self, channel: str, direction: str, call_outcome, call_type,
+                            current_outcome: str = "", current_type: str = "",
+                            ) -> tuple[str, str]:
+        """(call_outcome, call_type), each in its configured spelling. Only an
+        outbound call has them: elsewhere a new value is refused and one carried
+        over from before the channel or direction changed is cleared. A value
+        no longer in Settings stays on the call that has it."""
+        outbound = is_outbound_call(channel, direction)
+        result = []
+        for key, label, value, current, choices in (
+                ("call_outcome", "call outcome", call_outcome, current_outcome,
+                 self.call_outcomes),
+                ("call_type", "call type", call_type, current_type, self.call_types)):
+            value = match_choice(value, choices)
+            if not outbound:
+                if value and value != current:
+                    raise ValidationError({key: f"a {label} is only for an outbound call"})
+                value = ""
+            elif value and value != current and value not in choices:
+                raise ValidationError(
+                    {key: f"unknown {label} {value!r} (allowed: {', '.join(choices)})"})
+            result.append(value)
+        return result[0], result[1]
 
     def _coerce_type(self, value, current: str = "", key: str = "type") -> str:
         """Empty, one of the configured task types, or unchanged (a type deleted
@@ -1757,6 +1789,7 @@ class Store:
                            contact="", date=None, outcome="", body="",
                            source="manual", message_id="", custom=None,
                            approach="", framework="", lead_rule="",
+                           call_outcome="", call_type="",
                            attachments: Sequence[Incoming | Attachment] = ()) -> Interaction:
         company = self._current(company_slug)
         if company is None:
@@ -1771,6 +1804,8 @@ class Store:
                 {"contact": f"unknown contact {contact!r} for {company_slug!r}"}
             )
         when = self._coerce_datetime(date, "date") or self.now()
+        call_outcome, call_type = self._coerce_call_fields(channel, direction,
+                                                           call_outcome, call_type)
         it = Interaction(
             id="",
             date=when,
@@ -1782,6 +1817,8 @@ class Store:
             approach=(approach or "").strip(),
             lead_rule=self._coerce_rule(lead_rule),
             outcome=self._coerce_outcome(outcome),
+            call_outcome=call_outcome,
+            call_type=call_type,
             source=self._coerce_enum(source, InteractionSource, "source", False),
             message_id=(message_id or "").strip(),
             body=normalise_body(body),
@@ -1881,6 +1918,11 @@ class Store:
             new.lead_rule = self._coerce_rule(fields["lead_rule"], old.lead_rule)
         if "outcome" in fields:
             new.outcome = self._coerce_outcome(fields["outcome"], old.outcome)
+        new.call_outcome, new.call_type = self._coerce_call_fields(
+            new.channel, new.direction,
+            fields.get("call_outcome", old.call_outcome),
+            fields.get("call_type", old.call_type),
+            old.call_outcome, old.call_type)
         if "body" in fields:
             new.body = normalise_body(fields["body"])
 

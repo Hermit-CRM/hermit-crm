@@ -68,7 +68,9 @@ def build_store(root: Path) -> Store:
     store = Store(root, silent_days=config["silent_days"], outcomes=config["outcomes"],
                   task_types=task_types.names(task_types.from_config(config.get("task_types"))),
                   stages=stages.from_config(config.get("stages")),
-                  stage_rules=stages.rules_mode(config.get("stage_rules")))
+                  stage_rules=stages.rules_mode(config.get("stage_rules")),
+                  call_outcomes=config.get("call_outcomes"),
+                  call_types=config.get("call_types"))
     store.load()
     return store
 
