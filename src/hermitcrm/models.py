@@ -93,6 +93,33 @@ class TaskStatus(str, Enum):
 INTERESTED = "interested"
 DEFAULT_OUTCOMES = ("successful", INTERESTED, "unsuccessful")
 
+# What happened on the line of an outbound call, and what the call was for,
+# when config.toml sets no `call_outcomes` / `call_types`. Stored verbatim as
+# the configured name; both apply only to channel call, direction out.
+DEFAULT_CALL_OUTCOMES = (
+    "connected", "conversation", "message to other human", "voicemail message",
+    "no answer", "busy", "rejected by automated call screening", "wrong number")
+DEFAULT_CALL_TYPES = ("prospecting", "pipeline development")
+
+
+def is_outbound_call(channel: str, direction: str) -> bool:
+    """The only interactions that carry a call outcome and a call type."""
+    return (channel or "") == "call" and (direction or "") == "out"
+
+
+def match_choice(value, choices) -> str:
+    """The configured spelling of `value` in `choices`, matched case-insensitively
+    with whitespace trimmed and inner runs collapsed. "" for empty or None; an
+    unknown value comes back trimmed and collapsed, never lost."""
+    text = " ".join(str(value or "").split())
+    if not text:
+        return ""
+    folded = text.casefold()
+    for choice in choices or ():
+        if " ".join(str(choice).split()).casefold() == folded:
+            return choice
+    return text
+
 
 def with_interested(outcomes) -> list[str] | None:
     """`outcomes` with `interested` added just before the last one, or None
@@ -421,6 +448,8 @@ class Interaction:
     body: str = ""
     extra: dict = field(default_factory=dict)  # unknown front-matter keys, round-tripped
     lead_rule: str = ""  # the research rule whose gap led the message (`r08`), or ""
+    call_outcome: str = ""  # outbound call only: one of config call_outcomes, or ""
+    call_type: str = ""  # outbound call only: one of config call_types, or ""
 
     @property
     def is_note(self) -> bool:
@@ -995,6 +1024,10 @@ def interaction_to_frontmatter(i: Interaction) -> dict:
     if i.lead_rule:
         meta["lead_rule"] = i.lead_rule
     meta["outcome"] = i.outcome
+    if i.call_outcome:
+        meta["call_outcome"] = i.call_outcome
+    if i.call_type:
+        meta["call_type"] = i.call_type
     meta["source"] = i.source
     if i.message_id:  # only BCC imports carry one
         meta["message_id"] = i.message_id
@@ -1018,7 +1051,8 @@ CONTACT_KEYS = frozenset({
 })
 INTERACTION_KEYS = frozenset({
     "date", "channel", "direction", "contact", "subject", "framework", "approach",
-    "lead_rule", "outcome", "source", "message_id", "attachments",
+    "lead_rule", "outcome", "call_outcome", "call_type", "source", "message_id",
+    "attachments",
 })
 
 
@@ -1206,6 +1240,8 @@ def interaction_from_dict(meta: dict, body: str, id: str) -> Interaction:
         approach=_str(meta, "approach").strip(),
         lead_rule=normalise_rule(_str(meta, "lead_rule")),
         outcome=_str(meta, "outcome").strip(),
+        call_outcome=" ".join(_str(meta, "call_outcome").split()),
+        call_type=" ".join(_str(meta, "call_type").split()),
         source=_enum(_str(meta, "source"), InteractionSource, "source", True, errors,
                      "manual"),
         message_id=_str(meta, "message_id").strip(),

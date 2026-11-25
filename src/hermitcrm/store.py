@@ -51,6 +51,8 @@ from .models import (
     Company,
     Contact,
     Country,
+    DEFAULT_CALL_OUTCOMES,
+    DEFAULT_CALL_TYPES,
     DEFAULT_OUTCOMES,
     Direction,
     Interaction,
@@ -157,6 +159,10 @@ DEFAULT_CONFIG = {
     # The first is what a detected reply counts as, the last what silence past
     # message_window_days counts as; empty outcome means "not yet known".
     "outcomes": list(DEFAULT_OUTCOMES),
+    # Choices for an outbound call (channel call, direction out): what happened
+    # on the line, and what the call was for. Both optional on the call.
+    "call_outcomes": list(DEFAULT_CALL_OUTCOMES),
+    "call_types": list(DEFAULT_CALL_TYPES),
     # Seconds to wait when the free "Fetch from URL" enrichment reads a page.
     "fetch_timeout": 10,
     # Largest file you can attach, in MB (1 to 90). A git host refuses a file over
@@ -304,7 +310,8 @@ CONTACT_MERGE_FIELDS = tuple(
     f for f in CONTACT_COPY_FIELDS if f not in ("slug", "created", "updated", "tasks"))
 INTERACTION_COPY_FIELDS = (
     "id", "date", "channel", "direction", "contact", "subject", "framework",
-    "approach", "lead_rule", "outcome", "source", "message_id", "attachments", "body",
+    "approach", "lead_rule", "outcome", "call_outcome", "call_type", "source",
+    "message_id", "attachments", "body",
 )
 
 

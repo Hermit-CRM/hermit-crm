@@ -100,6 +100,8 @@ CONFIG_DOCS = {
     "fetch_timeout": "Seconds to wait when Fetch from URL reads a page.",
     "attachment_max_mb": "Largest file you can attach, in MB (1 to 90). History is never rewritten, so a big file stays in the folder.",
     "outcomes": "Outcome choices for an interaction; first = what a reply counts as, last = what silence counts as.",
+    "call_outcomes": "Call outcome choices for an outbound call: what happened on the line.",
+    "call_types": "Call type choices for an outbound call: what the call was for.",
     "bcc_address": "Address you BCC or forward mail to, e.g. you+crm@gmail.com; empty disables BCC import.",
     "bcc_imap_host": "IMAP server of that mailbox.",
     "bcc_keychain_service": "Keychain (macOS) or Secret Service (Linux) service holding the app password (account = IMAP user).",
