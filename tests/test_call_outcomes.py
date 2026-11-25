@@ -357,3 +357,60 @@ def test_help_describes_every_default_call_name(web):
     for name in (*models.DEFAULT_CALL_OUTCOMES, *models.DEFAULT_CALL_TYPES):
         assert f"<strong>{name}</strong>" in page, name
     assert "<strong>out</strong> (outbound)" in page and "<strong>in</strong> (inbound)" in page
+
+
+# ------------------------------------------------------------ final review fixes
+
+def _hand_write(store, it, **keys):
+    """Put keys in an interaction's file as a person or an agent might, and reload."""
+    path = store.root / "companies/acme/interactions" / f"{it.id}.md"
+    text = path.read_text()
+    extra = "".join(f"{k}: {v}\n" for k, v in keys.items())
+    path.write_text(text.replace("source: manual\n", extra + "source: manual\n", 1))
+    store.load()
+
+
+def test_an_unrelated_edit_leaves_a_hand_written_call_value_as_it_is(seeded):
+    it = _call(seeded, body="Rang\n")
+    _hand_write(seeded, it, call_outcome="No Answer")
+    new = seeded.update_interaction("acme", it.id, subject="Again")
+    assert new.call_outcome == "No Answer"
+    assert _meta(seeded, new)["call_outcome"] == "No Answer"
+
+
+def test_an_edit_of_an_email_keeps_a_call_type_written_by_hand(seeded):
+    it = seeded.create_interaction("acme", "email", "out", contact="jane-doe", body="Hi\n")
+    _hand_write(seeded, it, call_type="cold")
+    new = seeded.update_interaction("acme", it.id, outcome="successful")
+    assert new.call_type == "cold" and _meta(seeded, new)["call_type"] == "cold"
+    # the edit form sends the hidden select back; it still is not wiped or refused
+    new = seeded.update_interaction("acme", it.id, subject="x", call_outcome="",
+                                    call_type="")
+    assert new.call_type == "cold"
+    with pytest.raises(ValidationError, match="only for an outbound call"):
+        seeded.update_interaction("acme", it.id, call_type="prospecting")
+
+
+def test_a_bulk_change_is_not_refused_over_a_hand_written_call_value(tmp_path, capsys):
+    from hermitcrm import cli as crm
+    root = datafolder.init_folder(tmp_path / "crm")
+    s = Store(root)
+    s.load()
+    s.create_company("Acme GmbH", country="DE")
+    s.create_contact("acme", "Jane", "Doe")
+    call = _call(s, body="Rang\n")
+    mail = s.create_interaction("acme", "email", "out", contact="jane-doe", body="Hi\n")
+    _hand_write(s, call, call_outcome="No Answer")
+    _hand_write(s, mail, call_type="cold")
+    assert crm.main(["set", "interactions", "--all", "--set", "subject=hello", "--apply"],
+                    root=root) == 0, capsys.readouterr()
+    s.load()
+    got = {i.channel: i for i in s.get("acme").interactions}
+    assert got["call"].subject == "hello" and got["call"].call_outcome == "No Answer"
+    assert got["email"].subject == "hello" and got["email"].call_type == "cold"
+
+
+@pytest.mark.parametrize("value", [["cold", "warm"], True, 3])
+def test_the_call_fields_migration_leaves_a_value_that_is_not_text_alone(value):
+    meta = {**BASE_META, "call_type": value}
+    assert migrations.m26_call_fields(meta) is meta

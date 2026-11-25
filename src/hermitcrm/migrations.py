@@ -589,8 +589,9 @@ def m26_call_fields(meta: dict) -> dict:
     changed = False
     out = {}
     for key, value in meta.items():
-        if key in ("call_outcome", "call_type"):
-            if value is None or not str(value).strip():
+        if key in ("call_outcome", "call_type") and (value is None or isinstance(value, str)):
+            # Text only: a list, number or date (a clashing custom field) stays as it is.
+            if value is None or not value.strip():
                 changed = True
                 continue
             clean = " ".join(str(value).split())

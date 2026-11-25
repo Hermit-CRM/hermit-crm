@@ -910,6 +910,38 @@ class Store:
             result.append(value)
         return result[0], result[1]
 
+    def _update_call_fields(self, old: Interaction, new: Interaction, fields: dict) -> None:
+        """Set new.call_outcome / new.call_type for an edit. A value is only
+        looked at when the edit gives it or the call stops being outbound; one
+        the edit leaves alone stays byte for byte, so a hand-written spelling
+        never blocks an unrelated change. On anything that was not and is not
+        an outbound call the keys are not the form's to change: what the file
+        holds stays, and only a new non-empty value is refused."""
+        was_out = is_outbound_call(old.channel, old.direction)
+        now_out = is_outbound_call(new.channel, new.direction)
+        if now_out:
+            if "call_outcome" not in fields and "call_type" not in fields:
+                return
+            new.call_outcome, new.call_type = self._coerce_call_fields(
+                new.channel, new.direction,
+                fields.get("call_outcome", old.call_outcome),
+                fields.get("call_type", old.call_type), old.call_outcome, old.call_type)
+            # The one the edit did not give stays as the file had it.
+            if "call_outcome" not in fields:
+                new.call_outcome = old.call_outcome
+            if "call_type" not in fields:
+                new.call_type = old.call_type
+            return
+        # Not outbound now: refuse a new value, clear one carried over from an
+        # outbound call, keep one on a record that never was one.
+        self._coerce_call_fields(new.channel, new.direction,
+                                 fields.get("call_outcome", ""), fields.get("call_type", ""),
+                                 old.call_outcome, old.call_type)
+        if was_out:
+            new.call_outcome = new.call_type = ""
+        else:
+            new.call_outcome, new.call_type = old.call_outcome, old.call_type
+
     def _coerce_type(self, value, current: str = "", key: str = "type") -> str:
         """Empty, one of the configured task types, or unchanged (a type deleted
         in Settings stays on the to-dos that have it)."""
@@ -1918,11 +1950,7 @@ class Store:
             new.lead_rule = self._coerce_rule(fields["lead_rule"], old.lead_rule)
         if "outcome" in fields:
             new.outcome = self._coerce_outcome(fields["outcome"], old.outcome)
-        new.call_outcome, new.call_type = self._coerce_call_fields(
-            new.channel, new.direction,
-            fields.get("call_outcome", old.call_outcome),
-            fields.get("call_type", old.call_type),
-            old.call_outcome, old.call_type)
+        self._update_call_fields(old, new, fields)
         if "body" in fields:
             new.body = normalise_body(fields["body"])
 
