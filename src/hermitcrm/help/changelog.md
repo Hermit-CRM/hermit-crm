@@ -6,7 +6,7 @@ To upgrade, press **Upgrade** in the notice (the sidebar, or Settings > About): 
 
 Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups and undo](/help/backups)
 
-## Unreleased
+## 1.2.0 (2026-11-25)
 
 - **A bare web address in Help is a link.** An address written as `<https://...>` showed with
   its angle brackets and could not be clicked, as with the Google app password page in
