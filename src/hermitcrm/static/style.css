@@ -288,6 +288,8 @@ fieldset.form-group[hidden], .form-grid > label[hidden] { display: none; }
 .radios input { display: inline-block; width: auto; }
 /* A note has no direction and no outcome. */
 form.interaction-form.is-note .directions, form.interaction-form.is-note .outcome-field { display: none; }
+/* Call outcome and call type: an outbound call only. */
+form.interaction-form:not(.is-call-out) .call-fields { display: none; }
 nav input { display: inline-block; width: auto; }
 /* Button skin: the --btn-* tokens live in tokens.css; Settings and Help use body.classic. */
 button {
@@ -333,7 +335,7 @@ details.inline-edit summary::-webkit-details-marker { display: none; }
 details.inline-edit summary.button { border: 1px solid var(--btn-border); border-radius: var(--btn-radius); padding: 1px 8px; background: var(--btn-bg); color: inherit; font-size: 12px; }
 details.inline-edit summary.button:hover { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
 details.inline-edit form.inline-form { display: inline; margin-left: 6px; }
-.interaction .outcome { font-size: 12px; color: var(--muted); }
+.interaction .outcome, .interaction .call-outcome { font-size: 12px; color: var(--muted); }
 .interaction pre {
   white-space: pre-wrap;
   word-wrap: break-word;

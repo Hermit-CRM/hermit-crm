@@ -104,6 +104,7 @@ from .models import (
     parse_date,
     slugify,
     split_name,
+    is_outbound_call,
     with_interested,
 )
 from .stages import DEFAULT_STAGES, StageSet
@@ -1691,6 +1692,8 @@ def create_app(root: Path, config: dict | None = None,
             "date": fmt_datetime(store.now()),
             "subject": "",
             "outcome": "",
+            "call_outcome": "",
+            "call_type": "",
             "body": body or "",
         }
 
@@ -3485,12 +3488,17 @@ def create_app(root: Path, config: dict | None = None,
         date: str = Form(""),
         subject: str = Form(""),
         outcome: str = Form(""),
+        call_outcome: str = Form(""),
+        call_type: str = Form(""),
         body: str = Form(""),
     ):
         company = need_company(slug)
+        if not is_outbound_call(channel, direction):
+            # Hidden on the form, but a <select> still submits what it had.
+            call_outcome = call_type = ""
         values = {"channel": channel, "direction": direction, "contact": contact,
-                  "date": date, "subject": subject,
-                  "outcome": outcome, "body": body}
+                  "date": date, "subject": subject, "outcome": outcome,
+                  "call_outcome": call_outcome, "call_type": call_type, "body": body}
         extra, shown, custom_errors = await custom_submitted(request, "interaction")
         try:
             errors = dict(custom_errors)
@@ -3525,7 +3533,8 @@ def create_app(root: Path, config: dict | None = None,
         values = {
             "channel": it.channel, "direction": it.direction, "contact": it.contact,
             "date": fmt_datetime(it.date), "subject": it.subject,
-            "outcome": it.outcome, "body": it.body,
+            "outcome": it.outcome, "call_outcome": it.call_outcome,
+            "call_type": it.call_type, "body": it.body,
         }
         return render(request, "interaction_edit.html",
                       {"company": company, "id": id, "interaction": values,
@@ -3542,15 +3551,20 @@ def create_app(root: Path, config: dict | None = None,
         date: str = Form(""),
         subject: str = Form(""),
         outcome: str = Form(""),
+        call_outcome: str = Form(""),
+        call_type: str = Form(""),
         body: str = Form(""),
     ):
         company = need_company(slug)
         current = next((i for i in company.interactions if i.id == id), None)
         if current is None:
             raise HTTPException(status_code=404, detail=f"unknown interaction {id!r}")
+        if not is_outbound_call(channel, direction):
+            # Hidden on the form, but a <select> still submits what it had.
+            call_outcome = call_type = ""
         values = {"channel": channel, "direction": direction, "contact": contact,
-                  "date": date, "subject": subject,
-                  "outcome": outcome, "body": body}
+                  "date": date, "subject": subject, "outcome": outcome,
+                  "call_outcome": call_outcome, "call_type": call_type, "body": body}
         extra, shown, custom_errors = await custom_submitted(request, "interaction")
         try:
             if custom_errors:

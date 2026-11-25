@@ -201,3 +201,109 @@ def test_the_store_reads_them_back(seeded):
     seeded.load()
     again = next(i for i in seeded.get("acme").interactions if i.id == it.id)
     assert again.call_outcome == "busy" and again.call_type == "prospecting"
+
+
+# ------------------------------------------------------------ Task 4: web
+
+SLUG = "bluefin-analytics"
+
+
+@pytest.fixture
+def web(tmp_path):
+    from test_settings import make_client
+    folder = datafolder.init_folder(tmp_path / "demo", demo=True)
+    app, client = make_client(folder, tmp_path)
+    person = next(iter(app.state.store.companies[SLUG].contacts))
+    return app, client, person
+
+
+def _log(client, person, **data):
+    form = {"channel": "call", "direction": "out", "contact": person,
+            "date": "2026-09-01 10:00", "subject": "Rang", "body": ""}
+    form.update(data)
+    return client.post(f"/companies/{SLUG}/interactions", data=form)
+
+
+def _logged(app, subject="Rang"):
+    app.state.store.load()
+    return next(i for i in app.state.store.companies[SLUG].interactions
+                if i.subject == subject)
+
+
+def _file_meta(app, it):
+    path = app.state.store.root / "companies" / SLUG / "interactions" / f"{it.id}.md"
+    return split_file(path.read_text())[0]
+
+
+def test_the_form_offers_call_outcome_and_call_type(web):
+    app, client, _ = web
+    page = client.get(f"/companies/{SLUG}/interactions/new?channel=call").text
+    assert '<select name="call_outcome"' in page and '<select name="call_type"' in page
+    assert '<option value="rejected by automated call screening"' in page
+    assert '<option value="pipeline development"' in page
+    assert "is-call-out" in page.split('class="interaction-form')[1].split(">")[0]
+
+
+def test_the_form_hides_call_fields_for_linkedin(web):
+    app, client, _ = web
+    page = client.get(f"/companies/{SLUG}/interactions/new?channel=linkedin").text
+    form_tag = page.split('class="interaction-form')[1].split(">")[0]
+    assert "is-call-out" not in form_tag
+    assert '<select name="call_outcome"' in page   # there, hidden by CSS until it applies
+
+
+def test_logging_an_outbound_call_saves_both(web):
+    app, client, person = web
+    r = _log(client, person, call_outcome="no answer", call_type="prospecting")
+    assert r.status_code == 303, r.text
+    it = _logged(app)
+    meta = _file_meta(app, it)
+    assert meta["call_outcome"] == "no answer" and meta["call_type"] == "prospecting"
+    page = client.get(f"/companies/{SLUG}/contacts/{person}").text
+    assert "call: no answer · prospecting" in page
+
+
+def test_hidden_call_fields_are_not_saved_for_an_email(web):
+    app, client, person = web
+    r = _log(client, person, channel="email", call_outcome="busy", call_type="prospecting",
+             body="Hello")
+    assert r.status_code == 303, r.text
+    meta = _file_meta(app, _logged(app))
+    assert "call_outcome" not in meta and "call_type" not in meta
+    r = _log(client, person, direction="in", subject="They rang", call_outcome="busy")
+    assert r.status_code == 303, r.text
+    assert "call_outcome" not in _file_meta(app, _logged(app, "They rang"))
+
+
+def test_an_unknown_call_outcome_on_the_form_shows_the_error(web):
+    app, client, person = web
+    r = _log(client, person, call_outcome="maybe")
+    assert r.status_code == 400 and "unknown call outcome" in r.text
+
+
+def test_the_edit_form_keeps_a_value_no_longer_in_settings(web):
+    app, client, person = web
+    _log(client, person, call_outcome="busy", call_type="prospecting")
+    it = _logged(app)
+    app.state.store.call_outcomes = ["reached"]
+    app.state.templates.env.globals["call_outcomes"][:] = ["reached"]
+    page = client.get(f"/companies/{SLUG}/interactions/{it.id}/edit").text
+    assert '<option value="busy" selected>busy</option>' in page
+    assert '<option value="reached"' in page
+    r = client.post(f"/companies/{SLUG}/interactions/{it.id}/edit", data={
+        "channel": "call", "direction": "out", "contact": person,
+        "date": "2026-09-01 10:00", "subject": "Rang again", "body": "",
+        "call_outcome": "busy", "call_type": "prospecting"})
+    assert r.status_code == 303, r.text
+    assert _logged(app, "Rang again").call_outcome == "busy"
+
+
+def test_new_call_names_show_on_the_form_without_restart(web):
+    from test_settings import token
+    app, client, _ = web
+    r = client.post("/settings/calls", data={
+        "csrf_token": token(client), "call_outcomes": "reached", "call_types": "cold"})
+    assert r.status_code == 303
+    page = client.get(f"/companies/{SLUG}/interactions/new?channel=call").text
+    assert '<option value="reached"' in page and '<option value="cold"' in page
+    assert '<option value="connected"' not in page
