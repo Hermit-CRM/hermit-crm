@@ -151,14 +151,14 @@ def test_open_runs_open_on_the_file(client, folder, app):
     r = client.post(CO + "/folder/open", data={"path": "Q3 deck.pptx", "back": CONTACT})
     assert r.status_code in (302, 303)
     assert r.headers["location"].startswith(CONTACT)
-    assert app.state.calls == [["open", str((folder / "Q3 deck.pptx").resolve())]]
+    assert app.state.calls == [["open", str(folder / "Q3 deck.pptx")]]
 
 
 def test_open_reveals_a_script(client, folder, app):
     script = folder / "run.command"
     script.write_text("echo hi\n", encoding="utf-8")
     client.post(CO + "/folder/open", data={"path": "run.command"})
-    assert app.state.calls == [["open", "-R", str(script.resolve())]]
+    assert app.state.calls == [["open", "-R", str(script)]]
 
 
 def test_open_refuses_a_path_out(client, folder, app, clients):
@@ -184,7 +184,7 @@ def test_open_and_reveal_refused_from_a_phone(phone, folder, app):
 def test_reveal_shows_the_folder(client, folder, app):
     r = client.post(CO + "/folder/reveal", data={})
     assert r.status_code in (302, 303)
-    assert app.state.calls == [["open", "-R", str(folder.resolve())]]
+    assert app.state.calls == [["open", "-R", str(folder)]]
 
 
 def test_open_without_a_folder_is_404(client, app):

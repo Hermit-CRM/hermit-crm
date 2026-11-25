@@ -122,7 +122,16 @@ def test_create_needs_the_root(tmp_path):
 
 def test_resolve_accepts_nested(tmp_path):
     touch(tmp_path / "a" / "b" / "deck.pptx")
-    assert clientfiles.resolve(tmp_path, "a/b/deck.pptx") == (tmp_path / "a/b/deck.pptx").resolve()
+    assert clientfiles.resolve(tmp_path, "a/b/deck.pptx") == tmp_path / "a/b/deck.pptx"
+    assert clientfiles.resolve(tmp_path, "") == tmp_path
+
+
+def test_resolve_only_finds_listed_entries(tmp_path):
+    touch(tmp_path / ".secret")
+    touch(tmp_path / "1" / "2" / "3" / "4.md")              # deeper than the list goes
+    for rel in (".secret", "1/2/3/4.md", "./1", "1//2"):
+        with pytest.raises(ValueError):
+            clientfiles.resolve(tmp_path, rel)
 
 
 @pytest.mark.parametrize("rel", ["../secret.txt", "a/../../secret.txt"])

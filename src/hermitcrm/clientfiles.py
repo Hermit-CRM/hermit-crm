@@ -144,18 +144,17 @@ def _skipped(name: str) -> bool:
     return name.startswith(".") or name.startswith("~$") or name in _SKIP_NAMES
 
 
-def list_files(folder: Path, limit: int = LIST_LIMIT) -> Listing:
-    """What is in the folder, up to MAX_DEPTH levels deep, newest first.
+def _walk(folder: Path):
+    """(rel, path, is_dir, stat) for everything list_files may show, in walk order.
 
     Hidden files, Office lock files (`~$...`) and Finder's own files are left
-    out. A symlinked folder is listed but not walked into, and a symlink that
-    points out of the folder is left out (it could not be opened anyway).
+    out. A symlinked folder is yielded but not walked into, and a symlink that
+    points out of the folder is left out. Stops after WALK_CAP entries.
     """
     folder = Path(folder)
-    found: list[FileEntry] = []
-    total = 0
+    seen = 0
     stack: list[tuple[Path, int]] = [(folder, 1)]
-    while stack and total < WALK_CAP:
+    while stack:
         current, depth = stack.pop()
         try:
             children = list(os.scandir(current))
@@ -173,29 +172,38 @@ def list_files(folder: Path, limit: int = LIST_LIMIT) -> Listing:
                 info = entry.stat()
             except OSError:
                 continue
-            total += 1
-            found.append(FileEntry(path.relative_to(folder).as_posix(),
-                                   0 if is_dir else info.st_size,
-                                   datetime.fromtimestamp(info.st_mtime), is_dir))
+            yield path.relative_to(folder).as_posix(), path, is_dir, info
+            seen += 1
+            if seen >= WALK_CAP:
+                return
             if is_dir and not is_link and depth < MAX_DEPTH:
                 stack.append((path, depth + 1))
-            if total >= WALK_CAP:
-                break
+
+
+def list_files(folder: Path, limit: int = LIST_LIMIT) -> Listing:
+    """What is in the folder, up to MAX_DEPTH levels deep, newest first (see _walk
+    for what is left out)."""
+    found = [FileEntry(rel, 0 if is_dir else info.st_size,
+                       datetime.fromtimestamp(info.st_mtime), is_dir)
+             for rel, _, is_dir, info in _walk(folder)]
     found.sort(key=lambda e: (-e.modified.timestamp(), e.rel))
-    return Listing(found[:limit], total, total > limit)
+    return Listing(found[:limit], len(found), len(found) > limit)
 
 
 def resolve(folder: Path, rel: str) -> Path:
-    """`rel` inside `folder` as an existing path; ValueError for anything that
-    leaves the folder (`..`, an absolute path, a symlink out) or is not there."""
+    """The entry of the folder that list_files shows as `rel`, or the folder itself
+    for "". ValueError for anything else: a path that leaves the folder (`..`, an
+    absolute path, a symlink out), a hidden file, or one that is not there.
+
+    The answer is always a path the walk found on disk, never one built from
+    `rel`: what a request names can only pick among the listed entries."""
     rel = str(rel or "")
-    if "\x00" in rel:
-        raise ValueError("bad path")
-    base = Path(folder).resolve()
-    target = (base / rel).resolve()
-    if not target.is_relative_to(base) or not target.exists():
-        raise ValueError(f"{rel!r} is not in the folder")
-    return target
+    if rel == "":
+        return Path(folder)
+    for found, path, _, _ in _walk(folder):
+        if found == rel:
+            return path
+    raise ValueError(f"{rel!r} is not in the folder")
 
 
 def _risky(path: Path, platform: str) -> bool:

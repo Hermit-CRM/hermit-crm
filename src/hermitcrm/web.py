@@ -3534,7 +3534,7 @@ def create_app(root: Path, config: dict | None = None,
             target = clientfiles.resolve(folder, path)
         except ValueError:
             raise HTTPException(status_code=404, detail="no such file") from None
-        if target == folder.resolve():
+        if target == folder:
             raise HTTPException(status_code=404, detail="no such file")
         cmd = clientfiles.open_command(target, app.state.folder_platform)
         clientfiles.run(cmd, runner=app.state.folder_runner)
