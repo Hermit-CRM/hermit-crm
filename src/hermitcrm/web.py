@@ -86,6 +86,8 @@ from .paths import contained
 from .models import (
     Channel,
     Company,
+    DEFAULT_CALL_OUTCOMES,
+    DEFAULT_CALL_TYPES,
     DEFAULT_OUTCOMES,
     Direction,
     Role,
@@ -944,6 +946,11 @@ def create_app(root: Path, config: dict | None = None,
     keep_in_touch_days = {"after": int(config.get("keep_in_touch_days",
                                                   DEFAULT_CONFIG["keep_in_touch_days"]))}
     outcomes = [str(o) for o in (config.get("outcomes") or DEFAULT_OUTCOMES)]
+    # The call outcomes and call types of an outbound call: lists, so
+    # config_reloaded can update them in place for the template globals.
+    call_outcome_names = [str(o) for o in (config.get("call_outcomes")
+                                           or DEFAULT_CALL_OUTCOMES)]
+    call_type_names = [str(t) for t in (config.get("call_types") or DEFAULT_CALL_TYPES)]
     configured_types = task_types.from_config(config.get("task_types"))
     # `clock` is what makes "today" injectable: every route asks the store for
     # the date (store.today()/store.now()), so freezing it here freezes the
@@ -953,8 +960,7 @@ def create_app(root: Path, config: dict | None = None,
                   task_types=task_types.names(configured_types),
                   stages=stages_mod.from_config(config.get("stages")),
                   stage_rules=stages_mod.rules_mode(config.get("stage_rules")),
-                  call_outcomes=config.get("call_outcomes"),
-                  call_types=config.get("call_types"))
+                  call_outcomes=call_outcome_names, call_types=call_type_names)
     store.load()
 
     def load_custom_fields() -> list:
@@ -1082,6 +1088,9 @@ def create_app(root: Path, config: dict | None = None,
             "silent_days": int(cfg.get("silent_days", 14)),
             "outcomes": outcome_names,
             "statuses": message_statuses(outcome_names),
+            "call_outcomes": [str(o) for o in (cfg.get("call_outcomes")
+                                               or DEFAULT_CALL_OUTCOMES)],
+            "call_types": [str(t) for t in (cfg.get("call_types") or DEFAULT_CALL_TYPES)],
             "types": types,
             "type_names": task_types.names(types),
             "stages": stage_set,
@@ -1141,6 +1150,10 @@ def create_app(root: Path, config: dict | None = None,
         # see the new outcomes; the store keeps its own copy.
         outcomes[:] = derived["outcomes"]
         store.outcomes = list(outcomes)
+        call_outcome_names[:] = derived["call_outcomes"]
+        call_type_names[:] = derived["call_types"]
+        store.call_outcomes = list(call_outcome_names)
+        store.call_types = list(call_type_names)
         templates.env.globals["message_statuses"][:] = derived["statuses"]
         app.state.task_types = derived["types"]
         store.task_types = derived["type_names"]
@@ -1458,6 +1471,8 @@ def create_app(root: Path, config: dict | None = None,
         signal_labels=messaging.signal_labels(messages),
         language_names=messaging.language_names(messages),
         outcomes=outcomes,
+        call_outcomes=call_outcome_names,   # config_reloaded keeps both current in place
+        call_types=call_type_names,
         message_statuses=message_statuses(outcomes),
         hermitcrm_version=__version__,
         support_url=SUPPORT_URL,
@@ -3781,6 +3796,8 @@ def create_app(root: Path, config: dict | None = None,
                               "message_window_days": str(config.get("message_window_days")
                                                          or 14),
                               "silent_days": str(config.get("silent_days") or 14)},
+            "calls_form": {"call_outcomes": "\n".join(call_outcome_names),
+                           "call_types": "\n".join(call_type_names)},
             "outcomes_offer": with_interested(
                 setup_steps.parse_outcomes(config.get("outcomes") or [])),
             "task_types_form": {"rows": app.state.task_types},
@@ -4439,6 +4456,17 @@ def create_app(root: Path, config: dict | None = None,
                                                 "message_window_days": message_window_days,
                                                 "silent_days": silent_days})
         return setup_done(result, "outcomes")
+
+    @app.post("/settings/calls")
+    def settings_calls(request: Request, csrf_token: str = Form(""),
+                       call_outcomes: str = Form(""), call_types: str = Form("")):
+        check_csrf(csrf_token)
+        result = setup_steps.save_calls(root, call_outcomes, call_types)
+        if not result.ok:
+            return setup_invalid(request, result, "calls",
+                                 calls_form={"call_outcomes": call_outcomes,
+                                             "call_types": call_types})
+        return setup_done(result, "calls")
 
     @app.post("/settings/task-types")
     def settings_task_types(request: Request, csrf_token: str = Form(""),

@@ -862,6 +862,43 @@ def save_outcomes(data_dir: Path, raw: str | list[str], message_window_days: str
     return result
 
 
+# --------------------------------------------------------------- Calls
+
+
+def plan_calls(call_outcomes_raw: str | list[str],
+               call_types_raw: str | list[str]) -> StepResult:
+    """The call outcomes and call types of an outbound call, one per line."""
+    result = StepResult()
+    values = {}
+    for key, label, raw in (("call_outcomes", "call outcome", call_outcomes_raw),
+                            ("call_types", "call type", call_types_raw)):
+        names = parse_outcomes(raw)
+        if not names:
+            result.errors[key] = f"Give at least one {label}, one per line."
+        seen: set[str] = set()
+        for name in names:
+            if name.lower() in seen:
+                result.errors[key] = f"Duplicate {label}: {name}."
+                break
+            seen.add(name.lower())
+        values[key] = names
+    if result.errors:
+        result.ok = False
+        return result
+    result.values = values
+    return result
+
+
+def save_calls(data_dir: Path, call_outcomes_raw: str | list[str],
+               call_types_raw: str | list[str]) -> StepResult:
+    """Write call_outcomes and call_types to config.toml."""
+    result = plan_calls(call_outcomes_raw, call_types_raw)
+    if result.ok:
+        set_config_values(Path(data_dir) / "config.toml", result.values)
+        result.messages.append("Call outcomes and types saved.")
+    return result
+
+
 def save_task_types(data_dir: Path, types) -> None:
     """Write the task types (a list of task_types.TaskType) to config.toml."""
     from hermitcrm import task_types
