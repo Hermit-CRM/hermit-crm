@@ -310,6 +310,13 @@ before `interested` existed is offered it here, placed before the last
 outcome so replies and silence count as before; nothing changes until you
 press **Add interested**.
 
+## Calls
+
+The call outcomes (`call_outcomes`) and call types (`call_types`) an outbound
+call can record, one per line; an empty list and duplicates are refused.
+Renaming or removing a name does not change calls already logged: they keep
+the old name. What each default means is in [Interactions](/help/interactions#calls).
+
 ## Schedule
 
 Read-only status of the daily job (`hermitcrm sync --apply`: BCC, then calendar)

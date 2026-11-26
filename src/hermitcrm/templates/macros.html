@@ -102,11 +102,14 @@
    the person is fixed; elsewhere you pick one. A note has no direction and may
    be about the whole company instead (contact left empty). #}
 {% macro interaction_form(action, company, values, errors=None, submit='Log interaction', contact=None) %}
-<form method="post" action="{{ action }}" enctype="multipart/form-data" data-attach class="interaction-form{% if values.channel == 'note' %} is-note{% endif %}">
+{#- `is-call-out` shows the call outcome and call type: channel call, direction
+    out (or none picked yet, out being the default). Both handlers recompute it. -#}
+{% set call_out_js = "var f = this.form, d = f.querySelector('input[name=direction]:checked'); f.classList.toggle('is-call-out', f.elements.channel.value === 'call' && (!d || d.value === 'out'))" %}
+<form method="post" action="{{ action }}" enctype="multipart/form-data" data-attach class="interaction-form{% if values.channel == 'note' %} is-note{% endif %}{% if values.channel == 'call' and (values.direction or 'out') == 'out' %} is-call-out{% endif %}">
   {{ errors_box(errors) }}
   <div class="row">
     <label>channel
-      <select name="channel" onchange="this.form.classList.toggle('is-note', this.value === 'note'); var c = this.form.elements.contact; if (c && c.options && c.options[0].value === '') c.options[0].text = this.value === 'note' ? 'whole company (no one in particular)' : 'pick a contact'">
+      <select name="channel" onchange="this.form.classList.toggle('is-note', this.value === 'note'); var c = this.form.elements.contact; if (c && c.options && c.options[0].value === '') c.options[0].text = this.value === 'note' ? 'whole company (no one in particular)' : 'pick a contact'; {{ call_out_js }}">
         {% for ch in channels %}
         <option value="{{ ch }}"{% if values.channel == ch %} selected{% endif %}>{{ ch }}</option>
         {% endfor %}
@@ -114,7 +117,7 @@
     </label>
     <span class="radios directions">
       {% for d in directions %}
-      <label><input type="radio" name="direction" value="{{ d }}"{% if values.direction == d or (not values.direction and loop.first) %} checked{% endif %}> {{ d }}</label>
+      <label><input type="radio" name="direction" value="{{ d }}"{% if values.direction == d or (not values.direction and loop.first) %} checked{% endif %} onchange="{{ call_out_js }}"> {{ d }}</label>
       {% endfor %}
     </span>
     {% if contact %}
@@ -141,6 +144,25 @@
         {# A value outside the list (older data, or config changed) stays selectable so saving does not lose it. #}
         {% if values.outcome and values.outcome not in outcomes %}<option value="{{ values.outcome }}" selected>{{ values.outcome }}</option>{% endif %}
       </select>
+    </label>
+  </div>
+  {# Outbound calls only (is-call-out); a name no longer in Settings stays selectable. #}
+  <div class="row call-fields">
+    <label>call outcome
+      <select name="call_outcome">
+        <option value=""{% if not values.call_outcome %} selected{% endif %}>not set</option>
+        {% for o in call_outcomes %}<option value="{{ o }}"{% if values.call_outcome == o %} selected{% endif %}>{{ o }}</option>{% endfor %}
+        {% if values.call_outcome and values.call_outcome not in call_outcomes %}<option value="{{ values.call_outcome }}" selected>{{ values.call_outcome }}</option>{% endif %}
+      </select>
+      {{ err(errors, 'call_outcome') }}
+    </label>
+    <label>call type
+      <select name="call_type">
+        <option value=""{% if not values.call_type %} selected{% endif %}>not set</option>
+        {% for t in call_types %}<option value="{{ t }}"{% if values.call_type == t %} selected{% endif %}>{{ t }}</option>{% endfor %}
+        {% if values.call_type and values.call_type not in call_types %}<option value="{{ values.call_type }}" selected>{{ values.call_type }}</option>{% endif %}
+      </select>
+      {{ err(errors, 'call_type') }}
     </label>
   </div>
   {{ custom_fields(custom_fields_for('interaction'), values, errors) }}
@@ -442,6 +464,7 @@
     </div>
     {% if i.subject or not (i.is_note or contact_page) %}<div class="subject{% if not i.subject %} empty{% endif %}">{{ i.subject or '(no subject)' }}</div>{% endif %}
     {% if i.outcome %}<div class="outcome">outcome: {{ i.outcome }}</div>{% endif %}
+    {% if i.call_outcome or i.call_type %}<div class="call-outcome">call: {{ i.call_outcome }}{% if i.call_outcome and i.call_type %} · {% endif %}{{ i.call_type }}</div>{% endif %}
     {% if i.body and i.is_note %}<pre>{{ i.body }}</pre>
     {% elif i.body and contact_page %}<details class="body-preview"><summary><span class="first-line">{{ preview(i.body) }}</span> <span class="small">more</span></summary><pre>{{ i.body }}</pre></details>
     {% elif i.body %}<details><summary>body</summary><pre>{{ i.body }}</pre></details>{% endif %}

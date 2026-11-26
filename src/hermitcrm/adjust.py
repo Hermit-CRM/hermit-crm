@@ -786,6 +786,15 @@ def validate_config(root: Path) -> list[str]:
                             "non-empty name")
         elif len({o.lower() for o in items}) != len(items):
             problems.append("config.toml: outcomes: an outcome is there twice")
+    for key in ("call_outcomes", "call_types"):
+        if key in data:
+            raw = data[key]
+            items = [" ".join(str(o).split()) for o in raw] if isinstance(raw, list) else None
+            if not items or not all(items):
+                problems.append(f"config.toml: {key}: must be a list of at least one "
+                                "non-empty name")
+            elif len({o.lower() for o in items}) != len(items):
+                problems.append(f"config.toml: {key}: a name is there twice")
     for key in ("silent_days", "message_window_days", "keep_in_touch_days"):
         if key in data and (not isinstance(data[key], int) or isinstance(data[key], bool)
                             or data[key] < 1):

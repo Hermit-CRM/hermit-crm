@@ -258,7 +258,7 @@ def build_tools(root: Path, store) -> list[Tool]:
         if not slug:
             raise ToolError("company is required")
         fields = given(args, "channel", "direction", "body", "contact", "subject",
-                       "date", "outcome")
+                       "date", "outcome", "call_outcome", "call_type")
         current = writable()
         before = current.get(slug)
         stage_before = before.stage if before else ""
@@ -676,7 +676,11 @@ def build_tools(root: Path, store) -> list[Tool]:
                                                  "with one person."),
                      "subject": text(), "date": text(description="YYYY-MM-DD or "
                                                                  "YYYY-MM-DDTHH:MM."),
-                     "outcome": text()},
+                     "outcome": text(),
+                     "call_outcome": text(description="Outbound calls only; one of "
+                                                      "call_outcomes in config.toml."),
+                     "call_type": text(description="Outbound calls only; one of "
+                                                   "call_types in config.toml.")},
                     ["company", "channel"]), add_interaction_tool),
         Tool("adjust_help",
              "Read this first when the user wants to change Hermit itself (Make it "

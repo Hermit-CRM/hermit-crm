@@ -68,7 +68,9 @@ def build_store(root: Path) -> Store:
     store = Store(root, silent_days=config["silent_days"], outcomes=config["outcomes"],
                   task_types=task_types.names(task_types.from_config(config.get("task_types"))),
                   stages=stages.from_config(config.get("stages")),
-                  stage_rules=stages.rules_mode(config.get("stage_rules")))
+                  stage_rules=stages.rules_mode(config.get("stage_rules")),
+                  call_outcomes=config.get("call_outcomes"),
+                  call_types=config.get("call_types"))
     store.load()
     return store
 
@@ -454,7 +456,7 @@ def cmd_digest(store: Store, days: int, now: datetime | None = None) -> str:
         header = (
             f"{it.date:%Y-%m-%d %H:%M} | {it.label} | "
             f"{company.slug} / {it.contact_label} | {it.subject or '-'} | "
-            f"outcome: {it.outcome or '-'}"
+            f"outcome: {it.outcome or '-'}{_call_part(it)}"
         )
         preview = " ".join(it.body.split())[:150]
         blocks.append(f"{header}\n{preview}")
@@ -501,10 +503,16 @@ def _company_field_text(company, key: str) -> str:
     return str(value)
 
 
+def _call_part(it) -> str:
+    """` | call: no answer · prospecting` for an outbound call that has them, else ""."""
+    shown = " · ".join(v for v in (it.call_outcome, it.call_type) if v)
+    return f" | call: {shown}" if shown else ""
+
+
 def _interaction_header(it, contact_label: str) -> str:
     return (
         f"{it.date:%Y-%m-%d %H:%M} | {it.label} | "
-        f"{contact_label} | {it.subject or '-'} | {it.outcome or '-'}"
+        f"{contact_label} | {it.subject or '-'} | {it.outcome or '-'}{_call_part(it)}"
     )
 
 
@@ -793,7 +801,7 @@ NAMED_FIELDS = {
     "requalify_on", "value_eur_month", "product_oneliner", "next_step",
     "next_step_due", "next_step_type", "tags", "notes",
     "title", "email", "phone", "role",
-    "contact", "subject", "date", "outcome",
+    "contact", "subject", "date", "outcome", "call_outcome", "call_type",
 }
 
 
@@ -1664,6 +1672,11 @@ def _build_parser() -> argparse.ArgumentParser:
                           help="the message itself; - reads it from stdin")
     for flag in ("--contact", "--subject", "--date", "--outcome"):
         p_add_in.add_argument(flag, default=None)
+    # No argparse choices: the lists come from config.toml and the store checks them.
+    p_add_in.add_argument("--call-outcome", dest="call_outcome", default=None,
+                          help="outbound calls only; one of call_outcomes in config.toml")
+    p_add_in.add_argument("--call-type", dest="call_type", default=None,
+                          help="outbound calls only; one of call_types in config.toml")
 
     for parser_ in (p_add_co, p_add_ct, p_add_in):
         parser_.add_argument("--set", action="append", default=[], metavar="FIELD=VALUE",

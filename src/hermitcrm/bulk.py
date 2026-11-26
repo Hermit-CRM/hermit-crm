@@ -826,7 +826,8 @@ def _simulate(store: Store, scope: str, refs: list, resolved: _Resolved):
             if scope == "companies" and resolved.stage is not None else {}
         sim = Store(scratch, silent_days=store.silent_days, outcomes=store.outcomes,
                     task_types=store.task_types, clock=store.clock, stages=store.stages,
-                    stage_rules=store.stage_rules)
+                    stage_rules=store.stage_rules, call_outcomes=store.call_outcomes,
+                    call_types=store.call_types)
         sim.load()
         for company, key, label in refs:
             before = _meta(sim, scope, company, key)

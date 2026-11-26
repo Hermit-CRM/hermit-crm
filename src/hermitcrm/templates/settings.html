@@ -11,7 +11,7 @@
 {% set groups = [
   ('general', 'General', ['make-it-yours', 'you', 'enrichment', 'appearance', 'support', 'about']),
   ('mail', 'Email & calendar', ['bcc', 'send', 'calendar']),
-  ('crm', 'Your CRM', ['playbook', 'fields', 'messaging', 'client-folders', 'task-types', 'stages', 'outcomes']),
+  ('crm', 'Your CRM', ['playbook', 'fields', 'messaging', 'client-folders', 'task-types', 'stages', 'outcomes', 'calls']),
   ('backup', 'Data', ['backup', 'export']),
   ('advanced', 'Advanced', ['schedule', 'access', 'mcp', 'doctor']),
 ] %}
@@ -606,6 +606,20 @@
       <label class="grow">Outcomes (one per line) <textarea name="outcomes" rows="4">{{ outcomes_form.outcomes }}</textarea></label>
       <label>Message window (days) <input name="message_window_days" value="{{ outcomes_form.message_window_days }}" inputmode="numeric" size="6"></label>
       <label>Silent after (days) <input name="silent_days" value="{{ outcomes_form.silent_days }}" inputmode="numeric" size="6"></label>
+    </div>
+    <button type="submit">Save</button>
+  </form>
+</section>
+
+<section class="setup-step" id="calls">
+  <div class="setting-head"><h2>Calls</h2>{{ how('/help/interactions#calls') }}</div>
+  <p class="summary">What an outbound call can record: its outcome (what happened on the line) and its type (what it was for). One per line. Renaming one does not change calls already logged.</p>
+  {{ step_errors('calls') }}
+  <form method="post" action="/settings/calls" class="record-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="row">
+      <label class="grow">Call outcomes (one per line) <textarea name="call_outcomes" rows="8">{{ calls_form.call_outcomes }}</textarea></label>
+      <label class="grow">Call types (one per line) <textarea name="call_types" rows="3">{{ calls_form.call_types }}</textarea></label>
     </div>
     <button type="submit">Save</button>
   </form>

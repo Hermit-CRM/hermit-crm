@@ -240,6 +240,80 @@ def test_outcomes_saved_one_per_line_and_windows_applied(demo, tmp_path):
     assert "silent for 30+" in client.get("/calendar").text.lower()
 
 
+# ------------------------------------------------------------------ calls
+
+
+def test_call_lists_saved_one_per_line(demo, tmp_path):
+    app, client = make_client(demo, tmp_path)
+    r = client.post("/settings/calls", data={
+        "csrf_token": token(client),
+        "call_outcomes": "reached\n  left voicemail \n\nno answer\n",
+        "call_types": "cold\nexpansion"})
+    assert r.status_code == 303 and r.headers["location"].endswith("#calls")
+    c = cfg(demo)
+    assert c["call_outcomes"] == ["reached", "left voicemail", "no answer"]
+    assert c["call_types"] == ["cold", "expansion"]
+    page = client.get("/settings").text
+    assert ">reached\nleft voicemail\nno answer</textarea>" in page
+    assert ">cold\nexpansion</textarea>" in page
+
+
+def test_call_lists_refuse_empty_and_duplicates(demo, tmp_path):
+    app, client = make_client(demo, tmp_path)
+    t = token(client)
+    r = client.post("/settings/calls", data={
+        "csrf_token": t, "call_outcomes": "busy", "call_types": "  \n"})
+    assert r.status_code == 400 and "Give at least one call type" in r.text
+    r = client.post("/settings/calls", data={
+        "csrf_token": t, "call_outcomes": "busy\nBusy", "call_types": "cold"})
+    assert r.status_code == 400 and "Duplicate call outcome: Busy." in r.text
+    assert "call_outcomes" not in cfg(demo)  # nothing written on error
+
+
+def test_plan_calls_errors_and_values():
+    bad = st.plan_calls("", "a\nA")
+    assert not bad.ok
+    assert bad.errors == {"call_outcomes": "Give at least one call outcome, one per line.",
+                          "call_types": "Duplicate call type: A."}
+    good = st.plan_calls(["x", " y "], "z")
+    assert good.ok and good.values == {"call_outcomes": ["x", "y"], "call_types": ["z"]}
+
+
+def test_new_call_names_usable_without_restart(demo, tmp_path):
+    app, client = make_client(demo, tmp_path)
+    slug = "bluefin-analytics"
+    r = client.post("/settings/calls", data={
+        "csrf_token": token(client), "call_outcomes": "reached", "call_types": "cold"})
+    assert r.status_code == 303
+    store = app.state.store
+    assert store.call_outcomes == ["reached"] and store.call_types == ["cold"]
+    person = next(iter(store.companies[slug].contacts))
+    it = store.create_interaction(slug, "call", "out", contact=person,
+                                  call_outcome="reached", call_type="cold")
+    assert it.call_outcome == "reached"
+    assert app.state.templates.env.globals["call_outcomes"] == ["reached"]
+    assert app.state.templates.env.globals["call_types"] == ["cold"]
+
+
+def test_a_folder_without_the_keys_offers_the_defaults(demo, tmp_path):
+    app, client = make_client(demo, tmp_path)
+    page = client.get("/settings").text
+    assert 'id="calls"' in page
+    assert ("\n".join(["connected", "conversation", "message to other human",
+                        "voicemail message", "no answer", "busy",
+                        "rejected by automated call screening", "wrong number"])
+            + "</textarea>") in page
+    assert ">prospecting\npipeline development</textarea>" in page
+
+
+def test_a_hand_edited_call_list_of_the_wrong_kind_is_named(demo, tmp_path):
+    from hermitcrm import adjust
+    (demo / "config.toml").write_text('call_outcomes = 5\ncall_types = ["a", "A"]\n')
+    problems = adjust.validate_config(demo)
+    assert any("call_outcomes: must be a list" in p for p in problems)
+    assert any("call_types: a name is there twice" in p for p in problems)
+
+
 def test_new_outcomes_usable_without_restart(demo, tmp_path):
     """Outcomes saved in Settings are live at once: the store accepts them, the
     interaction form offers them and the Messages tab counts them."""

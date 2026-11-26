@@ -51,6 +51,8 @@ from .models import (
     Company,
     Contact,
     Country,
+    DEFAULT_CALL_OUTCOMES,
+    DEFAULT_CALL_TYPES,
     DEFAULT_OUTCOMES,
     Direction,
     Interaction,
@@ -68,6 +70,8 @@ from .models import (
     dump_frontmatter,
     interaction_from_dict,
     interaction_to_frontmatter,
+    is_outbound_call,
+    match_choice,
     normalise_country,
     normalise_email,
     normalise_framework,
@@ -157,6 +161,10 @@ DEFAULT_CONFIG = {
     # The first is what a detected reply counts as, the last what silence past
     # message_window_days counts as; empty outcome means "not yet known".
     "outcomes": list(DEFAULT_OUTCOMES),
+    # Choices for an outbound call (channel call, direction out): what happened
+    # on the line, and what the call was for. Both optional on the call.
+    "call_outcomes": list(DEFAULT_CALL_OUTCOMES),
+    "call_types": list(DEFAULT_CALL_TYPES),
     # Seconds to wait when the free "Fetch from URL" enrichment reads a page.
     "fetch_timeout": 10,
     # Largest file you can attach, in MB (1 to 90). A git host refuses a file over
@@ -308,7 +316,8 @@ CONTACT_MERGE_FIELDS = tuple(
     f for f in CONTACT_COPY_FIELDS if f not in ("slug", "created", "updated", "tasks"))
 INTERACTION_COPY_FIELDS = (
     "id", "date", "channel", "direction", "contact", "subject", "framework",
-    "approach", "lead_rule", "outcome", "source", "message_id", "attachments", "body",
+    "approach", "lead_rule", "outcome", "call_outcome", "call_type", "source",
+    "message_id", "attachments", "body",
 )
 
 
@@ -377,6 +386,8 @@ class Store:
         task_types: list[str] | None = None,
         stages: StageSet | None = None,
         stage_rules: str = "off",
+        call_outcomes: list[str] | None = None,
+        call_types: list[str] | None = None,
     ):
         self.root = Path(root)
         self.companies_dir = self.root / "companies"
@@ -385,6 +396,10 @@ class Store:
         self.silent_days = silent_days
         # Allowed interaction outcomes (config `outcomes`); "" is always allowed.
         self.outcomes = [str(o) for o in (outcomes or DEFAULT_OUTCOMES)]
+        # Allowed call outcomes and call types of an outbound call (config
+        # `call_outcomes` / `call_types`); "" is always allowed.
+        self.call_outcomes = [str(o) for o in (call_outcomes or DEFAULT_CALL_OUTCOMES)]
+        self.call_types = [str(t) for t in (call_types or DEFAULT_CALL_TYPES)]
         # Allowed task types (config task_types, by name); "" is always allowed.
         self.task_types = [str(t) for t in (task_types or [])]
         # The configured deal stages (config `stages`); the defaults without.
@@ -874,6 +889,62 @@ class Store:
                             f"(allowed: {', '.join(self.outcomes)})"}
             )
         return value
+
+    def _coerce_call_fields(self, channel: str, direction: str, call_outcome, call_type,
+                            current_outcome: str = "", current_type: str = "",
+                            ) -> tuple[str, str]:
+        """(call_outcome, call_type), each in its configured spelling. Only an
+        outbound call has them: elsewhere a new value is refused and one carried
+        over from before the channel or direction changed is cleared. A value
+        no longer in Settings stays on the call that has it."""
+        outbound = is_outbound_call(channel, direction)
+        result = []
+        for key, label, value, current, choices in (
+                ("call_outcome", "call outcome", call_outcome, current_outcome,
+                 self.call_outcomes),
+                ("call_type", "call type", call_type, current_type, self.call_types)):
+            value = match_choice(value, choices)
+            if not outbound:
+                if value and value != current:
+                    raise ValidationError({key: f"a {label} is only for an outbound call"})
+                value = ""
+            elif value and value != current and value not in choices:
+                raise ValidationError(
+                    {key: f"unknown {label} {value!r} (allowed: {', '.join(choices)})"})
+            result.append(value)
+        return result[0], result[1]
+
+    def _update_call_fields(self, old: Interaction, new: Interaction, fields: dict) -> None:
+        """Set new.call_outcome / new.call_type for an edit. A value is only
+        looked at when the edit gives it or the call stops being outbound; one
+        the edit leaves alone stays byte for byte, so a hand-written spelling
+        never blocks an unrelated change. On anything that was not and is not
+        an outbound call the keys are not the form's to change: what the file
+        holds stays, and only a new non-empty value is refused."""
+        was_out = is_outbound_call(old.channel, old.direction)
+        now_out = is_outbound_call(new.channel, new.direction)
+        if now_out:
+            if "call_outcome" not in fields and "call_type" not in fields:
+                return
+            new.call_outcome, new.call_type = self._coerce_call_fields(
+                new.channel, new.direction,
+                fields.get("call_outcome", old.call_outcome),
+                fields.get("call_type", old.call_type), old.call_outcome, old.call_type)
+            # The one the edit did not give stays as the file had it.
+            if "call_outcome" not in fields:
+                new.call_outcome = old.call_outcome
+            if "call_type" not in fields:
+                new.call_type = old.call_type
+            return
+        # Not outbound now: refuse a new value, clear one carried over from an
+        # outbound call, keep one on a record that never was one.
+        self._coerce_call_fields(new.channel, new.direction,
+                                 fields.get("call_outcome", ""), fields.get("call_type", ""),
+                                 old.call_outcome, old.call_type)
+        if was_out:
+            new.call_outcome = new.call_type = ""
+        else:
+            new.call_outcome, new.call_type = old.call_outcome, old.call_type
 
     def _coerce_type(self, value, current: str = "", key: str = "type") -> str:
         """Empty, one of the configured task types, or unchanged (a type deleted
@@ -1754,6 +1825,7 @@ class Store:
                            contact="", date=None, outcome="", body="",
                            source="manual", message_id="", custom=None,
                            approach="", framework="", lead_rule="",
+                           call_outcome="", call_type="",
                            attachments: Sequence[Incoming | Attachment] = ()) -> Interaction:
         company = self._current(company_slug)
         if company is None:
@@ -1768,6 +1840,8 @@ class Store:
                 {"contact": f"unknown contact {contact!r} for {company_slug!r}"}
             )
         when = self._coerce_datetime(date, "date") or self.now()
+        call_outcome, call_type = self._coerce_call_fields(channel, direction,
+                                                           call_outcome, call_type)
         it = Interaction(
             id="",
             date=when,
@@ -1779,6 +1853,8 @@ class Store:
             approach=(approach or "").strip(),
             lead_rule=self._coerce_rule(lead_rule),
             outcome=self._coerce_outcome(outcome),
+            call_outcome=call_outcome,
+            call_type=call_type,
             source=self._coerce_enum(source, InteractionSource, "source", False),
             message_id=(message_id or "").strip(),
             body=normalise_body(body),
@@ -1878,6 +1954,7 @@ class Store:
             new.lead_rule = self._coerce_rule(fields["lead_rule"], old.lead_rule)
         if "outcome" in fields:
             new.outcome = self._coerce_outcome(fields["outcome"], old.outcome)
+        self._update_call_fields(old, new, fields)
         if "body" in fields:
             new.body = normalise_body(fields["body"])
 

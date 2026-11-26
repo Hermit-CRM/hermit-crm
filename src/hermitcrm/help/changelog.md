@@ -8,6 +8,17 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Outbound calls record a call outcome and a call type.** Log a call with
+  direction out and the form asks what happened on the line (connected,
+  conversation, message to other human, voicemail message, no answer, busy,
+  rejected by automated call screening, wrong number) and what the call was for
+  (prospecting or pipeline development). You can change both lists under
+  **Settings > Calls**. Both show on the timeline and can be set with
+  `--call-outcome` and `--call-type`. Your folder is migrated to format 26
+  (nothing changes in your files unless they already had these keys). A custom
+  interaction field named `call_outcome` or `call_type` now clashes with the
+  built-in one: rename it in `fields.toml`. See [Interactions](/help/interactions#calls).
+
 - **Client folders: your files for a client, one click from Hermit.** Set one folder in
   Settings > Your CRM > Client folders (for example `~/Clients`). Each company's folder is
   `<that folder>/<company name>`; the company and contact pages list what is in it, newest

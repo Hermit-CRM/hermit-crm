@@ -652,3 +652,40 @@ def test_cli_contact_notes_and_note_interactions(tmp_path, capsys):
     assert crm.main(["add", "interaction", "acme", "--channel", "email",
                      "--contact", "jane-doe"], root=tmp_path) == 2
     assert "direction is required" in capsys.readouterr().err
+
+
+# ------------------------------------------------------------------ call outcome and type
+
+
+def test_add_interaction_takes_call_outcome_and_type(tmp_path, capsys):
+    fixed_store(tmp_path)
+    crm.main(["add", "company", "Acme BV"], root=tmp_path)
+    crm.main(["add", "contact", "acme", "Jane Roe"], root=tmp_path)
+    assert crm.main(["add", "interaction", "acme", "--channel", "call",
+                     "--direction", "out", "--contact", "jane-roe",
+                     "--call-outcome", "Voicemail message",
+                     "--call-type", "prospecting"], root=tmp_path) == 0
+    text = next((tmp_path / "companies" / "acme" / "interactions").glob("*.md")).read_text()
+    assert "call_outcome: voicemail message\ncall_type: prospecting\n" in text
+    capsys.readouterr()
+    code = crm.main(["add", "interaction", "acme", "--channel", "call",
+                     "--direction", "in", "--contact", "jane-roe",
+                     "--call-outcome", "busy"], root=tmp_path)
+    assert code != 0
+    assert "only for an outbound call" in capsys.readouterr().err
+
+
+def test_the_listings_show_the_call_fields(tmp_path):
+    store = fixed_store(tmp_path)
+    store.create_company("Acme GmbH")
+    store.create_contact("acme", "Jane", "Doe")
+    store.create_interaction("acme", "call", "out", contact="jane-doe", subject="Rang",
+                             date="2026-09-13T09:00", call_outcome="no answer",
+                             call_type="prospecting")
+    store.create_interaction("acme", "call", "out", contact="jane-doe", subject="Again",
+                             date="2026-09-13T10:00", call_type="prospecting")
+    digest = crm.cmd_digest(store, days=7, now=FIXED_NOW)
+    assert ("| Rang | outcome: - | call: no answer · prospecting" in digest)
+    assert ("| Again | outcome: - | call: prospecting" in digest)
+    show = crm.cmd_show(store, "acme")
+    assert "| Rang | - | call: no answer · prospecting" in show

@@ -16,7 +16,8 @@ from datetime import date, datetime
 
 import pytest
 
-from hermitcrm.models import StageChange, ValidationError
+from hermitcrm.models import (DEFAULT_CALL_OUTCOMES, DEFAULT_CALL_TYPES, StageChange,
+                             ValidationError)
 from hermitcrm.store import (DEFAULT_CONFIG, Store, build_file, load_config, normalise_body,
                              split_file)
 from conftest import FIXED_NOW
@@ -61,6 +62,8 @@ def test_load_config_defaults(tmp_path):
                    "message_window_days": 14, "fetch_timeout": 10, "attachment_max_mb": 25,
                    "client_files_root": "",
                    "outcomes": ["successful", "interested", "unsuccessful"],
+                   "call_outcomes": list(DEFAULT_CALL_OUTCOMES),
+                   "call_types": list(DEFAULT_CALL_TYPES),
                    "owner_name": "", "owner_email": "",
                    "bcc_address": "", "bcc_imap_host": "imap.gmail.com",
                    "bcc_keychain_service": "crm-bcc", "bcc_lookback_days": 30,
@@ -97,6 +100,8 @@ def test_load_config_reads_toml(tmp_path):
                    "message_window_days": 14, "fetch_timeout": 10, "attachment_max_mb": 25,
                    "client_files_root": "",
                    "outcomes": ["successful", "interested", "unsuccessful"],
+                   "call_outcomes": list(DEFAULT_CALL_OUTCOMES),
+                   "call_types": list(DEFAULT_CALL_TYPES),
                    "owner_name": "", "owner_email": "",
                    "bcc_address": "", "bcc_imap_host": "imap.gmail.com",
                    "bcc_keychain_service": "crm-bcc", "bcc_lookback_days": 30,
