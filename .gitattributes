@@ -13,6 +13,7 @@ scripts/publicstats.py export-ignore
 tests/test_publicstats_script.py export-ignore
 tests/test_website_stats.py export-ignore
 tests/test_website_features.py export-ignore
+tests/test_website_security.py export-ignore
 # Contributor tooling: users install with uv tool install / pip, which ignore it.
 uv.lock export-ignore
 .gitattributes export-ignore
