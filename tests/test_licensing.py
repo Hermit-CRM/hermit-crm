@@ -65,7 +65,8 @@ def test_pyproject_declares_apache_and_ships_the_licence_files():
 
 def test_every_source_file_carries_the_header():
     files = tracked("src/hermitcrm/*.py", "src/hermitcrm/**/*.py", "tests/*.py",
-                    "website/build.py", "scripts/*.sh", "src/hermitcrm/static/*.js")
+                    "website/build.py", "website/site/*.js", "scripts/*.sh",
+                    "src/hermitcrm/static/*.js")
     assert len(files) > 50, "the file list looks wrong, not the headers"
     missing = [p.relative_to(ROOT).as_posix() for p in files
                if HEADER_MARKER not in p.read_text(encoding="utf-8")]

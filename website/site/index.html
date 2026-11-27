@@ -265,47 +265,6 @@ next_step_due: 2026-09-24
   <p>Hermit CRM · Apache License 2.0 · no warranty · <a href="https://github.com/Hermit-CRM/hermit-crm">GitHub</a> · <a href="download/hermitcrm-1.2.0.tar.gz.sha256">SHA-256</a> · Built by <a href="https://www.linkedin.com/in/gijsbos">Gijs Bos</a>, <a href="https://compoundgtm.io/?utm_source=hermitcrm&amp;utm_medium=referral" rel="noopener">Compound GTM</a></p>
 </footer>
 
-<script>
-// Copy button: shown only when scripts run. "Copied" only when the copy
-// worked; otherwise the message is selected and the button says how to copy.
-document.querySelectorAll("[data-copy]").forEach(function (btn) {
-  var label = btn.querySelector("span"), idle = label.textContent, timer;
-  var message = document.getElementById("install-message");
-  btn.hidden = false;
-  function show(text, ms, state) {
-    label.textContent = text;
-    if (state) btn.dataset.state = state; else delete btn.dataset.state;
-    clearTimeout(timer);
-    timer = setTimeout(function () { label.textContent = idle; delete btn.dataset.state; }, ms);
-  }
-  function done() { show(btn.dataset.done, 2000, "done"); }
-  function failed() {
-    var range = document.createRange(), sel = window.getSelection();
-    range.selectNodeContents(message); sel.removeAllRanges(); sel.addRange(range);
-    show(btn.dataset.failed, 4000);
-  }
-  function fallback(text) {
-    var t = document.createElement("textarea"), ok = false;
-    t.value = text; t.setAttribute("readonly", ""); t.style.position = "fixed"; t.style.opacity = "0";
-    document.body.appendChild(t); t.select();
-    try { ok = document.execCommand("copy"); } catch (e) {}
-    document.body.removeChild(t);
-    ok ? done() : failed();
-  }
-  btn.addEventListener("click", function () {
-    var text = btn.dataset.copy;
-    if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(text).then(done, function () { fallback(text); });
-    } else { fallback(text); }
-  });
-});
-// Printing: open every answer, then put them back as they were.
-var shut = [];
-addEventListener("beforeprint", function () {
-  shut = [].filter.call(document.querySelectorAll("details"), function (d) { return !d.open; });
-  shut.forEach(function (d) { d.open = true; });
-});
-addEventListener("afterprint", function () { shut.forEach(function (d) { d.open = false; }); });
-</script>
+<script src="home.js"></script>
 </body>
 </html>

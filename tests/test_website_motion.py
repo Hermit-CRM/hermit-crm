@@ -85,7 +85,7 @@ def test_reduced_motion_drops_the_press_scale_and_keeps_colour_fades():
 
 
 def test_copy_script_sets_done_state_and_clears_it_on_every_other_path():
-    page = home()
+    page = (ROOT / "website" / "site" / "home.js").read_text(encoding="utf-8")
     assert 'show(btn.dataset.done, 2000, "done")' in page
     assert 'show(btn.dataset.failed, 4000)' in page          # failure passes no state
     assert page.count("delete btn.dataset.state") == 2         # in show() and in its timer
