@@ -31,6 +31,15 @@
   <a class="button" href="/companies/{{ company.slug }}/interactions/new?channel=note&amp;whole=1" title="A note about {{ company.name }} as a whole, not about {{ contact.name }}">{{ icon('note') }}Add company note</a>{% endif %}
   {% if 'tasks' in sections %}<a class="button" href="#tasks" data-focus="#tasks input[name=text]">{{ icon('task') }}Add task</a>{% endif %}
   </div>{% endif %}
+  <button type="button" popovertarget="phone-card">{{ icon('phone') }}Save to phone</button>
+  <div id="phone-card" class="phone-card" popover>
+    {% if phone_card.svg %}{{ phone_card.svg }}
+    <p>Point your phone's camera here, then tap to add {{ contact.first_name or contact.name }}.</p>
+    <p class="small">The code holds the name, company, title, phone, email and LinkedIn on file, never your notes.</p>
+    {% if not contact.phone %}<p class="small">No phone number yet. <a href="?edit=1#details">Add one</a> to save it too.</p>{% endif %}
+    {% else %}<p>{{ phone_card.problem }}</p>{% endif %}
+    <p><button type="button" popovertarget="phone-card" popovertargetaction="hide">Close</button></p>
+  </div>
   {% if outreach_open %}{% set oi = outreach_open %}<a class="button ai" href="/outreach?tab={{ 'ready' if oi.state == 'ready' else ('replies' if oi.kind == 'reply-to-interest' else ('follow-ups' if oi.kind == 'follow-up' else 'drafts')) }}#item-{{ oi.id }}" title="A {{ oi.kind | replace('-', ' ') }} by {{ oi.channel }} is {{ oi.state }}">{{ icon('sparkles') }}Open outreach draft</a> <span class="small quiet">{{ oi.state }}</span>
   {% else %}<a class="button ai" href="/outreach?contact={{ company.slug }}/{{ contact.slug }}#generate" title="{% if outreach_problem %}{{ outreach_problem }}{% else %}Open Outreach with {{ contact.first_name or contact.name }} ready to generate: nothing runs until you press Generate{% endif %}">{{ icon('sparkles') }}Generate outreach</a>{% endif %}
   <span class="quiet">

@@ -995,6 +995,14 @@ p.describe-more { margin-top: 24px; }
 .contact-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
 .contact-actions .quiet { display: inline-flex; gap: 12px; align-items: center; margin-left: 8px; font-size: 13px; }
 .contact-actions .quiet form.inline { margin: 0; }
+/* Save to phone: the contact's QR code in a popover. No `display` here, or it
+   would show the popover while closed. */
+.phone-card { width: 340px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow: auto;
+  padding: 16px; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .25); }
+.phone-card::backdrop { background: rgba(0, 0, 0, .35); }
+.phone-card svg { display: block; width: 100%; height: auto; border-radius: 4px; }
+.phone-card p { margin: 10px 0 0; }
 .status-strip { display: grid; grid-template-columns: repeat(4, 1fr); margin: 0 0 18px;
   background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
 .status-strip > div { padding: 8px 12px; border-left: 1px solid var(--line); }

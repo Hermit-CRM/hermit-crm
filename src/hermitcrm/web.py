@@ -60,7 +60,7 @@ from . import (adjust, bcc, brief, calendar_sync, capture, conversation, dashboa
                pipeline, reports, sample, welcome)
 from . import layout
 from . import playbook, textsource
-from . import dateformat, schedule, scrape, secrets, task_types, usertheme
+from . import dateformat, schedule, scrape, secrets, task_types, usertheme, vcard
 from . import stage_ops
 from . import stages as stages_mod
 from . import (exemplars, learning, linkedin, notes, outreach, routines, send,
@@ -3363,6 +3363,15 @@ def create_app(root: Path, config: dict | None = None,
         except Exception:
             return ""
 
+    def phone_card(company: Company, contact) -> dict:
+        """Save to phone: the contact's QR code, or why there is none."""
+        try:
+            svg = vcard.qr_svg(vcard.card(contact, company))
+        except vcard.CardError as exc:
+            return {"svg": "", "problem": str(exc)}
+        # Paths only, drawn by segno: none of the contact's text is in the markup.
+        return {"svg": Markup(svg), "problem": ""}
+
     def contact_context(request: Request, company: Company, contact, values=None,
                         channel: str = "", editing: bool = False, **extra) -> dict:
         """Everything contact.html needs. A form sent back (errors, a stale
@@ -3383,6 +3392,7 @@ def create_app(root: Path, config: dict | None = None,
                                    if i.is_open and i.company == company.slug
                                    and i.contact == contact.slug), None),
             "outreach_problem": outreach_hint(),
+            "phone_card": phone_card(company, contact),
             **extra,
         }
 

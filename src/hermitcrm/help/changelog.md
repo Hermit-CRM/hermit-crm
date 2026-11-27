@@ -8,6 +8,12 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Save a contact to your phone with its camera.** Press **Save to phone** on a
+  contact page, point your phone at the code and tap to add the person: name,
+  company, title, phone, email and LinkedIn, never your notes. No sync, no
+  account and no network access to Hermit. One new dependency, `segno`, draws
+  the code. No data change. See [Contacts](/help/contacts#save-to-phone).
+
 - **Outbound calls record a call outcome and a call type.** Log a call with
   direction out and the form asks what happened on the line (connected,
   conversation, message to other human, voicemail message, no answer, busy,
