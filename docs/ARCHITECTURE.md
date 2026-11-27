@@ -50,6 +50,7 @@ src/hermitcrm/
 ├── bcc.py, calendar_sync.py, conversation.py, importer.py, enrich.py, scrape.py, filters.py, reports.py
 ├── help/                  # help pages (§7): __init__.py renders <topic>.md, topic_for(path)
 ├── web.py                 # FastAPI app factory and routes (§8)
+├── pages/                 # routes outside create_app, one module per feature (§8)
 ├── templates/*.html
 └── static/style.css
 tests/
@@ -349,6 +350,8 @@ settings, `/inbox` → settings (it redirects to Home), `/help…` → index, an
 ## 8. Web app (`web.py` + templates)
 
 Server-rendered HTML. One base template with a top nav: Pipeline, Calendar, Companies, Contacts, Messages, Reports, Settings (with the review-queue count and a red `!` when the last import failed or is two days old), Reload, the search box, and a right-aligned Help link to `/help/<topic>` for the current page (§7). Vanilla JS only for: submitting the stage dropdown on change, and prefilling the quick-add interaction form. Plain, fast, readable on a 13-inch laptop, in light, dark or following the system (Settings > Appearance); the look and its tokens are in `DESIGN.md`.
+
+New routes go in a module under `pages/` (`router = APIRouter()`), not into `create_app`. `create_app` puts `render` (the full page context), `check_csrf` and `root` on `app.state` next to `store`, `config`, `enricher`, `gitops` and `templates`; `pages/_ctx.py` `ctx(request)` hands a route all of them. `pages.register(app)` runs after the routes in `web.py`, so a `pages/` route never shadows one there. Each feature has its own stylesheet and script in `static/` (`live`, `palette`, `jobs`, `today`), all loaded by `base.html`, which also holds the empty hooks `#toasts` (a polite live region), `#palette-root` and `#jobs-badge` (both `hidden` until their script shows them). GETs under `/jobs/` and `/live/` (endpoints a script polls) skip the per-request sweep that re-reads config files and asks git for HEAD.
 
 | Method and route | Behaviour |
 |---|---|

@@ -58,7 +58,7 @@ from . import (adjust, bcc, brief, calendar_sync, capture, conversation, dashboa
                feedback,
                fields as custom, filters, followups, history, messaging, migrations,
                pipeline, reports, sample, welcome)
-from . import layout
+from . import layout, pages
 from . import playbook, textsource
 from . import dateformat, schedule, scrape, secrets, task_types, usertheme, vcard
 from . import stage_ops
@@ -1028,6 +1028,7 @@ def create_app(root: Path, config: dict | None = None,
     if config.get("start_update_check"):  # set by `hermitcrm serve`; tests stay offline
         app.state.update_notice.start(config)
     app.state.store = store
+    app.state.root = root  # pages/_ctx.py: routes outside create_app reach it here
     app.state.custom_fields = load_custom_fields()
     app.state.gitops = gitops
     app.state.config = config
@@ -1296,7 +1297,10 @@ def create_app(root: Path, config: dict | None = None,
     async def requalify_sweep(request: Request, call_next):
         # Parked companies whose "requalify on" date has arrived go back to
         # prospect the next time any page is opened (idempotent, one commit).
-        if request.method == "GET" and not request.url.path.startswith("/static") \
+        # /jobs/ and /live/ are polled by scripts every second or so: a git process
+        # per poll would cost more than the page it keeps current.
+        if request.method == "GET" \
+                and not request.url.path.startswith(("/static", "/jobs/", "/live/")) \
                 and request.url.path != "/theme.css":
             try:
                 pick_up_edits()
@@ -1635,6 +1639,8 @@ def create_app(root: Path, config: dict | None = None,
         context.update(adjust_context(request, context))
         return templates.TemplateResponse(request, name, context,
                                           status_code=status_code)
+
+    app.state.render = render  # pages/_ctx.py: the full page context for routes outside here
 
     def send_banner() -> dict | None:
         """The red banner on every page when sending stopped by itself (a login that
@@ -4013,6 +4019,8 @@ def create_app(root: Path, config: dict | None = None,
             raise HTTPException(status_code=403, detail="invalid or missing CSRF token; "
                                 "reload the settings page and try again")
 
+    app.state.check_csrf = check_csrf  # pages/_ctx.py
+
     def setup_done(result, anchor: str) -> RedirectResponse:
         config_saved()
         return flashed("/settings", result.text() or "Saved", anchor=anchor)
@@ -6188,4 +6196,7 @@ def create_app(root: Path, config: dict | None = None,
                          for p in store.problems],
         })
 
+    # Routes that live in their own modules (src/hermitcrm/pages/), after these,
+    # so none of them can shadow a route defined above.
+    pages.register(app)
     return app

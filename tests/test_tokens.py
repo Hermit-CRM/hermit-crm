@@ -29,6 +29,10 @@ STATIC = Path(__file__).resolve().parents[1] / "src" / "hermitcrm" / "static"
 HELP = Path(__file__).resolve().parents[1] / "src" / "hermitcrm" / "help" / "settings.md"
 TOKENS = (STATIC / "tokens.css").read_text(encoding="utf-8")
 STYLE = (STATIC / "style.css").read_text(encoding="utf-8")
+# Each feature's own stylesheet (base.html loads them after style.css): same rules.
+FEATURE_CSS = ("live.css", "palette.css", "jobs.css", "today.css")
+APP_CSS = {"style.css": STYLE} | {name: (STATIC / name).read_text(encoding="utf-8")
+                                  for name in FEATURE_CSS}
 
 # Tokens that are the same in light and dark by design.
 SCHEME_FREE = {"--brand", "--ink", "--sans", "--mono", "--serif", "--title-font", "--shadow",
@@ -105,21 +109,25 @@ def contrast(a: str, b: str) -> float:
 
 
 def test_every_var_used_by_the_app_is_defined_in_tokens():
-    used = set(re.findall(r"var\((--[\w-]+)", STYLE))
-    assert used, "style.css uses no tokens?"
-    assert used - DEFINED.keys() == set()
+    assert re.findall(r"var\((--[\w-]+)", STYLE), "style.css uses no tokens?"
+    for name, css in APP_CSS.items():
+        used = set(re.findall(r"var\((--[\w-]+)", css))
+        assert used - DEFINED.keys() == set(), name
 
 
-def test_style_css_defines_no_tokens_and_no_font_stacks():
-    assert re.findall(r"^\s*(--[\w-]+)\s*:", STYLE, re.M) == []
+@pytest.mark.parametrize("name", APP_CSS)
+def test_style_css_defines_no_tokens_and_no_font_stacks(name):
+    css = APP_CSS[name]
+    assert re.findall(r"^\s*(--[\w-]+)\s*:", css, re.M) == []
     for literal in ("-apple-system", "Menlo", "SFMono", "Helvetica", "Georgia", "serif;"):
-        assert literal not in STYLE, literal
-    assert not re.search(r"#[0-9a-fA-F]{3,8}\b", STYLE), "colour literal outside tokens.css"
+        assert literal not in css, literal
+    assert not re.search(r"#[0-9a-fA-F]{3,8}\b", css), "colour literal outside tokens.css"
 
 
-def test_every_font_in_the_app_is_a_token():
+@pytest.mark.parametrize("name", APP_CSS)
+def test_every_font_in_the_app_is_a_token(name):
     """So one line in theme.css changes any font, and style.css fixes none."""
-    for selector, decls in rules(STYLE):
+    for selector, decls in rules(APP_CSS[name]):
         if "font-family" in decls:
             assert re.fullmatch(r"var\(--[\w-]+\)|inherit", decls["font-family"]), selector
         if "font" in decls:
@@ -184,7 +192,7 @@ def test_default_colours_meet_the_contrast_rules(fg, bg, minimum, scheme):
 def test_faint_is_never_a_text_colour():
     """--faint is 3:1 on the page and 2.99:1 on the sidebar: fine for icons and
     borders, not for words (DESIGN.md: text is 4.5:1). Words use --muted."""
-    css = re.sub(r"/\*.*?\*/", "", STYLE, flags=re.S)
+    css = re.sub(r"/\*.*?\*/", "", "\n".join(APP_CSS.values()), flags=re.S)
     words = [line.strip() for line in css.splitlines()
              if re.search(r"(?:^|[;{\s])color:\s*var\(--faint\)", line) and ".icon" not in line]
     assert words == []

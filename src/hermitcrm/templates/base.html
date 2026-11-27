@@ -11,6 +11,12 @@
   <link rel="apple-touch-icon" href="/static/favicon.png?v={{ asset_version }}">
   <link rel="stylesheet" href="/static/tokens.css?v={{ asset_version }}">
   <link rel="stylesheet" href="/static/style.css?v={{ asset_version }}">
+  {#- One stylesheet and script per feature, so features never edit the same lines.
+      Before theme.css, so a user's theme still wins. #}
+  <link rel="stylesheet" href="/static/live.css?v={{ asset_version }}">
+  <link rel="stylesheet" href="/static/palette.css?v={{ asset_version }}">
+  <link rel="stylesheet" href="/static/jobs.css?v={{ asset_version }}">
+  <link rel="stylesheet" href="/static/today.css?v={{ asset_version }}">
   {% if user_theme %}<link rel="stylesheet" href="/theme.css">{% endif %}
   <script src="/static/tour.js?v={{ asset_version }}" defer></script>
   <script src="/static/adjust.js?v={{ asset_version }}" defer></script>
@@ -21,6 +27,9 @@
   <script src="/static/hint.js?v={{ asset_version }}" defer></script>
   <script src="/static/dates.js?v={{ asset_version }}" defer></script>
   <script src="/static/upgrade.js?v={{ asset_version }}" defer></script>
+  <script src="/static/live.js?v={{ asset_version }}" defer></script>
+  <script src="/static/palette.js?v={{ asset_version }}" defer></script>
+  <script src="/static/jobs.js?v={{ asset_version }}" defer></script>
 </head>
 <body{% if request.url.path.startswith("/settings") or request.url.path.startswith("/help") %} class="classic"{% endif %}>
 {% set path = request.url.path %}
@@ -110,6 +119,9 @@
       </div>
     </div>
   </details>
+  {#- Background jobs (jobs.js shows it). hidden until then: an empty item in the
+      top bar's grid would push the Ask button onto a second row. #}
+  <span id="jobs-badge" hidden></span>
 </header>
 <main>
   {% if samples %}<p class="sample-bar">Sample data: <strong>{{ samples | map(attribute='name') | join(', ') }}</strong> is made up, to show what a worked account looks like. <a href="/sample/remove">Remove it</a> when you are done looking.</p>{% endif %}
@@ -131,5 +143,9 @@
 </main>
 <footer class="small">Hermit CRM v{{ hermitcrm_version }} &middot; <a href="/help">Help</a></footer>
 {% if disclaimer_pending %}{% include "disclaimer_modal.html" %}{% endif %}
+{#- Filled by live.js (toasts) and palette.js (the command palette). The live region
+    is on the page from the start, so screen readers announce what is added to it. #}
+<div id="toasts" aria-live="polite"></div>
+<div id="palette-root" hidden></div>
 </body>
 </html>
