@@ -30,7 +30,7 @@ import pytest
 from hermitcrm import bcc, pipeline
 from hermitcrm.gitops import GitOps
 from hermitcrm.store import Store
-from conftest import FIXED_NOW
+from conftest import FIXED_NOW, copy_git
 
 
 def git(args: list[str], cwd: Path) -> str:
@@ -46,11 +46,8 @@ def committed(repo: Path) -> str:
 
 
 @pytest.fixture
-def repo(tmp_path: Path) -> Path:
-    for args in (["init", "-b", "main"], ["config", "user.name", "CRM Test"],
-                 ["config", "user.email", "crm@test.local"]):
-        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
-    return tmp_path
+def repo(tmp_path: Path, git_template: Path) -> Path:
+    return copy_git(git_template, tmp_path)
 
 
 @pytest.fixture

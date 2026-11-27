@@ -26,7 +26,7 @@ import pytest
 from hermitcrm import bcc
 from hermitcrm.attachments import Attachment
 from test_bcc import (ME, QUEUE, SETTINGS, FakeBox, client, inbox_for, last_commit,  # noqa: F401
-                      raw_mail, repo, seed)
+                      raw_mail, seed)  # repo is in conftest.py
 from conftest import FIXED_NOW
 
 PDF = b"%PDF-1.4 proposal\n"

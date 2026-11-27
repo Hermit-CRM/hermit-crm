@@ -26,7 +26,7 @@ import pytest
 from hermitcrm import followups, layout
 from hermitcrm.followups import NUDGE, REPLY
 from conftest import FIXED_NOW
-from test_layout import app, client, repo  # noqa: F401  (the same git-backed folder)
+from test_layout import app, repo  # noqa: F401  (the same git-backed folder; client is in conftest.py)
 
 TODAY = FIXED_NOW.date()
 JANE = "/companies/acme/contacts/jane-doe"
