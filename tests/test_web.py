@@ -2488,10 +2488,13 @@ def test_extension_new_without_a_url_goes_back_to_the_capture_page(client):
 def test_stylesheets_load_tokens_then_style_then_theme(client, repo):
     page = client.get("/").text
     links = re.findall(r'<link rel="stylesheet" href="([^"?]+)', page)
-    assert links == ["/static/tokens.css", "/static/style.css"]
+    # then each feature's own sheet (pages/ seam), still before a user's theme
+    app_css = ["/static/tokens.css", "/static/style.css", "/static/live.css",
+               "/static/palette.css", "/static/jobs.css", "/static/today.css"]
+    assert links == app_css
     (repo / "theme.css").write_text(":root { --accent: red; }")
     links = re.findall(r'<link rel="stylesheet" href="([^"?]+)', client.get("/").text)
-    assert links == ["/static/tokens.css", "/static/style.css", "/theme.css"]
+    assert links == app_css + ["/theme.css"]
 
 
 def test_static_urls_change_when_the_files_do(client, tmp_path):
