@@ -69,12 +69,19 @@ def test_a_website_that_cannot_be_reached_says_so():
         textsource.read_website("down.example.com", fetcher=down)
 
 
+# These bytes end up in the test ids (the parametrize lists below). A zip entry
+# stamped with the clock would make them differ by the second between pytest-xdist
+# workers, which then refuse to run ("Different tests were collected"); a fixed
+# stamp keeps the ids the same in every process.
+ZIP_STAMP = (2026, 9, 14, 10, 30, 0)
+
+
 def docx(*paragraphs):
     ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
     body = "".join(f'<w:p><w:r><w:t>{p}</w:t></w:r></w:p>' for p in paragraphs)
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
-        z.writestr("word/document.xml",
+        z.writestr(zipfile.ZipInfo("word/document.xml", ZIP_STAMP),
                    f'<w:document xmlns:w="{ns}"><w:body>{body}</w:body></w:document>')
     return buf.getvalue()
 
@@ -82,7 +89,7 @@ def docx(*paragraphs):
 def zipped(name, data):
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr(name, data)
+        z.writestr(zipfile.ZipInfo(name, ZIP_STAMP), data, compress_type=zipfile.ZIP_DEFLATED)
     return buf.getvalue()
 
 

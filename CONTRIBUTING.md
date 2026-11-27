@@ -60,8 +60,12 @@ Python 3.11 is the oldest supported version; avoid syntax newer than that.
 ## Tests
 
 ```bash
-.venv/bin/pytest
+.venv/bin/pytest -n auto
 ```
+
+`-n auto` (from `pytest-xdist`, in the `dev` extra) runs the tests on every CPU
+at once, as CI does. The suite passes without it too; leave it off to debug one
+test, or to see `print` output in order.
 
 The suite must pass before every commit. Tests run in `tmp_path` folders and
 never touch the network or your own data. Add a test with every change; for a
