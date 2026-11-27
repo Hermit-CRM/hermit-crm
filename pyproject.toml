@@ -32,6 +32,7 @@ dependencies = [
     "python-frontmatter",
     "pyyaml",
     "pypdf>=6.21.4",
+    "segno",
 ]
 
 [project.optional-dependencies]

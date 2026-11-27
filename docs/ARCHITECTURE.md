@@ -32,6 +32,7 @@ src/hermitcrm/
 ├── linkedin.py            # the paced LinkedIn session: the person sends, Hermit paces and logs
 ├── attachments.py         # files kept with interactions: names, types, front matter, check (§2, "Attachments")
 ├── clientfiles.py         # client folders: a folder per company outside the data folder, linked, never stored (§2)
+├── vcard.py               # Save to phone: a contact as a vCard 3.0, drawn as a QR code (segno) on its page
 ├── models.py              # dataclasses, enums, validation, (de)serialisation
 ├── store.py               # file store and in-memory index (§3), DEFAULT_CONFIG
 ├── gitops.py              # commit and push (§4)

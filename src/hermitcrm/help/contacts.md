@@ -31,10 +31,29 @@ box matches name, email, title and company.
 - **Delete contact** (asks first). Their interactions stay on the company
   with the contact cleared, so the record survives; git keeps the file's
   history.
+- **Save to phone** (below).
 
 New contacts come from the company page's New contact link
 (`/companies/<slug>/contacts/new`), from Import in contacts mode, and from the
 BCC and calendar imports (a new person at a company whose domain is known).
+
+## Save to phone
+
+Press **Save to phone** on a contact page and point your phone's camera at the
+code. Tap what the phone offers and save the new contact. Your phone does not
+need to reach Hermit, and nothing is sent anywhere: the contact is in the code
+on your screen.
+
+- The code holds the contact's name, company, title, phone number, email and
+  LinkedIn address, where on file. Notes, tasks, interactions and your own
+  fields never go in it.
+- A contact without a phone number can still be saved; the panel offers to add
+  the number first.
+- The phone keeps its own copy: a change you make in Hermit later does not
+  reach it. To update it, scan the code again and, if your phone offers it, add
+  the details to the contact you already have.
+- Very long details (more than a couple of thousand characters) do not fit in
+  one code; the panel says so.
 
 ## Keep in touch
 
