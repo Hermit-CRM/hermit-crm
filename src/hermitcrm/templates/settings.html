@@ -13,7 +13,7 @@
   ('mail', 'Email & calendar', ['bcc', 'send', 'calendar']),
   ('crm', 'Your CRM', ['playbook', 'fields', 'messaging', 'client-folders', 'task-types', 'stages', 'outcomes', 'calls']),
   ('backup', 'Data', ['backup', 'export']),
-  ('advanced', 'Advanced', ['schedule', 'access', 'mcp', 'doctor']),
+  ('advanced', 'Advanced', ['schedule', 'access', 'connect', 'mcp', 'doctor']),
 ] %}
 {% set lb = local_backup %}
 {% set attention = {
@@ -727,6 +727,40 @@
     {{ no_password }}
   </details>
   {% endif %}
+</section>
+
+<section class="setup-step" id="connect">
+  {%- set c = connect %}
+  <div class="setting-head"><h2>Connect your AI</h2>{{ how('/help/ai-agents#connect-your-ai') }}</div>
+  <p class="summary">The exact line for Claude Code, Claude Desktop or Cursor, filled in for this folder and this computer. Copy it into the app; Hermit changes nothing in the app's settings.</p>
+  {% if not c.found %}<p class="warning">Hermit could not find where the <code>hermitcrm</code> command is installed, so the lines below say just <code>hermitcrm</code>. A desktop app may not find it that way: run <code>which hermitcrm</code> in a terminal and use the path it prints instead.</p>{% endif %}
+  <details class="edit">
+    <summary>Claude Code</summary>
+    <p class="small">Claude Code works in this folder with its own shell, so it needs no setup: open it here. It reads the folder's rules (<code>CLAUDE.md</code>) and has these skills; type one, or just ask:</p>
+    <ul class="small">
+      {%- for s in c.skills %}
+      <li><code>/{{ s.name }}</code>{% if s.state == 'yours' %} (your own version){% elif s.state == 'missing' %} (not in this folder yet){% elif s.state == 'old' %} (an older version){% endif %}</li>
+      {%- endfor %}
+    </ul>
+    {% if c.skills_missing %}<p class="small">To add the ones that are missing or old, run <code>hermitcrm --data {{ c.root }} migrate</code>. A skill you changed yourself is kept.</p>{% endif %}
+    <pre class="copy"><code>{{ c.claude_code.open }}</code></pre>
+    <p><button type="button" class="copy-btn" data-copy-text="{{ c.claude_code.open }}">copy</button></p>
+    <p class="small">To reach this CRM from Claude Code in any other folder, add it once as an MCP server:</p>
+    <pre class="copy"><code>{{ c.claude_code.mcp_add }}</code></pre>
+    <p><button type="button" class="copy-btn" data-copy-text="{{ c.claude_code.mcp_add }}">copy</button></p>
+  </details>
+  <details class="edit">
+    <summary>Claude Desktop</summary>
+    <p class="small">In Claude Desktop: Settings, Developer, Edit Config. That opens <code>{{ c.desktop.config_path }}</code>. Paste this in (if the file already has <code>"mcpServers"</code>, add the <code>"hermitcrm"</code> part inside it), save, and restart Claude Desktop.</p>
+    <pre class="copy"><code>{{ c.desktop.block }}</code></pre>
+    <p><button type="button" class="copy-btn" data-copy-text="{{ c.desktop.block }}">copy</button></p>
+  </details>
+  <details class="edit">
+    <summary>Cursor</summary>
+    <p class="small">Cursor reads its MCP servers from <code>{{ c.cursor.config_path }}</code> (adding a new global MCP server in Cursor's settings opens that file). Paste this in (inside an existing <code>"mcpServers"</code> if there is one) and save.</p>
+    <pre class="copy"><code>{{ c.cursor.block }}</code></pre>
+    <p><button type="button" class="copy-btn" data-copy-text="{{ c.cursor.block }}">copy</button></p>
+  </details>
 </section>
 
 <section class="setup-step" id="mcp">

@@ -139,6 +139,26 @@ them with file paths.
 
 Related: [Data format](/help/data-format), [CLI](/help/cli), [Pipeline](/help/pipeline)
 
+## Connect your AI
+
+**Settings > Advanced > Connect your AI** shows the exact line or block for
+Claude Code, Claude Desktop and Cursor, already filled in with this folder's
+path and the full path of the `hermitcrm` command, each with a copy button.
+Hermit only shows the text: it changes nothing in the AI app's settings, and
+nothing outside the data folder.
+
+- **Claude Code** needs no setup in the folder: open it there (`cd <folder> &&
+  claude`) and it has the rules and the skills above. To reach the CRM from
+  Claude Code in any other folder, the section gives the one-time
+  `claude mcp add --scope user hermitcrm -- ...` line.
+- **Claude Desktop** and **Cursor** take the JSON block below, in
+  `claude_desktop_config.json` or `~/.cursor/mcp.json`.
+
+If Hermit cannot find where `hermitcrm` is installed, the section says so: run
+`which hermitcrm` and use the path it prints, because a desktop app does not
+search your terminal's PATH. The section also lists the skills, and says when
+one is missing (`hermitcrm migrate` adds it).
+
 ## Connecting over MCP
 
 `hermitcrm mcp` serves one data folder to any MCP client, over stdio. It adds no
