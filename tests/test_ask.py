@@ -287,6 +287,8 @@ def test_ask_route_uses_the_rendered_page_then_offers_retry(app_client):
     token = app.state.csrf_token
     r = client.post("/ask", data={"csrf_token": token, "question": "Status?",
                                   "page": f"/companies/{slug}"})
+    assert r.status_code == 303 and r.headers["location"].startswith("/ask?job=")
+    r = client.get(r.headers["location"])      # the job ran inline (conftest)
     assert r.status_code == 200
     assert "<strong>fine</strong>" in r.text and "Answered from the CRM index" in r.text
     assert "Retry with Fable" in r.text and "Search every file instead" in r.text
@@ -297,6 +299,7 @@ def test_ask_route_uses_the_rendered_page_then_offers_retry(app_client):
     runner.replies.append({"answer": "Deeper.", "sources": []})
     r = client.post("/ask", data={"csrf_token": token, "question": "Status?", "tier": "strong",
                                   "scope": "deep", "page": f"/companies/{slug}"})
+    r = client.get(r.headers["location"])
     assert "Searched the whole CRM" in r.text and "Retry with" not in r.text
     assert client.post("/ask", data={"question": "x"}).status_code == 403
 
@@ -312,6 +315,7 @@ def test_ask_route_answers_with_working_links(app_client):
     app.state.enricher = Enricher(provider="claude", which=ALL, runner=runner)
     r = client.post("/ask", data={"csrf_token": app.state.csrf_token, "question": "Who?",
                                   "page": "/"})
+    r = client.get(r.headers["location"])
     link = f'<a href="/companies/{slug}/contacts/{person.slug}">{person.name}</a>'
     assert link in r.text and "Ghost" in r.text and "/contacts/ghost" not in r.text
     assert "CRM index" in r.text and " s</p>" in r.text           # label and elapsed time

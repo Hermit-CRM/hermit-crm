@@ -4538,6 +4538,7 @@ def create_app(root: Path, config: dict | None = None,
     def ask_page_view(request: Request, page: str, status_code: int = 200, **extra):
         enricher = app.state.enricher
         ctx = {"ask_page": page, "question": "", "answer": None, "error": "", "tried": "",
+               "job": None,
                "ai": {"available": enricher.available, "provider": enricher.provider_name,
                       "reason": "" if enricher.available else enricher.unavailable_reason(),
                       "medium": enricher.model_for("medium"),
@@ -4551,30 +4552,75 @@ def create_app(root: Path, config: dict | None = None,
         return render(request, "ask.html", ctx, status_code=status_code)
 
     @app.get("/ask", response_class=HTMLResponse)
-    def ask_form(request: Request, page: str = "/"):
+    def ask_form(request: Request, page: str = "/", job: str = ""):
+        if job:
+            return ask_job_view(request, safe_page(page), job)
         return ask_page_view(request, safe_page(page))
 
     @app.post("/ask", response_class=HTMLResponse)
     async def ask_post(request: Request, csrf_token: str = Form(""), question: str = Form(""),
                        page: str = Form("/"), scope: str = Form("auto"),
                        tier: str = Form("")):
+        """Start the answer as a background job and go to the Ask page, which shows its
+        progress and then the answer (pages/jobs.py, jobs.py). What fails before any AI
+        runs (no question, no AI CLI) is said at once, as before."""
         check_csrf(csrf_token)
         page = safe_page(page)
         enricher = app.state.enricher.with_tier(tier) if tier else app.state.enricher
         enricher = enricher.with_tier(ask_tier(enricher.tier))  # a copy: the timeout changes below
         # Before the (slow, fallible) ask: a question that failed is still a recent.
         ask_state.record(root, question, scope)
-        html = await page_html(page)
-        try:
-            answer = await run_in_threadpool(
-                asking.ask, enricher, question, page, html, root,
-                scope if scope in ("crm", "deep") else "auto",
-                float(config.get("ask_timeout") or 300), store=store)
-        except EnrichError as exc:
-            return ask_page_view(request, page, question=question, error=str(exc),
-                                 tried=enricher.model,
-                                 status_code=400 if not question.strip() else 502)
-        return ask_page_view(request, page, question=question, answer=answer)
+        asked = " ".join((question or "").split())
+        if not asked or not enricher.available:
+            reason = "Type a question first." if not asked else enricher.unavailable_reason()
+            return ask_page_view(request, page, question=question, error=reason,
+                                 tried=enricher.model, status_code=400 if not asked else 502)
+        html = await page_html(page)   # the page as the browser saw it: before the job
+        scope = scope if scope in ("crm", "deep") else "auto"
+        timeout = float(config.get("ask_timeout") or 300)
+        run = enricher.runner
+
+        def answer(report):
+            def reporting(prompt, schema, **kwargs):   # ask.py's two steps, as progress
+                report("Looking through the whole CRM" if kwargs.get("tools")
+                       else "Reading this page")
+                return run(prompt, schema, **kwargs)
+
+            enricher.runner = reporting
+            found = asking.ask(enricher, question, page, html, root, scope, timeout,
+                               store=store)
+            return {"answer": dataclasses.asdict(found)}
+
+        job = app.state.jobs.start(
+            "ask", "Ask: " + (asked if len(asked) <= 60 else asked[:57] + "..."), answer,
+            back=page, params={"question": question, "page": page, "model": enricher.model})
+        return goto(f"/ask?job={job.id}&page={quote(page, safe='')}")
+
+    def ask_job_view(request: Request, page: str, job_id: str):
+        """The Ask page for a question that runs (or ran) as a job: progress, the
+        answer, or the error it ended with."""
+        job = app.state.jobs.get(job_id)
+        if job is None or job.kind != "ask":
+            return ask_page_view(request, page, error="That answer is no longer kept "
+                                 "(Hermit keeps the last 50 jobs). Ask again.")
+        question = job.params.get("question", "")
+        if job.active:
+            return ask_page_view(request, page, question=question, job=job,
+                                 tried=job.params.get("model", ""))
+        app.state.jobs.mark_seen(job)
+        if job.state == "done":
+            try:
+                found = asking.Answer(**job.result["answer"])
+            except (KeyError, TypeError):   # a hand-edited or older jobs file
+                found = None
+            if found is not None:
+                return ask_page_view(request, page, question=question, answer=found)
+        return ask_page_view(request, page, question=question, error=job.error,
+                             tried=job.params.get("model", ""))
+
+    # The badge links every job to /jobs/<id>; an Ask job opens on the Ask page.
+    app.state.jobs.views["ask"] = lambda request, job: goto(
+        f"/ask?job={job.id}&page={quote(job.params.get('page') or '/', safe='')}")
 
     def wants_json(request: Request) -> bool:
         return "application/json" in request.headers.get("accept", "")

@@ -27,6 +27,20 @@ Links in an answer are checked before you see them: a link to a person or
 company opens their page, a link that names a file or a slug is repaired, and
 a link that points nowhere is shown as plain text.
 
+## It runs in the background
+
+Asking no longer holds the page. After you press **Ask** the Ask page shows
+your question and what Hermit is doing ("Reading this page", then "Looking
+through the whole CRM" if it needs the second step), and the answer appears
+when it is ready. You can go to another page meanwhile: a badge at the top of
+every page says **Working** while it runs and **Ready** when the answer is in;
+click it to come back. Without JavaScript the Ask page refreshes itself every
+three seconds instead.
+
+The last 50 answers are kept in `.git/hermitcrm-jobs.json`, never in your
+data, so an answer survives a restart or an upgrade. A question that was still
+running when Hermit stopped says so ("interrupted"): ask it again.
+
 The answer page says which of the two answered, which model ran, how many
 seconds it took and, for the data-folder step, the sources it used.
 
