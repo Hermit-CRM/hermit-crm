@@ -84,7 +84,7 @@
     <button type="submit">Save company</button>
     {% if errors and errors.stage and 'is not allowed (' in errors.stage %}<button type="submit" name="force" value="1" title="Save anyway, moving to {{ values.stage }} although the stage rules do not list it; the commit says so">Move anyway</button>{% endif %}
   </form>
-  <p class="small">slug {{ company.slug }} &middot; created {{ fmt_datetime(company.created) }} &middot; updated {{ fmt_datetime(company.updated) }} &middot; stage changed {{ fmt_date(company.stage_changed) }}</p>
+  <p class="small">slug {{ company.slug }} &middot; created {{ fmt_datetime(company.created) }} &middot; updated {{ fmt_datetime(company.updated) }} &middot; stage changed {{ fmt_date(company.stage_changed) }} &middot; <a href="/companies/{{ company.slug }}/history">history</a></p>
   {% if company.stage_history %}
   <details class="stage-history">
     <summary class="small">Stage history ({{ company.stage_history | length }})</summary>

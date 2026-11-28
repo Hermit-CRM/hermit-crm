@@ -298,3 +298,183 @@ def plain_subject(subject: str) -> str:
         if found:
             return words(found)
     return subject[:1].upper() + subject[1:]
+
+
+# ------------------------------------------------------- history of one record
+
+PER_PAGE = 50
+# Changed on every write, so it would be in every entry and say nothing.
+QUIET_FIELDS = ("updated",)
+
+
+@dataclass
+class FieldChange:
+    name: str
+    before: str   # "" when the field was not there or empty
+    after: str
+
+
+@dataclass
+class RecordChange:
+    sha: str
+    when: datetime
+    subject: str
+    merge: bool = False
+    first: bool = False
+    undone: bool = False
+    fields: list[FieldChange] = field(default_factory=list)
+    body_changed: bool = False     # the record's own text below the front matter
+    added: bool = False            # the record's own file was made in this commit
+    deleted: bool = False
+    others: list[str] = field(default_factory=list)  # other files of the record, in words
+
+    @property
+    def sha7(self) -> str:
+        return self.sha[:7]
+
+    @property
+    def words(self) -> str:
+        return plain_subject(self.subject)
+
+    @property
+    def agent(self) -> bool:
+        return by_agent(self.subject)
+
+    @property
+    def can_undo(self) -> bool:
+        return not self.merge and not self.undone and not self.first
+
+
+def _blobs(root: Path, specs: list[str]) -> list[str | None]:
+    """The text of each `rev:path` (None where it does not exist), from one
+    `git cat-file --batch` process however many there are."""
+    if not specs:
+        return []
+    proc = subprocess.run(["git", "cat-file", "--batch"], cwd=root, capture_output=True,
+                          input=("\n".join(specs) + "\n").encode("utf-8"), timeout=60)
+    out, pos, texts = proc.stdout, 0, []
+    for _ in specs:
+        eol = out.find(b"\n", pos)
+        if eol == -1:
+            texts.append(None)
+            continue
+        header = out[pos:eol].split()
+        pos = eol + 1
+        if len(header) != 3 or header[1] != b"blob":
+            texts.append(None)   # "<spec> missing", or not a file
+            continue
+        size = int(header[2])
+        texts.append(out[pos:pos + size].decode("utf-8", errors="replace"))
+        pos += size + 1
+    return texts
+
+
+def _show(value) -> str:
+    """A front-matter value as one short line."""
+    if value is None:
+        return ""
+    if isinstance(value, dict):
+        return ", ".join(f"{k}: {_show(v)}" for k, v in value.items())
+    if isinstance(value, list):
+        return "; ".join(_show(v) for v in value)
+    if isinstance(value, bool):
+        return "yes" if value else "no"
+    return str(value)
+
+
+def _split(text: str | None) -> tuple[dict, str]:
+    if text is None:
+        return {}, ""
+    from .store import split_file   # store imports this module's neighbours, not this one
+    try:
+        return split_file(text)
+    except Exception:  # a file that did not parse at the time: compare it as text
+        return {}, text
+
+
+def field_changes(before: str | None, after: str | None) -> tuple[list[FieldChange], bool]:
+    """Field by field, in the order the newer file has them, then fields that
+    went; and whether the text below the front matter changed."""
+    old, old_body = _split(before)
+    new, new_body = _split(after)
+    names = [k for k in new if k not in QUIET_FIELDS]
+    names += [k for k in old if k not in new and k not in QUIET_FIELDS]
+    changes = []
+    for k in names:
+        was, now = old.get(k), new.get(k)
+        if _show(was) == _show(now):
+            continue
+        if isinstance(was, list) and isinstance(now, list):
+            # A list (stage history, tasks): the items that went and that came.
+            gone = [x for x in was if x not in now]
+            came = [x for x in now if x not in was]
+            if gone or came:
+                was, now = gone, came
+        changes.append(FieldChange(str(k), _show(was), _show(now)))
+    return changes, old_body != new_body
+
+
+_OTHER = {"A": "added", "D": "deleted", "M": "changed", "R": "renamed", "C": "copied"}
+
+
+def _other_words(path: str, status: str) -> str:
+    parts = path.split("/")
+    name = parts[-1].removesuffix(".md")
+    kind = parts[-2] if len(parts) >= 2 else ""
+    what = {"interactions": "Interaction", "contacts": "Contact",
+            "attachments": "File"}.get(kind, "File")
+    return f"{what} {name} {_OTHER.get(status[:1], 'changed')}"
+
+
+def record_history(root: Path, paths: list[str], main: str, page: int = 1,
+                   per_page: int = PER_PAGE) -> tuple[list[RecordChange], bool]:
+    """The commits that touched `paths` (relative to the folder), newest first,
+    `per_page` at a time; and whether there are older ones. `main` is the
+    record's own file, compared field by field; other files under `paths` are
+    named in words. Empty without git or when git fails."""
+    root = Path(root)
+    page = max(1, page)
+    try:
+        proc = _git(root, "log", f"--skip={(page - 1) * per_page}",
+                    f"--max-count={per_page + 1}", "--name-status", "--no-renames",
+                    "--format=%x1e%H%x1f%ct%x1f%P%x1f%s", "--", *paths)
+        reverts = _git(root, "log", "--format=%b", "--fixed-strings",
+                       "--grep=This reverts commit", "--", *paths)
+    except Exception:  # git missing or timed out: the page says there is no history
+        return [], False
+    if proc.returncode != 0:
+        return [], False
+    undone = set(_REVERTS.findall(reverts.stdout)) if reverts.returncode == 0 else set()
+    changes, touched = [], []
+    for record in proc.stdout.split("\x1e")[1:]:
+        head, _, names = record.partition("\n")
+        try:
+            sha, stamp, parents, subject = head.split("\x1f", 3)
+        except ValueError:
+            continue
+        status = {}
+        for line in names.splitlines():
+            bits = line.split("\t")
+            if len(bits) >= 2:
+                status[bits[-1]] = bits[0]
+        change = RecordChange(sha=sha, when=datetime.fromtimestamp(int(stamp)),
+                              subject=subject, merge=len(parents.split()) > 1,
+                              first=not parents.split(),
+                              undone=any(sha.startswith(s) for s in undone))
+        change.added = status.get(main, "").startswith("A")
+        change.deleted = status.get(main, "").startswith("D")
+        change.others = [_other_words(p, s) for p, s in sorted(status.items()) if p != main]
+        changes.append(change)
+        touched.append(main in status or change.merge)
+    more = len(changes) > per_page
+    changes, touched = changes[:per_page], touched[:per_page]
+    specs = []
+    for change, hit in zip(changes, touched):
+        if hit:
+            specs += [f"{change.sha}^:{main}", f"{change.sha}:{main}"]
+    texts = iter(_blobs(root, specs))
+    for change, hit in zip(changes, touched):
+        if hit:
+            before, after = next(texts), next(texts)
+            change.fields, change.body_changed = field_changes(before, after)
+    return changes, more

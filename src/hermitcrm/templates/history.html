@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{#- The history of one company or contact (pages/live.py): the commits that touched
+    its files, newest first, PER_PAGE at a time. Each Undo posts to /live/undo and
+    comes back here. -#}
+{% block title %}History: {{ record_name }}{% endblock %}
+{% block content %}
+<p class="small"><a href="{{ record_url }}">&larr; {{ record_name }}</a></p>
+<h1>History: {{ record_name }}</h1>
+<p class="small">Every change to this record is a commit in your data folder, newest first. Undo makes a new commit that reverses one; nothing is ever erased. <a href="/help/backups#history-of-a-record">How this works</a></p>
+{% if changes %}
+<div class="table-scroll"><table class="built record-history">
+  <thead><tr><th>When</th><th>Change</th><th>Before &rarr; after</th><th></th></tr></thead>
+  <tbody>
+  {% for c in changes %}
+  <tr id="c-{{ c.sha7 }}">
+    <td class="nowrap" title="{{ fmt_datetime(c.when) }}">{{ when_text(c.when) }}</td>
+    <td>{{ c.words }}{% if c.agent %} <span class="tag" title="The commit says an AI agent made it (its message starts with ai:)">agent</span>{% endif %}
+      <code class="sha" title="{{ c.subject }}">{{ c.sha7 }}</code></td>
+    <td>
+      {% if c.added and c.fields %}
+      <details><summary>Created with {{ c.fields | length }} field{{ '' if c.fields | length == 1 else 's' }}</summary>
+        <ul class="small">{% for f in c.fields %}<li><strong>{{ f.name }}</strong>: {{ f.after }}</li>{% endfor %}</ul>
+      </details>
+      {% elif c.deleted %}Deleted
+      {% elif c.fields %}
+      <ul class="small">{% for f in c.fields %}<li><strong>{{ f.name }}</strong>: {% if f.before %}<s>{{ f.before }}</s>{% else %}<em>empty</em>{% endif %} &rarr; {% if f.after %}{{ f.after }}{% else %}<em>empty</em>{% endif %}</li>{% endfor %}</ul>
+      {% endif %}
+      {% if c.body_changed and not c.added %}<p class="small">Notes text changed.</p>{% endif %}
+      {% if c.others %}<p class="small">{{ c.others[:5] | join(', ') }}{% if c.others | length > 5 %} and {{ c.others | length - 5 }} more{% endif %}</p>{% endif %}
+    </td>
+    <td class="actions">
+      {% if c.can_undo %}
+      <form method="post" action="/live/undo" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="sha" value="{{ c.sha }}">
+        <input type="hidden" name="back" value="{{ here }}">
+        <button type="submit" title="A new commit that reverses this one">Undo</button>
+      </form>
+      {% elif c.undone %}<span class="small">undone</span>
+      {% elif c.merge %}<span class="small" title="A merge joins two lines of history; undo the commits it brought in">merge</span>
+      {% else %}<span class="small" title="The folder's first commit cannot be undone">first commit</span>{% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% if newer_url or older_url %}<p class="pager">{% if newer_url %}<a href="{{ newer_url }}">&larr; Newer</a>{% endif %}{% if newer_url and older_url %} &middot; {% endif %}{% if older_url %}<a href="{{ older_url }}">Older &rarr;</a>{% endif %}</p>{% endif %}
+<p class="small">{{ per_page }} changes a page. In a terminal: <code>git log -- &lt;file&gt;</code> and <code>hermitcrm undo &lt;commit&gt;</code>.</p>
+{% else %}
+<p class="empty-state">No history yet: this record has no commit in the folder's history, or the folder is not a git repository.</p>
+{% endif %}
+{% endblock %}

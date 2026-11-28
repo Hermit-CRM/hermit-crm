@@ -21,8 +21,12 @@ the toast): for two minutes under a flash, and on the first page shown right
 after a write that has no flash of its own (a stage move, a task ticked off),
 with a line in plain words saying what was done. The button posts the commit to
 `POST /live/undo`, which is `history.undo`: a new commit that reverses it, so
-an undo can itself be undone the same way. Nothing new is stored: git is the
-history.
+an undo can itself be undone the same way.
+
+Every company and contact page also links to its own history
+(`/companies/{slug}/history`, `.../contacts/{cslug}/history`): the commits
+that touched its files, newest first, in plain words, field by field, each with
+the same Undo. Nothing new is stored: git is the history.
 """
 
 from __future__ import annotations
@@ -31,7 +35,8 @@ import re
 import time
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse
 
 from .. import history
 from ._ctx import ctx
@@ -128,3 +133,47 @@ def undo(request: Request, csrf_token: str = Form(""), sha: str = Form(""),
     c.gitops.push_async()
     return flashed(landing(c.store, back), history.plain_subject(subject) + ".")
 
+
+# ------------------------------------------------------------ record history
+
+
+def history_page(request: Request, name: str, back: str, paths: list[str], main: str,
+                 page: int):
+    c = ctx(request)
+    changes, more = history.record_history(c.root, paths, main, page=page)
+    if page > 1 and not changes:
+        raise HTTPException(status_code=404, detail="no such page of history")
+    here = request.url.path
+    return c.render(request, "history.html", {
+        "record_name": name, "record_url": back, "changes": changes,
+        "when_text": history.when_text, "page": page,
+        "newer_url": (f"{here}?page={page - 1}" if page > 2 else here) if page > 1 else "",
+        "older_url": f"{here}?page={page + 1}" if more else "",
+        "here": page_address(request), "per_page": history.PER_PAGE,
+    })
+
+
+def _page(page: str) -> int:
+    return int(page) if page.isdigit() and 0 < int(page) < 100000 else 1
+
+
+@router.get("/companies/{slug}/history", response_class=HTMLResponse)
+def company_history(request: Request, slug: str, page: str = "1"):
+    company = ctx(request).store.get(slug)
+    if company is None:
+        raise HTTPException(status_code=404, detail=f"unknown company {slug!r}")
+    folder = f"companies/{company.slug}"
+    return history_page(request, company.name, f"/companies/{company.slug}", [folder],
+                        f"{folder}/company.md", _page(page))
+
+
+@router.get("/companies/{slug}/contacts/{cslug}/history", response_class=HTMLResponse)
+def contact_history(request: Request, slug: str, cslug: str, page: str = "1"):
+    company = ctx(request).store.get(slug)
+    person = company.contacts.get(cslug) if company is not None else None
+    if person is None:
+        raise HTTPException(status_code=404, detail=f"unknown contact {slug}/{cslug}")
+    main = f"companies/{company.slug}/contacts/{person.slug}.md"
+    return history_page(request, f"{person.name} ({company.name})",
+                        f"/companies/{company.slug}/contacts/{person.slug}", [main], main,
+                        _page(page))
