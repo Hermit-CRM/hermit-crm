@@ -14,7 +14,7 @@
     <strong data-job-state>{% if job.state == 'queued' %}Waiting to start{% else %}Working{% endif %}</strong>
     <span data-job-steps>{{ job.steps }}</span></p>
   <p class="job-progress" data-job-progress aria-live="polite">{{ job.progress }}</p>
-  <p class="small">You can leave this page: the work goes on, and the badge at the top says when it is ready.{% if refresh %} This page refreshes itself every {{ refresh }} seconds.{% endif %}</p>
+  <p class="small">You can leave this page: the work goes on, and the badge at the top says when it is ready.{% if refresh %}<noscript> This page refreshes itself every {{ refresh }} seconds.</noscript>{% endif %}</p>
   {% elif job.state == 'done' %}
   <p class="job-line"><strong>Done</strong>{% if job.steps %} <span>{{ job.steps }}</span>{% endif %}</p>
   {% elif job.state == 'failed' %}

@@ -17,7 +17,8 @@
 
 /* The top bar is a three-column grid (search in the middle, Ask on the right):
    the badge takes the empty first column, so it never pushes Ask down a row. */
-.topbar #jobs-badge { grid-column: 1; grid-row: 1; justify-self: start; min-width: 0; }
+.topbar #jobs-badge { grid-column: 1; grid-row: 1; justify-self: start; min-width: 0;
+                      max-width: 100%; overflow: hidden; }
 .jobs-badge-link {
   display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; vertical-align: middle;
