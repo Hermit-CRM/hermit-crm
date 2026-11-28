@@ -9,7 +9,7 @@ pasted into an AI session.
 ## Set up and run
 
 ```text
-hermitcrm init DIR [--demo] [--no-setup]   new data folder (git repo, config, agent rules, /hermit skill); asks the setup questions
+hermitcrm init DIR [--demo] [--no-setup]   new data folder (git repo, config, agent rules, the Claude Code skills); asks the setup questions
 hermitcrm sample add|remove                the made-up sample account in this folder, with a dashboard and a paused
                                         routine: load it, or delete it again (what you changed stays)
 hermitcrm setup                            the setup questions again (you, BCC, backup, calendar)
@@ -22,7 +22,8 @@ hermitcrm schedule install [--at HH:MM] [--serve] [--send] [--backup-every MIN |
 hermitcrm schedule remove [--send]         remove the jobs (--send: only the sending worker)
 hermitcrm schedule status
 hermitcrm migrate [--dry-run]              upgrade the data format (every command does this automatically);
-                                        also puts back a missing /hermit skill (.claude/skills/hermit/)
+                                        also writes a missing Claude Code skill (.claude/skills/: /hermit and
+                                        the five everyday ones), never over one you edited
 hermitcrm help [TOPIC]                     these pages; no topic prints the index and the topic list
 ```
 
@@ -185,6 +186,23 @@ reload its index afterwards.
 `set` exits 0 for a dry run, a finished change and "nothing matches"; 2 when it
 refused the request before writing anything; 1 when a write was tried and rolled
 back (every file is as it was, nothing committed).
+
+## Tasks
+
+```text
+hermitcrm tasks [list] [--when overdue|today|week|open|done] [--company SLUG]
+                                        the to-do list as the Tasks page has it, a company's next step
+                                        included: open tasks soonest first (done ones latest first),
+                                        one line each ending in the task's id
+hermitcrm tasks add SLUG TEXT [--due YYYY-MM-DD] [--contact CSLUG] [--type T]
+                                        add a task to a company or one of its people; one commit, and
+                                        it prints the new task's id and the undo command
+hermitcrm tasks done ID                    tick a task off (the id from tasks list); one commit
+```
+
+The ids are the ones the MCP tools `list_tasks`, `complete_task` and
+`reopen_task` use, so an id from either works in both. An id stops working once
+its task is changed or deleted; run `tasks list` again for the new one.
 
 ## Routines
 

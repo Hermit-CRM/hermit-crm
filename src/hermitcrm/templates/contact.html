@@ -161,7 +161,7 @@
     </form>
   </section>
   {% endif %}{% endfor %}
-  <p class="small">slug {{ contact.slug }} &middot; created {{ fmt_datetime(contact.created) }} &middot; updated {{ fmt_datetime(contact.updated) }}</p>
+  <p class="small">slug {{ contact.slug }} &middot; created {{ fmt_datetime(contact.created) }} &middot; updated {{ fmt_datetime(contact.updated) }} &middot; <a href="/companies/{{ company.slug }}/contacts/{{ contact.slug }}/history">history</a></p>
 </details>
 <script>
 // Optional comfort: it works without it (the links still jump).

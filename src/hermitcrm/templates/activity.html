@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{# /activity (pages/live_sync.py): what agents did, from the git log. #}
+{% block title %}What agents did{% endblock %}
+{% block content %}
+<h1>What agents did</h1>
+<p class="oneliner">Every change an AI agent made to your data folder: each commit whose message starts with <code>ai:</code>, newest first. Undo makes a new commit that reverses one; nothing is deleted from your history.</p>
+<p class="small"><a href="/yours">Make it yours</a> <span aria-hidden="true">&middot;</span> <a href="/help/ai-agents#what-agents-did">How it works</a></p>
+
+{% for label, entries in days %}
+<h2>{{ label }}</h2>
+<div class="table-scroll"><table class="built changes">
+  <thead><tr><th>Time</th><th>What changed</th><th>Records</th><th></th></tr></thead>
+  <tbody>
+  {% for e in entries %}
+  {% set touched = rows[e.sha] %}
+  <tr>
+    <td class="nowrap" title="{{ fmt_datetime(e.when) }}">{{ e.when.strftime('%H:%M') }}</td>
+    <td>{{ e.said }} <code class="sha">{{ e.sha[:7] }}</code>{% if e.what %}<br><span class="small">{{ e.what }}</span>{% endif %}</td>
+    <td>
+      {%- for r in touched[:records_shown] %}{% if not loop.first %}, {% endif %}{% if r.url %}<a href="{{ r.url }}">{{ r.label }}</a>{% else %}{{ r.label }}{% endif %}{% endfor %}
+      {%- if touched | length > records_shown %} and {{ touched | length - records_shown }} more{% endif %}
+    </td>
+    <td class="actions">
+      {% if e.can_undo %}
+      <form method="post" action="/yours/undo" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="sha" value="{{ e.sha }}">
+        <button type="submit" title="A new commit that reverses this one">Undo</button>
+      </form>
+      {% elif e.undone %}<span class="small">undone</span>
+      {% elif e.merge %}<span class="small" title="A merge joins two lines of history; undo the commits it brought in">merge</span>
+      {% else %}<span class="small" title="The folder's first commit cannot be undone">first commit</span>{% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}
+<p class="empty-state">No agent changes yet. When an agent changes your data, over MCP or with its own commits, each change is listed here with an Undo button.</p>
+{% endfor %}
+{% if days %}<p class="small">The last {{ scan }} commits are searched. In a terminal: <code>git log --grep '^ai:'</code> lists them all, and <code>hermitcrm undo &lt;commit&gt;</code> undoes one.</p>{% endif %}
+{% endblock %}

@@ -964,7 +964,8 @@ def create_app(root: Path, config: dict | None = None,
         except Exception:
             logger.exception("could not regenerate PIPELINE.md for %r", message)
         try:
-            gitops.commit(message, [*paths, "PIPELINE.md"])
+            sha = gitops.commit(message, [*paths, "PIPELINE.md"])
+            pages.live.record_write(app.state, sha, message)  # the Undo under the flash
             gitops.push_async()
         except Exception:  # GitOps never raises, but a write must never fail here
             logger.exception("git commit/push failed for %r", message)
@@ -1641,6 +1642,12 @@ def create_app(root: Path, config: dict | None = None,
             "send_banner": send_banner(),
         }
         context.update(ctx)
+        # Undo for the write the flash reports (pages/live.py, templates/undo_form.html);
+        # a write without a flash of its own gets one saying what was done.
+        context.setdefault("undo_write",
+                           pages.live.undo_offer(app.state, request, context["flash"]))
+        if context["undo_write"] and not context["flash"]:
+            context["flash"] = context["undo_write"]["note"]
         context.update(adjust_context(request, context))
         return templates.TemplateResponse(request, name, context,
                                           status_code=status_code)
@@ -3912,6 +3919,8 @@ def create_app(root: Path, config: dict | None = None,
 
     def settings_context(**extra) -> dict:
         from . import autopilot  # Settings, Autopilot (its route: pages/assist.py)
+        from . import connect  # Connect your AI: text only, it writes nothing
+
         state = current_setup_state()
         owner = str(config.get("owner_email") or "")
         bcc_address = str(config.get("bcc_address") or "")
@@ -4004,6 +4013,7 @@ def create_app(root: Path, config: dict | None = None,
             "schedule": schedule_status(),
             "local_backup": local_backup_status(),
             "access": access_facts(),
+            "connect": connect.for_folder(root, app.state.setup_platform),
             "about": {"version": __version__, "data_dir": str(root),
                       "data_format": data_format, "latest_format": migrations.LATEST,
                       "update_check": bool(config.get("update_check", True)),

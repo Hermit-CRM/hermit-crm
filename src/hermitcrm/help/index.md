@@ -18,6 +18,7 @@ page for the screen you are on; `hermitcrm help <topic>` prints the same text.
 - [Companies](/help/companies): the table, the company page, stages, next steps, disqualify and requalify.
 - [Contacts](/help/contacts): the table, the contact page, roles, generating outreach.
 - [Interactions](/help/interactions): logging email, LinkedIn, call, WhatsApp and meeting touches; outcomes; To file.
+- [Quick capture](/help/quick-capture): type what happened in a sentence; check what Hermit would file (interaction, tasks, stage) and save it as one change.
 - [Messages](/help/messages): every sent message with its outcome.
 - [Playbook](/help/playbook): what you sell and to whom (`MESSAGING.md`), for the drafts and the outreach bot.
 - [Outreach bot](/help/outreach): a batch of researched, checked first messages for you to review, send and log (`hermitcrm outreach`).

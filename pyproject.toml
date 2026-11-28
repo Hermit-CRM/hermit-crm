@@ -56,7 +56,7 @@ version = { attr = "hermitcrm.__version__" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-hermitcrm = ["templates/*.html", "static/*", "*.toml", "help/*.md"]
+hermitcrm = ["templates/*.html", "static/*", "*.toml", "help/*.md", "skills/*.md"]
 "hermitcrm.help" = ["*.md"]
 
 [tool.pytest.ini_options]

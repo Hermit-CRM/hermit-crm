@@ -24,10 +24,10 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from . import assist, capture, jobs, live, search, today
+from . import assist, capture, jobs, live, live_sync, search, today
 
 ROUTERS = (today.router, search.router, jobs.router, live.router, capture.router,
-           assist.router)
+           assist.router, live_sync.router)
 
 
 def register(app: FastAPI) -> None:

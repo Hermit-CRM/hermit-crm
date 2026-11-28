@@ -196,6 +196,34 @@ class GitOps:
             logger.error("git rev-parse raised an exception", exc_info=True)
             return None
 
+    def head(self) -> Optional[str]:
+        """What HEAD is, as `last_commit_sha` gives it (10 characters), read from
+        `.git/HEAD` and the ref file it names: no process, so a page can ask
+        every few seconds (static/live.js does). A ref git has packed into
+        `packed-refs`, a `.git` that is a file (a worktree) or anything odd falls
+        back to `last_commit_sha`; a folder without commits gives None."""
+        git_dir = self.root / ".git"
+        try:
+            text = (git_dir / "HEAD").read_text(encoding="ascii").strip()
+            if text.startswith("ref:"):
+                ref = text[4:].strip()
+                path = git_dir / ref
+                # Only a plain name under refs/ is read as a file; git decides the rest.
+                if not ref.startswith("refs/") or ".." in ref.split("/") or not path.is_file():
+                    return self._short(self.last_commit_sha())
+                text = path.read_text(encoding="ascii").strip()
+            if len(text) in (40, 64) and all(c in "0123456789abcdef" for c in text):
+                return text[:10]
+        except (OSError, UnicodeDecodeError):
+            pass
+        return self._short(self.last_commit_sha())
+
+    @staticmethod
+    def _short(sha: Optional[str]) -> Optional[str]:
+        # rev-parse --short=10 can give more than 10 when 10 would be ambiguous;
+        # the value is only compared with itself, so it is always cut to 10.
+        return sha[:10] if sha else None
+
     def status(self) -> dict:
         return {
             "last_commit": self.last_commit_sha(),

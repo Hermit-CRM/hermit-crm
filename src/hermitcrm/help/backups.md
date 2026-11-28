@@ -8,6 +8,42 @@ from the history. What the history cannot protect is *itself*: a
 force-push loses it. Anything with a shell in the folder can do that -- you, a
 script, or an AI agent that meant well. The backup covers that case.
 
+## Undo a change
+
+Right after you change something in the web app (move a stage, tick off a
+task, delete an interaction, save a form) the message that says what happened
+carries an **Undo** button. With JavaScript on it sits in the small message at
+the bottom right; without it, under the message line at the top of the page.
+
+- Undo makes a new commit that reverses the change, so nothing is erased: the
+  change and its undo are both in the history, and **Undo** on the "Undone"
+  message brings the change back.
+- The button stays while you reload that page, for two minutes. After that, or
+  once a later change has been made, undo the change from the list of changes
+  instead (the record's history, below), or ask your agent.
+- If a later change touched the same lines, or a file has edits that are not
+  committed yet, nothing is undone and the message says why.
+- A deleted interaction comes back exactly as it was, text and files included.
+
+## History of a record
+
+Every company and contact page has a **history** link at the end of its
+"slug, created, updated" line. It lists every change to that record, newest
+first, 50 to a page:
+
+- when it happened, and what in plain words ("Stage prospect → engaged",
+  "Contact ines-vega changed", "Interaction deleted");
+- an **agent** mark when an AI agent made it (its commit message starts with
+  `ai:`);
+- field by field, the value before and after. For a list (stage history,
+  tasks) only the items that came or went are shown;
+- for a company, the contacts, interactions and files that changed with it;
+- an **Undo** button, which works as above and brings you back to the history.
+  A change that was already undone says "undone"; the folder's first commit
+  and merges cannot be undone from here.
+
+Nothing extra is stored for this: the history is read from git each time.
+
 ## Dangerous git commands are blocked
 
 Every data folder has a `.claude/settings.json` that stops Claude Code from

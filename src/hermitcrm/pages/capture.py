@@ -18,6 +18,7 @@
                                  "Capture: ..." entry); nothing runs yet
     POST /quick-capture          starts a "capture" job, then its progress page
     GET  /quick-capture/{job}    the preview of a finished job: what it would file
+    POST /quick-capture/{job}    file what was confirmed, as one commit
 
 Not /capture: that path still sends old bookmarklets to /extension (web.py), and
 the sidebar marks /capture... as Extension. The job's progress is the shared job
@@ -27,20 +28,29 @@ JavaScript); the "capture" view sends a finished job back here.
 
 from __future__ import annotations
 
+import threading
+
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
 
 from .. import capture_text as ct
+from ..models import ValidationError
 from ._ctx import ctx
 
 router = APIRouter()
 
 KIND = "capture"
+_filing = threading.Lock()   # two clicks on Confirm must not file twice
 
 
 def _goto(path: str):
     from ..web import goto
     return goto(path)
+
+
+def _flashed(path: str, message: str):
+    from ..web import flashed
+    return flashed(path, message)
 
 
 def _jobs(request: Request):
@@ -145,3 +155,48 @@ def capture_preview(request: Request, job_id: str):
         return _form_page(request, text, "That preview can no longer be read. Try again.",
                           status_code=502)
     return _preview_page(request, job, values)
+
+
+def values_from_form(form) -> dict:
+    """The preview form, back as the dict capture_text.file takes."""
+    def text(name: str) -> str:
+        return str(form.get(name) or "").strip()
+
+    tasks = []
+    for n in range(ct.MAX_TASKS):
+        if f"task_{n}_text" not in form:
+            continue
+        tasks.append({"do": bool(form.get(f"task_{n}_do")), "text": text(f"task_{n}_text"),
+                      "due": text(f"task_{n}_due")})
+    return {
+        "company": text("company"), "new_company": text("new_company"),
+        "contact": text("contact"), "new_contact": text("new_contact"),
+        "do_interaction": bool(form.get("do_interaction")),
+        "channel": text("channel"), "direction": text("direction"), "date": text("date"),
+        "subject": text("subject"), "outcome": text("outcome"), "tasks": tasks,
+        "do_stage": bool(form.get("do_stage")), "stage": text("stage"),
+        "lost_reason": text("lost_reason"),
+    }
+
+
+@router.post("/quick-capture/{job_id}")
+async def capture_file(request: Request, job_id: str):
+    form = await request.form()
+    c = ctx(request)
+    c.check_csrf(str(form.get("csrf_token") or ""))
+    job = _capture_job(request, job_id)
+    if job is None or job.state != "done" or "proposal" not in job.result:
+        return _form_page(request, error="That capture is no longer kept. Type it again.",
+                          status_code=404)
+    values = values_from_form(form)
+    with _filing:
+        filed = job.result.get("filed")
+        if filed:
+            return _flashed(filed["url"], "Already filed: " + filed["message"])
+        try:
+            done = ct.file(c.store, values, job.params.get("text", ""))
+        except ValidationError as exc:
+            return _preview_page(request, job, values, exc.errors, status_code=400)
+        job.result["filed"] = {"url": done.url, "message": done.message}
+        request.app.state.jobs._save()   # a reload after a restart still says "filed"
+    return _flashed(done.url, "Filed: " + done.message.removeprefix("capture: "))

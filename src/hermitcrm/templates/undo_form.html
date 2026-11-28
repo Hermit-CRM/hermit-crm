@@ -1,0 +1,11 @@
+{#- Undo for the write the flash line reports (pages/live.py undo_offer), right
+    under that line, as a form cannot sit inside its paragraph. For a write without
+    a flash of its own, render() makes the flash say what was done. An ordinary
+    form here (on a record page <main> holds a script, so it is not swapped in
+    place); live.js moves it into the toast and makes its copy live there. -#}
+<form method="post" action="/live/undo" class="flash-undo" style="margin: -8px 0 12px">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="sha" value="{{ undo_write.sha }}">
+  <input type="hidden" name="back" value="{{ undo_write.back }}">
+  <button type="submit" class="undo-button" title="Take back: {{ undo_write.message }}">Undo</button>
+</form>
