@@ -168,6 +168,14 @@ The tools, reads first:
 | `add_company` | Create a company; returns the slug. `notes` is saved as a company note, not a body. |
 | `add_contact` | Create a contact under a company. |
 | `add_interaction` | Log an email, message, call or meeting. |
+| `update_company` | Change fields of a company (custom ones too), as its edit form does. |
+| `update_contact` | Change fields of a contact (custom ones too). |
+| `move_stage` | Move a deal to another stage, with a reason and a requalify date; the stage rules apply. |
+| `add_task` | Add a task to a company or one of its people. |
+| `complete_task` | Tick a task off (its id comes from `list_tasks`). |
+| `reopen_task` | Open a done task again. |
+| `edit_outreach_draft` | Change a draft's text; it is kept as a tracked edit and stays a draft. |
+| `skip_outreach` | Take a draft out of the queue, with a reason. |
 | `adjust_help` | A Make it yours recipe: `adjust` (the rules) or `adjust-<topic>`. |
 | `adjust_read` | The text of a file you may change, or which of them exist. |
 | `adjust_write` | Replace one of those files: checked first, then one commit. |
@@ -176,11 +184,33 @@ The tools, reads first:
 | `bulk_apply` | Apply that change after the user said yes; one commit. |
 | `undo` | Reverse one commit with a new one (`git revert`). |
 
-Twenty-five tools: eighteen that only read (`adjust_help`, `adjust_read` and
-`bulk_preview` included) and seven that write. The three `add_` tools are the same `store.create_*` calls the web form and
-`hermitcrm add` make, so validation, slugging, the prospect-to-engaged move and
-the git commit are shared rather than copied. Each one writes a file and makes a
-commit, so call them only when a record has actually been asked for.
+Thirty-three tools: eighteen that only read (`adjust_help`, `adjust_read` and
+`bulk_preview` included) and fifteen that write. The record tools (`add_*`,
+`update_*`, `move_stage`, the task tools) are the same `store` calls the web forms
+and `hermitcrm add` make, and the two outreach tools the same calls as the
+Outreach page, so validation, slugging, the stage rules, the prospect-to-engaged
+move and the git commit are shared rather than copied. Each one writes a file and
+makes one commit, so call them only when the user has asked for the change. The
+answer of every write after the first three gives its commit id: `undo(<id>)`
+reverses it.
+
+### What an agent cannot do over MCP
+
+These are left out on purpose, not forgotten. Each is a person's decision, made
+in the web app:
+
+- **Mark a draft ready, schedule it or send it.** An agent may read a draft,
+  edit its text and skip it. Approving and sending a message is yours; no tool
+  name contains `send`, `ready` or `schedule`, and a test keeps it that way.
+- **Run a routine or turn one on.** A run asks your AI tool and writes drafts.
+  `list_routines` shows them; `adjust_write` can only add one paused.
+- **Delete anything.** No tool deletes a company, contact, interaction, task or
+  draft. `undo` reverses a commit with a new one, so nothing is lost.
+- **Change settings** beyond `task_types`, `outcomes` and `silent_days`
+  (`adjust_config`). The stage rules, sending, AI and every other setting stay
+  in Settings.
+- **Move a stage the rules forbid.** The web app offers "Move anyway"; over MCP
+  there is no such override: `move_stage` names the moves that are allowed.
 
 ### Make it yours over MCP
 
