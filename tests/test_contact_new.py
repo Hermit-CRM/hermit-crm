@@ -21,7 +21,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
 
 from hermitcrm.store import COMPANY_MERGE_FIELDS, CONTACT_MERGE_FIELDS
 from hermitcrm.web import (
@@ -41,25 +40,8 @@ COMPANY_CONTACT = {"first_name": "", "last_name": "", "title": "", "linkedin": "
 
 
 @pytest.fixture
-def repo(tmp_path: Path) -> Path:
-    subprocess.run(["git", "init", "-b", "main"], cwd=tmp_path, check=True,
-                   capture_output=True)
-    subprocess.run(["git", "config", "user.name", "CRM Test"], cwd=tmp_path,
-                   check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "crm@test.local"], cwd=tmp_path,
-                   check=True, capture_output=True)
-    (tmp_path / "companies").mkdir()
-    return tmp_path
-
-
-@pytest.fixture
 def app(repo: Path):
     return create_app(repo, config=CONFIG)
-
-
-@pytest.fixture
-def client(app):
-    return TestClient(app, follow_redirects=False)
 
 
 @pytest.fixture

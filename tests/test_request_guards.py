@@ -35,15 +35,6 @@ CONFIG = {"port": 8765, "silent_days": 14, "push_enabled": False, "remote": "ori
           "welcome_dismissed": True}
 
 
-@pytest.fixture
-def repo(tmp_path: Path) -> Path:
-    for args in (["init", "-b", "main"], ["config", "user.name", "CRM Test"],
-                 ["config", "user.email", "crm@test.local"]):
-        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
-    (tmp_path / "companies").mkdir()
-    return tmp_path
-
-
 def make_client(repo: Path, **config) -> TestClient:
     app = create_app(repo, config={**CONFIG, **config})
     app.state.setup_redirected = True

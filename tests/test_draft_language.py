@@ -33,18 +33,6 @@ CONTACT = {"first_name": "", "last_name": "", "title": "", "linkedin": "",
 
 
 @pytest.fixture
-def repo(tmp_path: Path) -> Path:
-    subprocess.run(["git", "init", "-b", "main"], cwd=tmp_path, check=True,
-                   capture_output=True)
-    subprocess.run(["git", "config", "user.name", "CRM Test"], cwd=tmp_path,
-                   check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "crm@test.local"], cwd=tmp_path,
-                   check=True, capture_output=True)
-    (tmp_path / "companies").mkdir()
-    return tmp_path
-
-
-@pytest.fixture
 def client(repo: Path):
     client = TestClient(create_app(repo, config=CONFIG), follow_redirects=False)
     # No country, so the drafts are English by default.

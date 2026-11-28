@@ -22,7 +22,6 @@ import re
 import pytest
 
 from hermitcrm import sendplan
-from test_web import app, client, repo  # noqa: F401  (the fixtures)
 
 
 @pytest.mark.parametrize("days, shown", [

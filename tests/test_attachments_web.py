@@ -19,7 +19,7 @@ from __future__ import annotations
 import pytest
 
 from hermitcrm.attachments import Incoming
-from test_layout import app, client, repo  # noqa: F401  (the same git-backed folder)
+from test_layout import app, repo  # noqa: F401  (the same git-backed folder; client is in conftest.py)
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
 PDF = b"%PDF-1.4 example\n"

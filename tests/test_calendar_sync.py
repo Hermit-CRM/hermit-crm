@@ -485,17 +485,13 @@ def test_parser_has_calendar_and_sync():
 
 
 @pytest.fixture
-def client(tmp_path):
-    for args in (["init", "-b", "main"], ["config", "user.name", "CRM Test"],
-                 ["config", "user.email", "crm@test.local"]):
-        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
-    (tmp_path / "companies").mkdir()
-    app = create_app(tmp_path, config={"port": 8765, "silent_days": 14, "push_enabled": False, "owner_email": "me@example.com",
+def client(repo):
+    app = create_app(repo, config={"port": 8765, "silent_days": 14, "push_enabled": False, "owner_email": "me@example.com",
                                        "remote": "origin", "my_addresses": [ME],
                                        "bcc_ignore_domains": ["work.example.com"]})
     app.state.calendar_url = lambda refresh=False: ""
     c = TestClient(app, follow_redirects=False)
-    c.app_state, c.repo = app.state, tmp_path
+    c.app_state, c.repo = app.state, repo
     return c
 
 

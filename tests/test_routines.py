@@ -130,12 +130,9 @@ def seed(store: Store) -> None:
 
 
 @pytest.fixture
-def folder(tmp_path):
+def folder(repo):
     """A git data folder with seeded records; writes commit like the CLI's."""
-    git(tmp_path, "init", "-b", "main")
-    git(tmp_path, "config", "user.name", "CRM Test")
-    git(tmp_path, "config", "user.email", "crm@test.local")
-    (tmp_path / "companies").mkdir()
+    tmp_path = repo  # the shared empty repository (conftest.py), in tmp_path
     (tmp_path / ".gitignore").write_text("inbox/.last-routines.json\n")
     store = Store(tmp_path, clock=lambda: FIXED_NOW)
     store.load()

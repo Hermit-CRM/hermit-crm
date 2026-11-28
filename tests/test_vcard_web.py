@@ -23,7 +23,7 @@ import sys
 import pytest
 
 from hermitcrm import vcard
-from test_layout import app, client, repo  # noqa: F401  (the same git-backed folder)
+from test_layout import app, repo  # noqa: F401  (the same git-backed folder; client is in conftest.py)
 
 JANE = "/companies/acme/contacts/jane-doe"
 # A popover: hidden until pressed, then centred on the screen, so a button at the
