@@ -13,6 +13,13 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   every logged message (with the words marked), tasks, help pages and the app's
   pages, eight of each with **Show all** for the rest. Every word you type must
   appear. No data change. See [Search](/help/search).
+- **Search and start things from the keyboard.** Press Cmd K (Ctrl K) on any
+  page, or / when you are not typing, to search as you type, open a result, or
+  start something: a new company or contact, logging a call with a person, a task
+  for a company, or a question for Ask. Every entry opens a page or form; nothing
+  is saved until you press its button. Single keys go places too: g then p for
+  the Pipeline, n for a new company, ? for the list. See
+  [Search and the keyboard](/help/search#keyboard).
 - **Save a contact to your phone with its camera.** Press **Save to phone** on a
   contact page, point your phone at the code and tap to add the person: name,
   company, title, phone, email and LinkedIn, never your notes. No sync, no
