@@ -8,6 +8,12 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Ask can no longer read your mail password.** When Ask searches every file,
+  it now works in a temporary copy of your data folder without the hidden
+  files (`.secrets.toml`, `.git`), and may not read files outside it. Before,
+  a stored email could ask the AI to quote the password and it could. See
+  [Ask](/help/ask).
+
 - **Save a contact to your phone with its camera.** Press **Save to phone** on a
   contact page, point your phone at the code and tap to add the person: name,
   company, title, phone, email and LinkedIn, never your notes. No sync, no

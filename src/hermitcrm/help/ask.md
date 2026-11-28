@@ -14,10 +14,14 @@ The **Ask the Hermit** button, top right on every page, sends a question to the 
    write to recently and have no follow-up planned?" are answered here.
 2. **The data folder if the index is not enough.** For what only the text
    holds (what a note or an email says), the model says so and a second run
-   starts inside the data folder with read-only tools: reading files and
-   `hermitcrm show`, `digest`, `report` and `check`. The folder's `CLAUDE.md`
-   tells it to read `PIPELINE.md` first and never all interactions. Nothing is
-   ever written.
+   starts with read-only tools: reading files and `hermitcrm show`, `digest`,
+   `report` and `check`. The folder's `CLAUDE.md` tells it to read
+   `PIPELINE.md` first and never all interactions. Nothing is ever written.
+   This run works in a temporary copy of your data folder that leaves out every
+   hidden file and folder (`.secrets.toml` with your mail password, `.git`),
+   and its file tools may not read anything outside that copy. So a stored email
+   that tells the AI to quote your password finds nothing to quote. The copy is
+   deleted when the answer is in.
 
 Links in an answer are checked before you see them: a link to a person or
 company opens their page, a link that names a file or a slug is repaired, and
