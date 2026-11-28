@@ -31,6 +31,7 @@ stdout that is not a response: logging goes to stderr, or the stream breaks.
 
 from __future__ import annotations
 
+import base64
 import dataclasses
 import difflib
 import hashlib
@@ -41,7 +42,7 @@ import subprocess
 import sys
 import tempfile
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
@@ -57,20 +58,62 @@ INVALID_REQUEST = -32600
 METHOD_NOT_FOUND = -32601
 INVALID_PARAMS = -32602
 INTERNAL_ERROR = -32603
+RESOURCE_NOT_FOUND = -32002   # the protocol's own code for resources/read
 
 
 @dataclass
 class Tool:
-    """One MCP tool: what it is called, what it takes, and what runs."""
+    """One MCP tool: what it is called, what it takes, and what runs.
+
+    The handler returns the text the model reads, or `(text, data)` when the
+    tool has an `output_schema`: `data` is then the `structuredContent` of the
+    result and must fit that schema. `annotations` are the protocol's hints
+    (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`);
+    build them with `hints()`.
+    """
 
     name: str
     description: str
     schema: dict
-    handler: Callable[[dict], str]
+    handler: Callable[[dict], "str | tuple[str, dict]"]
+    title: str = ""
+    annotations: dict | None = None
+    output_schema: dict | None = None
 
     def spec(self) -> dict:
-        return {"name": self.name, "description": self.description,
-                "inputSchema": self.schema}
+        out = {"name": self.name}
+        if self.title:
+            out["title"] = self.title
+        out["description"] = self.description
+        out["inputSchema"] = self.schema
+        if self.output_schema is not None:
+            out["outputSchema"] = self.output_schema
+        if self.annotations is not None:
+            out["annotations"] = self.annotations
+        return out
+
+
+def hints(*, read_only: bool = False, destructive: bool = False,
+          idempotent: bool = False) -> dict:
+    """A tool's annotations, every hint spelled out.
+
+    The protocol's defaults are the cautious ones (not read-only, destructive,
+    not idempotent, open world), so leaving a hint out would make a harmless
+    tool look dangerous. Every Hermit tool is closed-world: it works on this
+    data folder and nothing else. (A write's commit is pushed to the folder's
+    own git remote when one is set up, which is the folder's backup, not a
+    world the tool talks to.)
+    """
+    if read_only:
+        return {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True,
+                "openWorldHint": False}
+    return {"readOnlyHint": False, "destructiveHint": destructive,
+            "idempotentHint": idempotent, "openWorldHint": False}
+
+
+READS = hints(read_only=True)
+ADDS = hints()                                       # a new record or commit each call
+CHANGES = hints(destructive=True, idempotent=True)   # overwrites; again changes nothing
 
 
 def text(kind: str = "string", description: str = "", **extra) -> dict:
@@ -80,6 +123,188 @@ def text(kind: str = "string", description: str = "", **extra) -> dict:
 def schema(properties: dict, required: list[str] | None = None) -> dict:
     return {"type": "object", "properties": properties,
             "required": required or [], "additionalProperties": False}
+
+
+# ------------------------------------------------------ resources and prompts
+
+
+@dataclass
+class Resource:
+    """A text the client may read without calling a tool: resources/read."""
+
+    uri: str
+    name: str
+    title: str
+    description: str
+    mime_type: str
+    read: Callable[[], str]
+
+    def spec(self) -> dict:
+        return {"uri": self.uri, "name": self.name, "title": self.title,
+                "description": self.description, "mimeType": self.mime_type}
+
+
+@dataclass
+class ResourceTemplate:
+    """A family of resources, one per value of the template's variable.
+    `read(uri)` returns the text, or None when there is no such resource."""
+
+    uri_template: str
+    name: str
+    title: str
+    description: str
+    mime_type: str
+    read: Callable[[str], "str | None"]
+
+    def spec(self) -> dict:
+        return {"uriTemplate": self.uri_template, "name": self.name, "title": self.title,
+                "description": self.description, "mimeType": self.mime_type}
+
+
+@dataclass
+class Prompt:
+    """A short instruction a client offers the user (prompts/get), which names
+    the tools to call. `arguments` are {"name", "description", "required"};
+    the protocol passes their values as strings."""
+
+    name: str
+    title: str
+    description: str
+    arguments: list[dict]
+    render: Callable[[dict], str]
+
+    def spec(self) -> dict:
+        return {"name": self.name, "title": self.title, "description": self.description,
+                "arguments": self.arguments}
+
+
+@dataclass
+class Catalog:
+    """Everything the server offers besides tools."""
+
+    resources: list[Resource] = field(default_factory=list)
+    templates: list[ResourceTemplate] = field(default_factory=list)
+    prompts: list[Prompt] = field(default_factory=list)
+
+
+def build_catalog(root: Path, store) -> Catalog:
+    from . import mcp_meta
+
+    return mcp_meta.catalog(Folder(Path(root), store))
+
+
+# ------------------------------------------------------------------ paging
+
+PAGE = 20        # rows a list tool returns when no limit is given
+MOST = 100       # and the most it returns in one call
+
+
+def paging_fields() -> dict:
+    """The `limit` and `cursor` arguments every list tool takes."""
+    return {"limit": text("integer", f"Most rows to return (default {PAGE}, at most "
+                                     f"{MOST})."),
+            "cursor": text(description="The next_cursor a previous call returned, for "
+                                       "the rows after those. Leave it out for the first "
+                                       "page.")}
+
+
+def page(rows: list, args: dict, tool: str) -> tuple[list, str | None]:
+    """One page of `rows` and the cursor for the next one (None on the last).
+
+    The cursor is opaque to the client, as the protocol asks: the offset, and
+    a fingerprint of the tool and its other arguments, so a cursor handed to a
+    different query is refused rather than silently skipping rows. Rows are
+    re-read on every call, so a page is "rows N onwards of the folder as it is
+    now"; a write in between can shift a row by one, never break the call.
+    """
+    raw = args.get("limit")
+    try:
+        limit = PAGE if raw is None else int(raw)
+    except (TypeError, ValueError):
+        raise ToolError(f"limit must be a whole number, got {raw!r}") from None
+    if not 1 <= limit <= MOST:
+        raise ToolError(f"limit must be between 1 and {MOST}, got {limit}")
+    query = fingerprint(tool, args)
+    start = 0
+    cursor = args.get("cursor")
+    if cursor not in (None, ""):
+        start = read_cursor(cursor, query)
+    end = start + limit
+    return rows[start:end], (make_cursor(end, query) if end < len(rows) else None)
+
+
+def fingerprint(tool: str, args: dict) -> str:
+    rest = {k: v for k, v in args.items() if k not in ("cursor", "limit")}
+    blob = json.dumps([tool, rest], sort_keys=True, default=str)
+    return hashlib.sha256(blob.encode()).hexdigest()[:12]
+
+
+def make_cursor(offset: int, query: str) -> str:
+    raw = json.dumps({"at": offset, "for": query}, separators=(",", ":"))
+    return base64.urlsafe_b64encode(raw.encode()).decode().rstrip("=")
+
+
+def read_cursor(cursor, query: str) -> int:
+    wrong = ToolError("cursor is not one this tool returned for these same arguments; "
+                      "call it again without a cursor")
+    try:
+        text_ = str(cursor)
+        data = json.loads(base64.urlsafe_b64decode(text_ + "=" * (-len(text_) % 4)))
+        offset = data["at"]
+    except (ValueError, KeyError, TypeError):
+        raise wrong from None
+    if not isinstance(offset, int) or offset < 0 or data.get("for") != query:
+        raise wrong
+    return offset
+
+
+def more(next_cursor: str | None, shown: int, total: int) -> str:
+    """The line under a page that says how to get the rest."""
+    if next_cursor is None:
+        return ""
+    return (f"\n({shown} of {total} shown. For the next ones call again with "
+            f"cursor {next_cursor!r}.)")
+
+
+# ---------------------------------------------------------- the data folder
+
+
+@dataclass
+class Folder:
+    """What the tool modules (mcp_records, mcp_search, mcp_outreach, mcp_meta)
+    need from the folder they serve: its path, its store, and the same read and
+    write paths the first tools below use."""
+
+    root: Path
+    store: object
+
+    def fresh(self):
+        """The store, re-read: the web app, the CLI and a git pull all write
+        underneath a long-lived MCP session."""
+        self.store.load()
+        return self.store
+
+    def writable(self):
+        """The store with the commit-and-push write path the CLI uses attached."""
+        from .cli import _writer
+        from .store import load_config
+
+        current = self.fresh()
+        current.on_write = _writer(current, self.root, load_config(self.root))
+        return current
+
+    def head(self) -> str:
+        return subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.root,
+                              capture_output=True, text=True).stdout.strip()
+
+    @staticmethod
+    def as_int(value, name: str, default: int) -> int:
+        if value is None:
+            return default
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            raise ToolError(f"{name} must be a whole number, got {value!r}") from None
 
 
 # ------------------------------------------------------------------- the tools
@@ -582,12 +807,13 @@ def build_tools(root: Path, store) -> list[Tool]:
     days_field = text("integer", "How many days to cover.")
     list_of_text = {"type": "array", "items": {"type": "string"}}
 
-    return [
+    first = [
         Tool("list_pipeline",
              "The whole pipeline as one page: every open company by stage with its "
              "last touch and next step, plus overdue, silent and recently closed. "
              "Read this first; it usually answers the question on its own.",
-             schema({}), pipeline_tool),
+             schema({}), pipeline_tool,
+             title="Pipeline", annotations=READS),
         Tool("show_company",
              "Everything on one company: fields, notes, contacts, and the timeline "
              "with the most recent message bodies.",
@@ -595,27 +821,32 @@ def build_tools(root: Path, store) -> list[Tool]:
                                               "and search_companies print it."),
                      "bodies": text("integer", "How many recent bodies to include "
                                                "(default 3).")},
-                    ["slug"]), show_tool),
+                    ["slug"]), show_tool,
+             title="Show a company", annotations=READS),
         Tool("company_folder",
              "The company's client folder on this computer (a normal folder outside "
              "the CRM, named after the company): its absolute path and the files in "
              "it, newest first. Read the files from that path. Read-only.",
              schema({"slug": text(description="The company's slug.")}, ["slug"]),
-             folder_tool),
+             folder_tool,
+             title="Company's client folder", annotations=READS),
         Tool("search_companies",
              "Find companies by name, slug, website, country, tag, one-liner or "
              "contact name. Use this to turn a name into a slug.",
              schema({"query": text(description="Substring to look for; case is ignored."),
                      "limit": text("integer", "Most rows to return (default 20).")},
-                    ["query"]), search_tool),
+                    ["query"]), search_tool,
+             title="Find a company", annotations=READS),
         Tool("digest",
              "Interactions in the last N days, oldest first, with a slice of each "
              "body. What happened recently.",
-             schema({"days": days_field}), digest_tool),
+             schema({"days": days_field}), digest_tool,
+             title="Recent interactions", annotations=READS),
         Tool("report",
              "Activity, funnel and conversion, time in stage, message outcomes and "
              "data hygiene over the last N days, as Markdown tables.",
-             schema({"days": days_field}), report_tool),
+             schema({"days": days_field}), report_tool,
+             title="Activity report", annotations=READS),
         Tool("followups",
              "Threads waiting on you: messages somebody sent that you have not "
              "answered, then messages you sent that nobody answered.",
@@ -623,18 +854,21 @@ def build_tools(root: Path, store) -> list[Tool]:
                                                     "inbound message counts."),
                      "nudge_after": text("integer", "Days before an unanswered "
                                                     "outbound message counts.")}),
-             followups_tool),
+             followups_tool,
+             title="Follow-ups", annotations=READS),
         Tool("keep_in_touch",
              "People outside any open deal (won, lost, closed or parked companies) "
              "you have not spoken to in a while, longest first. Leaves out "
              "do-not-contact and people never contacted.",
              schema({"after": text("integer", "Days without an interaction; default "
                                               "keep_in_touch_days (180).")}),
-             keep_in_touch_tool),
+             keep_in_touch_tool,
+             title="Keep in touch", annotations=READS),
         Tool("brief",
              "For each upcoming meeting, the company behind it: stage, open next "
              "step, contacts and the last three interactions.",
-             schema({"days": days_field}), brief_tool),
+             schema({"days": days_field}), brief_tool,
+             title="Meeting briefs", annotations=READS),
         Tool("add_company",
              "Create a company. Writes the file and commits it. Returns the slug, "
              "which is what every other tool takes.",
@@ -649,7 +883,8 @@ def build_tools(root: Path, store) -> list[Tool]:
                      "next_step_type": text(description="A task type from Settings, or empty."),
                      "tags": text(description="Comma-separated."),
                      "notes": text(description="Logged as a note on the company.")},
-                    ["name"]), add_company_tool),
+                    ["name"]), add_company_tool,
+             title="Add a company", annotations=ADDS),
         Tool("add_contact",
              "Create a contact under a company. Writes the file and commits it.",
              schema({"company": text(description="The company's slug."),
@@ -658,7 +893,8 @@ def build_tools(root: Path, store) -> list[Tool]:
                      "linkedin": text(), "role": text(),
                      "notes": text(description="Logged as a note interaction on "
                                                "the new contact.")},
-                    ["company", "name"]), add_contact_tool),
+                    ["company", "name"]), add_contact_tool,
+             title="Add a contact", annotations=ADDS),
         Tool("add_interaction",
              "Log an email, LinkedIn message, call, WhatsApp message or meeting, or a note about a "
              "person. Writes the file and commits it. Logging one on a company in "
@@ -681,7 +917,8 @@ def build_tools(root: Path, store) -> list[Tool]:
                                                       "call_outcomes in config.toml."),
                      "call_type": text(description="Outbound calls only; one of "
                                                    "call_types in config.toml.")},
-                    ["company", "channel"]), add_interaction_tool),
+                    ["company", "channel"]), add_interaction_tool,
+             title="Log an interaction", annotations=ADDS),
         Tool("adjust_help",
              "Read this first when the user wants to change Hermit itself (Make it "
              "yours): a field, a dashboard, the page layout, many records at once, a "
@@ -691,7 +928,8 @@ def build_tools(root: Path, store) -> list[Tool]:
              schema({"topic": text(description="adjust (the rules, start here) or one "
                                                "of its recipes.",
                                    enum=list(RECIPES))}),
-             adjust_help_tool),
+             adjust_help_tool,
+             title="Make it yours: recipe", annotations=READS),
         Tool("adjust_read",
              "The current text of a file you may change: fields.toml, layout.toml, "
              "dashboards/<name>.toml, routines.toml, theme.css, messages.toml, "
@@ -700,7 +938,8 @@ def build_tools(root: Path, store) -> list[Tool]:
              "them exist. Read a file before you write it. Writes nothing.",
              schema({"path": text(description="Relative to the data folder, e.g. "
                                               "fields.toml or dashboards/monday.toml.")}),
-             adjust_read_tool),
+             adjust_read_tool,
+             title="Make it yours: read a file", annotations=READS),
         Tool("adjust_write",
              "Replace one file you may change (fields.toml, layout.toml, "
              "dashboards/<name>.toml, routines.toml, theme.css, messages.toml, "
@@ -717,7 +956,8 @@ def build_tools(root: Path, store) -> list[Tool]:
                      "content": text(description="The whole new text of the file."),
                      "summary": text(description='A few words for the commit message, '
                                                  'e.g. "contract renewal field".')},
-                    ["path", "content", "summary"]), adjust_write_tool),
+                    ["path", "content", "summary"]), adjust_write_tool,
+             title="Make it yours: write a file", annotations=CHANGES),
         Tool("adjust_config",
              "Change one of the three settings you may change: task_types, outcomes or "
              "silent_days, the way Settings saves them. ONE commit, 'ai: adjust: ...'; "
@@ -734,7 +974,8 @@ def build_tools(root: Path, store) -> list[Tool]:
                                               "what a reply counts as, the last what "
                                               "silence counts as. silent_days: a whole "
                                               "number of days."}},
-                    ["key", "value"]), adjust_config_tool),
+                    ["key", "value"]), adjust_config_tool,
+             title="Make it yours: change a setting", annotations=CHANGES),
         Tool("bulk_preview",
              "The dry run of a change to many records at once (`hermitcrm set`): how "
              "many match, how many would change, and a few before -> after lines. "
@@ -755,7 +996,8 @@ def build_tools(root: Path, store) -> list[Tool]:
                              '{"set": {"field": "value"}, "unset": ["field"], '
                              '"add_tags": ["tag"], "remove_tags": ["tag"], '
                              '"stage": "discovery"} (tags and stage: companies only).'}},
-                    ["scope", "ops"]), bulk_preview_tool),
+                    ["scope", "ops"]), bulk_preview_tool,
+             title="Bulk change: dry run", annotations=READS),
         Tool("bulk_apply",
              "Apply a change to many records that bulk_preview showed and the user "
              "agreed to: pass its preview_id and exactly the same scope, where, all and "
@@ -767,15 +1009,22 @@ def build_tools(root: Path, store) -> list[Tool]:
                      "ops": {"type": "object"},
                      "summary": text(description="Optional commit message; the default "
                                                  "names the change and the count.")},
-                    ["preview_id", "scope", "ops"]), bulk_apply_tool),
+                    ["preview_id", "scope", "ops"]), bulk_apply_tool,
+             title="Bulk change: apply", annotations=CHANGES),
         Tool("undo",
              "Undo one commit with a new commit that reverses it (git revert): what "
              "adjust_write, adjust_config, bulk_apply or an add_* tool did. Takes the "
              "commit id their answer gave. Refused for a merge, the folder's first "
              "commit or uncommitted changes; undoing the undo brings it back.",
              schema({"sha": text(description="The commit id, e.g. a1b2c3d.")}, ["sha"]),
-             undo_tool),
+             undo_tool,
+             title="Undo a commit", annotations=hints(destructive=True)),
     ]
+    from . import mcp_meta, mcp_outreach, mcp_records, mcp_search
+
+    folder = Folder(root, store)
+    return [*first, *mcp_search.tools(folder), *mcp_records.tools(folder),
+            *mcp_outreach.tools(folder), *mcp_meta.tools(folder)]
 
 
 class ToolError(Exception):
@@ -950,27 +1199,50 @@ def cli_words(message: str) -> str:
 # ---------------------------------------------------------------- the protocol
 
 
-def error(id_, code: int, message: str) -> dict:
-    return {"jsonrpc": "2.0", "id": id_, "error": {"code": code, "message": message}}
+def error(id_, code: int, message: str, data=None) -> dict:
+    body = {"code": code, "message": message}
+    if data is not None:
+        body["data"] = data
+    return {"jsonrpc": "2.0", "id": id_, "error": body}
 
 
 def result(id_, payload: dict) -> dict:
     return {"jsonrpc": "2.0", "id": id_, "result": payload}
 
 
-def tool_result(body: str, failed: bool = False) -> dict:
+def tool_result(body: str, failed: bool = False, data: dict | None = None) -> dict:
+    """A tools/call result. `data` becomes `structuredContent`.
+
+    The text block stays the readable answer rather than the JSON again: it is
+    what most clients hand the model, and it already says everything `data`
+    holds, so a second copy would only cost the model's context.
+    """
     out = {"content": [{"type": "text", "text": body}]}
+    if data is not None:
+        out["structuredContent"] = data
     if failed:
         out["isError"] = True
     return out
 
 
-def handle(message: dict, tools: dict[str, Tool]) -> dict | None:
+def run(tool: Tool, arguments: dict) -> dict:
+    """Call one tool and shape what it returned as a result."""
+    answer = tool.handler(arguments)
+    if isinstance(answer, tuple):
+        body, data = answer
+        return tool_result(body, data=data)
+    return tool_result(answer)
+
+
+def handle(message: dict, tools: dict[str, Tool],
+           catalog: Catalog | None = None) -> dict | None:
     """One JSON-RPC message in, one response out -- or None for a notification.
 
     A notification (no `id`) must never be answered; answering one is the
-    classic way to wedge a client that is not expecting a reply.
+    classic way to wedge a client that is not expecting a reply. `catalog`
+    holds the resources and prompts; without one there are none.
     """
+    catalog = catalog or Catalog()
     if not isinstance(message, dict) or message.get("jsonrpc") != "2.0":
         return error(None, INVALID_REQUEST, "not a JSON-RPC 2.0 message")
     method = message.get("method")
@@ -984,15 +1256,22 @@ def handle(message: dict, tools: dict[str, Tool]) -> dict | None:
     if method == "initialize":
         return result(id_, {
             "protocolVersion": PROTOCOL_VERSION,
-            "capabilities": {"tools": {"listChanged": False}},
+            "capabilities": {"tools": {"listChanged": False},
+                             "resources": {"subscribe": False, "listChanged": False},
+                             "prompts": {"listChanged": False}},
             "serverInfo": SERVER_INFO,
             "instructions": (
                 "This is one person's CRM: a folder of Markdown files in git. "
                 "Start with list_pipeline; it is the cheap summary and usually "
                 "enough. Use search_companies to turn a name into a slug, and "
-                "show_company for one account. The add_* tools each write a file "
-                "and make a git commit, so only call them when the user has asked "
-                "for a record to be created or logged. To change Hermit itself "
+                "show_company for one account. search finds a word anywhere, "
+                "list_tasks is the to-do list, and the prompts (morning_review, "
+                "prep_meeting, log_call, weekly_review) say which tools a common job "
+                "takes. The add_*, update_*, move_stage, task and outreach tools each "
+                "write a file and make one git commit that undo reverses, so only "
+                "call them when the user has asked for the change; marking a draft "
+                "ready, scheduling and sending stay with the user in the web app. "
+                "To change Hermit itself "
                 "(fields, dashboards, layout, routines, templates, the look, many "
                 "records at once), call adjust_help first and follow it: every write "
                 "is one commit that undo reverses, a bulk change needs bulk_preview "
@@ -1009,6 +1288,27 @@ def handle(message: dict, tools: dict[str, Tool]) -> dict | None:
     if method == "tools/list":
         return result(id_, {"tools": [t.spec() for t in tools.values()]})
 
+    if method == "resources/list":
+        return result(id_, {"resources": [r.spec() for r in catalog.resources]})
+
+    if method == "resources/templates/list":
+        return result(id_, {"resourceTemplates": [t.spec() for t in catalog.templates]})
+
+    if method == "resources/read":
+        uri = params.get("uri")
+        if not isinstance(uri, str) or not uri:
+            return error(id_, INVALID_PARAMS, "uri is required")
+        body, mime = read_resource(catalog, uri)
+        if body is None:
+            return error(id_, RESOURCE_NOT_FOUND, "Resource not found", {"uri": uri})
+        return result(id_, {"contents": [{"uri": uri, "mimeType": mime, "text": body}]})
+
+    if method == "prompts/list":
+        return result(id_, {"prompts": [p.spec() for p in catalog.prompts]})
+
+    if method == "prompts/get":
+        return get_prompt(id_, catalog, params)
+
     if method == "tools/call":
         name = params.get("name")
         tool = tools.get(name) if isinstance(name, str) else None
@@ -1018,13 +1318,41 @@ def handle(message: dict, tools: dict[str, Tool]) -> dict | None:
         if not isinstance(arguments, dict):
             return error(id_, INVALID_PARAMS, "arguments must be an object")
         try:
-            return result(id_, tool_result(tool.handler(arguments)))
+            return result(id_, run(tool, arguments))
         except ToolError as exc:
             return result(id_, tool_result(str(exc), failed=True))
         except Exception as exc:  # a bad value: the model can read it and retry
             return result(id_, tool_result(describe(exc), failed=True))
 
     return error(id_, METHOD_NOT_FOUND, f"unknown method {method!r}")
+
+
+def read_resource(catalog: Catalog, uri: str) -> tuple[str | None, str]:
+    """(text, mimeType) of one resource, or (None, "") when there is none."""
+    for r in catalog.resources:
+        if r.uri == uri:
+            return r.read(), r.mime_type
+    for t in catalog.templates:
+        body = t.read(uri)
+        if body is not None:
+            return body, t.mime_type
+    return None, ""
+
+
+def get_prompt(id_, catalog: Catalog, params: dict) -> dict:
+    name = params.get("name")
+    prompt = next((p for p in catalog.prompts if p.name == name), None)
+    if prompt is None:
+        return error(id_, INVALID_PARAMS, f"unknown prompt {name!r}")
+    given = params.get("arguments") or {}
+    if not isinstance(given, dict) or not all(isinstance(v, str) for v in given.values()):
+        return error(id_, INVALID_PARAMS, "arguments must be an object of strings")
+    missing = [a["name"] for a in prompt.arguments
+               if a.get("required") and not given.get(a["name"], "").strip()]
+    if missing:
+        return error(id_, INVALID_PARAMS, f"missing required argument: {', '.join(missing)}")
+    return result(id_, {"description": prompt.description, "messages": [
+        {"role": "user", "content": {"type": "text", "text": prompt.render(given)}}]})
 
 
 def clip(value: str, limit: int = 220) -> str:
@@ -1070,6 +1398,7 @@ def serve(root: Path, store, stdin=None, stdout=None) -> int:
     stdout = stdout or sys.stdout
     keep_stdout_clean()
     tools = {t.name: t for t in build_tools(Path(root), store)}
+    catalog = build_catalog(Path(root), store)
 
     for line in stdin:
         line = line.strip()
@@ -1081,7 +1410,7 @@ def serve(root: Path, store, stdin=None, stdout=None) -> int:
             write(stdout, error(None, PARSE_ERROR, "invalid JSON"))
             continue
         try:
-            response = handle(message, tools)
+            response = handle(message, tools, catalog)
         except Exception as exc:  # never let one bad message kill the server
             response = error(message.get("id") if isinstance(message, dict) else None,
                              INTERNAL_ERROR, describe(exc))

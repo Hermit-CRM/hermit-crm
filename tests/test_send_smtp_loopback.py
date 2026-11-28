@@ -103,11 +103,15 @@ def server(tmp_path, monkeypatch):
     loose = ssl.create_default_context()
     loose.check_hostname, loose.verify_mode = False, ssl.CERT_NONE
     monkeypatch.setattr(ssl, "create_default_context", lambda *a, **k: loose)
-    # smtplib names this machine in its EHLO with socket.getfqdn(), a DNS lookup
-    # that can hang for 30 s on a home network that cannot resolve the Mac's own
-    # name (every connection here waited that long). The server above ignores
-    # the name, so a fixed one changes nothing that is tested.
-    monkeypatch.setattr(socket, "getfqdn", lambda name="": "localhost")
+    # Left to itself, smtplib names this machine in its EHLO with socket.getfqdn(),
+    # a DNS lookup that can hang for 30 s on a home network that cannot resolve
+    # the Mac's own name, before every send. Hermit's connections name
+    # themselves without it (mailtls.py, test_smtp_client_name.py); a lookup here
+    # fails the test instead of slowing it.
+    def getfqdn(name=""):
+        raise AssertionError("sending looked up this computer's name in DNS")
+
+    monkeypatch.setattr(socket, "getfqdn", getfqdn)
     yield box
     listener.close()
 

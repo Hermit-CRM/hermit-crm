@@ -30,8 +30,11 @@ company in **prospect** moves it to **engaged**, in the same commit; a note
 does not. Other
 stages are left alone.
 
-Saving redirects to the contact's page with the timeline scrolled to the new
-entry. Each entry has an edit link (`/companies/<slug>/interactions/<id>/edit`)
+Saving on a contact's page adds the entry to the timeline without a page
+reload, empties the form for the next one, and says what happened in a short
+message in the bottom right corner. Without JavaScript (and from
+`/companies/<slug>/interactions/new`) saving redirects to the contact's page
+with the timeline scrolled to the new entry. Each entry has an edit link (`/companies/<slug>/interactions/<id>/edit`)
 where every field including the date can change; a date change renames the
 file.
 
@@ -143,7 +146,7 @@ twice. Mail and meetings that match no company wait on Home under **To file**.
 
 ## To file (the review queue)
 
-Home shows a **To file (N)** list under *What needs doing* whenever the imports
+Home shows a **To file (N)** list under *What to do now* whenever the imports
 left something they could not place (while the walkthrough is still your home
 page, it shows there). Each item has the date, kind, direction, person and
 subject, the reason (personal address, unknown domain, several matching

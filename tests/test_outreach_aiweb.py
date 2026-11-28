@@ -308,9 +308,11 @@ def query(response) -> dict:
 def test_the_research_select_builds_an_ai_web_item_and_keeps_going(client, root, fake):
     page = client.get("/outreach").text
     assert 'name="research"' in page and ">ai-web<" in page
-    first = post(client, "/outreach/build", where="stage=prospect", limit="2",
+    first = post(client, "/outreach/build", where="stage=prospect", limit="1",
                  research="ai-web")
-    assert first.status_code == 303 and query(first)["research"] == "ai-web"
+    assert first.status_code == 303 and first.headers["location"].startswith("/jobs/")
+    job = client.app.state.jobs.get(first.headers["location"].rsplit("/", 1)[1])
+    assert "research=ai-web" in job.result["link"]       # the way back keeps the level
     [item] = outreach.items(root)
     assert item.research_level == "ai-web" and any(f.source == NEWS for f in item.findings)
     web_calls = [c for c in fake.of("research") if c["tools"] == enrich.WEB_ONLY]
@@ -331,6 +333,6 @@ def test_the_default_level_comes_from_the_config(client, root):
     client.app.state.config["outreach_research"] = "ai-web"
     page = client.get("/outreach").text
     assert 'value="ai-web" selected' in page
-    response = post(client, "/outreach/build", where="stage=prospect")
+    response = post(client, "/outreach/build", where="stage=prospect", limit="1")
     assert [i.research_level for i in outreach.items(root)] == ["ai-web"] \
         or "flash" in query(response)

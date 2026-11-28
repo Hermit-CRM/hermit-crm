@@ -111,10 +111,12 @@ refused while sending is paused. It is meant for replies and one-offs.
 | The login is refused (a revoked app password) | Pauses everything; a red banner on every page shows the server's own words; nothing retries until a new **Send a test** passes |
 | The mail server's certificate cannot be verified (self-signed, expired or for another host name) | Pauses everything with the same banner, which says what is wrong; fix the host name or the server, then a passing **Send a test** lifts it |
 | The daily quota is exceeded | Pauses until the next window, then plans again |
-| A temporary error (421, 450, a timeout, no network) | Tries again in 15 minutes, up to 3 times, then the item is failed |
+| A temporary error (421, 450, a timeout, no network) | Tries again in 15 minutes, up to 3 times, then the item is failed. Without an incoming mail server, the retry is held back to Ready instead (see below) |
 | The address does not exist | The item is failed and the address goes on the suppression list |
 | The server refuses the one message: too large (code 552 or "message size exceeds"), or a file type it blocks | That item is failed with the server's words. Sending is **not** paused and the address is **not** suppressed: attach fewer or smaller files, or send a link, then **Retry** |
 | The process stopped between sending and logging | The next run looks for the Message-ID in Sent: found, it logs it; not found, it sends again with the same Message-ID. Never twice |
+| An earlier try may have gone out and **no incoming mail server** is set, so Sent cannot be checked | The scheduled sender does not send it again. The item goes back to Ready with the note "may have gone out ... look in Sent". Look in Sent in your mail app: if the mail is there, it went out (skip the item); if not, press **Send now** |
+| Hermit stopped after it started sending (logging failed, say a full disk) | The item goes back to Ready with "it may have gone out. Look in Sent ... before you send it again", not "could not send it" |
 | Too many bounced (more than 3 of the last 50, or over 5%) | Pauses with a banner: a list-quality problem, check where the addresses came from |
 
 Each message gets a `Message-ID` on your sending domain, written on the item and

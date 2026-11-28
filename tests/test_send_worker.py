@@ -582,6 +582,7 @@ def test_the_cli_sends_now_through_the_default_connections(folder, capsys, monke
     assert run_cli(root, "outreach", "send-now", ids[0]) == 0
     assert capsys.readouterr().out.startswith(f"sent: {ids[0]}")
     assert len(smtp.sent) == 1 and outreach.get_item(root, ids[0]).state == "sent"
+    assert smtp.client_names and all(smtp.client_names)  # named: smtplib asks no DNS
 
 
 def test_the_cli_pause_resume_and_test(folder, capsys, monkeypatch):

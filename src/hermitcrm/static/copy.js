@@ -36,6 +36,7 @@
     done(ok);
   }
 
+  // On document, so a part live.js swaps in needs nothing more (hermit:swap).
   document.addEventListener("click", function (event) {
     var button = event.target.closest && event.target.closest("[data-copy-text]");
     if (!button) return;

@@ -13,4 +13,49 @@
    limitations under the License.
 */
 
-/* Empty until WP5 fills it in. Loaded on every page by base.html; var(--*) tokens only. */
+/* live.js: toasts, and the look of a form whose answer is on its way.
+   Loaded on every page by base.html; var(--*) tokens only. */
+
+/* Toasts: bottom right, above the page, below the tour and the disclaimer. */
+#toasts { position: fixed; right: 16px; bottom: 16px; z-index: 60; display: flex;
+  flex-direction: column; align-items: flex-end; gap: 8px; max-width: min(420px, calc(100vw - 32px));
+  pointer-events: none; }
+#toasts:empty { display: none; }
+.toast { pointer-events: auto; display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 8px 8px 12px; background: var(--surface); color: var(--text);
+  border: 1px solid var(--info-line); border-left: 4px solid var(--accent); border-radius: 6px;
+  box-shadow: var(--shadow); font-size: 14px; line-height: 1.4;
+  animation: toast-in 200ms var(--ease-out); transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); }
+.toast.is-leaving { opacity: 0; transform: translateY(6px); }
+.toast-text { flex: 1; }
+.toast-close { flex: none; border: 0; background: none; color: var(--muted); font-size: 18px;
+  line-height: 1; padding: 0 4px; cursor: pointer; }
+.toast-close:hover, .toast-close:focus-visible { color: var(--text); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* On its way: the part that will be replaced dims a little, after a moment so a
+   quick answer does not flicker. */
+[aria-busy="true"] { transition: opacity 150ms var(--ease-out) 150ms; }
+main [aria-busy="true"], main[aria-busy="true"] { opacity: .6; }
+form.live-busy, form.live-busy * { cursor: progress; }
+
+/* The board: a card can be dragged to another column (live.js). While one is
+   on the move every column reaches the bottom of the board, so an empty or
+   short column is as easy to drop on as a long one. */
+.board .card[draggable="true"] { cursor: grab; }
+.board .card[draggable="true"] select, .board .card[draggable="true"] a { cursor: auto; }
+.board .card.is-dragged { opacity: .5; }
+.board.is-dragging { align-items: stretch; }
+.board .column { border-radius: 6px; transition: background-color 120ms var(--ease-out); }
+.board .column.is-drop-target { background: var(--info-bg); outline: 2px dashed var(--accent); outline-offset: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .board .column { transition: none; }
+  .toast { animation: none; transition: none; }
+  .toast.is-leaving { transform: none; }
+  [aria-busy="true"] { transition: none; }
+}
+
+@media (max-width: 760px) {
+  #toasts { left: 16px; right: 16px; align-items: stretch; max-width: none; }
+}

@@ -45,6 +45,8 @@
   }
 
   function setup(form) {
+    if (form.hasAttribute("data-attach-ready")) return;
+    form.setAttribute("data-attach-ready", "");
     var input = form.querySelector('input[type="file"][name="files"]');
     var box = form.querySelector(".attach-box");
     if (!input || !box) return;
@@ -120,6 +122,8 @@
   }
 
   function dropTarget(entry) {
+    if (entry.hasAttribute("data-drop-ready")) return;
+    entry.setAttribute("data-drop-ready", "");
     var url = entry.getAttribute("data-drop-url");
     entry.addEventListener("dragover", function (event) {
       if (!hasFiles(event)) return;
@@ -154,9 +158,7 @@
 
   // A file dropped anywhere on a page that has a Files section (and not on a form
   // or a timeline entry, which take it themselves) becomes a new note.
-  function pageDrop(zone) {
-    var url = zone.getAttribute("data-page-drop");
-    var contact = zone.getAttribute("data-page-contact") || "";
+  function pageDrop() {
     var hint = document.createElement("div");
     hint.className = "drop-hint";
     hint.textContent = "Drop to keep the files in a new note";
@@ -177,6 +179,11 @@
       if (!hasFiles(event)) return;
       event.preventDefault();
       if (event.target.closest && event.target.closest("form[data-attach], li[data-drop-url]")) return;
+      // Read at the drop, not at load: live.js may have replaced the element since.
+      var zone = document.querySelector("[data-page-drop]");
+      if (!zone) return;
+      var url = zone.getAttribute("data-page-drop");
+      var contact = zone.getAttribute("data-page-contact") || "";
       var data = new FormData();
       Array.prototype.forEach.call(event.dataTransfer.files, function (file) {
         data.append("files", file, file.name);
@@ -192,8 +199,11 @@
     });
   }
 
-  Array.prototype.forEach.call(document.querySelectorAll("form[data-attach]"), setup);
-  Array.prototype.forEach.call(document.querySelectorAll("li[data-drop-url]"), dropTarget);
-  var zone = document.querySelector("[data-page-drop]");
-  if (zone) pageDrop(zone);
+  function init() {
+    Array.prototype.forEach.call(document.querySelectorAll("form[data-attach]"), setup);
+    Array.prototype.forEach.call(document.querySelectorAll("li[data-drop-url]"), dropTarget);
+  }
+  init();
+  document.addEventListener("hermit:swap", init);   // live.js replaced part of the page
+  if (document.querySelector("[data-page-drop]")) pageDrop();
 })();

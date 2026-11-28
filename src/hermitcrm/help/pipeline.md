@@ -1,6 +1,6 @@
 # Pipeline
 
-The board at `/pipeline`: one column per open stage, cards you can move with a dropdown, closed companies in lists below. The stages are yours to name and order (Settings > Deal stages); this page describes the defaults.
+The board at `/pipeline`: one column per open stage, cards you can drag to another column or move with a dropdown, closed companies in lists below. The stages are yours to name and order (Settings > Deal stages); this page describes the defaults.
 
 ## Columns and cards
 
@@ -11,6 +11,14 @@ the country, the last touch (`email out 2026-09-14 (jane-doe)`), the next step
 with its due date (red when overdue, struck through when done) and the monthly
 value when set. The stage dropdown on a card saves on change; choosing
 **lost** sends you to the company page to give a reason first.
+
+To move a card with the mouse, drag it onto another column: the column lights
+up, and letting go does exactly what picking that stage in the card's dropdown
+does. The board redraws where it is, without a page reload. A move the stage
+rules do not allow takes you to the company page with the reason and a **Move
+anyway** button, as the dropdown does. Lost and parked stages are not columns,
+so those moves are made with the dropdown. With the keyboard, Tab to the
+dropdown and pick the stage.
 
 Cards are ordered by next-step due date (earliest first, no date last), then
 by last touch (most recent first).

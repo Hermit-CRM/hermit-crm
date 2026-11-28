@@ -121,7 +121,7 @@ def test_a_folder_with_data_gets_the_numbers_instead(tmp_path):
     _, client = make_client(demo, setup_redirected=True)
     page = client.get("/").text
     assert "Import a spreadsheet" not in page
-    assert "What needs doing" in page and "How it is going" in page
+    assert "What to do now" in page and "How it is going" in page
 
 
 def test_the_first_company_does_not_take_the_beginner_help_with_it(folder):
@@ -129,7 +129,7 @@ def test_the_first_company_does_not_take_the_beginner_help_with_it(folder):
     app, client = make_client(folder, setup_redirected=True)
     app.state.store.create_company("Real Customer BV")
     page = client.get("/").text
-    assert "What needs doing" in page and "How it is going" in page   # the real home
+    assert "What to do now" in page and "How it is going" in page   # the real home
     assert "Getting started" in page and "1 of 13" in page            # and the help below it
     assert "What this thing does" in page
     assert 'action="/sample"' in page and 'href="/welcome"' in page
@@ -158,7 +158,7 @@ def test_hide_the_tutorial_takes_the_beginner_help_off_home(folder):
     assert cfg(folder)["welcome_dismissed"] is True
     page = client.get("/").text
     assert "Getting started" not in page and "What this thing does" not in page
-    assert "What needs doing" in page
+    assert "What to do now" in page
     # and it comes back the same way
     client.post("/welcome/dismiss", data={"csrf_token": token(client), "dismissed": ""})
     assert "What this thing does" in client.get("/").text

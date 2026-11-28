@@ -172,7 +172,7 @@ def test_the_home_page_is_not_the_board(client, app, repo):
 
     page = client.get("/").text
     assert 'class="board"' not in page                  # the board is elsewhere now
-    assert "What needs doing" in page and "How it is going" in page
+    assert "What to do now" in page and "How it is going" in page
     assert "Call Jane" in page and "send the deck" in page   # both kinds of work
     assert 'href="/pipeline"' in page
     # this folder has put the walkthrough away, so the beginner block is gone too
@@ -186,13 +186,13 @@ def test_the_home_page_is_not_the_board(client, app, repo):
     assert 'class="board"' in board and 'id="col-prospect"' in board
 
 
-def test_the_home_page_only_shows_the_next_seven_days(client, app):
+def test_the_home_page_only_shows_what_is_due_now(client, app):
     post_company(client, name="Soon", next_step="this week", next_step_due=str(TODAY))
     post_company(client, name="Later", next_step="next month",
                  next_step_due=str(TODAY + timedelta(days=40)))
     page = client.get("/").text
-    doing = page.split('id="doing"')[1].split("</table>")[0]
-    assert "this week" in doing and "next month" not in doing
+    queue = page.split('id="next"')[1].split("</section>")[0]
+    assert "this week" in queue and "next month" not in queue
     assert 'href="/calendar"' in page          # the rest is one click away
 
 
@@ -204,16 +204,17 @@ def test_home_lists_people_to_keep_in_touch_with(client, app):
                      date=str(TODAY - timedelta(days=200)) + "T09:00",
                      subject="Rollout done", body="All live.")
     page = client.get("/").text
-    section = page.split('id="keep-in-touch"')[1].split("</table>")[0]
-    assert "Keep in touch (1)" in section and "180+ days" in section
+    # Keep in touch is the last group of the Today list (tests/test_today_page.py).
+    section = page.split('id="today-keep-in-touch"')[1].split("</ol>")[0]
+    assert "Keep in touch with Jane Roe" in section
     assert 'href="/companies/acme/contacts/jane-roe"' in section
-    assert "200d" in section and "Rollout done" in section
-    assert page.index('id="keep-in-touch"') < page.index('id="going"')
+    assert "200 days ago" in section and "Rollout done" in section
+    assert page.index('id="next"') < page.index('id="going"')
 
 
 def test_home_keep_in_touch_is_absent_when_nobody_is_on_it(client):
     post_company(client, name="Acme", stage="won")
-    assert 'id="keep-in-touch"' not in client.get("/").text
+    assert 'id="today-keep-in-touch"' not in client.get("/").text
 
 
 def test_the_walkthrough_ticks_itself_from_the_data(client, app, repo):
@@ -508,8 +509,11 @@ def test_today_sections(client, app, repo):
         f"created: {old}"), encoding="utf-8")
     client.post("/reload")
 
-    r = client.get("/today")
-    assert r.status_code == 303 and r.headers["location"] == "/tasks?when=overdue&when=today"
+    # /today is the Today queue now (tests/test_today_page.py); the Tasks page
+    # keeps its own Overdue and Today buttons.
+    today = client.get("/today")
+    assert today.status_code == 200
+    assert "Due Now GmbH" in today.text and "Future GmbH" not in today.text
     table = lambda url: client.get(url).text.split("</nav>", 1)[1].split('id="task-list"')[0]
     priority = table("/tasks?when=overdue&when=today")
     future = table("/tasks?when=later")
@@ -1419,6 +1423,14 @@ class StubEnricher:
         return self._proposal()
 
 
+def enriched(client, slug="acme"):
+    """Enrich runs as a background job (inline in tests): the POST goes to the job,
+    the job page shows what the route used to show."""
+    r = client.post(f"/companies/{slug}/enrich")
+    assert r.status_code == 303 and r.headers["location"].startswith("/jobs/")
+    return client.get(r.headers["location"])
+
+
 def test_enrich_company_preview_and_apply(client, app, repo):
     post_company(client, name="Acme")
     app.state.enricher = StubEnricher({})
@@ -1427,7 +1439,7 @@ def test_enrich_company_preview_and_apply(client, app, repo):
 
     app.state.enricher = StubEnricher({"website": "https://acme.de", "country": "DE"},
                                       missing=["website", "country", "ae_count"])
-    page = client.post("/companies/acme/enrich")
+    page = enriched(client)
     assert page.status_code == 200
     assert 'name="website" value="https://acme.de"' in page.text
     assert "not found: ae_count" in page.text and "https://example.com/about" in page.text
@@ -1440,15 +1452,15 @@ def test_enrich_company_preview_and_apply(client, app, repo):
     assert last_commit(repo) == "ai: company acme enriched"
 
     app.state.enricher = StubEnricher({}, missing=["linkedin"])
-    r = client.post("/companies/acme/enrich")
+    r = enriched(client)
     assert r.status_code == 303 and "found%20nothing" in r.headers["location"]
 
     app.state.enricher = StubEnricher({}, error="'claude' not found")
-    r = client.post("/companies/acme/enrich")
+    r = enriched(client)
     assert r.status_code == 303 and "not%20found" in r.headers["location"]
 
     app.state.enricher = StubEnricher({}, missing=[])
-    r = client.post("/companies/acme/enrich")
+    r = enriched(client)
     assert "every%20field%20is%20set" in r.headers["location"]
 
 

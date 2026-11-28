@@ -39,6 +39,7 @@
     if (hint && !(event.relatedTarget && hint.contains(event.relatedTarget))) fit(hint);
   }
 
+  // On document, so a part live.js swaps in needs nothing more (hermit:swap).
   document.addEventListener("mouseover", enter);
   document.addEventListener("focusin", enter);
 })();

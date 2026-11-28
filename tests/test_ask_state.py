@@ -196,7 +196,10 @@ def post(app, client, path, **data):
 
 
 def ask(app, client, question, **data):
-    return post(app, client, "/ask", question=question, page="/companies", **data)
+    """Ask, and land where the browser lands: the answer runs as a job (inline in
+    tests) and the POST redirects to the Ask page that shows it."""
+    r = post(app, client, "/ask", question=question, page="/companies", **data)
+    return client.get(r.headers["location"]) if r.status_code == 303 else r
 
 
 def porcelain(folder) -> str:
@@ -230,7 +233,7 @@ def test_a_failed_ask_is_still_a_recent(app_client):
     app.state.enricher = Enricher(provider="claude", which=lambda b: f"/usr/local/bin/{b}",
                                   runner=fail)
     r = ask(app, client, "A long question that took minutes and then failed?")
-    assert r.status_code == 502
+    assert "the model did not answer in time" in r.text   # on the Ask page, after the job
     assert [x.text for x in ask_state.load(folder).recent] == [
         "A long question that took minutes and then failed?"]
 

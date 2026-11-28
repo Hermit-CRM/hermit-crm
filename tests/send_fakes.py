@@ -52,11 +52,13 @@ class FakeSmtp:
         self.logins = []          # (host, port, user, password)
         self.starttls_used = False
         self.connections = 0
+        self.client_names = []    # local_hostname, when called the way smtplib.SMTP is
 
-    def factory(self, host, port, timeout=None):
+    def factory(self, host, port, timeout=None, local_hostname=None):
         if self.connect_error is not None:
             raise self.connect_error
         self.connections += 1
+        self.client_names.append(local_hostname)
         return _SmtpConn(self, host, port)
 
     def to(self, address):

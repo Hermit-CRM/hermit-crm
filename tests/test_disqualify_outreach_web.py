@@ -117,13 +117,14 @@ def test_a_confirmed_contact_is_built_and_stays_confirmed_through_the_loop(clien
     close_kestrel(client)
     response = post(client, "/outreach/build", where="stage=disqualified", limit="3",
                     include_closed=[KESTREL])
-    assert response.status_code == 303
+    assert response.status_code == 303 and response.headers["location"].startswith("/jobs/")
     item, = outreach.items(root)
     assert item.record == KESTREL and item.stage_override == "disqualified"
     assert any("its company is disqualified" in f for f in item.flags)
-    assert "include_closed=kestrel-metrics%2Fdaan-visser" in response.headers["location"]
-    # the loop asks again for the next one with the same confirmation: nobody else is there
-    assert query(response)["left"] == "2"
+    # one job built the batch: nobody else is there, and the way back keeps the confirmation
+    job = client.app.state.jobs.get(response.headers["location"].rsplit("/", 1)[1])
+    assert job.steps == "1 of 1"
+    assert "include_closed=kestrel-metrics%2Fdaan-visser" in job.result["link"]
 
 
 def test_a_stale_confirmation_for_someone_else_changes_nothing(client, root):

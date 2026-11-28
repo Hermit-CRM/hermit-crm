@@ -8,11 +8,103 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Sending no longer waits half a minute first on some networks.** Before each
+  send and each test mail, Hermit asked the network for your computer's full
+  name to greet the mail server. Where the network cannot answer (common on
+  home routers), that question hung for about 30 seconds every time. Hermit now
+  greets the server with the address it connects from instead: no lookup, and
+  your computer's name is no longer sent. Nothing else about sending changes.
+
+- **Search finds everything.** The search box at the top used to find only
+  companies. It now opens a results page with companies, people, the text of
+  every logged message (with the words marked), tasks, help pages and the app's
+  pages, eight of each with **Show all** for the rest. Every word you type must
+  appear. No data change. See [Search](/help/search).
+- **Search and start things from the keyboard.** Press Cmd K (Ctrl K) on any
+  page, or / when you are not typing, to search as you type, open a result, or
+  start something: a new company or contact, logging a call with a person, a task
+  for a company, or a question for Ask. Every entry opens a page or form; nothing
+  is saved until you press its button. Single keys go places too: g then p for
+  the Pipeline, n for a new company, ? for the list. See
+  [Search and the keyboard](/help/search#keyboard).
+
+- **Home opens on one list: What to do now.** Replies you owe, overdue tasks,
+  today's meetings and brief, drafts from your routines, tasks due today,
+  messages nobody answered and people to keep in touch with, most urgent first,
+  each row with its own buttons (Done, Log a reply, Open the draft). It replaces
+  What needs doing, Replies you owe and Keep in touch on Home; `/today` shows the
+  list on its own. An older `layout.toml` that names the old sections still
+  loads. No data change. See [Help](/help#today).
+
+- **Drag a card to another stage, and log interactions without a page
+  reload.** On the Pipeline board a card can be dragged onto another column;
+  the dropdown on the card still works and is the keyboard way, and it no
+  longer reloads the page either. **Log interaction** and **Add note** on a
+  contact page add the entry to the timeline in place. No data change. See
+  [Pipeline](/help/pipeline#columns-and-cards).
+
+- **Tasks change without a page reload.** Done, Reopen, Edit, Delete, the type
+  and Add task update the list in place, on the Tasks page and on company and
+  contact pages; the page keeps its place and a short message in the corner says
+  what happened. Without JavaScript they work as before. No data change. See
+  [Tasks](/help/tasks#without-a-page-reload).
 - **A crash or power cut while saving no longer leaves a cut-off record.**
   Companies, contacts and interactions are written to a temporary file first
   and then swapped in, so a file is either the old version or the new one.
   Two Hermit programs starting on an older folder at once now migrate it one
   after the other. No data change: the files are byte for byte the same.
+
+- **Ask can no longer read your mail password.** When Ask searches every file,
+  it now works in a temporary copy of your data folder without the hidden
+  files (`.secrets.toml`, `.git`), and may not read files outside it. Before,
+  a stored email could ask the AI to quote the password and it could. See
+  [Ask](/help/ask).
+
+- **Saving a mail password in the macOS Keychain no longer shows it to other
+  programs.** Hermit used to pass it to the `security` tool on its command
+  line, where any program of yours could see it for a moment; it now goes
+  over standard input, as it already did on Linux. Nothing to do on your side.
+
+- **No second copy of an email when Hermit cannot check your Sent folder.**
+  Without an incoming mail server in Settings > Sending, a mail whose earlier
+  try may have gone out is no longer sent again by the scheduler: it goes
+  back to Ready and asks you to look in Sent, then press **Send now** if it is
+  not there. When Hermit stops after a mail left, the note now says it may
+  have gone out. What is sent, and to whom, is unchanged. See
+  [Sending](/help/sending).
+- **Spreadsheet import has size limits:** 15 MB per file and 20 MB for an
+  `.xlsx` once unpacked, the same as for documents. A file built to unpack to
+  gigabytes can no longer freeze the app. See [Import](/help/import).
+
+- **The MCP server labels its tools.** Each of the nineteen tools now has a
+  title and says whether it only reads, overwrites something, or only adds, so
+  an AI app can ask you before the ones that write. Nothing else changes. See
+
+- **More of Hermit open to an AI app over MCP.** Every tool now has a title
+  and says whether it only reads, overwrites something or only adds, so the app
+  can ask you before the ones that write. Six new tools read: `search` (a word
+  anywhere, message bodies included), `show_contact`, `list_tasks`,
+  `list_outreach`, `show_outreach` and `list_routines`. Eight new tools write,
+  one commit each that `undo` reverses: `update_company`, `update_contact`,
+  `move_stage` (the stage rules apply, with no way round them), `add_task`,
+  `complete_task`, `reopen_task`, `edit_outreach_draft` and `skip_outreach`. An
+  agent still cannot mark a draft ready, schedule or send it, run a routine or
+  delete anything. The server also offers the pipeline, your playbook and any
+  company to read, and four prompts: `morning_review`, `prep_meeting`,
+  `log_call` and `weekly_review`. See
+  [AI agents](/help/ai-agents#connecting-over-mcp).
+
+- **Build queue drafts the whole batch in the background.** One click builds
+  every draft of the batch while you keep working; a progress page (and the
+  badge at the top) says "2 of 3" and who it is on. Each draft is still saved on
+  its own, and one that fails no longer stops the rest. Enriching a company runs
+  in the background too, then opens the same proposal page. No data change. See
+  [Outreach](/help/outreach).
+
+- **Ask the Hermit runs in the background.** Press **Ask** and go on working:
+  the Ask page shows what Hermit is doing, a badge at the top of every page says
+  when the answer is ready, and an answer survives a restart. No data change.
+  See [Ask the Hermit](/help/ask#it-runs-in-the-background).
 
 - **Save a contact to your phone with its camera.** Press **Save to phone** on a
   contact page, point your phone at the code and tap to add the person: name,

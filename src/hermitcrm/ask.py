@@ -20,16 +20,21 @@ model answers from the page text plus that index in one call without tools.
 Only when it says that is not enough (a question about what notes or emails say)
 does a second run start inside the data folder with read-only tools (files plus
 `hermitcrm show/digest/report`), where the folder's CLAUDE.md tells an agent how
-to read the CRM cheaply. Every answer goes through `fix_links`, so a link the
+to read the CRM cheaply. That run works in a temporary copy of the folder without
+its dotfiles (`walk_folder`), so `.secrets.toml` and `.git` are not there to read. Every answer goes through `fix_links`, so a link the
 model invented never renders as a dead one. The model tier (medium by default,
 strong for "Retry with ...") comes from the Enricher.
 """
 
 from __future__ import annotations
 
+import os
 import re
+import shutil
 import sys
+import tempfile
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from html.parser import HTMLParser
@@ -48,9 +53,60 @@ BLOCK_TAGS = {"p", "div", "section", "article", "main", "table", "tr", "li", "ul
               "br", "form", "label", "dl", "dt", "dd", "blockquote"}
 VOID_TAGS = {"br", "img", "input", "meta", "link", "hr", "col", "source", "wbr"}
 
-# Claude Code --allowedTools for the whole-CRM step: read-only.
-CRM_TOOLS = ("Read,Grep,Glob,Bash(hermitcrm show:*),Bash(hermitcrm digest:*),"
-             "Bash(hermitcrm report:*),Bash(hermitcrm check:*)")
+# Dotfiles the walk's copy keeps: the format number, so a `hermitcrm` command run
+# in the copy sees a current folder and never starts a migration there.
+WALK_KEEP = (".hermitcrm-format", ".owncrm-format")
+# Files above this size (attachments) are hard-linked into the copy, not copied.
+LINK_ABOVE = 1024 * 1024
+
+
+@contextmanager
+def walk_folder(data_dir: Path | str):
+    """A temporary copy of the data folder for the read-only walk, removed after.
+
+    Every name that starts with "." is left out, at any depth (`.secrets.toml`,
+    `.git`, `.claude`), apart from `WALK_KEEP`; so are symbolic links, which could
+    point back at one. A deny rule is not enough: the AI tool's Read deny stops
+    its file tools and `cat .secrets.toml`, but `grep -r` through its shell still
+    read the file. What is not in the folder cannot be read from it.
+
+    Small files are copied. Big ones are hard links where the file system allows
+    (an attachment is never rewritten in place, so nothing written here can reach
+    the real folder), else copies.
+    """
+    data_dir = Path(data_dir)
+    with tempfile.TemporaryDirectory(prefix="hermitcrm-ask-") as tmp:
+        copy = Path(tmp) / "data"
+        copy.mkdir()
+        for dirpath, dirnames, filenames in os.walk(data_dir):
+            here = Path(dirpath)
+            target = copy / here.relative_to(data_dir)
+            dirnames[:] = sorted(d for d in dirnames
+                                 if not d.startswith(".") and not (here / d).is_symlink())
+            for d in dirnames:
+                (target / d).mkdir()
+            top = here == data_dir
+            for name in filenames:
+                src = here / name
+                if (name.startswith(".") and not (top and name in WALK_KEEP)) \
+                        or src.is_symlink() or not src.is_file():
+                    continue
+                if src.stat().st_size > LINK_ABOVE:
+                    try:
+                        os.link(src, target / name)
+                        continue
+                    except OSError:  # another volume, or links not allowed
+                        pass
+                shutil.copy2(src, target / name)
+        yield copy
+
+
+# Claude Code --allowedTools for the whole-CRM step: read-only, and the file tools
+# only inside the working folder (the walk's copy). A bare "Read" allows a file
+# anywhere on the disk, the real data folder's .secrets.toml by its full path too;
+# "./**" is the working folder, and a read outside it is refused in a -p run.
+CRM_TOOLS = ("Read(./**),Grep(./**),Glob(./**),Bash(hermitcrm show:*),"
+             "Bash(hermitcrm digest:*),Bash(hermitcrm report:*),Bash(hermitcrm check:*)")
 
 PAGE_SCHEMA = {
     "type": "object",
@@ -406,8 +462,9 @@ def ask(enricher: Enricher, question: str, page: str, html: str, data_dir: Path 
         if data.get("answerable") and answer:
             return Answer(question, fix_links(answer, known), "index" if store is not None else "page",
                           enricher.model, enricher.tier, seconds=time.monotonic() - started)
-    data = enricher.runner(crm_prompt(question, page, text), CRM_SCHEMA, tools=CRM_TOOLS,
-                           cwd=str(data_dir), extra_path=str(Path(sys.executable).parent))
+    with walk_folder(data_dir) as folder:
+        data = enricher.runner(crm_prompt(question, page, text), CRM_SCHEMA, tools=CRM_TOOLS,
+                               cwd=str(folder), extra_path=str(Path(sys.executable).parent))
     answer = str(data.get("answer") or "").strip()
     if not answer:
         raise EnrichError("The AI returned an empty answer.")

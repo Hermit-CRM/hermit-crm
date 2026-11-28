@@ -60,6 +60,7 @@ from . import (adjust, bcc, brief, calendar_sync, capture, conversation, dashboa
                fields as custom, filters, followups, history, messaging, migrations,
                pipeline, reports, sample, welcome)
 from . import layout, pages
+from . import jobs as background
 from . import playbook, textsource
 from . import dateformat, schedule, scrape, secrets, task_types, usertheme, vcard
 from . import stage_ops
@@ -1034,6 +1035,7 @@ def create_app(root: Path, config: dict | None = None,
     app.state.gitops = gitops
     app.state.config = config
     app.state.enricher = build_enricher(config)
+    app.state.jobs = background.JobRunner(root)  # Ask, batch drafting, enrich (pages/jobs.py)
     fetch_timeout = float(config.get("fetch_timeout", 10))
     app.state.fetcher = lambda url: scrape.fetch(url, timeout=fetch_timeout)
     message_window = int(config.get("message_window_days", 14))
@@ -1897,17 +1899,11 @@ def create_app(root: Path, config: dict | None = None,
             all_steps = welcome_steps()
             intro = welcome.should_show(config, all_steps)
         today = store.today()
-        week = today + timedelta(days=7)
-        due_soon = [r for r in todo_rows(c for c in store.companies.values()
-                                         if not c.is_closed)
-                    if r.due and r.due <= week]
         report = build_report(reports.period_for("30d", today), today)
         return render(request, "home.html", {
             "today": today,
-            "due_soon": due_soon,
-            "followups": followups.radar(store, today, **followup_days),
-            "keep_in_touch": followups.keep_in_touch(store, today, **keep_in_touch_days),
-            "keep_in_touch_days": keep_in_touch_days["after"],
+            # What to do now: the Today queue (today.py), first 25 rows.
+            **pages.today.queue_context(store, config, back="/"),
             "totals": report["activity"]["totals"],
             "previous": report["activity"]["previous"],
             "funnel": report["funnel"],
@@ -1974,10 +1970,7 @@ def create_app(root: Path, config: dict | None = None,
 
     # ------------------------------------------------------------------ today
 
-    @app.get("/today")
-    def today_view(request: Request):
-        """The Today lists live on the Tasks page now."""
-        return goto("/tasks?when=overdue&when=today")
+    # /today is pages/today.py: the Today queue without the rest of Home.
 
     # --------------------------------------------------------------- calendar
 
@@ -2140,7 +2133,9 @@ def create_app(root: Path, config: dict | None = None,
 
     def _import_text(text: str, upload) -> str:
         if upload is not None and getattr(upload, "filename", ""):
-            return decode_upload(upload.file.read())
+            from .importer import MAX_FILE_BYTES
+            # One byte past the cap is enough to refuse it; never the whole file.
+            return decode_upload(upload.file.read(MAX_FILE_BYTES + 1))
         return text
 
     def _form_mapping(form, text: str) -> dict | None:
@@ -2221,22 +2216,51 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.post("/companies/{slug}/enrich", response_class=HTMLResponse)
     def company_enrich(request: Request, slug: str):
+        """Enrich as a background job; when it is done /jobs/<id> shows the same
+        preview page (or the same message) this route used to show itself."""
         company = need_company(slug, refresh=True)
+        enricher = tiered(request)
+        defs = custom_defs('company')
+
+        def propose(report):
+            report(f"Looking up {company.name}")
+            return {"proposal": dataclasses.asdict(enricher.propose_company(company, defs))}
+
+        job = app.state.jobs.start("enrich", f"Enrich {company.name}", propose,
+                                   back=f"/companies/{slug}",
+                                   params={"slug": slug,
+                                           "tier": request.query_params.get("tier", "")})
+        return goto(f"/jobs/{job.id}")
+
+    def company_enrich_done(request: Request, job):
+        """/jobs/<id> for an enrich job: the preview, or the message on the company page."""
+        if job.active:
+            return None   # the job page, with its progress
+        slug = job.params.get("slug", "")
+        back = f"/companies/{slug}"
+        company = store.get(slug)
+        app.state.jobs.mark_seen(job)
+        if company is None:
+            return flashed("/companies", f"Not enriched: {slug} is no longer in the CRM")
+        if job.state != "done":
+            return flashed(back, job.error)    # the EnrichError text, as before
+        from .enrich import Proposal
         try:
-            enricher = tiered(request)
-            proposal = enricher.propose_company(company, custom_defs('company'))
-        except EnrichError as exc:
-            return flashed(f"/companies/{slug}", str(exc))
+            proposal = Proposal(**job.result["proposal"])
+        except (KeyError, TypeError):
+            return flashed(back, "Enrichment found nothing it could verify")
         if not proposal.missing:
-            return flashed(f"/companies/{slug}", "Nothing to enrich: every field is set")
+            return flashed(back, "Nothing to enrich: every field is set")
         if not proposal.fields:
-            return flashed(f"/companies/{slug}",
-                           "Enrichment found nothing it could verify" +
+            return flashed(back, "Enrichment found nothing it could verify" +
                            (f": {proposal.notes}" if proposal.notes else ""))
-        return _proposal_page(request, company, proposal,
-                              f"/companies/{slug}/enrich/apply",
-                              f"Enrich {company.name}", f"/companies/{slug}",
-                              retry=f"/companies/{slug}/enrich", enricher=enricher)
+        tier = job.params.get("tier", "")
+        enricher = app.state.enricher.with_tier(tier) if tier else app.state.enricher
+        return _proposal_page(request, company, proposal, f"{back}/enrich/apply",
+                              f"Enrich {company.name}", back, retry=f"{back}/enrich",
+                              enricher=enricher)
+
+    app.state.jobs.views["enrich"] = company_enrich_done
 
     @app.post("/companies/{slug}/enrich/apply")
     async def company_enrich_apply(request: Request, slug: str):
@@ -4543,6 +4567,7 @@ def create_app(root: Path, config: dict | None = None,
     def ask_page_view(request: Request, page: str, status_code: int = 200, **extra):
         enricher = app.state.enricher
         ctx = {"ask_page": page, "question": "", "answer": None, "error": "", "tried": "",
+               "job": None,
                "ai": {"available": enricher.available, "provider": enricher.provider_name,
                       "reason": "" if enricher.available else enricher.unavailable_reason(),
                       "medium": enricher.model_for("medium"),
@@ -4556,30 +4581,75 @@ def create_app(root: Path, config: dict | None = None,
         return render(request, "ask.html", ctx, status_code=status_code)
 
     @app.get("/ask", response_class=HTMLResponse)
-    def ask_form(request: Request, page: str = "/"):
+    def ask_form(request: Request, page: str = "/", job: str = ""):
+        if job:
+            return ask_job_view(request, safe_page(page), job)
         return ask_page_view(request, safe_page(page))
 
     @app.post("/ask", response_class=HTMLResponse)
     async def ask_post(request: Request, csrf_token: str = Form(""), question: str = Form(""),
                        page: str = Form("/"), scope: str = Form("auto"),
                        tier: str = Form("")):
+        """Start the answer as a background job and go to the Ask page, which shows its
+        progress and then the answer (pages/jobs.py, jobs.py). What fails before any AI
+        runs (no question, no AI CLI) is said at once, as before."""
         check_csrf(csrf_token)
         page = safe_page(page)
         enricher = app.state.enricher.with_tier(tier) if tier else app.state.enricher
         enricher = enricher.with_tier(ask_tier(enricher.tier))  # a copy: the timeout changes below
         # Before the (slow, fallible) ask: a question that failed is still a recent.
         ask_state.record(root, question, scope)
-        html = await page_html(page)
-        try:
-            answer = await run_in_threadpool(
-                asking.ask, enricher, question, page, html, root,
-                scope if scope in ("crm", "deep") else "auto",
-                float(config.get("ask_timeout") or 300), store=store)
-        except EnrichError as exc:
-            return ask_page_view(request, page, question=question, error=str(exc),
-                                 tried=enricher.model,
-                                 status_code=400 if not question.strip() else 502)
-        return ask_page_view(request, page, question=question, answer=answer)
+        asked = " ".join((question or "").split())
+        if not asked or not enricher.available:
+            reason = "Type a question first." if not asked else enricher.unavailable_reason()
+            return ask_page_view(request, page, question=question, error=reason,
+                                 tried=enricher.model, status_code=400 if not asked else 502)
+        html = await page_html(page)   # the page as the browser saw it: before the job
+        scope = scope if scope in ("crm", "deep") else "auto"
+        timeout = float(config.get("ask_timeout") or 300)
+        run = enricher.runner
+
+        def answer(report):
+            def reporting(prompt, schema, **kwargs):   # ask.py's two steps, as progress
+                report("Looking through the whole CRM" if kwargs.get("tools")
+                       else "Reading this page")
+                return run(prompt, schema, **kwargs)
+
+            enricher.runner = reporting
+            found = asking.ask(enricher, question, page, html, root, scope, timeout,
+                               store=store)
+            return {"answer": dataclasses.asdict(found)}
+
+        job = app.state.jobs.start(
+            "ask", "Ask: " + (asked if len(asked) <= 60 else asked[:57] + "..."), answer,
+            back=page, params={"question": question, "page": page, "model": enricher.model})
+        return goto(f"/ask?job={job.id}&page={quote(page, safe='')}")
+
+    def ask_job_view(request: Request, page: str, job_id: str):
+        """The Ask page for a question that runs (or ran) as a job: progress, the
+        answer, or the error it ended with."""
+        job = app.state.jobs.get(job_id)
+        if job is None or job.kind != "ask":
+            return ask_page_view(request, page, error="That answer is no longer kept "
+                                 "(Hermit keeps the last 50 jobs). Ask again.")
+        question = job.params.get("question", "")
+        if job.active:
+            return ask_page_view(request, page, question=question, job=job,
+                                 tried=job.params.get("model", ""))
+        app.state.jobs.mark_seen(job)
+        if job.state == "done":
+            try:
+                found = asking.Answer(**job.result["answer"])
+            except (KeyError, TypeError):   # a hand-edited or older jobs file
+                found = None
+            if found is not None:
+                return ask_page_view(request, page, question=question, answer=found)
+        return ask_page_view(request, page, question=question, error=job.error,
+                             tried=job.params.get("model", ""))
+
+    # The badge links every job to /jobs/<id>; an Ask job opens on the Ask page.
+    app.state.jobs.views["ask"] = lambda request, job: goto(
+        f"/ask?job={job.id}&page={quote(job.params.get('page') or '/', safe='')}")
 
     def wants_json(request: Request) -> bool:
         return "application/json" in request.headers.get("accept", "")
@@ -5219,12 +5289,20 @@ def create_app(root: Path, config: dict | None = None,
                              signal: str = Form(""), note: str = Form(""),
                              language: str = Form(""), override: str = Form(""),
                              include_closed: list[str] = Form([])):
-        """Research and draft the next contact of the batch (one per request).
-        `contact` ("company/contact"): the Generate panel (with its signal, note
-        and language), or a reply on the Replies tab (`kind` reply-to-interest).
+        """Research and draft. Without `contact` ("Build queue"): one background job
+        builds the whole batch, one draft (one commit) per contact, and /jobs/<id>
+        shows "n of total". `contact` ("company/contact"): the Generate panel (with
+        its signal, note and language), or a reply on the Replies tab (`kind`
+        reply-to-interest), drafted in this request as before.
         `override=1` (the panel's Generate anyway) lifts a refusal that is a judgement
         (the approach's ideal customer), for that one contact only."""
         check_csrf(csrf_token)
+        building = None if contact else next(
+            (j for j in app.state.jobs.active() if j.kind == "outreach-batch" and j.active),
+            None)
+        if building is not None:   # two batches at once would pick the same people
+            return flashed(f"/jobs/{building.id}", "A batch is already building: here is "
+                           "its progress. Start the next one when it is done.")
         if kind not in outreach.BUILT_KINDS or (kind == outreach.REPLY and not contact):
             kind = outreach.FIRST_TOUCH
         form = outreach_form({"where": where, "channel": channel, "limit": limit,
@@ -5239,7 +5317,7 @@ def create_app(root: Path, config: dict | None = None,
             level = outreach.research_level(config, form["research"])
             selection = await run_in_threadpool(
                 outreach.select, store, where=outreach_where(form["where"]),
-                channel=form["channel"], kind=kind, limit=1,
+                channel=form["channel"], kind=kind, limit=1 if contact else form["left"],
                 approach=form["approach"],
                 contacts=[contact] if contact else None, config=config,
                 include_closed=form["include"], override=override == "1" and bool(contact))
@@ -5301,6 +5379,8 @@ def create_app(root: Path, config: dict | None = None,
         drafter = outreach.AIDrafter(store, enricher, config)
         critic = outreach.AICritic(store, enricher)
         batch_id = form["batch"] or f"{store.now():%Y-%m-%dT%H%M}-{form['channel']}"
+        if not contact:
+            return outreach_batch_job(selection, researcher, drafter, critic, form, batch_id)
         try:
             result = await run_in_threadpool(outreach.build, store, selection, researcher,
                                               drafter, config, None, batch_id, critic, pick)
@@ -5317,6 +5397,48 @@ def create_app(root: Path, config: dict | None = None,
         if remaining:
             line += f". Building the next one ({remaining} left)…"
         return flashed(f"/outreach?{query}", line, anchor=f"item-{item.id}")
+
+    def outreach_batch_job(selection, researcher, drafter, critic, form: dict,
+                           batch_id: str) -> RedirectResponse:
+        """Start the job that builds every picked contact of a batch: the same
+        `outreach.build` the one-contact path calls, once per person, so each draft is
+        still its own commits. One contact failing is a line in the result; the
+        batch goes on with the next."""
+        picked = list(selection.picked)
+        total = len(picked)
+        left_out = len(selection.stage_left_out)
+
+        def build_all(report):
+            lines, drafted, tab = [], 0, ""
+            for n, cand in enumerate(picked):
+                report(f"Drafting for {cand.who}", done=n, total=total)
+                try:
+                    one = outreach.build(store, dataclasses.replace(selection, picked=[cand]),
+                                         researcher, drafter, config, None, batch_id, critic)
+                except Exception as exc:   # this contact only: the batch goes on
+                    if not isinstance(exc, (outreach.OutreachError, EnrichError)):
+                        logger.exception("batch %s: building %s failed", batch_id, cand.who)
+                    lines.append(f"{cand.who}: not built ({exc})")
+                    continue
+                item = one.items[0]
+                if item.state == "drafted":
+                    drafted += 1
+                    tab = tab or outreach_tab(item)
+                lines.append(f"{cand.who}: " + ("drafted" if item.state == "drafted"
+                                                else f"skipped ({item.skip_note})"))
+                report(f"{cand.who}: {item.state}", done=n + 1, total=total)
+            if left_out:
+                lines.append(f"{left_out} left out because their company is not open; "
+                             "Preview lists them and lets you include them on purpose.")
+            query = outreach_query({**form, "left": 0, "batch": batch_id},
+                                   tab=tab or "drafts")
+            return {"lines": lines, "drafted": drafted, "link": f"/outreach?{query}",
+                    "link_text": "Review the drafts" if drafted else "Open Outreach"}
+
+        job = app.state.jobs.start(
+            "outreach-batch", f"Build {total} {form['channel']} draft{'s' if total != 1 else ''}",
+            build_all, back="/outreach", params={"batch": batch_id})
+        return goto(f"/jobs/{job.id}")
 
     @app.post("/outreach/note")
     async def outreach_contact_note(csrf_token: str = Form(""), contact: str = Form(""),

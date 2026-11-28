@@ -150,24 +150,18 @@ def test_a_text_field_compared_with_a_number_leaves_a_note(client, root):
 # -------------------------------------------------------------------- build
 
 
-def test_build_makes_one_item_per_request_and_counts_down(client, root, fake):
+def test_build_queue_builds_the_whole_batch_in_one_job(client, root, fake):
+    # One click, one background job (inline in tests): tests/test_outreach_batch_job.py
+    # has the progress, failures and the job page.
     first = build_one(client, limit="3")
-    assert first.status_code == 303
-    q = query(first)
-    assert q["left"] == "2" and q["batch"].endswith("-email") and q["tab"] == "drafts"
-    assert len(items(root)) == 1 and len(fake.of("draft")) == 1
-    second = build_one(client, limit="3", left=q["left"], batch=q["batch"])
-    q2 = query(second)
-    assert q2["left"] == "1" and q2["batch"] == q["batch"]
+    assert first.status_code == 303 and first.headers["location"].startswith("/jobs/")
     built = items(root)
-    assert len(built) == 2 and {i.batch for i in built} == {q["batch"]}
-    assert len({i.record for i in built}) == 2
-    # the page continues the batch by itself while something is left
-    page = client.get("/outreach?" + URL(second.headers["location"]).query)
-    assert "requestSubmit" in page.text and "Build the next one" in page.text
-    # the last one says so and stops
-    third = build_one(client, limit="3", left="1", batch=q["batch"])
-    assert "left" not in query(third)
+    assert len(built) == 3 and len(fake.of("draft")) == 3
+    assert len({i.record for i in built}) == 3 and len({i.batch for i in built}) == 1
+    assert next(iter({i.batch for i in built})).endswith("-email")
+    # the page no longer resubmits itself one contact at a time
+    page = client.get("/outreach").text
+    assert "requestSubmit" not in page and "Build the next one" not in page
 
 
 def test_build_refuses_with_the_reason_when_the_ai_is_missing(client, root):
@@ -446,7 +440,9 @@ def test_the_chosen_approach_reaches_preview_and_build(client, root):
     assert "Scaling the sales team</option>" in page and "selected" in page.split(
         "Scaling the sales team</option>")[0].rsplit("<option", 1)[1]
     response = build_one(client, limit="2", approach="Scaling the sales team")
-    assert query(response)["approach"] == "Scaling the sales team"   # a batch keeps going with it
+    job = client.app.state.jobs.get(response.headers["location"].rsplit("/", 1)[1])
+    back = dict(QueryParams(URL(job.result["link"]).query))
+    assert back["approach"] == "Scaling the sales team"   # the way back keeps it
     assert {i.approach for i in items(root)} == {"Scaling the sales team"}
 
 

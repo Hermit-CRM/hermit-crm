@@ -24,7 +24,8 @@ also shows on the Companies list, the board and in PIPELINE.md.
 Above the table: **All dates**, **Overdue**, **Today**, **Next 7 days**,
 **Later** and **No date**, each with a count. Click several to combine them
 (Overdue plus Today is what used to be "Top priority"); click one again to turn
-it off. `/today` opens the page with Overdue and Today on.
+it off. The same overdue and today tasks are on Home's [Today list](/help#today)
+(`/today`), with replies owed and drafts.
 
 Tasks of every company are listed, closed ones (won, lost, disqualified)
 included, so a "revisit in March" on a lost deal is not forgotten. To leave
@@ -52,5 +53,13 @@ list of its people.
 **Save**. Clearing the date leaves the task undated. Changing a date can change
 which task is the next step. Done tasks have no Edit button: reopen one first.
 To change who a task is for, delete it and add it again.
+
+## Without a page reload
+
+**Done**, **Reopen**, **Edit**, **Delete**, a new type and **Add task** change
+the list where it is: the page does not reload, it stays where you scrolled to,
+and a short message in the bottom right corner says what happened. It goes after
+a few seconds; hover over it or press Tab to it to keep it longer, or press
+**×**. With JavaScript turned off the same buttons work by loading the page again.
 
 Related: [Companies](/help/companies), [Calendar](/help/calendar)

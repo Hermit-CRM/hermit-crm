@@ -13,4 +13,59 @@
    limitations under the License.
 */
 
-/* Empty until WP4 fills it in. Loaded on every page by base.html; var(--*) tokens only. */
+/* Search (templates/search.html) and the command palette (palette.js).
+   Loaded on every page by base.html; var(--*) tokens only. */
+
+/* ------------------------------------------------------------- results page */
+.search-page-form { display: flex; gap: 8px; align-items: center; max-width: 640px; margin: 0 0 6px; }
+.search-page-form input[name="q"] { flex: 1; min-width: 0; }
+.search-group { margin: 18px 0 0; }
+.search-group h2 .small { text-transform: none; }
+.search-hits { list-style: none; margin: 6px 0 0; padding: 0; }
+.search-hits > li { padding: 7px 0; border-bottom: 1px solid var(--line); }
+.search-hits > li:last-child { border-bottom: 0; }
+.search-hits > li > a { font-weight: 600; margin-right: 6px; }
+.search-snippet { margin: 3px 0 0; color: var(--muted); overflow-wrap: anywhere; }
+.search-snippet mark, .palette mark { background: var(--type-amber-bg); color: var(--text); font-weight: 600;
+                                      border-radius: 2px; padding: 0 1px; }
+
+/* ----------------------------------------------------------------- the palette */
+/* Under the one-time disclaimer (100), over the busy bar (90) and the tour (70). */
+#palette-root:not([hidden]) { position: fixed; inset: 0; z-index: 95; display: flex;
+                              justify-content: center; align-items: flex-start; padding: 12vh 16px 16px; }
+html.palette-open { overflow: hidden; }
+.palette-backdrop { position: absolute; inset: 0; background: light-dark(rgba(28, 27, 24, .45), rgba(0, 0, 0, .6)); }
+.palette { position: relative; display: flex; flex-direction: column; width: 100%; max-width: 640px;
+           max-height: 76vh; background: var(--surface); color: var(--text); border: 1px solid var(--line);
+           border-radius: 10px; box-shadow: var(--shadow); overflow: hidden; }
+.palette-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+                border-bottom: 1px solid var(--line); }
+.palette-head input { flex: 1; min-width: 0; border: 0; background: transparent; font-size: 16px;
+                      padding: 6px 2px; outline: none; color: var(--text); }
+.palette-close { font-size: 12px; padding: 3px 8px; }
+#palette-list { list-style: none; margin: 0; padding: 4px 0 6px; overflow-y: auto; flex: 1; }
+.palette-group ul { list-style: none; margin: 0; padding: 0; }
+.palette-group-label { padding: 8px 14px 3px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+                       color: var(--muted); }
+.palette-option { padding: 6px 14px; cursor: pointer; border-left: 3px solid transparent; }
+.palette-option.on { background: var(--sidebar-active); border-left-color: var(--accent); }
+.palette-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.palette-title { font-weight: 600; overflow-wrap: anywhere; }
+.palette-detail { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.palette-snippet { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.palette-keys { display: inline-flex; gap: 3px; min-width: 64px; }
+.palette kbd, .search-keys kbd { display: inline-block; min-width: 1.4em; padding: 0 5px; font-family: var(--mono);
+                                 font-size: 12px; line-height: 1.6; text-align: center; color: var(--text);
+                                 background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 4px; }
+.palette-empty { padding: 10px 14px; color: var(--muted); }
+.palette-status { margin: 0; padding: 0 14px; min-height: 0; color: var(--muted); }
+.palette-foot { margin: 0; padding: 7px 14px; border-top: 1px solid var(--line); color: var(--muted); }
+@media (max-width: 760px) {
+  #palette-root:not([hidden]) { padding: 8px; }
+  .palette { max-height: calc(100vh - 16px); }
+  .palette-foot { display: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .palette { animation: palette-in 120ms var(--ease-out); }
+  @keyframes palette-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+}

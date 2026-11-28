@@ -13,4 +13,47 @@
    limitations under the License.
 */
 
-/* Empty until WP3 fills it in. Loaded on every page by base.html; var(--*) tokens only. */
+/* The Today queue (templates/today.html), on Home and /today. var(--*) tokens only. */
+
+.today { margin: 0 0 22px; }
+.today h2 { margin: 0 0 6px; }
+.today-total { color: var(--muted); font-weight: normal; }
+.today-group { font-size: 14px; margin: 14px 0 4px; display: flex; gap: 8px; align-items: baseline; }
+.today-count { color: var(--muted); font-weight: normal; font-variant-numeric: tabular-nums; }
+
+.today-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 3px; background: var(--surface); }
+.today-row { display: grid; grid-template-columns: minmax(9em, 15em) minmax(0, 1fr) auto;
+             grid-template-areas: "who what actions" "who why actions";
+             column-gap: 12px; row-gap: 1px; align-items: baseline;
+             padding: 7px 10px; border-top: 1px solid var(--line); border-left: 3px solid transparent; }
+.today-row:first-child { border-top: none; }
+.today-row:target { background: var(--info-bg); }
+.today-who { grid-area: who; font-weight: 600; overflow-wrap: anywhere; }
+.today-who .small { font-weight: normal; color: var(--muted); }
+.today-what { grid-area: what; overflow-wrap: anywhere; }
+.today-why { grid-area: why; color: var(--muted); font-size: 13px; }
+.today-actions { grid-area: actions; display: inline-flex; flex-wrap: wrap; gap: 6px 12px;
+                 align-items: baseline; justify-content: flex-end; }
+.today-actions form.inline { display: inline; margin: 0; }
+.today-actions button { font-size: 13px; }
+.today-act { font-size: 13px; white-space: nowrap; }
+.today-act.secondary { color: var(--muted); }
+.today-badge { display: inline-block; margin-left: 4px; padding: 0 5px; border: 1px solid var(--line-strong);
+               border-radius: 3px; font-size: 12px; font-weight: normal; color: var(--muted); }
+
+/* The urgent groups carry a mark on the left, as the radar's rows do. */
+.today-reply, .today-overdue { border-left-color: var(--danger); }
+.today-meeting, .today-brief, .today-draft, .today-due { border-left-color: var(--accent); }
+.today-nudge, .today-keep-in-touch { border-left-color: var(--line-strong); }
+
+.today-empty { border: 1px dashed var(--line-strong); border-radius: 3px; padding: 14px 16px; background: var(--surface); }
+.today-empty p { margin: 0; }
+.today-failed { color: var(--warn); }
+.today-more { margin: 8px 0 0; }
+.today-links { margin: 8px 0 0; }
+
+@media (max-width: 760px) {
+  .today-row { grid-template-columns: minmax(0, 1fr);
+               grid-template-areas: "who" "what" "why" "actions"; }
+  .today-actions { justify-content: flex-start; margin-top: 4px; }
+}

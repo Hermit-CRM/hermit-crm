@@ -106,7 +106,7 @@ def test_setup_keychain_on_macos_and_github_warning(folder):
     calls, out = [], []
 
     def runner(argv, **kw):
-        calls.append(argv)
+        calls.append(argv if argv[0] == "git" else (argv, kw.get("input")))
         if argv[0] == "git":
             return subprocess.run(argv, **kw)
         return subprocess.CompletedProcess(argv, 0, "", "")
@@ -117,8 +117,9 @@ def test_setup_keychain_on_macos_and_github_warning(folder):
                          runner=runner, platform="darwin", push=lambda: (False, "no access"))
     text = "\n".join(out)
     assert code == 0
-    assert ["security", "add-generic-password", "-U", "-s", "hermitcrm-bcc", "-a",
-            "jane@example.com", "-w", "pw"] in calls
+    # The password goes over stdin as hex, never on the command line (audit S8).
+    assert (["security", "-i"], 'add-generic-password -U -s "hermitcrm-bcc" -a '
+            f'"jane@example.com" -X {"pw".encode().hex()}\n') in calls
     assert "WARNING:" in text and "PRIVATE" in text and "no access" in text
     assert "pw" not in [line for line in out if "Keychain" in line][0].split()
 

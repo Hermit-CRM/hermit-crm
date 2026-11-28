@@ -413,7 +413,7 @@ def test_to_file_lives_on_home_and_import_status_in_settings(demo, tmp_path, mon
     home = client.get("/")
     assert home.status_code == 200
     assert "To file (1)" in home.text and "someone@nowhere.example" in home.text
-    assert home.text.index('id="doing"') < home.text.index('id="to-file"')
+    assert home.text.index('id="next"') < home.text.index('id="to-file"')
     r = client.post(f"/inbox/{items[0].id}/assign", data={"company": ""})
     assert r.status_code == 400 and "pick a company" in r.text and 'id="to-file"' in r.text
     r = client.post(f"/inbox/{items[0].id}/discard")

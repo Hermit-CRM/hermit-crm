@@ -186,13 +186,31 @@ def os_store(platform: str | None = None, runner=subprocess.run, env: dict | Non
     return None
 
 
+def _security_word(text: str) -> str:
+    """One word for a `security -i` command line: in double quotes, where a
+    backslash takes the next character as it is (checked with its `help`
+    command: `help "a b\\" c"` names the command `a b" c`)."""
+    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def keychain_command(service: str, account: str, value: str) -> str:
+    """The line `security -i` reads on stdin to save one password. The value goes
+    as hex (-X), so no character in it can end the word or the line."""
+    return " ".join(["add-generic-password", "-U", "-s", _security_word(service),
+                     "-a", _security_word(account),
+                     "-X", value.encode("utf-8").hex()]) + "\n"
+
+
 def os_store_save(store: str, service: str, account: str, value: str, label: str = "",
                   runner=subprocess.run) -> bool:
-    """Write one secret to the OS store; True when it worked. On Linux the value
-    goes over stdin, never on the command line (where ps would show it)."""
+    """Write one secret to the OS store; True when it worked. The value goes over
+    stdin, never on the command line, where `ps` would show it to every program
+    of the same user: to `security -i` on macOS, to secret-tool on Linux."""
     if store == KEYCHAIN:
-        args, stdin = ["security", "add-generic-password", "-U", "-s", service,
-                       "-a", account, "-w", value], None
+        if any(c in service + account for c in "\r\n"):
+            logger.info("saving %s in the Keychain refused: a line break in the name", service)
+            return False   # it would end the command line early
+        args, stdin = ["security", "-i"], keychain_command(service, account, value)
     elif store == SECRET_SERVICE:
         args = [SECRET_TOOL, "store", f"--label={label or f'Hermit CRM {service}'}",
                 "service", service, "account", account]

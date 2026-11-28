@@ -281,9 +281,11 @@ def test_the_ask_page_lists_saved_questions_with_edit_and_delete(app_client):
 def test_the_answer_page_offers_to_save_the_question_asked(app_client):
     app, client, folder = app_client
     r = post(app, client, "/ask", question="Who is silent?", page="/companies")
+    r = client.get(r.headers["location"])        # the answer runs as a job (inline in tests)
     assert 'formaction="/ask/saved"' in r.text and "Save this question" in r.text
     post(app, client, "/ask/saved", question="Who is silent?")
     r = post(app, client, "/ask", question="Who is silent?", page="/companies")
+    r = client.get(r.headers["location"])
     assert "Saved &#10003;" in r.text and "Save this question" not in r.text
 
 

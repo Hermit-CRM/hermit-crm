@@ -16,9 +16,13 @@ and from the command line; both do the same steps and write the same files.
   company" it picks one per company, as the command line does without
   `--approach`.
   **Preview** shows who would get a draft and why not the others; no AI runs
-  and nothing is written. **Build queue** researches and drafts them one at a
-  time: each card appears when it is done and the page asks for the next one
-  by itself. **Stop** ends the batch; what was built stays.
+  and nothing is written. **Build queue** researches and drafts the whole batch
+  in the background, one person after the other: a progress page says "2 of 3"
+  and who it is on, and you can keep working meanwhile (the badge at the top of
+  every page shows how far it is). Each draft is saved as it is done, so a
+  restart halfway keeps what was built; the progress page then says
+  "interrupted". One person whose draft fails is a line in the summary and the
+  batch goes on with the next. One batch runs at a time.
 - **Tabs**: Replies to interest (first: that is where deals leak), Follow-ups,
   Drafts (first touches to review), Ready (to send), Sent, Skipped.
 - **A card**: the person and company with their links, fit, flags, what

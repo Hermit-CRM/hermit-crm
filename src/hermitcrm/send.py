@@ -397,7 +397,7 @@ def build_message(item, to: str, settings: SendSettings, *, message_id: str,
 def connect(settings: SendSettings, password: str, factory=None, timeout: float = TIMEOUT):
     """An authenticated SMTP connection: STARTTLS on 587, SSL on 465."""
     ssl_port = settings.smtp_port == 465
-    factory = factory or (mailtls.smtp_ssl if ssl_port else smtplib.SMTP)
+    factory = factory or (mailtls.smtp_ssl if ssl_port else mailtls.smtp)
     conn = None
     try:
         conn = factory(settings.smtp_host, settings.smtp_port, timeout=timeout)
@@ -944,6 +944,15 @@ class Outcome:
         return self.kind in ("sent", "recovered")
 
 
+# A try that may have gone out, and nothing to check it with (audit S2).
+UNCHECKABLE = ("an earlier try to send it may have gone out, and Hermit cannot check your "
+               "Sent folder (no incoming mail server is set in Settings > Sending). Look in "
+               "Sent in your mail app: if it is not there, press Send now")
+# Hermit stopped after it started sending: the mail may be out (sendqueue.due).
+MAY_HAVE_GONE_OUT = ("Hermit stopped while sending it ({error}); it may have gone out. "
+                     "Look in Sent in your mail app before you send it again")
+
+
 def deliver(store: Store, item_id: str, *, settings: SendSettings, now: datetime | None = None,
             scheduled: bool = True, smtp_factory=None, imap_factory=None,
             password: str | None = None, config: dict | None = None,
@@ -981,6 +990,10 @@ def deliver(store: Store, item_id: str, *, settings: SendSettings, now: datetime
                 if attempted:
                     why = local_hold(store, item, settings, scheduled=scheduled, config=config)
                 why = why or mailbox_hold(item, _address(store, item), box)
+        elif attempted and scheduled:
+            # No incoming server, so Sent cannot be asked whether the last try went
+            # out. The sender never guesses: the person looks and decides (Send now).
+            why = UNCHECKABLE
         elif attempted:
             why = local_hold(store, item, settings, scheduled=scheduled, config=config)
         if why:
