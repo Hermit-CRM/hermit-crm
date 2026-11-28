@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{% if q %}Search: {{ q }}{% else %}Search{% endif %}{% endblock %}
+{% block content %}
+{#- Every group search.py finds, eight rows each; "Show all" opens one group on
+    its own (?only=). Works without JavaScript: it is what the top bar's search
+    box opens. Marks come from the snippet's parts, never from HTML in the data. -#}
+{% macro snippet(parts) -%}
+{%- for text, hit in parts %}{% if hit %}<mark>{{ text }}</mark>{% else %}{{ text }}{% endif %}{% endfor -%}
+{%- endmacro %}
+<h1>Search{% if q %}: &ldquo;{{ q }}&rdquo;{% endif %}</h1>
+<form class="search-page-form" action="/search" method="get" role="search">
+  <input name="q" value="{{ q }}" aria-label="Search everything" placeholder="Companies, people, message text, tasks, help">
+  {% if only %}<input type="hidden" name="only" value="{{ only }}">{% endif %}
+  <button type="submit">Search</button>
+</form>
+{% if not q %}
+<p class="small">Search finds companies, contacts, the subject and text of every logged message, tasks, help pages and the app's pages. Every word you type must appear. <a href="/help/search">More about search</a>.</p>
+{% elif not results.total %}
+<p>Nothing matches &ldquo;{{ q }}&rdquo;. Every word must appear somewhere in the same record; try fewer words, or part of a word.</p>
+{% else %}
+<p class="small">{{ results.total }} {{ 'match' if results.total == 1 else 'matches' }}{% if only %} in {{ results.groups[0].label | lower }}. <a href="/search?q={{ q | urlencode }}">All groups</a>{% endif %}.</p>
+{% for g in results.groups if g.hits %}
+<section class="search-group" id="search-{{ g.kind }}" aria-labelledby="search-{{ g.kind }}-h">
+  <h2 id="search-{{ g.kind }}-h">{{ g.label }} <span class="small faint">({{ g.total }})</span></h2>
+  <ul class="search-hits">
+    {% for h in g.hits %}<li>
+      <a href="{{ h.url }}">{{ h.title }}</a>
+      {% if h.detail %}<span class="small faint">{{ h.detail }}</span>{% endif %}
+      {% if h.snippet %}<p class="small search-snippet">{{ snippet(h.snippet) }}</p>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% if g.more %}<p class="small"><a href="/search?q={{ q | urlencode }}&amp;only={{ g.kind }}">Show all {{ g.total }} {{ g.label | lower }}</a></p>{% endif %}
+</section>
+{% endfor %}
+{% endif %}
+{% endblock %}

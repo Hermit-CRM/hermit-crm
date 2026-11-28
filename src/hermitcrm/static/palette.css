@@ -13,4 +13,18 @@
    limitations under the License.
 */
 
-/* Empty until WP4 fills it in. Loaded on every page by base.html; var(--*) tokens only. */
+/* Search (templates/search.html) and, later, the command palette (palette.js).
+   Loaded on every page by base.html; var(--*) tokens only. */
+
+/* ------------------------------------------------------------- results page */
+.search-page-form { display: flex; gap: 8px; align-items: center; max-width: 640px; margin: 0 0 6px; }
+.search-page-form input[name="q"] { flex: 1; min-width: 0; }
+.search-group { margin: 18px 0 0; }
+.search-group h2 .small { text-transform: none; }
+.search-hits { list-style: none; margin: 6px 0 0; padding: 0; }
+.search-hits > li { padding: 7px 0; border-bottom: 1px solid var(--line); }
+.search-hits > li:last-child { border-bottom: 0; }
+.search-hits > li > a { font-weight: 600; margin-right: 6px; }
+.search-snippet { margin: 3px 0 0; color: var(--muted); overflow-wrap: anywhere; }
+.search-snippet mark, .palette mark { background: var(--type-amber-bg); color: var(--text); font-weight: 600;
+                                      border-radius: 2px; padding: 0 1px; }
