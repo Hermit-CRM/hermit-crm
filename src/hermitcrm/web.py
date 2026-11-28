@@ -60,6 +60,7 @@ from . import (adjust, bcc, brief, calendar_sync, capture, conversation, dashboa
                fields as custom, filters, followups, history, messaging, migrations,
                pipeline, reports, sample, welcome)
 from . import layout, pages
+from . import jobs as background
 from . import playbook, textsource
 from . import dateformat, schedule, scrape, secrets, task_types, usertheme, vcard
 from . import stage_ops
@@ -1034,6 +1035,7 @@ def create_app(root: Path, config: dict | None = None,
     app.state.gitops = gitops
     app.state.config = config
     app.state.enricher = build_enricher(config)
+    app.state.jobs = background.JobRunner(root)  # Ask, batch drafting, enrich (pages/jobs.py)
     fetch_timeout = float(config.get("fetch_timeout", 10))
     app.state.fetcher = lambda url: scrape.fetch(url, timeout=fetch_timeout)
     message_window = int(config.get("message_window_days", 14))

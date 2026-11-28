@@ -13,4 +13,43 @@
    limitations under the License.
 */
 
-/* Empty until WP6 fills it in. Loaded on every page by base.html; var(--*) tokens only. */
+/* Background jobs: the top-bar badge and the job page. var(--*) tokens only. */
+
+/* The top bar is a three-column grid (search in the middle, Ask on the right):
+   the badge takes the empty first column, so it never pushes Ask down a row. */
+.topbar #jobs-badge { grid-column: 1; grid-row: 1; justify-self: start; min-width: 0; }
+.jobs-badge-link {
+  display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; vertical-align: middle;
+  padding: 3px 10px; border-radius: 999px; font-size: 0.85em; text-decoration: none;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+}
+.jobs-badge-link:hover { border-color: var(--accent); }
+.jobs-badge-link.jobs-running::before {
+  content: ""; display: inline-block; width: 0.7em; height: 0.7em; margin-right: 6px;
+  border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%;
+  vertical-align: -1px; animation: jobs-spin 0.9s linear infinite;
+}
+.jobs-badge-link.jobs-done { border-color: var(--accent); }
+.jobs-badge-link.jobs-failed, .jobs-badge-link.jobs-interrupted { border-color: var(--danger); }
+
+/* Phone: the top bar is search | Ask; the badge gets a row of its own under them. */
+@media (max-width: 760px) {
+  .topbar #jobs-badge { grid-column: 1 / -1; grid-row: 2; }
+}
+
+.job-status { margin: 12px 0; }
+.job-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.job-progress { color: var(--muted); min-height: 1.4em; }
+.job-spinner {
+  display: inline-block; width: 1em; height: 1em; border-radius: 50%;
+  border: 2px solid var(--line); border-top-color: var(--accent);
+  animation: jobs-spin 0.9s linear infinite;
+}
+.job-lines { margin: 8px 0; padding-left: 1.2em; }
+.job-times { color: var(--muted); }
+
+@keyframes jobs-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .job-spinner, .jobs-badge-link.jobs-running::before { animation: none; }
+}

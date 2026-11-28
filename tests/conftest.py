@@ -60,6 +60,15 @@ def no_real_secret_tool(request, monkeypatch):
         monkeypatch.setattr(secrets, "_which", lambda name: None)
 
 
+@pytest.fixture(autouse=True)
+def jobs_run_inline(monkeypatch):
+    """Background jobs (jobs.py) run inside the request that starts them, so a route
+    test sees the finished job without a thread or a sleep. tests/test_jobs.py
+    passes its own executor where it tests the real pool."""
+    from hermitcrm import jobs
+    monkeypatch.setattr(jobs, "make_executor", jobs.Inline)
+
+
 @pytest.fixture
 def messages():
     return []
