@@ -33,7 +33,7 @@ from . import (__version__, backup, bcc, clientfiles, guard, migrations, schedul
                updates, usertheme)
 from . import setup as setup_steps
 from .attachments import human_size
-from .datafolder import SKILL, is_data_folder
+from .datafolder import SKILL, SKILL_NAMES, is_data_folder, skill_states
 from .enrich import Enricher
 from .store import DEFAULT_CONFIG
 
@@ -213,11 +213,23 @@ def run_checks(root: Path, *, online: bool = False, env: dict | None = None,
         add("agent guard", WARN, str(exc))
 
     try:  # before format 8 the pending migration writes it; "data format" says so
-        if migrations.missing_agent_files(root):
+        if SKILL in migrations.missing_agent_files(root):
             add("agent skill", WARN, f"{SKILL} is missing, so /hermit (Make it yours) "
                 "does not work in Claude Code; run hermitcrm migrate")
         elif (root / SKILL).exists():
             add("agent skill", OK, f"/hermit works in Claude Code ({SKILL})")
+        if migrations.current_format(root) >= 8:
+            states = dict(skill_states(root))
+            todo = [f"/{n}" for n in SKILL_NAMES if states[n] in ("missing", "old")]
+            own = sum(states[n] == "yours" for n in SKILL_NAMES)
+            if todo:
+                add("agent skills", WARN, f"{len(todo)} of the {len(SKILL_NAMES)} everyday "
+                    f"Claude Code skills missing or out of date ({', '.join(todo)}); run "
+                    "hermitcrm migrate (a skill you edited is kept)")
+            else:
+                add("agent skills", OK, f"{len(SKILL_NAMES)} everyday skills work in Claude "
+                    "Code (.claude/skills/: /hermit-daily, /hermit-log, ...)"
+                    + (f"; {own} of them your own" if own else ""))
     except migrations.FormatTooNew:
         pass  # "data format" already failed on it
 

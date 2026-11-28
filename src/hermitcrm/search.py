@@ -337,9 +337,10 @@ COMMANDS: tuple[tuple[str, str, str], ...] = (
 def actions(results: Results) -> list[dict]:
     """Palette entries that open an existing page or form: the commands the
     query matches (all of them for an empty query), "Log a call with" the first
-    contact found, "Add a task for" the first company found, and "Ask Hermit"
-    with the query. Each is {"label", "url"}; "Ask Hermit" has kind "ask" and
-    no url, because it fills the Ask box on the page instead."""
+    contact found, "Add a task for" the first company found, "Capture" (quick
+    capture with the query in its box) and "Ask Hermit" with the query. Each is
+    {"label", "url"}; "Ask Hermit" has kind "ask" and no url, because it fills the
+    Ask box on the page instead."""
     words = results.words
     out = [{"label": label, "url": url, "kind": "go"} for label, url, extra in COMMANDS
            if not words or _matches(words, label, extra)]
@@ -355,6 +356,10 @@ def actions(results: Results) -> list[dict]:
         out.append({"label": f"Add a task for {hit.title}", "kind": "go",
                     "url": f"/companies/{quote(hit.company)}#tasks"})
     if results.q:
+        # Quick capture (pages/capture.py): opens the box with the text in it; the
+        # person still presses the button there, so this entry runs nothing.
+        out.append({"label": f"Capture: {results.q}", "kind": "go",
+                    "url": "/quick-capture?" + urlencode({"text": results.q})})
         out.append({"label": f"Ask Hermit: {results.q}", "kind": "ask", "url": "",
                     "question": results.q})
     return out

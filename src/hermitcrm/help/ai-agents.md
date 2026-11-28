@@ -65,6 +65,29 @@ nothing is written and nothing is committed.
 - Never rewrite interaction bodies; they are the record.
 - Never put secrets in `config.toml` and never commit `.secrets.toml`.
 
+## Skills for Claude Code
+
+Every data folder has six Claude Code skills in `.claude/skills/`. Type the name
+in Claude Code, or just ask, and Claude picks the one that fits:
+
+| Skill | What it does |
+| --- | --- |
+| `/hermit` | Change Hermit itself: fields, dashboards, layout, routines, the look (see below). |
+| `/hermit-daily` | The morning review: overdue and today's tasks, replies you owe, today's meetings, drafts waiting. Reads only. |
+| `/hermit-log` | Log a call or meeting from your notes, with its follow-up tasks; a stage move only after you agree. |
+| `/hermit-research` | Research a prospect and keep the findings, with their sources, as a note on the company. |
+| `/hermit-weekly` | The weekly review: the week in numbers, deals that went quiet, what matters next week. Reads only. |
+| `/hermit-import` | Bring in a CSV, TSV or .xlsx list: a preview first, the import only after you say yes. |
+
+Each skill names the commands to run in order (and the MCP tools, for an app
+without a shell), and keeps the same rules: a dry run before a change to many
+records, one commit per change, and never sending anything.
+
+A folder made by an older Hermit gets the skills from `hermitcrm migrate`, and
+`hermitcrm doctor` says when one is missing. A skill you have edited is yours:
+Hermit never overwrites it. Delete one you do not want; it stays deleted until
+you run `hermitcrm migrate` again.
+
 ## Adjusting Hermit
 
 When the user asks you to change Hermit CRM itself (a field, the look, a
@@ -114,7 +137,59 @@ shows up without a restart; the Reload button (or `hermitcrm rebuild`,
 stage, a missing name) never crash the app: `hermitcrm check` and `/health` list
 them with file paths.
 
+### Open pages follow commits
+
+Every write through Hermit (the CLI, MCP, the web app, the daily sync) is a git
+commit, and so is an agent's own `git commit`. A page open in the browser asks
+every five seconds whether the folder's last commit changed (`GET
+/live/head.json`, which reads `.git` and starts no process), and only while its
+tab is visible. When it did, and the change did not come from that tab:
+
+- if nothing on the page is being edited, the page updates in place, keeping
+  the scroll position;
+- if a field on it has been changed, or it shows an error, it says **This page
+  changed underneath you** with a **Refresh** button and leaves what was typed
+  alone.
+
+A hand edit that is saved but not committed does not change the last commit,
+so open pages do not follow it: commit it, or press Reload.
+
+### What agents did
+
+**Make it yours > What agents did** (`/activity`) lists every commit whose
+message starts with `ai:`, newest first and grouped by day: what changed in
+plain words (added 2 interactions, changed 1 company), the companies and people
+it touched (linked while they exist) and an **Undo** button. Undo makes a new
+commit that reverses the change, the same as `hermitcrm undo <commit>`; the
+undo itself is listed too, and can be undone in turn.
+
+That covers what an agent commits itself, if it follows the rule to start its
+messages with `ai:`, and Hermit's MCP adjust and bulk tools. A record an agent
+adds or edits with the other MCP tools is committed with the same message the
+command line writes (`interaction: acme-labs ...`), so it is not told apart
+from yours and is not listed here.
+
 Related: [Data format](/help/data-format), [CLI](/help/cli), [Pipeline](/help/pipeline)
+
+## Connect your AI
+
+**Settings > Advanced > Connect your AI** shows the exact line or block for
+Claude Code, Claude Desktop and Cursor, already filled in with this folder's
+path and the full path of the `hermitcrm` command, each with a copy button.
+Hermit only shows the text: it changes nothing in the AI app's settings, and
+nothing outside the data folder.
+
+- **Claude Code** needs no setup in the folder: open it there (`cd <folder> &&
+  claude`) and it has the rules and the skills above. To reach the CRM from
+  Claude Code in any other folder, the section gives the one-time
+  `claude mcp add --scope user hermitcrm -- ...` line.
+- **Claude Desktop** and **Cursor** take the JSON block below, in
+  `claude_desktop_config.json` or `~/.cursor/mcp.json`.
+
+If Hermit cannot find where `hermitcrm` is installed, the section says so: run
+`which hermitcrm` and use the path it prints, because a desktop app does not
+search your terminal's PATH. The section also lists the skills, and says when
+one is missing (`hermitcrm migrate` adds it).
 
 ## Connecting over MCP
 

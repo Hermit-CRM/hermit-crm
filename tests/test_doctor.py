@@ -64,13 +64,13 @@ def test_fresh_folder_warns_but_does_not_fail(folder, tmp_path):
                                 "owner_email", "keyring", "bcc password", "imap login",
                                 "calendar url",
                                 "schedule", "backup", "attachments", "agent guard",
-                                "agent skill", "git remote", "enrich cli", "update"]
+                                "agent skill", "agent skills", "git remote", "enrich cli", "update"]
     assert res["owner_email"].status == "warn"
     assert res["schedule"].status == "warn" and res["git remote"].status == "warn"
     assert res["imap login"].detail == "not checked; add --online"
     assert res["enrich cli"].detail == "claude"
     text, code = doctor.report(list(res.values()))
-    assert code == 0 and len(text.splitlines()) == 18
+    assert code == 0 and len(text.splitlines()) == 19
     assert res["backup"].status == "warn"
     assert text.splitlines()[0].startswith("ok    python: ")
 

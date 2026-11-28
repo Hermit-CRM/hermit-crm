@@ -446,6 +446,11 @@ run on this machine: a phone app cannot reach it, and the phone route is the
 web app above. Ten read tools and seven writes, each write one commit you can
 undo. [AI agents](/help/ai-agents) has the tool list.
 
+**Connect your AI.** The same tab has the line or block for Claude Code, Claude
+Desktop and Cursor, filled in with this folder's path and the full path of the
+`hermitcrm` command, each with a copy button; Hermit writes nothing into the AI
+app. See [AI agents](/help/ai-agents#connect-your-ai).
+
 ## Support Hermit
 
 Hermit CRM is free and open source. The Support Hermit link in Settings and at

@@ -27,7 +27,8 @@
  *                                  board's stage select): it stands in for an
  *                                  inline onchange="this.form.submit()"
  *
- * The answer's flash line becomes a toast in #toasts, the address bar shows the
+ * The answer's flash line becomes a toast in #toasts (with the Undo form under
+ * that line, templates/undo_form.html, when it has one), the address bar shows the
  * answer's address without ?flash=, scroll and focus stay where they were, and
  * a "hermit:swap" event on document tells the other scripts to look at the new
  * part (event.detail.regions). It falls back to the ordinary page load whenever
@@ -50,7 +51,7 @@
 
   /* ---------------------------------------------------------------- toasts */
 
-  function toast(text) {
+  function toast(text, undo) {
     var box = document.getElementById("toasts");
     if (!box || !text) return;
     var item = document.createElement("div");
@@ -64,6 +65,11 @@
     close.setAttribute("aria-label", "Dismiss");
     close.textContent = "\u00d7";
     item.appendChild(words);
+    if (undo) {                         // sent like any data-live form; a page whose <main>
+      undo.setAttribute("data-live", ""); // cannot be swapped loads in full, as for any other
+      undo.removeAttribute("style");    // the spacing it has under the flash line
+      item.appendChild(undo);
+    }
     item.appendChild(close);
     var old = box.querySelectorAll(".toast");
     for (var i = 0; i <= old.length - TOASTS_KEPT; i++) old[i].remove();
@@ -281,6 +287,8 @@
 
   function apply(form, submitter, response, html, parts, state) {
     var doc = new DOMParser().parseFromString(html, "text/html");
+    var sent = form.closest(".toast");    // its Undo was pressed: that toast has had its say
+    if (sent && !(response.status >= 400)) sent.remove();
     var final = new URL(response.url || location.href);
     var error = response.status >= 400;
     // A success that lands on another page (a lost stage that needs its reason,
@@ -303,9 +311,10 @@
 
     var flash = doc.querySelector("main p.flash");
     var message = flash ? flash.textContent.trim() : (final.searchParams.get("flash") || "");
-    all(document, "main p.flash").forEach(function (p) { p.remove(); });    // an older message
+    var undo = doc.querySelector("main form.flash-undo");
+    all(document, "main p.flash, main form.flash-undo").forEach(function (p) { p.remove(); });    // an older message
     pairs.forEach(function (pair) {
-      all(pair.fresh, "p.flash").forEach(function (p) { p.remove(); });
+      all(pair.fresh, "p.flash, form.flash-undo").forEach(function (p) { p.remove(); });
       var scrollers = all(pair.el, ".table-scroll, .board");
       var offsets = scrollers.map(function (s) { return [s.scrollLeft, s.scrollTop]; });
       var own = [pair.el.scrollLeft, pair.el.scrollTop];
@@ -324,7 +333,7 @@
     window.scrollTo(state.x, state.y);
     var fresh = pairs.map(function (p) { return p.fresh; });
     refocus(state.focus, fresh, error);
-    if (message) toast(message);
+    if (message) toast(message, undo && message ? document.importNode(undo, true) : null);
     document.dispatchEvent(new CustomEvent("hermit:swap", {
       detail: { regions: fresh, url: location.href, status: response.status }
     }));
@@ -432,4 +441,298 @@
 
   window.Hermit = window.Hermit || {};
   window.Hermit.toast = toast;    // for other scripts that want to say something briefly
+})();
+
+/* Live sync. Every change to the data folder is a git commit, whoever makes
+ * it: the command line, an agent over MCP, the daily sync, an editor's commit.
+ * So every POLL_MS while this tab is visible this asks /live/head.json what
+ * HEAD is, and when that differs from what the page was shown at, and the
+ * change was not a form sent from this tab, the page follows:
+ *
+ *   nothing on it is being edited   <main> is fetched again and put in place
+ *                                   (scroll, open <details> and focus kept;
+ *                                   "hermit:swap" with detail.sync is fired).
+ *                                   A part that holds an inline <script> (the
+ *                                   company page's record form) stays as it is
+ *                                   while its fields are the same; when they
+ *                                   are not, the page is loaded again
+ *   a field in <main> differs from  a toast "This page changed underneath
+ *   what the page came with, an     you" with a Refresh button; nothing on
+ *   error is shown, or the page is  the page is touched
+ *   the answer to a form sent the
+ *   ordinary way (a preview its
+ *   address cannot show again)
+ *
+ * Polling stops while the tab is hidden and asks at once when it is shown
+ * again. The server reloads its records on the page request itself
+ * (refresh_if_moved in web.py); /live/ is skipped by that sweep, so a poll
+ * starts no process. Without fetch, nothing here runs and the sidebar's
+ * Reload button does the job by hand. */
+(function () {
+  "use strict";
+  if (!window.fetch || !window.DOMParser || !window.URL || !document.querySelector("main") ||
+      typeof document.visibilityState === "undefined") return;
+
+  var POLL_MS = 5000;
+  var OWN_MS = 15000;         // after a form is sent from here, a new HEAD is that form's own for this long
+  var POSTED_KEY = "hermit-posted";
+  var known = null;           // the HEAD this page shows; null until the first answer
+  var seq = 0;                // only the newest question's answer counts
+  var timer = null;
+  var ownUntil = 0;
+  var refreshing = false;
+  var notice = null;          // the "changed underneath you" toast while it is up
+  var posted = wasPosted();
+
+  function all(root, selector) { return Array.prototype.slice.call(root.querySelectorAll(selector)); }
+
+  function address() {
+    var url = new URL(location.href);
+    url.searchParams.delete("flash");    // a message shown once, not again on every refresh
+    return url.href;
+  }
+
+  /* A page that answers a POST sent the ordinary way (an import preview, a
+     form shown again with its errors) cannot be fetched again by its address:
+     the submit listener below notes where such a form went, and a page at
+     that address reached without a redirect is that answer. */
+  function wasPosted() {
+    var note = null;
+    try {
+      note = JSON.parse(sessionStorage.getItem(POSTED_KEY) || "null");
+      sessionStorage.removeItem(POSTED_KEY);
+    } catch (e) { return false; }
+    if (!note || typeof note.t !== "number" || Date.now() - note.t > 60000) return false;
+    var timing = window.performance;
+    var nav = timing && timing.getEntriesByType && timing.getEntriesByType("navigation")[0];
+    if (nav && nav.redirectCount) return false;    // a 303 to a page: that page is an ordinary GET
+    return note.path === location.pathname;
+  }
+
+  /* ------------------------------------------------- is anything edited */
+
+  function selectChanged(select) {
+    var options = Array.prototype.slice.call(select.options);
+    if (select.multiple) return options.some(function (o) { return o.selected !== o.defaultSelected; });
+    var start = -1;
+    options.forEach(function (o, i) { if (o.defaultSelected) start = i; });
+    return select.selectedIndex !== (start === -1 ? (options.length ? 0 : -1) : start);
+  }
+
+  function fieldChanged(field) {
+    if (field.disabled) return false;
+    var type = (field.type || "").toLowerCase();
+    if (field.tagName === "SELECT") return selectChanged(field);
+    if (/^(hidden|submit|button|reset|image)$/.test(type)) return false;
+    if (type === "checkbox" || type === "radio") return field.checked !== field.defaultChecked;
+    if (type === "file") return !!(field.files && field.files.length);
+    return field.value !== field.defaultValue;
+  }
+
+  // Whether refreshing <main> could lose something: a changed field, or an
+  // error message (a form shown again with what the user typed in it).
+  function edited(main) {
+    if (main.querySelector('[role="alert"], .errors')) return true;
+    if (main.querySelector('[contenteditable="true"], [contenteditable=""]')) return true;
+    return all(main, "input, textarea, select").some(fieldChanged);
+  }
+
+  /* ---------------------------------------------------------- following */
+
+  function warn() {
+    var box = document.getElementById("toasts");
+    if (!box || (notice && notice.parentNode)) return;
+    var item = document.createElement("div");
+    item.className = "toast toast-sync";
+    var words = document.createElement("span");
+    words.className = "toast-text";
+    words.textContent = "This page changed underneath you.";
+    var again = document.createElement("button");
+    again.type = "button";
+    again.textContent = "Refresh";
+    again.title = "Show the page as it is now; what you typed here is not kept";
+    var close = document.createElement("button");
+    close.type = "button";
+    close.className = "toast-close";
+    close.setAttribute("aria-label", "Dismiss");
+    close.textContent = "×";
+    item.appendChild(words);
+    item.appendChild(again);
+    item.appendChild(close);
+    again.addEventListener("click", function () { location.assign(address()); });
+    close.addEventListener("click", function () { item.remove(); });
+    box.appendChild(item);    // it stays until it is answered: no timer
+    notice = item;
+  }
+
+  var SCRIPT = 'script:not([type="application/json"])';
+
+  function scripted(el) { return el.matches(SCRIPT) || !!el.querySelector(SCRIPT); }
+
+  // A part's fields as the server wrote them. A script may have shown or
+  // hidden things since, or added a helper field of its own (one without a
+  // name, which a form never sends); it does not change these.
+  function fieldsOf(el) {
+    return all(el, "input[name], textarea[name], select[name]").map(function (f) {
+      var type = (f.type || "").toLowerCase();
+      if (f.tagName === "SELECT") {
+        return f.name + "=" + Array.prototype.filter.call(f.options, function (o) { return o.defaultSelected; })
+          .map(function (o) { return o.value; }).join("|");
+      }
+      if (type === "checkbox" || type === "radio") return f.name + "=" + f.value + ":" + f.defaultChecked;
+      return f.name + "=" + f.defaultValue;
+    }).join("\n");
+  }
+
+  /* What to put in place: [{el, fresh}]: the whole <main> when neither holds
+     a script (an inserted one would not run), else each of its children that
+     holds none. A child with a script stays when its fields are the same in
+     both; when they are not, or the children do not line up, null. */
+  function pairs(main, fresh) {
+    if (!scripted(main) && !scripted(fresh)) return [{ el: main, fresh: fresh }];
+    function kids(el) {    // an old message is not a part: the new page has none
+      return Array.prototype.filter.call(el.children, function (c) { return !c.matches("p.flash"); });
+    }
+    var olds = kids(main), news = kids(fresh);
+    all(main, ":scope > p.flash").forEach(function (p) { p.remove(); });
+    if (olds.length !== news.length) return null;
+    var out = [];
+    for (var i = 0; i < olds.length; i++) {
+      var a = olds[i], b = news[i];
+      if (a.tagName !== b.tagName || a.id !== b.id) return null;
+      if (scripted(a) || scripted(b)) {
+        if (!scripted(a) || !scripted(b) || fieldsOf(a) !== fieldsOf(b)) return null;
+        continue;    // the same fields: it stays, with what its script set up
+      }
+      out.push({ el: a, fresh: b });
+    }
+    return out;
+  }
+
+  function swap(parts, doc) {
+    var x = window.scrollX, y = window.scrollY;
+    var focused = document.activeElement;
+    var lost = null;    // the new part that took the place of the one focus was in
+    parts.forEach(function (pair) {
+      all(pair.fresh, "p.flash").forEach(function (p) { p.remove(); });
+      var offsets = all(pair.el, ".table-scroll, .board").map(function (s) { return [s.scrollLeft, s.scrollTop]; });
+      var open = all(pair.el, "details").map(function (d) { return d.open; });
+      if (pair.el.tagName === "DETAILS") open.unshift(pair.el.open);
+      if (focused && focused !== document.body && pair.el.contains(focused)) lost = pair.fresh;
+      pair.el.replaceWith(pair.fresh);
+      var details = all(pair.fresh, "details");
+      if (pair.fresh.tagName === "DETAILS") details.unshift(pair.fresh);
+      if (details.length === open.length) details.forEach(function (d, i) { d.open = open[i]; });
+      all(pair.fresh, ".table-scroll, .board").forEach(function (s, i) {
+        if (offsets[i]) { s.scrollLeft = offsets[i][0]; s.scrollTop = offsets[i][1]; }
+      });
+    });
+    if (doc.title) document.title = doc.title;
+    window.scrollTo(x, y);
+    if (lost) {    // what had focus was replaced: its twin, else the new part (never <body>)
+      var spot = (focused.id && document.getElementById(focused.id)) || lost;
+      if (spot === lost && !lost.hasAttribute("tabindex")) lost.setAttribute("tabindex", "-1");
+      try { spot.focus({ preventScroll: true }); } catch (e) { spot.focus(); }
+    }
+    document.dispatchEvent(new CustomEvent("hermit:swap", {
+      detail: { regions: parts.map(function (p) { return p.fresh; }), url: location.href, status: 200, sync: true }
+    }));
+  }
+
+  function refresh(head) {
+    if (refreshing) return;
+    refreshing = true;
+    fetch(address(), { credentials: "same-origin", cache: "no-store",
+                       // Tells the server this is the sync's own look at the page, so it
+                       // does not hand it the Undo offer of a write made elsewhere.
+                       headers: { Accept: "text/html", "X-Hermit-Sync": "1" } })
+      .then(function (response) {
+        var type = response.headers.get("content-type") || "";
+        var same = new URL(response.url || location.href).pathname === location.pathname;
+        return response.ok && same && type.indexOf("text/html") !== -1 ? response.text() : null;
+      })
+      .then(function (html) {
+        refreshing = false;
+        var main = document.querySelector("main");
+        var doc = html === null ? null : new DOMParser().parseFromString(html, "text/html");
+        var fresh = doc && doc.querySelector("main");
+        known = head;
+        // Not this page any more (gone, moved), or something typed while the
+        // answer was on its way: say so, and leave the page alone.
+        if (!main || !fresh || edited(main)) { warn(); return; }
+        var parts = pairs(main, fresh);
+        if (parts) { swap(parts, doc); return; }
+        // A part with a script changed. Nothing here is edited, so nothing is
+        // lost by loading the whole page again (the browser keeps the scroll).
+        if (location.href === address()) location.reload();
+        else location.replace(address());
+      }, function () { refreshing = false; });    // no answer: the next poll tries again
+  }
+
+  function follow(head) {
+    var main = document.querySelector("main");
+    if (!main || posted || edited(main)) { known = head; warn(); return; }
+    refresh(head);
+  }
+
+  function ask(adopt) {
+    var mine = ++seq;
+    fetch("/live/head.json", { credentials: "same-origin", headers: { Accept: "application/json" },
+                               cache: "no-store" })
+      .then(function (response) { return response.ok ? response.json() : null; })
+      .then(function (data) {
+        if (mine !== seq || !data || typeof data.head !== "string") return;
+        if (known === null || adopt) { known = data.head; return; }
+        if (data.head === known) return;
+        // This tab's own change, its answer still on the way: the swap adopts it.
+        if (Date.now() < ownUntil || document.querySelector("form.live-busy")) return;
+        follow(data.head);
+      })
+      .catch(function () { /* the server is restarting (an upgrade): ask again next time */ });
+  }
+
+  /* ------------------------------------------------------------- timing */
+
+  function stop() { clearTimeout(timer); timer = null; }
+
+  function tick() {
+    stop();
+    if (document.visibilityState !== "visible") return;
+    ask(false);
+    timer = setTimeout(tick, POLL_MS);
+  }
+
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") tick();
+    else stop();
+  });
+  window.addEventListener("pagehide", stop);
+  window.addEventListener("pageshow", function (event) { if (event.persisted) tick(); });
+
+  // A form sent from this tab: the commit it makes is this tab's own. On
+  // window, so it runs after live.js's own submit handler has had its say: a
+  // data-live form stays on this page (defaultPrevented), any other POST
+  // loads its answer, which wasPosted() then recognises.
+  window.addEventListener("submit", function (event) {
+    var form = event.target, submitter = event.submitter;
+    var method = ((submitter && submitter.getAttribute("formmethod")) || form.getAttribute("method") || "get").toLowerCase();
+    if (method !== "post") return;    // a search or a filter changes nothing
+    ownUntil = Date.now() + OWN_MS;
+    if (event.defaultPrevented) return;
+    try {
+      var action = submitter && submitter.hasAttribute("formaction") ? submitter.formAction : form.action;
+      sessionStorage.setItem(POSTED_KEY, JSON.stringify({ path: new URL(action, location.href).pathname, t: Date.now() }));
+    } catch (e) { /* no storage: such a page is refreshed like any other */ }
+  });
+
+  // A swap after this tab's own action shows the folder as it is now.
+  document.addEventListener("hermit:swap", function (event) {
+    if (event.detail && event.detail.sync) return;
+    ownUntil = 0;
+    ask(true);
+  });
+
+  ask(true);    // what this page shows
+  timer = setTimeout(tick, POLL_MS);
+  if (document.visibilityState !== "visible") stop();
 })();

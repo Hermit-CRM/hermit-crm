@@ -24,6 +24,57 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   until you turn it on; nothing is ever sent for you, and at most 15 items a
   day are prepared (you can change that).
 
+- **Undo right where you made a change.** After a stage move, a ticked-off
+  task, a deleted interaction or a saved form, the message that says what
+  happened has an **Undo** button (in the message at the bottom right, or
+  under the message line without JavaScript). It works for two minutes and
+  makes a new commit, so an undo can be undone too. Deleting an interaction
+  still asks first, and now says it can be taken back. No data change. See
+  [Backups and undo](/help/backups#undo-a-change).
+- **Every company and contact has its own history.** The new **history** link
+  next to "created" and "updated" lists every change to that record, newest
+  first: what changed in plain words, each field before and after, which
+  changes an AI agent made, and Undo on each. Read from git, so it goes back to
+  the record's first day. No data change. See
+  [Backups and undo](/help/backups#history-of-a-record).
+
+- **Quick capture: type what happened, Hermit files it.** Open Quick capture
+  (`/quick-capture`, or pick *Capture: ...* in the search box) and write a
+  sentence such as "Called Jane at Acme, she wants a proposal by Friday".
+  Hermit reads it in the background and shows a preview: the interaction, the
+  tasks with their dates and any stage move, each with a tick box and every
+  value editable. Nothing is saved until you press *File it*; then it is one
+  change you can undo in one click. Your own words are kept as the
+  interaction's text, exactly as typed. Needs an AI tool (Settings).
+
+- **Connect your AI in Settings.** Settings > Advanced has a new section with
+  the exact line for Claude Code, Claude Desktop and Cursor, filled in with
+  your folder and where `hermitcrm` is installed, each with a copy button.
+  `hermitcrm doctor` now also says whether the five everyday Claude Code skills
+  are in the folder.
+
+- **Claude Code knows five everyday jobs in your folder.** A new data folder
+  has five skills besides `/hermit`: `/hermit-daily` (the morning review),
+  `/hermit-log` (log a call or meeting from your notes, with its follow-up
+  tasks), `/hermit-research` (research a prospect and keep the findings as a
+  note), `/hermit-weekly` (the weekly review) and `/hermit-import` (bring in a
+  list, preview first). Each only reads until you say yes, and none ever sends
+  anything. An existing folder gets them from `hermitcrm migrate`; a skill you
+  have changed yourself is never overwritten. New command: `hermitcrm tasks
+  list`, `tasks add` and `tasks done` for the to-do list.
+
+- **See what your agents did.** A new page, **What agents did** (linked from
+  Make it yours), lists every change an AI agent committed, by day: what
+  changed in plain words, the companies and people it touched, and an Undo
+  button for each. No data change. See
+  [AI agents](/help/ai-agents#what-agents-did).
+
+- **Open pages follow changes made elsewhere.** When the command line, an
+  agent over MCP or the daily sync changes your data, an open page updates by
+  itself within about five seconds, without a reload. If you are typing in a
+  form on that page, it does not touch it and says "This page changed
+  underneath you" with a Refresh button instead. Tabs in the background do not
+  ask. No data change. See [AI agents](/help/ai-agents#open-pages-follow-commits).
 - **Sending no longer waits half a minute first on some networks.** Before each
   send and each test mail, Hermit asked the network for your computer's full
   name to greet the mail server. Where the network cannot answer (common on

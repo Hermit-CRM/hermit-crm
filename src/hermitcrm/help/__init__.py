@@ -34,7 +34,7 @@ HERE = Path(__file__).resolve().parent
 # Fixed order: the index first, then the nav order, then the reference pages.
 TOPICS = [
     "index", "pipeline", "calendar", "tasks", "companies", "contacts", "interactions",
-    "messages", "playbook", "outreach", "sending", "learning", "reports", "adjust", "settings", "import", "extension", "enrich", "ask",
+    "quick-capture", "messages", "playbook", "outreach", "sending", "learning", "reports", "adjust", "settings", "import", "extension", "enrich", "ask",
     "merge", "search", "cli", "backups", "data-format", "ai-agents", "feedback", "disclaimer", "changelog",
     # Make it yours: one recipe per kind of change, read by the user's own agent
     # after `adjust` (the rules).
@@ -119,6 +119,8 @@ def topic_for(path: str) -> str:
         return "playbook"
     if head in ("settings", "setup", "inbox", "bcc"):
         return "settings"
+    if head == "quick-capture":
+        return "quick-capture"
     if head == "capture":  # the old path; the page is /extension now
         return "extension"
     if head == "d":  # a dashboard: how they are made

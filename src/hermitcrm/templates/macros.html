@@ -459,7 +459,7 @@
       {% if not contact_page %}<span class="who">{{ contact_label(company, i.contact) }}</span>{% endif %}
       <a class="edit" href="/companies/{{ company.slug }}/interactions/{{ i.id }}/edit">edit</a>
       <form method="post" action="/companies/{{ company.slug }}/interactions/{{ i.id }}/delete" class="inline delete">
-        <button type="submit" onclick="return confirm('Delete this interaction?')">delete</button>
+        <button type="submit" onclick="return confirm('Delete this interaction? You can take it back with Undo right after.')">delete</button>
       </form>
     </div>
     {% if i.subject or not (i.is_note or contact_page) %}<div class="subject{% if not i.subject %} empty{% endif %}">{{ i.subject or '(no subject)' }}</div>{% endif %}

@@ -138,7 +138,7 @@
     {% for name, n in off_board.items() %}{{ name }} ({{ n }}){% if not loop.last %}, {% endif %}{% endfor %}.
     They stay as they are, off the board. Add the stage back in <a href="/settings#stages">Settings</a>, or move them to one that exists.
   </div>{% endif %}
-  {% if flash %}<p class="flash">{{ flash }}</p>{% endif %}
+  {% if flash %}<p class="flash">{{ flash }}</p>{% if undo_write %}{% include "undo_form.html" %}{% endif %}{% endif %}
   {% block content %}{% endblock %}
 </main>
 <footer class="small">Hermit CRM v{{ hermitcrm_version }} &middot; <a href="/help">Help</a></footer>

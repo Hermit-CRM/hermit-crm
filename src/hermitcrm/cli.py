@@ -863,6 +863,84 @@ def read_body(text: str, stdin=None) -> str:
     return text
 
 
+def cmd_tasks(store: Store, args, head=lambda: "") -> tuple[str, int]:
+    """`hermitcrm tasks list|add|done`: the to-do list, as the MCP task tools give it.
+
+    The rows and their ids come from the same helpers as `list_tasks`, so an id
+    printed here works in `complete_task` and the other way round. A company's
+    next step is a task too (its id ends in `/next/...`), as on the Tasks page.
+    """
+    from hermitcrm.mcp import ToolError
+    from hermitcrm.mcp_records import find_task, picks, task_id, task_line, task_row
+
+    def committed(what: str, before: str) -> str:
+        sha = head()
+        if sha and sha != before:
+            return f"{what} Committed as {sha[:7]}. Undo: hermitcrm undo {sha[:7]}"
+        return what
+
+    action = args.action or "list"
+    today = store.today()
+    if action == "list":
+        when = getattr(args, "when", "") or "open"
+        slug = getattr(args, "company", "") or ""
+        companies = list(store.companies.values())
+        if slug:
+            company = store.get(slug)
+            if company is None:
+                return f"unknown company: {slug}", 2
+            companies = [company]
+        keep = picks(when, today)
+        rows = [task_row(c, t, today) for c in companies for t in c.todos()
+                if keep(t.due, t.done)]
+        if when == "done":
+            rows.sort(key=lambda r: (r["done_on"], r["company_name"].lower()), reverse=True)
+        else:
+            rows.sort(key=lambda r: (r["due"] == "", r["due"], r["company_name"].lower()))
+        if not rows:
+            return f"No {when} tasks" + (f" for {slug}." if slug else "."), 0
+        return "\n".join(task_line(r) for r in rows), 0
+
+    if action == "add":
+        company = store.get(args.company)
+        if company is None:
+            return f"unknown company: {args.company}", 2
+        contact = args.contact or ""
+        if contact and contact not in company.contacts:
+            return (f"unknown contact {contact!r} at {args.company} (contacts: "
+                    f"{', '.join(sorted(company.contacts)) or 'none'})"), 2
+        before = head()
+        try:
+            task = store.add_task(args.company, args.text, due=args.due or None,
+                                  contact=contact, type=args.type or "")
+        except ValidationError as exc:
+            return f"could not add: {exc}", 2
+        owner = store.get(args.company)
+        todo = next(t for t in reversed(owner.todos())
+                    if t.index is not None and t.text == task.text
+                    and (t.contact.slug if t.contact else "") == contact)
+        due = f", due {task.due}" if task.due else ""
+        where = args.company + (f"/{contact}" if contact else "")
+        return committed(f"Added {task.text!r} to {where}{due} as {task_id(owner, todo)}.",
+                         before), 0
+
+    # done
+    try:
+        company, todo = find_task(store, args.id)
+    except ToolError as exc:
+        return str(exc).replace("call list_tasks", "run hermitcrm tasks list"), 2
+    if todo.done:
+        return "That task is already done. Nothing changed.", 0
+    before = head()
+    if todo.index is None:
+        store.update_company(company.slug, next_step_status="done")
+    else:
+        store.set_task_done(company.slug, todo.index, True,
+                            contact=todo.contact.slug if todo.contact else "",
+                            text=todo.text)
+    return committed(f"Done: {todo.text!r} ({company.slug}).", before), 0
+
+
 def cmd_add(store: Store, args, stdin=None) -> tuple[str, int]:
     """Create one company, contact or interaction: the write the web app does.
 
@@ -1650,6 +1728,24 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_sample = sub.add_parser("sample", help="add or remove the made-up sample account")
     p_sample.add_argument("action", choices=["add", "remove"])
+
+    p_tasks = sub.add_parser("tasks", help="the to-do list: list, add or tick off a task "
+                                           "(ids as the MCP task tools give them)")
+    t_sub = p_tasks.add_subparsers(dest="action")
+    t_list = t_sub.add_parser("list", help="open tasks, soonest first (the default)")
+    t_list.add_argument("--when", default="open",
+                        choices=["overdue", "today", "week", "open", "done"],
+                        help="overdue, today, week (the next 7 days), open (default) or done")
+    t_list.add_argument("--company", default="", help="only this company's tasks (its slug)")
+    t_add = t_sub.add_parser("add", help="add a task to a company or one of its contacts; "
+                                         "one commit")
+    t_add.add_argument("company", help="the company slug")
+    t_add.add_argument("text", help="what to do, one line")
+    t_add.add_argument("--due", default="", help="YYYY-MM-DD")
+    t_add.add_argument("--contact", default="", help="the contact's slug")
+    t_add.add_argument("--type", default="", help="a task type from Settings")
+    t_done = t_sub.add_parser("done", help="tick a task off; one commit")
+    t_done.add_argument("id", help="the task's id, as tasks list prints it")
 
     p_add = sub.add_parser("add", help="create one company, contact or interaction")
     add_sub = p_add.add_subparsers(dest="what", required=True)
@@ -2678,6 +2774,13 @@ def main(argv: list[str] | None = None, root: Path | None = None, stdin=None) ->
     if args.command == "sample":
         store.on_write = _writer(store, root, load_config(root))
         text, code = cmd_sample(store, args.action)
+        print(text, file=sys.stderr if code else sys.stdout)
+        return code
+
+    if args.command == "tasks":
+        if args.action in ("add", "done"):
+            store.on_write = _writer(store, root, load_config(root))
+        text, code = cmd_tasks(store, args, head=lambda: GitOps(root).last_commit_sha() or "")
         print(text, file=sys.stderr if code else sys.stdout)
         return code
 

@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% from "macros.html" import date_input, datetime_input, errors_box, err %}
+{#- Quick capture (pages/capture.py, capture_text.py). Three states: the text box
+    (mode form), the preview of what a finished job would file (mode preview), and
+    a capture already filed (mode filed). Plain forms throughout: it all works with
+    JavaScript off. Existing classes only (style.css), so no stylesheet of its own. -#}
+{% block title %}Quick capture{% endblock %}
+{% block content %}
+{% if mode == 'form' %}
+<h1>Quick capture</h1>
+<p class="small">Type what happened in a sentence or two: who, how, and what you still have to do. Hermit reads it and shows you what it would file. Nothing is saved until you confirm. <a href="/help/quick-capture">How it works</a></p>
+{% if error %}<div class="errors" role="alert">{{ error }}</div>{% endif %}
+{% if ai.available %}
+<form method="post" action="/quick-capture" class="record-form capture-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label>What happened
+    <textarea name="text" rows="4" required autofocus placeholder="Called Jane at Acme: she wants a proposal by Friday and a demo next week.">{{ text }}</textarea>
+  </label>
+  <p><button type="submit" data-busy="Reading…">Read it</button>
+    <span class="small">One quick call to {{ model_label(ai.model_for('light')) }}, with your text and the names in your CRM.</span></p>
+</form>
+{% else %}
+<div class="errors" role="alert">
+  <strong>No AI tool is set up, so Hermit cannot read a sentence yet.</strong>
+  <p class="small">{{ ai.unavailable_reason() }}</p>
+</div>
+<p>Set one up under <a href="/settings#enrichment">Settings, Enrichment</a>, or file it by hand:
+  log an interaction or add a task from the company's page (<a href="/companies">Companies</a>),
+  or start a <a href="/companies/new">new company</a> or <a href="/contacts/new">new contact</a>.</p>
+{% if text %}<p class="small">What you typed:</p><blockquote>{{ text }}</blockquote>{% endif %}
+{% endif %}
+
+{% elif mode == 'filed' %}
+<h1>Already filed</h1>
+<p>This capture was filed: {{ filed.message | replace('capture: ', '', 1) }}.</p>
+<p><a class="button" href="{{ filed.url }}">Open it</a> <a href="/quick-capture">Capture something else</a></p>
+
+{% else %}
+{% set v = values %}
+<h1>Check before filing</h1>
+<p class="small">What Hermit read from your text. Untick or change anything, then file it: everything ticked is saved as one change, which you can undo in one click. Nothing has been saved yet.</p>
+<blockquote class="capture-text">{{ text }}</blockquote>
+{% if proposal.notes %}<ul class="small">{% for note in proposal.notes %}<li>{{ note }}</li>{% endfor %}</ul>{% endif %}
+{{ errors_box(errors) }}
+<form method="post" action="/quick-capture/{{ job.id }}" class="record-form capture-preview">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <fieldset class="form-group">
+    <legend>Who</legend>
+    <div class="form-grid">
+      <label class="span-6">company
+        {% if picked %}<span><a href="/companies/{{ picked.slug }}">{{ picked.name }}</a>{% if proposal.company.written and picked.slug == proposal.company.slug and proposal.company.written|lower != picked.name|lower %} <span class="small">(you wrote “{{ proposal.company.written }}”)</span>{% endif %}</span>{% endif %}
+        {% if not picked and proposal.company.name %}<span class="small">“{{ proposal.company.name }}” is not in your CRM.</span>{% endif %}
+        <select name="company" aria-label="{{ 'Not this one: pick another company' if picked else 'Pick the company' }}">
+          {% if not v.company %}<option value="" selected>pick a company</option>{% endif %}
+          {% if v.new_company or v.company == new %}<option value="{{ new }}"{% if v.company == new %} selected{% endif %}>create a new company: {{ v.new_company }}</option>{% endif %}
+          {% for co in companies %}<option value="{{ co.slug }}"{% if v.company == co.slug %} selected{% endif %}>{{ co.name }}</option>{% endfor %}
+        </select>
+        {{ err(errors, 'company') }}
+      </label>
+      <label class="span-6">name of a new company <input name="new_company" value="{{ v.new_company }}"><span class="small">used only when “create a new company” is picked</span></label>
+      <label class="span-6">person
+        <select name="contact" aria-label="Not this one: pick another person">
+          <option value=""{% if not v.contact %} selected{% endif %}>no one in particular</option>
+          {% if v.new_contact or v.contact == new %}<option value="{{ new }}"{% if v.contact == new %} selected{% endif %}>create a new contact: {{ v.new_contact }}</option>{% endif %}
+          {% for person in people %}<option value="{{ person.slug }}"{% if v.contact == person.slug %} selected{% endif %}>{{ person.name or person.slug }}</option>{% endfor %}
+        </select>
+        {% if not proposal.contact.slug and proposal.contact.name %}<span class="small">“{{ proposal.contact.name }}” is not at this company in your CRM.</span>{% endif %}
+        {{ err(errors, 'contact') }}
+      </label>
+      <label class="span-6">name of a new contact <input name="new_contact" value="{{ v.new_contact }}"><span class="small">used only when “create a new contact” is picked</span></label>
+    </div>
+    <p class="small">Picked another company? The list of people follows it once you file: if the person is not at the new company, Hermit asks again.</p>
+  </fieldset>
+
+  <fieldset class="form-group">
+    <legend><label class="check"><input type="checkbox" name="do_interaction" value="1"{% if v.do_interaction %} checked{% endif %}> Log the interaction</label></legend>
+    <div class="form-grid">
+      <label class="span-3">channel
+        <select name="channel">{% for ch in channels %}<option value="{{ ch }}"{% if v.channel == ch %} selected{% endif %}>{{ ch }}</option>{% endfor %}</select>
+        {{ err(errors, 'channel') }}
+      </label>
+      <label class="span-3">direction
+        <select name="direction">
+          <option value=""{% if not v.direction %} selected{% endif %}>none (a note)</option>
+          {% for d in directions %}<option value="{{ d }}"{% if v.direction == d %} selected{% endif %}>{{ d }}</option>{% endfor %}
+        </select>
+        {{ err(errors, 'direction') }}
+      </label>
+      <label class="span-3">date {{ datetime_input('date', v.date) }}
+        {% if proposal.interaction.written %}<span class="small">you wrote “{{ proposal.interaction.written }}”</span>{% endif %}
+        {{ err(errors, 'date') }}
+      </label>
+      <label class="span-3">outcome
+        <select name="outcome">
+          <option value=""{% if not v.outcome %} selected{% endif %}>not yet known</option>
+          {% for o in outcomes %}<option value="{{ o }}"{% if v.outcome == o %} selected{% endif %}>{{ o }}</option>{% endfor %}
+        </select>
+        {{ err(errors, 'outcome') }}
+      </label>
+      <label class="span-12">subject <input name="subject" value="{{ v.subject }}"></label>
+    </div>
+    <p class="small">The interaction's text is what you typed, exactly as you typed it.</p>
+  </fieldset>
+
+  {% if v.tasks %}
+  <fieldset class="form-group">
+    <legend>Tasks</legend>
+    {% for task in v.tasks %}{% set n = loop.index0 %}
+    <div class="row">
+      <label class="check"><input type="checkbox" name="task_{{ n }}_do" value="1"{% if task.do %} checked{% endif %} aria-label="Add task {{ loop.index }}"> add</label>
+      <label class="grow">task <input name="task_{{ n }}_text" value="{{ task.text }}"></label>
+      <label>due {{ date_input('task_' ~ n ~ '_due', task.due) }}</label>
+    </div>
+    {% set said = proposal.tasks[n].written if proposal.tasks and n < proposal.tasks|length else '' %}
+    {% if said %}<p class="small">due: you wrote “{{ said }}”</p>{% endif %}
+    {{ err(errors, 'task ' ~ loop.index) }}
+    {% endfor %}
+  </fieldset>
+  {% endif %}
+
+  <fieldset class="form-group">
+    <legend><label class="check"><input type="checkbox" name="do_stage" value="1"{% if v.do_stage %} checked{% endif %}> Move the deal</label></legend>
+    <div class="form-grid">
+      <label class="span-4">to stage
+        <select name="stage">
+          {% if not v.stage %}<option value="" selected>no move</option>{% endif %}
+          {% for s in stages %}<option value="{{ s }}"{% if v.stage == s %} selected{% endif %}>{{ s }}</option>{% endfor %}
+        </select>
+        {% if proposal.stage and proposal.stage['from'] %}<span class="small">now {{ proposal.stage['from'] }}</span>{% endif %}
+        {{ err(errors, 'stage') }}
+      </label>
+      <label class="span-8">reason <input name="lost_reason" value="{{ v.lost_reason }}"><span class="small">needed for {{ needs_reason | join(', ') or 'no stage' }}</span>{{ err(errors, 'lost_reason') }}</label>
+    </div>
+  </fieldset>
+
+  <p><button type="submit" data-busy="Filing…">File it</button> <a href="/quick-capture?text={{ text | urlencode }}">Start again</a></p>
+</form>
+{% endif %}
+{% endblock %}

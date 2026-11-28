@@ -311,22 +311,86 @@ on. Look at that page's records first (for `/companies/<slug>`, run
 AGENT_SKILL_PREVIOUS: tuple[str, ...] = ()
 
 
+def _write_hermit_text(root: Path, rel: str, text: str, previous: tuple[str, ...],
+                       apply: bool) -> bool:
+    """Write `text` to `rel` unless the folder has it; True if it was (or would
+    be) written. A file that still holds one of Hermit's `previous` texts is
+    replaced; a file with any other text is the user's and is kept as it is."""
+    path = Path(root) / rel
+    if path.is_symlink() or path.exists():
+        try:
+            current = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return False  # not ours to judge, so not ours to replace
+        if current == text or current not in previous:
+            return False
+    if apply:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    return True
+
+
 def write_skill(root: Path, apply: bool = True) -> bool:
     """Write the /hermit skill unless the folder has it; True if it was (or
     would be) written. A file of that name with text of the user's own is
     kept as it is."""
-    path = Path(root) / SKILL
-    if path.is_symlink() or path.exists():
-        try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            return False  # not ours to judge, so not ours to replace
-        if text == AGENT_SKILL or text not in AGENT_SKILL_PREVIOUS:
-            return False
-    if apply:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(AGENT_SKILL, encoding="utf-8")
-    return True
+    return _write_hermit_text(root, SKILL, AGENT_SKILL, AGENT_SKILL_PREVIOUS, apply)
+
+
+# The skills pack: one Claude Code skill per everyday job (`/hermit-daily` and
+# so on), so an agent is useful in a new folder without being taught. Each text
+# is a Markdown file in the package, `skills/<name>.md`, and is written to
+# `.claude/skills/<name>/SKILL.md` by `init` and by `hermitcrm migrate`.
+SKILL_NAMES = ("hermit-daily", "hermit-log", "hermit-research", "hermit-weekly",
+               "hermit-import")
+
+# Every earlier text of each skill that Hermit wrote, as AGENT_SKILL_PREVIOUS is
+# for /hermit. Changing a skill's file means adding its old text here first, or
+# folders that have the old one never get the new one.
+SKILLS_PREVIOUS: dict[str, tuple[str, ...]] = {name: () for name in SKILL_NAMES}
+
+
+def skill_path(name: str) -> str:
+    return f".claude/skills/{name}/SKILL.md"
+
+
+def skill_text(name: str) -> str:
+    from importlib import resources
+
+    return (resources.files("hermitcrm").joinpath("skills", f"{name}.md")
+            .read_text(encoding="utf-8"))
+
+
+def _state(root: Path, rel: str, text: str, previous: tuple[str, ...]) -> str:
+    path = Path(root) / rel
+    if not (path.is_symlink() or path.exists()):
+        return "missing"
+    try:
+        current = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return "yours"
+    if current == text:
+        return "ok"
+    return "old" if current in previous else "yours"
+
+
+def skill_states(root: Path) -> list[tuple[str, str]]:
+    """Each Claude Code skill, /hermit first, with its state in this folder: ok
+    (Hermit's current text), yours (a text of the user's own, which Hermit
+    keeps), old (an older Hermit text, which `hermitcrm migrate` replaces) or
+    missing."""
+    return [("hermit", _state(root, SKILL, AGENT_SKILL, AGENT_SKILL_PREVIOUS)),
+            *((name, _state(root, skill_path(name), skill_text(name),
+                            SKILLS_PREVIOUS.get(name, ()))) for name in SKILL_NAMES)]
+
+
+def write_skills(root: Path, apply: bool = True) -> list[str]:
+    """Write the skills pack, each skill unless the folder has it or a text of
+    the user's own in its place. The paths written (or that would be)."""
+    return [skill_path(name) for name in SKILL_NAMES
+            if _write_hermit_text(root, skill_path(name), skill_text(name),
+                                  SKILLS_PREVIOUS.get(name, ()), apply)]
+
 
 MESSAGING = """# Messaging playbook
 
@@ -513,6 +577,7 @@ def init_folder(target: str | Path, demo: bool = False, now: datetime | None = N
         (path / name).write_text(AGENT_RULES, encoding="utf-8")
     guard.write(path)
     write_skill(path)
+    write_skills(path)
     if not (path / "MESSAGING.md").exists():
         (path / "MESSAGING.md").write_text(new_playbook(demo), encoding="utf-8")
     migrations.write_format(path, migrations.LATEST)
