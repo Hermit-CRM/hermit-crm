@@ -27,6 +27,7 @@
       {% endif %}
       {% if c.body_changed and not c.added %}<p class="small">Notes text changed.</p>{% endif %}
       {% if c.others %}<p class="small">{{ c.others[:5] | join(', ') }}{% if c.others | length > 5 %} and {{ c.others | length - 5 }} more{% endif %}</p>{% endif %}
+      {% if c.elsewhere %}<p class="small">The same change also touched {{ c.elsewhere }} other file{{ '' if c.elsewhere == 1 else 's' }} in your folder.{% if c.can_undo %} Undo reverses all of it.{% endif %}</p>{% endif %}
     </td>
     <td class="actions">
       {% if c.can_undo %}
@@ -34,7 +35,7 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="hidden" name="sha" value="{{ c.sha }}">
         <input type="hidden" name="back" value="{{ here }}">
-        <button type="submit" title="A new commit that reverses this one">Undo</button>
+        <button type="submit" title="A new commit that reverses this one"{% if c.elsewhere %} onclick="return confirm('This change also touched {{ c.elsewhere }} other file{{ '' if c.elsewhere == 1 else 's' }} in your folder. Undo reverses all of it. You can undo the undo.')"{% endif %}>Undo</button>
       </form>
       {% elif c.undone %}<span class="small">undone</span>
       {% elif c.merge %}<span class="small" title="A merge joins two lines of history; undo the commits it brought in">merge</span>

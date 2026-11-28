@@ -186,6 +186,18 @@ def test_without_a_flash_only_the_next_page_and_only_soon(client, now):
     assert not undo_form(client.get("/pipeline", headers=REFERER).text)      # too late
 
 
+def test_the_live_syncs_own_fetch_gets_no_undo_and_does_not_use_it_up(client):
+    """static/live.js fetches the open page again when the folder changed and
+    sends X-Hermit-Sync. That fetch has a referer and no flash, so without the
+    header it would take the offer and show a bare Undo button."""
+    client.post("/companies/acme-tools/stage", data={"stage": "engaged", "back": "/pipeline"})
+    sync = client.get("/pipeline", headers={**REFERER, "X-Hermit-Sync": "1"}).text
+    assert not undo_form(sync)
+    assert undo_form(client.get("/pipeline", headers=REFERER).text)     # still there
+    live_js = (ROOT / "src/hermitcrm/static/live.js").read_text(encoding="utf-8")
+    assert '"X-Hermit-Sync": "1"' in live_js
+
+
 def test_without_a_flash_a_page_opened_afresh_has_no_undo(client):
     client.post("/companies/acme-tools/stage", data={"stage": "engaged", "back": "/pipeline"})
     first = client.get("/pipeline").text          # typed in, a bookmark: no referer

@@ -200,6 +200,40 @@ def test_unknown_records_and_pages(client):
     assert client.get("/companies/acme-tools/contacts/nobody/history").status_code == 404
     assert client.get("/companies/acme-tools/history?page=9").status_code == 404
     assert client.get("/companies/acme-tools/history?page=x").status_code == 200
+    # Digits int() does not read, and a number too long to be a page: page one.
+    assert client.get("/companies/acme-tools/history?page=%C2%B2").status_code == 200
+    assert client.get("/companies/acme-tools/history?page=" + "9" * 5000).status_code == 200
+
+
+def test_a_change_that_reached_other_records_says_so_before_undo(client, folder):
+    """Undo reverses the whole commit, so a row for a commit that also touched
+    files outside this record counts them and asks first."""
+    store = client.app.state.store
+    other = next(c.slug for c in store.all() if c.name == "Other Co")
+    with store.batch("bulk: two companies to NL"):
+        store.update_company("acme-tools", country="NL")
+        store.update_company(other, country="NL")
+    wide, narrow = history.record_history(
+        folder, ["companies/acme-tools"], "companies/acme-tools/company.md")[0][:2]
+    assert wide.subject == "bulk: two companies to NL"
+    assert wide.elsewhere == 1 and wide.others == []
+    assert narrow.elsewhere == 0
+    first, second = rows(client.get("/companies/acme-tools/history").text)[:2]
+    assert "The same change also touched 1 other file in your folder. Undo reverses all of it." \
+        in text(first)
+    assert "return confirm(" in first
+    assert "also touched" not in text(second) and "confirm(" not in second
+    # PIPELINE.md is rebuilt on every write, so it is no change elsewhere.
+    (folder / "PIPELINE.md").write_text("# Pipeline\n", encoding="utf-8")
+    path = folder / "companies/acme-tools/company.md"
+    path.write_text(path.read_text(encoding="utf-8").replace("country: NL", "country: BE"),
+                    encoding="utf-8")
+    git(folder, "add", "PIPELINE.md", "companies")
+    git(folder, "commit", "-q", "-m", "company: acme-tools updated")
+    newest = history.record_history(
+        folder, ["companies/acme-tools"], "companies/acme-tools/company.md")[0][0]
+    assert "PIPELINE.md" in git(folder, "show", "--name-only", "--format=", newest.sha)
+    assert newest.elsewhere == 0
 
 
 def test_the_record_pages_link_to_their_history(client):

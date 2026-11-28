@@ -642,7 +642,10 @@
   function refresh(head) {
     if (refreshing) return;
     refreshing = true;
-    fetch(address(), { credentials: "same-origin", headers: { Accept: "text/html" }, cache: "no-store" })
+    fetch(address(), { credentials: "same-origin", cache: "no-store",
+                       // Tells the server this is the sync's own look at the page, so it
+                       // does not hand it the Undo offer of a write made elsewhere.
+                       headers: { Accept: "text/html", "X-Hermit-Sync": "1" } })
       .then(function (response) {
         var type = response.headers.get("content-type") || "";
         var same = new URL(response.url || location.href).pathname === location.pathname;

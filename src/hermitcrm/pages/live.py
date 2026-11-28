@@ -73,9 +73,13 @@ def undo_offer(state, request: Request, flash: str) -> dict | None:
     referer, as the page a form's answer redirects to does), not opened afresh. Either way only while that write is still the newest commit (the
     page's git HEAD, which the request sweep in web.py has just read), so the
     button never takes back something other than what it names.
+
+    Never for the live sync's own fetch of a page (static/live.js sends
+    X-Hermit-Sync): that page shows no message, so it would get a bare button,
+    and it would use up the offer meant for the page the person opens next.
     """
     last = getattr(state, "last_write", None)
-    if not last:
+    if not last or request.headers.get("x-hermit-sync"):
         return None
     head = str(getattr(state, "index_head", "") or "")
     sha = last["sha"]
@@ -154,7 +158,8 @@ def history_page(request: Request, name: str, back: str, paths: list[str], main:
 
 
 def _page(page: str) -> int:
-    return int(page) if page.isdigit() and 0 < int(page) < 100000 else 1
+    plain = page.isascii() and page.isdigit() and len(page) <= 5   # "²" is a digit too
+    return int(page) if plain and int(page) > 0 else 1
 
 
 @router.get("/companies/{slug}/history", response_class=HTMLResponse)

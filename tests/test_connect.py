@@ -73,6 +73,8 @@ def test_the_blocks_for_each_app(tmp_path):
         "claude mcp add --scope user hermitcrm -- /Users/jane/.local/bin/hermitcrm "
         f"--data '{root}' mcp")
     assert facts["skills_missing"] == ["hermit-daily"]
+    # A folder with a space in its name: quoted, like the other lines.
+    assert facts["migrate"] == f"hermitcrm --data '{root}' migrate"
 
 
 @pytest.mark.parametrize("platform, path", [

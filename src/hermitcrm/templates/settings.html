@@ -764,7 +764,7 @@
       <li><code>/{{ s.name }}</code>{% if s.state == 'yours' %} (your own version){% elif s.state == 'missing' %} (not in this folder yet){% elif s.state == 'old' %} (an older version){% endif %}</li>
       {%- endfor %}
     </ul>
-    {% if c.skills_missing %}<p class="small">To add the ones that are missing or old, run <code>hermitcrm --data {{ c.root }} migrate</code>. A skill you changed yourself is kept.</p>{% endif %}
+    {% if c.skills_missing %}<p class="small">To add the ones that are missing or old, run <code>{{ c.migrate }}</code>. A skill you changed yourself is kept.</p>{% endif %}
     <pre class="copy"><code>{{ c.claude_code.open }}</code></pre>
     <p><button type="button" class="copy-btn" data-copy-text="{{ c.claude_code.open }}">copy</button></p>
     <p class="small">To reach this CRM from Claude Code in any other folder, add it once as an MCP server:</p>

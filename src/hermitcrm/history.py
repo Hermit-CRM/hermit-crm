@@ -305,6 +305,9 @@ def plain_subject(subject: str) -> str:
 PER_PAGE = 50
 # Changed on every write, so it would be in every entry and say nothing.
 QUIET_FIELDS = ("updated",)
+# Rebuilt from the records on every write, so it is in nearly every commit and
+# is no change of its own: not counted among a commit's files elsewhere.
+DERIVED_FILES = ("PIPELINE.md",)
 
 
 @dataclass
@@ -327,6 +330,7 @@ class RecordChange:
     added: bool = False            # the record's own file was made in this commit
     deleted: bool = False
     others: list[str] = field(default_factory=list)  # other files of the record, in words
+    elsewhere: int = 0             # files of the same commit outside this record
 
     @property
     def sha7(self) -> str:
@@ -431,13 +435,21 @@ def record_history(root: Path, paths: list[str], main: str, page: int = 1,
     """The commits that touched `paths` (relative to the folder), newest first,
     `per_page` at a time; and whether there are older ones. `main` is the
     record's own file, compared field by field; other files under `paths` are
-    named in words. Empty without git or when git fails."""
+    named in words, and files of the same commit outside `paths` are counted
+    (`elsewhere`), because Undo reverses the whole commit and the page has to
+    say so. Empty without git or when git fails."""
     root = Path(root)
     page = max(1, page)
+    folders = tuple(p.rstrip("/") + "/" for p in paths)
+
+    def inside(path: str) -> bool:
+        return path in paths or path.startswith(folders)
+
     try:
+        # --full-diff: every file of a commit that touched `paths`, not only those.
         proc = _git(root, "log", f"--skip={(page - 1) * per_page}",
                     f"--max-count={per_page + 1}", "--name-status", "--no-renames",
-                    "--format=%x1e%H%x1f%ct%x1f%P%x1f%s", "--", *paths)
+                    "--full-diff", "--format=%x1e%H%x1f%ct%x1f%P%x1f%s", "--", *paths)
         reverts = _git(root, "log", "--format=%b", "--fixed-strings",
                        "--grep=This reverts commit", "--", *paths)
     except Exception:  # git missing or timed out: the page says there is no history
@@ -463,7 +475,10 @@ def record_history(root: Path, paths: list[str], main: str, page: int = 1,
                               undone=any(sha.startswith(s) for s in undone))
         change.added = status.get(main, "").startswith("A")
         change.deleted = status.get(main, "").startswith("D")
-        change.others = [_other_words(p, s) for p, s in sorted(status.items()) if p != main]
+        change.others = [_other_words(p, s) for p, s in sorted(status.items())
+                         if p != main and inside(p)]
+        change.elsewhere = sum(1 for p in status
+                               if not inside(p) and p not in DERIVED_FILES)
         changes.append(change)
         touched.append(main in status or change.merge)
     more = len(changes) > per_page

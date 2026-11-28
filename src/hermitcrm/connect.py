@@ -87,6 +87,7 @@ def facts(root: Path | str, command: str, found: bool, platform: str,
         "cursor": {"config_path": CURSOR_CONFIG, "block": block},
         "skills": [{"name": name, "state": state} for name, state in skills],
         "skills_missing": [name for name, state in skills if state in ("missing", "old")],
+        "migrate": f"hermitcrm --data {q(root)} migrate",
     }
 
 
