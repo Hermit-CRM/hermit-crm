@@ -672,7 +672,6 @@ def _approve_fact(store, proposal: Proposal) -> str:
     value = _value_of(proposal)
     if not value:
         raise ValidationError({"value": "write the value to save"})
-    message = f"company: {proposal.company} {key} (after-contact suggestion)"
     if key == NOTE:
         if proposal.contact and company and proposal.contact in company.contacts:
             store.update_contact(proposal.company, proposal.contact, notes=value)
@@ -680,7 +679,7 @@ def _approve_fact(store, proposal: Proposal) -> str:
             store.update_company(proposal.company, notes=value)
         return f"Note saved for {name}"
     if key == VALUE:
-        store.update_company(proposal.company, message=message, value_eur_month=value)
+        store.update_company(proposal.company, value_eur_month=value)
         return f"Monthly value saved for {name}"
     d = next((d for d in enrich_fields(store.root) if d.key == key), None)
     if d is None:
@@ -689,7 +688,7 @@ def _approve_fact(store, proposal: Proposal) -> str:
         coerced = d.coerce(value)
     except ValueError as exc:
         raise ValidationError({key: str(exc)}) from None
-    store.update_company(proposal.company, message=message, custom={key: coerced})
+    store.update_company(proposal.company, custom={key: coerced})
     return f"{d.label} saved for {name}"
 
 

@@ -669,3 +669,23 @@ def test_today_names_a_note_once(folder):
         ("note", "Pilot in October", "We agreed to start a pilot in October.")])))
     [row] = [i for i in today.build(folder, ON, TODAY).items if i.kind == autopilot.PREPARED]
     assert row.title == "Note: Pilot in October"
+
+
+def test_accepted_changes_read_plainly_in_the_undo_line(folder):
+    from hermitcrm import history
+    (folder.root / "fields.toml").write_text(
+        '[[field]]\nkey = "security_review"\ntype = "text"\nenrich = true\n',
+        encoding="utf-8")
+    it = log_call(folder)
+    assist.propose(folder, ON, "acme", it.id, ai(answer(
+        step="", to="discovery", reason="A pilot is agreed.",
+        stage_quote="We agreed to start a pilot in October.",
+        facts=[("value_eur_month", "1200", "Their budget is 1200 EUR a month."),
+               ("security_review", "questionnaire by Friday",
+                "She will send the security questionnaire by Friday.")])))
+    said = []
+    for p in autopilot.proposals(folder.root):
+        autopilot.approve_proposal(folder, p.id)
+        said.append(history.plain_subject(git_log(folder.root)[0]))
+    assert said == ["Stage engaged → discovery", "Company details changed",
+                    "Company details changed"]
