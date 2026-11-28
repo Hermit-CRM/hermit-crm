@@ -103,6 +103,11 @@ def server(tmp_path, monkeypatch):
     loose = ssl.create_default_context()
     loose.check_hostname, loose.verify_mode = False, ssl.CERT_NONE
     monkeypatch.setattr(ssl, "create_default_context", lambda *a, **k: loose)
+    # smtplib names this machine in its EHLO with socket.getfqdn(), a DNS lookup
+    # that can hang for 30 s on a home network that cannot resolve the Mac's own
+    # name (every connection here waited that long). The server above ignores
+    # the name, so a fixed one changes nothing that is tested.
+    monkeypatch.setattr(socket, "getfqdn", lambda name="": "localhost")
     yield box
     listener.close()
 

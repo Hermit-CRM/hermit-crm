@@ -23,6 +23,7 @@ import json
 import plistlib
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -81,11 +82,16 @@ def test_macos_install_writes_plists_and_bootstraps(tmp_path):
     assert (agents / "io.hermitcrm.sync.plist").read_bytes() == before
 
 
-def test_macos_falls_back_to_load_w(tmp_path):
+def test_macos_falls_back_to_load_w(tmp_path, monkeypatch):
+    slept = []  # the back-off between bootstrap attempts, recorded, not waited
+    monkeypatch.setattr(schedule, "time", SimpleNamespace(sleep=slept.append))
     rec = Recorder(fail=[("launchctl", "bootstrap")])
     lines = schedule.install(ctx(tmp_path, "darwin", rec))
     assert any(c[:3] == ["launchctl", "load", "-w"] for c in rec.calls)
     assert "loaded io.hermitcrm.sync (launchctl load -w)" in lines
+    # Every job tried bootstrap four times, waiting a little longer after each.
+    loads = sum(c[:3] == ["launchctl", "load", "-w"] for c in rec.calls)
+    assert slept == [0.5, 1.0, 1.5, 2.0] * loads
 
 
 def test_dry_env_runs_nothing(tmp_path):
