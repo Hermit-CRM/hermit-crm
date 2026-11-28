@@ -67,6 +67,7 @@ ORDER: list[tuple[str, str]] = [
     (KEEP, "Keep in touch"),
 ]
 OTHER_HEADING = "More"  # the heading of a kind ORDER does not name
+MORE_NAMED = 2          # tasks a collapsed row names before "…"
 
 
 @dataclass(frozen=True)
@@ -203,6 +204,7 @@ def _once_per_company(items: list[Item]) -> list[Item]:
     The input is sorted, so the first one seen is the one to keep."""
     out: list[Item] = []
     seen: dict[tuple[str, str], int] = {}
+    hidden: dict[int, list[str]] = {}    # row -> titles of the tasks it stands for
     for item in items:
         slug = getattr(item.company, "slug", None)
         if slug is None:
@@ -214,11 +216,13 @@ def _once_per_company(items: list[Item]) -> list[Item]:
             out.append(item)
         else:
             out[at].count += item.count
-    for item in out:
-        if item.count > 1 and item.kind in (OVERDUE, DUE):
-            extra = item.count - 1
+            hidden.setdefault(at, []).append(item.title)
+    for at, titles in hidden.items():
+        item = out[at]
+        if item.kind in (OVERDUE, DUE):
             word = "overdue" if item.kind == OVERDUE else "due today"
-            item.reason += f"; and {extra} more {word} here"
+            names = ", ".join(titles[:MORE_NAMED]) + ("…" if len(titles) > MORE_NAMED else "")
+            item.reason += f"; and {item.count - 1} more {word} here: {names}"
     return out
 
 

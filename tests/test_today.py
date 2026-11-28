@@ -113,7 +113,7 @@ def test_a_company_appears_once_per_kind_with_a_count(seeded):
     assert item.title == "first"        # the oldest one stands for the rest
     assert item.count == 3
     assert item.contact.slug == "jane-roe"
-    assert "2 more" in item.reason
+    assert item.reason.endswith("; and 2 more overdue here: second, third")
     # the group and the queue count tasks, not rows, so they match the Tasks page
     assert queue.groups()[0].count == 3
     assert queue.total == 3
