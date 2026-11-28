@@ -14,6 +14,12 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   what happened. Without JavaScript they work as before. No data change. See
   [Tasks](/help/tasks#without-a-page-reload).
 
+- **A crash or power cut while saving no longer leaves a cut-off record.**
+  Companies, contacts and interactions are written to a temporary file first
+  and then swapped in, so a file is either the old version or the new one.
+  Two Hermit programs starting on an older folder at once now migrate it one
+  after the other. No data change: the files are byte for byte the same.
+
 - **Save a contact to your phone with its camera.** Press **Save to phone** on a
   contact page, point your phone at the code and tap to add the person: name,
   company, title, phone, email and LinkedIn, never your notes. No sync, no

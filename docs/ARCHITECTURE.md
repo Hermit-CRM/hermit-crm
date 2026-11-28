@@ -11,6 +11,11 @@ Invariants:
   keys follow, sorted), `YYYY-MM-DD` for dates, `YYYY-MM-DDTHH:MM` (local time,
   no seconds) for datetimes, empty keys written as `key:`, bodies preserved
   byte for byte. Two writes of the same data produce identical files.
+- Every record write (company, contact, interaction, and each migration write)
+  goes through `safewrite.write_text`: a hidden temporary file in the same
+  folder (`.<name>.<hex>.tmp`, fsynced) renamed over the real name, so a crash
+  leaves the old file or the new one, never half. `migrations.ensure_current`
+  takes the store's `WriteLock` when there is something to migrate.
 - The web app binds to `127.0.0.1` only and has no authentication.
 - Code (the `hermitcrm` package) and data (a data folder) are separate; the data
   folder carries its format version in `.hermitcrm-format` and is migrated by
