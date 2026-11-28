@@ -316,4 +316,32 @@ def test_the_toast_takes_the_undo_form_from_the_answer():
     assert "toast(message, undo" in js
     assert 'undo.setAttribute("data-live", "")' in js
     base = (ROOT / "src/hermitcrm/templates/base.html").read_text(encoding="utf-8")
-    assert '{% if undo_write %}{% include "undo_form.html" %}{% endif %}' in base
+    assert FLASH_LINE in base.splitlines()
+
+
+# The one line of base.html this feature changed (coordinator-approved): the
+# Undo form right after the flash, inside the same {% if flash %}.
+FLASH_LINE = ('  {% if flash %}<p class="flash">{{ flash }}</p>'
+              '{% if undo_write %}{% include "undo_form.html" %}{% endif %}{% endif %}')
+
+
+def test_a_flash_without_undo_write_renders_without_the_form(client):
+    # The page as every route renders it, with no write to offer ...
+    client.app.state.last_write = None    # the fixture's own "created"
+    page = client.get("/pipeline?flash=Hello", headers=REFERER).text
+    assert '<p class="flash">Hello</p>' in page and not undo_form(page)
+    # ... and the line on its own, where undo_write is not defined at all.
+    line = client.app.state.templates.env.from_string(FLASH_LINE.strip())
+    assert line.render(flash="Hello") == '<p class="flash">Hello</p>'
+    assert line.render() == ""
+
+
+def test_a_flash_with_undo_write_renders_the_form_right_after_it(client):
+    line = client.app.state.templates.env.from_string(FLASH_LINE.strip())
+    html = line.render(flash="Task done", csrf_token="t0k3n",
+                       undo_write={"sha": "abc1234", "back": "/tasks", "message": "Task done"})
+    assert html.startswith('<p class="flash">Task done</p><form method="post" '
+                           'action="/live/undo" class="flash-undo"')
+    assert undo_form(html) == {"csrf_token": "t0k3n", "sha": "abc1234", "back": "/tasks"}
+    # Without a flash there is no form, even with undo_write set.
+    assert line.render(flash="", undo_write={"sha": "abc1234"}) == ""
