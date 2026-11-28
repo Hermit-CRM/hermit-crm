@@ -3919,6 +3919,8 @@ def create_app(root: Path, config: dict | None = None,
 
     def settings_context(**extra) -> dict:
         from . import autopilot  # Settings, Autopilot (its route: pages/assist.py)
+        from . import connect  # Connect your AI: text only, it writes nothing
+
         state = current_setup_state()
         owner = str(config.get("owner_email") or "")
         bcc_address = str(config.get("bcc_address") or "")
@@ -4011,6 +4013,7 @@ def create_app(root: Path, config: dict | None = None,
             "schedule": schedule_status(),
             "local_backup": local_backup_status(),
             "access": access_facts(),
+            "connect": connect.for_folder(root, app.state.setup_platform),
             "about": {"version": __version__, "data_dir": str(root),
                       "data_format": data_format, "latest_format": migrations.LATEST,
                       "update_check": bool(config.get("update_check", True)),

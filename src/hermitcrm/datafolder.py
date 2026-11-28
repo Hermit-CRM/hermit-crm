@@ -361,6 +361,29 @@ def skill_text(name: str) -> str:
             .read_text(encoding="utf-8"))
 
 
+def _state(root: Path, rel: str, text: str, previous: tuple[str, ...]) -> str:
+    path = Path(root) / rel
+    if not (path.is_symlink() or path.exists()):
+        return "missing"
+    try:
+        current = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return "yours"
+    if current == text:
+        return "ok"
+    return "old" if current in previous else "yours"
+
+
+def skill_states(root: Path) -> list[tuple[str, str]]:
+    """Each Claude Code skill, /hermit first, with its state in this folder: ok
+    (Hermit's current text), yours (a text of the user's own, which Hermit
+    keeps), old (an older Hermit text, which `hermitcrm migrate` replaces) or
+    missing."""
+    return [("hermit", _state(root, SKILL, AGENT_SKILL, AGENT_SKILL_PREVIOUS)),
+            *((name, _state(root, skill_path(name), skill_text(name),
+                            SKILLS_PREVIOUS.get(name, ()))) for name in SKILL_NAMES)]
+
+
 def write_skills(root: Path, apply: bool = True) -> list[str]:
     """Write the skills pack, each skill unless the folder has it or a text of
     the user's own in its place. The paths written (or that would be)."""

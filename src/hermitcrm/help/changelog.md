@@ -39,6 +39,12 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   change you can undo in one click. Your own words are kept as the
   interaction's text, exactly as typed. Needs an AI tool (Settings).
 
+- **Connect your AI in Settings.** Settings > Advanced has a new section with
+  the exact line for Claude Code, Claude Desktop and Cursor, filled in with
+  your folder and where `hermitcrm` is installed, each with a copy button.
+  `hermitcrm doctor` now also says whether the five everyday Claude Code skills
+  are in the folder.
+
 - **Claude Code knows five everyday jobs in your folder.** A new data folder
   has five skills besides `/hermit`: `/hermit-daily` (the morning review),
   `/hermit-log` (log a call or meeting from your notes, with its follow-up
