@@ -964,7 +964,8 @@ def create_app(root: Path, config: dict | None = None,
         except Exception:
             logger.exception("could not regenerate PIPELINE.md for %r", message)
         try:
-            gitops.commit(message, [*paths, "PIPELINE.md"])
+            sha = gitops.commit(message, [*paths, "PIPELINE.md"])
+            pages.live.record_write(app.state, sha, message)  # the Undo under the flash
             gitops.push_async()
         except Exception:  # GitOps never raises, but a write must never fail here
             logger.exception("git commit/push failed for %r", message)
@@ -1641,6 +1642,12 @@ def create_app(root: Path, config: dict | None = None,
             "send_banner": send_banner(),
         }
         context.update(ctx)
+        # Undo for the write the flash reports (pages/live.py, templates/undo_form.html);
+        # a write without a flash of its own gets one saying what was done.
+        context.setdefault("undo_write",
+                           pages.live.undo_offer(app.state, request, context["flash"]))
+        if context["undo_write"] and not context["flash"]:
+            context["flash"] = context["undo_write"]["note"]
         context.update(adjust_context(request, context))
         return templates.TemplateResponse(request, name, context,
                                           status_code=status_code)

@@ -243,3 +243,58 @@ def _abort(root: Path) -> None:
     """Back to how the folder was before the revert started."""
     if _git(root, "revert", "--abort").returncode != 0:
         _git(root, "revert", "--quit")
+
+
+
+def undone_subject(subject: str) -> str:
+    """What an undo took back, from the subject of the revert `undo` returns:
+    'Revert "company: x updated"' gives 'company: x updated'."""
+    if subject.startswith('Revert "') and subject.endswith('"'):
+        return subject[len('Revert "'):-1]
+    return subject
+
+
+def by_agent(subject: str) -> bool:
+    """An agent made it: AI-made commits start with "ai:" (AGENTS.md)."""
+    return subject.startswith("ai:")
+
+
+_VERBS = {"created": "added", "updated": "changed", "deleted": "deleted"}
+_PLAIN = [
+    (re.compile(r"company: \S+ stage (\S+) -> (\S+)(?:;.*)?"),
+     lambda m: f"Stage {m[1]} \u2192 {m[2]}"),
+    (re.compile(r"company: \S+ created"), lambda m: "Company added"),
+    (re.compile(r"company: \S+ updated(?:;.*)?"), lambda m: "Company details changed"),
+    (re.compile(r"company: \S+ next step (\w+)"), lambda m: f"Next step {m[1]}"),
+    (re.compile(r"company: (\S+) merged into (\S+)"),
+     lambda m: f"Company {m[1]} merged into {m[2]}"),
+    (re.compile(r"contact: [^/\s]+/(\S+) (created|updated|deleted)"),
+     lambda m: f"Contact {m[1]} {_VERBS[m[2]]}"),
+    (re.compile(r"contact: [^/\s]+/(\S+) merged into (\S+)"),
+     lambda m: f"Contact {m[1]} merged into {m[2]}"),
+    (re.compile(r"interaction: \S+ deleted \S+"), lambda m: "Interaction deleted"),
+    (re.compile(r"interaction: \S+ \S+ (?:outcome|files|updated).*"),
+     lambda m: "Interaction changed"),
+    (re.compile(r"interaction: \S+ (.+?) \d{4}-\d\d-\d\dT\d\d:\d\d"),
+     lambda m: f"Logged: {m[1]}"),
+    (re.compile(r"task: \S+ next step (\w+)"), lambda m: f"Next step {m[1]}"),
+    (re.compile(r"task: \S+ (added|done|reopened|deleted|edited|retyped)"),
+     lambda m: f"Task {m[1]}"),
+]
+
+
+def plain_subject(subject: str) -> str:
+    """A commit subject in plain words: 'company: acme stage lead -> won' is
+    'Stage lead \u2192 won', a revert is 'Undone: ...'. The "ai:" mark is left
+    off (`by_agent` tells it); a subject no rule knows is shown as it is."""
+    subject = subject.strip()
+    inner = undone_subject(subject)
+    if inner != subject:
+        return "Undone: " + plain_subject(inner)
+    if by_agent(subject):
+        subject = subject[3:].strip()
+    for pattern, words in _PLAIN:
+        found = pattern.fullmatch(subject)
+        if found:
+            return words(found)
+    return subject[:1].upper() + subject[1:]
