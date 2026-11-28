@@ -9,6 +9,16 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      serial:
+        description: "Run the tests one at a time (without -n auto), to check they still pass that way"
+        type: boolean
+        default: false
+
+# pytest-xdist spreads the tests over every CPU (-n auto). The suite must pass
+# both ways; a manual run with "serial" ticked checks the one-at-a-time way.
+env:
+  PYTEST_PARALLEL: ${{ inputs.serial && '-p no:xdist' || '-n auto' }}
 
 jobs:
   # The pinned versions in uv.lock, so CI and contributors test the same thing.
@@ -42,7 +52,7 @@ jobs:
       - name: Test
         env:
           HERMITCRM_NO_UPDATE_CHECK: "1"
-        run: uv run --locked pytest -q
+        run: uv run --locked pytest -q $PYTEST_PARALLEL
 
   # Users never get uv.lock: `uv tool install` and pip resolve the newest
   # versions. This job does the same, so an upstream release that breaks
@@ -64,7 +74,7 @@ jobs:
       - name: Test
         env:
           HERMITCRM_NO_UPDATE_CHECK: "1"
-        run: python -m pytest -q
+        run: python -m pytest -q $PYTEST_PARALLEL
 
   # The Linux Secret Service for real: secret-tool against no daemon (must read
   # as "no keyring"), then against an unlocked gnome-keyring. The pytest job
