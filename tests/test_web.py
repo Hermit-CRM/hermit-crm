@@ -29,13 +29,8 @@ from fastapi.testclient import TestClient
 from hermitcrm import usertheme
 from hermitcrm.models import fmt_date
 from hermitcrm.web import asset_version, company_values, create_app
-from conftest import FIXED_NOW
+from conftest import CONFIG, FIXED_NOW  # repo, app and client are conftest fixtures
 from test_tokens import effective  # the CSS reader the token tests use
-
-CONFIG = {"port": 8765, "silent_days": 14, "push_enabled": False, "remote": "origin",
-          "owner_email": "me@example.com",
-          # an established user: these tests are not about the first launch
-          "welcome_dismissed": True, "disclaimer_accepted": "2026-09-01T09:00:00"}
 
 # The day these tests are about. It has to be the day the app believes in too,
 # or every date below becomes a bet on when the suite is run: see the app fixture.
@@ -44,36 +39,6 @@ YESTERDAY = TODAY - timedelta(days=1)
 
 
 # ------------------------------------------------------------------- fixtures
-
-
-@pytest.fixture
-def repo(tmp_path: Path) -> Path:
-    subprocess.run(["git", "init", "-b", "main"], cwd=tmp_path, check=True,
-                   capture_output=True)
-    subprocess.run(["git", "config", "user.name", "CRM Test"], cwd=tmp_path,
-                   check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "crm@test.local"], cwd=tmp_path,
-                   check=True, capture_output=True)
-    (tmp_path / "companies").mkdir()
-    return tmp_path
-
-
-@pytest.fixture
-def app(repo: Path):
-    app = create_app(repo, config=CONFIG)
-    # Every page under test asks the store what day it is, while the tests write
-    # dates of their own -- TODAY, and literals in September 2026. Leave the store
-    # on the real clock and the gap between the two changes every day: a task due
-    # "2026-09-24" sits in Future tasks, then moves to Top priority when that date
-    # arrives, and once the month rolls over the calendar grid stops drawing it at
-    # all. Fixing the store's day makes the tests mean what they say.
-    app.state.store.clock = lambda: FIXED_NOW
-    return app
-
-
-@pytest.fixture
-def client(app):
-    return TestClient(app, follow_redirects=False)
 
 
 @pytest.fixture

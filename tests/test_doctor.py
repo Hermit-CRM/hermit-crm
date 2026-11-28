@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -165,10 +166,13 @@ def test_cli_doctor(folder, monkeypatch, capsys):
     assert "fail  git: missing" in capsys.readouterr().out
 
 
-def test_doctor_schedule_names_the_folder_the_job_actually_serves(tmp_path):
+def test_doctor_schedule_names_the_folder_the_job_actually_serves(tmp_path, monkeypatch):
     """A schedule installed for another folder is not this folder's schedule."""
     from hermitcrm import schedule
 
+    # The runner fails every launchctl call, so install backs off between
+    # retries; not waiting for that changes nothing this test checks.
+    monkeypatch.setattr(schedule, "time", SimpleNamespace(sleep=lambda seconds: None))
     mine = init_folder(tmp_path / "mine")
     theirs = tmp_path / "theirs"
     theirs.mkdir()

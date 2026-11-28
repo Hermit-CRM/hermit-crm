@@ -52,6 +52,7 @@ from . import __version__, updates
 from . import attachments as attachments_mod
 from . import clientfiles
 from . import upgrade as upgrading
+from . import templatecache
 from fastapi.templating import Jinja2Templates
 
 from . import (adjust, bcc, brief, calendar_sync, capture, conversation, dashboards, disclaimer,
@@ -1475,6 +1476,8 @@ def create_app(root: Path, config: dict | None = None,
         return ui_date(text) if len(text) == 10 else text
 
     templates = Jinja2Templates(directory=str(HERE / "templates"))
+    # Compiled once per process, not once per app (templatecache.py).
+    templates.env.bytecode_cache = templatecache.SHARED
     app.state.templates = templates  # modules that add page globals (yours_pins) reach it here
     templates.env.globals.update(
         upgrade_banner=upgrade_banner,

@@ -19,12 +19,10 @@ from __future__ import annotations
 
 import os
 import re
-import subprocess
 from datetime import timedelta
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
 
 from hermitcrm import cli, layout
 from hermitcrm.notes import company_notes
@@ -57,23 +55,15 @@ HOME_MARKERS = {name: f'id="{name}"' for name in layout.SECTIONS["home"]}
 
 
 @pytest.fixture
-def repo(tmp_path: Path) -> Path:
-    for args in (["init", "-b", "main"], ["config", "user.name", "CRM Test"],
-                 ["config", "user.email", "crm@test.local"]):
-        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
-    (tmp_path / "companies").mkdir()
-    (tmp_path / "fields.toml").write_text(FIELDS, encoding="utf-8")
-    return tmp_path
+def repo(repo: Path) -> Path:
+    """The shared empty folder (conftest.py), with this file's custom fields."""
+    (repo / "fields.toml").write_text(FIELDS, encoding="utf-8")
+    return repo
 
 
 @pytest.fixture
 def app(repo: Path):
     return create_app(repo, config=CONFIG, clock=lambda: FIXED_NOW)
-
-
-@pytest.fixture
-def client(app):
-    return TestClient(app, follow_redirects=False)
 
 
 @pytest.fixture
