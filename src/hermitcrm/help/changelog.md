@@ -15,6 +15,12 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   makes a new commit, so an undo can be undone too. Deleting an interaction
   still asks first, and now says it can be taken back. No data change. See
   [Backups and undo](/help/backups#undo-a-change).
+- **Every company and contact has its own history.** The new **history** link
+  next to "created" and "updated" lists every change to that record, newest
+  first: what changed in plain words, each field before and after, which
+  changes an AI agent made, and Undo on each. Read from git, so it goes back to
+  the record's first day. No data change. See
+  [Backups and undo](/help/backups#history-of-a-record).
 
 - **Sending no longer waits half a minute first on some networks.** Before each
   send and each test mail, Hermit asked the network for your computer's full
