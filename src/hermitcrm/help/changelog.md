@@ -12,8 +12,12 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   and says whether it only reads, overwrites something or only adds, so the app
   can ask you before the ones that write. Six new tools read: `search` (a word
   anywhere, message bodies included), `show_contact`, `list_tasks`,
-  `list_outreach`, `show_outreach` and `list_routines`. See
-  [AI agents](/help/ai-agents#connecting-over-mcp).
+  `list_outreach`, `show_outreach` and `list_routines`. Eight new tools write,
+  one commit each that `undo` reverses: `update_company`, `update_contact`,
+  `move_stage` (the stage rules apply, with no way round them), `add_task`,
+  `complete_task`, `reopen_task`, `edit_outreach_draft` and `skip_outreach`. An
+  agent still cannot mark a draft ready, schedule or send it, run a routine or
+  delete anything. See [AI agents](/help/ai-agents#connecting-over-mcp).
 
 - **Save a contact to your phone with its camera.** Press **Save to phone** on a
   contact page, point your phone at the code and tap to add the person: name,
