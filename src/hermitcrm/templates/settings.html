@@ -118,6 +118,28 @@
   </form>
 </section>
 
+<section class="setup-step" id="autopilot">
+  {%- set ap = autopilot_form %}
+  <div class="setting-head"><h2>Autopilot</h2>
+    {%- if ap.failure %}<span class="setup-status pending">Could not run</span>
+    {%- elif ap.any_on %}<span class="setup-status done">On</span>
+    {%- else %}<span class="setup-status pending">Off</span>{% endif %}{{ how('/help/settings#autopilot') }}</div>
+  <p class="summary">Prepares the morning's routine work after the daily sync, so it waits on Today when you open the app: you approve, edit or discard each item. Nothing is ever sent, scheduled or marked ready for you, and everything is off until you turn it on here.</p>
+  {% if ap.failure %}<p class="warning">Autopilot could not run: {{ ap.failure }}</p>{% endif %}
+  {% if ap.any_on and not enrich_status.available %}<p class="warning">The drafts and proposals need the AI tool above, which is unavailable: {{ enrich_status.reason }}</p>{% endif %}
+  {% if ap.last_run %}<p class="meta">{{ ap.last_run }}</p>{% endif %}
+  <form method="post" action="/settings/autopilot" class="record-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% for sw in ap.switches %}
+    <label class="check"><input type="checkbox" name="on" value="{{ sw.name }}"{% if sw.on %} checked{% endif %}> {{ sw.label }}</label>
+    <p class="small">{{ sw.text }}</p>
+    {% endfor %}
+    <label>At most this many prepared items a day <input name="daily_cap" value="{{ ap.cap }}" inputmode="numeric" size="4"></label>
+    <p class="small">It runs after <code>hermitcrm sync --apply</code>, the daily job under Advanced, Schedule. Turning a switch on is your consent to what it sends; turn it off and nothing more goes out.</p>
+    <button type="submit">Save</button>
+  </form>
+</section>
+
 <section class="setup-step" id="appearance">
   <div class="setting-head"><h2>Appearance</h2></div>
   {{ step_errors('appearance') }}

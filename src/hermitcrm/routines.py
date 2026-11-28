@@ -1057,7 +1057,7 @@ def run_all(store: Store, config: dict | None = None, apply: bool = False, enric
     config = config if config is not None else load_config(root)
     loaded = load(root, config)
     if not loaded.present:
-        return []
+        return _with_autopilot([], store, config, apply, enricher, names)
     out = []
     if loaded.errors and names is None:
         out.append(f"{FILE} has {len(loaded.errors)} problem(s); run hermitcrm check. "
@@ -1099,7 +1099,23 @@ def run_all(store: Store, config: dict | None = None, apply: bool = False, enric
         else:
             out.append(f"{routine.name}: {result.summary()}")
         out += [f"  {line}" for line in result.lines]
-    return out
+    return _with_autopilot(out, store, config, apply, shared["enricher"], names)
+
+
+def _with_autopilot(out: list[str], store: Store, config: dict, apply: bool, enricher,
+                    names: list[str] | None) -> list[str]:
+    """The routine lines, then autopilot's (autopilot.py), which runs after the
+    user's own routines when they all run. With every autopilot switch off it adds
+    nothing and calls no AI. It never raises: the sync keeps its result."""
+    if names is not None:
+        return out
+    from . import autopilot  # autopilot imports this module
+
+    try:
+        return out + autopilot.run(store, config, apply=apply, enricher=enricher)
+    except Exception as exc:
+        logger.warning("autopilot failed: %s", exc)
+        return out + [f"autopilot: failed: {type(exc).__name__}: {exc}"]
 
 
 # -------------------------------------------------------------------- briefs
@@ -1179,7 +1195,9 @@ def home_context(store: Store, config: dict | None = None) -> dict:
     """
     root = store.root
     loaded = load(root, config)
-    titles = {r.name: r.title for r in loaded.routines}
+    from .autopilot import TITLES as autopilot_titles  # autopilot imports this module
+
+    titles = {**autopilot_titles, **{r.name: r.title for r in loaded.routines}}
     rows = []
     for d in drafts(root):
         company = store.companies.get(d.company)
@@ -1196,6 +1214,12 @@ def home_context(store: Store, config: dict | None = None) -> dict:
             if routine.action == "brief" and isinstance(brief, dict) \
                     and brief.get("date") == today:
                 briefs.append({"title": routine.title, "name": routine.name, **brief})
+    from . import autopilot
+
+    brief = autopilot.today_brief(root, store.today())
+    if brief is not None:  # the autopilot's morning brief, when its switch made one
+        briefs.append({"title": autopilot.TITLES[autopilot.BRIEF_ROUTINE],
+                       "name": autopilot.BRIEF_ROUTINE, **brief})
     return {"routine_drafts": rows, "routine_briefs": briefs}
 
 
