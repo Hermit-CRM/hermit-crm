@@ -58,6 +58,12 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 - **The MCP server labels its tools.** Each of the nineteen tools now has a
   title and says whether it only reads, overwrites something, or only adds, so
   an AI app can ask you before the ones that write. Nothing else changes. See
+
+- **More of Hermit open to an AI app over MCP.** Every tool now has a title
+  and says whether it only reads, overwrites something or only adds, so the app
+  can ask you before the ones that write. Six new tools read: `search` (a word
+  anywhere, message bodies included), `show_contact`, `list_tasks`,
+  `list_outreach`, `show_outreach` and `list_routines`. See
   [AI agents](/help/ai-agents#connecting-over-mcp).
 
 - **Save a contact to your phone with its camera.** Press **Save to phone** on a

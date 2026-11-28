@@ -159,6 +159,12 @@ The tools, reads first:
 | `followups` | Threads you owe a reply, then ones you are waiting on. |
 | `keep_in_touch` | People outside an open deal you have not spoken to in a while. |
 | `brief` | Each upcoming meeting with the record behind it. |
+| `search` | A word anywhere: companies, people, task text, and the subject and body of every message. |
+| `show_contact` | One person: fields (custom ones too), their tasks, every interaction with them. |
+| `list_tasks` | The to-do list: overdue, today, the next 7 days, every open task, or done; for one company or all. |
+| `list_outreach` | The Outreach drafts by status (drafted, ready, skipped, sent, ...). |
+| `show_outreach` | One draft in full: who it is for, research, checks, subject and text. |
+| `list_routines` | The routines, on or paused, what each does and how its last run went. |
 | `add_company` | Create a company; returns the slug. `notes` is saved as a company note, not a body. |
 | `add_contact` | Create a contact under a company. |
 | `add_interaction` | Log an email, message, call or meeting. |
@@ -170,7 +176,7 @@ The tools, reads first:
 | `bulk_apply` | Apply that change after the user said yes; one commit. |
 | `undo` | Reverse one commit with a new one (`git revert`). |
 
-Nineteen tools: twelve that only read (`adjust_help`, `adjust_read` and
+Twenty-five tools: eighteen that only read (`adjust_help`, `adjust_read` and
 `bulk_preview` included) and seven that write. The three `add_` tools are the same `store.create_*` calls the web form and
 `hermitcrm add` make, so validation, slugging, the prospect-to-engaged move and
 the git commit are shared rather than copied. Each one writes a file and makes a
@@ -207,6 +213,11 @@ which tools only read and ask before the ones that write: read-only or not,
 destructive (overwrites something) or only adding, idempotent (calling it twice
 changes nothing more) or not, and closed-world for all of them, because a tool
 only ever works on this data folder.
+
+The six newer read tools (`search` to `list_routines`) also answer with
+structured data, described by each tool's output schema, beside the text. The
+ones that list take `limit` (default 20, at most 100) and, for the rows after
+those, the `cursor` the previous answer gave as `next_cursor`.
 
 Every tool re-reads the folder before answering, so a long-lived MCP session
 does not serve a snapshot from whenever the client connected.
