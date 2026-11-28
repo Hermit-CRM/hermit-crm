@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}{{ job.label if job else 'Job not found' }}{% endblock %}
+{% block content %}
+{% if not job %}
+<h1>Job not found</h1>
+<p>Hermit keeps the last 50 background jobs. This one is not among them (or the link is wrong).</p>
+<p><a href="/">Back to Home</a></p>
+{% else %}
+<h1>{{ job.label }}</h1>
+{% if refresh %}<noscript><meta http-equiv="refresh" content="{{ refresh }}"></noscript>{% endif %}
+<section class="job-status job-{{ job.state }}" data-job="{{ job.id }}"{% if job.active %} data-job-active{% endif %}>
+  {% if job.active %}
+  <p class="job-line"><span class="job-spinner" aria-hidden="true"></span>
+    <strong data-job-state>{% if job.state == 'queued' %}Waiting to start{% else %}Working{% endif %}</strong>
+    <span data-job-steps>{{ job.steps }}</span></p>
+  <p class="job-progress" data-job-progress aria-live="polite">{{ job.progress }}</p>
+  <p class="small">You can leave this page: the work goes on, and the badge at the top says when it is ready.{% if refresh %}<noscript> This page refreshes itself every {{ refresh }} seconds.</noscript>{% endif %}</p>
+  {% elif job.state == 'done' %}
+  <p class="job-line"><strong>Done</strong>{% if job.steps %} <span>{{ job.steps }}</span>{% endif %}</p>
+  {% elif job.state == 'failed' %}
+  <p class="job-line"><strong>Failed</strong>{% if job.steps %} <span>after {{ job.steps }}</span>{% endif %}</p>
+  <p class="errors">{{ job.error }}</p>
+  {% else %}
+  <p class="job-line"><strong>Interrupted</strong>{% if job.steps %} <span>after {{ job.steps }}</span>{% endif %}</p>
+  <p class="errors">{{ job.error }}</p>
+  {% endif %}
+  {% if job.finished and job.result.lines %}
+  <ul class="job-lines">{% for line in job.result.lines %}<li>{{ line }}</li>{% endfor %}</ul>
+  {% endif %}
+</section>
+<p class="small job-times">Started {{ job.created | replace('T', ' ') }}{% if job.ended %} &middot; ended {{ job.ended | replace('T', ' ') }}{% endif %}</p>
+<p>{% if job.finished and job.result.link %}<a class="button" href="{{ job.result.link }}">{{ job.result.link_text or 'Open the result' }}</a> {% endif %}<a href="{{ job.back }}">Back</a></p>
+{% endif %}
+{% endblock %}
