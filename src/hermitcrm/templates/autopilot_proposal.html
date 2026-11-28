@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{# One autopilot proposal (autopilot.py), opened by Edit on Today: change it,
+   then approve it (one normal store write) or discard it. pages/assist.py. #}
+{% block title %}{{ kind.label }} for {{ company.name }}{% endblock %}
+{% block content %}
+<h1>{{ kind.label }} for <a href="/companies/{{ company.slug }}">{{ company.name }}</a></h1>
+<p class="small">Proposed by autopilot on {{ ui_datetime(proposal.made) }}{% if proposal.why %}: {{ proposal.why }}{% endif %} Nothing is saved to the company until you approve it.</p>
+<form method="post" action="/autopilot/proposals/{{ proposal.id }}/approve" class="record-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="back" value="{{ back }}">
+  <label>What to do <input name="text" value="{{ proposal.text }}" maxlength="{{ text_limit }}" required></label>
+  {% if kind.has_due %}<label>Due <input type="date" name="due" value="{{ proposal.due }}"></label>{% endif %}
+  <div class="actions"><button type="submit" class="primary">Approve</button></div>
+</form>
+<form method="post" action="/autopilot/proposals/{{ proposal.id }}/discard" class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="back" value="{{ back }}">
+  <button type="submit" class="secondary">Discard</button> <a href="{{ back }}">Back</a>
+</form>
+{% endblock %}

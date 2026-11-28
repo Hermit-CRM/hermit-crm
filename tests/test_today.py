@@ -21,8 +21,8 @@ from datetime import timedelta
 import pytest
 
 from hermitcrm import followups, routines, today as today_mod
-from hermitcrm.today import (BRIEF, DRAFT, DUE, KEEP, MEETING, NUDGE, OVERDUE, REPLY,
-                             Item, build)
+from hermitcrm.today import (BRIEF, DRAFT, DUE, KEEP, MEETING, NUDGE, OVERDUE, PREPARED,
+                             REPLY, Item, build)
 
 from conftest import FIXED_NOW
 
@@ -61,7 +61,7 @@ def test_an_empty_folder_has_an_empty_queue(store):
 
 def test_order_table_is_the_one_the_briefing_names():
     order = [kind for kind, _ in today_mod.ORDER]
-    assert order == [REPLY, OVERDUE, MEETING, BRIEF, DRAFT, DUE, NUDGE, KEEP]
+    assert order == [REPLY, OVERDUE, MEETING, BRIEF, DRAFT, PREPARED, DUE, NUDGE, KEEP]
 
 
 def test_groups_come_in_table_order(seeded):

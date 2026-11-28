@@ -50,6 +50,7 @@ OVERDUE = "overdue"          # an open task whose date has passed
 MEETING = "meeting"          # on the calendar today
 BRIEF = "brief"              # today's brief from a brief routine
 DRAFT = "draft"              # a routine wrote a draft; you send it
+PREPARED = "prepared"        # autopilot prepared it; you approve (autopilot.py)
 DUE = "due"                  # an open task due today
 NUDGE = "nudge"              # you wrote last; nothing came back
 KEEP = "keep-in-touch"       # outside an open deal, quiet for a long time
@@ -61,7 +62,8 @@ ORDER: list[tuple[str, str]] = [
     (OVERDUE, "Overdue tasks"),
     (MEETING, "Today"),
     (BRIEF, "Today"),
-    (DRAFT, "Drafts waiting for you"),
+    (DRAFT, "Prepared for you"),
+    (PREPARED, "Prepared for you"),
     (DUE, "Due today"),
     (NUDGE, "Waiting on them"),
     (KEEP, "Keep in touch"),

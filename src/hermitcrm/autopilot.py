@@ -25,7 +25,8 @@ the user turned it on (the key is not in DEFAULT_CONFIG):
 - `reply_drafts`: the `replies_owed` selector with the `draft` action.
 - `follow_up_drafts`: the `quiet_threads` selector with the `draft` action.
 - `meeting_briefs`: the morning brief (`routines.make_brief`); no AI.
-- `next_steps`: a proposed next step for a company that has none (step 2).
+- `next_steps`: a proposed next step for a company that has none, kept as a
+  proposal (below) until the user approves it on Today.
 
 It runs where routines run, after the daily sync (`routines.run_all`, which
 `hermitcrm sync --apply` calls), after the user's own routines. Drafts are the
@@ -47,13 +48,14 @@ from __future__ import annotations
 import json
 import logging
 import os
+import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 
 from . import routines
 from .enrich import EnrichError
-from .models import fmt_datetime
+from .models import fmt_date, fmt_datetime, parse_datetime
 from .send import runtime_dir
 
 logger = logging.getLogger("hermitcrm.autopilot")
@@ -420,3 +422,361 @@ def settings_form(config: dict | None, root: Path | str) -> dict:
                           "on": on[name]} for name in SWITCHES],
             "any_on": any(on.values()), "cap": daily_cap(config), "max_cap": MAX_CAP,
             "failure": failure(root), "last_run": last_text}
+
+
+# ----------------------------------------------------------------- proposals
+#
+# A proposal is something autopilot prepared that is not a message draft: a next
+# step for a company, and the kinds a later feature adds (the after-contact
+# assistant). It lives in the state file under "proposals", never on the
+# record, until the user approves it on Today; Approve writes it with the normal
+# store call. A kind is a `Kind` in KINDS; another module adds its own with
+# `register_kind` and stores its proposals with `add_proposals`.
+
+PREPARED = "prepared"              # the Today kind of every autopilot row
+HEADING = "Prepared for you"       # its group on Today
+NEXT_STEP = "next-step"            # a proposal kind
+NEXT_STEP_DAYS = 14                # a conversation at most this long ago
+NEXT_STEP_TEXT_LIMIT = 200
+NEXT_STEP_MAX_DAYS = 90            # a proposed date at most this far ahead
+WHY_LIMIT = 300
+RECORD_LIMIT = 12000
+NEXT_STEP_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "next_step": {"type": "string",
+                      "description": "one short action the user takes themselves; "
+                                     "empty when there should be none"},
+        "due": {"type": "string", "description": "the date to do it, YYYY-MM-DD"},
+        "why": {"type": "string", "description": "one sentence: why this, why then"},
+        "skip": {"type": "string",
+                 "description": "when next_step is empty: why no next step makes sense"},
+    },
+    "required": ["next_step", "due", "why", "skip"],
+    "additionalProperties": False,
+}
+
+
+@dataclass
+class Proposal:
+    id: str
+    kind: str
+    company: str                   # slug
+    made: str                      # when, as fmt_datetime
+    text: str                      # what is proposed
+    due: str = ""                  # YYYY-MM-DD, for a kind with a date
+    why: str = ""                  # the AI's one-line reason
+    contact: str = ""              # slug, for a kind about one person
+    basis: str = ""                # the interaction it was made from
+    extra: dict = field(default_factory=dict)  # anything else a kind keeps
+
+    @classmethod
+    def from_json(cls, data) -> "Proposal | None":
+        if not isinstance(data, dict):
+            return None
+        try:
+            got = cls(**{f: data[f] for f in cls.__dataclass_fields__ if f in data})
+        except TypeError:
+            return None
+        texts = (got.id, got.kind, got.company, got.made, got.text, got.due, got.why,
+                 got.contact, got.basis)
+        if not all(isinstance(t, str) for t in texts) or not isinstance(got.extra, dict):
+            return None
+        return got if got.id and got.kind and got.company else None
+
+    def as_json(self) -> dict:
+        return {f: getattr(self, f) for f in self.__dataclass_fields__}
+
+    @property
+    def due_date(self) -> date | None:
+        try:
+            return date.fromisoformat(self.due)
+        except ValueError:
+            return None
+
+
+@dataclass(frozen=True)
+class Kind:
+    """A kind of proposal: what Today calls it, and what Approve does. `approve(store,
+    proposal)` writes it with a normal store call (one commit) and returns the
+    message to show; it raises ValidationError for a value the store refuses."""
+
+    name: str
+    label: str                     # "Next step"
+    approve: object
+    has_due: bool = True
+
+
+KINDS: dict[str, Kind] = {}
+
+
+def register_kind(kind: Kind) -> Kind:
+    KINDS[kind.name] = kind
+    return kind
+
+
+def proposals(root: Path | str, kind: str | None = None) -> list[Proposal]:
+    """Every open proposal (of one kind), oldest first; made in the same run, in
+    the order they were made (the sort is stable, the ids are random)."""
+    out = [p for p in (Proposal.from_json(d) for d in read_state(root).get("proposals") or [])
+           if p is not None and (kind is None or p.kind == kind)]
+    return sorted(out, key=lambda p: p.made)
+
+
+def get_proposal(root: Path | str, proposal_id: str) -> Proposal | None:
+    return next((p for p in proposals(root) if p.id == proposal_id), None)
+
+
+def _save_proposals(root: Path | str, state: dict, items: list[Proposal]) -> None:
+    state["proposals"] = [p.as_json() for p in items]
+    write_state(root, state)
+
+
+def add_proposals(store, new: list[Proposal]) -> list[Proposal]:
+    """Keep new proposals, each with a fresh id. Under the store's write lock:
+    the web app and the daily sync are different processes."""
+    with store.lock:
+        state = read_state(store.root)
+        items = proposals(store.root)
+        for p in new:
+            p.id = p.id or uuid.uuid4().hex[:12]
+            items.append(p)
+        _save_proposals(store.root, state, items)
+    return new
+
+
+def update_proposal(store, proposal_id: str, text: str, due: str) -> Proposal | None:
+    """Change what a proposal says (Edit); None when it is gone."""
+    with store.lock:
+        state = read_state(store.root)
+        items = proposals(store.root)
+        found = next((p for p in items if p.id == proposal_id), None)
+        if found is not None:
+            found.text, found.due = text, due
+            _save_proposals(store.root, state, items)
+    return found
+
+
+def remove_proposal(store, proposal_id: str, discarded: bool = False) -> Proposal | None:
+    """Drop a proposal (approved or discarded). A discarded one is remembered
+    with the interaction it came from, so the same conversation is not
+    proposed again until something new is logged."""
+    with store.lock:
+        state = read_state(store.root)
+        items = proposals(store.root)
+        found = next((p for p in items if p.id == proposal_id), None)
+        if found is None:
+            return None
+        if discarded and found.basis:
+            dismissed = state.get("dismissed") if isinstance(state.get("dismissed"), dict) \
+                else {}
+            dismissed[f"{found.kind}:{found.company}"] = found.basis
+            state["dismissed"] = dismissed
+        _save_proposals(store.root, state, [p for p in items if p.id != proposal_id])
+    return found
+
+
+def approve_proposal(store, proposal_id: str) -> str:
+    """Write a proposal with its kind's store call, then drop it. The message to
+    show; raises KeyError when it is gone, ValidationError when the store refuses."""
+    proposal = get_proposal(store.root, proposal_id)
+    kind = KINDS.get(proposal.kind) if proposal is not None else None
+    if proposal is None or kind is None:
+        raise KeyError(proposal_id)
+    message = kind.approve(store, proposal)
+    remove_proposal(store, proposal_id)
+    return message
+
+
+# --------------------------------------------------------------- next steps
+
+
+def _approve_next_step(store, proposal: Proposal) -> str:
+    store.add_task(proposal.company, proposal.text, due=proposal.due or None,
+                   message=f"task: {proposal.company} added (autopilot proposal)")
+    company = store.companies.get(proposal.company)
+    return f"Next step added for {company.name if company else proposal.company}"
+
+
+register_kind(Kind(NEXT_STEP, "Next step", _approve_next_step))
+
+
+def next_step_candidates(store, today: date) -> list[tuple[object, object]]:
+    """(company, its latest interaction) for each open company with no open next
+    step and a conversation in the last NEXT_STEP_DAYS days, most recent first.
+    Not one with a proposal waiting, nor one whose proposal was discarded with
+    nothing new logged since. No AI."""
+    root = store.root
+    waiting = {p.company for p in proposals(root, NEXT_STEP)}
+    dismissed = read_state(root).get("dismissed")
+    dismissed = dismissed if isinstance(dismissed, dict) else {}
+    out = []
+    for company in store.companies.values():
+        if company.is_sample or not company.is_active or company.open_todos():
+            continue
+        if company.slug in waiting:
+            continue
+        recent = [i for i in company.interactions if i.date
+                  and 0 <= (today - i.date.date()).days <= NEXT_STEP_DAYS]
+        if not recent:
+            continue
+        latest = max(recent, key=lambda i: (i.date, i.id))
+        if dismissed.get(f"{NEXT_STEP}:{company.slug}") == latest.id:
+            continue
+        out.append((company, latest))
+    out.sort(key=lambda pair: (pair[1].date, pair[0].slug), reverse=True)
+    return out
+
+
+def next_step_prompt(store, company, today: date) -> str:
+    from .cli import cmd_show  # `hermitcrm show`, the agreed way to read one account
+
+    record = cmd_show(store, company.slug, bodies=3)[:RECORD_LIMIT]
+    return "\n\n".join([
+        "You propose one next step in a sales conversation, for a person to approve, "
+        "change or discard. Nothing you write is saved until they approve it.",
+        f"Today is {today.isoformat()}. The company {company.name} has no open task; "
+        f"its last conversation was in the last {NEXT_STEP_DAYS} days.",
+        f"--- the record (hermitcrm show {company.slug}) ---\n{record}\n--- end ---",
+        "Rules: next_step is one short action the user takes themselves (a call, a "
+        f"message, a meeting to propose), plain text, at most {NEXT_STEP_TEXT_LIMIT} "
+        f"characters. due is a date from today to {NEXT_STEP_MAX_DAYS} days ahead, as "
+        "YYYY-MM-DD. why is one sentence. Never invent facts, numbers or meetings. If "
+        "no next step makes sense (the deal is over, they said no), leave next_step "
+        "empty and say why in skip.",
+    ]) + "\n"
+
+
+def clean_next_step(data, today: date) -> tuple[str, str, str, str]:
+    """(text, due, why, skip) from the AI's JSON; routines.Rejected when unusable."""
+    if not isinstance(data, dict):
+        raise routines.Rejected("the AI returned no JSON object")
+    values = [data.get(k) or "" for k in ("next_step", "due", "why", "skip")]
+    if not all(isinstance(v, str) for v in values):
+        raise routines.Rejected("the AI returned something other than text")
+    text, due, why, skip = (" ".join(v.split()) for v in values)
+    if not text:
+        if skip:
+            return "", "", "", skip[:WHY_LIMIT]
+        raise routines.Rejected("the AI returned no next step")
+    if len(text) > NEXT_STEP_TEXT_LIMIT:
+        raise routines.Rejected(f"the next step is over {NEXT_STEP_TEXT_LIMIT} characters")
+    try:
+        when = date.fromisoformat(due)
+    except ValueError:
+        raise routines.Rejected(f"the date {due!r} is not YYYY-MM-DD") from None
+    if not 0 <= (when - today).days <= NEXT_STEP_MAX_DAYS:
+        raise routines.Rejected(f"the date {due} is not between today and "
+                                f"{NEXT_STEP_MAX_DAYS} days ahead")
+    return text, when.isoformat(), why[:WHY_LIMIT], ""
+
+
+def _next_steps(store, config: dict, ai, now: datetime, room: int, report: Report) -> None:
+    today = now.date()
+    candidates = next_step_candidates(store, today)
+    if not candidates:
+        return
+    if room <= 0:
+        report.lines.append(f"next steps: {len(candidates)} waiting, but today's limit "
+                            "is reached")
+        return
+    enricher = ai()
+    if not enricher.available:
+        raise routines.RoutineError(enricher.unavailable_reason())
+    light = enricher.with_tier("light")
+    if routines.ai_problem(light):
+        raise routines.RoutineError(routines.ai_problem(light))
+    made, failed = [], []
+    for company, latest in candidates[:room]:
+        try:
+            data = light.runner(next_step_prompt(store, company, today), NEXT_STEP_SCHEMA,
+                                tools="")
+            text, due, why, skip = clean_next_step(data, today)
+        except EnrichError as exc:
+            failed.append(str(exc))
+            report.lines.append(f"  skipped {company.name}: {exc}")
+            continue
+        except routines.Rejected as exc:
+            report.lines.append(f"  skipped {company.name}: {exc}")
+            continue
+        if skip:
+            report.lines.append(f"  skipped {company.name}: the AI says {skip}")
+            with store.lock:   # not again until something new is logged
+                state = read_state(store.root)
+                dismissed = state.get("dismissed") if isinstance(state.get("dismissed"),
+                                                                 dict) else {}
+                dismissed[f"{NEXT_STEP}:{company.slug}"] = latest.id
+                state["dismissed"] = dismissed
+                write_state(store.root, state)
+            continue
+        made.append(Proposal(id="", kind=NEXT_STEP, company=company.slug,
+                             made=fmt_datetime(now), text=text, due=due, why=why,
+                             basis=latest.id))
+        report.lines.append(f"  proposed: {company.name} | {due} | {text}")
+    if made:
+        add_proposals(store, made)
+    report.made += len(made)
+    report.lines.insert(0, f"next steps: {len(made)} proposed")
+    if failed and not made and len(failed) == len(candidates[:room]):
+        raise routines.RoutineError(f"the AI tool failed: {failed[0]}")
+
+
+def _next_steps_dry_run(store, config: dict, today: date) -> list[str]:
+    n = len(next_step_candidates(store, today))
+    return [f"autopilot: next steps: would propose for {n} compan"
+            f"{'y' if n == 1 else 'ies'} (dry run, no AI)"]
+
+
+EXTRA_PARTS.append(Part(NEXT_STEPS, "next steps", _next_steps, _next_steps_dry_run))
+
+
+# ---------------------------------------------------------------------- Today
+
+
+def prepared_items(store, config: dict, today_: date) -> list:
+    """Today's "Prepared for you": a run that could not run, and every open
+    proposal with Approve, Edit and Discard. (Drafts come through Today's routine
+    provider: they are routine drafts, with the routine draft's own actions.)"""
+    from .today import Action, Item
+
+    root = store.root
+    out = []
+    reason = failure(root)
+    if reason:
+        out.append(Item(
+            kind=PREPARED, company=None, contact=None,
+            title=f"Autopilot could not run: {reason}",
+            reason="It tries again after the next daily sync. Settings has the details.",
+            due=today_, href="/settings#autopilot",
+            actions=(Action("Settings", "/settings#autopilot", secondary=True),),
+            key="autopilot-failed"))
+    for p in proposals(root):
+        company = store.companies.get(p.company)
+        kind = KINDS.get(p.kind)
+        if company is None or kind is None:
+            continue
+        when = p.due_date
+        bits = [f"for {fmt_date(when)}" if when else "", p.why]
+        out.append(Item(
+            kind=PREPARED, company=company, contact=company.contacts.get(p.contact)
+            if p.contact else None,
+            title=f"{kind.label}: {p.text}",
+            reason="Proposed " + "; ".join(b for b in bits if b),
+            due=parse_datetime(p.made).date() if parse_datetime(p.made) else today_,
+            href=f"/companies/{company.slug}",
+            actions=(Action("Approve", f"/autopilot/proposals/{p.id}/approve", "post"),
+                     Action("Edit", f"/autopilot/proposals/{p.id}"),
+                     Action("Discard", f"/autopilot/proposals/{p.id}/discard", "post",
+                            secondary=True)),
+            key=f"proposal-{p.id}"))
+    return out
+
+
+def _register_today() -> None:
+    """Put "Prepared for you" on Today (its kind is in today.ORDER)."""
+    from . import today
+
+    today.register(prepared_items)
+
+
+_register_today()

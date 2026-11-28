@@ -10,9 +10,11 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 - **Autopilot: the morning's drafts are ready when you open the app.** A new
   Settings section (General tab) turns on reply drafts, follow-up drafts and a
-  morning brief, made right after the daily sync and waiting on Today. Every
-  switch is off until you turn it on; nothing is ever sent for you, and at most
-  15 items a day are prepared (you can change that).
+  morning brief, made right after the daily sync, and next-step proposals for
+  companies you spoke to lately that have no task. They wait on Today under
+  **Prepared for you**, with Approve, Edit and Discard. Every switch is off
+  until you turn it on; nothing is ever sent for you, and at most 15 items a
+  day are prepared (you can change that).
 
 - **Sending no longer waits half a minute first on some networks.** Before each
   send and each test mail, Hermit asked the network for your computer's full

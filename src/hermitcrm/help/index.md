@@ -54,8 +54,12 @@ The groups, in this order:
 2. **Overdue tasks**: open tasks whose date has passed.
 3. **Today**: today's meetings from the calendar import, and today's brief
    from a [brief routine](/help/adjust-routines).
-4. **Drafts waiting for you**: drafts your routines wrote. Nothing is sent:
-   open the draft, send it yourself, then click *I sent it*.
+4. **Prepared for you**: drafts your routines and
+   [Autopilot](/help/settings#autopilot) wrote (nothing is sent: open the
+   draft, send it yourself, then click *I sent it*), and Autopilot's next-step
+   proposals (*Approve* adds the task, *Edit* lets you change it first,
+   *Discard* drops it). When Autopilot could not run, a row here says
+   why.
 5. **Due today**: open tasks due today.
 6. **Waiting on them**: messages of yours nobody answered (the radar's nudges).
 7. **Keep in touch**: people outside an open deal you have not spoken to in

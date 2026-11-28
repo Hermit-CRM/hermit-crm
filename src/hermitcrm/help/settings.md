@@ -259,9 +259,12 @@ what it sends to your AI tool:
 | Morning brief | Nothing: today's meetings, tasks due and replies owed, made on this computer. |
 | Next-step proposals | For each open company with no next step and a conversation in the last 14 days: its record, on the light model, tools off. It proposes a next step and a date. |
 
-What it prepares waits for you: drafts show on Today and on Home under
-*Drafts from routines*, where you edit one, send it yourself and click *I sent
-it*, or *Discard* it. **Nothing is ever sent, scheduled or marked ready for
+What it prepares waits for you on Today, under **Prepared for you**. Drafts
+also show on Home under *Drafts from routines*, where you edit one, send it
+yourself and click *I sent it*, or *Discard* it. A next-step proposal has
+**Approve** (it becomes a task on the company, one commit), **Edit** (change
+the text or the date first) and **Discard** (the same conversation is not
+proposed again until something new is logged on it). **Nothing is ever sent, scheduled or marked ready for
 you.** A person who already has a draft waiting (from your own routines too)
 gets no second one, and a thread that was drafted once is not drafted again
 until something new is logged on it.
@@ -271,7 +274,8 @@ stops a runaway: once that many drafts and proposals were made today, the rest
 wait for tomorrow. The morning brief does not count.
 
 When a run cannot work (no AI tool found, a tool that cannot run with its
-tools off, or every AI call failing, say after a lapsed login), Today says
+tools off, or every AI call failing, say after a lapsed login), a row under
+Prepared for you on Today says
 *Autopilot could not run* with the reason, and so does this section, until a
 run works. The sync and its imports go on regardless.
 
@@ -282,9 +286,10 @@ autopilot = { reply_drafts = true, follow_up_drafts = false, meeting_briefs = tr
 autopilot_daily_cap = 15
 ```
 
-The drafts are committed like a routine's (`autopilot: <n> drafts`); the
-daily count, the last run and today's brief live in
-`.git/hermitcrm-autopilot.json`, which is never committed.
+The drafts are committed like a routine's (`autopilot: <n> drafts`). The
+daily count, the last run, today's brief and the open proposals live in
+`.git/hermitcrm-autopilot.json`, which is never committed: a proposal is not on
+the record until you approve it.
 
 ## Client folders
 
