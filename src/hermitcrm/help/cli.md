@@ -186,6 +186,23 @@ reload its index afterwards.
 refused the request before writing anything; 1 when a write was tried and rolled
 back (every file is as it was, nothing committed).
 
+## Tasks
+
+```text
+hermitcrm tasks [list] [--when overdue|today|week|open|done] [--company SLUG]
+                                        the to-do list as the Tasks page has it, a company's next step
+                                        included: open tasks soonest first (done ones latest first),
+                                        one line each ending in the task's id
+hermitcrm tasks add SLUG TEXT [--due YYYY-MM-DD] [--contact CSLUG] [--type T]
+                                        add a task to a company or one of its people; one commit, and
+                                        it prints the new task's id and the undo command
+hermitcrm tasks done ID                    tick a task off (the id from tasks list); one commit
+```
+
+The ids are the ones the MCP tools `list_tasks`, `complete_task` and
+`reopen_task` use, so an id from either works in both. An id stops working once
+its task is changed or deleted; run `tasks list` again for the new one.
+
 ## Routines
 
 ```text
