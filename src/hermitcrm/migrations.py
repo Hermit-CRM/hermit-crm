@@ -819,18 +819,21 @@ def _commit(data_dir: Path, files: list[str], message: str) -> None:
 
 
 def missing_agent_files(data_dir: Path | str) -> list[str]:
-    """Files the current format gives a folder that are gone from this one.
+    """Files the current format gives a folder that are gone from this one, or
+    that still hold an older text Hermit wrote.
 
-    Today that is the /hermit skill: a clone of a folder that keeps `.claude/`
-    out of git never had it, and a person may have deleted it.
+    Today that is the /hermit skill and the skills pack (`/hermit-daily` and
+    the rest): a clone of a folder that keeps `.claude/` out of git never had
+    them, a folder made by an older Hermit lacks the pack, and a person may
+    have deleted one. A skill with text of the user's own is never listed.
     """
-    from .datafolder import SKILL
+    from .datafolder import SKILL, write_skill, write_skills
 
     data_dir = Path(data_dir)
     if current_format(data_dir) < 8:
         return []  # migration 8 writes it; `pending` already says so
-    path = data_dir / SKILL
-    return [] if path.exists() or path.is_symlink() else [SKILL]
+    return ([SKILL] if write_skill(data_dir, apply=False) else []) + write_skills(
+        data_dir, apply=False)
 
 
 def repair(data_dir: Path | str) -> str:
@@ -839,13 +842,19 @@ def repair(data_dir: Path | str) -> str:
     Only `hermitcrm migrate` calls this, never the run before every command,
     so a skill deleted on purpose stays deleted until you ask for it back.
     """
-    from .datafolder import write_skill
+    from .datafolder import SKILL, write_skill, write_skills
 
     data_dir = Path(data_dir)
     files = missing_agent_files(data_dir)
     if not files:
         return ""
     write_skill(data_dir)
-    message = "migrate: put back the /hermit skill"
+    write_skills(data_dir)
+    pack = len([f for f in files if f != SKILL])
+    pack_text = f"{pack} Claude Code skill{'s' if pack != 1 else ''}"
+    if SKILL not in files:
+        message = f"migrate: write {pack_text}"
+    else:
+        message = "migrate: put back the /hermit skill" + (f" and {pack_text}" if pack else "")
     _commit(data_dir, files, message)
     return f"{message} ({', '.join(files)})"
