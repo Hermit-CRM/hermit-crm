@@ -55,8 +55,8 @@ The groups, in this order:
 3. **Today**: today's meetings from the calendar import, and today's brief
    from a [brief routine](/help/adjust-routines).
 4. **Prepared for you**: drafts your routines and
-   [Autopilot](/help/settings#autopilot) wrote (nothing is sent: open the
-   draft, send it yourself, then click *I sent it*), and Autopilot's next-step
+   [Autopilot](/help/settings#autopilot) wrote (nothing is sent: *Review the
+   draft*, send it yourself, then click *I sent it*), and Autopilot's next-step
    proposals (*Approve* adds the task, *Edit* lets you change it first,
    *Discard* drops it). When Autopilot could not run, a row here says
    why.
@@ -72,7 +72,7 @@ heading counts every task or message, so it matches the Tasks page's
 **Overdue** and **Today** buttons and `hermitcrm followups`.
 
 Each row says who, what and why, and carries its buttons: **Done** for a task,
-**Log a reply** or **Log a follow-up** for a message, **Open the draft** and
+**Log a reply** or **Log a follow-up** for a message, **Review the draft** and
 **Discard** for a draft. They do what the same buttons do elsewhere in the app.
 Home shows the first 25 rows; **Show all** opens the full list on `/today`.
 

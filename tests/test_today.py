@@ -60,8 +60,36 @@ def test_an_empty_folder_has_an_empty_queue(store):
 
 
 def test_order_table_is_the_one_the_briefing_names():
-    order = [kind for kind, _ in today_mod.ORDER]
+    # The built-in table: what register() adds at import never changes it, so
+    # this holds whichever modules a test worker imported first.
+    order = [kind for kind, _ in today_mod.BUILTIN_ORDER]
     assert order == [REPLY, OVERDUE, MEETING, BRIEF, DRAFT, PREPARED, DUE, NUDGE, KEEP]
+    assert today_mod.heading_of(DRAFT) == today_mod.heading_of(PREPARED) == "Prepared for you"
+    assert [k for k, _ in today_mod.ORDER if k in order] == order
+
+
+@pytest.fixture
+def restored_registry():
+    """ORDER and PROVIDERS as they were, whatever the test registers."""
+    order, providers = list(today_mod.ORDER), list(today_mod.PROVIDERS)
+    try:
+        yield
+    finally:
+        today_mod.ORDER[:] = order
+        today_mod.PROVIDERS[:] = providers
+
+
+def test_register_inserts_into_order_and_leaves_the_builtin_table(restored_registry):
+    builtin = today_mod.BUILTIN_ORDER
+
+    def provider(store, config, today):
+        return []
+
+    today_mod.register(provider, kind="x", heading="X", before=DUE)
+    kinds = [k for k, _ in today_mod.ORDER]
+    assert kinds.index("x") == kinds.index(DUE) - 1
+    assert today_mod.heading_of("x") == "X" and provider in today_mod.PROVIDERS
+    assert today_mod.BUILTIN_ORDER is builtin and "x" not in dict(builtin)
 
 
 def test_groups_come_in_table_order(seeded):
@@ -217,6 +245,9 @@ def test_a_routine_draft_waits_for_you(seeded):
     assert item.href.startswith("/#draft-")
     discard = [a for a in item.actions if a.method == "post"]
     assert discard and discard[0].href.endswith("/discard")
+    # A draft row only opens the draft: no "Approve" or "Edit" that would promise more.
+    assert [a.label for a in item.actions] == ["Review the draft", "Discard"]
+    assert item.actions[0].href == item.href
 
 
 def test_todays_brief_is_on_the_queue(seeded, monkeypatch):

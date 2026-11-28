@@ -237,7 +237,7 @@ def test_proposals_and_a_failure_show_under_prepared_for_you(folder):
     autopilot.write_state(folder.root, {**autopilot.read_state(folder.root),
                                         "last_run": {"ok": False, "error": "reply drafts: "
                                                      "'claude' not found"}})
-    queue = today.build(folder, {}, TODAY)
+    queue = today.build(folder, config(next_steps=True), TODAY)
     prepared = [i for i in queue.items if i.kind == autopilot.PREPARED]
     assert prepared[0].title == "Autopilot could not run: reply drafts: 'claude' not found"
     row = next(i for i in prepared if i.company and i.company.slug == "acme")
@@ -375,3 +375,11 @@ def test_sync_with_next_steps_on_leaves_prepared_items_on_today(folder):
     queue = today.build(folder, cfg, TODAY)
     kinds = {i.kind for i in queue.items}
     assert autopilot.PREPARED in kinds and today.DRAFT in kinds
+
+
+def test_with_every_switch_off_no_failure_row_is_left_over(folder):
+    autopilot.write_state(folder.root, {"last_run": {"ok": False, "error": "x"}})
+    assert autopilot.prepared_items(folder, config(), TODAY) == []
+    assert autopilot.prepared_items(folder, {}, TODAY) == []
+    rows = autopilot.prepared_items(folder, config(reply_drafts=True), TODAY)
+    assert [r.key for r in rows] == ["autopilot-failed"]

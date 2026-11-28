@@ -39,7 +39,7 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 - **Home opens on one list: What to do now.** Replies you owe, overdue tasks,
   today's meetings and brief, drafts from your routines, tasks due today,
   messages nobody answered and people to keep in touch with, most urgent first,
-  each row with its own buttons (Done, Log a reply, Open the draft). It replaces
+  each row with its own buttons (Done, Log a reply, Review the draft). It replaces
   What needs doing, Replies you owe and Keep in touch on Home; `/today` shows the
   list on its own. An older `layout.toml` that names the old sections still
   loads. No data change. See [Help](/help#today).

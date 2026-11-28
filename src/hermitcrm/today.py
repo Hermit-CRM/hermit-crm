@@ -57,7 +57,9 @@ KEEP = "keep-in-touch"       # outside an open deal, quiet for a long time
 
 # The order of the queue, most urgent first, with each group's heading. Kinds
 # that share a heading show as one group. Change the order here and only here.
-ORDER: list[tuple[str, str]] = [
+# BUILTIN_ORDER never changes while the app runs; ORDER starts as a copy of it
+# and register() inserts a later feature's kinds into ORDER only.
+BUILTIN_ORDER: tuple[tuple[str, str], ...] = (
     (REPLY, "Replies you owe"),
     (OVERDUE, "Overdue tasks"),
     (MEETING, "Today"),
@@ -67,7 +69,8 @@ ORDER: list[tuple[str, str]] = [
     (DUE, "Due today"),
     (NUDGE, "Waiting on them"),
     (KEEP, "Keep in touch"),
-]
+)
+ORDER: list[tuple[str, str]] = list(BUILTIN_ORDER)
 OTHER_HEADING = "More"  # the heading of a kind ORDER does not name
 MORE_NAMED = 2          # tasks a collapsed row names before "…"
 
@@ -350,7 +353,7 @@ def routine_items(store, config: dict, today: date) -> list[Item]:
             title=f"{d.channel.capitalize() or 'Message'} draft to {name}",
             reason=reason, due=d.made.date() if d.made else today,
             href=f"/#draft-{d.id}",
-            actions=(Action("Open the draft", f"/#draft-{d.id}"),
+            actions=(Action("Review the draft", f"/#draft-{d.id}"),
                      Action("Discard", f"/yours/routines/{d.routine}/drafts/{d.id}/discard",
                             "post", secondary=True)),
             key=f"draft-{d.id}"))

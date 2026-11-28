@@ -734,14 +734,14 @@ EXTRA_PARTS.append(Part(NEXT_STEPS, "next steps", _next_steps, _next_steps_dry_r
 
 
 def prepared_items(store, config: dict, today_: date) -> list:
-    """Today's "Prepared for you": a run that could not run, and every open
-    proposal with Approve, Edit and Discard. (Drafts come through Today's routine
+    """Today's "Prepared for you": a run that could not run (while a switch is on),
+    and every open proposal with Approve, Edit and Discard. (Drafts come through Today's routine
     provider: they are routine drafts, with the routine draft's own actions.)"""
     from .today import Action, Item
 
     root = store.root
     out = []
-    reason = failure(root)
+    reason = failure(root) if enabled(config) else ""   # switched off: no warning left over
     if reason:
         out.append(Item(
             kind=PREPARED, company=None, contact=None,
