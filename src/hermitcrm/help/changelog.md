@@ -20,6 +20,11 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   a stored email could ask the AI to quote the password and it could. See
   [Ask](/help/ask).
 
+- **Saving a mail password in the macOS Keychain no longer shows it to other
+  programs.** Hermit used to pass it to the `security` tool on its command
+  line, where any program of yours could see it for a moment; it now goes
+  over standard input, as it already did on Linux. Nothing to do on your side.
+
 - **Save a contact to your phone with its camera.** Press **Save to phone** on a
   contact page, point your phone at the code and tap to add the person: name,
   company, title, phone, email and LinkedIn, never your notes. No sync, no
