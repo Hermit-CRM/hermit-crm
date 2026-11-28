@@ -54,6 +54,13 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   anything. An existing folder gets them from `hermitcrm migrate`; a skill you
   have changed yourself is never overwritten. New command: `hermitcrm tasks
   list`, `tasks add` and `tasks done` for the to-do list.
+
+- **Open pages follow changes made elsewhere.** When the command line, an
+  agent over MCP or the daily sync changes your data, an open page updates by
+  itself within about five seconds, without a reload. If you are typing in a
+  form on that page, it does not touch it and says "This page changed
+  underneath you" with a Refresh button instead. Tabs in the background do not
+  ask. No data change. See [AI agents](/help/ai-agents#open-pages-follow-commits).
 - **Sending no longer waits half a minute first on some networks.** Before each
   send and each test mail, Hermit asked the network for your computer's full
   name to greet the mail server. Where the network cannot answer (common on
