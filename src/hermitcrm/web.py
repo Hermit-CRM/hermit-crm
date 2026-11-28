@@ -1894,17 +1894,11 @@ def create_app(root: Path, config: dict | None = None,
             all_steps = welcome_steps()
             intro = welcome.should_show(config, all_steps)
         today = store.today()
-        week = today + timedelta(days=7)
-        due_soon = [r for r in todo_rows(c for c in store.companies.values()
-                                         if not c.is_closed)
-                    if r.due and r.due <= week]
         report = build_report(reports.period_for("30d", today), today)
         return render(request, "home.html", {
             "today": today,
-            "due_soon": due_soon,
-            "followups": followups.radar(store, today, **followup_days),
-            "keep_in_touch": followups.keep_in_touch(store, today, **keep_in_touch_days),
-            "keep_in_touch_days": keep_in_touch_days["after"],
+            # What to do now: the Today queue (today.py), first 25 rows.
+            **pages.today.queue_context(store, config, back="/"),
             "totals": report["activity"]["totals"],
             "previous": report["activity"]["previous"],
             "funnel": report["funnel"],
@@ -1971,10 +1965,7 @@ def create_app(root: Path, config: dict | None = None,
 
     # ------------------------------------------------------------------ today
 
-    @app.get("/today")
-    def today_view(request: Request):
-        """The Today lists live on the Tasks page now."""
-        return goto("/tasks?when=overdue&when=today")
+    # /today is pages/today.py: the Today queue without the rest of Home.
 
     # --------------------------------------------------------------- calendar
 

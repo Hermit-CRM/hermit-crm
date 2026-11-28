@@ -537,9 +537,9 @@ def test_done_also_clears_the_radar_on_the_home_page_and_the_command_line(root, 
     line = "lindenhof-data | Mara Keller"
     assert cli.main(["followups"], root=root) == 0
     assert line in capsys.readouterr().out
-    assert "A first message." in home.get("/").text   # the radar row's last message
+    assert 'id="nudge-lindenhof-data"' in home.get("/").text   # its row on Today
 
     post(home, "/outreach/followups/done", followup=f"lindenhof-data/{sent.id}")
     assert cli.main(["followups"], root=root) == 0
     assert line not in capsys.readouterr().out
-    assert "A first message." not in home.get("/").text
+    assert 'id="nudge-lindenhof-data"' not in home.get("/").text

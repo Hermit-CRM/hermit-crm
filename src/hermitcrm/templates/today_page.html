@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{# /today (pages/today.py): the Today queue without the rest of Home. #}
+{% block title %}Today{% endblock %}
+{% block content %}
+<h1>Today</h1>
+<p class="small">What is waiting on you, most urgent first. <a href="/">Home</a> shows the same list with the rest of the home page.</p>
+{% include "today.html" %}
+{% endblock %}

@@ -207,8 +207,9 @@ def test_demo_every_web_page_returns_200(tmp_path):
     bad = {u: r.status_code for u in urls if (r := client.get(u)).status_code != 200}
     assert bad == {}
     assert len(urls) > 40 and any("/contacts/" in u and "merge" in u for u in urls)
-    # /today and merge pages without a target redirect by design; the target loads.
-    for url in ("/today", f"/companies/{companies[0].slug}/merge"):
+    assert client.get("/today").status_code == 200
+    # Merge pages without a target redirect by design; the target loads.
+    for url in (f"/companies/{companies[0].slug}/merge",):
         r = client.get(url)
         assert r.status_code == 303
         assert client.get(r.headers["location"]).status_code == 200

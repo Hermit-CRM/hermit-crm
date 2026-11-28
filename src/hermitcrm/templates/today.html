@@ -1,0 +1,47 @@
+{# The Today queue (hermitcrm/today.py): one prioritised list of what to do now.
+   Included by home.html (section "next") and by today_page.html (/today).
+   Expects `queue`, `today_limit` (None shows every row), `today_back` (where a
+   row's form comes back to) and `today_all_url`. Every action is an existing
+   POST route or a link; the forms carry data-live so a script can upgrade them,
+   and work as plain posts without it. #}
+{% set groups = queue.groups(limit=today_limit) %}
+<section class="today" id="next" aria-labelledby="next-title">
+<h2 id="next-title">What to do now{% if queue.total %} <span class="today-total">({{ queue.total }})</span>{% endif %}</h2>
+{% if queue.failed %}<p class="small today-failed">Part of this list could not be read ({{ queue.failed | join(', ') }}); the rest is below. <code>hermitcrm check</code> says more.</p>{% endif %}
+{% if not queue.items %}
+<div class="today-empty">
+  <p><strong>Nothing is waiting.</strong>
+  {% if queue.next_up %}Next up: <a href="{{ queue.next_up.href }}">{{ queue.next_up.title }}</a> for {{ queue.next_up.who }}, due {{ fmt_date(queue.next_up.due) }}.
+  {% else %}Nothing else is dated either. <a href="/tasks">Add a task</a> or <a href="/pipeline">look at the pipeline</a>.{% endif %}</p>
+</div>
+{% else %}
+{% for g in groups %}
+<h3 class="today-group" id="today-{{ g.kinds[0] }}">{{ g.heading }} <span class="today-count">{{ g.count }}</span></h3>
+<ol class="today-list">
+  {% for i in g.items %}
+  <li class="today-row today-{{ i.kind }}" id="{{ i.key }}">
+    <span class="today-who">{% if i.company %}<a href="{{ i.href }}">{{ i.who }}</a>{% if i.contact %} <span class="small">{{ i.company.name }}</span>{% endif %}{% else %}<a href="{{ i.href }}">{{ i.title }}</a>{% endif %}{% if i.count > 1 %} <span class="today-badge" title="This row stands for {{ i.count }}">&times;{{ i.count }}</span>{% endif %}</span>
+    {% if i.company %}<span class="today-what">{{ i.title }}</span>{% endif %}
+    <span class="today-why">{{ i.reason }}</span>
+    <span class="today-actions">
+      {% for a in i.actions %}{% if a.method == 'post' %}
+      <form method="post" action="{{ a.href }}" class="inline" data-live>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="back" value="{{ today_back }}">
+        {% for k, v in a.fields %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+        <button type="submit"{% if a.secondary %} class="secondary"{% endif %}>{{ a.label }}</button>
+      </form>
+      {% else %}
+      <a class="today-act{% if a.secondary %} secondary{% endif %}" href="{{ a.href }}">{{ a.label }}</a>
+      {% endif %}{% endfor %}
+    </span>
+  </li>
+  {% endfor %}
+</ol>
+{% endfor %}
+{% if today_limit and queue.more(today_limit) %}
+<p class="today-more"><a href="{{ today_all_url }}">Show all {{ queue.items | length }} rows</a> <span class="small">{{ queue.more(today_limit) }} more not shown here</span></p>
+{% endif %}
+{% endif %}
+<p class="small today-links"><a href="/tasks">All tasks</a> &middot; <a href="/calendar">the calendar</a> &middot; <a href="/pipeline#followups">the follow-up radar</a> &middot; <a href="/help#today">how this list works</a></p>
+</section>

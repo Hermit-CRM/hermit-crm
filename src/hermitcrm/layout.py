@@ -48,12 +48,14 @@ SECTIONS = {
     "company": ("enrich", "next-step", "details", "contacts", "tasks", "files", "merge",
                 "timeline"),
     "contact": ("details", "tasks", "quick-add", "timeline", "files", "merge", "delete"),
-    "home": ("doing", "to-file", "owed", "keep-in-touch", "going"),
+    "home": ("next", "to-file", "going"),
 }
 
 # Section names an older layout.toml may still list: read and ignored, with no
-# problem reported (the Message drafts box is gone: Outreach replaced it).
-RETIRED_SECTIONS = ("drafts",)
+# problem reported. The Message drafts box is gone (Outreach replaced it), and
+# Home's What needs doing, Replies you owe and Keep in touch are one Today list
+# now (`next`, today.py).
+RETIRED_SECTIONS = ("drafts", "doing", "owed", "keep-in-touch")
 
 # Field names an older layout.toml may still list: read and ignored, with no
 # problem reported. A company's `notes` box is gone (company text is dated

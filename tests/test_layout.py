@@ -281,13 +281,13 @@ def test_default_section_order(client, acme):
     contact = client.get("/companies/acme/contacts/jane-doe").text
     assert order_of(contact, CONTACT_MARKERS) == list(layout.SECTIONS["contact"])
     home = client.get("/").text
-    assert order_of(home, HOME_MARKERS) == ["doing", "owed", "going"]  # nothing to file
+    assert order_of(home, HOME_MARKERS) == ["next", "going"]  # nothing to file
 
 
 def test_sections_reorder_and_hide(client, repo, acme):
     write_layout(repo, '[company]\nsections = ["timeline", "tasks"]\nhide_sections = ["merge"]\n'
                        '[contact]\nsections = ["tasks"]\nhide_sections = ["delete", "drafts"]\n'
-                       '[home]\nsections = ["going"]\nhide_sections = ["owed"]\n')
+                       '[home]\nsections = ["going"]\nhide_sections = ["next"]\n')
     company = client.get("/companies/acme").text
     assert order_of(company, COMPANY_MARKERS) == ["timeline", "tasks", "enrich", "next-step",
                                                   "details", "contacts", "files"]
@@ -297,8 +297,8 @@ def test_sections_reorder_and_hide(client, repo, acme):
                                                   "timeline", "files", "merge"]
     assert "Delete contact" not in contact
     home = client.get("/").text
-    assert order_of(home, HOME_MARKERS) == ["going", "doing"]
-    assert "Replies you owe" not in home
+    assert order_of(home, HOME_MARKERS) == ["going"]
+    assert "Replies you owe" not in home and "What to do now" not in home
 
 
 def test_to_file_moves_on_home(client, repo, acme):
@@ -306,9 +306,20 @@ def test_to_file_moves_on_home(client, repo, acme):
     (repo / "inbox" / "2026-09-13T0900-in-someone.md").write_text(
         "---\ndate: 2026-09-13T09:00\ndirection: in\naddress: someone@nowhere.example\n"
         "name: Some One\nsubject: Hello\nreason: no company matches\n---\nHi there.\n")
-    assert order_of(client.get("/").text, HOME_MARKERS) == ["doing", "to-file", "owed", "going"]
+    assert order_of(client.get("/").text, HOME_MARKERS) == ["next", "to-file", "going"]
     write_layout(repo, '[home]\nsections = ["to-file"]\n')
-    assert order_of(client.get("/").text, HOME_MARKERS) == ["to-file", "doing", "owed", "going"]
+    assert order_of(client.get("/").text, HOME_MARKERS) == ["to-file", "next", "going"]
+
+
+def test_old_home_section_names_still_load_without_a_problem(client, repo, acme):
+    """doing, owed and keep-in-touch are the one Today list now: a layout.toml
+    written before still loads, with nothing reported, and the page is whole."""
+    write_layout(repo, '[home]\nsections = ["owed", "keep-in-touch", "going"]\n'
+                       'hide_sections = ["doing"]\n')
+    assert layout.validate(repo) == []
+    home = client.get("/").text
+    assert order_of(home, HOME_MARKERS) == ["going", "next"]
+    assert "send the pricing" in home and "Question" in home
 
 
 def test_hidden_fields_leave_the_page_the_form_and_the_lists(client, repo, acme):
