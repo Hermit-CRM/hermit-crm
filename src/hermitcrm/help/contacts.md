@@ -57,12 +57,13 @@ on your screen.
 
 ## Keep in touch
 
-The follow-up radar and the silent list are about deals. **Keep in touch** on
-Home is about everyone else: people you have not spoken to in
-`keep_in_touch_days` days (default 180, about six months) who are not in an
-open deal. It is a read-only list, longest quiet first, eight on Home;
+The follow-up radar and the silent list are about deals. **Keep in touch**,
+the last group of the [Today list](/help#today) on Home, is about everyone
+else: people you have not spoken to in `keep_in_touch_days` days (default 180,
+about six months) who are not in an open deal. Longest quiet first, one row
+per company naming its people; **Show all** on Home lists every row, and
 `hermitcrm keep-in-touch` (and the `keep_in_touch` tool for an AI client)
-prints all of them.
+prints them too.
 
 - **Last touch** is the latest interaction logged against that person, in
   either direction: an email, a message, a call or a meeting. Notes do not

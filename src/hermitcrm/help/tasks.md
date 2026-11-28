@@ -24,7 +24,8 @@ also shows on the Companies list, the board and in PIPELINE.md.
 Above the table: **All dates**, **Overdue**, **Today**, **Next 7 days**,
 **Later** and **No date**, each with a count. Click several to combine them
 (Overdue plus Today is what used to be "Top priority"); click one again to turn
-it off. `/today` opens the page with Overdue and Today on.
+it off. The same overdue and today tasks are on Home's [Today list](/help#today)
+(`/today`), with replies owed and drafts.
 
 Tasks of every company are listed, closed ones (won, lost, disqualified)
 included, so a "revisit in March" on a lost deal is not forgotten. To leave
