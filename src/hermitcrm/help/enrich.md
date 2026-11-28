@@ -26,7 +26,9 @@ verify comes back as "not found", never guessed. When nothing could be
 verified but the CLI found sources (say, a LinkedIn profile at another
 company, which often means the contact sits under the wrong company), the
 proposal page still opens with its notes and sources to check by hand. A call can take a minute and
-uses that CLI's credits. CLI: `hermitcrm enrich <slug> [--contact <cslug>] [--apply]`.
+uses that CLI's credits. Enriching a company runs in the background: a progress
+page shows while the CLI works (you can go elsewhere; the badge at the top says
+when it is ready) and then the proposal page opens. CLI: `hermitcrm enrich <slug> [--contact <cslug>] [--apply]`.
 
 ## Which CLI
 

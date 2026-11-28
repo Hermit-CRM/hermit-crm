@@ -381,18 +381,18 @@ def test_the_follow_ups_tab_lists_the_due_ones_then_their_cards(client, root):
     assert f'value="{MARA}"' not in page.split("outreach-cards")[0]   # Mara's row is gone
 
 
-def test_a_batch_of_follow_ups_builds_one_per_request(client, root):
+def test_a_batch_of_follow_ups_builds_in_one_job(client, root):
     store = client.app.state.store
     send(store, days=6)
     send(store, days=8, company="kestrel-metrics", contact="daan-visser")
     first = post(client, "/outreach/build", kind=FOLLOW, where="", limit="2")
-    assert first.status_code == 303 and query(first).get("left") == "1", query(first)
-    assert query(first)["kind"] == FOLLOW
-    second = post(client, "/outreach/build", kind=FOLLOW, where="", limit="2",
-                  left="1", batch=query(first)["batch"])
+    assert first.status_code == 303 and first.headers["location"].startswith("/jobs/")
+    job = client.app.state.jobs.get(first.headers["location"].rsplit("/", 1)[1])
+    assert job.state == "done" and job.steps == "2 of 2", job.error
+    assert f"kind={FOLLOW}" in job.result["link"]
     built = outreach.items(root)
     assert len(built) == 2 and {i.kind for i in built} == {FOLLOW}
-    assert "left" not in query(second)
+    assert len({i.batch for i in built}) == 1
 
 
 def test_the_panel_follow_up_can_switch_channel_and_says_so_on_the_draft(client, root, fake):

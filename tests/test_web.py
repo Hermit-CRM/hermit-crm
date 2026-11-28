@@ -1419,6 +1419,14 @@ class StubEnricher:
         return self._proposal()
 
 
+def enriched(client, slug="acme"):
+    """Enrich runs as a background job (inline in tests): the POST goes to the job,
+    the job page shows what the route used to show."""
+    r = client.post(f"/companies/{slug}/enrich")
+    assert r.status_code == 303 and r.headers["location"].startswith("/jobs/")
+    return client.get(r.headers["location"])
+
+
 def test_enrich_company_preview_and_apply(client, app, repo):
     post_company(client, name="Acme")
     app.state.enricher = StubEnricher({})
@@ -1427,7 +1435,7 @@ def test_enrich_company_preview_and_apply(client, app, repo):
 
     app.state.enricher = StubEnricher({"website": "https://acme.de", "country": "DE"},
                                       missing=["website", "country", "ae_count"])
-    page = client.post("/companies/acme/enrich")
+    page = enriched(client)
     assert page.status_code == 200
     assert 'name="website" value="https://acme.de"' in page.text
     assert "not found: ae_count" in page.text and "https://example.com/about" in page.text
@@ -1440,15 +1448,15 @@ def test_enrich_company_preview_and_apply(client, app, repo):
     assert last_commit(repo) == "ai: company acme enriched"
 
     app.state.enricher = StubEnricher({}, missing=["linkedin"])
-    r = client.post("/companies/acme/enrich")
+    r = enriched(client)
     assert r.status_code == 303 and "found%20nothing" in r.headers["location"]
 
     app.state.enricher = StubEnricher({}, error="'claude' not found")
-    r = client.post("/companies/acme/enrich")
+    r = enriched(client)
     assert r.status_code == 303 and "not%20found" in r.headers["location"]
 
     app.state.enricher = StubEnricher({}, missing=[])
-    r = client.post("/companies/acme/enrich")
+    r = enriched(client)
     assert "every%20field%20is%20set" in r.headers["location"]
 
 

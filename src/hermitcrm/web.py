@@ -2223,22 +2223,51 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.post("/companies/{slug}/enrich", response_class=HTMLResponse)
     def company_enrich(request: Request, slug: str):
+        """Enrich as a background job; when it is done /jobs/<id> shows the same
+        preview page (or the same message) this route used to show itself."""
         company = need_company(slug, refresh=True)
+        enricher = tiered(request)
+        defs = custom_defs('company')
+
+        def propose(report):
+            report(f"Looking up {company.name}")
+            return {"proposal": dataclasses.asdict(enricher.propose_company(company, defs))}
+
+        job = app.state.jobs.start("enrich", f"Enrich {company.name}", propose,
+                                   back=f"/companies/{slug}",
+                                   params={"slug": slug,
+                                           "tier": request.query_params.get("tier", "")})
+        return goto(f"/jobs/{job.id}")
+
+    def company_enrich_done(request: Request, job):
+        """/jobs/<id> for an enrich job: the preview, or the message on the company page."""
+        if job.active:
+            return None   # the job page, with its progress
+        slug = job.params.get("slug", "")
+        back = f"/companies/{slug}"
+        company = store.get(slug)
+        app.state.jobs.mark_seen(job)
+        if company is None:
+            return flashed("/companies", f"Not enriched: {slug} is no longer in the CRM")
+        if job.state != "done":
+            return flashed(back, job.error)    # the EnrichError text, as before
+        from .enrich import Proposal
         try:
-            enricher = tiered(request)
-            proposal = enricher.propose_company(company, custom_defs('company'))
-        except EnrichError as exc:
-            return flashed(f"/companies/{slug}", str(exc))
+            proposal = Proposal(**job.result["proposal"])
+        except (KeyError, TypeError):
+            return flashed(back, "Enrichment found nothing it could verify")
         if not proposal.missing:
-            return flashed(f"/companies/{slug}", "Nothing to enrich: every field is set")
+            return flashed(back, "Nothing to enrich: every field is set")
         if not proposal.fields:
-            return flashed(f"/companies/{slug}",
-                           "Enrichment found nothing it could verify" +
+            return flashed(back, "Enrichment found nothing it could verify" +
                            (f": {proposal.notes}" if proposal.notes else ""))
-        return _proposal_page(request, company, proposal,
-                              f"/companies/{slug}/enrich/apply",
-                              f"Enrich {company.name}", f"/companies/{slug}",
-                              retry=f"/companies/{slug}/enrich", enricher=enricher)
+        tier = job.params.get("tier", "")
+        enricher = app.state.enricher.with_tier(tier) if tier else app.state.enricher
+        return _proposal_page(request, company, proposal, f"{back}/enrich/apply",
+                              f"Enrich {company.name}", back, retry=f"{back}/enrich",
+                              enricher=enricher)
+
+    app.state.jobs.views["enrich"] = company_enrich_done
 
     @app.post("/companies/{slug}/enrich/apply")
     async def company_enrich_apply(request: Request, slug: str):
@@ -5267,12 +5296,20 @@ def create_app(root: Path, config: dict | None = None,
                              signal: str = Form(""), note: str = Form(""),
                              language: str = Form(""), override: str = Form(""),
                              include_closed: list[str] = Form([])):
-        """Research and draft the next contact of the batch (one per request).
-        `contact` ("company/contact"): the Generate panel (with its signal, note
-        and language), or a reply on the Replies tab (`kind` reply-to-interest).
+        """Research and draft. Without `contact` ("Build queue"): one background job
+        builds the whole batch, one draft (one commit) per contact, and /jobs/<id>
+        shows "n of total". `contact` ("company/contact"): the Generate panel (with
+        its signal, note and language), or a reply on the Replies tab (`kind`
+        reply-to-interest), drafted in this request as before.
         `override=1` (the panel's Generate anyway) lifts a refusal that is a judgement
         (the approach's ideal customer), for that one contact only."""
         check_csrf(csrf_token)
+        building = None if contact else next(
+            (j for j in app.state.jobs.active() if j.kind == "outreach-batch" and j.active),
+            None)
+        if building is not None:   # two batches at once would pick the same people
+            return flashed(f"/jobs/{building.id}", "A batch is already building: here is "
+                           "its progress. Start the next one when it is done.")
         if kind not in outreach.BUILT_KINDS or (kind == outreach.REPLY and not contact):
             kind = outreach.FIRST_TOUCH
         form = outreach_form({"where": where, "channel": channel, "limit": limit,
@@ -5287,7 +5324,7 @@ def create_app(root: Path, config: dict | None = None,
             level = outreach.research_level(config, form["research"])
             selection = await run_in_threadpool(
                 outreach.select, store, where=outreach_where(form["where"]),
-                channel=form["channel"], kind=kind, limit=1,
+                channel=form["channel"], kind=kind, limit=1 if contact else form["left"],
                 approach=form["approach"],
                 contacts=[contact] if contact else None, config=config,
                 include_closed=form["include"], override=override == "1" and bool(contact))
@@ -5349,6 +5386,8 @@ def create_app(root: Path, config: dict | None = None,
         drafter = outreach.AIDrafter(store, enricher, config)
         critic = outreach.AICritic(store, enricher)
         batch_id = form["batch"] or f"{store.now():%Y-%m-%dT%H%M}-{form['channel']}"
+        if not contact:
+            return outreach_batch_job(selection, researcher, drafter, critic, form, batch_id)
         try:
             result = await run_in_threadpool(outreach.build, store, selection, researcher,
                                               drafter, config, None, batch_id, critic, pick)
@@ -5365,6 +5404,48 @@ def create_app(root: Path, config: dict | None = None,
         if remaining:
             line += f". Building the next one ({remaining} left)…"
         return flashed(f"/outreach?{query}", line, anchor=f"item-{item.id}")
+
+    def outreach_batch_job(selection, researcher, drafter, critic, form: dict,
+                           batch_id: str) -> RedirectResponse:
+        """Start the job that builds every picked contact of a batch: the same
+        `outreach.build` the one-contact path calls, once per person, so each draft is
+        still its own commits. One contact failing is a line in the result; the
+        batch goes on with the next."""
+        picked = list(selection.picked)
+        total = len(picked)
+        left_out = len(selection.stage_left_out)
+
+        def build_all(report):
+            lines, drafted, tab = [], 0, ""
+            for n, cand in enumerate(picked):
+                report(f"Drafting for {cand.who}", done=n, total=total)
+                try:
+                    one = outreach.build(store, dataclasses.replace(selection, picked=[cand]),
+                                         researcher, drafter, config, None, batch_id, critic)
+                except Exception as exc:   # this contact only: the batch goes on
+                    if not isinstance(exc, (outreach.OutreachError, EnrichError)):
+                        logger.exception("batch %s: building %s failed", batch_id, cand.who)
+                    lines.append(f"{cand.who}: not built ({exc})")
+                    continue
+                item = one.items[0]
+                if item.state == "drafted":
+                    drafted += 1
+                    tab = tab or outreach_tab(item)
+                lines.append(f"{cand.who}: " + ("drafted" if item.state == "drafted"
+                                                else f"skipped ({item.skip_note})"))
+                report(f"{cand.who}: {item.state}", done=n + 1, total=total)
+            if left_out:
+                lines.append(f"{left_out} left out because their company is not open; "
+                             "Preview lists them and lets you include them on purpose.")
+            query = outreach_query({**form, "left": 0, "batch": batch_id},
+                                   tab=tab or "drafts")
+            return {"lines": lines, "drafted": drafted, "link": f"/outreach?{query}",
+                    "link_text": "Review the drafts" if drafted else "Open Outreach"}
+
+        job = app.state.jobs.start(
+            "outreach-batch", f"Build {total} {form['channel']} draft{'s' if total != 1 else ''}",
+            build_all, back="/outreach", params={"batch": batch_id})
+        return goto(f"/jobs/{job.id}")
 
     @app.post("/outreach/note")
     async def outreach_contact_note(csrf_token: str = Form(""), contact: str = Form(""),
