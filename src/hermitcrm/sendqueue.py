@@ -617,7 +617,13 @@ def _tick(store: Store, settings: send.SendSettings, config: dict, state: send.S
             continue
         except Exception as exc:                     # a damaged file, a bug: never block the queue
             logger.exception("sending %s failed", item.id)
-            reason = f"Hermit could not send it ({type(exc).__name__}: {exc})"
+            error = f"{type(exc).__name__}: {exc}"
+            try:  # a Message-ID on disk: a try started, so the mail may be out
+                started = bool(outreach.get_item(store.root, item.id).message_id)
+            except Exception:
+                started = bool(item.message_id)
+            reason = (send.MAY_HAVE_GONE_OUT.format(error=error) if started
+                      else f"Hermit could not send it ({error})")
             send.hold(store, item, reason, now)
             lines.append(f"error: {item.id}: {reason}")
             continue

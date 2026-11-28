@@ -264,10 +264,32 @@ def _xlsx_number(value: str) -> str:
     return value
 
 
+# The limits textsource.py uses for documents: what an upload may weigh, and what
+# one part of an .xlsx may unpack to (a small zip can hold gigabytes of XML).
+MAX_FILE_BYTES = 15 * 1024 * 1024
+MAX_XML_BYTES = 20 * 1024 * 1024
+TOO_BIG_FILE = ("the file is larger than 15 MB; import it in parts, or save it as CSV "
+                "and paste the rows")
+TOO_BIG_XLSX = ("the .xlsx file is too large to read (over 20 MB unpacked); save the "
+                "sheet as CSV, or import it in parts")
+
+
+def _read_part(zf: zipfile.ZipFile, name: str) -> bytes:
+    """One part of the .xlsx, refused past MAX_XML_BYTES: by the size the zip
+    states, and again while reading, since that size is the sender's word."""
+    if zf.getinfo(name).file_size > MAX_XML_BYTES:
+        raise ValidationError({"file": TOO_BIG_XLSX})
+    with zf.open(name) as f:
+        data = f.read(MAX_XML_BYTES + 1)
+    if len(data) > MAX_XML_BYTES:
+        raise ValidationError({"file": TOO_BIG_XLSX})
+    return data
+
+
 def _first_sheet(zf: zipfile.ZipFile, names: set[str]) -> str:
     try:
-        workbook = ET.fromstring(zf.read("xl/workbook.xml"))
-        rels = ET.fromstring(zf.read("xl/_rels/workbook.xml.rels"))
+        workbook = ET.fromstring(_read_part(zf, "xl/workbook.xml"))
+        rels = ET.fromstring(_read_part(zf, "xl/_rels/workbook.xml.rels"))
         first = next(e for e in workbook.iter() if _local(e.tag) == "sheet")
         rid = next(v for k, v in first.attrib.items() if _local(k) == "id")
         target = next(r.get("Target", "") for r in rels if r.get("Id") == rid)
@@ -300,10 +322,14 @@ def xlsx_to_text(data: bytes) -> str:
             names = set(zf.namelist())
             shared = []
             if "xl/sharedStrings.xml" in names:
-                root = ET.fromstring(zf.read("xl/sharedStrings.xml"))
+                root = ET.fromstring(_read_part(zf, "xl/sharedStrings.xml"))
                 shared = [_xlsx_text(si) for si in root if _local(si.tag) == "si"]
-            sheet = ET.fromstring(zf.read(_first_sheet(zf, names)))
-    except (KeyError, ET.ParseError, zipfile.BadZipFile):
+            sheet = ET.fromstring(_read_part(zf, _first_sheet(zf, names)))
+    except ValidationError:
+        raise
+    except (KeyError, ET.ParseError, zipfile.BadZipFile, RuntimeError, NotImplementedError,
+            EOFError, OSError, zipfile.LargeZipFile):
+        # RuntimeError and the rest: encrypted, or packed in a way zipfile does not know.
         raise ValidationError({"file": "could not read the file as .xlsx"})
     out = io.StringIO()
     writer = csv.writer(out, delimiter="\t", lineterminator="\n")
@@ -339,7 +365,10 @@ def xlsx_to_text(data: bytes) -> str:
 
 
 def decode_upload(raw: bytes) -> str:
-    """Uploaded bytes as table text: .xlsx (zip magic) or a UTF-8/16/cp1252 text file."""
+    """Uploaded bytes as table text: .xlsx (zip magic) or a UTF-8/16/cp1252 text file.
+    More than MAX_FILE_BYTES is refused; the web form reads one byte past it."""
+    if len(raw) > MAX_FILE_BYTES:
+        raise ValidationError({"file": TOO_BIG_FILE})
     if raw[:2] == b"PK":
         return xlsx_to_text(raw)
     # UTF-16 only with a byte-order mark: without one, any even-length cp1252

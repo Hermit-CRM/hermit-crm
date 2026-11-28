@@ -8,6 +8,17 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **No second copy of an email when Hermit cannot check your Sent folder.**
+  Without an incoming mail server in Settings > Sending, a mail whose earlier
+  try may have gone out is no longer sent again by the scheduler: it goes
+  back to Ready and asks you to look in Sent, then press **Send now** if it is
+  not there. When Hermit stops after a mail left, the note now says it may
+  have gone out. What is sent, and to whom, is unchanged. See
+  [Sending](/help/sending).
+- **Spreadsheet import has size limits:** 15 MB per file and 20 MB for an
+  `.xlsx` once unpacked, the same as for documents. A file built to unpack to
+  gigabytes can no longer freeze the app. See [Import](/help/import).
+
 - **Save a contact to your phone with its camera.** Press **Save to phone** on a
   contact page, point your phone at the code and tap to add the person: name,
   company, title, phone, email and LinkedIn, never your notes. No sync, no
