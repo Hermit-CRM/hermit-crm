@@ -3918,6 +3918,7 @@ def create_app(root: Path, config: dict | None = None,
         }
 
     def settings_context(**extra) -> dict:
+        from . import autopilot  # Settings, Autopilot (its route: pages/assist.py)
         state = current_setup_state()
         owner = str(config.get("owner_email") or "")
         bcc_address = str(config.get("bcc_address") or "")
@@ -3990,6 +3991,7 @@ def create_app(root: Path, config: dict | None = None,
                               "provider": enricher.provider_name,
                               "reason": "" if enricher.available
                               else enricher.unavailable_reason()},
+            "autopilot_form": autopilot.settings_form(config, root),
             "outcomes_form": {"outcomes": "\n".join(
                                   setup_steps.parse_outcomes(config.get("outcomes") or [])),
                               "message_window_days": str(config.get("message_window_days")
