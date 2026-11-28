@@ -74,6 +74,7 @@
     {% else %}<dd class="empty">no touches yet</dd>{% endif %}
   </div>
 </dl>
+{% include "assist_chips.html" %}
 {% if elsewhere.company.total or elsewhere.others %}
 <section id="other-notes" class="other-notes">
   <h2>Notes elsewhere at {{ company.name }}</h2>

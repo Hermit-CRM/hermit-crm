@@ -2,8 +2,8 @@
 
 `/settings`: who you are, mail and calendar capture, backup, appearance, fields of your own, AI (Enrich and Ask the Hermit), outcomes, the daily schedule, access from a phone or an AI client, Support Hermit, and About.
 
-The page has five tabs: **General** (You, AI, Autopilot, Appearance, Support Hermit,
-About), **Email & calendar** (BCC capture, Calendar), **Your CRM** (Fields,
+The page has five tabs: **General** (You, AI, Autopilot, After-contact
+suggestions, Appearance, Support Hermit, About), **Email & calendar** (BCC capture, Calendar), **Your CRM** (Fields,
 Drafts, Task types, Deal stages, Outcomes), **Backup**, and **Advanced** (Schedule, access
 from a phone or an AI app, checking the installation). A section that is set
 up leads with its status, such as the last import; its form opens under
@@ -290,6 +290,54 @@ The drafts are committed like a routine's (`autopilot: <n> drafts`). The
 daily count, the last run, today's brief and the open proposals live in
 `.git/hermitcrm-autopilot.json`, which is never committed: a proposal is not on
 the record until you approve it.
+
+## After-contact suggestions
+
+Right after you log something, Hermit suggests what follows from it. The
+switch is **off** until you turn it on here, and turning it on is your consent
+to what it sends. With it off, logging makes no AI call at all.
+
+When it is on, each interaction you log (on the company or contact page, by
+BCC, from the calendar, from a LinkedIn conversation, or by filing one from
+the review queue) goes to your AI tool **on the light model, with its tools
+off**, together with the three interactions before it at that company and the
+company's fields (stage, value, country, website, tags, your own fields and
+open tasks). One call per interaction, in the background: the page does not
+wait for it. The answer can hold:
+
+- **a next step** with a due date (it becomes a task when you accept it);
+- **a stage move**, only to a stage you configured that the stage rules allow,
+  with one sentence of why;
+- up to **five facts**: the monthly value, one of your own company fields marked
+  `enrich = true` in `fields.toml` ([Fields](/help/settings#fields)), or a note.
+
+Each suggestion quotes the sentence of the interaction it comes from. One whose
+sentence is not in the interaction word for word is thrown away before you see
+it, and so is one the record would refuse (an unknown stage, a value that is
+not a number). Something logged with only a few words in it is not sent at all.
+
+What is left shows as **Suggested from your last contact** on the company page
+(and on the contact's page, for that person), and on Today under **Prepared for
+you**. **Accept** writes it with the normal change (one commit, so
+[undo](/help/backups) takes it back); **Edit** changes the text or date first;
+**Dismiss** drops it. A newer suggestion replaces an older one of the same kind
+(the next step, the stage, one field). The interaction itself is never changed.
+
+One import asks about at most **ten** interactions, the newest; its summary
+line names how many more it skipped. For a thread logged at once (a LinkedIn
+conversation, a run of mails with one person) only the newest message is
+asked about: the earlier ones are its context. When the AI tool is missing or
+fails, this section says why until a run works. A single interaction you log
+by hand shows its job in the top bar until the suggestions are ready.
+
+In `config.toml`:
+
+```toml
+after_contact = true
+```
+
+The suggestions live with autopilot's, in `.git/hermitcrm-autopilot.json`,
+never committed: nothing is on the record until you accept it.
 
 ## Client folders
 

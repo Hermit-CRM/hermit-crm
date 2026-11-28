@@ -8,6 +8,14 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **After-contact suggestions: log a call, and Hermit suggests what follows.**
+  Turn it on in Settings (General tab, off until you do). Each interaction you
+  log, by hand or by import, goes to your AI tool once, on the light model with
+  its tools off; it suggests a next step, a stage move and facts to save, each
+  quoting the sentence it comes from. They show on the company page and on
+  Today, where you accept, edit or dismiss each one. Nothing is saved to the
+  record until you accept it, and one import asks about ten interactions at most.
+
 - **Autopilot: the morning's drafts are ready when you open the app.** A new
   Settings section (General tab) turns on reply drafts, follow-up drafts and a
   morning brief, made right after the daily sync, and next-step proposals for

@@ -592,9 +592,13 @@ def approve_proposal(store, proposal_id: str) -> str:
 
 
 def _approve_next_step(store, proposal: Proposal) -> str:
-    store.add_task(proposal.company, proposal.text, due=proposal.due or None,
-                   message=f"task: {proposal.company} added (autopilot proposal)")
     company = store.companies.get(proposal.company)
+    # A proposal about one person (the after-contact assistant, assist.py) is
+    # their task, while they are still on file; the company's next step either way.
+    contact = proposal.contact if company and proposal.contact in company.contacts else ""
+    store.add_task(proposal.company, proposal.text, due=proposal.due or None,
+                   contact=contact,
+                   message=f"task: {proposal.company} added (autopilot proposal)")
     return f"Next step added for {company.name if company else proposal.company}"
 
 

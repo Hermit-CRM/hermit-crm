@@ -1279,12 +1279,14 @@ def _retry_network(attempt, errors: tuple, waits: tuple, sleep):
 
 def cmd_bcc(store: Store, root: Path, config: dict, apply: bool = False,
             eml: list[Path] | tuple = (), open_mailbox=None,
-            retry_waits: tuple = (), sleep=time.sleep) -> tuple[str, int]:
-    """Import mails BCC'd or forwarded to the tracking address (no AI)."""
-    from hermitcrm import bcc
+            retry_waits: tuple = (), sleep=time.sleep, enricher=None) -> tuple[str, int]:
+    """Import mails BCC'd or forwarded to the tracking address (no AI, unless
+    after-contact suggestions are switched on: assist.py)."""
+    from hermitcrm import assist, bcc
 
     settings = bcc.settings_from_config(config)
     inbox = bcc.Inbox(root)
+    watch = assist.Watch(store, config, active=apply)
     try:
         if eml:
             result = bcc.import_mails(store, inbox, [Path(p).read_bytes() for p in eml],
@@ -1297,6 +1299,9 @@ def cmd_bcc(store: Store, root: Path, config: dict, apply: bool = False,
     except bcc.BccError as exc:
         return (f"BCC import failed: {exc}", 1)
     lines = result.lines + [result.summary()]
+    after = watch.queue(enricher=enricher)
+    if after:
+        lines.append(after[0].upper() + after[1:])
     if not apply:
         lines.append("Dry run; add --apply to write and mark the mails read.")
     return ("\n".join(lines), 0)
@@ -1431,12 +1436,14 @@ def cmd_report(store: Store, days: int | None = None, start: date | None = None,
 def cmd_calendar(store: Store, root: Path, config: dict, apply: bool = False,
                  ics: list[Path] | tuple = (), fetch=None, resolve=None,
                  quiet_if_unconfigured: bool = False, retry_waits: tuple = (),
-                 sleep=time.sleep) -> tuple[str, int]:
-    """Import past meetings from the secret ICS feed, or from .ics files (no AI)."""
-    from hermitcrm import bcc, calendar_sync
+                 sleep=time.sleep, enricher=None) -> tuple[str, int]:
+    """Import past meetings from the secret ICS feed, or from .ics files (no AI,
+    unless after-contact suggestions are switched on: assist.py)."""
+    from hermitcrm import assist, bcc, calendar_sync
 
     settings = calendar_sync.settings_from_config(config)
     inbox = bcc.Inbox(root)
+    watch = assist.Watch(store, config, active=apply)
     try:
         if ics:
             events = []
@@ -1459,6 +1466,9 @@ def cmd_calendar(store: Store, root: Path, config: dict, apply: bool = False,
     except (calendar_sync.CalendarError, OSError) as exc:
         return (f"Calendar import failed: {exc}", 1)
     lines = result.lines + [result.summary()]
+    after = watch.queue(enricher=enricher)
+    if after:
+        lines.append(after[0].upper() + after[1:])
     if not apply:
         lines.append("Dry run; add --apply to write.")
     return ("\n".join(lines), 0)
@@ -1471,10 +1481,10 @@ def cmd_sync(store: Store, root: Path, config: dict, apply: bool = False,
     every routine that is on. A routine that fails is one line, never the exit code.
     Each import waits out a network that is not back yet (see SYNC_RETRY_WAITS)."""
     bcc_text, bcc_code = cmd_bcc(store, root, config, apply=apply, open_mailbox=open_mailbox,
-                                 retry_waits=retry_waits, sleep=sleep)
+                                 retry_waits=retry_waits, sleep=sleep, enricher=enricher)
     cal_text, cal_code = cmd_calendar(store, root, config, apply=apply, fetch=fetch,
                                       resolve=resolve, quiet_if_unconfigured=True,
-                                      retry_waits=retry_waits, sleep=sleep)
+                                      retry_waits=retry_waits, sleep=sleep, enricher=enricher)
     text = f"== BCC ==\n{bcc_text}\n\n== Calendar ==\n{cal_text}"
     routine_lines = _sync_routines(store, config, apply, enricher)
     if routine_lines:

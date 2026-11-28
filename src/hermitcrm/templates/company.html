@@ -47,6 +47,7 @@
   </details>
   {% endif %}
 </div>
+{% include "assist_chips.html" %}
 {%- for section in layout_sections('company') %}{% if section == 'enrich' %}
 <div class="small record-actions">
   {% if enricher and enricher.available %}

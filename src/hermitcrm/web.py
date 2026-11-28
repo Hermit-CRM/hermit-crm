@@ -1542,6 +1542,8 @@ def create_app(root: Path, config: dict | None = None,
     templates.env.globals["attach_max_mb"] = lambda: store.attachment_limit() >> 20
     templates.env.globals["send_attachment_mb"] = lambda: outreach.attachment_limit_bytes(root) >> 20
     templates.env.globals["attachment_flags"] = outreach.attachment_flags
+    from . import assist  # the after-contact chips and Settings section (assist.py)
+    templates.env.globals["after_contact"] = assist.PageHelper(app)
 
     def company_files(slug: str) -> list:
         """The files already on a company's notes, newest first: what "attach again" offers."""
@@ -2111,6 +2113,8 @@ def create_app(root: Path, config: dict | None = None,
             return flashed(back, "Calendar import failed: "
                            + calendar_sync.setup_hint(app.state.calendar_settings), anchor)
         fetch = app.state.fetch_calendar
+        from . import assist  # after-contact suggestions for what it logs (off: nothing)
+        watch = assist.Watch(store, config)
         try:
             result = calendar_sync.run_calendar(store, inbox, app.state.calendar_settings, True,
                                                 lambda: fetch(url))
@@ -2120,7 +2124,9 @@ def create_app(root: Path, config: dict | None = None,
         except Exception as exc:
             logger.exception("calendar import crashed")
             return flashed(back, f"Calendar import failed: {type(exc).__name__}: {exc}", anchor)
-        return flashed(back, "Calendar import: " + result.summary(), anchor)
+        after = watch.queue(jobs=app.state.jobs, enricher=app.state.enricher)
+        return flashed(back, "Calendar import: " + result.summary()
+                       + (f"; {after}" if after else ""), anchor)
 
     # ---------------------------------------------------------------- import
 
@@ -2874,6 +2880,10 @@ def create_app(root: Path, config: dict | None = None,
         message = f"{len(result.ids)} {noun} imported"
         if logged:
             message += f", {logged} already logged"
+        from . import assist  # after-contact suggestions: "" and no AI call when off
+        after = assist.after_logged(store, config, [(picked[0], i) for i in result.ids],
+                                    jobs=app.state.jobs, enricher=app.state.enricher)
+        message += f"; {after}" if after else ""
         return flashed(f"/companies/{picked[0]}/contacts/{picked[1]}", message)
 
     @app.get("/companies/new", response_class=HTMLResponse)
@@ -3705,8 +3715,11 @@ def create_app(root: Path, config: dict | None = None,
                 else f"/companies/{slug}")   # a note for the whole company
         done = "Note added" if created.is_note else "Interaction logged"
         n = len(created.attachments)
-        return flashed(back, done + (f" with {n} file{'s' if n != 1 else ''}" if n else ""),
-                       anchor=f"i-{created.id}")
+        done += f" with {n} file{'s' if n != 1 else ''}" if n else ""
+        from . import assist  # after-contact suggestions: "" and no AI call when off
+        after = assist.after_logged(store, config, [(slug, created.id)],
+                                    jobs=app.state.jobs, enricher=app.state.enricher)
+        return flashed(back, done + (f"; {after}" if after else ""), anchor=f"i-{created.id}")
 
     @app.get("/companies/{slug}/interactions/{id}/edit", response_class=HTMLResponse)
     def interaction_edit(request: Request, slug: str, id: str):
@@ -4817,6 +4830,8 @@ def create_app(root: Path, config: dict | None = None,
 
     @app.post("/bcc/import")
     def bcc_import(request: Request):
+        from . import assist  # after-contact suggestions for what it logs (off: nothing)
+        watch = assist.Watch(store, config)
         try:
             result = bcc.run_bcc(store, inbox, app.state.bcc_settings, True,
                                  app.state.open_mailbox)
@@ -4827,7 +4842,9 @@ def create_app(root: Path, config: dict | None = None,
             logger.exception("BCC import crashed")
             return flashed("/settings", f"BCC import failed: {type(exc).__name__}: {exc}",
                            anchor="bcc")
-        return flashed("/settings", "BCC import: " + result.summary(), anchor="bcc")
+        after = watch.queue(jobs=app.state.jobs, enricher=app.state.enricher)
+        return flashed("/settings", "BCC import: " + result.summary()
+                       + (f"; {after}" if after else ""), anchor="bcc")
 
     @app.post("/inbox/{item_id}/assign")
     def inbox_assign(request: Request, item_id: str, company: str = Form(""),
@@ -4840,6 +4857,10 @@ def create_app(root: Path, config: dict | None = None,
         except ValidationError as exc:
             return home_page(request, status_code=400, errors=exc.errors)
         note = "" if slug in existed else f" (new company {store.get(slug).name})"
+        from . import assist  # after-contact suggestions: "" and no AI call when off
+        after = assist.after_logged(store, config, [(slug, it.id)], jobs=app.state.jobs,
+                                    enricher=app.state.enricher)
+        note += f"; {after}" if after else ""
         return flashed("/", f"Logged at {slug}/{it.contact}{note}", anchor="to-file")
 
     @app.post("/inbox/{item_id}/discard")
