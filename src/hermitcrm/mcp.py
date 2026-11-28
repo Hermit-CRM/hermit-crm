@@ -197,6 +197,47 @@ def more(next_cursor: str | None, shown: int, total: int) -> str:
             f"cursor {next_cursor!r}.)")
 
 
+# ---------------------------------------------------------- the data folder
+
+
+@dataclass
+class Folder:
+    """What the tool modules (mcp_records, mcp_search, mcp_outreach, mcp_meta)
+    need from the folder they serve: its path, its store, and the same read and
+    write paths the first tools below use."""
+
+    root: Path
+    store: object
+
+    def fresh(self):
+        """The store, re-read: the web app, the CLI and a git pull all write
+        underneath a long-lived MCP session."""
+        self.store.load()
+        return self.store
+
+    def writable(self):
+        """The store with the commit-and-push write path the CLI uses attached."""
+        from .cli import _writer
+        from .store import load_config
+
+        current = self.fresh()
+        current.on_write = _writer(current, self.root, load_config(self.root))
+        return current
+
+    def head(self) -> str:
+        return subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.root,
+                              capture_output=True, text=True).stdout.strip()
+
+    @staticmethod
+    def as_int(value, name: str, default: int) -> int:
+        if value is None:
+            return default
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            raise ToolError(f"{name} must be a whole number, got {value!r}") from None
+
+
 # ------------------------------------------------------------------- the tools
 
 
@@ -697,7 +738,7 @@ def build_tools(root: Path, store) -> list[Tool]:
     days_field = text("integer", "How many days to cover.")
     list_of_text = {"type": "array", "items": {"type": "string"}}
 
-    return [
+    first = [
         Tool("list_pipeline",
              "The whole pipeline as one page: every open company by stage with its "
              "last touch and next step, plus overdue, silent and recently closed. "
@@ -910,6 +951,11 @@ def build_tools(root: Path, store) -> list[Tool]:
              undo_tool,
              title="Undo a commit", annotations=hints(destructive=True)),
     ]
+    from . import mcp_meta, mcp_outreach, mcp_records, mcp_search
+
+    folder = Folder(root, store)
+    return [*first, *mcp_search.tools(folder), *mcp_records.tools(folder),
+            *mcp_outreach.tools(folder), *mcp_meta.tools(folder)]
 
 
 class ToolError(Exception):
