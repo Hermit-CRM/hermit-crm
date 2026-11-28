@@ -42,6 +42,7 @@ except ImportError:  # pragma: no cover
 from . import attachments as attachments_mod
 from . import dateformat
 from . import fields as fields_mod
+from . import safewrite
 from .frameworks import ID as FRAMEWORK_ID
 from .attachments import Attachment, Incoming
 from .paths import contained
@@ -704,8 +705,7 @@ class Store:
     def write_company(self, c: Company) -> Path:
         path = self.company_dir(c.slug) / "company.md"
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(build_file(company_to_frontmatter(c), c.notes),
-                        encoding="utf-8")
+        safewrite.write_text(path, build_file(company_to_frontmatter(c), c.notes))
         self._touch(path)
         return path
 
@@ -713,8 +713,7 @@ class Store:
     def write_contact(self, company_slug: str, contact: Contact) -> Path:
         path = self.contact_file(company_slug, contact.slug)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(build_file(contact_to_frontmatter(contact), contact.notes),
-                        encoding="utf-8")
+        safewrite.write_text(path, build_file(contact_to_frontmatter(contact), contact.notes))
         self._touch(path)
         return path
 
@@ -722,8 +721,7 @@ class Store:
     def write_interaction(self, company_slug: str, it: Interaction) -> Path:
         path = self.interaction_file(company_slug, it.id)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(build_file(interaction_to_frontmatter(it), it.body),
-                        encoding="utf-8")
+        safewrite.write_text(path, build_file(interaction_to_frontmatter(it), it.body))
         self._touch(path)
         return path
 

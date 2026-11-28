@@ -34,7 +34,8 @@ from pathlib import Path
 from typing import Callable
 
 from .models import COUNTRY_CODE_ALIASES, DEFAULT_OUTCOMES, normalise_rule
-from .store import build_file, split_file
+from . import safewrite
+from .store import WriteLock, build_file, split_file
 from .updates import UPGRADE_HINT
 
 FORMAT_FILE = ".hermitcrm-format"
@@ -337,11 +338,10 @@ def _body_to_notes(data_dir: Path, path: Path, meta: dict, company_dir: Path,
         claimed.add(target)
         if write:
             folder.mkdir(exist_ok=True)
-            target.write_text(build_file(interaction_to_frontmatter(it), note),
-                              encoding="utf-8")
+            safewrite.write_text(target, build_file(interaction_to_frontmatter(it), note))
         changed.append(target.relative_to(data_dir).as_posix())
     if write:
-        path.write_text(text[:len(text) - len(body)], encoding="utf-8")
+        safewrite.write_text(path, text[:len(text) - len(body)])
     changed.append(path.relative_to(data_dir).as_posix())
     return changed
 
@@ -671,7 +671,7 @@ def current_format(data_dir: Path | str) -> int:
 
 def write_format(data_dir: Path | str, version: int = LATEST) -> Path:
     path = Path(data_dir) / FORMAT_FILE
-    path.write_text(f"{version}\n", encoding="utf-8")
+    safewrite.write_text(path, f"{version}\n")
     return path
 
 
@@ -707,7 +707,7 @@ def _run(migrations: list[Migration], data_dir: Path, write: bool) -> dict[int, 
         touched = {p for files in changed.values() for p in files}
         for path, (meta, body) in staged.items():
             if path.relative_to(data_dir).as_posix() in touched:
-                path.write_text(build_file(meta, body), encoding="utf-8")
+                safewrite.write_text(path, build_file(meta, body))
     # Folder steps run last and see the front matter as this run leaves it. A
     # step that read the disk instead would see the state before the file
     # passes, which is a different folder in a dry run and in a real one.
@@ -770,6 +770,20 @@ def _adopt_legacy_format_file(data_dir: Path) -> str:
 def ensure_current(data_dir: Path | str) -> str:
     """Run pending migrations in one commit; '' when there was nothing to do."""
     data_dir = Path(data_dir)
+    if not pending(data_dir) and not _legacy_format_file_waiting(data_dir):
+        return ""  # the usual case: no lock, so a long write elsewhere never stalls it
+    # The store's lock (.git/hermitcrm.lock): two processes starting on an old
+    # folder at once migrate one after the other, and the second finds nothing
+    # left to do; a write in the web app or the daily sync never interleaves.
+    with WriteLock(data_dir):
+        return _ensure_current_locked(data_dir)
+
+
+def _legacy_format_file_waiting(data_dir: Path) -> bool:
+    return (data_dir / LEGACY_FORMAT_FILE).exists() and not (data_dir / FORMAT_FILE).exists()
+
+
+def _ensure_current_locked(data_dir: Path) -> str:
     renamed = _adopt_legacy_format_file(data_dir)
     todo = pending(data_dir)
     if not todo:
