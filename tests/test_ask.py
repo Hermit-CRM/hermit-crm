@@ -82,7 +82,8 @@ def test_falls_back_to_the_whole_crm_read_only(tmp_path):
     answer = asking.ask(e, "How many are qualified?", "/", "<main>board</main>", tmp_path)
     assert answer.scope == "crm" and answer.sources == ["PIPELINE.md"]
     first, second = e.runner.calls
-    assert second["cwd"] == str(tmp_path) and second["tools"] == asking.CRM_TOOLS
+    # The walk runs in a copy of the folder without dotfiles (test_ask_secrets.py).
+    assert second["cwd"] != str(tmp_path) and second["tools"] == asking.CRM_TOOLS
     assert "Edit" not in second["tools"] and "Write" not in second["tools"]
     assert second["extra_path"] and "CLAUDE.md" in second["prompt"]
 
