@@ -107,7 +107,9 @@ def test_update_company_writes_one_commit_and_undo_restores_it(tools, folder):
     text, failed = call(tools, "update_company", company="acme",
                         website="https://acme.example.com", tags="saas, nl")
     assert not failed, text
-    assert "acme.example.com" in company_file(folder)
+    website = [line for line in company_file(folder).splitlines()
+               if line.startswith("website:")]
+    assert website == ["website: https://acme.example.com"]
     assert int(git(folder, "rev-list", "--count", "HEAD")) == n + 1
     assert subject(folder) == "company: acme updated"
     assert "companies/acme/company.md" in touched(folder)
