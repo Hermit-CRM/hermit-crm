@@ -81,4 +81,11 @@
   window.addEventListener("pageshow", function () {
     document.querySelectorAll("button.is-busy").forEach(stop);
   });
+  // live.js put the answer in place without a page load: the wait is over. A
+  // button that was replaced took its note with it; the top bar is the page's.
+  document.addEventListener("hermit:swap", function () {
+    document.querySelectorAll("button.is-busy").forEach(stop);
+    document.querySelectorAll(".busy-bar").forEach(function (bar) { bar.remove(); });
+    root.classList.remove("is-working");
+  });
 })();

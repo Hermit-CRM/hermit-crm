@@ -50,6 +50,7 @@
   }
 
   function upgrade(box) {
+    if (box.parentNode && box.parentNode.classList.contains("date-wrap")) return;   // done already
     var withTime = box.hasAttribute("data-time");
     var native = document.createElement("input");
     native.type = withTime ? "datetime-local" : "date";
@@ -91,4 +92,5 @@
   function init() { Array.prototype.forEach.call(document.querySelectorAll("input.date-input"), upgrade); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
+  document.addEventListener("hermit:swap", init);   // live.js replaced part of the page
 })();

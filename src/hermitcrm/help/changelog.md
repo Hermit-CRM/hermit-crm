@@ -8,6 +8,12 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Tasks change without a page reload.** Done, Reopen, Edit, Delete, the type
+  and Add task update the list in place, on the Tasks page and on company and
+  contact pages; the page keeps its place and a short message in the corner says
+  what happened. Without JavaScript they work as before. No data change. See
+  [Tasks](/help/tasks#without-a-page-reload).
+
 - **Save a contact to your phone with its camera.** Press **Save to phone** on a
   contact page, point your phone at the code and tap to add the person: name,
   company, title, phone, email and LinkedIn, never your notes. No sync, no

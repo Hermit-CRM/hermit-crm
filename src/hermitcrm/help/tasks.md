@@ -53,4 +53,12 @@ list of its people.
 which task is the next step. Done tasks have no Edit button: reopen one first.
 To change who a task is for, delete it and add it again.
 
+## Without a page reload
+
+**Done**, **Reopen**, **Edit**, **Delete**, a new type and **Add task** change
+the list where it is: the page does not reload, it stays where you scrolled to,
+and a short message in the bottom right corner says what happened. It goes after
+a few seconds; hover over it or press Tab to it to keep it longer, or press
+**×**. With JavaScript turned off the same buttons work by loading the page again.
+
 Related: [Companies](/help/companies), [Calendar](/help/calendar)
