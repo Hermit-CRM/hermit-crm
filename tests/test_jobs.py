@@ -200,10 +200,11 @@ def test_the_json_endpoints(app, client):
     runner = app.state.jobs
     hold = Hold()
     runner.executor = hold
-    job = runner.start("ask", "Ask: who?", lambda report: report("Reading", 1, 2) or {"x": 1})
+    # "demo": a kind without a page of its own (an Ask job opens on the Ask page)
+    job = runner.start("demo", "Demo: who?", lambda report: report("Reading", 1, 2) or {"x": 1})
     r = client.get(f"/jobs/{job.id}.json")
     assert r.status_code == 200 and r.headers["cache-control"] == "no-store"
-    assert r.json()["state"] == "queued" and r.json()["label"] == "Ask: who?"
+    assert r.json()["state"] == "queued" and r.json()["label"] == "Demo: who?"
     assert [j["id"] for j in client.get("/jobs/active.json").json()["jobs"]] == [job.id]
     hold.go()
     data = client.get(f"/jobs/{job.id}.json").json()
@@ -244,7 +245,7 @@ def test_the_job_page_shows_a_failure(app, client):
     def no(report):
         raise EnrichError("The AI run timed out after 300 s")
 
-    job = app.state.jobs.start("ask", "Ask: who?", no)
+    job = app.state.jobs.start("demo", "Demo: who?", no)
     page = client.get(f"/jobs/{job.id}").text
     assert "Failed" in page and "The AI run timed out after 300 s" in page
 
