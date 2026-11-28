@@ -55,6 +55,11 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   `.xlsx` once unpacked, the same as for documents. A file built to unpack to
   gigabytes can no longer freeze the app. See [Import](/help/import).
 
+- **The MCP server labels its tools.** Each of the nineteen tools now has a
+  title and says whether it only reads, overwrites something, or only adds, so
+  an AI app can ask you before the ones that write. Nothing else changes. See
+  [AI agents](/help/ai-agents#connecting-over-mcp).
+
 - **Save a contact to your phone with its camera.** Press **Save to phone** on a
   contact page, point your phone at the code and tap to add the person: name,
   company, title, phone, email and LinkedIn, never your notes. No sync, no

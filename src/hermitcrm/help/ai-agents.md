@@ -170,8 +170,8 @@ The tools, reads first:
 | `bulk_apply` | Apply that change after the user said yes; one commit. |
 | `undo` | Reverse one commit with a new one (`git revert`). |
 
-Seventeen tools: ten that only read (`bulk_preview` included) and seven that
-write. The three `add_` tools are the same `store.create_*` calls the web form and
+Nineteen tools: twelve that only read (`adjust_help`, `adjust_read` and
+`bulk_preview` included) and seven that write. The three `add_` tools are the same `store.create_*` calls the web form and
 `hermitcrm add` make, so validation, slugging, the prospect-to-engaged move and
 the git commit are shared rather than copied. Each one writes a file and makes a
 commit, so call them only when a record has actually been asked for.
@@ -201,6 +201,12 @@ page asks an agent to keep are enforced rather than only written down:
   run always comes first. Interaction bodies are never changed.
 - Every write is one commit (`ai: adjust: <summary>` or `bulk: ...`), and the
   answer gives its id for `undo`. Nothing is ever sent: messages are drafts.
+
+Every tool carries a title and the protocol's four hints, so a client can show
+which tools only read and ask before the ones that write: read-only or not,
+destructive (overwrites something) or only adding, idempotent (calling it twice
+changes nothing more) or not, and closed-world for all of them, because a tool
+only ever works on this data folder.
 
 Every tool re-reads the folder before answering, so a long-lived MCP session
 does not serve a snapshot from whenever the client connected.
