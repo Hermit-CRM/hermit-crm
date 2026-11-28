@@ -397,7 +397,7 @@ def build_message(item, to: str, settings: SendSettings, *, message_id: str,
 def connect(settings: SendSettings, password: str, factory=None, timeout: float = TIMEOUT):
     """An authenticated SMTP connection: STARTTLS on 587, SSL on 465."""
     ssl_port = settings.smtp_port == 465
-    factory = factory or (mailtls.smtp_ssl if ssl_port else smtplib.SMTP)
+    factory = factory or (mailtls.smtp_ssl if ssl_port else mailtls.smtp)
     conn = None
     try:
         conn = factory(settings.smtp_host, settings.smtp_port, timeout=timeout)

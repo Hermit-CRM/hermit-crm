@@ -8,6 +8,13 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Sending no longer waits half a minute first on some networks.** Before each
+  send and each test mail, Hermit asked the network for your computer's full
+  name to greet the mail server. Where the network cannot answer (common on
+  home routers), that question hung for about 30 seconds every time. Hermit now
+  greets the server with the address it connects from instead: no lookup, and
+  your computer's name is no longer sent. Nothing else about sending changes.
+
 - **Save a contact to your phone with its camera.** Press **Save to phone** on a
   contact page, point your phone at the code and tap to add the person: name,
   company, title, phone, email and LinkedIn, never your notes. No sync, no
