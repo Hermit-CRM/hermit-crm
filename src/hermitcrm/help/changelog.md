@@ -8,6 +8,13 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Sending no longer waits half a minute first on some networks.** Before each
+  send and each test mail, Hermit asked the network for your computer's full
+  name to greet the mail server. Where the network cannot answer (common on
+  home routers), that question hung for about 30 seconds every time. Hermit now
+  greets the server with the address it connects from instead: no lookup, and
+  your computer's name is no longer sent. Nothing else about sending changes.
+
 - **A crash or power cut while saving no longer leaves a cut-off record.**
   Companies, contacts and interactions are written to a temporary file first
   and then swapped in, so a file is either the old version or the new one.
