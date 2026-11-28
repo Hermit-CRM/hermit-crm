@@ -27,7 +27,8 @@
  *                                  board's stage select): it stands in for an
  *                                  inline onchange="this.form.submit()"
  *
- * The answer's flash line becomes a toast in #toasts, the address bar shows the
+ * The answer's flash line becomes a toast in #toasts (with the Undo form under
+ * that line, templates/undo_form.html, when it has one), the address bar shows the
  * answer's address without ?flash=, scroll and focus stay where they were, and
  * a "hermit:swap" event on document tells the other scripts to look at the new
  * part (event.detail.regions). It falls back to the ordinary page load whenever
@@ -50,7 +51,7 @@
 
   /* ---------------------------------------------------------------- toasts */
 
-  function toast(text) {
+  function toast(text, undo) {
     var box = document.getElementById("toasts");
     if (!box || !text) return;
     var item = document.createElement("div");
@@ -64,6 +65,11 @@
     close.setAttribute("aria-label", "Dismiss");
     close.textContent = "\u00d7";
     item.appendChild(words);
+    if (undo) {                         // sent like any data-live form; a page whose <main>
+      undo.setAttribute("data-live", ""); // cannot be swapped loads in full, as for any other
+      undo.removeAttribute("style");    // the spacing it has under the flash line
+      item.appendChild(undo);
+    }
     item.appendChild(close);
     var old = box.querySelectorAll(".toast");
     for (var i = 0; i <= old.length - TOASTS_KEPT; i++) old[i].remove();
@@ -281,6 +287,8 @@
 
   function apply(form, submitter, response, html, parts, state) {
     var doc = new DOMParser().parseFromString(html, "text/html");
+    var sent = form.closest(".toast");    // its Undo was pressed: that toast has had its say
+    if (sent && !(response.status >= 400)) sent.remove();
     var final = new URL(response.url || location.href);
     var error = response.status >= 400;
     // A success that lands on another page (a lost stage that needs its reason,
@@ -303,9 +311,10 @@
 
     var flash = doc.querySelector("main p.flash");
     var message = flash ? flash.textContent.trim() : (final.searchParams.get("flash") || "");
-    all(document, "main p.flash").forEach(function (p) { p.remove(); });    // an older message
+    var undo = doc.querySelector("main form.flash-undo");
+    all(document, "main p.flash, main form.flash-undo").forEach(function (p) { p.remove(); });    // an older message
     pairs.forEach(function (pair) {
-      all(pair.fresh, "p.flash").forEach(function (p) { p.remove(); });
+      all(pair.fresh, "p.flash, form.flash-undo").forEach(function (p) { p.remove(); });
       var scrollers = all(pair.el, ".table-scroll, .board");
       var offsets = scrollers.map(function (s) { return [s.scrollLeft, s.scrollTop]; });
       var own = [pair.el.scrollLeft, pair.el.scrollTop];
@@ -324,7 +333,7 @@
     window.scrollTo(state.x, state.y);
     var fresh = pairs.map(function (p) { return p.fresh; });
     refocus(state.focus, fresh, error);
-    if (message) toast(message);
+    if (message) toast(message, undo && message ? document.importNode(undo, true) : null);
     document.dispatchEvent(new CustomEvent("hermit:swap", {
       detail: { regions: fresh, url: location.href, status: response.status }
     }));

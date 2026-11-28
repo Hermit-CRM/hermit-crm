@@ -8,6 +8,23 @@ from the history. What the history cannot protect is *itself*: a
 force-push loses it. Anything with a shell in the folder can do that -- you, a
 script, or an AI agent that meant well. The backup covers that case.
 
+## Undo a change
+
+Right after you change something in the web app (move a stage, tick off a
+task, delete an interaction, save a form) the message that says what happened
+carries an **Undo** button. With JavaScript on it sits in the small message at
+the bottom right; without it, under the message line at the top of the page.
+
+- Undo makes a new commit that reverses the change, so nothing is erased: the
+  change and its undo are both in the history, and **Undo** on the "Undone"
+  message brings the change back.
+- The button stays while you reload that page, for two minutes. After that, or
+  once a later change has been made, undo the change from the list of changes
+  instead, or ask your agent.
+- If a later change touched the same lines, or a file has edits that are not
+  committed yet, nothing is undone and the message says why.
+- A deleted interaction comes back exactly as it was, text and files included.
+
 ## Dangerous git commands are blocked
 
 Every data folder has a `.claude/settings.json` that stops Claude Code from

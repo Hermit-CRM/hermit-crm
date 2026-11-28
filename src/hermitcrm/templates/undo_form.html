@@ -1,0 +1,12 @@
+{#- Undo for the write this page reports (pages/live.py undo_offer): under the flash
+    line, as a <form> cannot sit inside its <p>, or with a line of its own (`note`)
+    after a write that has no flash. An ordinary form here (on a record page <main>
+    holds a script, so it is not swapped in place); live.js moves both into the
+    toast and makes its copy live there. -#}
+{% if undo_write.note %}<p class="flash">{{ undo_write.note }}</p>{% endif %}
+<form method="post" action="/live/undo" class="flash-undo" style="margin: -8px 0 12px">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="sha" value="{{ undo_write.sha }}">
+  <input type="hidden" name="back" value="{{ undo_write.back }}">
+  <button type="submit" class="undo-button" title="Take back: {{ undo_write.message }}">Undo</button>
+</form>

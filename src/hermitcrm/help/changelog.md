@@ -8,6 +8,14 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Undo right where you made a change.** After a stage move, a ticked-off
+  task, a deleted interaction or a saved form, the message that says what
+  happened has an **Undo** button (in the message at the bottom right, or
+  under the message line without JavaScript). It works for two minutes and
+  makes a new commit, so an undo can be undone too. Deleting an interaction
+  still asks first, and now says it can be taken back. No data change. See
+  [Backups and undo](/help/backups#undo-a-change).
+
 - **Sending no longer waits half a minute first on some networks.** Before each
   send and each test mail, Hermit asked the network for your computer's full
   name to greet the mail server. Where the network cannot answer (common on
