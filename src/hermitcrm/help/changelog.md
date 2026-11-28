@@ -94,6 +94,13 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   `log_call` and `weekly_review`. See
   [AI agents](/help/ai-agents#connecting-over-mcp).
 
+- **Build queue drafts the whole batch in the background.** One click builds
+  every draft of the batch while you keep working; a progress page (and the
+  badge at the top) says "2 of 3" and who it is on. Each draft is still saved on
+  its own, and one that fails no longer stops the rest. Enriching a company runs
+  in the background too, then opens the same proposal page. No data change. See
+  [Outreach](/help/outreach).
+
 - **Ask the Hermit runs in the background.** Press **Ask** and go on working:
   the Ask page shows what Hermit is doing, a badge at the top of every page says
   when the answer is ready, and an answer survives a restart. No data change.

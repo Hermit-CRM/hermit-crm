@@ -352,6 +352,6 @@ def test_enrich_preview_offers_retry_with_strong(app_client):
     runner = ScriptedRunner({"linkedin": "https://www.linkedin.com/company/x", "sources": [],
                              "notes": ""})
     app.state.enricher = Enricher(provider="claude", which=ALL, runner=runner)
-    r = client.post(f"/companies/{slug}/enrich")
+    r = client.get(client.post(f"/companies/{slug}/enrich").headers["location"])
     assert r.status_code == 200 and "Retry with Fable" in r.text
     assert f'action="/companies/{slug}/enrich?tier=strong"' in r.text

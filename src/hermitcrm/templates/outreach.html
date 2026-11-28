@@ -98,7 +98,6 @@
 <form class="outreach-build" method="post" action="/outreach/build" id="outreach-build">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <input type="hidden" name="batch" value="{{ form.batch }}">
-  <input type="hidden" name="left" value="{{ form.left or '' }}">
   {% for rec in form.include %}{% if not preview or rec not in (preview.stage_left_out | map(attribute='record') | list) %}<input type="hidden" name="include_closed" value="{{ rec }}">{% endif %}{% endfor %}
   <label>Who <input name="where" value="{{ form.where }}" placeholder="stage=prospect; country=DE" size="32"></label>
   <label>Draft type <select name="kind"><option value="first-touch"{% if form.kind == 'first-touch' %} selected{% endif %}>first touch</option><option value="follow-up"{% if form.kind == 'follow-up' %} selected{% endif %}>follow-up</option></select></label>
@@ -108,8 +107,8 @@
   <label>Research <select name="research">{% for l in levels %}{% set off = l not in built_levels or (l == 'ai-web' and ai_web_problem) %}<option value="{{ l }}"{% if l == form.research %} selected{% endif %}{% if off %} disabled{% endif %}{% if l == 'ai-web' and ai_web_problem %} title="{{ ai_web_problem }}"{% endif %}>{{ l }}{% if l not in built_levels %} (later){% elif l == 'none' %} (use my notes){% elif l == 'ai-web' and ai_web_problem %} (Claude Code only){% endif %}</option>{% endfor %}</select></label>
   <label class="check"><input type="checkbox" name="strong" value="1"{% if form.strong %} checked{% endif %}> stronger model</label>
   <button type="submit" formmethod="get" formaction="/outreach" name="preview" value="1" class="secondary">Preview</button>
-  <button type="submit" data-busy="Building…"{% if gate or ai_problem %} disabled{% endif %}>{% if form.left %}Build the next one{% else %}Build queue{% endif %}</button>
-  {% if form.left %}<a href="/outreach" class="small" id="outreach-stop">Stop</a> <span class="small">Building: {{ form.left }} left</span>{% endif %}
+  <button type="submit" data-busy="Starting…"{% if gate or ai_problem %} disabled{% endif %}>Build queue</button>
+  <span class="small">Builds the whole batch in the background: you can keep working, the badge at the top shows how far it is.</span>
 </form>
 </details>
 
@@ -637,15 +636,6 @@
       }
     });
   });
-  {% if form.left and not gate and not ai_problem %}
-  // The batch builds one contact per request: send the next one, unless Stop.
-  var stopped = false;
-  var stop = document.getElementById("outreach-stop");
-  if (stop) stop.addEventListener("click", function () { stopped = true; });
-  window.setTimeout(function () {
-    if (!stopped) document.getElementById("outreach-build").requestSubmit();
-  }, 800);
-  {% endif %}
 })();
 </script>
 {% if gen %}<script src="/static/generate.js?v={{ asset_version }}" defer></script>
