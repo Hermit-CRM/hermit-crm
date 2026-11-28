@@ -8,6 +8,11 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Ask the Hermit runs in the background.** Press **Ask** and go on working:
+  the Ask page shows what Hermit is doing, a badge at the top of every page says
+  when the answer is ready, and an answer survives a restart. No data change.
+  See [Ask the Hermit](/help/ask#it-runs-in-the-background).
+
 - **Save a contact to your phone with its camera.** Press **Save to phone** on a
   contact page, point your phone at the code and tap to add the person: name,
   company, title, phone, email and LinkedIn, never your notes. No sync, no

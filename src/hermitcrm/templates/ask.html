@@ -9,6 +9,19 @@
 {% endif %}
 {% if error %}<p class="errors">{{ error }}</p>{% endif %}
 
+{% if job %}
+{#- The answer runs as a background job (jobs.py): jobs.js polls it and reloads this
+    page when it is done; without JavaScript the page refreshes itself. -#}
+<noscript><meta http-equiv="refresh" content="3"></noscript>
+<section class="ask-answer job-status" data-job="{{ job.id }}" data-job-active>
+  <p class="question"><strong>{{ question }}</strong></p>
+  <p class="job-line"><span class="job-spinner" aria-hidden="true"></span>
+    <strong data-job-state>{% if job.state == 'queued' %}Waiting to start{% else %}Working{% endif %}</strong></p>
+  <p class="job-progress" data-job-progress aria-live="polite">{{ job.progress }}</p>
+  <p class="small">This can take a minute. You can go to another page: the badge at the top says when the answer is ready.</p>
+</section>
+{% endif %}
+
 {% if answer %}
 <section class="ask-answer">
   <p class="question"><strong>{{ answer.question }}</strong></p>
