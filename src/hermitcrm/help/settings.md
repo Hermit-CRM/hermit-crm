@@ -2,7 +2,7 @@
 
 `/settings`: who you are, mail and calendar capture, backup, appearance, fields of your own, AI (Enrich and Ask the Hermit), outcomes, the daily schedule, access from a phone or an AI client, Support Hermit, and About.
 
-The page has five tabs: **General** (You, AI, Appearance, Support Hermit,
+The page has five tabs: **General** (You, AI, Autopilot, Appearance, Support Hermit,
 About), **Email & calendar** (BCC capture, Calendar), **Your CRM** (Fields,
 Drafts, Task types, Deal stages, Outcomes), **Backup**, and **Advanced** (Schedule, access
 from a phone or an AI app, checking the installation). A section that is set
@@ -242,6 +242,49 @@ above*, it follows the tool Enrich uses when that is Claude Code, Codex or
 Gemini CLI. The General tab's first card, **Make it yours with your AI**, opens
 the same page, and each section of the Your CRM tab has an *or describe it*
 link that starts it with a matching request.
+
+## Autopilot
+
+Autopilot prepares the morning's routine work right after the daily sync
+(`hermitcrm sync --apply`, the job under **Schedule**), so it is waiting when you
+open the app. It is the same work as [routines](/help/adjust-routines), built in:
+you switch each part on once, here, with no `routines.toml` to write. Every
+switch is **off** until you turn it on, and turning one on is your consent to
+what it sends to your AI tool:
+
+| Switch | What goes to your AI tool, and when |
+|---|---|
+| Reply drafts | After the sync, for each person who wrote to you and is still waiting: the company's record (as `hermitcrm show` prints it) and your playbook, with the tool's tools off. One draft each. |
+| Follow-up drafts | The same, for each thread where you wrote last and nothing came back within the follow-up days in Settings. |
+| Morning brief | Nothing: today's meetings, tasks due and replies owed, made on this computer. |
+| Next-step proposals | For each open company with no next step and a conversation in the last 14 days: its record, on the light model, tools off. It proposes a next step and a date. |
+
+What it prepares waits for you: drafts show on Today and on Home under
+*Drafts from routines*, where you edit one, send it yourself and click *I sent
+it*, or *Discard* it. **Nothing is ever sent, scheduled or marked ready for
+you.** A person who already has a draft waiting (from your own routines too)
+gets no second one, and a thread that was drafted once is not drafted again
+until something new is logged on it.
+
+**At most this many prepared items a day** (`autopilot_daily_cap`, default 15)
+stops a runaway: once that many drafts and proposals were made today, the rest
+wait for tomorrow. The morning brief does not count.
+
+When a run cannot work (no AI tool found, a tool that cannot run with its
+tools off, or every AI call failing, say after a lapsed login), Today says
+*Autopilot could not run* with the reason, and so does this section, until a
+run works. The sync and its imports go on regardless.
+
+In `config.toml`:
+
+```toml
+autopilot = { reply_drafts = true, follow_up_drafts = false, meeting_briefs = true, next_steps = false }
+autopilot_daily_cap = 15
+```
+
+The drafts are committed like a routine's (`autopilot: <n> drafts`); the
+daily count, the last run and today's brief live in
+`.git/hermitcrm-autopilot.json`, which is never committed.
 
 ## Client folders
 
