@@ -8,7 +8,7 @@
 {% block content %}
 {% if mode == 'form' %}
 <h1>Quick capture</h1>
-<p class="small">Type what happened in a sentence or two: who, how, and what you still have to do. Hermit reads it and shows you what it would file. Nothing is saved until you confirm. </p>
+<p class="small">Type what happened in a sentence or two: who, how, and what you still have to do. Hermit reads it and shows you what it would file. Nothing is saved until you confirm. <a href="/help/quick-capture">How it works</a></p>
 {% if error %}<div class="errors" role="alert">{{ error }}</div>{% endif %}
 {% if ai.available %}
 <form method="post" action="/quick-capture" class="record-form capture-form">

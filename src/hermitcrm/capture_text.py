@@ -36,11 +36,12 @@ from __future__ import annotations
 
 import calendar
 import re
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
 from . import ask, dateformat
 from .enrich import EnrichError
-from .models import Channel, match_choice
+from .models import Channel, ValidationError, match_choice, parse_date, parse_datetime
 
 NEW = "+new"            # the picker value that means "create it"
 MAX_TASKS = 8
@@ -394,3 +395,123 @@ def initial_values(proposal: dict) -> dict:
                   for t in proposal.get("tasks", [])],
         "do_stage": bool(stage), "stage": stage.get("to", ""), "lost_reason": "",
     }
+
+
+@dataclass
+class Filed:
+    url: str          # the page to open next: the person's, else the company's
+    message: str      # the commit message, also the flash
+
+
+def _split_name(name: str) -> tuple[str, str]:
+    first, _, last = " ".join(name.split()).partition(" ")
+    return first, last
+
+
+def check(store, values: dict) -> dict[str, str]:
+    """Every problem with what was confirmed, as {field: message}. Empty means `file`
+    will write it all; nothing it writes may fail halfway (one commit or none)."""
+    errors: dict[str, str] = {}
+    picked, new_company = values.get("company", ""), " ".join(
+        str(values.get("new_company") or "").split())
+    company = store.companies.get(picked) if picked and picked != NEW else None
+    if picked == NEW and not new_company:
+        errors["company"] = "type the name of the company to create"
+    elif picked != NEW and company is None:
+        errors["company"] = "pick a company (or create one)"
+    contact = values.get("contact", "")
+    if contact == NEW and not " ".join(str(values.get("new_contact") or "").split()):
+        errors["contact"] = "type the name of the person to create"
+    elif contact and contact != NEW and (company is None or contact not in company.contacts):
+        errors["contact"] = "that person is not at this company: pick again"
+    tasks = [t for t in values.get("tasks", []) if t.get("do")]
+    if not (values.get("do_interaction") or tasks or values.get("do_stage")):
+        errors["nothing"] = "tick at least one thing to file"
+    if values.get("do_interaction"):
+        if values.get("channel") not in CHANNELS:
+            errors["channel"] = "pick a channel"
+        elif values["channel"] != Channel.NOTE.value and values.get("direction") not in ("in",
+                                                                                      "out"):
+            errors["direction"] = "pick in or out"
+        try:
+            parse_datetime(values.get("date") or "")
+        except ValidationError as exc:
+            errors["date"] = exc.errors.get("date", str(exc))
+        outcome = values.get("outcome") or ""
+        if outcome and outcome not in store.outcomes:
+            errors["outcome"] = f"not one of {', '.join(store.outcomes)}"
+    for n, task in enumerate(values.get("tasks", []), start=1):
+        if not task.get("do"):
+            continue
+        if not " ".join(str(task.get("text") or "").split()):
+            errors[f"task {n}"] = "a task needs a line of text"
+        try:
+            parse_date(task.get("due") or "")
+        except ValidationError as exc:
+            errors[f"task {n}"] = exc.errors.get("date", str(exc))
+    if values.get("do_stage"):
+        stage = values.get("stage", "")
+        if stage not in store.stages.names:
+            errors["stage"] = "pick a stage"
+        else:
+            old = _stage_before_move(store, company, values)
+            problem = (store.stages.move_problem(old, stage)
+                       if store.stage_rules == "enforce" and old else None)
+            if problem:
+                errors["stage"] = problem
+            if store.stages.requires_reason(stage) and not " ".join(
+                    str(values.get("lost_reason") or "").split()):
+                errors["lost_reason"] = f"say why, for the move to {stage}"
+    return errors
+
+
+def _stage_before_move(store, company, values: dict) -> str:
+    """The stage the company is at when the move comes: logging a touch moves a
+    company at the entry stage on first (store.create_interaction)."""
+    old = company.stage if company is not None else store.stages.entry
+    touch = values.get("do_interaction") and values.get("channel") != Channel.NOTE.value
+    target = store.stages.advance_target
+    if touch and old == store.stages.entry and target and store.move_allowed(old, target):
+        return target
+    return old
+
+
+def file(store, values: dict, text: str) -> Filed:
+    """Write what was confirmed as one commit. Raises ValidationError, before writing
+    anything, when `check` finds a problem."""
+    errors = check(store, values)
+    if errors:
+        raise ValidationError(errors)
+    parts: list[str] = []
+    with store.batch("capture") as batch:
+        slug = values["company"]
+        if slug == NEW:
+            slug = store.create_company(" ".join(values["new_company"].split())).slug
+            parts.append("new company")
+        before = store.get(slug).stage
+        contact = values.get("contact", "")
+        if contact == NEW:
+            first, last = _split_name(values["new_contact"])
+            contact = store.create_contact(slug, first, last).slug
+            parts.append("new contact")
+        if values.get("do_interaction"):
+            it = store.create_interaction(
+                slug, values["channel"], values.get("direction", ""),
+                subject=values.get("subject", ""), contact=contact,
+                date=values.get("date") or None, outcome=values.get("outcome", ""),
+                body=text)
+            parts.append(f"{it.label} {it.contact_label}".strip())
+        tasks = [t for t in values.get("tasks", []) if t.get("do")]
+        for task in tasks:
+            store.add_task(slug, task["text"], due=task.get("due") or None, contact=contact)
+        if tasks:
+            parts.append(f"{len(tasks)} task{'s' if len(tasks) != 1 else ''}")
+        if values.get("do_stage") and store.get(slug).stage != values["stage"]:
+            store.update_company(slug, stage=values["stage"], lost_reason=" ".join(
+                str(values.get("lost_reason") or "").split()))
+        after = store.get(slug).stage
+        if after != before:   # the move asked for, or the first touch's own
+            parts.append(f"stage {before} -> {after}")
+        batch["message"] = f"capture: {slug} " + "; ".join(parts)
+    url = f"/companies/{slug}" + (f"/contacts/{contact}" if contact else "")
+    return Filed(url=url, message=batch["message"])

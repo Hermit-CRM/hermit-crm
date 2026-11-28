@@ -41,6 +41,8 @@ appear as you type, a moment after you stop, with the actions below them:
 - **Log a call with** the first person found: opens the log form with that
   person and *call* already chosen.
 - **Add a task for** the first company found: opens the company on its task list.
+- **Capture:** what you typed: opens [Quick capture](/help/quick-capture) with
+  it in the box. It is read only when you press **Read it**.
 - **Ask Hermit:** what you typed: puts it in the Ask box and opens it. The
   question is only asked when you press **Ask**.
 - **All results**: the full results page.
