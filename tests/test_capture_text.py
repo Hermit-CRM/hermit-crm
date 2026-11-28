@@ -22,6 +22,7 @@ import pytest
 
 from hermitcrm import capture_text as ct
 from hermitcrm.enrich import EnrichError, Enricher
+from hermitcrm.models import ValidationError
 
 MONDAY = date(2026, 9, 14)
 
@@ -213,3 +214,118 @@ def test_no_text_or_no_ai_fails_before_any_call(crm):
     with pytest.raises(EnrichError):
         ct.parse(crm, missing, TEXT)
     assert runner.calls == []
+
+
+# ------------------------------------------------------------------ filing
+
+
+def values_for(crm, **over):
+    found = ct.parse(crm, enricher(FakeRunner(answer())), TEXT)
+    values = ct.initial_values(found)
+    values.update(over)
+    return values
+
+
+def test_filing_writes_the_interaction_and_tasks_as_one_commit(crm, messages):
+    result = ct.file(crm, values_for(crm), TEXT)
+
+    assert len(messages) == 1
+    assert messages[0].startswith("capture: acme-robotics")
+    company = crm.get("acme-robotics")
+    it = next(i for i in company.interactions if i.subject == "Proposal and demo")
+    assert it.body == TEXT                       # the typed text, byte for byte
+    assert (it.channel, it.direction, it.contact) == ("call", "out", "jane-doe")
+    jane = company.contacts["jane-doe"]
+    assert [(t.text, t.due) for t in jane.tasks] == [
+        ("Send Jane the proposal", date(2026, 9, 18)), ("Book the demo", date(2026, 9, 21))]
+    assert result.url == "/companies/acme-robotics/contacts/jane-doe"
+    on_disk = crm.interaction_file("acme-robotics", it.id).read_bytes()
+    assert on_disk.endswith(TEXT.encode("utf-8"))
+
+
+def test_the_body_is_the_typed_text_even_when_it_is_odd(crm):
+    text = "  Jane said: *ok*  \nNo caps,   two  spaces.\n"
+    ct.file(crm, values_for(crm), text)
+    it = next(i for i in crm.get("acme-robotics").interactions if i.subject == "Proposal and demo")
+    assert it.body == text
+
+
+def test_unticked_parts_are_not_written(crm, messages):
+    values = values_for(crm, do_interaction=False)
+    values["tasks"][1]["do"] = False
+    ct.file(crm, values, TEXT)
+    company = crm.get("acme-robotics")
+    assert not any(i.subject == "Proposal and demo" for i in company.interactions)
+    assert [t.text for t in company.contacts["jane-doe"].tasks] == ["Send Jane the proposal"]
+    assert len(messages) == 1
+
+
+def test_nothing_ticked_writes_nothing(crm, messages):
+    values = values_for(crm, do_interaction=False)
+    for task in values["tasks"]:
+        task["do"] = False
+    with pytest.raises(ValidationError):
+        ct.file(crm, values, TEXT)
+    assert messages == []
+
+
+def test_a_bad_value_is_refused_before_anything_is_written(crm, messages):
+    values = values_for(crm)
+    values["tasks"][0]["due"] = "not a date"
+    with pytest.raises(ValidationError) as err:
+        ct.file(crm, values, TEXT)
+    assert "task 1" in str(err.value)
+    assert messages == []
+    assert not any(i.subject == "Proposal and demo"
+                   for i in crm.get("acme-robotics").interactions)
+
+
+def test_a_contact_from_another_company_is_refused(crm, messages):
+    with pytest.raises(ValidationError):
+        ct.file(crm, values_for(crm, company="globex-logistics"), TEXT)
+    assert messages == []
+
+
+def test_creating_the_company_and_person_happens_only_when_asked(crm, messages):
+    values = values_for(crm, company=ct.NEW, new_company="Initech",
+                        contact=ct.NEW, new_contact="Bill Lumbergh")
+    result = ct.file(crm, values, TEXT)
+
+    assert len(messages) == 1
+    initech = crm.get("initech")
+    assert initech is not None and "bill-lumbergh" in initech.contacts
+    assert initech.interactions[0].body == TEXT
+    assert result.url == "/companies/initech/contacts/bill-lumbergh"
+
+
+def test_the_stage_moves_in_the_same_commit(crm, messages):
+    values = values_for(crm, do_stage=True, stage="offer")
+    ct.file(crm, values, TEXT)
+    assert crm.get("acme-robotics").stage == "offer"
+    assert len(messages) == 1 and messages[0].endswith("stage prospect -> offer")
+
+
+def test_the_first_touch_moving_the_stage_is_in_the_message(crm, messages):
+    ct.file(crm, values_for(crm), TEXT)
+    assert crm.get("acme-robotics").stage == "engaged"
+    assert messages == ["capture: acme-robotics call out jane-doe; 2 tasks; "
+                        "stage prospect -> engaged"]
+
+
+def test_a_lost_stage_needs_its_reason_first(crm, messages):
+    lost = crm.stages.with_role("lost")[0]
+    with pytest.raises(ValidationError):
+        ct.file(crm, values_for(crm, do_stage=True, stage=lost), TEXT)
+    assert messages == []
+    ct.file(crm, values_for(crm, do_stage=True, stage=lost, lost_reason="Went with a rival"),
+            TEXT)
+    company = crm.get("acme-robotics")
+    assert company.stage == lost and company.lost_reason == "Went with a rival"
+    assert len(messages) == 1
+
+
+def test_a_date_typed_in_the_preview_is_read(crm):
+    values = values_for(crm, date="2026-09-10T15:45")
+    ct.file(crm, values, TEXT)
+    it = next(i for i in crm.get("acme-robotics").interactions if i.subject == "Proposal and demo")
+    assert it.date == datetime(2026, 9, 10, 15, 45)
