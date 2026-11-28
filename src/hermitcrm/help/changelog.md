@@ -55,6 +55,12 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   have changed yourself is never overwritten. New command: `hermitcrm tasks
   list`, `tasks add` and `tasks done` for the to-do list.
 
+- **See what your agents did.** A new page, **What agents did** (linked from
+  Make it yours), lists every change an AI agent committed, by day: what
+  changed in plain words, the companies and people it touched, and an Undo
+  button for each. No data change. See
+  [AI agents](/help/ai-agents#what-agents-did).
+
 - **Open pages follow changes made elsewhere.** When the command line, an
   agent over MCP or the daily sync changes your data, an open page updates by
   itself within about five seconds, without a reload. If you are typing in a

@@ -154,6 +154,21 @@ tab is visible. When it did, and the change did not come from that tab:
 A hand edit that is saved but not committed does not change the last commit,
 so open pages do not follow it: commit it, or press Reload.
 
+### What agents did
+
+**Make it yours > What agents did** (`/activity`) lists every commit whose
+message starts with `ai:`, newest first and grouped by day: what changed in
+plain words (added 2 interactions, changed 1 company), the companies and people
+it touched (linked while they exist) and an **Undo** button. Undo makes a new
+commit that reverses the change, the same as `hermitcrm undo <commit>`; the
+undo itself is listed too, and can be undone in turn.
+
+That covers what an agent commits itself, if it follows the rule to start its
+messages with `ai:`, and Hermit's MCP adjust and bulk tools. A record an agent
+adds or edits with the other MCP tools is committed with the same message the
+command line writes (`interaction: acme-labs ...`), so it is not told apart
+from yours and is not listed here.
+
 Related: [Data format](/help/data-format), [CLI](/help/cli), [Pipeline](/help/pipeline)
 
 ## Connect your AI
