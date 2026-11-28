@@ -30,6 +30,14 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   the record's first day. No data change. See
   [Backups and undo](/help/backups#history-of-a-record).
 
+- **Quick capture: type what happened, Hermit files it.** Open Quick capture
+  (`/quick-capture`, or pick *Capture: ...* in the search box) and write a
+  sentence such as "Called Jane at Acme, she wants a proposal by Friday".
+  Hermit reads it in the background and shows a preview: the interaction, the
+  tasks with their dates and any stage move, each with a tick box and every
+  value editable. Nothing is saved until you press *File it*; then it is one
+  change you can undo in one click. Your own words are kept as the
+  interaction's text, exactly as typed. Needs an AI tool (Settings).
 - **Sending no longer waits half a minute first on some networks.** Before each
   send and each test mail, Hermit asked the network for your computer's full
   name to greet the mail server. Where the network cannot answer (common on
