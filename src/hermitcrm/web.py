@@ -2140,7 +2140,9 @@ def create_app(root: Path, config: dict | None = None,
 
     def _import_text(text: str, upload) -> str:
         if upload is not None and getattr(upload, "filename", ""):
-            return decode_upload(upload.file.read())
+            from .importer import MAX_FILE_BYTES
+            # One byte past the cap is enough to refuse it; never the whole file.
+            return decode_upload(upload.file.read(MAX_FILE_BYTES + 1))
         return text
 
     def _form_mapping(form, text: str) -> dict | None:

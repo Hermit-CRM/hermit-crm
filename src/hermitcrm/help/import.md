@@ -6,7 +6,9 @@
 
 Paste a tab-separated table (copied from a spreadsheet) or upload a `.tsv`,
 `.csv` or `.xlsx` file (first worksheet; dates stay as serial numbers). The
-first row is the header.
+first row is the header. A file may be up to 15 MB, and an `.xlsx` up to 20 MB
+once unpacked; a bigger one is refused with a message, so import it in parts or
+save the sheet as CSV.
 
 ## Modes
 
