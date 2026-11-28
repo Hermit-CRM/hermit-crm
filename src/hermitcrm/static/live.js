@@ -15,7 +15,8 @@
 /* Actions without a page reload. A form with data-live is sent with fetch
  * instead of a page load: the server answers as it always does (a 303 to the
  * page, or the page again with its error messages), and this script puts the
- * changed part of that answer in place of the same part of this page.
+ * changed part of that answer in place of the same part of this page. It also
+ * lets a card on the board be dragged to another stage (see the end).
  *
  *   data-live                      replaces <main>
  *   data-live="#tasks, .x"         replaces every element on this page that
@@ -353,6 +354,81 @@
     if (form.requestSubmit) form.requestSubmit();
     else send(form, null);
   }, true);
+
+  /* ------------------------------------------------- board: drag and drop */
+
+  // A card on the board can be dragged to another stage's column. The drop
+  // only sets the card's own stage <select> and sends its form, the same way
+  // as picking the stage from the list: the select stays the keyboard way,
+  // and whatever the server answers (a reason needed, a move the stage rules
+  // refuse) is shown as it would be then. No library.
+  var dragged = null;
+
+  function cardForm(card) { return card && card.querySelector("form.stage-form[data-live]"); }
+
+  function makeDraggable() {
+    all(document, ".board .card").forEach(function (card) {
+      if (cardForm(card)) card.setAttribute("draggable", "true");
+    });
+  }
+
+  function columnStage(column, select) {
+    var stage = column.id.replace(/^col-/, "");
+    var known = Array.prototype.some.call(select.options, function (o) { return o.value === stage; });
+    return known ? stage : null;
+  }
+
+  function clearDrag() {
+    all(document, ".board .is-drop-target").forEach(function (c) { c.classList.remove("is-drop-target"); });
+    all(document, ".board.is-dragging").forEach(function (b) { b.classList.remove("is-dragging"); });
+    if (dragged) dragged.classList.remove("is-dragged");
+    dragged = null;
+  }
+
+  document.addEventListener("dragstart", function (event) {
+    var card = event.target.closest && event.target.closest(".board .card[draggable]");
+    if (!card || !cardForm(card)) return;
+    dragged = card;
+    event.dataTransfer.effectAllowed = "move";
+    var name = card.querySelector("h3");
+    event.dataTransfer.setData("text/plain", name ? name.textContent.trim() : "");
+    card.classList.add("is-dragged");
+    card.closest(".board").classList.add("is-dragging");
+  });
+
+  document.addEventListener("dragover", function (event) {
+    if (!dragged) return;
+    var column = event.target.closest && event.target.closest(".board .column[id^='col-']");
+    all(document, ".board .is-drop-target").forEach(function (c) {
+      if (c !== column) c.classList.remove("is-drop-target");
+    });
+    if (!column || column.contains(dragged)) return;
+    event.preventDefault();               // this column takes the card
+    event.dataTransfer.dropEffect = "move";
+    column.classList.add("is-drop-target");
+  });
+
+  document.addEventListener("drop", function (event) {
+    if (!dragged) return;
+    var card = dragged;
+    var column = event.target.closest && event.target.closest(".board .column[id^='col-']");
+    clearDrag();
+    if (!column || column.contains(card)) return;
+    event.preventDefault();
+    var form = cardForm(card);
+    var select = form && form.querySelector("select[name='stage']");
+    var stage = select && columnStage(column, select);
+    if (!stage || stage === select.value) return;
+    select.value = stage;
+    column.appendChild(card);             // shown in its new place at once; the answer redraws the board
+    if (form.requestSubmit) form.requestSubmit();
+    else send(form, null);
+  });
+
+  document.addEventListener("dragend", clearDrag);
+
+  makeDraggable();
+  document.addEventListener("hermit:swap", makeDraggable);
 
   window.Hermit = window.Hermit || {};
   window.Hermit.toast = toast;    // for other scripts that want to say something briefly

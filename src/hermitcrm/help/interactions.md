@@ -30,8 +30,11 @@ company in **prospect** moves it to **engaged**, in the same commit; a note
 does not. Other
 stages are left alone.
 
-Saving redirects to the contact's page with the timeline scrolled to the new
-entry. Each entry has an edit link (`/companies/<slug>/interactions/<id>/edit`)
+Saving on a contact's page adds the entry to the timeline without a page
+reload, empties the form for the next one, and says what happened in a short
+message in the bottom right corner. Without JavaScript (and from
+`/companies/<slug>/interactions/new`) saving redirects to the contact's page
+with the timeline scrolled to the new entry. Each entry has an edit link (`/companies/<slug>/interactions/<id>/edit`)
 where every field including the date can change; a date change renames the
 file.
 

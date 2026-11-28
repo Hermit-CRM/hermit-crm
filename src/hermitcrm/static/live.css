@@ -39,7 +39,18 @@
 main [aria-busy="true"], main[aria-busy="true"] { opacity: .6; }
 form.live-busy, form.live-busy * { cursor: progress; }
 
+/* The board: a card can be dragged to another column (live.js). While one is
+   on the move every column reaches the bottom of the board, so an empty or
+   short column is as easy to drop on as a long one. */
+.board .card[draggable="true"] { cursor: grab; }
+.board .card[draggable="true"] select, .board .card[draggable="true"] a { cursor: auto; }
+.board .card.is-dragged { opacity: .5; }
+.board.is-dragging { align-items: stretch; }
+.board .column { border-radius: 6px; transition: background-color 120ms var(--ease-out); }
+.board .column.is-drop-target { background: var(--info-bg); outline: 2px dashed var(--accent); outline-offset: 4px; }
+
 @media (prefers-reduced-motion: reduce) {
+  .board .column { transition: none; }
   .toast { animation: none; transition: none; }
   .toast.is-leaving { transform: none; }
   [aria-busy="true"] { transition: none; }
