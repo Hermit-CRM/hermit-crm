@@ -130,14 +130,16 @@ def test_save_bcc_keychain_through_runner(folder):
     calls = []
 
     def runner(argv, **kw):
-        calls.append(argv)
+        calls.append((argv, kw.get("input")))
         return subprocess.CompletedProcess(argv, 0, "", "")
 
     r = st.save_bcc(folder, "jane+crm@gmail.com", "imap.gmail.com", "s3cret",
                     use_keychain=True, runner=runner, platform="darwin")
     assert r.ok and "s3cret" not in r.text()
-    assert calls == [["security", "add-generic-password", "-U", "-s", "hermitcrm-bcc",
-                      "-a", "jane@gmail.com", "-w", "s3cret"]]
+    # The password goes over stdin as hex, never on the command line (audit S8).
+    assert calls == [(["security", "-i"],
+                      'add-generic-password -U -s "hermitcrm-bcc" -a "jane@gmail.com" '
+                      f'-X {"s3cret".encode().hex()}\n')]
     assert cfg(folder)["bcc_keychain_service"] == "hermitcrm-bcc"
     assert not (folder / ".secrets.toml").exists()
 
