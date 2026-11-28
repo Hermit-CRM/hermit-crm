@@ -6,7 +6,7 @@ A recipe for your AI agent: put the sections of the company, contact and home pa
 
 - "On company pages, show the timeline first and hide the Merge section."
 - "Hide the value per month field everywhere."
-- "On Home, put Replies you owe at the top."
+- "On Home, put How it is going above the Today list."
 - "In the companies list, show only name, stage, fit, country and the next step."
 - "Add my seniority field as a column in the contacts list."
 
@@ -34,7 +34,7 @@ hide_fields = ["value_eur_month", "requalify_on"]
 hide_fields = ["phone"]
 
 [home]                        # Home: sections and hide_sections only
-sections = ["owed"]
+sections = ["to-file"]
 
 [companies]                   # the Companies list
 columns = ["name", "stage", "fit_score", "country", "next_step"]
@@ -57,9 +57,9 @@ Disqualify) always stays on top and is not a section.
 |---|---|
 | `[company]` | `enrich` (the Enrich and Fetch from URL buttons), `next-step` (the next step line), `details` (the edit form), `contacts`, `tasks`, `files` (the files kept with notes), `merge`, `timeline` |
 | `[contact]` | `details` (the fields, with an Edit button), `tasks`, `quick-add` (Log an interaction), `timeline` (interactions), `files` (their files), `merge` (only shown when the company has two or more people), `delete`. Merge and delete always sit in the closed More box at the bottom; their order applies inside it. |
-| `[home]` | `doing` (What needs doing), `to-file` (To file, only while there is something to file), `owed` (Replies you owe, only when you owe some), `keep-in-touch` (Keep in touch, only when somebody is on it), `going` (How it is going) |
+| `[home]` | `next` (What to do now: [the Today list](/help#today)), `to-file` (To file and Drafts from routines, only while there is something in them), `going` (How it is going) |
 
-A `drafts` section named in an older file is ignored: the Message drafts box is gone (Outreach replaced it), and nothing is reported.
+A few section names in an older file are ignored, and nothing is reported: `drafts` (the Message drafts box is gone; Outreach replaced it), and Home's `doing`, `owed` and `keep-in-touch` (What needs doing, Replies you owe and Keep in touch are one Today list now, `next`).
 
 On Home the layout applies once the folder has companies. The empty-folder
 start cards and the Getting started block do not move.

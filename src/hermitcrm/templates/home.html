@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
 {# With companies in the folder, the sections come in layout.toml's order
-   (help: adjust-layout); their names, in the default order: doing, to-file,
-   owed, keep-in-touch, going. The empty-folder start and Getting started do not move. #}
+   (help: adjust-layout); their names, in the default order: next (the Today
+   list, today.html), to-file, going. The empty-folder start and Getting
+   started do not move. #}
 {% block title %}Home{% endblock %}
 {% block content %}
 <h1>Hermit CRM</h1>
@@ -23,56 +24,11 @@
 {% else %}
 {% if routine_briefs %}{% include "routine_brief.html" %}{% endif %}
 
-{% for section in layout_sections('home') %}{% if section == 'doing' %}
-<h2 id="doing">What needs doing</h2>
-<table>
-  <tr><th>due</th><th>for</th><th>what</th><th></th></tr>
-  {% for r in due_soon %}
-  <tr class="{% if r.todo.overdue(today) %}overdue{% endif %}">
-    <td class="{% if r.todo.overdue(today) %}overdue{% endif %}">{{ fmt_date(r.due) }}</td>
-    <td><a href="{{ r.href }}">{{ r.who }}</a>{% if r.contact %} <span class="small">({{ r.company_name }})</span>{% endif %}</td>
-    <td>{{ r.text or '(no text)' }}{% if r.is_next %} <span class="small">next step</span>{% endif %}</td>
-    <td class="actions">{{ m.todo_actions(r.company, r.todo) }}</td>
-  </tr>
-  {% else %}
-  <tr><td colspan="4" class="empty">Nothing due in the next seven days.</td></tr>
-  {% endfor %}
-</table>
-<p class="small"><a href="/tasks">All tasks, with filters</a> &middot; <a href="/calendar">the calendar</a>.</p>
+{% for section in layout_sections('home') %}{% if section == 'next' %}
+{% include "today.html" %}
 {% elif section == 'to-file' %}
 {% if items %}{% include "to_file.html" %}{% endif %}
 {% if routine_drafts %}{% include "routine_drafts.html" %}{% endif %}
-{% elif section == 'owed' %}
-{% if followups %}
-<h2 id="owed">Replies you owe ({{ followups | length }})</h2>
-<table>
-  <tr><th>company</th><th>who</th><th>waiting</th><th>last message</th></tr>
-  {% for f in followups[:8] %}
-  <tr>
-    <td><a href="/companies/{{ f.company.slug }}">{{ f.company.name }}</a></td>
-    <td>{{ f.who }}</td>
-    <td>{{ f.days }}d</td>
-    <td class="small">{{ preview(f.interaction.body) }}</td>
-  </tr>
-  {% endfor %}
-</table>
-{% endif %}
-{% elif section == 'keep-in-touch' %}
-{% if keep_in_touch %}
-<h2 id="keep-in-touch">Keep in touch ({{ keep_in_touch | length }}) <span class="small">not spoken to in {{ keep_in_touch_days }}+ days, outside an open deal</span></h2>
-<table>
-  <tr><th>who</th><th>company</th><th>quiet for</th><th>last touch</th></tr>
-  {% for k in keep_in_touch[:8] %}
-  <tr>
-    <td><a href="{{ k.href }}">{{ k.contact.name }}</a></td>
-    <td><a href="/companies/{{ k.company.slug }}">{{ k.company.name }}</a> <span class="small">{{ k.company.stage }}</span></td>
-    <td>{{ k.days }}d</td>
-    <td class="small">{{ fmt_date(k.interaction.date) }} {{ k.interaction.label }}: {{ k.summary }}</td>
-  </tr>
-  {% endfor %}
-</table>
-{% if keep_in_touch | length > 8 %}<p class="small">And {{ keep_in_touch | length - 8 }} more: <code>hermitcrm keep-in-touch</code> lists them all.</p>{% endif %}
-{% endif %}
 {% elif section == 'going' %}
 <h2 id="going">How it is going <span class="small">last 30 days</span></h2>
 <div class="start-cards numbers">
