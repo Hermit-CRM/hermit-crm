@@ -8,6 +8,13 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Drag a card to another stage, and log interactions without a page
+  reload.** On the Pipeline board a card can be dragged onto another column;
+  the dropdown on the card still works and is the keyboard way, and it no
+  longer reloads the page either. **Log interaction** and **Add note** on a
+  contact page add the entry to the timeline in place. No data change. See
+  [Pipeline](/help/pipeline#columns-and-cards).
+
 - **Tasks change without a page reload.** Done, Reopen, Edit, Delete, the type
   and Add task update the list in place, on the Tasks page and on company and
   contact pages; the page keeps its place and a short message in the corner says

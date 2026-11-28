@@ -105,7 +105,7 @@
 {#- `is-call-out` shows the call outcome and call type: channel call, direction
     out (or none picked yet, out being the default). Both handlers recompute it. -#}
 {% set call_out_js = "var f = this.form, d = f.querySelector('input[name=direction]:checked'); f.classList.toggle('is-call-out', f.elements.channel.value === 'call' && (!d || d.value === 'out'))" %}
-<form method="post" action="{{ action }}" enctype="multipart/form-data" data-attach class="interaction-form{% if values.channel == 'note' %} is-note{% endif %}{% if values.channel == 'call' and (values.direction or 'out') == 'out' %} is-call-out{% endif %}">
+<form method="post" action="{{ action }}" enctype="multipart/form-data" data-attach data-live="#quick-add, #timeline, .status-strip" class="interaction-form{% if values.channel == 'note' %} is-note{% endif %}{% if values.channel == 'call' and (values.direction or 'out') == 'out' %} is-call-out{% endif %}">
   {{ errors_box(errors) }}
   <div class="row">
     <label>channel

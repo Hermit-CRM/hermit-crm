@@ -168,24 +168,27 @@ def typed_client(repo):
     store.clock = lambda: FIXED_NOW
     company = store.create_company("Acme Example", website="https://acme.example.com")
     contact = store.create_contact(company.slug, "Jane", "Roe", email="jane@example.com")
-    store.create_interaction(company.slug, "email", "out", subject="Hello", contact=contact.slug,
-                             date="2026-09-10")
+    first = store.create_interaction(company.slug, "email", "out", subject="Hello",
+                                     contact=contact.slug, date="2026-09-10")
     store.add_task(company.slug, "send the pricing page", due="2026-09-20")
     store.add_task(company.slug, "book a call", due="2026-09-22", contact=contact.slug)
-    return TestClient(app, follow_redirects=False), company.slug, contact.slug
+    client = TestClient(app, follow_redirects=False)
+    client.interaction = first.id
+    return client, company.slug, contact.slug
 
 
-PAGES = ["/tasks", "/pipeline", "/companies/{c}", "/companies/{c}/contacts/{p}", "/"]
+PAGES = ["/tasks", "/pipeline", "/companies/{c}", "/companies/{c}/contacts/{p}", "/",
+         "/companies/{c}/interactions/new", "/companies/{c}/interactions/{i}/edit"]
 
 
 @pytest.mark.parametrize("page", PAGES)
 def test_every_live_form_swaps_a_part_that_holds_it_and_no_script(typed_client, page):
     client, slug, person = typed_client
-    response = client.get(page.format(c=slug, p=person))
+    response = client.get(page.format(c=slug, p=person, i=client.interaction))
     assert response.status_code == 200
     tree = Tree(response.text)
     forms = [n for n in tree.root.walk() if n.tag == "form" and "data-live" in n.attrs]
-    if page in ("/tasks", "/companies/{c}", "/companies/{c}/contacts/{p}"):
+    if page != "/":
         assert forms, f"{page} has live forms"
     for form in forms:
         parts = regions(tree, form)
@@ -203,3 +206,18 @@ def test_the_task_forms_on_a_company_page_swap_the_task_section(typed_client):
             if n.tag == "form" and n.attrs.get("action", "").endswith("/tasks/0/done")]
     assert done
     assert [p.attrs.get("id") for p in regions(tree, done[0])][0] == "tasks"
+
+
+def test_the_board_and_the_interaction_form_swap_their_own_parts(typed_client):
+    client, slug, person = typed_client
+    board = Tree(client.get("/pipeline").text)
+    stage = [n for n in board.root.walk()
+             if n.tag == "form" and n.attrs.get("action") == f"/companies/{slug}/stage"]
+    assert stage and "data-live-change" in stage[0].attrs
+    assert [p.classes() for p in regions(board, stage[0])] == [["board"]]
+    page = Tree(client.get(f"/companies/{slug}/contacts/{person}").text)
+    log = [n for n in page.root.walk() if n.tag == "form" and "interaction-form" in n.classes()]
+    assert log
+    swapped = regions(page, log[0])
+    assert {p.attrs.get("id") or p.classes()[0] for p in swapped} == {"quick-add", "timeline",
+                                                                       "status-strip"}
