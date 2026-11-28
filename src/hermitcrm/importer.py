@@ -268,8 +268,7 @@ def _xlsx_number(value: str) -> str:
 # one part of an .xlsx may unpack to (a small zip can hold gigabytes of XML).
 MAX_FILE_BYTES = 15 * 1024 * 1024
 MAX_XML_BYTES = 20 * 1024 * 1024
-TOO_BIG_FILE = ("the file is larger than 15 MB; import it in parts, or save it as CSV "
-                "and paste the rows")
+TOO_BIG_FILE = "the file is larger than 15 MB; split it and import the parts one at a time"
 TOO_BIG_XLSX = ("the .xlsx file is too large to read (over 20 MB unpacked); save the "
                 "sheet as CSV, or import it in parts")
 
