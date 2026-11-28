@@ -114,6 +114,23 @@ shows up without a restart; the Reload button (or `hermitcrm rebuild`,
 stage, a missing name) never crash the app: `hermitcrm check` and `/health` list
 them with file paths.
 
+### Open pages follow commits
+
+Every write through Hermit (the CLI, MCP, the web app, the daily sync) is a git
+commit, and so is an agent's own `git commit`. A page open in the browser asks
+every five seconds whether the folder's last commit changed (`GET
+/live/head.json`, which reads `.git` and starts no process), and only while its
+tab is visible. When it did, and the change did not come from that tab:
+
+- if nothing on the page is being edited, the page updates in place, keeping
+  the scroll position;
+- if a field on it has been changed, or it shows an error, it says **This page
+  changed underneath you** with a **Refresh** button and leaves what was typed
+  alone.
+
+A hand edit that is saved but not committed does not change the last commit,
+so open pages do not follow it: commit it, or press Reload.
+
 Related: [Data format](/help/data-format), [CLI](/help/cli), [Pipeline](/help/pipeline)
 
 ## Connecting over MCP
