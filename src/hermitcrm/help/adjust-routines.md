@@ -16,6 +16,10 @@ asked to set up or change a routine, and the reference for the file. Read
   that I have never contacted."
 - "Pause the follow-up routine", "make the nudges shorter and in my voice".
 
+The everyday ones (reply drafts, follow-up drafts, the morning brief) are also
+built in as **Autopilot**, switched on in Settings with no file to write; see
+[Settings](/help/settings#autopilot). Your own routines run first.
+
 What routines cannot do: send anything, change records, run at other times than
 after the daily sync, react to events, or start each other. If the user wants
 that, say so plainly and offer the nearest thing (a routine that drafts, a

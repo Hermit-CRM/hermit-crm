@@ -8,6 +8,14 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Autopilot: the morning's drafts are ready when you open the app.** A new
+  Settings section (General tab) turns on reply drafts, follow-up drafts and a
+  morning brief, made right after the daily sync, and next-step proposals for
+  companies you spoke to lately that have no task. They wait on Today under
+  **Prepared for you**, with Approve, Edit and Discard. Every switch is off
+  until you turn it on; nothing is ever sent for you, and at most 15 items a
+  day are prepared (you can change that).
+
 - **Sending no longer waits half a minute first on some networks.** Before each
   send and each test mail, Hermit asked the network for your computer's full
   name to greet the mail server. Where the network cannot answer (common on
@@ -31,7 +39,7 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 - **Home opens on one list: What to do now.** Replies you owe, overdue tasks,
   today's meetings and brief, drafts from your routines, tasks due today,
   messages nobody answered and people to keep in touch with, most urgent first,
-  each row with its own buttons (Done, Log a reply, Open the draft). It replaces
+  each row with its own buttons (Done, Log a reply, Review the draft). It replaces
   What needs doing, Replies you owe and Keep in touch on Home; `/today` shows the
   list on its own. An older `layout.toml` that names the old sections still
   loads. No data change. See [Help](/help#today).
