@@ -35,6 +35,12 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   What needs doing, Replies you owe and Keep in touch on Home; `/today` shows the
   list on its own. An older `layout.toml` that names the old sections still
   loads. No data change. See [Help](/help#today).
+
+- **Tasks change without a page reload.** Done, Reopen, Edit, Delete, the type
+  and Add task update the list in place, on the Tasks page and on company and
+  contact pages; the page keeps its place and a short message in the corner says
+  what happened. Without JavaScript they work as before. No data change. See
+  [Tasks](/help/tasks#without-a-page-reload).
 - **A crash or power cut while saving no longer leaves a cut-off record.**
   Companies, contacts and interactions are written to a temporary file first
   and then swapped in, so a file is either the old version or the new one.

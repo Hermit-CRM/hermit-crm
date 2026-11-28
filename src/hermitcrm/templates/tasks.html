@@ -37,7 +37,7 @@
 
 <h2 id="task-list">Add a task</h2>
 {% if form_error %}<div class="errors" role="alert">Task not created: {{ form_error }}</div>{% endif %}
-<form method="post" action="/tasks" class="record-form">
+<form method="post" action="/tasks" class="record-form" data-live>
   <input type="hidden" name="back" value="{{ here }}">
   <div class="row">
     <label class="grow">task <input name="text" value="{{ form.text or '' }}" placeholder="e.g. send the pricing page" required></label>
