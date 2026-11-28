@@ -14,7 +14,7 @@
   <button type="submit">Search</button>
 </form>
 {% if not q %}
-<p class="small">Search finds companies, contacts, the subject and text of every logged message, tasks, help pages and the app's pages. Every word you type must appear. <a href="/help/search">More about search</a>.</p>
+<p class="small search-keys">Search finds companies, contacts, the subject and text of every logged message, tasks, help pages and the app's pages. Every word you type must appear. Press <kbd>Ctrl</kbd>&nbsp;<kbd>K</kbd> (<kbd>&#8984;</kbd>&nbsp;<kbd>K</kbd> on a Mac) or <kbd>/</kbd> on any page to search without leaving it. <a href="/help/search">More about search and the keyboard</a>.</p>
 {% elif not results.total %}
 <p>Nothing matches &ldquo;{{ q }}&rdquo;. Every word must appear somewhere in the same record; try fewer words, or part of a word.</p>
 {% else %}

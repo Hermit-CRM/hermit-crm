@@ -20,6 +20,13 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   every logged message (with the words marked), tasks, help pages and the app's
   pages, eight of each with **Show all** for the rest. Every word you type must
   appear. No data change. See [Search](/help/search).
+- **Search and start things from the keyboard.** Press Cmd K (Ctrl K) on any
+  page, or / when you are not typing, to search as you type, open a result, or
+  start something: a new company or contact, logging a call with a person, a task
+  for a company, or a question for Ask. Every entry opens a page or form; nothing
+  is saved until you press its button. Single keys go places too: g then p for
+  the Pipeline, n for a new company, ? for the list. See
+  [Search and the keyboard](/help/search#keyboard).
 - **A crash or power cut while saving no longer leaves a cut-off record.**
   Companies, contacts and interactions are written to a temporary file first
   and then swapped in, so a file is either the old version or the new one.
