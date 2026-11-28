@@ -65,6 +65,29 @@ nothing is written and nothing is committed.
 - Never rewrite interaction bodies; they are the record.
 - Never put secrets in `config.toml` and never commit `.secrets.toml`.
 
+## Skills for Claude Code
+
+Every data folder has six Claude Code skills in `.claude/skills/`. Type the name
+in Claude Code, or just ask, and Claude picks the one that fits:
+
+| Skill | What it does |
+| --- | --- |
+| `/hermit` | Change Hermit itself: fields, dashboards, layout, routines, the look (see below). |
+| `/hermit-daily` | The morning review: overdue and today's tasks, replies you owe, today's meetings, drafts waiting. Reads only. |
+| `/hermit-log` | Log a call or meeting from your notes, with its follow-up tasks; a stage move only after you agree. |
+| `/hermit-research` | Research a prospect and keep the findings, with their sources, as a note on the company. |
+| `/hermit-weekly` | The weekly review: the week in numbers, deals that went quiet, what matters next week. Reads only. |
+| `/hermit-import` | Bring in a CSV, TSV or .xlsx list: a preview first, the import only after you say yes. |
+
+Each skill names the commands to run in order (and the MCP tools, for an app
+without a shell), and keeps the same rules: a dry run before a change to many
+records, one commit per change, and never sending anything.
+
+A folder made by an older Hermit gets the skills from `hermitcrm migrate`, and
+`hermitcrm doctor` says when one is missing. A skill you have edited is yours:
+Hermit never overwrites it. Delete one you do not want; it stays deleted until
+you run `hermitcrm migrate` again.
+
 ## Adjusting Hermit
 
 When the user asks you to change Hermit CRM itself (a field, the look, a

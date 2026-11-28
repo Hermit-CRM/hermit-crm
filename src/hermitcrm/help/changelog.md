@@ -38,6 +38,16 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   value editable. Nothing is saved until you press *File it*; then it is one
   change you can undo in one click. Your own words are kept as the
   interaction's text, exactly as typed. Needs an AI tool (Settings).
+
+- **Claude Code knows five everyday jobs in your folder.** A new data folder
+  has five skills besides `/hermit`: `/hermit-daily` (the morning review),
+  `/hermit-log` (log a call or meeting from your notes, with its follow-up
+  tasks), `/hermit-research` (research a prospect and keep the findings as a
+  note), `/hermit-weekly` (the weekly review) and `/hermit-import` (bring in a
+  list, preview first). Each only reads until you say yes, and none ever sends
+  anything. An existing folder gets them from `hermitcrm migrate`; a skill you
+  have changed yourself is never overwritten. New command: `hermitcrm tasks
+  list`, `tasks add` and `tasks done` for the to-do list.
 - **Sending no longer waits half a minute first on some networks.** Before each
   send and each test mail, Hermit asked the network for your computer's full
   name to greet the mail server. Where the network cannot answer (common on
