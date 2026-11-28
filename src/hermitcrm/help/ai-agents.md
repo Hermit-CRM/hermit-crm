@@ -194,6 +194,28 @@ makes one commit, so call them only when the user has asked for the change. The
 answer of every write after the first three gives its commit id: `undo(<id>)`
 reverses it.
 
+### Resources and prompts
+
+Besides tools, the server offers three things to read without a tool call
+(resources) and four ready-made jobs (prompts). How a client shows them is up to
+the client: Claude Desktop puts both under the **+** button.
+
+| Resource | What it is |
+| --- | --- |
+| `hermitcrm://pipeline` | `PIPELINE.md` as it is now. |
+| `hermitcrm://playbook` | Your messaging playbook, `MESSAGING.md`. |
+| `hermitcrm://companies/{slug}` | One company, as `show_company` gives it. |
+
+| Prompt | What it asks the agent to do |
+| --- | --- |
+| `morning_review` | Overdue and today's tasks, replies you owe, today's meetings, drafts waiting, and what to do first. Reads only. |
+| `prep_meeting` | A one-page brief on one company (give its name or slug). Reads only. |
+| `log_call` | Log a call from your notes, add the follow-up task, and propose a stage move, which it makes only after you agree. |
+| `weekly_review` | The week in numbers, deals that went quiet, and what matters next week. Reads only. |
+
+A prompt is a short instruction that names the tools to call; the agent still
+asks you before anything it was not told to write.
+
 ### What an agent cannot do over MCP
 
 These are left out on purpose, not forgotten. Each is a person's decision, made

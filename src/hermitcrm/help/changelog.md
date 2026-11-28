@@ -68,7 +68,10 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
   `move_stage` (the stage rules apply, with no way round them), `add_task`,
   `complete_task`, `reopen_task`, `edit_outreach_draft` and `skip_outreach`. An
   agent still cannot mark a draft ready, schedule or send it, run a routine or
-  delete anything. See [AI agents](/help/ai-agents#connecting-over-mcp).
+  delete anything. The server also offers the pipeline, your playbook and any
+  company to read, and four prompts: `morning_review`, `prep_meeting`,
+  `log_call` and `weekly_review`. See
+  [AI agents](/help/ai-agents#connecting-over-mcp).
 
 - **Save a contact to your phone with its camera.** Press **Save to phone** on a
   contact page, point your phone at the code and tap to add the person: name,

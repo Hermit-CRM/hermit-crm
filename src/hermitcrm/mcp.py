@@ -42,7 +42,7 @@ import subprocess
 import sys
 import tempfile
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
@@ -58,6 +58,7 @@ INVALID_REQUEST = -32600
 METHOD_NOT_FOUND = -32601
 INVALID_PARAMS = -32602
 INTERNAL_ERROR = -32603
+RESOURCE_NOT_FOUND = -32002   # the protocol's own code for resources/read
 
 
 @dataclass
@@ -122,6 +123,74 @@ def text(kind: str = "string", description: str = "", **extra) -> dict:
 def schema(properties: dict, required: list[str] | None = None) -> dict:
     return {"type": "object", "properties": properties,
             "required": required or [], "additionalProperties": False}
+
+
+# ------------------------------------------------------ resources and prompts
+
+
+@dataclass
+class Resource:
+    """A text the client may read without calling a tool: resources/read."""
+
+    uri: str
+    name: str
+    title: str
+    description: str
+    mime_type: str
+    read: Callable[[], str]
+
+    def spec(self) -> dict:
+        return {"uri": self.uri, "name": self.name, "title": self.title,
+                "description": self.description, "mimeType": self.mime_type}
+
+
+@dataclass
+class ResourceTemplate:
+    """A family of resources, one per value of the template's variable.
+    `read(uri)` returns the text, or None when there is no such resource."""
+
+    uri_template: str
+    name: str
+    title: str
+    description: str
+    mime_type: str
+    read: Callable[[str], "str | None"]
+
+    def spec(self) -> dict:
+        return {"uriTemplate": self.uri_template, "name": self.name, "title": self.title,
+                "description": self.description, "mimeType": self.mime_type}
+
+
+@dataclass
+class Prompt:
+    """A short instruction a client offers the user (prompts/get), which names
+    the tools to call. `arguments` are {"name", "description", "required"};
+    the protocol passes their values as strings."""
+
+    name: str
+    title: str
+    description: str
+    arguments: list[dict]
+    render: Callable[[dict], str]
+
+    def spec(self) -> dict:
+        return {"name": self.name, "title": self.title, "description": self.description,
+                "arguments": self.arguments}
+
+
+@dataclass
+class Catalog:
+    """Everything the server offers besides tools."""
+
+    resources: list[Resource] = field(default_factory=list)
+    templates: list[ResourceTemplate] = field(default_factory=list)
+    prompts: list[Prompt] = field(default_factory=list)
+
+
+def build_catalog(root: Path, store) -> Catalog:
+    from . import mcp_meta
+
+    return mcp_meta.catalog(Folder(Path(root), store))
 
 
 # ------------------------------------------------------------------ paging
@@ -1130,8 +1199,11 @@ def cli_words(message: str) -> str:
 # ---------------------------------------------------------------- the protocol
 
 
-def error(id_, code: int, message: str) -> dict:
-    return {"jsonrpc": "2.0", "id": id_, "error": {"code": code, "message": message}}
+def error(id_, code: int, message: str, data=None) -> dict:
+    body = {"code": code, "message": message}
+    if data is not None:
+        body["data"] = data
+    return {"jsonrpc": "2.0", "id": id_, "error": body}
 
 
 def result(id_, payload: dict) -> dict:
@@ -1162,12 +1234,15 @@ def run(tool: Tool, arguments: dict) -> dict:
     return tool_result(answer)
 
 
-def handle(message: dict, tools: dict[str, Tool]) -> dict | None:
+def handle(message: dict, tools: dict[str, Tool],
+           catalog: Catalog | None = None) -> dict | None:
     """One JSON-RPC message in, one response out -- or None for a notification.
 
     A notification (no `id`) must never be answered; answering one is the
-    classic way to wedge a client that is not expecting a reply.
+    classic way to wedge a client that is not expecting a reply. `catalog`
+    holds the resources and prompts; without one there are none.
     """
+    catalog = catalog or Catalog()
     if not isinstance(message, dict) or message.get("jsonrpc") != "2.0":
         return error(None, INVALID_REQUEST, "not a JSON-RPC 2.0 message")
     method = message.get("method")
@@ -1181,15 +1256,22 @@ def handle(message: dict, tools: dict[str, Tool]) -> dict | None:
     if method == "initialize":
         return result(id_, {
             "protocolVersion": PROTOCOL_VERSION,
-            "capabilities": {"tools": {"listChanged": False}},
+            "capabilities": {"tools": {"listChanged": False},
+                             "resources": {"subscribe": False, "listChanged": False},
+                             "prompts": {"listChanged": False}},
             "serverInfo": SERVER_INFO,
             "instructions": (
                 "This is one person's CRM: a folder of Markdown files in git. "
                 "Start with list_pipeline; it is the cheap summary and usually "
                 "enough. Use search_companies to turn a name into a slug, and "
-                "show_company for one account. The add_* tools each write a file "
-                "and make a git commit, so only call them when the user has asked "
-                "for a record to be created or logged. To change Hermit itself "
+                "show_company for one account. search finds a word anywhere, "
+                "list_tasks is the to-do list, and the prompts (morning_review, "
+                "prep_meeting, log_call, weekly_review) say which tools a common job "
+                "takes. The add_*, update_*, move_stage, task and outreach tools each "
+                "write a file and make one git commit that undo reverses, so only "
+                "call them when the user has asked for the change; marking a draft "
+                "ready, scheduling and sending stay with the user in the web app. "
+                "To change Hermit itself "
                 "(fields, dashboards, layout, routines, templates, the look, many "
                 "records at once), call adjust_help first and follow it: every write "
                 "is one commit that undo reverses, a bulk change needs bulk_preview "
@@ -1205,6 +1287,27 @@ def handle(message: dict, tools: dict[str, Tool]) -> dict | None:
 
     if method == "tools/list":
         return result(id_, {"tools": [t.spec() for t in tools.values()]})
+
+    if method == "resources/list":
+        return result(id_, {"resources": [r.spec() for r in catalog.resources]})
+
+    if method == "resources/templates/list":
+        return result(id_, {"resourceTemplates": [t.spec() for t in catalog.templates]})
+
+    if method == "resources/read":
+        uri = params.get("uri")
+        if not isinstance(uri, str) or not uri:
+            return error(id_, INVALID_PARAMS, "uri is required")
+        body, mime = read_resource(catalog, uri)
+        if body is None:
+            return error(id_, RESOURCE_NOT_FOUND, "Resource not found", {"uri": uri})
+        return result(id_, {"contents": [{"uri": uri, "mimeType": mime, "text": body}]})
+
+    if method == "prompts/list":
+        return result(id_, {"prompts": [p.spec() for p in catalog.prompts]})
+
+    if method == "prompts/get":
+        return get_prompt(id_, catalog, params)
 
     if method == "tools/call":
         name = params.get("name")
@@ -1222,6 +1325,34 @@ def handle(message: dict, tools: dict[str, Tool]) -> dict | None:
             return result(id_, tool_result(describe(exc), failed=True))
 
     return error(id_, METHOD_NOT_FOUND, f"unknown method {method!r}")
+
+
+def read_resource(catalog: Catalog, uri: str) -> tuple[str | None, str]:
+    """(text, mimeType) of one resource, or (None, "") when there is none."""
+    for r in catalog.resources:
+        if r.uri == uri:
+            return r.read(), r.mime_type
+    for t in catalog.templates:
+        body = t.read(uri)
+        if body is not None:
+            return body, t.mime_type
+    return None, ""
+
+
+def get_prompt(id_, catalog: Catalog, params: dict) -> dict:
+    name = params.get("name")
+    prompt = next((p for p in catalog.prompts if p.name == name), None)
+    if prompt is None:
+        return error(id_, INVALID_PARAMS, f"unknown prompt {name!r}")
+    given = params.get("arguments") or {}
+    if not isinstance(given, dict) or not all(isinstance(v, str) for v in given.values()):
+        return error(id_, INVALID_PARAMS, "arguments must be an object of strings")
+    missing = [a["name"] for a in prompt.arguments
+               if a.get("required") and not given.get(a["name"], "").strip()]
+    if missing:
+        return error(id_, INVALID_PARAMS, f"missing required argument: {', '.join(missing)}")
+    return result(id_, {"description": prompt.description, "messages": [
+        {"role": "user", "content": {"type": "text", "text": prompt.render(given)}}]})
 
 
 def clip(value: str, limit: int = 220) -> str:
@@ -1267,6 +1398,7 @@ def serve(root: Path, store, stdin=None, stdout=None) -> int:
     stdout = stdout or sys.stdout
     keep_stdout_clean()
     tools = {t.name: t for t in build_tools(Path(root), store)}
+    catalog = build_catalog(Path(root), store)
 
     for line in stdin:
         line = line.strip()
@@ -1278,7 +1410,7 @@ def serve(root: Path, store, stdin=None, stdout=None) -> int:
             write(stdout, error(None, PARSE_ERROR, "invalid JSON"))
             continue
         try:
-            response = handle(message, tools)
+            response = handle(message, tools, catalog)
         except Exception as exc:  # never let one bad message kill the server
             response = error(message.get("id") if isinstance(message, dict) else None,
                              INTERNAL_ERROR, describe(exc))
