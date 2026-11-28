@@ -58,8 +58,11 @@ The groups, in this order:
    [Autopilot](/help/settings#autopilot) wrote (nothing is sent: *Review the
    draft*, send it yourself, then click *I sent it*), and Autopilot's next-step
    proposals (*Approve* adds the task, *Edit* lets you change it first,
-   *Discard* drops it). When Autopilot could not run, a row here says
-   why.
+   *Discard* drops it), and the
+   [after-contact suggestions](/help/settings#after-contact-suggestions) made
+   from what you just logged (a next step, a stage move, a fact or a note;
+   the company page shows the same ones). When Autopilot could not run, a row
+   here says why.
 5. **Due today**: open tasks due today.
 6. **Waiting on them**: messages of yours nobody answered (the radar's nudges).
 7. **Keep in touch**: people outside an open deal you have not spoken to in

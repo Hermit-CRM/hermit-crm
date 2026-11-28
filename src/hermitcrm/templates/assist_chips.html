@@ -1,0 +1,36 @@
+{#- Suggestions waiting for this company (on a contact page: for this person),
+   from the after-contact assistant and autopilot (assist.py, autopilot.py).
+   Included once by company.html and contact.html; expects `company`, and
+   `contact` on a contact page. Accept writes one with the normal store call
+   (one commit); Dismiss drops it; Edit opens autopilot's proposal page.
+   Nothing shows when nothing waits. Reuses Today's row styles (today.css). -#}
+{%- set cslug = contact.slug if contact is defined and contact else '' %}
+{%- set waiting = after_contact.chips(company.slug, cslug) %}
+{%- if waiting %}
+<section id="suggestions" class="today assist-chips" aria-labelledby="suggestions-title">
+  <h3 class="today-group" id="suggestions-title">Suggested from your last contact <span class="today-count">{{ waiting | length }}</span></h3>
+  <ol class="today-list">
+    {% for p in waiting %}
+    <li class="today-row today-prepared" id="suggestion-{{ p.id }}">
+      <span class="today-who">{{ p.label }}</span>
+      <span class="today-what">{{ p.text }}{% if p.has_due and p.due %}, due {{ fmt_date(p.due) }}{% endif %}</span>
+      {% if p.why %}<span class="today-why">{{ p.why }}</span>{% endif %}
+      <span class="today-actions">
+        <form method="post" action="/assist/proposals/{{ p.id }}/accept" class="inline" data-live>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="back" value="{{ request.url.path }}">
+          <button type="submit">Accept</button>
+        </form>
+        <a class="today-act" href="/autopilot/proposals/{{ p.id }}?back={{ request.url.path | urlencode }}">Edit</a>
+        <form method="post" action="/assist/proposals/{{ p.id }}/dismiss" class="inline" data-live>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="back" value="{{ request.url.path }}">
+          <button type="submit" class="secondary">Dismiss</button>
+        </form>
+      </span>
+    </li>
+    {% endfor %}
+  </ol>
+  <p class="small">Nothing here is saved until you accept it. <a href="/help/settings#after-contact-suggestions">How suggestions are made</a></p>
+</section>
+{%- endif %}

@@ -20,7 +20,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from .. import autopilot
+from .. import assist, autopilot
 from ..models import ValidationError
 from ._ctx import ctx
 
@@ -118,3 +118,54 @@ def proposal_discard(request: Request, proposal_id: str, csrf_token: str = Form(
     proposal, kind, company = _proposal_or_404(c, proposal_id)
     autopilot.remove_proposal(c.store, proposal_id, discarded=True)
     return _flashed(_back(back), f"{kind.label} for {company.name} discarded")
+
+
+# ------------------------------------------------------- after-contact
+# The switch (Settings, After-contact suggestions) and the chips on the company
+# and contact pages (templates/assist_chips.html): Accept writes the proposal
+# with the normal store call, Dismiss drops it. A chip on a page left open can
+# be gone already; that is a message on the page, not a 404.
+
+
+@router.post("/settings/after-contact")
+def settings_after_contact(request: Request, csrf_token: str = Form(""),
+                           on: str = Form("")):
+    """Turning it on is the consent: from the next interaction logged."""
+    c = ctx(request)
+    c.check_csrf(csrf_token)
+    assist.save_settings(c.root, bool(on))
+    from ..setup import commit_config
+
+    commit_config(c.root, c.store.notify)   # the next page reads config.toml again
+    message = ("After-contact suggestions on: from the next interaction you log"
+               if on else "After-contact suggestions off: logging makes no AI call")
+    return _flashed("/settings", message, anchor="after-contact")
+
+
+@router.post("/assist/proposals/{proposal_id}/accept")
+def assist_accept(request: Request, proposal_id: str, csrf_token: str = Form(""),
+                  back: str = Form("")):
+    c = ctx(request)
+    c.check_csrf(csrf_token)
+    back = _back(back)
+    try:
+        message = autopilot.approve_proposal(c.store, proposal_id)
+    except KeyError:
+        return _flashed(back, "That suggestion is gone: accepted or dismissed already",
+                        anchor="suggestions")
+    except ValidationError as exc:
+        return _flashed(back, "Not accepted: " + "; ".join(exc.errors.values()),
+                        anchor="suggestions")
+    return _flashed(back, message, anchor="suggestions")
+
+
+@router.post("/assist/proposals/{proposal_id}/dismiss")
+def assist_dismiss(request: Request, proposal_id: str, csrf_token: str = Form(""),
+                   back: str = Form("")):
+    c = ctx(request)
+    c.check_csrf(csrf_token)
+    back = _back(back)
+    gone = autopilot.remove_proposal(c.store, proposal_id, discarded=True)
+    message = "Suggestion dismissed" if gone is not None else \
+        "That suggestion is gone: accepted or dismissed already"
+    return _flashed(back, message, anchor="suggestions")
