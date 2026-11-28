@@ -8,6 +8,11 @@ Related: [Settings](/help/settings), [Data format](/help/data-format), [Backups 
 
 ## Unreleased
 
+- **Search finds everything.** The search box at the top used to find only
+  companies. It now opens a results page with companies, people, the text of
+  every logged message (with the words marked), tasks, help pages and the app's
+  pages, eight of each with **Show all** for the rest. Every word you type must
+  appear. No data change. See [Search](/help/search).
 - **Save a contact to your phone with its camera.** Press **Save to phone** on a
   contact page, point your phone at the code and tap to add the person: name,
   company, title, phone, email and LinkedIn, never your notes. No sync, no

@@ -6,7 +6,9 @@
 
 Columns: name, country, stage, source, any field of your own that asked for
 this table, tags, last touch, next step, due, plus website and LinkedIn links. The search box in the
-nav matches company name, tags, contact names and contact emails. Each column
+top bar searches everything (see [Search](/help/search)); a link to
+`/companies?q=...` still narrows this table to the companies whose name, tags,
+contact names or contact emails match. Each column
 has a filter control (see the `?` next to Filter for the syntax) and sort
 arrows. Parked companies (by default the temp-disqualified ones) are hidden
 until you click "Show temp disqualified (N)" or filter on that stage; the link

@@ -70,7 +70,7 @@
 (function () { var a = document.querySelector('nav.sidebar a.active');
   if (a && a.scrollIntoView && matchMedia('(max-width: 760px)').matches) a.scrollIntoView({ inline: 'center', block: 'nearest' }); })();</script>
 <header class="topbar">
-  <form class="search" action="/companies" role="search" data-tour="search">
+  <form class="search" action="/search" role="search" data-tour="search">
     {{ icon('search') }}<input name="q" value="{{ q }}" placeholder="Search companies, tags, contacts" aria-label="Search">
   </form>
   {#- One button, two tabs: Ask (read) and Adjust (change, by the user's own

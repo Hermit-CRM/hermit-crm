@@ -35,7 +35,7 @@ HERE = Path(__file__).resolve().parent
 TOPICS = [
     "index", "pipeline", "calendar", "tasks", "companies", "contacts", "interactions",
     "messages", "playbook", "outreach", "sending", "learning", "reports", "adjust", "settings", "import", "extension", "enrich", "ask",
-    "merge", "cli", "backups", "data-format", "ai-agents", "feedback", "disclaimer", "changelog",
+    "merge", "search", "cli", "backups", "data-format", "ai-agents", "feedback", "disclaimer", "changelog",
     # Make it yours: one recipe per kind of change, read by the user's own agent
     # after `adjust` (the rules).
     "adjust-fields", "adjust-look", "adjust-messages", "adjust-connect", "adjust-feature",
@@ -124,7 +124,7 @@ def topic_for(path: str) -> str:
     if head == "d":  # a dashboard: how they are made
         return "adjust-dashboards"
     if head in ("calendar", "tasks", "messages", "reports", "import", "extension",
-                "contacts", "outreach"):
+                "contacts", "outreach", "search"):
         return head
     if head == "companies":
         tail = parts[-1]
